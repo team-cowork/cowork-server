@@ -28,3 +28,10 @@ out/
 PR_BODY.md
 .pr-tmp/
 /.claude/command.log
+
+### Gradle ###
+.gradle
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
