@@ -28,6 +28,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
+    implementation(libs.springdoc.openapi.webmvc.ui)
     runtimeOnly(libs.mysql.connector.j)
 
     testImplementation(libs.spring.boot.starter.test)

@@ -2,6 +2,7 @@
 spring-boot = "3.5.4"
 spring-dependency-management = "1.1.7"
 kotlin = "1.9.25"
+springdoc = "2.8.9"
 mockk = "1.14.5"
 
 [libraries]
@@ -15,6 +16,7 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 mysql-connector-j = { module = "com.mysql:mysql-connector-j" }
 flyway-core = { module = "org.flywaydb:flyway-core" }
 flyway-mysql = { module = "org.flywaydb:flyway-mysql" }
+springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
 [plugins]
