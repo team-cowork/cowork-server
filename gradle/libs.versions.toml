@@ -2,6 +2,7 @@
 spring-boot = "3.5.4"
 spring-dependency-management = "1.1.7"
 kotlin = "1.9.25"
+jjwt = "0.12.6"
 springdoc = "2.8.9"
 mockk = "1.14.5"
 
@@ -9,6 +10,7 @@ mockk = "1.14.5"
 spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
 spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 jackson-module-kotlin = { module = "com.fasterxml.jackson.module:jackson-module-kotlin" }
@@ -16,6 +18,9 @@ kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 mysql-connector-j = { module = "com.mysql:mysql-connector-j" }
 flyway-core = { module = "org.flywaydb:flyway-core" }
 flyway-mysql = { module = "org.flywaydb:flyway-mysql" }
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
