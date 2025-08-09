@@ -29,4 +29,10 @@ class AuthController(
     @PostMapping("/refresh")
     fun refresh(@RequestBody request: RefreshTokenRequest): TokenResponse =
         authService.refresh(request.refreshToken)
+
+    @PostMapping("/signout")
+    fun signOut(
+        @CurrentUser user: AuthUser,
+        @RequestBody request: RefreshTokenRequest,
+    ) = authService.signOut(user.id, request.refreshToken)
 }

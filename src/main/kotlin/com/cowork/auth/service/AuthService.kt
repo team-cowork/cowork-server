@@ -52,6 +52,16 @@ class AuthService(
         return issueTokens(user, refreshToken.deviceInfo)
     }
 
+    @Transactional
+    fun signOut(userId: Long, rawRefreshToken: String) {
+        val refreshToken = refreshTokenRepository.findByTokenHash(TokenHasher.hash(rawRefreshToken))
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "리프레시 토큰을 찾을 수 없습니다.")
+        if (refreshToken.userId != userId) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "본인의 토큰만 만료할 수 있습니다.")
+        }
+        refreshTokenRepository.delete(refreshToken)
+    }
+
     private fun issueTokens(user: User, deviceInfo: String?): TokenResponse {
         val rawRefreshToken = TokenHasher.generate()
         refreshTokenRepository.save(
