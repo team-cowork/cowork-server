@@ -52,3 +52,7 @@ cowork:
     secret: ${JWT_SECRET:local-development-secret-key-must-be-at-least-32-bytes}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:30m}
     refresh-token-ttl: ${JWT_REFRESH_TOKEN_TTL:14d}
+  datagsm:
+    client-id: ${DATAGSM_CLIENT_ID:}
+    token-url: ${DATAGSM_TOKEN_URL:}
+    user-info-url: ${DATAGSM_USERINFO_URL:}
