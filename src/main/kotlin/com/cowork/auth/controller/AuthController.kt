@@ -25,4 +25,8 @@ class AuthController(
         @RequestBody request: TokenRequest,
         @RequestHeader(HttpHeaders.USER_AGENT, required = false) userAgent: String?,
     ): TokenResponse = authService.login(request.code, request.codeVerifier, request.redirectUri, userAgent)
+
+    @PostMapping("/refresh")
+    fun refresh(@RequestBody request: RefreshTokenRequest): TokenResponse =
+        authService.refresh(request.refreshToken)
 }

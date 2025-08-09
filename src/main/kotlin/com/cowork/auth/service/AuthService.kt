@@ -38,6 +38,20 @@ class AuthService(
         return issueTokens(user, deviceInfo)
     }
 
+    @Transactional
+    fun refresh(rawRefreshToken: String): TokenResponse {
+        val refreshToken = refreshTokenRepository.findByTokenHash(TokenHasher.hash(rawRefreshToken))
+            ?: throw BusinessException(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다.")
+        refreshTokenRepository.delete(refreshToken)
+
+        if (refreshToken.isExpired(LocalDateTime.now(clock))) {
+            throw BusinessException(HttpStatus.UNAUTHORIZED, "만료된 리프레시 토큰입니다.")
+        }
+        val user = userRepository.findByIdOrNull(refreshToken.userId)
+            ?: throw BusinessException(HttpStatus.UNAUTHORIZED, "사용자를 찾을 수 없습니다.")
+        return issueTokens(user, refreshToken.deviceInfo)
+    }
+
     private fun issueTokens(user: User, deviceInfo: String?): TokenResponse {
         val rawRefreshToken = TokenHasher.generate()
         refreshTokenRepository.save(
