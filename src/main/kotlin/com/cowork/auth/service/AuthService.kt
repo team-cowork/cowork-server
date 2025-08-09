@@ -1,0 +1,76 @@
+package com.cowork.auth.service
+
+import com.cowork.auth.client.DataGsmClient
+import com.cowork.auth.client.DataGsmUserInfo
+import com.cowork.auth.domain.RefreshToken
+import com.cowork.auth.dto.TokenResponse
+import com.cowork.auth.repository.RefreshTokenRepository
+import com.cowork.global.error.BusinessException
+import com.cowork.global.security.JwtProperties
+import com.cowork.global.security.JwtTokenProvider
+import com.cowork.user.domain.User
+import com.cowork.user.dto.StudentProfile
+import com.cowork.user.repository.UserRepository
+import com.cowork.user.service.UserService
+import org.springframework.data.repository.findByIdOrNull
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
+import java.time.LocalDateTime
+
+@Service
+class AuthService(
+    private val dataGsmClient: DataGsmClient,
+    private val userService: UserService,
+    private val userRepository: UserRepository,
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val jwtTokenProvider: JwtTokenProvider,
+    private val jwtProperties: JwtProperties,
+    private val clock: Clock,
+) {
+
+    @Transactional
+    fun login(code: String, codeVerifier: String, redirectUri: String, deviceInfo: String?): TokenResponse {
+        val accessToken = dataGsmClient.exchangeCode(code, codeVerifier, redirectUri)
+        val userInfo = dataGsmClient.fetchUserInfo(accessToken)
+        val user = userService.upsertStudent(toStudentProfile(userInfo))
+        return issueTokens(user, deviceInfo)
+    }
+
+    private fun issueTokens(user: User, deviceInfo: String?): TokenResponse {
+        val rawRefreshToken = TokenHasher.generate()
+        refreshTokenRepository.save(
+            RefreshToken(
+                userId = user.id,
+                tokenHash = TokenHasher.hash(rawRefreshToken),
+                expiresAt = LocalDateTime.now(clock).plus(jwtProperties.refreshTokenTtl),
+                deviceInfo = deviceInfo?.take(255),
+            ),
+        )
+        return TokenResponse(
+            accessToken = jwtTokenProvider.createAccessToken(user.id, user.role),
+            refreshToken = rawRefreshToken,
+            expiresIn = jwtTokenProvider.accessTokenTtlSeconds,
+        )
+    }
+
+    private fun toStudentProfile(userInfo: DataGsmUserInfo): StudentProfile {
+        val student = userInfo.student
+        if (!userInfo.isStudent || student == null) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "학생 계정만 로그인할 수 있습니다.")
+        }
+        return StudentProfile(
+            dataGsmId = userInfo.id,
+            name = student.name,
+            email = userInfo.email,
+            sex = student.sex,
+            grade = student.grade,
+            classNum = student.classNum,
+            studentNumber = student.number,
+            major = student.major,
+            studentRole = student.role,
+            githubId = student.githubId,
+        )
+    }
+}
