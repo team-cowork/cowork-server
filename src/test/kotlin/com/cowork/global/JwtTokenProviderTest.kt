@@ -59,4 +59,11 @@ class JwtTokenProviderTest {
 
         assertNull(provider.parseAccessToken(token))
     }
+
+    @Test
+    fun `액세스 토큰 만료 시간을 초 단위로 반환한다`() {
+        val custom = JwtTokenProvider(JwtProperties(secret = secret, accessTokenTtl = Duration.ofMinutes(15)))
+
+        assertEquals(900, custom.accessTokenTtlSeconds)
+    }
 }
