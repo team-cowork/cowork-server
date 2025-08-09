@@ -90,9 +90,9 @@ class User(
     }
 
     fun updateProfile(nickname: String?, description: String?, specialty: String?) {
-        nickname?.let { this.nickname = it }
-        description?.let { this.description = it }
-        specialty?.let { this.specialty = it }
+        nickname?.let { this.nickname = it.ifBlank { null } }
+        description?.let { this.description = it.ifBlank { null } }
+        specialty?.let { this.specialty = it.ifBlank { null } }
     }
 
     fun changeProfileImage(objectKey: String?) {
