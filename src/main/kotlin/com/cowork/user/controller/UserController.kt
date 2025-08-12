@@ -26,4 +26,7 @@ class UserController(
         @CurrentUser user: AuthUser,
         @RequestBody request: UpdateProfileRequest,
     ): UserResponse = userService.updateProfile(user.id, request)
+
+    @GetMapping("/{userId}")
+    fun getUser(@PathVariable userId: Long): UserResponse = userService.getUser(userId)
 }
