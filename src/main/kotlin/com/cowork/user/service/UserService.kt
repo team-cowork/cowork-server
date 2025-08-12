@@ -52,6 +52,9 @@ class UserService(
     @Transactional(readOnly = true)
     fun getUser(userId: Long): UserResponse = toResponse(findUser(userId))
 
+    @Transactional(readOnly = true)
+    fun exists(userId: Long): Boolean = userRepository.existsById(userId)
+
     @Transactional
     fun updateProfile(userId: Long, request: UpdateProfileRequest): UserResponse {
         val user = findUser(userId)
