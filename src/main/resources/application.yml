@@ -44,3 +44,13 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
   default-produces-media-type: application/json
+
+cowork:
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:}
+    region: ${STORAGE_REGION:ap-northeast-2}
+    bucket: ${STORAGE_BUCKET:cowork}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
