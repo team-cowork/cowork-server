@@ -20,4 +20,10 @@ class UserController(
 
     @GetMapping("/me")
     fun getMe(@CurrentUser user: AuthUser): UserResponse = userService.getUser(user.id)
+
+    @PatchMapping("/me")
+    fun updateMe(
+        @CurrentUser user: AuthUser,
+        @RequestBody request: UpdateProfileRequest,
+    ): UserResponse = userService.updateProfile(user.id, request)
 }

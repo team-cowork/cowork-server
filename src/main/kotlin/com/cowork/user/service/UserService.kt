@@ -52,6 +52,13 @@ class UserService(
     @Transactional(readOnly = true)
     fun getUser(userId: Long): UserResponse = toResponse(findUser(userId))
 
+    @Transactional
+    fun updateProfile(userId: Long, request: UpdateProfileRequest): UserResponse {
+        val user = findUser(userId)
+        user.updateProfile(request.nickname, request.description, request.specialty)
+        return toResponse(user)
+    }
+
     private fun findUser(userId: Long): User =
         userRepository.findByIdOrNull(userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.")
