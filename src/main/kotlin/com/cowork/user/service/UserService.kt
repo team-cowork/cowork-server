@@ -61,6 +61,11 @@ class UserService(
             .map { UserSummaryResponse.of(it, profileImageUrl(it)) }
 
     @Transactional(readOnly = true)
+    fun getSummaries(userIds: Collection<Long>): Map<Long, UserSummaryResponse> =
+        userRepository.findAllById(userIds.toSet())
+            .associate { it.id to UserSummaryResponse.of(it, profileImageUrl(it)) }
+
+    @Transactional(readOnly = true)
     fun exists(userId: Long): Boolean = userRepository.existsById(userId)
 
     @Transactional
