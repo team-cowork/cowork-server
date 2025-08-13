@@ -1,6 +1,9 @@
 package com.cowork.user.service
 
 import com.cowork.global.error.BusinessException
+import com.cowork.global.storage.ImageUploadPolicy
+import com.cowork.global.storage.PresignedUploadRequest
+import com.cowork.global.storage.PresignedUploadResponse
 import com.cowork.global.storage.StorageService
 import com.cowork.user.domain.User
 import com.cowork.user.dto.StudentProfile
@@ -14,6 +17,7 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class UserService(
@@ -75,6 +79,12 @@ class UserService(
         return toResponse(user)
     }
 
+    fun createProfileImageUploadUrl(userId: Long, request: PresignedUploadRequest): PresignedUploadResponse {
+        ImageUploadPolicy.validateSize(request.fileSize)
+        val extension = ImageUploadPolicy.extensionOf(request.contentType)
+        val objectKey = "profiles/$userId/${UUID.randomUUID()}.$extension"
+        return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
+    }
     private fun findUser(userId: Long): User =
         userRepository.findByIdOrNull(userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.")

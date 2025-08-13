@@ -2,6 +2,9 @@ package com.cowork.user.controller
 
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import com.cowork.global.storage.PresignedUploadRequest
+import com.cowork.global.storage.PresignedUploadResponse
+import com.cowork.user.dto.ConfirmProfileImageRequest
 import com.cowork.user.dto.UpdateProfileRequest
 import com.cowork.user.dto.UserResponse
 import com.cowork.user.dto.UserSummaryResponse
@@ -12,12 +15,16 @@ import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "사용자")
@@ -38,6 +45,12 @@ class UserController(
         @Valid @RequestBody request: UpdateProfileRequest,
     ): UserResponse = userService.updateProfile(user.id, request)
 
+    @Operation(summary = "프로필 이미지 업로드 URL 발급")
+    @PostMapping("/me/profile-image/presigned")
+    fun createProfileImageUploadUrl(
+        @CurrentUser user: AuthUser,
+        @Valid @RequestBody request: PresignedUploadRequest,
+    ): PresignedUploadResponse = userService.createProfileImageUploadUrl(user.id, request)
     @Operation(summary = "사용자 검색")
     @GetMapping("/search")
     fun search(
