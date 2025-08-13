@@ -7,6 +7,7 @@ import com.cowork.user.dto.UserResponse
 import com.cowork.user.service.UserService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -29,7 +30,7 @@ class UserController(
     @PatchMapping("/me")
     fun updateMe(
         @CurrentUser user: AuthUser,
-        @RequestBody request: UpdateProfileRequest,
+        @Valid @RequestBody request: UpdateProfileRequest,
     ): UserResponse = userService.updateProfile(user.id, request)
 
     @Operation(summary = "사용자 조회")
