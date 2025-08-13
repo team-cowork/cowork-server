@@ -58,6 +58,12 @@ class UserController(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: ConfirmProfileImageRequest,
     ): UserResponse = userService.confirmProfileImage(user.id, request.objectKey)
+
+    @Operation(summary = "프로필 이미지 삭제")
+    @DeleteMapping("/me/profile-image")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteProfileImage(@CurrentUser user: AuthUser) = userService.deleteProfileImage(user.id)
+
     @Operation(summary = "사용자 검색")
     @GetMapping("/search")
     fun search(

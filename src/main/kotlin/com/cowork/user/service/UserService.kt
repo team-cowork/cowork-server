@@ -101,6 +101,16 @@ class UserService(
         previousKey?.let(storageService::delete)
         return toResponse(user)
     }
+
+    @Transactional
+    fun deleteProfileImage(userId: Long) {
+        val user = findUser(userId)
+        val key = user.profileImageKey
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "프로필 이미지가 없습니다.")
+        user.changeProfileImage(null)
+        storageService.delete(key)
+    }
+
     private fun findUser(userId: Long): User =
         userRepository.findByIdOrNull(userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.")
