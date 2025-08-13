@@ -85,6 +85,22 @@ class UserService(
         val objectKey = "profiles/$userId/${UUID.randomUUID()}.$extension"
         return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
     }
+
+    @Transactional
+    fun confirmProfileImage(userId: Long, objectKey: String): UserResponse {
+        if (!objectKey.startsWith("profiles/$userId/")) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "유효하지 않은 이미지 키입니다.")
+        }
+        val size = storageService.findObjectSize(objectKey)
+            ?: throw BusinessException(HttpStatus.CONFLICT, "이미지가 아직 업로드되지 않았습니다.")
+        ImageUploadPolicy.validateSize(size)
+
+        val user = findUser(userId)
+        val previousKey = user.profileImageKey
+        user.changeProfileImage(objectKey)
+        previousKey?.let(storageService::delete)
+        return toResponse(user)
+    }
     private fun findUser(userId: Long): User =
         userRepository.findByIdOrNull(userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.")

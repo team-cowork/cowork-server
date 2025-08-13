@@ -51,6 +51,13 @@ class UserController(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: PresignedUploadRequest,
     ): PresignedUploadResponse = userService.createProfileImageUploadUrl(user.id, request)
+
+    @Operation(summary = "프로필 이미지 업로드 확정")
+    @PostMapping("/me/profile-image/confirm")
+    fun confirmProfileImage(
+        @CurrentUser user: AuthUser,
+        @Valid @RequestBody request: ConfirmProfileImageRequest,
+    ): UserResponse = userService.confirmProfileImage(user.id, request.objectKey)
     @Operation(summary = "사용자 검색")
     @GetMapping("/search")
     fun search(
