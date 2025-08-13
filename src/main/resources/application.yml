@@ -56,3 +56,11 @@ cowork:
     client-id: ${DATAGSM_CLIENT_ID:}
     token-url: ${DATAGSM_TOKEN_URL:}
     user-info-url: ${DATAGSM_USERINFO_URL:}
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${STORAGE_PUBLIC_ENDPOINT:}
+    region: ${STORAGE_REGION:ap-northeast-2}
+    bucket: ${STORAGE_BUCKET:cowork}
+    access-key: ${STORAGE_ACCESS_KEY:minioadmin}
+    secret-key: ${STORAGE_SECRET_KEY:minioadmin}
+    path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
