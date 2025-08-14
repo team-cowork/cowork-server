@@ -30,4 +30,15 @@ class UserTest {
 
         assertNull(user.nickname)
     }
+
+    @Test
+    fun `학생 정보를 동기화하면 학적 정보를 모두 덮어쓴다`() {
+        val user = user()
+
+        user.syncStudentInfo("김철수", "b@gsm.hs.kr", "WOMAN", 3, 2, 3201, "FRONTEND", "LEADER", "kim")
+
+        assertEquals("김철수", user.name)
+        assertEquals(3201, user.studentNumber)
+        assertEquals("kim", user.githubId)
+    }
 }
