@@ -135,4 +135,26 @@ class UserServiceTest {
 
         assertEquals(HttpStatus.CONFLICT, exception.status)
     }
+
+    @Test
+    fun `새 이미지를 확정하면 이전 이미지를 삭제한다`() {
+        val existing = user()
+        existing.changeProfileImage("profiles/1/old.png")
+        every { storageService.findObjectSize("profiles/1/new.png") } returns 2048
+        every { userRepository.findById(1) } returns Optional.of(existing)
+
+        service.confirmProfileImage(1, "profiles/1/new.png")
+
+        assertEquals("profiles/1/new.png", existing.profileImageKey)
+        verify { storageService.delete("profiles/1/old.png") }
+    }
+
+    @Test
+    fun `프로필 이미지가 없으면 삭제할 수 없다`() {
+        every { userRepository.findById(1) } returns Optional.of(user())
+
+        val exception = assertThrows<BusinessException> { service.deleteProfileImage(1) }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
 }
