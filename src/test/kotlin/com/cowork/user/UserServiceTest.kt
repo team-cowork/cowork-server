@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
 import java.util.Optional
 
@@ -82,5 +84,26 @@ class UserServiceTest {
 
         assertNull(response.nickname)
         assertEquals("소개", response.description)
+    }
+
+    @Test
+    fun `공백 키워드는 조건 없이 검색한다`() {
+        val pageable = PageRequest.of(0, 20)
+        every { userRepository.search(null, null, null, pageable) } returns PageImpl(listOf(user()))
+
+        val page = service.search("   ", null, null, pageable)
+
+        assertEquals(1, page.totalElements)
+        verify { userRepository.search(null, null, null, pageable) }
+    }
+
+    @Test
+    fun `검색 키워드의 앞뒤 공백을 제거한다`() {
+        val pageable = PageRequest.of(0, 20)
+        every { userRepository.search(any(), any(), any(), any()) } returns PageImpl(emptyList())
+
+        service.search("  길동 ", "BACKEND", 2, pageable)
+
+        verify { userRepository.search("길동", "BACKEND", 2, pageable) }
     }
 }
