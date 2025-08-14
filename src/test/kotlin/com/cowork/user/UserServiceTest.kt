@@ -1,6 +1,7 @@
 package com.cowork.user
 
 import com.cowork.global.error.BusinessException
+import com.cowork.global.storage.PresignedUploadRequest
 import com.cowork.global.storage.StorageService
 import com.cowork.user.domain.User
 import com.cowork.user.dto.StudentProfile
@@ -13,6 +14,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.data.domain.PageImpl
@@ -105,5 +107,32 @@ class UserServiceTest {
         service.search("  길동 ", "BACKEND", 2, pageable)
 
         verify { userRepository.search("길동", "BACKEND", 2, pageable) }
+    }
+
+    @Test
+    fun `프로필 이미지 업로드 URL은 사용자 경로 아래에 만든다`() {
+        every { storageService.createUploadUrl(any(), "image/png") } returns "https://upload"
+
+        val response = service.createProfileImageUploadUrl(1, PresignedUploadRequest("image/png", 1024))
+
+        assertTrue(response.objectKey.startsWith("profiles/1/"))
+        assertTrue(response.objectKey.endsWith(".png"))
+        assertEquals("https://upload", response.uploadUrl)
+    }
+
+    @Test
+    fun `다른 사용자 경로의 이미지 키는 확정할 수 없다`() {
+        val exception = assertThrows<BusinessException> { service.confirmProfileImage(1, "profiles/2/a.png") }
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.status)
+    }
+
+    @Test
+    fun `업로드되지 않은 이미지는 확정할 수 없다`() {
+        every { storageService.findObjectSize("profiles/1/a.png") } returns null
+
+        val exception = assertThrows<BusinessException> { service.confirmProfileImage(1, "profiles/1/a.png") }
+
+        assertEquals(HttpStatus.CONFLICT, exception.status)
     }
 }
