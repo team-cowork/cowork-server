@@ -1,8 +1,10 @@
 package com.cowork.user
 
+import com.cowork.global.error.BusinessException
 import com.cowork.global.storage.StorageService
 import com.cowork.user.domain.User
 import com.cowork.user.dto.StudentProfile
+import com.cowork.user.dto.UpdateProfileRequest
 import com.cowork.user.repository.UserRepository
 import com.cowork.user.service.UserService
 import io.mockk.every
@@ -10,7 +12,11 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.springframework.http.HttpStatus
+import java.util.Optional
 
 class UserServiceTest {
 
@@ -55,5 +61,26 @@ class UserServiceTest {
 
         assertEquals("김철수", existing.name)
         verify(exactly = 0) { userRepository.save(any()) }
+    }
+
+    @Test
+    fun `존재하지 않는 사용자를 조회하면 404를 반환한다`() {
+        every { userRepository.findById(99) } returns Optional.empty()
+
+        val exception = assertThrows<BusinessException> { service.getUser(99) }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `빈 문자열로 수정한 프로필 항목은 비운다`() {
+        val existing = user()
+        existing.updateProfile("길동", "소개", "백엔드")
+        every { userRepository.findById(1) } returns Optional.of(existing)
+
+        val response = service.updateProfile(1, UpdateProfileRequest(nickname = " ", description = null))
+
+        assertNull(response.nickname)
+        assertEquals("소개", response.description)
     }
 }
