@@ -7,8 +7,10 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.validation.BindingResult
 import org.springframework.validation.FieldError
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 
 class GlobalExceptionHandlerTest {
@@ -45,5 +47,25 @@ class GlobalExceptionHandlerTest {
         every { exception.bindingResult } returns bindingResult
 
         assertEquals("요청 값이 올바르지 않습니다.", handler.handleValidation(exception).body?.message)
+    }
+
+    @Test
+    fun `접근 거부는 403으로 응답한다`() {
+        assertEquals(HttpStatus.FORBIDDEN, handler.handleAccessDenied(AccessDeniedException("denied")).statusCode)
+    }
+
+    @Test
+    fun `지원하지 않는 메서드는 405로 응답한다`() {
+        val response = handler.handleMethodNotSupported(HttpRequestMethodNotSupportedException("PUT"))
+
+        assertEquals(HttpStatus.METHOD_NOT_ALLOWED, response.statusCode)
+    }
+
+    @Test
+    fun `예상하지 못한 예외는 내부 메시지를 숨기고 500으로 응답한다`() {
+        val response = handler.handleUnexpected(IllegalStateException("db password"))
+
+        assertEquals(HttpStatus.INTERNAL_SERVER_ERROR, response.statusCode)
+        assertEquals("서버 내부 오류가 발생했습니다.", response.body?.message)
     }
 }
