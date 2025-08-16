@@ -6,7 +6,10 @@ import com.cowork.user.domain.User
 import com.cowork.user.dto.StudentProfile
 import com.cowork.user.dto.UpdateProfileRequest
 import com.cowork.user.dto.UserResponse
+import com.cowork.user.dto.UserSummaryResponse
 import com.cowork.user.repository.UserRepository
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -51,6 +54,16 @@ class UserService(
 
     @Transactional(readOnly = true)
     fun getUser(userId: Long): UserResponse = toResponse(findUser(userId))
+
+    @Transactional(readOnly = true)
+    fun search(keyword: String?, major: String?, grade: Int?, pageable: Pageable): Page<UserSummaryResponse> =
+        userRepository.search(keyword?.trim()?.ifBlank { null }, major, grade, pageable)
+            .map { UserSummaryResponse.of(it, profileImageUrl(it)) }
+
+    @Transactional(readOnly = true)
+    fun getSummaries(userIds: Collection<Long>): Map<Long, UserSummaryResponse> =
+        userRepository.findAllById(userIds.toSet())
+            .associate { it.id to UserSummaryResponse.of(it, profileImageUrl(it)) }
 
     @Transactional(readOnly = true)
     fun exists(userId: Long): Boolean = userRepository.existsById(userId)
