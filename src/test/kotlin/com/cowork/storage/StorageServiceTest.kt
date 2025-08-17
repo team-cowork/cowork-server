@@ -5,11 +5,13 @@ import com.cowork.global.storage.StorageService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
@@ -69,5 +71,17 @@ class StorageServiceTest {
             S3Exception.builder().statusCode(500).build()
 
         assertThrows<S3Exception> { service.findObjectSize("a.png") }
+    }
+
+    @Test
+    fun `삭제 요청에는 버킷과 객체 키를 담는다`() {
+        val request = slot<DeleteObjectRequest>()
+        every { s3Client.deleteObject(capture(request)) } returns mockk()
+
+        service.delete("profiles/1/a.png")
+
+        assertEquals("cowork", request.captured.bucket())
+        assertEquals("profiles/1/a.png", request.captured.key())
+        verify(exactly = 1) { s3Client.deleteObject(any<DeleteObjectRequest>()) }
     }
 }
