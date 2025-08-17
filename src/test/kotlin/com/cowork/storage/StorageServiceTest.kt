@@ -6,8 +6,14 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.model.S3Exception
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest
@@ -40,5 +46,28 @@ class StorageServiceTest {
         assertEquals("https://storage/cowork/a.png", url)
         assertEquals("cowork", request.captured.putObjectRequest().bucket())
         assertEquals(Duration.ofMinutes(5), request.captured.signatureDuration())
+    }
+
+    @Test
+    fun `객체가 있으면 크기를 반환한다`() {
+        every { s3Client.headObject(any<HeadObjectRequest>()) } returns
+            HeadObjectResponse.builder().contentLength(1024).build()
+
+        assertEquals(1024, service.findObjectSize("a.png"))
+    }
+
+    @Test
+    fun `객체가 없으면 null을 반환한다`() {
+        every { s3Client.headObject(any<HeadObjectRequest>()) } throws NoSuchKeyException.builder().build()
+
+        assertNull(service.findObjectSize("a.png"))
+    }
+
+    @Test
+    fun `404가 아닌 S3 오류는 그대로 던진다`() {
+        every { s3Client.headObject(any<HeadObjectRequest>()) } throws
+            S3Exception.builder().statusCode(500).build()
+
+        assertThrows<S3Exception> { service.findObjectSize("a.png") }
     }
 }
