@@ -37,7 +37,7 @@ class Team(
 
     fun update(name: String?, description: String?, visibility: TeamVisibility?) {
         name?.let { this.name = it }
-        description?.let { this.description = it }
+        description?.let { this.description = it.ifBlank { null } }
         visibility?.let { this.visibility = it }
     }
 
