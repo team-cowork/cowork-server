@@ -42,6 +42,12 @@ class TeamService(
         return toResponse(team, TeamMemberRole.OWNER)
     }
 
+    @Transactional
+    fun getMyTeams(userId: Long): List<TeamResponse> =
+        teamRepository.findAllByMemberUserId(userId).map { team ->
+            toResponse(team, teamMemberRepository.findByTeamIdAndUserId(team.id, userId)?.role)
+        }
+
     private fun toResponse(team: Team, myRole: TeamMemberRole?) = TeamResponse.of(
         team = team,
         iconUrl = team.iconKey?.let(storageService::createDownloadUrl),

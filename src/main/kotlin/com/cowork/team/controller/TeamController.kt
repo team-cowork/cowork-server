@@ -27,4 +27,7 @@ class TeamController(
         @CurrentUser user: AuthUser,
         @RequestBody request: CreateTeamRequest,
     ): TeamResponse = teamService.create(user.id, request)
+
+    @GetMapping
+    fun getMyTeams(@CurrentUser user: AuthUser): List<TeamResponse> = teamService.getMyTeams(user.id)
 }
