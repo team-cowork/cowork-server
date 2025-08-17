@@ -30,4 +30,8 @@ class TeamController(
 
     @GetMapping
     fun getMyTeams(@CurrentUser user: AuthUser): List<TeamResponse> = teamService.getMyTeams(user.id)
+
+    @GetMapping("/{teamId}")
+    fun getTeam(@CurrentUser user: AuthUser, @PathVariable teamId: Long): TeamResponse =
+        teamService.getTeam(teamId, user.id)
 }
