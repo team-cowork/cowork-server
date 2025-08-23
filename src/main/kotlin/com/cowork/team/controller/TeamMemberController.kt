@@ -9,6 +9,7 @@ import com.cowork.team.dto.TeamMemberResponse
 import com.cowork.team.service.TeamMemberService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -31,7 +32,7 @@ class TeamMemberController(
     fun addMember(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
-        @RequestBody request: AddTeamMemberRequest,
+        @Valid @RequestBody request: AddTeamMemberRequest,
     ): TeamMemberResponse = teamMemberService.addMember(teamId, user.id, request.userId)
 
     @Operation(summary = "팀 멤버 목록 조회")
@@ -50,7 +51,7 @@ class TeamMemberController(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
-        @RequestBody request: ChangeTeamMemberRoleRequest,
+        @Valid @RequestBody request: ChangeTeamMemberRoleRequest,
     ): TeamMemberResponse = teamMemberService.changeRole(teamId, user.id, targetUserId, request.role)
 
     @Operation(summary = "팀 멤버 내보내기 또는 팀 나가기")

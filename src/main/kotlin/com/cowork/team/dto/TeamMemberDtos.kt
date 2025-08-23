@@ -3,13 +3,16 @@ package com.cowork.team.dto
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamMemberRole
 import com.cowork.user.dto.UserSummaryResponse
+import jakarta.validation.constraints.NotNull
 import java.time.LocalDateTime
 
 data class AddTeamMemberRequest(
+    @field:NotNull
     val userId: Long,
 )
 
 data class ChangeTeamMemberRoleRequest(
+    @field:NotNull
     val role: TeamMemberRole,
 )
 
