@@ -42,13 +42,13 @@ class TeamService(
         return toResponse(team, TeamMemberRole.OWNER)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMyTeams(userId: Long): List<TeamResponse> =
         teamRepository.findAllByMemberUserId(userId).map { team ->
             toResponse(team, teamMemberRepository.findByTeamIdAndUserId(team.id, userId)?.role)
         }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getTeam(teamId: Long, userId: Long): TeamResponse {
         val team = findTeam(teamId)
         val member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
