@@ -41,4 +41,7 @@ class TeamController(
         @PathVariable teamId: Long,
         @RequestBody request: UpdateTeamRequest,
     ): TeamResponse = teamService.update(teamId, user.id, request)
+
+    @DeleteMapping("/{teamId}")
+    fun delete(@CurrentUser user: AuthUser, @PathVariable teamId: Long) = teamService.delete(teamId, user.id)
 }

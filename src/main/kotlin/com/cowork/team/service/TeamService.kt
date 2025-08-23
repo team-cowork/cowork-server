@@ -66,6 +66,17 @@ class TeamService(
         return toResponse(team, member.role)
     }
 
+    @Transactional
+    fun delete(teamId: Long, userId: Long) {
+        teamAccessChecker.requireOwner(teamId, userId)
+        val team = findTeam(teamId)
+        val iconKey = team.iconKey
+        teamMemberRepository.deleteAllByTeamId(teamId)
+        teamRepository.delete(team)
+        iconKey?.let(storageService::delete)
+        eventPublisher.publishEvent(TeamDeletedEvent(teamId))
+    }
+
     private fun findTeam(teamId: Long): Team =
         teamRepository.findByIdOrNull(teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")
