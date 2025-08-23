@@ -34,4 +34,11 @@ class TeamController(
     @GetMapping("/{teamId}")
     fun getTeam(@CurrentUser user: AuthUser, @PathVariable teamId: Long): TeamResponse =
         teamService.getTeam(teamId, user.id)
+
+    @PatchMapping("/{teamId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @RequestBody request: UpdateTeamRequest,
+    ): TeamResponse = teamService.update(teamId, user.id, request)
 }

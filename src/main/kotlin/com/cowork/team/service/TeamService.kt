@@ -58,6 +58,14 @@ class TeamService(
         return toResponse(team, member?.role)
     }
 
+    @Transactional
+    fun update(teamId: Long, userId: Long, request: UpdateTeamRequest): TeamResponse {
+        val member = teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_TEAM)
+        val team = findTeam(teamId)
+        team.update(request.name, request.description, request.visibility)
+        return toResponse(team, member.role)
+    }
+
     private fun findTeam(teamId: Long): Team =
         teamRepository.findByIdOrNull(teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")
