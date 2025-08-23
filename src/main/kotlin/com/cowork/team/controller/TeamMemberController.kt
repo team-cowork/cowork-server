@@ -33,4 +33,8 @@ class TeamMemberController(
     @GetMapping
     fun getMembers(@CurrentUser user: AuthUser, @PathVariable teamId: Long): List<TeamMemberResponse> =
         teamMemberService.getMembers(teamId, user.id)
+
+    @GetMapping("/{userId}/exists")
+    fun exists(@PathVariable teamId: Long, @PathVariable userId: Long): TeamMemberExistsResponse =
+        TeamMemberExistsResponse(teamMemberService.isMember(teamId, userId))
 }

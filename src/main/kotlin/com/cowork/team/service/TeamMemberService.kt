@@ -50,4 +50,7 @@ class TeamMemberService(
         val users = userService.getSummaries(members.map { it.userId })
         return members.map { TeamMemberResponse.of(it, users[it.userId]) }
     }
+
+    @Transactional
+    fun isMember(teamId: Long, userId: Long): Boolean = teamAccessChecker.isMember(teamId, userId)
 }
