@@ -104,6 +104,17 @@ class TeamService(
         previousKey?.let(storageService::delete)
         return toResponse(team, member.role)
     }
+
+    @Transactional
+    fun deleteIcon(teamId: Long, userId: Long) {
+        teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_TEAM)
+        val team = findTeam(teamId)
+        val iconKey = team.iconKey
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀 아이콘이 없습니다.")
+        team.changeIcon(null)
+        storageService.delete(iconKey)
+    }
+
     private fun findTeam(teamId: Long): Team =
         teamRepository.findByIdOrNull(teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")

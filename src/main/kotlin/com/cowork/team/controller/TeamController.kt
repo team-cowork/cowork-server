@@ -74,4 +74,9 @@ class TeamController(
         @PathVariable teamId: Long,
         @Valid @RequestBody request: UpdateTeamIconRequest,
     ): TeamResponse = teamService.updateIcon(teamId, user.id, request.objectKey)
+
+    @Operation(summary = "팀 아이콘 삭제")
+    @DeleteMapping("/{teamId}/icon")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteIcon(@CurrentUser user: AuthUser, @PathVariable teamId: Long) = teamService.deleteIcon(teamId, user.id)
 }
