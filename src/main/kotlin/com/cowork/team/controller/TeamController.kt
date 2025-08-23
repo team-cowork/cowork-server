@@ -2,8 +2,11 @@ package com.cowork.team.controller
 
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import com.cowork.global.storage.PresignedUploadRequest
+import com.cowork.global.storage.PresignedUploadResponse
 import com.cowork.team.dto.CreateTeamRequest
 import com.cowork.team.dto.TeamResponse
+import com.cowork.team.dto.UpdateTeamIconRequest
 import com.cowork.team.dto.UpdateTeamRequest
 import com.cowork.team.service.TeamService
 import io.swagger.v3.oas.annotations.Operation
@@ -56,4 +59,24 @@ class TeamController(
     @DeleteMapping("/{teamId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable teamId: Long) = teamService.delete(teamId, user.id)
+
+    @Operation(summary = "팀 아이콘 업로드 URL 발급")
+    @PostMapping("/icon/presigned")
+    fun createIconUploadUrl(
+        @CurrentUser user: AuthUser,
+        @Valid @RequestBody request: PresignedUploadRequest,
+    ): PresignedUploadResponse = teamService.createIconUploadUrl(user.id, request)
+
+    @Operation(summary = "팀 아이콘 변경")
+    @PatchMapping("/{teamId}/icon")
+    fun updateIcon(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @Valid @RequestBody request: UpdateTeamIconRequest,
+    ): TeamResponse = teamService.updateIcon(teamId, user.id, request.objectKey)
+
+    @Operation(summary = "팀 아이콘 삭제")
+    @DeleteMapping("/{teamId}/icon")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteIcon(@CurrentUser user: AuthUser, @PathVariable teamId: Long) = teamService.deleteIcon(teamId, user.id)
 }

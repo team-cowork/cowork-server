@@ -1,6 +1,9 @@
 package com.cowork.team.service
 
 import com.cowork.global.error.BusinessException
+import com.cowork.global.storage.ImageUploadPolicy
+import com.cowork.global.storage.PresignedUploadRequest
+import com.cowork.global.storage.PresignedUploadResponse
 import com.cowork.global.storage.StorageService
 import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMember
@@ -18,6 +21,7 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class TeamService(
@@ -75,6 +79,40 @@ class TeamService(
         teamRepository.delete(team)
         iconKey?.let(storageService::delete)
         eventPublisher.publishEvent(TeamDeletedEvent(teamId))
+    }
+
+    fun createIconUploadUrl(userId: Long, request: PresignedUploadRequest): PresignedUploadResponse {
+        ImageUploadPolicy.validateSize(request.fileSize)
+        val extension = ImageUploadPolicy.extensionOf(request.contentType)
+        val objectKey = "teams/icons/$userId/${UUID.randomUUID()}.$extension"
+        return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
+    }
+
+    @Transactional
+    fun updateIcon(teamId: Long, userId: Long, objectKey: String): TeamResponse {
+        val member = teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_TEAM)
+        if (!objectKey.startsWith("teams/icons/$userId/")) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "유효하지 않은 이미지 키입니다.")
+        }
+        val size = storageService.findObjectSize(objectKey)
+            ?: throw BusinessException(HttpStatus.CONFLICT, "이미지가 아직 업로드되지 않았습니다.")
+        ImageUploadPolicy.validateSize(size)
+
+        val team = findTeam(teamId)
+        val previousKey = team.iconKey
+        team.changeIcon(objectKey)
+        previousKey?.let(storageService::delete)
+        return toResponse(team, member.role)
+    }
+
+    @Transactional
+    fun deleteIcon(teamId: Long, userId: Long) {
+        teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_TEAM)
+        val team = findTeam(teamId)
+        val iconKey = team.iconKey
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀 아이콘이 없습니다.")
+        team.changeIcon(null)
+        storageService.delete(iconKey)
     }
 
     private fun findTeam(teamId: Long): Team =
