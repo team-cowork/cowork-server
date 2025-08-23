@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "팀")
@@ -28,6 +29,7 @@ class TeamController(
 
     @Operation(summary = "팀 생성")
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun create(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: CreateTeamRequest,
@@ -52,5 +54,6 @@ class TeamController(
 
     @Operation(summary = "팀 삭제")
     @DeleteMapping("/{teamId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable teamId: Long) = teamService.delete(teamId, user.id)
 }
