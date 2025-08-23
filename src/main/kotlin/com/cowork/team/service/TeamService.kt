@@ -87,6 +87,23 @@ class TeamService(
         val objectKey = "teams/icons/$userId/${UUID.randomUUID()}.$extension"
         return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
     }
+
+    @Transactional
+    fun updateIcon(teamId: Long, userId: Long, objectKey: String): TeamResponse {
+        val member = teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_TEAM)
+        if (!objectKey.startsWith("teams/icons/$userId/")) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "유효하지 않은 이미지 키입니다.")
+        }
+        val size = storageService.findObjectSize(objectKey)
+            ?: throw BusinessException(HttpStatus.CONFLICT, "이미지가 아직 업로드되지 않았습니다.")
+        ImageUploadPolicy.validateSize(size)
+
+        val team = findTeam(teamId)
+        val previousKey = team.iconKey
+        team.changeIcon(objectKey)
+        previousKey?.let(storageService::delete)
+        return toResponse(team, member.role)
+    }
     private fun findTeam(teamId: Long): Team =
         teamRepository.findByIdOrNull(teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")

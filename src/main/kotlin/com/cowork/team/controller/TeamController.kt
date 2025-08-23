@@ -66,4 +66,12 @@ class TeamController(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: PresignedUploadRequest,
     ): PresignedUploadResponse = teamService.createIconUploadUrl(user.id, request)
+
+    @Operation(summary = "팀 아이콘 변경")
+    @PatchMapping("/{teamId}/icon")
+    fun updateIcon(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @Valid @RequestBody request: UpdateTeamIconRequest,
+    ): TeamResponse = teamService.updateIcon(teamId, user.id, request.objectKey)
 }
