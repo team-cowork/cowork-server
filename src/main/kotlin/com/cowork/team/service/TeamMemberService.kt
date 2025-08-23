@@ -53,4 +53,25 @@ class TeamMemberService(
 
     @Transactional
     fun isMember(teamId: Long, userId: Long): Boolean = teamAccessChecker.isMember(teamId, userId)
+
+    @Transactional
+    fun changeRole(teamId: Long, actorId: Long, targetUserId: Long, newRole: TeamMemberRole): TeamMemberResponse {
+        teamAccessChecker.requireOwner(teamId, actorId)
+        if (actorId == targetUserId) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다.")
+        }
+        val target = findMember(teamId, targetUserId)
+
+        if (newRole == TeamMemberRole.OWNER) {
+            val team = teamRepository.findByIdOrNull(teamId)
+                ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")
+            team.transferOwnership(targetUserId)
+        }
+        target.changeRole(newRole)
+        return TeamMemberResponse.of(target, userService.getSummaries(listOf(targetUserId))[targetUserId])
+    }
+
+    private fun findMember(teamId: Long, userId: Long): TeamMember =
+        teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀 멤버를 찾을 수 없습니다.")
 }

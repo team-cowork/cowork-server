@@ -37,4 +37,12 @@ class TeamMemberController(
     @GetMapping("/{userId}/exists")
     fun exists(@PathVariable teamId: Long, @PathVariable userId: Long): TeamMemberExistsResponse =
         TeamMemberExistsResponse(teamMemberService.isMember(teamId, userId))
+
+    @PatchMapping("/{targetUserId}/role")
+    fun changeRole(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable targetUserId: Long,
+        @RequestBody request: ChangeTeamMemberRoleRequest,
+    ): TeamMemberResponse = teamMemberService.changeRole(teamId, user.id, targetUserId, request.role)
 }
