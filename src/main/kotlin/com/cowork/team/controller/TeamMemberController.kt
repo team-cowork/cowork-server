@@ -45,4 +45,11 @@ class TeamMemberController(
         @PathVariable targetUserId: Long,
         @RequestBody request: ChangeTeamMemberRoleRequest,
     ): TeamMemberResponse = teamMemberService.changeRole(teamId, user.id, targetUserId, request.role)
+
+    @DeleteMapping("/{targetUserId}")
+    fun removeMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable targetUserId: Long,
+    ) = teamMemberService.removeMember(teamId, user.id, targetUserId)
 }

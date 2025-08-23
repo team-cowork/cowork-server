@@ -71,6 +71,26 @@ class TeamMemberService(
         return TeamMemberResponse.of(target, userService.getSummaries(listOf(targetUserId))[targetUserId])
     }
 
+    @Transactional
+    fun removeMember(teamId: Long, actorId: Long, targetUserId: Long) {
+        val actor = teamAccessChecker.requireMember(teamId, actorId)
+        val target = findMember(teamId, targetUserId)
+
+        if (target.role == TeamMemberRole.OWNER) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "팀 소유자는 팀을 떠날 수 없습니다. 소유권을 먼저 이전해 주세요.")
+        }
+        if (actorId != targetUserId) {
+            if (!teamAccessChecker.hasPermission(actor, TeamPermission.KICK_MEMBERS)) {
+                throw BusinessException(HttpStatus.FORBIDDEN, "권한이 없습니다.")
+            }
+            if (target.role == TeamMemberRole.ADMIN && actor.role != TeamMemberRole.OWNER) {
+                throw BusinessException(HttpStatus.FORBIDDEN, "관리자는 팀 소유자만 내보낼 수 있습니다.")
+            }
+        }
+        teamMemberRepository.delete(target)
+        eventPublisher.publishEvent(TeamMemberRemovedEvent(teamId, targetUserId))
+    }
+
     private fun findMember(teamId: Long, userId: Long): TeamMember =
         teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀 멤버를 찾을 수 없습니다.")
