@@ -1,6 +1,9 @@
 package com.cowork.team.service
 
 import com.cowork.global.error.BusinessException
+import com.cowork.global.storage.ImageUploadPolicy
+import com.cowork.global.storage.PresignedUploadRequest
+import com.cowork.global.storage.PresignedUploadResponse
 import com.cowork.global.storage.StorageService
 import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMember
@@ -18,6 +21,7 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 @Service
 class TeamService(
@@ -77,6 +81,12 @@ class TeamService(
         eventPublisher.publishEvent(TeamDeletedEvent(teamId))
     }
 
+    fun createIconUploadUrl(userId: Long, request: PresignedUploadRequest): PresignedUploadResponse {
+        ImageUploadPolicy.validateSize(request.fileSize)
+        val extension = ImageUploadPolicy.extensionOf(request.contentType)
+        val objectKey = "teams/icons/$userId/${UUID.randomUUID()}.$extension"
+        return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
+    }
     private fun findTeam(teamId: Long): Team =
         teamRepository.findByIdOrNull(teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")
