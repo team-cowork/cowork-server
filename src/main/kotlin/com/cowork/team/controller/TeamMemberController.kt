@@ -29,4 +29,8 @@ class TeamMemberController(
         @PathVariable teamId: Long,
         @RequestBody request: AddTeamMemberRequest,
     ): TeamMemberResponse = teamMemberService.addMember(teamId, user.id, request.userId)
+
+    @GetMapping
+    fun getMembers(@CurrentUser user: AuthUser, @PathVariable teamId: Long): List<TeamMemberResponse> =
+        teamMemberService.getMembers(teamId, user.id)
 }

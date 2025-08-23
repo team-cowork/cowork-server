@@ -42,4 +42,12 @@ class TeamMemberService(
         eventPublisher.publishEvent(TeamMemberAddedEvent(teamId, team.name, targetUserId, actorId))
         return TeamMemberResponse.of(member, userService.getSummaries(listOf(targetUserId))[targetUserId])
     }
+
+    @Transactional
+    fun getMembers(teamId: Long, actorId: Long): List<TeamMemberResponse> {
+        teamAccessChecker.requireMember(teamId, actorId)
+        val members = teamMemberRepository.findAllByTeamIdOrderByJoinedAtAsc(teamId)
+        val users = userService.getSummaries(members.map { it.userId })
+        return members.map { TeamMemberResponse.of(it, users[it.userId]) }
+    }
 }
