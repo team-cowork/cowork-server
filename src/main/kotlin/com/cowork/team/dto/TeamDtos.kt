@@ -3,21 +3,29 @@ package com.cowork.team.dto
 import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamVisibility
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateTeamRequest(
+    @field:NotBlank
+    @field:Size(max = 100)
     val name: String,
+    @field:Size(max = 500)
     val description: String? = null,
     val visibility: TeamVisibility = TeamVisibility.PUBLIC,
 )
 
 data class UpdateTeamRequest(
+    @field:Size(min = 1, max = 100)
     val name: String? = null,
+    @field:Size(max = 500)
     val description: String? = null,
     val visibility: TeamVisibility? = null,
 )
 
 data class UpdateTeamIconRequest(
+    @field:NotBlank
     val objectKey: String,
 )
 

@@ -8,6 +8,7 @@ import com.cowork.team.dto.UpdateTeamRequest
 import com.cowork.team.service.TeamService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -29,7 +30,7 @@ class TeamController(
     @PostMapping
     fun create(
         @CurrentUser user: AuthUser,
-        @RequestBody request: CreateTeamRequest,
+        @Valid @RequestBody request: CreateTeamRequest,
     ): TeamResponse = teamService.create(user.id, request)
 
     @Operation(summary = "내가 속한 팀 목록 조회")
@@ -46,7 +47,7 @@ class TeamController(
     fun update(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
-        @RequestBody request: UpdateTeamRequest,
+        @Valid @RequestBody request: UpdateTeamRequest,
     ): TeamResponse = teamService.update(teamId, user.id, request)
 
     @Operation(summary = "팀 삭제")
