@@ -19,6 +19,13 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.LocalDateTime
 
+/**
+ * DataGSM 로그인과 cowork 토큰 발급을 담당한다.
+ *
+ * - 액세스 토큰은 JWT로, 리프레시 토큰은 임의 문자열로 발급하고 서버에는 해시만 저장한다.
+ * - 리프레시 토큰은 한 번 쓰면 폐기하고 새로 발급한다(rotation).
+ * - 학생이 아닌 DataGSM 계정은 로그인할 수 없다.
+ */
 @Service
 class AuthService(
     private val dataGsmClient: DataGsmClient,

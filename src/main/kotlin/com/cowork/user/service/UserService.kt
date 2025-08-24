@@ -19,6 +19,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
+/**
+ * 사용자 정보 동기화, 프로필 수정, 프로필 이미지 관리를 담당한다.
+ *
+ * - 학적 정보는 로그인할 때마다 DataGSM 값으로 덮어쓴다. 사용자가 고칠 수 있는 값은 닉네임, 소개, 특기뿐이다.
+ * - 프로필 이미지는 `profiles/{userId}/` 아래 객체 키만 확정할 수 있다.
+ */
 @Service
 class UserService(
     private val userRepository: UserRepository,
