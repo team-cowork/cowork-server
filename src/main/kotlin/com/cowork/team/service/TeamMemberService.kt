@@ -43,7 +43,7 @@ class TeamMemberService(
         return TeamMemberResponse.of(member, userService.getSummaries(listOf(targetUserId))[targetUserId])
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMembers(teamId: Long, actorId: Long): List<TeamMemberResponse> {
         teamAccessChecker.requireMember(teamId, actorId)
         val members = teamMemberRepository.findAllByTeamIdOrderByJoinedAtAsc(teamId)
@@ -51,7 +51,7 @@ class TeamMemberService(
         return members.map { TeamMemberResponse.of(it, users[it.userId]) }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun isMember(teamId: Long, userId: Long): Boolean = teamAccessChecker.isMember(teamId, userId)
 
     @Transactional
