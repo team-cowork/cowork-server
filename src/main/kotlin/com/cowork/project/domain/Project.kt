@@ -42,8 +42,8 @@ class Project(
 
     fun update(name: String?, description: String?, githubRepoUrl: String?, status: ProjectStatus?) {
         name?.let { this.name = it }
-        description?.let { this.description = it }
-        githubRepoUrl?.let { this.githubRepoUrl = it }
+        description?.let { this.description = it.ifBlank { null } }
+        githubRepoUrl?.let { this.githubRepoUrl = it.ifBlank { null } }
         status?.let { this.status = it }
     }
 
