@@ -1,9 +1,12 @@
 package com.cowork.team
 
 import com.cowork.team.domain.Team
+import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamVisibility
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class TeamDomainTest {
@@ -28,5 +31,21 @@ class TeamDomainTest {
         team.update(null, "", null)
 
         assertNull(team.description)
+    }
+
+    @Test
+    fun `소유권을 이전하면 소유자 ID가 바뀐다`() {
+        val team = team()
+
+        team.transferOwnership(7)
+
+        assertEquals(7, team.ownerId)
+    }
+
+    @Test
+    fun `소유자와 관리자만 관리 역할로 본다`() {
+        assertTrue(TeamMemberRole.OWNER.isManager)
+        assertTrue(TeamMemberRole.ADMIN.isManager)
+        assertFalse(TeamMemberRole.MEMBER.isManager)
     }
 }
