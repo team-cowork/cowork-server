@@ -41,6 +41,10 @@ class ProjectService(
     }
 
     @Transactional
+    fun getProject(projectId: Long, userId: Long): ProjectResponse =
+        ProjectResponse.from(projectAccessChecker.requireReadable(projectId, userId))
+
+    @Transactional
     fun getTeamProjects(teamId: Long, userId: Long): List<ProjectResponse> {
         teamAccessChecker.requireMember(teamId, userId)
         return projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId).map(ProjectResponse::from)

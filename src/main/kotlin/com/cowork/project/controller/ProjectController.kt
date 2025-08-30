@@ -35,4 +35,8 @@ class ProjectController(
 
     @GetMapping("/me")
     fun getMyProjects(@CurrentUser user: AuthUser): List<ProjectResponse> = projectService.getMyProjects(user.id)
+
+    @GetMapping("/{projectId}")
+    fun getProject(@CurrentUser user: AuthUser, @PathVariable projectId: Long): ProjectResponse =
+        projectService.getProject(projectId, user.id)
 }
