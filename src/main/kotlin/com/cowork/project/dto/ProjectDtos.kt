@@ -21,6 +21,10 @@ data class UpdateProjectRequest(
     val status: ProjectStatus? = null,
 )
 
+data class ReorderProjectsRequest(
+    val projectIds: List<Long>,
+)
+
 data class AddProjectMemberRequest(
     val userId: Long,
     val role: ProjectMemberRole = ProjectMemberRole.EDITOR,

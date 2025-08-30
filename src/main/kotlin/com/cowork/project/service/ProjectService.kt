@@ -60,4 +60,12 @@ class ProjectService(
         project.update(request.name, request.description, request.githubRepoUrl, request.status)
         return ProjectResponse.from(project)
     }
+
+    @Transactional
+    fun delete(projectId: Long, userId: Long) {
+        val project = projectAccessChecker.requireManageable(projectId, userId)
+        projectMemberRepository.deleteAllByProjectId(project.id)
+        projectRepository.delete(project)
+        eventPublisher.publishEvent(ProjectDeletedEvent(project.id, project.teamId))
+    }
 }

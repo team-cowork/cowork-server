@@ -46,4 +46,7 @@ class ProjectController(
         @PathVariable projectId: Long,
         @RequestBody request: UpdateProjectRequest,
     ): ProjectResponse = projectService.update(projectId, user.id, request)
+
+    @DeleteMapping("/{projectId}")
+    fun delete(@CurrentUser user: AuthUser, @PathVariable projectId: Long) = projectService.delete(projectId, user.id)
 }
