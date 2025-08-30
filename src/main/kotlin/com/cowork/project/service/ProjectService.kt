@@ -53,4 +53,11 @@ class ProjectService(
     @Transactional
     fun getMyProjects(userId: Long): List<ProjectResponse> =
         projectRepository.findAllByMemberUserId(userId).map(ProjectResponse::from)
+
+    @Transactional
+    fun update(projectId: Long, userId: Long, request: UpdateProjectRequest): ProjectResponse {
+        val project = projectAccessChecker.requireEditable(projectId, userId)
+        project.update(request.name, request.description, request.githubRepoUrl, request.status)
+        return ProjectResponse.from(project)
+    }
 }

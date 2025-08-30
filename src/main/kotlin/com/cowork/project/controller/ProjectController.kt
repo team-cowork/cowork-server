@@ -39,4 +39,11 @@ class ProjectController(
     @GetMapping("/{projectId}")
     fun getProject(@CurrentUser user: AuthUser, @PathVariable projectId: Long): ProjectResponse =
         projectService.getProject(projectId, user.id)
+
+    @PatchMapping("/{projectId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @RequestBody request: UpdateProjectRequest,
+    ): ProjectResponse = projectService.update(projectId, user.id, request)
 }
