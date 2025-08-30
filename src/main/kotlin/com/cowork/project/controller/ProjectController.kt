@@ -32,4 +32,7 @@ class ProjectController(
     @GetMapping
     fun getTeamProjects(@CurrentUser user: AuthUser, @RequestParam teamId: Long): List<ProjectResponse> =
         projectService.getTeamProjects(teamId, user.id)
+
+    @GetMapping("/me")
+    fun getMyProjects(@CurrentUser user: AuthUser): List<ProjectResponse> = projectService.getMyProjects(user.id)
 }
