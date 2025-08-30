@@ -28,4 +28,8 @@ class ProjectController(
         @CurrentUser user: AuthUser,
         @RequestBody request: CreateProjectRequest,
     ): ProjectResponse = projectService.create(user.id, request)
+
+    @GetMapping
+    fun getTeamProjects(@CurrentUser user: AuthUser, @RequestParam teamId: Long): List<ProjectResponse> =
+        projectService.getTeamProjects(teamId, user.id)
 }
