@@ -5,32 +5,50 @@ import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.ProjectStatus
 import com.cowork.user.dto.UserSummaryResponse
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateProjectRequest(
+    @field:NotNull
     val teamId: Long,
+    @field:NotBlank
+    @field:Size(max = 100)
     val name: String,
+    @field:Size(max = 500)
     val description: String? = null,
+    @field:Size(max = 512)
+    @field:Pattern(regexp = GITHUB_REPO_PATTERN)
     val githubRepoUrl: String? = null,
 )
 
 data class UpdateProjectRequest(
+    @field:Size(min = 1, max = 100)
     val name: String? = null,
+    @field:Size(max = 500)
     val description: String? = null,
+    @field:Size(max = 512)
+    @field:Pattern(regexp = GITHUB_REPO_PATTERN)
     val githubRepoUrl: String? = null,
     val status: ProjectStatus? = null,
 )
 
 data class ReorderProjectsRequest(
+    @field:NotEmpty
     val projectIds: List<Long>,
 )
 
 data class AddProjectMemberRequest(
+    @field:NotNull
     val userId: Long,
     val role: ProjectMemberRole = ProjectMemberRole.EDITOR,
 )
 
 data class ChangeProjectMemberRoleRequest(
+    @field:NotNull
     val role: ProjectMemberRole,
 )
 

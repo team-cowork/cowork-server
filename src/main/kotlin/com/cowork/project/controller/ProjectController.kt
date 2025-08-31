@@ -8,6 +8,7 @@ import com.cowork.project.dto.UpdateProjectRequest
 import com.cowork.project.service.ProjectService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -30,7 +31,7 @@ class ProjectController(
     @PostMapping
     fun create(
         @CurrentUser user: AuthUser,
-        @RequestBody request: CreateProjectRequest,
+        @Valid @RequestBody request: CreateProjectRequest,
     ): ProjectResponse = projectService.create(user.id, request)
 
     @Operation(summary = "팀 프로젝트 목록 조회")
@@ -52,7 +53,7 @@ class ProjectController(
     fun update(
         @CurrentUser user: AuthUser,
         @PathVariable projectId: Long,
-        @RequestBody request: UpdateProjectRequest,
+        @Valid @RequestBody request: UpdateProjectRequest,
     ): ProjectResponse = projectService.update(projectId, user.id, request)
 
     @Operation(summary = "프로젝트 삭제")
