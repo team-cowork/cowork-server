@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "프로젝트")
@@ -29,6 +30,7 @@ class ProjectController(
 
     @Operation(summary = "프로젝트 생성")
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun create(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: CreateProjectRequest,
@@ -58,5 +60,6 @@ class ProjectController(
 
     @Operation(summary = "프로젝트 삭제")
     @DeleteMapping("/{projectId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable projectId: Long) = projectService.delete(projectId, user.id)
 }
