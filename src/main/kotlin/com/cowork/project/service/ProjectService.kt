@@ -40,17 +40,17 @@ class ProjectService(
         return ProjectResponse.from(project)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getProject(projectId: Long, userId: Long): ProjectResponse =
         ProjectResponse.from(projectAccessChecker.requireReadable(projectId, userId))
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getTeamProjects(teamId: Long, userId: Long): List<ProjectResponse> {
         teamAccessChecker.requireMember(teamId, userId)
         return projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId).map(ProjectResponse::from)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMyProjects(userId: Long): List<ProjectResponse> =
         projectRepository.findAllByMemberUserId(userId).map(ProjectResponse::from)
 
