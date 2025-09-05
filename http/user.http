@@ -1,0 +1,43 @@
+### 내 정보 조회
+GET {{baseUrl}}/users/me
+Authorization: Bearer {{accessToken}}
+
+### 내 프로필 수정
+PATCH {{baseUrl}}/users/me
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "nickname": "길동",
+  "description": "협업 도구 개발 팀",
+  "specialty": "백엔드"
+}
+
+### 프로필 이미지 업로드 URL 발급
+POST {{baseUrl}}/users/me/profile-image/presigned
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "contentType": "image/png",
+  "fileSize": 102400
+}
+
+### 프로필 이미지 업로드 확정
+POST {{baseUrl}}/users/me/profile-image/confirm
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "objectKey": "profiles/1/sample.png"
+}
+
+### 프로필 이미지 삭제
+DELETE {{baseUrl}}/users/me/profile-image
+Authorization: Bearer {{accessToken}}
+
+### 사용자 검색
+GET {{baseUrl}}/users/search?keyword=cowork
+
+### 사용자 조회
+GET {{baseUrl}}/users/1

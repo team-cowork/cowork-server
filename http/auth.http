@@ -1,0 +1,26 @@
+### DataGSM 인가 코드로 토큰 발급
+POST {{baseUrl}}/auth/token
+Content-Type: application/json
+
+{
+  "code": "authorization-code",
+  "codeVerifier": "code-verifier",
+  "redirectUri": "http://localhost:3000/oauth/callback"
+}
+
+### 토큰 갱신
+POST {{baseUrl}}/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+### 로그아웃
+POST {{baseUrl}}/auth/signout
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
