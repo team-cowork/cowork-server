@@ -1,0 +1,28 @@
+### 팀 멤버 초대
+POST {{baseUrl}}/teams/{{teamId}}/members
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "userId": 2
+}
+
+### 팀 멤버 목록 조회
+GET {{baseUrl}}/teams/{{teamId}}/members
+Authorization: Bearer {{accessToken}}
+
+### 팀 멤버 여부 확인
+GET {{baseUrl}}/teams/{{teamId}}/members/1/exists
+
+### 팀 멤버 역할 변경
+PATCH {{baseUrl}}/teams/{{teamId}}/members/1/role
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "role": "OWNER"
+}
+
+### 팀 멤버 내보내기 또는 팀 나가기
+DELETE {{baseUrl}}/teams/{{teamId}}/members/1
+Authorization: Bearer {{accessToken}}
