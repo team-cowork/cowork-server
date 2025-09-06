@@ -7,6 +7,7 @@ import com.cowork.project.dto.ReorderProjectsRequest
 import com.cowork.project.service.ProjectService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestBody
@@ -25,6 +26,6 @@ class TeamProjectController(
     fun reorder(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
-        @RequestBody request: ReorderProjectsRequest,
+        @Valid @RequestBody request: ReorderProjectsRequest,
     ): List<ProjectResponse> = projectService.reorder(teamId, user.id, request.projectIds)
 }
