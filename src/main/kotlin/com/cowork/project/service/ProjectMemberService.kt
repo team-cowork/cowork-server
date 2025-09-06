@@ -36,7 +36,7 @@ class ProjectMemberService(
         return toResponse(member)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMembers(projectId: Long, actorId: Long): List<ProjectMemberResponse> {
         projectAccessChecker.requireReadable(projectId, actorId)
         val members = projectMemberRepository.findAllByProjectIdOrderByJoinedAtAsc(projectId)
@@ -44,7 +44,7 @@ class ProjectMemberService(
         return members.map { ProjectMemberResponse.of(it, users[it.userId]) }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMyMembership(projectId: Long, actorId: Long): ProjectMemberResponse {
         projectAccessChecker.requireReadable(projectId, actorId)
         return toResponse(findMember(projectId, actorId))
