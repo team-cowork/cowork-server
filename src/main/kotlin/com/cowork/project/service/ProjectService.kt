@@ -1,5 +1,6 @@
 package com.cowork.project.service
 
+import com.cowork.global.error.BusinessException
 import com.cowork.project.domain.Project
 import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
@@ -9,8 +10,10 @@ import com.cowork.project.dto.UpdateProjectRequest
 import com.cowork.project.event.ProjectDeletedEvent
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
+import com.cowork.team.domain.TeamPermission
 import com.cowork.team.service.TeamAccessChecker
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -67,5 +70,17 @@ class ProjectService(
         projectMemberRepository.deleteAllByProjectId(project.id)
         projectRepository.delete(project)
         eventPublisher.publishEvent(ProjectDeletedEvent(project.id, project.teamId))
+    }
+
+    @Transactional
+    fun reorder(teamId: Long, userId: Long, projectIds: List<Long>): List<ProjectResponse> {
+        teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_PROJECTS)
+        val projects = projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        if (projectIds.size != projects.size || projectIds.toSet() != projects.map { it.id }.toSet()) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "팀의 모든 프로젝트를 중복 없이 전달해야 합니다.")
+        }
+        val projectById = projects.associateBy { it.id }
+        projectIds.forEachIndexed { index, id -> projectById.getValue(id).moveTo(index) }
+        return projectIds.map { ProjectResponse.from(projectById.getValue(it)) }
     }
 }
