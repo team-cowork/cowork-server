@@ -76,4 +76,9 @@ class ProjectController(
         @PathVariable projectId: Long,
         @Valid @RequestBody request: AddProjectMemberRequest,
     ): ProjectMemberResponse = projectMemberService.addMember(projectId, user.id, request.userId, request.role)
+
+    @Operation(summary = "프로젝트 멤버 목록 조회")
+    @GetMapping("/{projectId}/members")
+    fun getMembers(@CurrentUser user: AuthUser, @PathVariable projectId: Long): List<ProjectMemberResponse> =
+        projectMemberService.getMembers(projectId, user.id)
 }

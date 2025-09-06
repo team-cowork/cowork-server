@@ -36,6 +36,14 @@ class ProjectMemberService(
         return toResponse(member)
     }
 
+    @Transactional
+    fun getMembers(projectId: Long, actorId: Long): List<ProjectMemberResponse> {
+        projectAccessChecker.requireReadable(projectId, actorId)
+        val members = projectMemberRepository.findAllByProjectIdOrderByJoinedAtAsc(projectId)
+        val users = userService.getSummaries(members.map { it.userId })
+        return members.map { ProjectMemberResponse.of(it, users[it.userId]) }
+    }
+
     private fun toResponse(member: ProjectMember) =
         ProjectMemberResponse.of(member, userService.getSummaries(listOf(member.userId))[member.userId])
 }
