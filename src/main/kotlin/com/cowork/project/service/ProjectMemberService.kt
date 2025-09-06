@@ -44,6 +44,16 @@ class ProjectMemberService(
         return members.map { ProjectMemberResponse.of(it, users[it.userId]) }
     }
 
+    @Transactional
+    fun getMyMembership(projectId: Long, actorId: Long): ProjectMemberResponse {
+        projectAccessChecker.requireReadable(projectId, actorId)
+        return toResponse(findMember(projectId, actorId))
+    }
+
+    private fun findMember(projectId: Long, userId: Long): ProjectMember =
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "프로젝트 멤버를 찾을 수 없습니다.")
+
     private fun toResponse(member: ProjectMember) =
         ProjectMemberResponse.of(member, userService.getSummaries(listOf(member.userId))[member.userId])
 }

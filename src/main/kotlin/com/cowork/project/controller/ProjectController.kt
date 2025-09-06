@@ -81,4 +81,9 @@ class ProjectController(
     @GetMapping("/{projectId}/members")
     fun getMembers(@CurrentUser user: AuthUser, @PathVariable projectId: Long): List<ProjectMemberResponse> =
         projectMemberService.getMembers(projectId, user.id)
+
+    @Operation(summary = "프로젝트 내 내 멤버 정보 조회")
+    @GetMapping("/{projectId}/members/me")
+    fun getMyMembership(@CurrentUser user: AuthUser, @PathVariable projectId: Long): ProjectMemberResponse =
+        projectMemberService.getMyMembership(projectId, user.id)
 }
