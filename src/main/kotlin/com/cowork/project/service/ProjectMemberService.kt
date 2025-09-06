@@ -50,6 +50,23 @@ class ProjectMemberService(
         return toResponse(findMember(projectId, actorId))
     }
 
+    @Transactional
+    fun changeRole(projectId: Long, actorId: Long, targetUserId: Long, role: ProjectMemberRole): ProjectMemberResponse {
+        projectAccessChecker.requireManageable(projectId, actorId)
+        val member = findMember(projectId, targetUserId)
+        if (member.role == ProjectMemberRole.OWNER && role != ProjectMemberRole.OWNER) {
+            ensureAnotherOwnerExists(projectId)
+        }
+        member.changeRole(role)
+        return toResponse(member)
+    }
+
+    private fun ensureAnotherOwnerExists(projectId: Long) {
+        if (projectMemberRepository.countByProjectIdAndRole(projectId, ProjectMemberRole.OWNER) <= 1) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "프로젝트에는 최소 한 명의 소유자가 있어야 합니다.")
+        }
+    }
+
     private fun findMember(projectId: Long, userId: Long): ProjectMember =
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "프로젝트 멤버를 찾을 수 없습니다.")

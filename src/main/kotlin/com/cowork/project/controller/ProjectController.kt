@@ -86,4 +86,13 @@ class ProjectController(
     @GetMapping("/{projectId}/members/me")
     fun getMyMembership(@CurrentUser user: AuthUser, @PathVariable projectId: Long): ProjectMemberResponse =
         projectMemberService.getMyMembership(projectId, user.id)
+
+    @Operation(summary = "프로젝트 멤버 역할 변경")
+    @PatchMapping("/{projectId}/members/{userId}")
+    fun changeRole(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @PathVariable userId: Long,
+        @Valid @RequestBody request: ChangeProjectMemberRoleRequest,
+    ): ProjectMemberResponse = projectMemberService.changeRole(projectId, user.id, userId, request.role)
 }
