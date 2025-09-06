@@ -95,4 +95,13 @@ class ProjectController(
         @PathVariable userId: Long,
         @Valid @RequestBody request: ChangeProjectMemberRoleRequest,
     ): ProjectMemberResponse = projectMemberService.changeRole(projectId, user.id, userId, request.role)
+
+    @Operation(summary = "프로젝트 멤버 제거 또는 프로젝트 나가기")
+    @DeleteMapping("/{projectId}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun removeMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @PathVariable userId: Long,
+    ) = projectMemberService.removeMember(projectId, user.id, userId)
 }

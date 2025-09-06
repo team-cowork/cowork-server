@@ -61,6 +61,20 @@ class ProjectMemberService(
         return toResponse(member)
     }
 
+    @Transactional
+    fun removeMember(projectId: Long, actorId: Long, targetUserId: Long) {
+        if (actorId == targetUserId) {
+            projectAccessChecker.requireReadable(projectId, actorId)
+        } else {
+            projectAccessChecker.requireManageable(projectId, actorId)
+        }
+        val member = findMember(projectId, targetUserId)
+        if (member.role == ProjectMemberRole.OWNER) {
+            ensureAnotherOwnerExists(projectId)
+        }
+        projectMemberRepository.delete(member)
+    }
+
     private fun ensureAnotherOwnerExists(projectId: Long) {
         if (projectMemberRepository.countByProjectIdAndRole(projectId, ProjectMemberRole.OWNER) <= 1) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "프로젝트에는 최소 한 명의 소유자가 있어야 합니다.")
