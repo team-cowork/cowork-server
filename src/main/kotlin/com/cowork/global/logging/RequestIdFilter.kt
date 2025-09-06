@@ -24,6 +24,7 @@ class RequestIdFilter : OncePerRequestFilter() {
     ) {
         val requestId = request.getHeader(HEADER)?.takeIf { VALID_ID.matches(it) } ?: UUID.randomUUID().toString()
         MDC.put(MDC_KEY, requestId)
+        response.setHeader(HEADER, requestId)
         try {
             filterChain.doFilter(request, response)
         } finally {
