@@ -2,9 +2,13 @@ package com.cowork.project.controller
 
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import com.cowork.project.dto.AddProjectMemberRequest
+import com.cowork.project.dto.ChangeProjectMemberRoleRequest
 import com.cowork.project.dto.CreateProjectRequest
+import com.cowork.project.dto.ProjectMemberResponse
 import com.cowork.project.dto.ProjectResponse
 import com.cowork.project.dto.UpdateProjectRequest
+import com.cowork.project.service.ProjectMemberService
 import com.cowork.project.service.ProjectService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/projects")
 class ProjectController(
     private val projectService: ProjectService,
+    private val projectMemberService: ProjectMemberService,
 ) {
 
     @Operation(summary = "프로젝트 생성")
@@ -62,4 +67,41 @@ class ProjectController(
     @DeleteMapping("/{projectId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable projectId: Long) = projectService.delete(projectId, user.id)
+
+    @Operation(summary = "프로젝트 멤버 추가")
+    @PostMapping("/{projectId}/members")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun addMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @Valid @RequestBody request: AddProjectMemberRequest,
+    ): ProjectMemberResponse = projectMemberService.addMember(projectId, user.id, request.userId, request.role)
+
+    @Operation(summary = "프로젝트 멤버 목록 조회")
+    @GetMapping("/{projectId}/members")
+    fun getMembers(@CurrentUser user: AuthUser, @PathVariable projectId: Long): List<ProjectMemberResponse> =
+        projectMemberService.getMembers(projectId, user.id)
+
+    @Operation(summary = "프로젝트 내 내 멤버 정보 조회")
+    @GetMapping("/{projectId}/members/me")
+    fun getMyMembership(@CurrentUser user: AuthUser, @PathVariable projectId: Long): ProjectMemberResponse =
+        projectMemberService.getMyMembership(projectId, user.id)
+
+    @Operation(summary = "프로젝트 멤버 역할 변경")
+    @PatchMapping("/{projectId}/members/{userId}")
+    fun changeRole(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @PathVariable userId: Long,
+        @Valid @RequestBody request: ChangeProjectMemberRoleRequest,
+    ): ProjectMemberResponse = projectMemberService.changeRole(projectId, user.id, userId, request.role)
+
+    @Operation(summary = "프로젝트 멤버 제거 또는 프로젝트 나가기")
+    @DeleteMapping("/{projectId}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun removeMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable projectId: Long,
+        @PathVariable userId: Long,
+    ) = projectMemberService.removeMember(projectId, user.id, userId)
 }
