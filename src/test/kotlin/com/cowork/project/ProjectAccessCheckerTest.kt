@@ -74,4 +74,26 @@ class ProjectAccessCheckerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, exception.status)
     }
+
+    @Test
+    fun `프로젝트 소유자는 관리할 수 있다`() {
+        projectRole(ProjectMemberRole.OWNER)
+
+        assertDoesNotThrow { checker.requireManageable(20, 5) }
+    }
+
+    @Test
+    fun `팀의 프로젝트 관리 권한이 있으면 프로젝트 멤버가 아니어도 관리할 수 있다`() {
+        every { teamAccessChecker.hasPermission(teamMember, TeamPermission.MANAGE_PROJECTS) } returns true
+        projectRole(null)
+
+        assertDoesNotThrow { checker.requireManageable(20, 5) }
+    }
+
+    @Test
+    fun `편집자는 프로젝트를 관리할 수 없다`() {
+        projectRole(ProjectMemberRole.EDITOR)
+
+        assertThrows<BusinessException> { checker.requireManageable(20, 5) }
+    }
 }
