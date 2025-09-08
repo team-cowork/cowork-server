@@ -16,6 +16,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertDoesNotThrow
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import java.util.Optional
@@ -56,5 +57,21 @@ class ProjectAccessCheckerTest {
     @Test
     fun `팀 멤버는 프로젝트 멤버가 아니어도 조회할 수 있다`() {
         assertEquals(project, checker.requireReadable(20, 5))
+    }
+
+    @Test
+    fun `편집자는 프로젝트를 수정할 수 있다`() {
+        projectRole(ProjectMemberRole.EDITOR)
+
+        assertDoesNotThrow { checker.requireEditable(20, 5) }
+    }
+
+    @Test
+    fun `뷰어는 프로젝트를 수정할 수 없다`() {
+        projectRole(ProjectMemberRole.VIEWER)
+
+        val exception = assertThrows<BusinessException> { checker.requireEditable(20, 5) }
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
     }
 }
