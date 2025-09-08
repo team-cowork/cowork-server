@@ -1,9 +1,12 @@
 package com.cowork.project
 
 import com.cowork.project.domain.Project
+import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.ProjectStatus
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class ProjectDomainTest {
@@ -31,5 +34,12 @@ class ProjectDomainTest {
 
         assertEquals("cowork", project.name)
         assertEquals(ProjectStatus.entries.last(), project.status)
+    }
+
+    @Test
+    fun `소유자와 편집자만 편집 권한을 가진다`() {
+        assertTrue(ProjectMemberRole.OWNER.canEdit)
+        assertTrue(ProjectMemberRole.EDITOR.canEdit)
+        assertFalse(ProjectMemberRole.VIEWER.canEdit)
     }
 }
