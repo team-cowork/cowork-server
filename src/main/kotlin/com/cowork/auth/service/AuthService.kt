@@ -69,7 +69,15 @@ class AuthService(
         refreshTokenRepository.delete(refreshToken)
     }
 
+    private fun removeOldestTokens(userId: Long) {
+        val tokens = refreshTokenRepository.findAllByUserIdOrderByIdAsc(userId)
+        if (tokens.size >= MAX_DEVICES) {
+            refreshTokenRepository.deleteAll(tokens.take(tokens.size - MAX_DEVICES + 1))
+        }
+    }
+
     private fun issueTokens(user: User, deviceInfo: String?): TokenResponse {
+        removeOldestTokens(user.id)
         val rawRefreshToken = TokenHasher.generate()
         refreshTokenRepository.save(
             RefreshToken(
@@ -103,5 +111,9 @@ class AuthService(
             studentRole = student.role,
             githubId = student.githubId,
         )
+    }
+
+    companion object {
+        private const val MAX_DEVICES = 5
     }
 }
