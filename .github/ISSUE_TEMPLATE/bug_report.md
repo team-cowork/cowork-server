@@ -17,3 +17,4 @@ labels: bug
 
 - API 경로:
 - 발생 시각:
+- 요청 ID (오류 응답의 `requestId`):
