@@ -55,6 +55,12 @@ class ChannelService(
         ChannelResponse.from(channelAccessChecker.requireReadable(channelId, userId))
 
     @Transactional
+    fun getTeamChannels(teamId: Long, userId: Long): List<ChannelResponse> {
+        teamAccessChecker.requireMember(teamId, userId)
+        return filterReadable(channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId), userId)
+    }
+
+    @Transactional
     fun update(channelId: Long, userId: Long, request: UpdateChannelRequest): ChannelResponse {
         val channel = channelAccessChecker.requireManageable(channelId, userId)
         channel.update(request.name, request.description, request.isPrivate)
@@ -85,5 +91,14 @@ class ChannelService(
         if (project.teamId != teamId) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "같은 팀의 프로젝트만 연결할 수 있습니다.")
         }
+    }
+
+    private fun filterReadable(channels: List<Channel>, userId: Long): List<ChannelResponse> {
+        val privateIds = channels.filter { it.isPrivate }.map { it.id }
+        val joined = if (privateIds.isEmpty()) emptySet() else channelMemberRepository.findJoinedChannelIds(userId, privateIds).toSet()
+        val canManageAll = channels.firstOrNull()?.let { channelAccessChecker.canManage(it, userId) } ?: false
+        return channels
+            .filter { !it.isPrivate || canManageAll || it.id in joined }
+            .map(ChannelResponse::from)
     }
 }
