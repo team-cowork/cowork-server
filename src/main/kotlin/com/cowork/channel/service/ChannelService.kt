@@ -68,6 +68,18 @@ class ChannelService(
         return ChannelResponse.from(channel)
     }
 
+    @Transactional
+    fun delete(channelId: Long, userId: Long) {
+        val channel = channelAccessChecker.requireManageable(channelId, userId)
+        deleteChannel(channel)
+    }
+
+    fun deleteChannel(channel: Channel) {
+        channelMemberRepository.deleteAllByChannelId(channel.id)
+        channelRepository.delete(channel)
+        eventPublisher.publishEvent(ChannelDeletedEvent(channel.id, channel.teamId))
+    }
+
     private fun validateProject(teamId: Long, projectId: Long) {
         val project = projectAccessChecker.findProject(projectId)
         if (project.teamId != teamId) {

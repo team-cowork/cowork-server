@@ -38,4 +38,7 @@ class ChannelController(
         @PathVariable channelId: Long,
         @RequestBody request: UpdateChannelRequest,
     ): ChannelResponse = channelService.update(channelId, user.id, request)
+
+    @DeleteMapping("/{channelId}")
+    fun delete(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = channelService.delete(channelId, user.id)
 }
