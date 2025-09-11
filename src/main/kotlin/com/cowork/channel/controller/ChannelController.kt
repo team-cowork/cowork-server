@@ -27,4 +27,8 @@ class ChannelController(
         @CurrentUser user: AuthUser,
         @RequestBody request: CreateChannelRequest,
     ): ChannelResponse = channelService.create(user.id, request)
+
+    @GetMapping("/{channelId}")
+    fun getChannel(@CurrentUser user: AuthUser, @PathVariable channelId: Long): ChannelResponse =
+        channelService.getChannel(channelId, user.id)
 }
