@@ -49,7 +49,7 @@ class Channel(
 
     fun update(name: String?, description: String?, isPrivate: Boolean?) {
         name?.let { this.name = it }
-        description?.let { this.description = it }
+        description?.let { this.description = it.ifBlank { null } }
         isPrivate?.let { this.isPrivate = it }
     }
 
