@@ -16,4 +16,8 @@ class TeamChannelController(
     @GetMapping("/teams/{teamId}/channels")
     fun getTeamChannels(@CurrentUser user: AuthUser, @PathVariable teamId: Long): List<ChannelResponse> =
         channelService.getTeamChannels(teamId, user.id)
+
+    @GetMapping("/projects/{projectId}/channels")
+    fun getProjectChannels(@CurrentUser user: AuthUser, @PathVariable projectId: Long): List<ChannelResponse> =
+        channelService.getProjectChannels(projectId, user.id)
 }

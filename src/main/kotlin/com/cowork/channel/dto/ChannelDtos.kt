@@ -24,6 +24,10 @@ data class UpdateChannelRequest(
     val detachProject: Boolean = false,
 )
 
+data class ReorderChannelsRequest(
+    val channelIds: List<Long>,
+)
+
 data class AddChannelMemberRequest(
     val userId: Long,
 )

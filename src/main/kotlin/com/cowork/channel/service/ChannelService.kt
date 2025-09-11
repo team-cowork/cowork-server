@@ -61,6 +61,12 @@ class ChannelService(
     }
 
     @Transactional
+    fun getProjectChannels(projectId: Long, userId: Long): List<ChannelResponse> {
+        projectAccessChecker.requireReadable(projectId, userId)
+        return filterReadable(channelRepository.findAllByProjectIdOrderByPositionAscIdAsc(projectId), userId)
+    }
+
+    @Transactional
     fun update(channelId: Long, userId: Long, request: UpdateChannelRequest): ChannelResponse {
         val channel = channelAccessChecker.requireManageable(channelId, userId)
         channel.update(request.name, request.description, request.isPrivate)
