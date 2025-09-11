@@ -5,19 +5,30 @@ import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.user.dto.UserSummaryResponse
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotEmpty
+import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateChannelRequest(
+    @field:NotNull
     val teamId: Long,
     val projectId: Long? = null,
+    @field:NotBlank
+    @field:Size(max = 100)
     val name: String,
+    @field:NotNull
     val viewType: ChannelViewType,
+    @field:Size(max = 500)
     val description: String? = null,
     val isPrivate: Boolean = false,
 )
 
 data class UpdateChannelRequest(
+    @field:Size(min = 1, max = 100)
     val name: String? = null,
+    @field:Size(max = 500)
     val description: String? = null,
     val isPrivate: Boolean? = null,
     val projectId: Long? = null,
@@ -25,10 +36,12 @@ data class UpdateChannelRequest(
 )
 
 data class ReorderChannelsRequest(
+    @field:NotEmpty
     val channelIds: List<Long>,
 )
 
 data class AddChannelMemberRequest(
+    @field:NotNull
     val userId: Long,
 )
 

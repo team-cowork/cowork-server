@@ -8,6 +8,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -29,7 +30,7 @@ class ChannelController(
     @PostMapping
     fun create(
         @CurrentUser user: AuthUser,
-        @RequestBody request: CreateChannelRequest,
+        @Valid @RequestBody request: CreateChannelRequest,
     ): ChannelResponse = channelService.create(user.id, request)
 
     @Operation(summary = "채널 조회")
@@ -42,7 +43,7 @@ class ChannelController(
     fun update(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: UpdateChannelRequest,
+        @Valid @RequestBody request: UpdateChannelRequest,
     ): ChannelResponse = channelService.update(channelId, user.id, request)
 
     @Operation(summary = "채널 삭제")
