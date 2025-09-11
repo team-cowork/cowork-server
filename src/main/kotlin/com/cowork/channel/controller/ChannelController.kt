@@ -31,4 +31,11 @@ class ChannelController(
     @GetMapping("/{channelId}")
     fun getChannel(@CurrentUser user: AuthUser, @PathVariable channelId: Long): ChannelResponse =
         channelService.getChannel(channelId, user.id)
+
+    @PatchMapping("/{channelId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestBody request: UpdateChannelRequest,
+    ): ChannelResponse = channelService.update(channelId, user.id, request)
 }

@@ -54,6 +54,20 @@ class ChannelService(
     fun getChannel(channelId: Long, userId: Long): ChannelResponse =
         ChannelResponse.from(channelAccessChecker.requireReadable(channelId, userId))
 
+    @Transactional
+    fun update(channelId: Long, userId: Long, request: UpdateChannelRequest): ChannelResponse {
+        val channel = channelAccessChecker.requireManageable(channelId, userId)
+        channel.update(request.name, request.description, request.isPrivate)
+        when {
+            request.detachProject -> channel.assignProject(null)
+            request.projectId != null -> {
+                validateProject(channel.teamId, request.projectId)
+                channel.assignProject(request.projectId)
+            }
+        }
+        return ChannelResponse.from(channel)
+    }
+
     private fun validateProject(teamId: Long, projectId: Long) {
         val project = projectAccessChecker.findProject(projectId)
         if (project.teamId != teamId) {
