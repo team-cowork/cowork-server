@@ -50,17 +50,17 @@ class ChannelService(
         return ChannelResponse.from(channel)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getChannel(channelId: Long, userId: Long): ChannelResponse =
         ChannelResponse.from(channelAccessChecker.requireReadable(channelId, userId))
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getTeamChannels(teamId: Long, userId: Long): List<ChannelResponse> {
         teamAccessChecker.requireMember(teamId, userId)
         return filterReadable(channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId), userId)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getProjectChannels(projectId: Long, userId: Long): List<ChannelResponse> {
         projectAccessChecker.requireReadable(projectId, userId)
         return filterReadable(channelRepository.findAllByProjectIdOrderByPositionAscIdAsc(projectId), userId)
