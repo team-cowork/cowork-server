@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "채널")
@@ -28,6 +29,7 @@ class ChannelController(
 
     @Operation(summary = "채널 생성")
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun create(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: CreateChannelRequest,
@@ -48,5 +50,6 @@ class ChannelController(
 
     @Operation(summary = "채널 삭제")
     @DeleteMapping("/{channelId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = channelService.delete(channelId, user.id)
 }
