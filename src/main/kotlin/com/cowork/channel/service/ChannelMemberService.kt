@@ -31,7 +31,7 @@ class ChannelMemberService(
         return ChannelMemberResponse.of(member, userService.getSummaries(listOf(targetUserId))[targetUserId])
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMembers(channelId: Long, actorId: Long): List<ChannelMemberResponse> {
         channelAccessChecker.requireReadable(channelId, actorId)
         val members = channelMemberRepository.findAllByChannelIdOrderByJoinedAtAsc(channelId)
