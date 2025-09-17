@@ -2,6 +2,7 @@ package com.cowork.project
 
 import com.cowork.global.error.BusinessException
 import com.cowork.project.domain.Project
+import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.event.ProjectMemberAddedEvent
 import com.cowork.project.repository.ProjectMemberRepository
@@ -54,5 +55,24 @@ class ProjectMemberRoleTest {
         service.addMember(20, 1, 7, ProjectMemberRole.VIEWER)
 
         verify { eventPublisher.publishEvent(ProjectMemberAddedEvent(20, "앱", 7, 1)) }
+    }
+
+    @Test
+    fun `마지막 소유자는 다른 역할로 바꿀 수 없다`() {
+        every { memberRepository.findByProjectIdAndUserId(20, 1) } returns ProjectMember(projectId = 20, userId = 1, role = ProjectMemberRole.OWNER)
+        every { memberRepository.countByProjectIdAndRole(20, ProjectMemberRole.OWNER) } returns 1
+
+        assertThrows<BusinessException> { service.changeRole(20, 1, 1, ProjectMemberRole.EDITOR) }
+    }
+
+    @Test
+    fun `소유자가 둘 이상이면 소유자 역할을 내려놓을 수 있다`() {
+        val owner = ProjectMember(projectId = 20, userId = 1, role = ProjectMemberRole.OWNER)
+        every { memberRepository.findByProjectIdAndUserId(20, 1) } returns owner
+        every { memberRepository.countByProjectIdAndRole(20, ProjectMemberRole.OWNER) } returns 2
+
+        service.changeRole(20, 1, 1, ProjectMemberRole.EDITOR)
+
+        assertEquals(ProjectMemberRole.EDITOR, owner.role)
     }
 }
