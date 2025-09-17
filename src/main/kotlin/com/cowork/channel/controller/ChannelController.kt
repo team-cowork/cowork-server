@@ -1,8 +1,11 @@
 package com.cowork.channel.controller
 
+import com.cowork.channel.dto.AddChannelMemberRequest
+import com.cowork.channel.dto.ChannelMemberResponse
 import com.cowork.channel.dto.ChannelResponse
 import com.cowork.channel.dto.CreateChannelRequest
 import com.cowork.channel.dto.UpdateChannelRequest
+import com.cowork.channel.service.ChannelMemberService
 import com.cowork.channel.service.ChannelService
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
@@ -25,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/channels")
 class ChannelController(
     private val channelService: ChannelService,
+    private val channelMemberService: ChannelMemberService,
 ) {
 
     @Operation(summary = "채널 생성")
@@ -52,4 +56,13 @@ class ChannelController(
     @DeleteMapping("/{channelId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = channelService.delete(channelId, user.id)
+
+    @Operation(summary = "비공개 채널 멤버 추가")
+    @PostMapping("/{channelId}/members")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun addMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: AddChannelMemberRequest,
+    ): ChannelMemberResponse = channelMemberService.addMember(channelId, user.id, request.userId)
 }
