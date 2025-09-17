@@ -70,4 +70,13 @@ class ChannelController(
     @GetMapping("/{channelId}/members")
     fun getMembers(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<ChannelMemberResponse> =
         channelMemberService.getMembers(channelId, user.id)
+
+    @Operation(summary = "채널 멤버 제거 또는 채널 나가기")
+    @DeleteMapping("/{channelId}/members/{userId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun removeMember(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable userId: Long,
+    ) = channelMemberService.removeMember(channelId, user.id, userId)
 }

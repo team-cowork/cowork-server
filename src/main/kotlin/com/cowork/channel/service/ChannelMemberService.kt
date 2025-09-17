@@ -38,4 +38,16 @@ class ChannelMemberService(
         val users = userService.getSummaries(members.map { it.userId })
         return members.map { ChannelMemberResponse.of(it, users[it.userId]) }
     }
+
+    @Transactional
+    fun removeMember(channelId: Long, actorId: Long, targetUserId: Long) {
+        if (actorId == targetUserId) {
+            channelAccessChecker.requireReadable(channelId, actorId)
+        } else {
+            channelAccessChecker.requireManageable(channelId, actorId)
+        }
+        val member = channelMemberRepository.findByChannelIdAndUserId(channelId, targetUserId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "채널 멤버를 찾을 수 없습니다.")
+        channelMemberRepository.delete(member)
+    }
 }
