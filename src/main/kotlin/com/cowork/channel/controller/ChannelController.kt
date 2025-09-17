@@ -65,4 +65,9 @@ class ChannelController(
         @PathVariable channelId: Long,
         @Valid @RequestBody request: AddChannelMemberRequest,
     ): ChannelMemberResponse = channelMemberService.addMember(channelId, user.id, request.userId)
+
+    @Operation(summary = "채널 멤버 목록 조회")
+    @GetMapping("/{channelId}/members")
+    fun getMembers(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<ChannelMemberResponse> =
+        channelMemberService.getMembers(channelId, user.id)
 }
