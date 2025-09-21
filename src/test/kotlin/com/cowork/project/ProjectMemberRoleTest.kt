@@ -75,4 +75,16 @@ class ProjectMemberRoleTest {
 
         assertEquals(ProjectMemberRole.EDITOR, owner.role)
     }
+
+    @Test
+    fun `본인은 관리 권한 없이 프로젝트에서 나갈 수 있다`() {
+        val member = ProjectMember(projectId = 20, userId = 7, role = ProjectMemberRole.VIEWER)
+        every { accessChecker.requireReadable(20, 7) } returns project
+        every { memberRepository.findByProjectIdAndUserId(20, 7) } returns member
+
+        service.removeMember(20, 7, 7)
+
+        verify(exactly = 0) { accessChecker.requireManageable(20, 7) }
+        verify { memberRepository.delete(member) }
+    }
 }
