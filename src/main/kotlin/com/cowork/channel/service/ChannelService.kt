@@ -86,6 +86,18 @@ class ChannelService(
         deleteChannel(channel)
     }
 
+    @Transactional
+    fun reorder(teamId: Long, userId: Long, channelIds: List<Long>): List<ChannelResponse> {
+        teamAccessChecker.requirePermission(teamId, userId, TeamPermission.MANAGE_CHANNELS)
+        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        if (channelIds.size != channels.size || channelIds.toSet() != channels.map { it.id }.toSet()) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "팀의 모든 채널을 중복 없이 전달해야 합니다.")
+        }
+        val channelById = channels.associateBy { it.id }
+        channelIds.forEachIndexed { index, id -> channelById.getValue(id).moveTo(index) }
+        return channelIds.map { ChannelResponse.from(channelById.getValue(it)) }
+    }
+
     fun deleteChannel(channel: Channel) {
         channelMemberRepository.deleteAllByChannelId(channel.id)
         channelRepository.delete(channel)
