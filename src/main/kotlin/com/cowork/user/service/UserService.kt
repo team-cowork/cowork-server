@@ -11,6 +11,7 @@ import com.cowork.user.dto.UpdateProfileRequest
 import com.cowork.user.dto.UserResponse
 import com.cowork.user.dto.UserSummaryResponse
 import com.cowork.user.repository.UserRepository
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.repository.findByIdOrNull
@@ -30,6 +31,8 @@ class UserService(
     private val userRepository: UserRepository,
     private val storageService: StorageService,
 ) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     fun upsertStudent(profile: StudentProfile): User {
@@ -104,7 +107,7 @@ class UserService(
         val user = findUser(userId)
         val previousKey = user.profileImageKey
         user.changeProfileImage(objectKey)
-        previousKey?.let(storageService::delete)
+        previousKey?.let(::deleteQuietly)
         return toResponse(user)
     }
 
@@ -115,6 +118,11 @@ class UserService(
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "프로필 이미지가 없습니다.")
         user.changeProfileImage(null)
         storageService.delete(key)
+    }
+
+    private fun deleteQuietly(objectKey: String) {
+        runCatching { storageService.delete(objectKey) }
+            .onFailure { log.warn("Fail to delete previous profile image {}", objectKey, it) }
     }
 
     private fun findUser(userId: Long): User =
