@@ -5,6 +5,7 @@ import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -26,5 +27,15 @@ class ChannelDomainTest {
         assertTrue(ChannelViewType.FILE_SHARE.supportsChat)
         assertFalse(ChannelViewType.MEETING_NOTE.supportsChat)
         assertFalse(ChannelViewType.VOICE.supportsChat)
+    }
+
+    @Test
+    fun `빈 설명으로 수정하면 설명을 비운다`() {
+        val channel = channel(ChannelViewType.TEXT)
+
+        channel.update(null, " ", true)
+
+        assertNull(channel.description)
+        assertTrue(channel.isPrivate)
     }
 }
