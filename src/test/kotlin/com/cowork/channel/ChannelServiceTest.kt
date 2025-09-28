@@ -77,4 +77,28 @@ class ChannelServiceTest {
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.status)
     }
+
+    @Test
+    fun `팀 채널 목록에서 참여하지 않은 비공개 채널은 숨긴다`() {
+        val channels = listOf(channel(1), channel(2, isPrivate = true), channel(3, isPrivate = true))
+        every { teamAccessChecker.requireMember(1, 5) } returns TeamMember(teamId = 1, userId = 5, role = TeamMemberRole.MEMBER)
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(1) } returns channels
+        every { channelMemberRepository.findJoinedChannelIds(5, listOf(2, 3)) } returns listOf(3)
+        every { channelAccessChecker.canManage(channels.first(), 5) } returns false
+
+        val result = service.getTeamChannels(1, 5)
+
+        assertEquals(listOf(1L, 3L), result.map { it.id })
+    }
+
+    @Test
+    fun `채널 관리 권한이 있으면 모든 비공개 채널을 본다`() {
+        val channels = listOf(channel(1, isPrivate = true), channel(2, isPrivate = true))
+        every { teamAccessChecker.requireMember(1, 2) } returns manager
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(1) } returns channels
+        every { channelMemberRepository.findJoinedChannelIds(2, any()) } returns emptyList()
+        every { channelAccessChecker.canManage(channels.first(), 2) } returns true
+
+        assertEquals(2, service.getTeamChannels(1, 2).size)
+    }
 }
