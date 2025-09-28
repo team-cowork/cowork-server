@@ -1,5 +1,16 @@
 package com.cowork.global.dev
 
+import com.cowork.project.domain.Project
+import com.cowork.project.domain.ProjectMember
+import com.cowork.project.domain.ProjectMemberRole
+import com.cowork.project.repository.ProjectMemberRepository
+import com.cowork.project.repository.ProjectRepository
+import com.cowork.team.domain.Team
+import com.cowork.team.domain.TeamMember
+import com.cowork.team.domain.TeamMemberRole
+import com.cowork.team.domain.TeamVisibility
+import com.cowork.team.repository.TeamMemberRepository
+import com.cowork.team.repository.TeamRepository
 import com.cowork.user.domain.User
 import com.cowork.user.repository.UserRepository
 import org.slf4j.LoggerFactory
@@ -16,6 +27,10 @@ import org.springframework.transaction.annotation.Transactional
 @Component
 class LocalSampleDataInitializer(
     private val userRepository: UserRepository,
+    private val teamRepository: TeamRepository,
+    private val teamMemberRepository: TeamMemberRepository,
+    private val projectRepository: ProjectRepository,
+    private val projectMemberRepository: ProjectMemberRepository,
 ) : ApplicationRunner {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -30,6 +45,17 @@ class LocalSampleDataInitializer(
                 User(dataGsmId = 900003, name = "박기획", email = "dev3@gsm.hs.kr", sex = "MAN", grade = 1, classNum = 3, major = "BACKEND"),
             ),
         )
-        log.info("Insert {} local sample users", users.size)
+        val owner = users.first()
+        val team = teamRepository.save(
+            Team(name = "cowork 샘플 팀", description = "로컬 개발용 팀", visibility = TeamVisibility.PUBLIC, ownerId = owner.id),
+        )
+        teamMemberRepository.saveAll(
+            users.map { TeamMember(teamId = team.id, userId = it.id, role = if (it == owner) TeamMemberRole.OWNER else TeamMemberRole.MEMBER) },
+        )
+        val project = projectRepository.save(
+            Project(teamId = team.id, name = "cowork 앱", description = null, githubRepoUrl = null, position = 0, createdBy = owner.id),
+        )
+        projectMemberRepository.save(ProjectMember(projectId = project.id, userId = owner.id, role = ProjectMemberRole.OWNER))
+        log.info("Insert {} local sample users and team {}", users.size, team.id)
     }
 }
