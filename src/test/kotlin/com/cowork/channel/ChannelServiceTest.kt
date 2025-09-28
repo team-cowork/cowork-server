@@ -5,6 +5,7 @@ import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.CreateChannelRequest
 import com.cowork.channel.dto.UpdateChannelRequest
+import com.cowork.channel.event.ChannelDeletedEvent
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.service.ChannelAccessChecker
@@ -124,5 +125,37 @@ class ChannelServiceTest {
 
         assertEquals(7, response.projectId)
         assertEquals("회의", response.name)
+    }
+
+    @Test
+    fun `채널을 삭제하면 삭제 이벤트를 발행하고 멤버를 정리한다`() {
+        val channel = channel(1)
+        every { channelAccessChecker.requireManageable(1, 2) } returns channel
+
+        service.delete(1, 2)
+
+        verify { eventPublisher.publishEvent(ChannelDeletedEvent(1, 1)) }
+        verify { channelMemberRepository.deleteAllByChannelId(1) }
+        verify { channelRepository.delete(channel) }
+    }
+
+    @Test
+    fun `채널 순서는 요청한 순서대로 바꾼다`() {
+        val channels = listOf(channel(1), channel(2), channel(3))
+        every { teamAccessChecker.requirePermission(1, 2, TeamPermission.MANAGE_CHANNELS) } returns manager
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(1) } returns channels
+
+        val result = service.reorder(1, 2, listOf(3, 1, 2))
+
+        assertEquals(listOf(0, 1, 2), result.map { it.position })
+        assertEquals(listOf(3L, 1L, 2L), result.map { it.id })
+    }
+
+    @Test
+    fun `채널 ID가 중복되면 순서를 바꿀 수 없다`() {
+        every { teamAccessChecker.requirePermission(1, 2, TeamPermission.MANAGE_CHANNELS) } returns manager
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(1) } returns listOf(channel(1), channel(2))
+
+        assertThrows<BusinessException> { service.reorder(1, 2, listOf(1, 1)) }
     }
 }
