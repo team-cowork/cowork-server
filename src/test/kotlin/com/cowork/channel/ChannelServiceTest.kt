@@ -4,6 +4,7 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.CreateChannelRequest
+import com.cowork.channel.dto.UpdateChannelRequest
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.service.ChannelAccessChecker
@@ -20,6 +21,7 @@ import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.context.ApplicationEventPublisher
@@ -100,5 +102,27 @@ class ChannelServiceTest {
         every { channelAccessChecker.canManage(channels.first(), 2) } returns true
 
         assertEquals(2, service.getTeamChannels(1, 2).size)
+    }
+
+    @Test
+    fun `프로젝트 연결 해제를 요청하면 프로젝트 ID를 비운다`() {
+        val channel = channel(1, projectId = 7)
+        every { channelAccessChecker.requireManageable(1, 2) } returns channel
+
+        service.update(1, 2, UpdateChannelRequest(detachProject = true))
+
+        assertNull(channel.projectId)
+    }
+
+    @Test
+    fun `같은 팀의 프로젝트로 연결을 바꾼다`() {
+        val channel = channel(1)
+        every { channelAccessChecker.requireManageable(1, 2) } returns channel
+        every { projectAccessChecker.findProject(7) } returns project(teamId = 1)
+
+        val response = service.update(1, 2, UpdateChannelRequest(name = "회의", projectId = 7))
+
+        assertEquals(7, response.projectId)
+        assertEquals("회의", response.name)
     }
 }
