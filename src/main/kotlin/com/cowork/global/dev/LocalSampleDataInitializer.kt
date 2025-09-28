@@ -1,5 +1,8 @@
 package com.cowork.global.dev
 
+import com.cowork.channel.domain.Channel
+import com.cowork.channel.domain.ChannelViewType
+import com.cowork.channel.repository.ChannelRepository
 import com.cowork.project.domain.Project
 import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
@@ -31,6 +34,7 @@ class LocalSampleDataInitializer(
     private val teamMemberRepository: TeamMemberRepository,
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
+    private val channelRepository: ChannelRepository,
 ) : ApplicationRunner {
 
     private val log = LoggerFactory.getLogger(javaClass)
@@ -56,6 +60,12 @@ class LocalSampleDataInitializer(
             Project(teamId = team.id, name = "cowork 앱", description = null, githubRepoUrl = null, position = 0, createdBy = owner.id),
         )
         projectMemberRepository.save(ProjectMember(projectId = project.id, userId = owner.id, role = ProjectMemberRole.OWNER))
+        channelRepository.saveAll(
+            listOf(
+                Channel(teamId = team.id, projectId = null, name = "일반", viewType = ChannelViewType.TEXT, description = null, isPrivate = false, position = 0, createdBy = owner.id),
+                Channel(teamId = team.id, projectId = project.id, name = "파일", viewType = ChannelViewType.FILE_SHARE, description = null, isPrivate = false, position = 1, createdBy = owner.id),
+            ),
+        )
         log.info("Insert {} local sample users and team {}", users.size, team.id)
     }
 }
