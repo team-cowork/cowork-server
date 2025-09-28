@@ -1,8 +1,10 @@
 package com.cowork.channel
 
 import com.cowork.channel.domain.Channel
+import com.cowork.channel.domain.ChannelThread
 import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
+import com.cowork.channel.domain.Webhook
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -37,5 +39,25 @@ class ChannelDomainTest {
 
         assertNull(channel.description)
         assertTrue(channel.isPrivate)
+    }
+
+    @Test
+    fun `웹훅 아바타를 빈 값으로 수정하면 기본 아바타로 돌아간다`() {
+        val webhook = Webhook(channelId = 1, name = "CI", avatarUrl = "https://img", token = "t", createdBy = 1)
+
+        webhook.update(null, "")
+
+        assertNull(webhook.avatarUrl)
+        assertEquals("CI", webhook.name)
+    }
+
+    @Test
+    fun `스레드 보관 여부만 바꿀 수 있다`() {
+        val thread = ChannelThread(channelId = 1, name = "논의", parentMessageId = 5, createdBy = 1)
+
+        thread.update(null, true)
+
+        assertEquals("논의", thread.name)
+        assertTrue(thread.isArchived)
     }
 }
