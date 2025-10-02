@@ -62,6 +62,20 @@ class WebhookService(
         webhookRepository.delete(findWebhook(channelId, webhookId))
     }
 
+    @Transactional
+    fun authenticate(webhookId: Long, token: String): Webhook {
+        val webhook = webhookRepository.findById(webhookId).orElse(null)
+        if (webhook == null || !MessageDigest.isEqual(webhook.token.toByteArray(), token.toByteArray())) {
+            throw BusinessException(HttpStatus.UNAUTHORIZED, "유효하지 않은 웹훅입니다.")
+        }
+        return webhook
+    }
+
+    @EventListener
+    fun onChannelDeleted(event: ChannelDeletedEvent) {
+        webhookRepository.deleteAllByChannelId(event.channelId)
+    }
+
     private fun findWebhook(channelId: Long, webhookId: Long): Webhook =
         webhookRepository.findByIdAndChannelId(webhookId, channelId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "웹훅을 찾을 수 없습니다.")
