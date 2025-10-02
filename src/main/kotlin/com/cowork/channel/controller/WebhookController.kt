@@ -8,6 +8,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -30,7 +31,7 @@ class WebhookController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateWebhookRequest,
+        @Valid @RequestBody request: CreateWebhookRequest,
     ): WebhookResponse = webhookService.create(channelId, user.id, request)
 
     @Operation(summary = "웹훅 목록 조회")
@@ -44,7 +45,7 @@ class WebhookController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable webhookId: Long,
-        @RequestBody request: UpdateWebhookRequest,
+        @Valid @RequestBody request: UpdateWebhookRequest,
     ): WebhookResponse = webhookService.update(channelId, webhookId, user.id, request)
 
     @Operation(summary = "웹훅 삭제")
