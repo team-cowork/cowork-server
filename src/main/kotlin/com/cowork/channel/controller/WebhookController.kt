@@ -32,4 +32,12 @@ class WebhookController(
     @GetMapping
     fun getWebhooks(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<WebhookResponse> =
         webhookService.getWebhooks(channelId, user.id)
+
+    @PatchMapping("/{webhookId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable webhookId: Long,
+        @RequestBody request: UpdateWebhookRequest,
+    ): WebhookResponse = webhookService.update(channelId, webhookId, user.id, request)
 }

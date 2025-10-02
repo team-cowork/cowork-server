@@ -44,4 +44,19 @@ class WebhookService(
         channelAccessChecker.requireManageable(channelId, userId)
         return webhookRepository.findAllByChannelIdOrderByIdAsc(channelId).map { WebhookResponse.of(it, publicBaseUrl) }
     }
+
+    @Transactional
+    fun update(channelId: Long, webhookId: Long, userId: Long, request: UpdateWebhookRequest): WebhookResponse {
+        channelAccessChecker.requireManageable(channelId, userId)
+        val webhook = findWebhook(channelId, webhookId)
+        webhook.update(request.name, request.avatarUrl)
+        if (request.rotateToken) {
+            webhook.rotateToken(TokenHasher.generate())
+        }
+        return WebhookResponse.of(webhook, publicBaseUrl)
+    }
+
+    private fun findWebhook(channelId: Long, webhookId: Long): Webhook =
+        webhookRepository.findByIdAndChannelId(webhookId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "웹훅을 찾을 수 없습니다.")
 }
