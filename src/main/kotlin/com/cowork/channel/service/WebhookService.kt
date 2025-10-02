@@ -38,4 +38,10 @@ class WebhookService(
         )
         return WebhookResponse.of(webhook, publicBaseUrl)
     }
+
+    @Transactional
+    fun getWebhooks(channelId: Long, userId: Long): List<WebhookResponse> {
+        channelAccessChecker.requireManageable(channelId, userId)
+        return webhookRepository.findAllByChannelIdOrderByIdAsc(channelId).map { WebhookResponse.of(it, publicBaseUrl) }
+    }
 }

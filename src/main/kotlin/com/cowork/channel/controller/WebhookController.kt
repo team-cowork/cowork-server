@@ -28,4 +28,8 @@ class WebhookController(
         @PathVariable channelId: Long,
         @RequestBody request: CreateWebhookRequest,
     ): WebhookResponse = webhookService.create(channelId, user.id, request)
+
+    @GetMapping
+    fun getWebhooks(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<WebhookResponse> =
+        webhookService.getWebhooks(channelId, user.id)
 }
