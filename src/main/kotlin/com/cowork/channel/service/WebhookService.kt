@@ -56,6 +56,12 @@ class WebhookService(
         return WebhookResponse.of(webhook, publicBaseUrl)
     }
 
+    @Transactional
+    fun delete(channelId: Long, webhookId: Long, userId: Long) {
+        channelAccessChecker.requireManageable(channelId, userId)
+        webhookRepository.delete(findWebhook(channelId, webhookId))
+    }
+
     private fun findWebhook(channelId: Long, webhookId: Long): Webhook =
         webhookRepository.findByIdAndChannelId(webhookId, channelId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "웹훅을 찾을 수 없습니다.")

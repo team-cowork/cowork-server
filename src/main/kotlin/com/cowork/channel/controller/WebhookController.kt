@@ -40,4 +40,11 @@ class WebhookController(
         @PathVariable webhookId: Long,
         @RequestBody request: UpdateWebhookRequest,
     ): WebhookResponse = webhookService.update(channelId, webhookId, user.id, request)
+
+    @DeleteMapping("/{webhookId}")
+    fun delete(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable webhookId: Long,
+    ) = webhookService.delete(channelId, webhookId, user.id)
 }
