@@ -39,7 +39,7 @@ class WebhookService(
         return WebhookResponse.of(webhook, publicBaseUrl)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getWebhooks(channelId: Long, userId: Long): List<WebhookResponse> {
         channelAccessChecker.requireManageable(channelId, userId)
         return webhookRepository.findAllByChannelIdOrderByIdAsc(channelId).map { WebhookResponse.of(it, publicBaseUrl) }
@@ -62,7 +62,7 @@ class WebhookService(
         webhookRepository.delete(findWebhook(channelId, webhookId))
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun authenticate(webhookId: Long, token: String): Webhook {
         val webhook = webhookRepository.findById(webhookId).orElse(null)
         if (webhook == null || !MessageDigest.isEqual(webhook.token.toByteArray(), token.toByteArray())) {
