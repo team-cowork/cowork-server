@@ -9,12 +9,16 @@ import com.cowork.team.domain.TeamVisibility
 import com.cowork.team.dto.TeamResponse
 import com.cowork.team.service.TeamService
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 
 class TeamControllerTest : ControllerTestSupport() {
@@ -66,5 +70,22 @@ class TeamControllerTest : ControllerTestSupport() {
     @Test
     fun `팀 ID가 숫자가 아니면 400을 반환한다`() {
         mockMvc.get("/teams/abc").andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `팀 이름은 100자를 넘을 수 없다`() {
+        mockMvc.patch("/teams/3") {
+            contentType = MediaType.APPLICATION_JSON
+            content = json(mapOf("name" to "a".repeat(101)))
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `팀을 삭제하면 204를 반환한다`() {
+        every { teamService.delete(3, 1) } just runs
+
+        mockMvc.delete("/teams/3").andExpect { status { isNoContent() } }
+
+        verify { teamService.delete(3, 1) }
     }
 }
