@@ -6,6 +6,8 @@ import com.cowork.channel.dto.WebhookResponse
 import com.cowork.channel.service.WebhookService
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,12 +18,14 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+@Tag(name = "웹훅")
 @RestController
 @RequestMapping("/channels/{channelId}/webhooks")
 class WebhookController(
     private val webhookService: WebhookService,
 ) {
 
+    @Operation(summary = "웹훅 생성")
     @PostMapping
     fun create(
         @CurrentUser user: AuthUser,
@@ -29,10 +33,12 @@ class WebhookController(
         @RequestBody request: CreateWebhookRequest,
     ): WebhookResponse = webhookService.create(channelId, user.id, request)
 
+    @Operation(summary = "웹훅 목록 조회")
     @GetMapping
     fun getWebhooks(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<WebhookResponse> =
         webhookService.getWebhooks(channelId, user.id)
 
+    @Operation(summary = "웹훅 수정")
     @PatchMapping("/{webhookId}")
     fun update(
         @CurrentUser user: AuthUser,
@@ -41,6 +47,7 @@ class WebhookController(
         @RequestBody request: UpdateWebhookRequest,
     ): WebhookResponse = webhookService.update(channelId, webhookId, user.id, request)
 
+    @Operation(summary = "웹훅 삭제")
     @DeleteMapping("/{webhookId}")
     fun delete(
         @CurrentUser user: AuthUser,
