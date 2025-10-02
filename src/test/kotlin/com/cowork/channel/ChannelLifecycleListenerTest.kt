@@ -8,6 +8,7 @@ import com.cowork.channel.service.ChannelLifecycleListener
 import com.cowork.channel.service.ChannelService
 import com.cowork.project.event.ProjectDeletedEvent
 import com.cowork.team.event.TeamDeletedEvent
+import com.cowork.team.event.TeamMemberRemovedEvent
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -42,5 +43,23 @@ class ChannelLifecycleListenerTest {
 
         verify { channelRepository.unassignProject(7) }
         verify(exactly = 0) { channelService.deleteChannel(any()) }
+    }
+
+    @Test
+    fun `팀에서 나간 사용자는 팀의 비공개 채널에서도 제외한다`() {
+        every { channelRepository.findIdsByTeamId(1) } returns listOf(1, 2)
+
+        listener.onTeamMemberRemoved(TeamMemberRemovedEvent(1, 5))
+
+        verify { channelMemberRepository.deleteAllByUserIdAndChannelIdIn(5, listOf(1, 2)) }
+    }
+
+    @Test
+    fun `채널이 없는 팀이면 멤버 정리를 하지 않는다`() {
+        every { channelRepository.findIdsByTeamId(1) } returns emptyList()
+
+        listener.onTeamMemberRemoved(TeamMemberRemovedEvent(1, 5))
+
+        verify(exactly = 0) { channelMemberRepository.deleteAllByUserIdAndChannelIdIn(any(), any()) }
     }
 }
