@@ -1,5 +1,6 @@
 package com.cowork.team
 
+import com.cowork.global.error.BusinessException
 import com.cowork.support.ControllerTestSupport
 import com.cowork.team.controller.TeamController
 import com.cowork.team.domain.Team
@@ -11,7 +12,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 
 class TeamControllerTest : ControllerTestSupport() {
@@ -48,5 +51,20 @@ class TeamControllerTest : ControllerTestSupport() {
         }.andExpect { status { isBadRequest() } }
 
         verify(exactly = 0) { teamService.create(any(), any()) }
+    }
+
+    @Test
+    fun `서비스 예외는 상태 코드와 메시지로 변환한다`() {
+        every { teamService.getTeam(3, 1) } throws BusinessException(HttpStatus.FORBIDDEN, "비공개 팀입니다.")
+
+        mockMvc.get("/teams/3").andExpect {
+            status { isForbidden() }
+            jsonPath("$.message") { value("비공개 팀입니다.") }
+        }
+    }
+
+    @Test
+    fun `팀 ID가 숫자가 아니면 400을 반환한다`() {
+        mockMvc.get("/teams/abc").andExpect { status { isBadRequest() } }
     }
 }
