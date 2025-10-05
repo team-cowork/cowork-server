@@ -33,7 +33,7 @@ class Webhook(
 
     fun update(name: String?, avatarUrl: String?) {
         name?.let { this.name = it }
-        avatarUrl?.let { this.avatarUrl = it }
+        avatarUrl?.let { this.avatarUrl = it.ifBlank { null } }
     }
 
     fun rotateToken(token: String) {
