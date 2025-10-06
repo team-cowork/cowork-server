@@ -30,4 +30,12 @@ class ChatController(
         @PathVariable channelId: Long,
         @RequestBody request: SendMessageRequest,
     ): MessageResponse = chatService.send(channelId, user.id, request)
+
+    @GetMapping("/messages")
+    fun getMessages(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestParam(required = false) before: Long?,
+        @RequestParam(defaultValue = "50") limit: Int,
+    ): MessagePageResponse = chatService.getMessages(channelId, user.id, before, limit)
 }

@@ -51,6 +51,17 @@ class ChatService(
         return response
     }
 
+    @Transactional
+    fun getMessages(channelId: Long, userId: Long, before: Long?, limit: Int): MessagePageResponse {
+        channelAccessChecker.requireReadable(channelId, userId)
+        val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
+        val messages = messageRepository.findChannelPage(channelId, before, PageRequest.of(0, pageSize))
+        return MessagePageResponse(
+            messages = messageAssembler.assemble(messages),
+            nextCursor = if (messages.size == pageSize) messages.last().id else null,
+        )
+    }
+
     private fun requireChatChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         if (!channel.viewType.supportsChat) {
