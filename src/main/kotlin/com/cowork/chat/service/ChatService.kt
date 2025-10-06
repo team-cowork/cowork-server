@@ -75,6 +75,17 @@ class ChatService(
         return response
     }
 
+    @Transactional
+    fun delete(channelId: Long, messageId: Long, userId: Long) {
+        val channel = channelAccessChecker.requireReadable(channelId, userId)
+        val message = findActiveMessage(channelId, messageId)
+        if (!message.isSentBy(userId) && !channelAccessChecker.canManage(channel, userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "메시지를 삭제할 권한이 없습니다.")
+        }
+        message.softDelete()
+        eventPublisher.publishEvent(MessageDeletedEvent(channelId, messageId))
+    }
+
     private fun requireChatChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         if (!channel.viewType.supportsChat) {

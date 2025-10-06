@@ -46,4 +46,11 @@ class ChatController(
         @PathVariable messageId: Long,
         @RequestBody request: EditMessageRequest,
     ): MessageResponse = chatService.edit(channelId, messageId, user.id, request.content)
+
+    @DeleteMapping("/messages/{messageId}")
+    fun delete(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable messageId: Long,
+    ) = chatService.delete(channelId, messageId, user.id)
 }
