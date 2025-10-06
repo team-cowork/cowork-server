@@ -38,4 +38,12 @@ class ChatController(
         @RequestParam(required = false) before: Long?,
         @RequestParam(defaultValue = "50") limit: Int,
     ): MessagePageResponse = chatService.getMessages(channelId, user.id, before, limit)
+
+    @PatchMapping("/messages/{messageId}")
+    fun edit(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable messageId: Long,
+        @RequestBody request: EditMessageRequest,
+    ): MessageResponse = chatService.edit(channelId, messageId, user.id, request.content)
 }

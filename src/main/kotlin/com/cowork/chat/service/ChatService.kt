@@ -62,12 +62,34 @@ class ChatService(
         )
     }
 
+    @Transactional
+    fun edit(channelId: Long, messageId: Long, userId: Long, content: String): MessageResponse {
+        channelAccessChecker.requireReadable(channelId, userId)
+        val message = findActiveMessage(channelId, messageId)
+        if (!message.isSentBy(userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "본인이 보낸 메시지만 수정할 수 있습니다.")
+        }
+        message.edit(content.trim())
+        val response = messageAssembler.assemble(message)
+        eventPublisher.publishEvent(MessageUpdatedEvent(response))
+        return response
+    }
+
     private fun requireChatChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         if (!channel.viewType.supportsChat) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "메시지를 보낼 수 없는 채널입니다.")
         }
         return channel
+    }
+
+    private fun findActiveMessage(channelId: Long, messageId: Long): Message {
+        val message = messageRepository.findByIdAndChannelId(messageId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다.")
+        if (message.deleted) {
+            throw BusinessException(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다.")
+        }
+        return message
     }
 
     private fun resolveMentions(channel: Channel, content: String, senderId: Long): Set<Long> {
