@@ -7,6 +7,8 @@ import com.cowork.chat.dto.SendMessageRequest
 import com.cowork.chat.service.ChatService
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -18,12 +20,14 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
+@Tag(name = "채팅")
 @RestController
 @RequestMapping("/channels/{channelId}")
 class ChatController(
     private val chatService: ChatService,
 ) {
 
+    @Operation(summary = "메시지 전송")
     @PostMapping("/messages")
     fun send(
         @CurrentUser user: AuthUser,
@@ -31,6 +35,7 @@ class ChatController(
         @RequestBody request: SendMessageRequest,
     ): MessageResponse = chatService.send(channelId, user.id, request)
 
+    @Operation(summary = "메시지 목록 조회 (커서 기반)")
     @GetMapping("/messages")
     fun getMessages(
         @CurrentUser user: AuthUser,
@@ -39,6 +44,7 @@ class ChatController(
         @RequestParam(defaultValue = "50") limit: Int,
     ): MessagePageResponse = chatService.getMessages(channelId, user.id, before, limit)
 
+    @Operation(summary = "메시지 수정")
     @PatchMapping("/messages/{messageId}")
     fun edit(
         @CurrentUser user: AuthUser,
@@ -47,6 +53,7 @@ class ChatController(
         @RequestBody request: EditMessageRequest,
     ): MessageResponse = chatService.edit(channelId, messageId, user.id, request.content)
 
+    @Operation(summary = "메시지 삭제")
     @DeleteMapping("/messages/{messageId}")
     fun delete(
         @CurrentUser user: AuthUser,
