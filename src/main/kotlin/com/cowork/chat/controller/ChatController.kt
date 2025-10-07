@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "채팅")
@@ -30,6 +31,7 @@ class ChatController(
 
     @Operation(summary = "메시지 전송")
     @PostMapping("/messages")
+    @ResponseStatus(HttpStatus.CREATED)
     fun send(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
@@ -56,6 +58,7 @@ class ChatController(
 
     @Operation(summary = "메시지 삭제")
     @DeleteMapping("/messages/{messageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
