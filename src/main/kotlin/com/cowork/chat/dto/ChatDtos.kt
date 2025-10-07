@@ -4,13 +4,19 @@ import com.cowork.chat.domain.Message
 import com.cowork.chat.domain.MessageAttachment
 import com.cowork.chat.domain.MessageType
 import com.cowork.user.dto.UserSummaryResponse
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class SendMessageRequest(
+    @field:NotBlank
+    @field:Size(max = 4000)
     val content: String,
 )
 
 data class EditMessageRequest(
+    @field:NotBlank
+    @field:Size(max = 4000)
     val content: String,
 )
 

@@ -9,6 +9,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -32,7 +33,7 @@ class ChatController(
     fun send(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: SendMessageRequest,
+        @Valid @RequestBody request: SendMessageRequest,
     ): MessageResponse = chatService.send(channelId, user.id, request)
 
     @Operation(summary = "메시지 목록 조회 (커서 기반)")
@@ -50,7 +51,7 @@ class ChatController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable messageId: Long,
-        @RequestBody request: EditMessageRequest,
+        @Valid @RequestBody request: EditMessageRequest,
     ): MessageResponse = chatService.edit(channelId, messageId, user.id, request.content)
 
     @Operation(summary = "메시지 삭제")
