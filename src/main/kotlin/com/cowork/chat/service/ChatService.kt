@@ -51,7 +51,7 @@ class ChatService(
         return response
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMessages(channelId: Long, userId: Long, before: Long?, limit: Int): MessagePageResponse {
         channelAccessChecker.requireReadable(channelId, userId)
         val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
