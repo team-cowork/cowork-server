@@ -5,6 +5,7 @@ import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.Webhook
 import com.cowork.channel.dto.CreateWebhookRequest
 import com.cowork.channel.dto.UpdateWebhookRequest
+import com.cowork.channel.event.ChannelDeletedEvent
 import com.cowork.channel.repository.WebhookRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.WebhookService
@@ -14,6 +15,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
@@ -89,5 +91,12 @@ class WebhookServiceTest {
         every { webhookRepository.findById(3) } returns Optional.empty()
 
         assertEquals(HttpStatus.UNAUTHORIZED, assertThrows<BusinessException> { service.authenticate(3, "x") }.status)
+    }
+
+    @Test
+    fun `채널이 삭제되면 채널의 웹훅을 모두 지운다`() {
+        service.onChannelDeleted(ChannelDeletedEvent(10, 1))
+
+        verify { webhookRepository.deleteAllByChannelId(10) }
     }
 }
