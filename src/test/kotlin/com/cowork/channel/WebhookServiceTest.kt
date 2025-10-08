@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
+import java.util.Optional
 
 class WebhookServiceTest {
 
@@ -65,5 +66,28 @@ class WebhookServiceTest {
         val exception = assertThrows<BusinessException> { service.update(10, 3, 2, UpdateWebhookRequest(name = "CI")) }
 
         assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `토큰이 일치하면 웹훅을 반환한다`() {
+        every { webhookRepository.findById(3) } returns Optional.of(webhook())
+
+        assertEquals(3, service.authenticate(3, "secret-token").id)
+    }
+
+    @Test
+    fun `토큰이 다르면 401을 반환한다`() {
+        every { webhookRepository.findById(3) } returns Optional.of(webhook())
+
+        val exception = assertThrows<BusinessException> { service.authenticate(3, "wrong") }
+
+        assertEquals(HttpStatus.UNAUTHORIZED, exception.status)
+    }
+
+    @Test
+    fun `없는 웹훅도 같은 401을 반환한다`() {
+        every { webhookRepository.findById(3) } returns Optional.empty()
+
+        assertEquals(HttpStatus.UNAUTHORIZED, assertThrows<BusinessException> { service.authenticate(3, "x") }.status)
     }
 }
