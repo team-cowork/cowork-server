@@ -31,6 +31,13 @@ class ChatFileService(
         return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
     }
 
+    @Transactional
+    fun confirmUpload(channelId: Long, userId: Long, objectKey: String): String {
+        channelAccessChecker.requireReadable(channelId, userId)
+        verifyUploadedFile(channelId, userId, objectKey, objectKey.substringAfterLast('/'))
+        return storageService.createDownloadUrl(objectKey)
+    }
+
     fun verifyUploadedFile(channelId: Long, userId: Long, objectKey: String, fileName: String): UploadedFile {
         if (!objectKey.startsWith(keyPrefix(channelId, userId)) || objectKey.contains("..")) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "유효하지 않은 파일 키입니다.")

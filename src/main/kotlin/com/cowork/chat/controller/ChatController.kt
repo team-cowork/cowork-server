@@ -80,4 +80,13 @@ class ChatController(
         @PathVariable channelId: Long,
         @Valid @RequestBody request: FileUploadUrlRequest,
     ): PresignedUploadResponse = chatFileService.createUploadUrl(channelId, user.id, request)
+
+    @Operation(summary = "첨부파일 업로드 확인")
+    @PostMapping("/files/confirm")
+    fun confirmFileUpload(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: ConfirmFileUploadRequest,
+    ): ConfirmFileUploadResponse =
+        ConfirmFileUploadResponse(chatFileService.confirmUpload(channelId, user.id, request.objectKey))
 }

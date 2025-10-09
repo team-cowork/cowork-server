@@ -46,6 +46,9 @@ data class ConfirmFileUploadRequest(
     @field:NotBlank
     val objectKey: String,
 )
+
+data class ConfirmFileUploadResponse(
+    val fileUrl: String,
 )
 
 data class AttachmentResponse(
