@@ -23,7 +23,7 @@ class ChatFileService(
     private val storageService: StorageService,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun createUploadUrl(channelId: Long, userId: Long, request: FileUploadUrlRequest): PresignedUploadResponse {
         channelAccessChecker.requireReadable(channelId, userId)
         validateSize(request.fileSize)
@@ -31,7 +31,7 @@ class ChatFileService(
         return PresignedUploadResponse(storageService.createUploadUrl(objectKey, request.contentType), objectKey)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun confirmUpload(channelId: Long, userId: Long, objectKey: String): String {
         channelAccessChecker.requireReadable(channelId, userId)
         verifyUploadedFile(channelId, userId, objectKey, objectKey.substringAfterLast('/'))
@@ -51,7 +51,7 @@ class ChatFileService(
         return UploadedFile(objectKey, fileName, guessContentType(fileName), size)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getChannelFiles(channelId: Long, userId: Long, before: Long?, limit: Int): ChannelFilePageResponse {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.FILE_SHARE)
