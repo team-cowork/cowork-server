@@ -63,6 +63,13 @@ class ChatFileService(
         )
     }
 
+    fun deleteAttachments(messageId: Long) {
+        val attachments = messageAttachmentRepository.findAllByMessageId(messageId)
+        if (attachments.isEmpty()) return
+        messageAttachmentRepository.deleteAll(attachments)
+        attachments.forEach { storageService.delete(it.objectKey) }
+    }
+
     private fun validateSize(size: Long) {
         if (size <= 0 || size > MAX_FILE_SIZE) {
             throw BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "파일 크기는 50MB 이하여야 합니다.")
