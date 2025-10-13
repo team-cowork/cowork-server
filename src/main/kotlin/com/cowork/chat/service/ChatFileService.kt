@@ -51,6 +51,18 @@ class ChatFileService(
         return UploadedFile(objectKey, fileName, guessContentType(fileName), size)
     }
 
+    @Transactional
+    fun getChannelFiles(channelId: Long, userId: Long, before: Long?, limit: Int): ChannelFilePageResponse {
+        val channel = channelAccessChecker.requireReadable(channelId, userId)
+        channelAccessChecker.requireViewType(channel, ChannelViewType.FILE_SHARE)
+        val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
+        val files = messageAttachmentRepository.findChannelFiles(channelId, before, PageRequest.of(0, pageSize))
+        return ChannelFilePageResponse(
+            files = files.map { ChannelFileResponse.of(it, storageService.createDownloadUrl(it.objectKey)) },
+            nextCursor = if (files.size == pageSize) files.last().id else null,
+        )
+    }
+
     private fun validateSize(size: Long) {
         if (size <= 0 || size > MAX_FILE_SIZE) {
             throw BusinessException(HttpStatus.PAYLOAD_TOO_LARGE, "파일 크기는 50MB 이하여야 합니다.")

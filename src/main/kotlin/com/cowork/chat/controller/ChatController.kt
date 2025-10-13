@@ -89,4 +89,13 @@ class ChatController(
         @Valid @RequestBody request: ConfirmFileUploadRequest,
     ): ConfirmFileUploadResponse =
         ConfirmFileUploadResponse(chatFileService.confirmUpload(channelId, user.id, request.objectKey))
+
+    @Operation(summary = "파일 공유 채널 파일 목록 조회")
+    @GetMapping("/files")
+    fun getFiles(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestParam(required = false) before: Long?,
+        @RequestParam(defaultValue = "20") limit: Int,
+    ): ChannelFilePageResponse = chatFileService.getChannelFiles(channelId, user.id, before, limit)
 }
