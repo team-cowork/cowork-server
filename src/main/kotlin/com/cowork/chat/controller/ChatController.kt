@@ -1,12 +1,18 @@
 package com.cowork.chat.controller
 
+import com.cowork.chat.dto.ChannelFilePageResponse
+import com.cowork.chat.dto.ConfirmFileUploadRequest
+import com.cowork.chat.dto.ConfirmFileUploadResponse
 import com.cowork.chat.dto.EditMessageRequest
+import com.cowork.chat.dto.FileUploadUrlRequest
 import com.cowork.chat.dto.MessagePageResponse
 import com.cowork.chat.dto.MessageResponse
 import com.cowork.chat.dto.SendMessageRequest
+import com.cowork.chat.service.ChatFileService
 import com.cowork.chat.service.ChatService
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import com.cowork.global.storage.PresignedUploadResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -27,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/channels/{channelId}")
 class ChatController(
     private val chatService: ChatService,
+    private val chatFileService: ChatFileService,
 ) {
 
     @Operation(summary = "메시지 전송")
@@ -64,4 +71,31 @@ class ChatController(
         @PathVariable channelId: Long,
         @PathVariable messageId: Long,
     ) = chatService.delete(channelId, messageId, user.id)
+
+    @Operation(summary = "첨부파일 업로드 URL 발급")
+    @PostMapping("/files/presigned-url")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createFileUploadUrl(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: FileUploadUrlRequest,
+    ): PresignedUploadResponse = chatFileService.createUploadUrl(channelId, user.id, request)
+
+    @Operation(summary = "첨부파일 업로드 확인")
+    @PostMapping("/files/confirm")
+    fun confirmFileUpload(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: ConfirmFileUploadRequest,
+    ): ConfirmFileUploadResponse =
+        ConfirmFileUploadResponse(chatFileService.confirmUpload(channelId, user.id, request.objectKey))
+
+    @Operation(summary = "파일 공유 채널 파일 목록 조회")
+    @GetMapping("/files")
+    fun getFiles(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestParam(required = false) before: Long?,
+        @RequestParam(defaultValue = "20") limit: Int,
+    ): ChannelFilePageResponse = chatFileService.getChannelFiles(channelId, user.id, before, limit)
 }

@@ -5,6 +5,7 @@ import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ChannelAudienceResolver
 import com.cowork.chat.domain.Message
+import com.cowork.chat.domain.MessageAttachment
 import com.cowork.chat.domain.MessageType
 import com.cowork.chat.dto.MessagePageResponse
 import com.cowork.chat.dto.MessageResponse
@@ -12,6 +13,7 @@ import com.cowork.chat.dto.SendMessageRequest
 import com.cowork.chat.event.MessageCreatedEvent
 import com.cowork.chat.event.MessageDeletedEvent
 import com.cowork.chat.event.MessageUpdatedEvent
+import com.cowork.chat.repository.MessageAttachmentRepository
 import com.cowork.chat.repository.MessageRepository
 import com.cowork.global.error.BusinessException
 import org.springframework.context.ApplicationEventPublisher
@@ -23,8 +25,10 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class ChatService(
     private val messageRepository: MessageRepository,
+    private val messageAttachmentRepository: MessageAttachmentRepository,
     private val channelAccessChecker: ChannelAccessChecker,
     private val channelAudienceResolver: ChannelAudienceResolver,
+    private val chatFileService: ChatFileService,
     private val messageAssembler: MessageAssembler,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
@@ -33,18 +37,32 @@ class ChatService(
     fun send(channelId: Long, userId: Long, request: SendMessageRequest): MessageResponse {
         val channel = requireChatChannel(channelId, userId)
         val content = request.content.trim()
-        if (content.isEmpty()) {
-            throw BusinessException(HttpStatus.BAD_REQUEST, "메시지 내용이 필요합니다.")
+        if (content.isEmpty() && request.attachments.isEmpty()) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "메시지 내용이나 첨부파일이 필요합니다.")
         }
 
+        val files = request.attachments.map { chatFileService.verifyUploadedFile(channelId, userId, it.objectKey, it.fileName) }
         val message = messageRepository.save(
             Message(
                 channelId = channelId,
                 senderId = userId,
-                type = MessageType.TEXT,
+                type = if (files.isEmpty()) MessageType.TEXT else MessageType.FILE,
                 content = content,
             ),
         )
+        files.forEach { file ->
+            messageAttachmentRepository.save(
+                MessageAttachment(
+                    messageId = message.id,
+                    channelId = channelId,
+                    objectKey = file.objectKey,
+                    fileName = file.fileName,
+                    contentType = file.contentType,
+                    fileSize = file.size,
+                    uploadedBy = userId,
+                ),
+            )
+        }
 
         val response = messageAssembler.assemble(message)
         eventPublisher.publishEvent(MessageCreatedEvent(channel.teamId, response, resolveMentions(channel, content, userId)))
@@ -83,6 +101,7 @@ class ChatService(
             throw BusinessException(HttpStatus.FORBIDDEN, "메시지를 삭제할 권한이 없습니다.")
         }
         message.softDelete()
+        chatFileService.deleteAttachments(message.id)
         eventPublisher.publishEvent(MessageDeletedEvent(channelId, messageId))
     }
 
