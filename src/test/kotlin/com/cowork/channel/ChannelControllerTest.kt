@@ -8,9 +8,14 @@ import com.cowork.channel.service.ChannelMemberService
 import com.cowork.channel.service.ChannelService
 import com.cowork.support.ControllerTestSupport
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.delete
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 
 class ChannelControllerTest : ControllerTestSupport() {
@@ -42,6 +47,25 @@ class ChannelControllerTest : ControllerTestSupport() {
         }.andExpect {
             status { isCreated() }
             jsonPath("$.type") { value("TEXT") }
+        }
+    }
+
+    @Test
+    fun `채널 멤버를 내보내면 204를 반환한다`() {
+        every { channelMemberService.removeMember(10, 1, 7) } just runs
+
+        mockMvc.delete("/channels/10/members/7").andExpect { status { isNoContent() } }
+
+        verify { channelMemberService.removeMember(10, 1, 7) }
+    }
+
+    @Test
+    fun `채널을 조회한다`() {
+        every { channelService.getChannel(10, 1) } returns ChannelResponse.from(channel)
+
+        mockMvc.get("/channels/10").andExpect {
+            status { isOk() }
+            jsonPath("$.name") { value("general") }
         }
     }
 }
