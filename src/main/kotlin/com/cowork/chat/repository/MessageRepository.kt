@@ -20,6 +20,18 @@ interface MessageRepository : JpaRepository<Message, Long> {
     )
     fun findChannelPage(channelId: Long, before: Long?, pageable: Pageable): List<Message>
 
+    @Query(
+        """
+        SELECT m FROM Message m
+        WHERE m.channelId IN :channelIds
+          AND m.deleted = false
+          AND m.content LIKE CONCAT('%', :keyword, '%')
+          AND (:before IS NULL OR m.id < :before)
+        ORDER BY m.id DESC
+        """,
+    )
+    fun search(channelIds: Collection<Long>, keyword: String, before: Long?, pageable: Pageable): List<Message>
+
     @Modifying
     @Query("DELETE FROM Message m WHERE m.channelId = :channelId")
     fun deleteAllByChannelId(channelId: Long)
