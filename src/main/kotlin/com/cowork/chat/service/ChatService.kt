@@ -2,6 +2,7 @@ package com.cowork.chat.service
 
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
+import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ChannelAudienceResolver
 import com.cowork.chat.domain.Message
@@ -16,6 +17,7 @@ import com.cowork.chat.event.MessageUpdatedEvent
 import com.cowork.chat.repository.MessageAttachmentRepository
 import com.cowork.chat.repository.MessageRepository
 import com.cowork.global.error.BusinessException
+import com.cowork.project.service.ProjectAccessChecker
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
@@ -26,8 +28,10 @@ import org.springframework.transaction.annotation.Transactional
 class ChatService(
     private val messageRepository: MessageRepository,
     private val messageAttachmentRepository: MessageAttachmentRepository,
+    private val channelRepository: ChannelRepository,
     private val channelAccessChecker: ChannelAccessChecker,
     private val channelAudienceResolver: ChannelAudienceResolver,
+    private val projectAccessChecker: ProjectAccessChecker,
     private val chatFileService: ChatFileService,
     private val messageAssembler: MessageAssembler,
     private val eventPublisher: ApplicationEventPublisher,
@@ -105,6 +109,26 @@ class ChatService(
         eventPublisher.publishEvent(MessageDeletedEvent(channelId, messageId))
     }
 
+    @Transactional(readOnly = true)
+    fun searchProjectMessages(projectId: Long, userId: Long, keyword: String, before: Long?, limit: Int): MessagePageResponse {
+        projectAccessChecker.requireReadable(projectId, userId)
+        val trimmed = keyword.trim()
+        if (trimmed.length < MIN_KEYWORD_LENGTH) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "검색어는 2자 이상이어야 합니다.")
+        }
+        val channelIds = channelRepository.findAllByProjectIdOrderByPositionAscIdAsc(projectId)
+            .filter { it.viewType.supportsChat && channelAccessChecker.canRead(it, userId) }
+            .map { it.id }
+        if (channelIds.isEmpty()) return MessagePageResponse(emptyList(), null)
+
+        val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
+        val messages = messageRepository.search(channelIds, escapeLike(trimmed), before, PageRequest.of(0, pageSize))
+        return MessagePageResponse(
+            messages = messageAssembler.assemble(messages),
+            nextCursor = if (messages.size == pageSize) messages.last().id else null,
+        )
+    }
+
     private fun requireChatChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         if (!channel.viewType.supportsChat) {
@@ -128,7 +152,11 @@ class ChatService(
         return mentioned intersect channelAudienceResolver.resolve(channel)
     }
 
+    private fun escapeLike(keyword: String): String =
+        keyword.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
     companion object {
         private const val MAX_PAGE_SIZE = 100
+        private const val MIN_KEYWORD_LENGTH = 2
     }
 }
