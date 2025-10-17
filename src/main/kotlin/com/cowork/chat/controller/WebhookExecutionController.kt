@@ -4,6 +4,9 @@ import com.cowork.chat.dto.MessageResponse
 import com.cowork.chat.service.WebhookMessageService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -21,11 +24,14 @@ class WebhookExecutionController(
     fun execute(
         @PathVariable webhookId: Long,
         @PathVariable token: String,
-        @RequestBody request: WebhookExecuteRequest,
+        @Valid @RequestBody request: WebhookExecuteRequest,
     ): MessageResponse = webhookMessageService.execute(webhookId, token, request.content, request.username)
 
     data class WebhookExecuteRequest(
+        @field:NotBlank
+        @field:Size(max = 4000)
         val content: String,
+        @field:Size(max = 100)
         val username: String? = null,
     )
 }
