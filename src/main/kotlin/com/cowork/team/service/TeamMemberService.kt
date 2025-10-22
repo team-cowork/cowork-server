@@ -56,7 +56,7 @@ class TeamMemberService(
 
     @Transactional
     fun changeRole(teamId: Long, actorId: Long, targetUserId: Long, newRole: TeamMemberRole): TeamMemberResponse {
-        teamAccessChecker.requireOwner(teamId, actorId)
+        val actor = teamAccessChecker.requireOwner(teamId, actorId)
         if (actorId == targetUserId) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "자신의 역할은 변경할 수 없습니다.")
         }
@@ -66,6 +66,7 @@ class TeamMemberService(
             val team = teamRepository.findByIdOrNull(teamId)
                 ?: throw BusinessException(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다.")
             team.transferOwnership(targetUserId)
+            actor.changeRole(TeamMemberRole.ADMIN)
         }
         target.changeRole(newRole)
         return TeamMemberResponse.of(target, userService.getSummaries(listOf(targetUserId))[targetUserId])
