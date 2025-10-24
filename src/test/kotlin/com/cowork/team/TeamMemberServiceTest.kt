@@ -1,9 +1,11 @@
 package com.cowork.team
 
 import com.cowork.global.error.BusinessException
+import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamPermission
+import com.cowork.team.domain.TeamVisibility
 import com.cowork.team.event.TeamMemberRemovedEvent
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
@@ -18,6 +20,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.http.HttpStatus
+import java.util.Optional
 
 class TeamMemberServiceTest {
 
@@ -93,5 +96,28 @@ class TeamMemberServiceTest {
         val exception = assertThrows<BusinessException> { service.addMember(1, 1, 7) }
 
         assertEquals(HttpStatus.CONFLICT, exception.status)
+    }
+
+    @Test
+    fun `소유권을 이전하면 기존 소유자는 관리자가 된다`() {
+        val owner = member(1, TeamMemberRole.OWNER)
+        val target = member(2, TeamMemberRole.ADMIN)
+        val team = Team(
+            name = "cowork",
+            description = null,
+            visibility = TeamVisibility.PUBLIC,
+            ownerId = 1,
+            id = 1,
+        )
+        every { accessChecker.requireOwner(1, 1) } returns owner
+        every { teamMemberRepository.findByTeamIdAndUserId(1, 2) } returns target
+        every { teamRepository.findById(1) } returns Optional.of(team)
+        every { userService.getSummaries(any()) } returns emptyMap()
+
+        service.changeRole(1, 1, 2, TeamMemberRole.OWNER)
+
+        assertEquals(TeamMemberRole.ADMIN, owner.role)
+        assertEquals(TeamMemberRole.OWNER, target.role)
+        assertEquals(2, team.ownerId)
     }
 }
