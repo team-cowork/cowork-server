@@ -19,17 +19,29 @@ repositories {
     mavenCentral()
 }
 
+dependencyManagement {
+    imports {
+        mavenBom(libs.aws.sdk.bom.get().toString())
+    }
+}
+
 dependencies {
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.data.jpa)
+    implementation(libs.spring.boot.starter.security)
+    implementation(libs.spring.boot.starter.websocket)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.kotlin.reflect)
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
+    implementation(libs.jjwt.api)
     implementation(libs.springdoc.openapi.webmvc.ui)
+    implementation(libs.aws.sdk.s3)
     runtimeOnly(libs.mysql.connector.j)
+    runtimeOnly(libs.jjwt.impl)
+    runtimeOnly(libs.jjwt.jackson)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
