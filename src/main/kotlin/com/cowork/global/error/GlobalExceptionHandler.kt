@@ -4,6 +4,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -36,6 +37,10 @@ class GlobalExceptionHandler {
     )
     fun handleBadRequest(e: Exception): ResponseEntity<ErrorResponse> =
         respond(HttpStatus.BAD_REQUEST, "요청 형식이 올바르지 않습니다.")
+
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleAccessDenied(e: AccessDeniedException): ResponseEntity<ErrorResponse> =
+        respond(HttpStatus.FORBIDDEN, "권한이 없습니다.")
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
     fun handleMethodNotSupported(e: HttpRequestMethodNotSupportedException): ResponseEntity<ErrorResponse> =
