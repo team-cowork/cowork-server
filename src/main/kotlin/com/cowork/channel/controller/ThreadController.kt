@@ -28,4 +28,11 @@ class ThreadController(
         @PathVariable channelId: Long,
         @RequestBody request: CreateThreadRequest,
     ): ThreadResponse = threadService.create(channelId, user.id, request)
+
+    @GetMapping
+    fun getThreads(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestParam(defaultValue = "false") archived: Boolean,
+    ): List<ThreadResponse> = threadService.getThreads(channelId, user.id, archived)
 }
