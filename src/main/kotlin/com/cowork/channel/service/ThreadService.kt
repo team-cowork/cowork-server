@@ -58,4 +58,9 @@ class ThreadService(
         thread.update(request.name, request.isArchived)
         return ThreadResponse.from(thread)
     }
+
+    @EventListener
+    fun onChannelDeleted(event: ChannelDeletedEvent) {
+        channelThreadRepository.deleteAllByChannelId(event.channelId)
+    }
 }
