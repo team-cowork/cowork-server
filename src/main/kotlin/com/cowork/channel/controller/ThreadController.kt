@@ -35,4 +35,12 @@ class ThreadController(
         @PathVariable channelId: Long,
         @RequestParam(defaultValue = "false") archived: Boolean,
     ): List<ThreadResponse> = threadService.getThreads(channelId, user.id, archived)
+
+    @PatchMapping("/{threadId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable threadId: Long,
+        @RequestBody request: UpdateThreadRequest,
+    ): ThreadResponse = threadService.update(channelId, threadId, user.id, request)
 }

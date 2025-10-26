@@ -46,4 +46,16 @@ class ThreadService(
         return channelThreadRepository.findAllByChannelIdAndIsArchivedOrderByIdDesc(channelId, archived)
             .map(ThreadResponse::from)
     }
+
+    @Transactional
+    fun update(channelId: Long, threadId: Long, userId: Long, request: UpdateThreadRequest): ThreadResponse {
+        val channel = channelAccessChecker.requireReadable(channelId, userId)
+        val thread = channelThreadRepository.findByIdAndChannelId(threadId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "스레드를 찾을 수 없습니다.")
+        if (thread.createdBy != userId && !channelAccessChecker.canManage(channel, userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "스레드를 수정할 권한이 없습니다.")
+        }
+        thread.update(request.name, request.isArchived)
+        return ThreadResponse.from(thread)
+    }
 }
