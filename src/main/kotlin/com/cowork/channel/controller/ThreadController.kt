@@ -8,6 +8,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -30,7 +31,7 @@ class ThreadController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateThreadRequest,
+        @Valid @RequestBody request: CreateThreadRequest,
     ): ThreadResponse = threadService.create(channelId, user.id, request)
 
     @Operation(summary = "스레드 목록 조회")
@@ -47,6 +48,6 @@ class ThreadController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable threadId: Long,
-        @RequestBody request: UpdateThreadRequest,
+        @Valid @RequestBody request: UpdateThreadRequest,
     ): ThreadResponse = threadService.update(channelId, threadId, user.id, request)
 }

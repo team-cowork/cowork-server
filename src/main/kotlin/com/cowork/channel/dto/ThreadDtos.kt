@@ -1,14 +1,21 @@
 package com.cowork.channel.dto
 
 import com.cowork.channel.domain.ChannelThread
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateThreadRequest(
+    @field:NotBlank
+    @field:Size(max = 100)
     val name: String,
+    @field:NotNull
     val parentMessageId: Long,
 )
 
 data class UpdateThreadRequest(
+    @field:Size(min = 1, max = 100)
     val name: String? = null,
     val isArchived: Boolean? = null,
 )
