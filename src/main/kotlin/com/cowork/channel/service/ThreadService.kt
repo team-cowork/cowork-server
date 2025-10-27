@@ -40,7 +40,7 @@ class ThreadService(
         return ThreadResponse.from(thread)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getThreads(channelId: Long, userId: Long, archived: Boolean): List<ThreadResponse> {
         channelAccessChecker.requireReadable(channelId, userId)
         return channelThreadRepository.findAllByChannelIdAndIsArchivedOrderByIdDesc(channelId, archived)
