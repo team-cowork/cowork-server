@@ -4,6 +4,7 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelThread
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.CreateThreadRequest
+import com.cowork.channel.dto.UpdateThreadRequest
 import com.cowork.channel.repository.ChannelThreadRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ThreadService
@@ -15,6 +16,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
@@ -73,5 +75,29 @@ class ThreadServiceTest {
         val response = service.create(10, 1, CreateThreadRequest("논의", 50))
 
         assertEquals(50, response.parentMessageId)
+    }
+
+    @Test
+    fun `만든 사람이 아니고 관리 권한도 없으면 수정할 수 없다`() {
+        val channel = channel()
+        every { channelAccessChecker.requireReadable(10, 2) } returns channel
+        every { threadRepository.findByIdAndChannelId(3, 10) } returns
+            ChannelThread(channelId = 10, name = "논의", parentMessageId = 50, createdBy = 1, id = 3)
+        every { channelAccessChecker.canManage(channel, 2) } returns false
+
+        val exception = assertThrows<BusinessException> { service.update(10, 3, 2, UpdateThreadRequest(isArchived = true)) }
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
+    }
+
+    @Test
+    fun `만든 사람은 스레드를 보관할 수 있다`() {
+        every { channelAccessChecker.requireReadable(10, 1) } returns channel()
+        every { threadRepository.findByIdAndChannelId(3, 10) } returns
+            ChannelThread(channelId = 10, name = "논의", parentMessageId = 50, createdBy = 1, id = 3)
+
+        val response = service.update(10, 3, 1, UpdateThreadRequest(isArchived = true))
+
+        assertTrue(response.isArchived)
     }
 }
