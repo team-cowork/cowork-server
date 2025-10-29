@@ -16,6 +16,7 @@ data class SendMessageRequest(
     @field:Valid
     @field:Size(max = 10)
     val attachments: List<AttachmentRequest> = emptyList(),
+    val threadId: Long? = null,
 )
 
 data class AttachmentRequest(
@@ -72,6 +73,7 @@ data class AttachmentResponse(
 data class MessageResponse(
     val id: Long,
     val channelId: Long,
+    val threadId: Long?,
     val senderId: Long?,
     val senderName: String?,
     val sender: UserSummaryResponse?,
@@ -88,6 +90,7 @@ data class MessageResponse(
         fun of(message: Message, sender: UserSummaryResponse?, attachments: List<AttachmentResponse>) = MessageResponse(
             id = message.id,
             channelId = message.channelId,
+            threadId = message.threadId,
             senderId = message.senderId,
             senderName = message.senderName ?: sender?.let { it.nickname ?: it.name },
             sender = sender,
