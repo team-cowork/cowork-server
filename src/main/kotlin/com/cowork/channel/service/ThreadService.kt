@@ -28,7 +28,7 @@ class ThreadService(
         }
         val parent = messageRepository.findByIdAndChannelId(request.parentMessageId, channelId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "메시지를 찾을 수 없습니다.")
-        if (parent.deleted) {
+        if (parent.deleted || parent.threadId != null) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "스레드를 시작할 수 없는 메시지입니다.")
         }
         if (channelThreadRepository.existsByChannelIdAndParentMessageId(channelId, parent.id)) {
