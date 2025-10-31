@@ -2,6 +2,7 @@ package com.cowork.chat
 
 import com.cowork.chat.domain.Message
 import com.cowork.chat.domain.MessageType
+import com.cowork.chat.service.MentionParser
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -35,5 +36,15 @@ class MessageDomainTest {
     fun `보낸 사람만 작성자로 판정한다`() {
         assertTrue(message().isSentBy(1))
         assertFalse(message().isSentBy(2))
+    }
+
+    @Test
+    fun `같은 사용자를 여러 번 멘션해도 한 번만 반환한다`() {
+        assertEquals(setOf(3L), MentionParser.parse("<@3> 확인 부탁해요 <@3>"))
+    }
+
+    @Test
+    fun `Long 범위를 넘는 ID는 무시한다`() {
+        assertEquals(emptySet<Long>(), MentionParser.parse("<@9999999999999999999>"))
     }
 }
