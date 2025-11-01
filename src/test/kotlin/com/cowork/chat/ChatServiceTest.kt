@@ -3,6 +3,7 @@ package com.cowork.chat
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.repository.ChannelRepository
+import com.cowork.channel.repository.ChannelThreadRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ChannelAudienceResolver
 import com.cowork.chat.domain.Message
@@ -41,6 +42,7 @@ class ChatServiceTest {
         messageRepository,
         mockk<MessageAttachmentRepository>(relaxed = true),
         mockk<ChannelRepository>(),
+        mockk<ChannelThreadRepository>(),
         channelAccessChecker,
         audienceResolver,
         mockk<ProjectAccessChecker>(),

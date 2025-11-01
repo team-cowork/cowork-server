@@ -3,6 +3,7 @@ package com.cowork.chat.service
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.repository.ChannelRepository
+import com.cowork.channel.repository.ChannelThreadRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ChannelAudienceResolver
 import com.cowork.chat.domain.Message
@@ -29,6 +30,7 @@ class ChatService(
     private val messageRepository: MessageRepository,
     private val messageAttachmentRepository: MessageAttachmentRepository,
     private val channelRepository: ChannelRepository,
+    private val channelThreadRepository: ChannelThreadRepository,
     private val channelAccessChecker: ChannelAccessChecker,
     private val channelAudienceResolver: ChannelAudienceResolver,
     private val projectAccessChecker: ProjectAccessChecker,
@@ -44,6 +46,7 @@ class ChatService(
         if (content.isEmpty() && request.attachments.isEmpty()) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "메시지 내용이나 첨부파일이 필요합니다.")
         }
+        request.threadId?.let { validateThread(channelId, it) }
 
         val files = request.attachments.map { chatFileService.verifyUploadedFile(channelId, userId, it.objectKey, it.fileName) }
         val message = messageRepository.save(
@@ -52,6 +55,7 @@ class ChatService(
                 senderId = userId,
                 type = if (files.isEmpty()) MessageType.TEXT else MessageType.FILE,
                 content = content,
+                threadId = request.threadId,
             ),
         )
         files.forEach { file ->
@@ -74,10 +78,16 @@ class ChatService(
     }
 
     @Transactional(readOnly = true)
-    fun getMessages(channelId: Long, userId: Long, before: Long?, limit: Int): MessagePageResponse {
+    fun getMessages(channelId: Long, userId: Long, before: Long?, limit: Int, threadId: Long?): MessagePageResponse {
         channelAccessChecker.requireReadable(channelId, userId)
         val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
-        val messages = messageRepository.findChannelPage(channelId, before, PageRequest.of(0, pageSize))
+        val page = PageRequest.of(0, pageSize)
+        val messages = if (threadId == null) {
+            messageRepository.findChannelPage(channelId, before, page)
+        } else {
+            validateThread(channelId, threadId, allowArchived = true)
+            messageRepository.findThreadPage(channelId, threadId, before, page)
+        }
         return MessagePageResponse(
             messages = messageAssembler.assemble(messages),
             nextCursor = if (messages.size == pageSize) messages.last().id else null,
@@ -135,6 +145,14 @@ class ChatService(
             throw BusinessException(HttpStatus.BAD_REQUEST, "메시지를 보낼 수 없는 채널입니다.")
         }
         return channel
+    }
+
+    private fun validateThread(channelId: Long, threadId: Long, allowArchived: Boolean = false) {
+        val thread = channelThreadRepository.findByIdAndChannelId(threadId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "스레드를 찾을 수 없습니다.")
+        if (thread.isArchived && !allowArchived) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "보관된 스레드에는 메시지를 보낼 수 없습니다.")
+        }
     }
 
     private fun findActiveMessage(channelId: Long, messageId: Long): Message {
