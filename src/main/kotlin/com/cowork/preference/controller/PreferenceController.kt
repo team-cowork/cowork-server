@@ -6,6 +6,8 @@ import com.cowork.global.security.CurrentUser
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.dto.SettingsResponse
 import com.cowork.preference.service.PreferenceService
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -14,12 +16,14 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
+@Tag(name = "설정")
 @RestController
 @RequestMapping("/preferences")
 class PreferenceController(
     private val preferenceService: PreferenceService,
 ) {
 
+    @Operation(summary = "설정 조회 (account, team, project, text-channel, voice-channel)")
     @GetMapping("/{resourceType}/{resourceId}")
     fun getSettings(
         @CurrentUser user: AuthUser,
@@ -27,6 +31,7 @@ class PreferenceController(
         @PathVariable resourceId: Long,
     ): SettingsResponse = preferenceService.getSettings(parse(resourceType), resourceId, user.id)
 
+    @Operation(summary = "설정 변경 (전달한 키만 반영, null은 삭제)")
     @PutMapping("/{resourceType}/{resourceId}")
     fun updateSettings(
         @CurrentUser user: AuthUser,
