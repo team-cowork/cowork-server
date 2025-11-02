@@ -32,6 +32,16 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot:ro
 
+  certbot:
+    image: certbot/certbot:v4.1.1
+    container_name: cowork-certbot
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
