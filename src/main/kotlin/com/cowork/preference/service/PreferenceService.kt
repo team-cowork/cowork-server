@@ -19,7 +19,7 @@ class PreferenceService(
     private val eventPublisher: ApplicationEventPublisher,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getSettings(type: ResourceType, resourceId: Long, userId: Long): SettingsResponse {
         preferenceAccessPolicy.requireReadable(type, resourceId, userId)
         val settings = resourceSettingRepository.findByResourceTypeAndResourceId(type, resourceId)?.settings.orEmpty()
