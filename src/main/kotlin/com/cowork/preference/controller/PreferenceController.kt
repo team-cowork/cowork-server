@@ -27,6 +27,14 @@ class PreferenceController(
         @PathVariable resourceId: Long,
     ): SettingsResponse = preferenceService.getSettings(parse(resourceType), resourceId, user.id)
 
+    @PutMapping("/{resourceType}/{resourceId}")
+    fun updateSettings(
+        @CurrentUser user: AuthUser,
+        @PathVariable resourceType: String,
+        @PathVariable resourceId: Long,
+        @RequestBody settings: Map<String, Any?>,
+    ): SettingsResponse = preferenceService.updateSettings(parse(resourceType), resourceId, user.id, settings)
+
     private fun parse(resourceType: String): ResourceType =
         ResourceType.fromPath(resourceType)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "지원하지 않는 설정 유형입니다.")
