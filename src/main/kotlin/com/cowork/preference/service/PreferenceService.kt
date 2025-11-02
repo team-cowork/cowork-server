@@ -1,11 +1,15 @@
 package com.cowork.preference.service
 
+import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.global.error.BusinessException
+import com.cowork.preference.domain.ChannelNotificationSetting
 import com.cowork.preference.domain.ResourceSetting
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingSchema
+import com.cowork.preference.dto.ChannelNotificationResponse
 import com.cowork.preference.dto.SettingsResponse
 import com.cowork.preference.event.AccountStatusChangedEvent
+import com.cowork.preference.repository.ChannelNotificationSettingRepository
 import com.cowork.preference.repository.ResourceSettingRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.http.HttpStatus
@@ -15,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class PreferenceService(
     private val resourceSettingRepository: ResourceSettingRepository,
+    private val channelNotificationSettingRepository: ChannelNotificationSettingRepository,
     private val preferenceAccessPolicy: PreferenceAccessPolicy,
+    private val channelAccessChecker: ChannelAccessChecker,
     private val eventPublisher: ApplicationEventPublisher,
 ) {
 
@@ -52,5 +58,12 @@ class PreferenceService(
             }
         }
         return SettingsResponse(type, resourceId, setting.settings)
+    }
+
+    @Transactional(readOnly = true)
+    fun getChannelNotification(userId: Long, channelId: Long): ChannelNotificationResponse {
+        channelAccessChecker.requireReadable(channelId, userId)
+        val enabled = channelNotificationSettingRepository.findByUserIdAndChannelId(userId, channelId)?.enabled ?: true
+        return ChannelNotificationResponse(channelId, enabled)
     }
 }

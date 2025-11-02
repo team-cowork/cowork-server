@@ -4,10 +4,13 @@ import com.cowork.global.error.BusinessException
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.dto.ChannelNotificationRequest
+import com.cowork.preference.dto.ChannelNotificationResponse
 import com.cowork.preference.dto.SettingsResponse
 import com.cowork.preference.service.PreferenceService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -40,6 +43,12 @@ class PreferenceController(
         @RequestBody settings: Map<String, Any?>,
     ): SettingsResponse = preferenceService.updateSettings(parse(resourceType), resourceId, user.id, settings)
 
+    @Operation(summary = "채널 알림 설정 조회")
+    @GetMapping("/account/me/channels/{channelId}/notification")
+    fun getChannelNotification(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+    ): ChannelNotificationResponse = preferenceService.getChannelNotification(user.id, channelId)
     private fun parse(resourceType: String): ResourceType =
         ResourceType.fromPath(resourceType)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "지원하지 않는 설정 유형입니다.")
