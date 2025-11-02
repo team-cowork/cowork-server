@@ -6,12 +6,14 @@ import com.cowork.channel.domain.Webhook
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.WebhookService
 import com.cowork.chat.domain.Message
+import com.cowork.chat.event.MessageCreatedEvent
 import com.cowork.chat.repository.MessageRepository
 import com.cowork.chat.service.MessageAssembler
 import com.cowork.chat.service.WebhookMessageService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
@@ -57,5 +59,13 @@ class WebhookMessageServiceTest {
         service.execute(3, "token", "배포", "a".repeat(120))
 
         assertEquals(100, saved.captured.senderName?.length)
+    }
+
+    @Test
+    fun `저장한 메시지는 멘션 없이 생성 이벤트로 알린다`() {
+        service.execute(3, "token", "배포", " ")
+
+        assertEquals("GitHub", saved.captured.senderName)
+        verify { eventPublisher.publishEvent(match<MessageCreatedEvent> { it.teamId == 1L && it.mentionedUserIds.isEmpty() }) }
     }
 }
