@@ -1,0 +1,14 @@
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:20}
+
+server:
+  tomcat:
+    threads:
+      max: 200
+
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
