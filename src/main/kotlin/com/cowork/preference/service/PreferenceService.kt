@@ -66,4 +66,13 @@ class PreferenceService(
         val enabled = channelNotificationSettingRepository.findByUserIdAndChannelId(userId, channelId)?.enabled ?: true
         return ChannelNotificationResponse(channelId, enabled)
     }
+
+    @Transactional
+    fun updateChannelNotification(userId: Long, channelId: Long, enabled: Boolean): ChannelNotificationResponse {
+        channelAccessChecker.requireReadable(channelId, userId)
+        val setting = channelNotificationSettingRepository.findByUserIdAndChannelId(userId, channelId)
+            ?: channelNotificationSettingRepository.save(ChannelNotificationSetting(userId = userId, channelId = channelId))
+        setting.change(enabled)
+        return ChannelNotificationResponse(channelId, setting.enabled)
+    }
 }

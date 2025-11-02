@@ -49,6 +49,15 @@ class PreferenceController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
     ): ChannelNotificationResponse = preferenceService.getChannelNotification(user.id, channelId)
+
+    @Operation(summary = "채널 알림 설정 변경")
+    @PutMapping("/account/me/channels/{channelId}/notification")
+    fun updateChannelNotification(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: ChannelNotificationRequest,
+    ): ChannelNotificationResponse = preferenceService.updateChannelNotification(user.id, channelId, request.notification)
+
     private fun parse(resourceType: String): ResourceType =
         ResourceType.fromPath(resourceType)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "지원하지 않는 설정 유형입니다.")
