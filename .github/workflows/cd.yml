@@ -105,3 +105,16 @@ jobs:
           IMAGE_TAG: ${{ needs.build.outputs.image-tag }}
           ECR_REGISTRY: ${{ needs.build.outputs.registry }}
 
+  notify:
+    needs: [build, deploy]
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Notify Discord
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
+          status: ${{ needs.deploy.result == 'success' && 'success' || 'failure' }}
+          title: cowork-server 운영 배포
+          description: ${{ needs.build.outputs.image-tag }}
