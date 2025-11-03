@@ -75,4 +75,17 @@ class ChatControllerTest : ControllerTestSupport() {
 
         mockMvc.delete("/channels/10/messages/5").andExpect { status { isNoContent() } }
     }
+
+    @Test
+    fun `업로드 확정 시 다운로드 URL을 반환한다`() {
+        every { chatFileService.confirmUpload(10, 1, "chat/10/1/x/a.pdf") } returns "https://download/a.pdf"
+
+        mockMvc.post("/channels/10/files/confirm") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"objectKey":"chat/10/1/x/a.pdf"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.fileUrl") { value("https://download/a.pdf") }
+        }
+    }
 }
