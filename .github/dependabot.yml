@@ -1,0 +1,18 @@
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    target-branch: develop
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "update(global)"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    target-branch: develop
+    commit-message:
+      prefix: "update(ci/cd)"
