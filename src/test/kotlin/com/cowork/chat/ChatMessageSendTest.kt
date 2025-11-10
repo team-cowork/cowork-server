@@ -12,6 +12,7 @@ import com.cowork.chat.domain.MessageAttachment
 import com.cowork.chat.domain.MessageType
 import com.cowork.chat.dto.AttachmentRequest
 import com.cowork.chat.dto.SendMessageRequest
+import com.cowork.chat.event.MessageCreatedEvent
 import com.cowork.chat.repository.MessageAttachmentRepository
 import com.cowork.chat.repository.MessageRepository
 import com.cowork.chat.service.ChatFileService
@@ -86,5 +87,14 @@ class ChatMessageSendTest {
 
         assertEquals(MessageType.FILE, saved.captured.type)
         verify { attachmentRepository.save(match<MessageAttachment> { it.fileSize == 2048L && it.uploadedBy == 1L }) }
+    }
+
+    @Test
+    fun `자기 자신을 멘션해도 멘션 대상에 넣지 않는다`() {
+        every { audienceResolver.resolve(channel) } returns setOf(1, 2)
+
+        service.send(10, 1, SendMessageRequest("<@1> <@2> 확인"))
+
+        verify { eventPublisher.publishEvent(match<MessageCreatedEvent> { it.mentionedUserIds == setOf(2L) }) }
     }
 }
