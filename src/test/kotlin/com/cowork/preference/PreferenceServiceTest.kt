@@ -3,6 +3,7 @@ package com.cowork.preference
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.service.ChannelAccessChecker
+import com.cowork.global.error.BusinessException
 import com.cowork.preference.domain.ResourceSetting
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.repository.ChannelNotificationSettingRepository
@@ -16,7 +17,9 @@ import io.mockk.runs
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.http.HttpStatus
 
 class PreferenceServiceTest {
 
@@ -58,5 +61,29 @@ class PreferenceServiceTest {
             accountSetting("status" to "ONLINE", "theme" to "BLACK")
 
         assertEquals(2, service.getSettings(ResourceType.ACCOUNT, 1, 1).settings.size)
+    }
+
+    @Test
+    fun `변경할 수 있는 항목이 없으면 400을 반환한다`() {
+        val exception = assertThrows<BusinessException> {
+            service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("unknown" to true))
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.status)
+    }
+
+    @Test
+    fun `허용하지 않는 값이면 검증 메시지로 400을 반환한다`() {
+        assertThrows<BusinessException> { service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("theme" to "PINK")) }
+    }
+
+    @Test
+    fun `설정이 없으면 새로 만들고 변경 값을 합친다`() {
+        every { settingRepository.findByResourceTypeAndResourceId(ResourceType.ACCOUNT, 1) } returns null
+        every { settingRepository.save(any()) } answers { firstArg() }
+
+        val response = service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("theme" to "BLACK"))
+
+        assertEquals("BLACK", response.settings["theme"])
     }
 }
