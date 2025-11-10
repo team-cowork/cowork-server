@@ -8,6 +8,9 @@ import com.cowork.channel.repository.ChannelThreadRepository
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.channel.service.ChannelAudienceResolver
 import com.cowork.chat.domain.Message
+import com.cowork.chat.domain.MessageAttachment
+import com.cowork.chat.domain.MessageType
+import com.cowork.chat.dto.AttachmentRequest
 import com.cowork.chat.dto.SendMessageRequest
 import com.cowork.chat.repository.MessageAttachmentRepository
 import com.cowork.chat.repository.MessageRepository
@@ -19,6 +22,7 @@ import com.cowork.project.service.ProjectAccessChecker
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -70,5 +74,17 @@ class ChatMessageSendTest {
         val exception = assertThrows<BusinessException> { service.send(10, 1, SendMessageRequest("hello", threadId = 3)) }
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.status)
+    }
+
+    @Test
+    fun `첨부파일이 있으면 파일 메시지로 저장하고 첨부파일을 기록한다`() {
+        every { chatFileService.verifyUploadedFile(10, 1, "chat/10/1/x/a.pdf", "a.pdf") } returns
+            ChatFileService.UploadedFile("chat/10/1/x/a.pdf", "a.pdf", "application/pdf", 2048)
+        every { attachmentRepository.save(any<MessageAttachment>()) } answers { firstArg() }
+
+        service.send(10, 1, SendMessageRequest(attachments = listOf(AttachmentRequest("chat/10/1/x/a.pdf", "a.pdf"))))
+
+        assertEquals(MessageType.FILE, saved.captured.type)
+        verify { attachmentRepository.save(match<MessageAttachment> { it.fileSize == 2048L && it.uploadedBy == 1L }) }
     }
 }
