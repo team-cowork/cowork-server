@@ -4,6 +4,7 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.global.error.BusinessException
+import com.cowork.preference.domain.ChannelNotificationSetting
 import com.cowork.preference.domain.ResourceSetting
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.event.AccountStatusChangedEvent
@@ -17,6 +18,8 @@ import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -107,5 +110,20 @@ class PreferenceServiceTest {
         service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("status" to "ONLINE"))
 
         verify(exactly = 0) { eventPublisher.publishEvent(any<AccountStatusChangedEvent>()) }
+    }
+
+    @Test
+    fun `채널 알림 설정이 없으면 켜진 상태로 본다`() {
+        every { notificationRepository.findByUserIdAndChannelId(1, 10) } returns null
+
+        assertTrue(service.getChannelNotification(1, 10).notification)
+    }
+
+    @Test
+    fun `채널 알림을 끄면 설정을 저장한다`() {
+        every { notificationRepository.findByUserIdAndChannelId(1, 10) } returns null
+        every { notificationRepository.save(any()) } answers { firstArg<ChannelNotificationSetting>() }
+
+        assertFalse(service.updateChannelNotification(1, 10, false).notification)
     }
 }
