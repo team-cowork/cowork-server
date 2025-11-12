@@ -6,6 +6,7 @@ import com.cowork.channel.service.ChannelAccessChecker
 import com.cowork.global.error.BusinessException
 import com.cowork.preference.domain.ResourceSetting
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.event.AccountStatusChangedEvent
 import com.cowork.preference.repository.ChannelNotificationSettingRepository
 import com.cowork.preference.repository.ResourceSettingRepository
 import com.cowork.preference.service.PreferenceAccessPolicy
@@ -14,6 +15,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -85,5 +87,25 @@ class PreferenceServiceTest {
         val response = service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("theme" to "BLACK"))
 
         assertEquals("BLACK", response.settings["theme"])
+    }
+
+    @Test
+    fun `상태가 바뀌면 상태 변경 이벤트를 발행한다`() {
+        every { settingRepository.findByResourceTypeAndResourceId(ResourceType.ACCOUNT, 1) } returns
+            accountSetting("status" to "ONLINE")
+
+        service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("status" to "DO_NOT_DISTURB"))
+
+        verify { eventPublisher.publishEvent(AccountStatusChangedEvent(1, "ONLINE", "DO_NOT_DISTURB", "USER")) }
+    }
+
+    @Test
+    fun `같은 상태로 다시 저장하면 이벤트를 발행하지 않는다`() {
+        every { settingRepository.findByResourceTypeAndResourceId(ResourceType.ACCOUNT, 1) } returns
+            accountSetting("status" to "ONLINE")
+
+        service.updateSettings(ResourceType.ACCOUNT, 1, 1, mapOf("status" to "ONLINE"))
+
+        verify(exactly = 0) { eventPublisher.publishEvent(any<AccountStatusChangedEvent>()) }
     }
 }
