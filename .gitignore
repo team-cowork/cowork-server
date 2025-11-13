@@ -38,3 +38,6 @@ build/
 
 ### Environment ###
 .env
+deploy/.env
+deploy/secrets/
+deploy/certbot/
