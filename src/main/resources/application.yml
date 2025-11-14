@@ -65,3 +65,5 @@ cowork:
     access-key: ${STORAGE_ACCESS_KEY:minioadmin}
     secret-key: ${STORAGE_SECRET_KEY:minioadmin}
     path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
+  preference:
+    status-expiry-interval: PT1M
