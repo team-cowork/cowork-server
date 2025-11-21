@@ -79,7 +79,8 @@ class ChatFileService(
     private fun keyPrefix(channelId: Long, userId: Long) = "chat/$channelId/$userId/"
 
     private fun sanitize(fileName: String): String =
-        fileName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+        fileName.substringAfterLast('/').substringAfterLast('\\')
+            .replace(Regex("[^A-Za-z0-9가-힣._-]"), "_")
             .take(MAX_FILE_NAME_LENGTH)
             .ifBlank { "file" }
 
