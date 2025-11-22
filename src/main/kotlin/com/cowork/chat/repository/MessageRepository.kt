@@ -14,11 +14,23 @@ interface MessageRepository : JpaRepository<Message, Long> {
         """
         SELECT m FROM Message m
         WHERE m.channelId = :channelId
+          AND m.threadId IS NULL
           AND (:before IS NULL OR m.id < :before)
         ORDER BY m.id DESC
         """,
     )
     fun findChannelPage(channelId: Long, before: Long?, pageable: Pageable): List<Message>
+
+    @Query(
+        """
+        SELECT m FROM Message m
+        WHERE m.channelId = :channelId
+          AND m.threadId = :threadId
+          AND (:before IS NULL OR m.id < :before)
+        ORDER BY m.id DESC
+        """,
+    )
+    fun findThreadPage(channelId: Long, threadId: Long, before: Long?, pageable: Pageable): List<Message>
 
     @Query(
         """
