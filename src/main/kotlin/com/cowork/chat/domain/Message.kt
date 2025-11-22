@@ -26,6 +26,9 @@ class Message(
     @Column(nullable = false, columnDefinition = "TEXT")
     var content: String,
 
+    @Column(name = "thread_id")
+    val threadId: Long? = null,
+
     @Column(name = "webhook_id")
     val webhookId: Long? = null,
 

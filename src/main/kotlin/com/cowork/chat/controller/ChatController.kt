@@ -52,7 +52,8 @@ class ChatController(
         @PathVariable channelId: Long,
         @RequestParam(required = false) before: Long?,
         @RequestParam(defaultValue = "50") limit: Int,
-    ): MessagePageResponse = chatService.getMessages(channelId, user.id, before, limit)
+        @RequestParam(required = false) threadId: Long?,
+    ): MessagePageResponse = chatService.getMessages(channelId, user.id, before, limit, threadId)
 
     @Operation(summary = "메시지 수정")
     @PatchMapping("/messages/{messageId}")

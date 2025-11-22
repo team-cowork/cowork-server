@@ -6,5 +6,6 @@
 build
 out
 deploy
+http
 *.md
 .env

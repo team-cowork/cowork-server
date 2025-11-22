@@ -54,7 +54,7 @@ class StompAuthChannelInterceptor(
             }
             return
         }
-        if (destination.startsWith(USER_QUEUE_PREFIX)) {
+        if (USER_STATUS_TOPIC.matches(destination) || destination.startsWith(USER_QUEUE_PREFIX)) {
             return
         }
         throw MessageDeliveryException("구독할 수 없는 경로입니다.")
@@ -69,5 +69,6 @@ class StompAuthChannelInterceptor(
         private const val BEARER_PREFIX = "Bearer "
         private const val USER_QUEUE_PREFIX = "/user/queue/"
         private val CHANNEL_TOPIC = Regex("^/topic/channels/(\\d+)(/[a-z-]+)?$")
+        private val USER_STATUS_TOPIC = Regex("^/topic/users/\\d+/status$")
     }
 }
