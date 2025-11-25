@@ -50,4 +50,25 @@ class AccountStatusExpirationSchedulerTest {
         assertEquals("DO_NOT_DISTURB", active.settings["status"])
         verify(exactly = 0) { eventPublisher.publishEvent(any<Any>()) }
     }
+
+    @Test
+    fun `만료 시각을 읽을 수 없으면 바로 만료한다`() {
+        val broken = setting(1, "DO_NOT_DISTURB", "tomorrow")
+        every { repository.findAccountsWithStatusExpiry() } returns listOf(broken)
+
+        scheduler.expireStatuses()
+
+        assertEquals("ONLINE", broken.settings["status"])
+    }
+
+    @Test
+    fun `이미 온라인이면 만료 시각만 지우고 이벤트는 발행하지 않는다`() {
+        val online = setting(1, "ONLINE", "2025-11-14T11:00:00Z")
+        every { repository.findAccountsWithStatusExpiry() } returns listOf(online)
+
+        scheduler.expireStatuses()
+
+        assertFalse(online.settings.containsKey("status_expires_at"))
+        verify(exactly = 0) { eventPublisher.publishEvent(any<Any>()) }
+    }
 }
