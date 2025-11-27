@@ -67,4 +67,38 @@ class ChatFileServiceTest {
 
         assertEquals(HttpStatus.PAYLOAD_TOO_LARGE, exception.status)
     }
+
+    @Test
+    fun `다른 사용자 경로의 파일 키는 거부한다`() {
+        val exception = assertThrows<BusinessException> {
+            service.verifyUploadedFile(10, 1, "chat/10/2/x/a.pdf", "a.pdf")
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.status)
+    }
+
+    @Test
+    fun `상위 경로가 들어간 파일 키는 거부한다`() {
+        assertThrows<BusinessException> { service.verifyUploadedFile(10, 1, "chat/10/1/../../a.pdf", "a.pdf") }
+    }
+
+    @Test
+    fun `이미 첨부한 파일은 다시 첨부할 수 없다`() {
+        every { attachmentRepository.existsByObjectKey("chat/10/1/x/a.pdf") } returns true
+
+        val exception = assertThrows<BusinessException> { service.verifyUploadedFile(10, 1, "chat/10/1/x/a.pdf", "a.pdf") }
+
+        assertEquals(HttpStatus.CONFLICT, exception.status)
+    }
+
+    @Test
+    fun `업로드된 파일은 이름으로 콘텐츠 타입을 추정한다`() {
+        every { attachmentRepository.existsByObjectKey(any()) } returns false
+        every { storageService.findObjectSize("chat/10/1/x/a.pdf") } returns 2048
+
+        val file = service.verifyUploadedFile(10, 1, "chat/10/1/x/a.pdf", "a.pdf")
+
+        assertEquals("application/pdf", file.contentType)
+        assertEquals(2048, file.size)
+    }
 }
