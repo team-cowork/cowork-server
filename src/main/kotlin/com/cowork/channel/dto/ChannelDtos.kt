@@ -8,6 +8,7 @@ import com.cowork.user.dto.UserSummaryResponse
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
@@ -18,10 +19,12 @@ data class CreateChannelRequest(
     @field:NotBlank
     @field:Size(max = 100)
     val name: String,
+    @field:Schema(description = "채널 화면 유형", example = "TEXT")
     @field:NotNull
     val viewType: ChannelViewType,
     @field:Size(max = 500)
     val description: String? = null,
+    @field:Schema(description = "비공개 채널 여부. 비공개 채널은 채널 멤버만 볼 수 있다.", example = "false")
     val isPrivate: Boolean = false,
 )
 
