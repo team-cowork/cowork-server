@@ -10,8 +10,11 @@ import com.cowork.chat.service.ChatFileService
 import com.cowork.global.error.BusinessException
 import com.cowork.global.storage.StorageService
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -100,5 +103,23 @@ class ChatFileServiceTest {
 
         assertEquals("application/pdf", file.contentType)
         assertEquals(2048, file.size)
+    }
+
+    @Test
+    fun `페이지가 가득 차면 마지막 파일 ID를 다음 커서로 준다`() {
+        every { channelAccessChecker.requireViewType(channel, ChannelViewType.FILE_SHARE) } just runs
+        every { attachmentRepository.findChannelFiles(10, null, any()) } returns listOf(attachment(9), attachment(8))
+
+        val page = service.getChannelFiles(10, 1, null, 2)
+
+        assertEquals(8, page.nextCursor)
+    }
+
+    @Test
+    fun `마지막 페이지에는 다음 커서가 없다`() {
+        every { channelAccessChecker.requireViewType(channel, ChannelViewType.FILE_SHARE) } just runs
+        every { attachmentRepository.findChannelFiles(10, 8, any()) } returns listOf(attachment(7))
+
+        assertNull(service.getChannelFiles(10, 1, 8, 2).nextCursor)
     }
 }
