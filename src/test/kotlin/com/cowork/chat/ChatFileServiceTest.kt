@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -121,5 +122,17 @@ class ChatFileServiceTest {
         every { attachmentRepository.findChannelFiles(10, 8, any()) } returns listOf(attachment(7))
 
         assertNull(service.getChannelFiles(10, 1, 8, 2).nextCursor)
+    }
+
+    @Test
+    fun `첨부파일 레코드와 저장소 객체를 함께 지운다`() {
+        val attachments = listOf(attachment(1), attachment(2))
+        every { attachmentRepository.findAllByMessageId(100) } returns attachments
+
+        service.deleteAttachments(100)
+
+        verify { attachmentRepository.deleteAll(attachments) }
+        verify { storageService.delete("chat/10/1/1/a.pdf") }
+        verify { storageService.delete("chat/10/1/2/a.pdf") }
     }
 }
