@@ -7,15 +7,18 @@ import com.cowork.user.dto.UserSummaryResponse
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Positive
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class SendMessageRequest(
+    @field:Schema(description = "메시지 내용. `<@사용자ID>`로 멘션한다.", example = "<@2> 회의록 확인 부탁해요")
     @field:Size(max = 4000)
     val content: String = "",
     @field:Valid
     @field:Size(max = 10)
     val attachments: List<AttachmentRequest> = emptyList(),
+    @field:Schema(description = "스레드 ID. 비우면 채널에 보낸다.")
     val threadId: Long? = null,
 )
 

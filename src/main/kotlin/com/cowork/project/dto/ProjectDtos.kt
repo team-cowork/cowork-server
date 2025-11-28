@@ -9,17 +9,21 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotEmpty
 import jakarta.validation.constraints.NotNull
 import jakarta.validation.constraints.Pattern
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateProjectRequest(
+    @field:Schema(description = "프로젝트를 만들 팀 ID", example = "1")
     @field:NotNull
     val teamId: Long,
+    @field:Schema(description = "프로젝트 이름", example = "cowork 앱")
     @field:NotBlank
     @field:Size(max = 100)
     val name: String,
     @field:Size(max = 500)
     val description: String? = null,
+    @field:Schema(description = "GitHub 저장소 주소", example = "https://github.com/team-cowork/cowork-app")
     @field:Size(max = 512)
     @field:Pattern(regexp = GITHUB_REPO_PATTERN)
     val githubRepoUrl: String? = null,

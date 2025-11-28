@@ -4,15 +4,19 @@ import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamVisibility
 import jakarta.validation.constraints.NotBlank
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.Size
 import java.time.LocalDateTime
 
 data class CreateTeamRequest(
+    @field:Schema(description = "팀 이름", example = "cowork")
     @field:NotBlank
     @field:Size(max = 100)
     val name: String,
+    @field:Schema(description = "팀 소개", example = "협업 도구를 만드는 팀")
     @field:Size(max = 500)
     val description: String? = null,
+    @field:Schema(description = "공개 범위", example = "PUBLIC")
     val visibility: TeamVisibility = TeamVisibility.PUBLIC,
 )
 
