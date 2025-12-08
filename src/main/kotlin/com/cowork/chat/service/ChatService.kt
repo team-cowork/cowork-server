@@ -25,6 +25,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 메시지 전송, 조회, 수정, 삭제와 프로젝트 채널 검색을 담당한다.
+ *
+ * - 메시지를 지원하는 채널(텍스트, 웹훅, 파일 공유)에서만 보낼 수 있다.
+ * - 수정은 보낸 사람만, 삭제는 보낸 사람이나 채널 관리자만 할 수 있다.
+ * - 멘션은 채널을 읽을 수 있는 사용자만 남긴다.
+ */
 @Service
 class ChatService(
     private val messageRepository: MessageRepository,
