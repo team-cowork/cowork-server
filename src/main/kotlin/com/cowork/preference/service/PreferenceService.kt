@@ -16,6 +16,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 계정, 팀, 프로젝트, 채널 설정과 채널별 알림 설정을 담당한다.
+ *
+ * - 다른 사용자의 계정 설정은 상태 값만 보여준다.
+ * - 계정 상태가 바뀌면 `AccountStatusChangedEvent`를 발행한다.
+ */
 @Service
 class PreferenceService(
     private val resourceSettingRepository: ResourceSettingRepository,
