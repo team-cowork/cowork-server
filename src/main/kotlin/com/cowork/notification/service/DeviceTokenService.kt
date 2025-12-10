@@ -22,4 +22,13 @@ class DeviceTokenService(
             existing.reassign(userId, platform)
         }
     }
+
+    @Transactional
+    fun delete(userId: Long, token: String) {
+        val deviceToken = deviceTokenRepository.findByToken(token)
+        if (deviceToken == null || deviceToken.userId != userId) {
+            throw BusinessException(HttpStatus.NOT_FOUND, "등록된 기기 토큰을 찾을 수 없습니다.")
+        }
+        deviceTokenRepository.delete(deviceToken)
+    }
 }

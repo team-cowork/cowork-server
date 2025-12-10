@@ -23,4 +23,8 @@ class NotificationController(
         @CurrentUser user: AuthUser,
         @RequestBody request: RegisterDeviceTokenRequest,
     ) = deviceTokenService.register(user.id, request.token, request.platform)
+
+    @DeleteMapping("/tokens/{token}")
+    fun deleteToken(@CurrentUser user: AuthUser, @PathVariable token: String) =
+        deviceTokenService.delete(user.id, token)
 }
