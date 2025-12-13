@@ -6,6 +6,7 @@ import com.cowork.notification.dto.RegisterDeviceTokenRequest
 import com.cowork.notification.service.DeviceTokenService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -25,7 +26,7 @@ class NotificationController(
     @PostMapping("/tokens")
     fun registerToken(
         @CurrentUser user: AuthUser,
-        @RequestBody request: RegisterDeviceTokenRequest,
+        @Valid @RequestBody request: RegisterDeviceTokenRequest,
     ) = deviceTokenService.register(user.id, request.token, request.platform)
 
     @Operation(summary = "FCM 기기 토큰 삭제")
