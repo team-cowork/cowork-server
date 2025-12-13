@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "알림")
@@ -24,6 +25,7 @@ class NotificationController(
 
     @Operation(summary = "FCM 기기 토큰 등록")
     @PostMapping("/tokens")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun registerToken(
         @CurrentUser user: AuthUser,
         @Valid @RequestBody request: RegisterDeviceTokenRequest,
@@ -31,6 +33,7 @@ class NotificationController(
 
     @Operation(summary = "FCM 기기 토큰 삭제")
     @DeleteMapping("/tokens/{token}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteToken(@CurrentUser user: AuthUser, @PathVariable token: String) =
         deviceTokenService.delete(user.id, token)
 }
