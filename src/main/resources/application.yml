@@ -67,3 +67,5 @@ cowork:
     path-style-access: ${STORAGE_PATH_STYLE_ACCESS:true}
   preference:
     status-expiry-interval: PT1M
+  firebase:
+    credentials-path: ${FCM_CREDENTIALS_PATH:}

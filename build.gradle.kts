@@ -39,6 +39,7 @@ dependencies {
     implementation(libs.jjwt.api)
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation(libs.aws.sdk.s3)
+    implementation(libs.firebase.admin)
     runtimeOnly(libs.mysql.connector.j)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)
