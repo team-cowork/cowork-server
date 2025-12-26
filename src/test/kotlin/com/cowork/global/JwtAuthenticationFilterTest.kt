@@ -6,6 +6,7 @@ import com.cowork.global.security.JwtTokenProvider
 import com.cowork.user.domain.UserRole
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -48,5 +49,27 @@ class JwtAuthenticationFilterTest {
 
         assertNull(principal())
         assertEquals(request, chain.request)
+    }
+
+    @Test
+    fun `SSE 구독 경로에서는 쿼리 파라미터 토큰을 읽는다`() {
+        every { provider.parseAccessToken("query-token") } returns AuthUser(2, UserRole.MEMBER)
+        val request = MockHttpServletRequest("GET", "/notifications/stream")
+        request.setParameter("access_token", "query-token")
+
+        filter.doFilter(request, MockHttpServletResponse(), MockFilterChain())
+
+        assertEquals(2, principal()?.id)
+    }
+
+    @Test
+    fun `다른 경로에서는 쿼리 파라미터 토큰을 무시한다`() {
+        val request = MockHttpServletRequest("GET", "/users/me")
+        request.setParameter("access_token", "query-token")
+
+        filter.doFilter(request, MockHttpServletResponse(), MockFilterChain())
+
+        assertNull(principal())
+        verify(exactly = 0) { provider.parseAccessToken(any()) }
     }
 }
