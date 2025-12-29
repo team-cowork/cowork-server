@@ -23,4 +23,11 @@ class SseEmitterRegistryTest {
         assertTrue(registry.send(1, "notification", mapOf("title" to "hello")))
         assertFalse(registry.isConnected(2))
     }
+
+    @Test
+    fun `연결이 없을 때 하트비트를 보내도 실패하지 않는다`() {
+        registry.heartbeat()
+
+        assertFalse(registry.isConnected(1))
+    }
 }
