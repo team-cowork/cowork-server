@@ -8,6 +8,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * FCM 기기 토큰 등록과 삭제를 담당한다.
+ *
+ * - 다른 사용자가 등록한 토큰을 다시 등록하면 새 사용자에게 옮긴다.
+ */
 @Service
 class DeviceTokenService(
     private val deviceTokenRepository: DeviceTokenRepository,
