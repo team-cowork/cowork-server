@@ -7,6 +7,13 @@ import com.cowork.preference.service.PreferenceReader
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * SSE와 FCM으로 알림을 보낸다.
+ *
+ * - 방해 금지 상태인 사용자는 제외한다.
+ * - SSE로 전달한 사용자에게는 푸시를 보내지 않는다.
+ * - FCM이 무효라고 응답한 토큰은 바로 지운다.
+ */
 @Service
 class NotificationService(
     private val deviceTokenRepository: DeviceTokenRepository,
