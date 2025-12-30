@@ -21,4 +21,5 @@ docker run --rm -e MYSQL_PWD="$DB_PASSWORD" mysql:8.0 \
   | gzip > "$file"
 
 aws s3 cp "$file" "s3://$BACKUP_BUCKET/mysql/$(basename "$file")" --only-show-errors
+find "$backup_dir" -name 'cowork-*.sql.gz' -mtime +7 -delete
 echo "Backup uploaded: $file"
