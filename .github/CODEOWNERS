@@ -1,0 +1,15 @@
+# 도메인 담당자
+/src/main/kotlin/com/cowork/auth/          @snowykte0426
+/src/main/kotlin/com/cowork/global/        @snowykte0426
+/src/main/kotlin/com/cowork/user/          @jong-yun
+/src/main/kotlin/com/cowork/team/          @roblery128
+/src/main/kotlin/com/cowork/project/       @wwwcomcomcomcom
+/src/main/kotlin/com/cowork/channel/       @hwangjihun
+/src/main/kotlin/com/cowork/chat/          @Sean-mn
+/src/main/kotlin/com/cowork/preference/    @jong-yun
+/src/main/kotlin/com/cowork/notification/  @wwwcomcomcomcom
+
+# 배포와 인프라
+/.github/                                  @chaeeun-09
+/deploy/                                   @chaeeun-09
+Dockerfile                                 @chaeeun-09
