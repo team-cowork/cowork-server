@@ -69,3 +69,7 @@ cowork:
     status-expiry-interval: PT1M
   firebase:
     credentials-path: ${FCM_CREDENTIALS_PATH:}
+  livekit:
+    url: ${LIVEKIT_URL:ws://localhost:7880}
+    api-key: ${LIVEKIT_API_KEY:devkey}
+    api-secret: ${LIVEKIT_API_SECRET:local-development-livekit-secret-32bytes}
