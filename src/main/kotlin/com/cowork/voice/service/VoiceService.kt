@@ -66,6 +66,26 @@ class VoiceService(
         )
     }
 
+    @Transactional
+    fun leave(channelId: Long, userId: Long) {
+        channelAccessChecker.findChannel(channelId)
+        val session = voiceSessionRepository.findFirstByChannelIdAndStatusOrderByIdDesc(channelId, VoiceSessionStatus.ACTIVE)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "진행 중인 음성 세션이 없습니다.")
+        val participant = voiceParticipantRepository.findFirstBySessionIdAndUserIdAndLeftAtIsNull(session.id, userId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "음성 세션에 참여하고 있지 않습니다.")
+        markLeft(session, participant)
+    }
+
+    private fun markLeft(session: VoiceSession, participant: VoiceParticipant) {
+        val now = LocalDateTime.now(clock)
+        participant.leave(now)
+        eventPublisher.publishEvent(VoiceSocketEvent("PARTICIPANT_LEFT", session.channelId, participant.userId))
+        if (voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id).none { it.id != participant.id }) {
+            session.end(now)
+            eventPublisher.publishEvent(VoiceSocketEvent("SESSION_ENDED", session.channelId, null))
+        }
+    }
+
     private fun requireVoiceChannel(channelId: Long, userId: Long) {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         if (channel.type != ChannelType.VOICE) {

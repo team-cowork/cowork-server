@@ -53,3 +53,16 @@ data class VoiceSocketEvent(
     val channelId: Long,
     val userId: Long?,
 )
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LiveKitWebhookEvent(
+    val event: String,
+    val room: Room? = null,
+    val participant: Participant? = null,
+) {
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Room(val name: String)
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    data class Participant(val identity: String)
+}

@@ -22,4 +22,7 @@ class VoiceController(
     @PostMapping("/channels/{channelId}/join")
     fun join(@CurrentUser user: AuthUser, @PathVariable channelId: Long): JoinVoiceResponse =
         voiceService.join(channelId, user.id)
+
+    @PostMapping("/channels/{channelId}/leave")
+    fun leave(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = voiceService.leave(channelId, user.id)
 }
