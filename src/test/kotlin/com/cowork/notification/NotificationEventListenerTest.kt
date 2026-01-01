@@ -15,6 +15,7 @@ import com.cowork.notification.service.NotificationService
 import com.cowork.preference.service.PreferenceReader
 import com.cowork.project.event.ProjectMemberAddedEvent
 import com.cowork.team.event.TeamMemberAddedEvent
+import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Test
@@ -54,5 +55,28 @@ class NotificationEventListenerTest {
         listener.onProjectMemberAdded(ProjectMemberAddedEvent(3, "앱", 7, 7))
 
         verify(exactly = 0) { notificationService.notify(any(), any()) }
+    }
+
+    @Test
+    fun `보낸 사람은 메시지 알림을 받지 않는다`() {
+        every { channelAccessChecker.findChannel(10) } returns channel
+        every { audienceResolver.resolve(channel) } returns setOf(1, 2, 3)
+        every { preferenceReader.filterNotifiable(10, setOf(2L, 3L)) } returns setOf(2, 3)
+
+        listener.onMessageCreated(created("안녕하세요"))
+
+        verify { notificationService.notify(setOf(2L, 3L), match<NotificationMessage> { it.body == "홍길동: 안녕하세요" }) }
+    }
+
+    @Test
+    fun `멘션된 사용자는 멘션 알림만 받는다`() {
+        every { channelAccessChecker.findChannel(10) } returns channel
+        every { audienceResolver.resolve(channel) } returns setOf(1, 2, 3)
+        every { preferenceReader.filterNotifiable(10, setOf(2L, 3L)) } returns setOf(2, 3)
+
+        listener.onMessageCreated(created("<@2> 확인해 주세요", mentioned = setOf(2)))
+
+        verify { notificationService.notify(setOf(2L), match<NotificationMessage> { it.type == NotificationType.CHAT_MENTION }) }
+        verify { notificationService.notify(setOf(3L), match<NotificationMessage> { it.type == NotificationType.CHAT_MESSAGE }) }
     }
 }
