@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "음성")
@@ -29,6 +30,7 @@ class VoiceController(
 
     @Operation(summary = "음성 채널 나가기")
     @PostMapping("/channels/{channelId}/leave")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun leave(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = voiceService.leave(channelId, user.id)
 
     @Operation(summary = "음성 채널 참여자 조회")
