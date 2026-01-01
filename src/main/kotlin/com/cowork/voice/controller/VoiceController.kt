@@ -29,4 +29,8 @@ class VoiceController(
     @GetMapping("/channels/{channelId}/participants")
     fun getParticipants(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<VoiceParticipantResponse> =
         voiceService.getParticipants(channelId, user.id)
+
+    @GetMapping("/sessions/{sessionId}")
+    fun getSession(@CurrentUser user: AuthUser, @PathVariable sessionId: Long): VoiceSessionResponse =
+        voiceService.getSession(sessionId, user.id)
 }

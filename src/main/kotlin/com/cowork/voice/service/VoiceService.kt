@@ -84,6 +84,15 @@ class VoiceService(
         return toParticipantResponses(voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id))
     }
 
+    @Transactional
+    fun getSession(sessionId: Long, userId: Long): VoiceSessionResponse {
+        val session = voiceSessionRepository.findByIdOrNull(sessionId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "음성 세션을 찾을 수 없습니다.")
+        channelAccessChecker.requireReadable(session.channelId, userId)
+        val participants = voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id)
+        return VoiceSessionResponse.of(session, toParticipantResponses(participants))
+    }
+
     private fun markLeft(session: VoiceSession, participant: VoiceParticipant) {
         val now = LocalDateTime.now(clock)
         participant.leave(now)
