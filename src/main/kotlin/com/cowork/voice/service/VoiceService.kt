@@ -76,6 +76,14 @@ class VoiceService(
         markLeft(session, participant)
     }
 
+    @Transactional
+    fun getParticipants(channelId: Long, userId: Long): List<VoiceParticipantResponse> {
+        requireVoiceChannel(channelId, userId)
+        val session = voiceSessionRepository.findFirstByChannelIdAndStatusOrderByIdDesc(channelId, VoiceSessionStatus.ACTIVE)
+            ?: return emptyList()
+        return toParticipantResponses(voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id))
+    }
+
     private fun markLeft(session: VoiceSession, participant: VoiceParticipant) {
         val now = LocalDateTime.now(clock)
         participant.leave(now)
@@ -91,6 +99,11 @@ class VoiceService(
         if (channel.type != ChannelType.VOICE) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "음성 채널이 아닙니다.")
         }
+    }
+
+    private fun toParticipantResponses(participants: List<VoiceParticipant>): List<VoiceParticipantResponse> {
+        val users = userService.getSummaries(participants.map { it.userId })
+        return participants.map { VoiceParticipantResponse.of(it, users[it.userId]) }
     }
 
     companion object {

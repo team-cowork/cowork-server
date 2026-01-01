@@ -25,4 +25,8 @@ class VoiceController(
 
     @PostMapping("/channels/{channelId}/leave")
     fun leave(@CurrentUser user: AuthUser, @PathVariable channelId: Long) = voiceService.leave(channelId, user.id)
+
+    @GetMapping("/channels/{channelId}/participants")
+    fun getParticipants(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<VoiceParticipantResponse> =
+        voiceService.getParticipants(channelId, user.id)
 }
