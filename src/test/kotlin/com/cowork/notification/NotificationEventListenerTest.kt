@@ -79,4 +79,24 @@ class NotificationEventListenerTest {
         verify { notificationService.notify(setOf(2L), match<NotificationMessage> { it.type == NotificationType.CHAT_MENTION }) }
         verify { notificationService.notify(setOf(3L), match<NotificationMessage> { it.type == NotificationType.CHAT_MESSAGE }) }
     }
+
+    @Test
+    fun `파일만 보낸 메시지는 미리보기 문구로 알린다`() {
+        every { channelAccessChecker.findChannel(10) } returns channel
+        every { audienceResolver.resolve(channel) } returns setOf(1, 2)
+        every { preferenceReader.filterNotifiable(10, setOf(2L)) } returns setOf(2)
+
+        listener.onMessageCreated(created(""))
+
+        verify { notificationService.notify(setOf(2L), match<NotificationMessage> { it.body.endsWith("파일을 보냈습니다.") }) }
+    }
+
+    @Test
+    fun `채널 조회에 실패해도 예외를 밖으로 던지지 않는다`() {
+        every { channelAccessChecker.findChannel(10) } throws IllegalStateException("db down")
+
+        listener.onMessageCreated(created("hello"))
+
+        verify(exactly = 0) { notificationService.notify(any(), any()) }
+    }
 }
