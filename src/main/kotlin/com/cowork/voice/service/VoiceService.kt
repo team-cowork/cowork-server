@@ -76,7 +76,7 @@ class VoiceService(
         markLeft(session, participant)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getParticipants(channelId: Long, userId: Long): List<VoiceParticipantResponse> {
         requireVoiceChannel(channelId, userId)
         val session = voiceSessionRepository.findFirstByChannelIdAndStatusOrderByIdDesc(channelId, VoiceSessionStatus.ACTIVE)
@@ -84,7 +84,7 @@ class VoiceService(
         return toParticipantResponses(voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id))
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getSession(sessionId: Long, userId: Long): VoiceSessionResponse {
         val session = voiceSessionRepository.findByIdOrNull(sessionId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "음성 세션을 찾을 수 없습니다.")
