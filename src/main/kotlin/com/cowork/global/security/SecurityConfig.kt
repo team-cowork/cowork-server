@@ -77,6 +77,7 @@ class SecurityConfig(
             "/swagger-ui.html",
             "/v3/api-docs/**",
             "/ws/**",
+            "/voice/webhook",
             "/webhooks/**",
             "/error",
         )
