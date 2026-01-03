@@ -31,4 +31,9 @@ class PreferenceReader(
             .map { it.resourceId }
             .toSet()
     }
+
+    @Transactional(readOnly = true)
+    fun findVoiceMaxParticipants(channelId: Long): Int? =
+        (resourceSettingRepository.findByResourceTypeAndResourceId(ResourceType.VOICE_CHANNEL, channelId)
+            ?.settings?.get(SettingSchema.MAX_PARTICIPANTS) as? Number)?.toInt()
 }
