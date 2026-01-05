@@ -115,6 +115,12 @@ class VoiceService(
         val session = voiceSessionRepository.findByRoomName(roomName) ?: return
         endSession(session)
     }
+
+    @Transactional
+    fun endChannelSessions(channelId: Long) {
+        voiceSessionRepository.findAllByChannelIdAndStatus(channelId, VoiceSessionStatus.ACTIVE).forEach(::endSession)
+    }
+
     private fun markLeft(session: VoiceSession, participant: VoiceParticipant) {
         val now = LocalDateTime.now(clock)
         participant.leave(now)
