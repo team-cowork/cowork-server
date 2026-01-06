@@ -93,6 +93,34 @@ class VoiceService(
         return VoiceSessionResponse.of(session, toParticipantResponses(participants))
     }
 
+    @Transactional
+    fun handleParticipantLeft(roomName: String, identity: String) {
+        val session = voiceSessionRepository.findByRoomName(roomName) ?: return
+        val userId = identity.toLongOrNull() ?: return
+        val participant = voiceParticipantRepository.findFirstBySessionIdAndUserIdAndLeftAtIsNull(session.id, userId) ?: return
+        markLeft(session, participant)
+    }
+
+    @Transactional
+    fun handleParticipantJoined(roomName: String, identity: String) {
+        val session = voiceSessionRepository.findByRoomName(roomName)?.takeIf { it.isActive } ?: return
+        val userId = identity.toLongOrNull() ?: return
+        if (voiceParticipantRepository.findFirstBySessionIdAndUserIdAndLeftAtIsNull(session.id, userId) != null) return
+        voiceParticipantRepository.save(VoiceParticipant(sessionId = session.id, userId = userId, joinedAt = LocalDateTime.now(clock)))
+        eventPublisher.publishEvent(VoiceSocketEvent("PARTICIPANT_JOINED", session.channelId, userId))
+    }
+
+    @Transactional
+    fun handleRoomFinished(roomName: String) {
+        val session = voiceSessionRepository.findByRoomName(roomName) ?: return
+        endSession(session)
+    }
+
+    @Transactional
+    fun endChannelSessions(channelId: Long) {
+        voiceSessionRepository.findAllByChannelIdAndStatus(channelId, VoiceSessionStatus.ACTIVE).forEach(::endSession)
+    }
+
     private fun markLeft(session: VoiceSession, participant: VoiceParticipant) {
         val now = LocalDateTime.now(clock)
         participant.leave(now)
@@ -101,6 +129,14 @@ class VoiceService(
             session.end(now)
             eventPublisher.publishEvent(VoiceSocketEvent("SESSION_ENDED", session.channelId, null))
         }
+    }
+
+    private fun endSession(session: VoiceSession) {
+        if (!session.isActive) return
+        val now = LocalDateTime.now(clock)
+        voiceParticipantRepository.findAllBySessionIdAndLeftAtIsNull(session.id).forEach { it.leave(now) }
+        session.end(now)
+        eventPublisher.publishEvent(VoiceSocketEvent("SESSION_ENDED", session.channelId, null))
     }
 
     private fun requireVoiceChannel(channelId: Long, userId: Long) {
