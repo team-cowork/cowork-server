@@ -1,5 +1,7 @@
 package com.cowork.preference
 
+import com.cowork.preference.domain.ResourceSetting
+import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.repository.ChannelNotificationSettingRepository
 import com.cowork.preference.repository.ResourceSettingRepository
 import com.cowork.preference.service.PreferenceReader
@@ -26,5 +28,15 @@ class PreferenceReaderTest {
     fun `대상이 없으면 저장소를 조회하지 않는다`() {
         assertEquals(emptySet<Long>(), reader.filterNotifiable(10, emptyList()))
         verify(exactly = 0) { notificationRepository.findMutedUserIds(any(), any()) }
+    }
+
+    @Test
+    fun `방해 금지 상태인 사용자만 반환한다`() {
+        every { settingRepository.findAllByResourceTypeAndResourceIdIn(ResourceType.ACCOUNT, listOf(1, 2)) } returns listOf(
+            ResourceSetting(ResourceType.ACCOUNT, 1, mutableMapOf("status" to "DO_NOT_DISTURB")),
+            ResourceSetting(ResourceType.ACCOUNT, 2, mutableMapOf("status" to "ONLINE")),
+        )
+
+        assertEquals(setOf(1L), reader.findDoNotDisturbUsers(listOf(1, 2)))
     }
 }
