@@ -9,6 +9,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 
 class PreferenceReaderTest {
@@ -38,5 +39,20 @@ class PreferenceReaderTest {
         )
 
         assertEquals(setOf(1L), reader.findDoNotDisturbUsers(listOf(1, 2)))
+    }
+
+    @Test
+    fun `음성 채널 최대 인원은 숫자 설정을 정수로 읽는다`() {
+        every { settingRepository.findByResourceTypeAndResourceId(ResourceType.VOICE_CHANNEL, 10) } returns
+            ResourceSetting(ResourceType.VOICE_CHANNEL, 10, mutableMapOf("max_participants" to 8.0))
+
+        assertEquals(8, reader.findVoiceMaxParticipants(10))
+    }
+
+    @Test
+    fun `최대 인원 설정이 없으면 null을 반환한다`() {
+        every { settingRepository.findByResourceTypeAndResourceId(ResourceType.VOICE_CHANNEL, 10) } returns null
+
+        assertNull(reader.findVoiceMaxParticipants(10))
     }
 }
