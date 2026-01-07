@@ -40,4 +40,11 @@ class LiveKitTokenIssuerTest {
         assertEquals("channel-3-room", video["room"])
         assertEquals(true, video["roomJoin"])
     }
+
+    @Test
+    fun `토큰 만료 시간은 설정한 TTL을 따른다`() {
+        val claims = parse(issuer.issue("room", "7", "홍길동"))
+
+        assertEquals(Duration.ofHours(1).toMillis() / 1000, (claims.expiration.time - claims.notBefore.time) / 1000)
+    }
 }
