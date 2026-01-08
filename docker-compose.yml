@@ -52,6 +52,14 @@ services:
       MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY:-minioadmin}
       STORAGE_BUCKET: ${STORAGE_BUCKET:-cowork}
 
+  livekit:
+    image: livekit/livekit-server:v1.9.0
+    container_name: cowork-livekit
+    command: --dev --bind 0.0.0.0 --keys "${LIVEKIT_API_KEY:-devkey}: ${LIVEKIT_API_SECRET:-local-development-livekit-secret-32bytes}"
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
 
 volumes:
   mysql-data:
