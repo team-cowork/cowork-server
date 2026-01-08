@@ -1,5 +1,6 @@
 package com.cowork.voice
 
+import com.cowork.voice.domain.VoiceParticipant
 import com.cowork.voice.domain.VoiceSession
 import com.cowork.voice.domain.VoiceSessionStatus
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -30,5 +31,16 @@ class VoiceDomainTest {
         session.end(now.plusMinutes(5))
 
         assertEquals(now, session.endedAt)
+    }
+
+    @Test
+    fun `참여자가 여러 번 나가도 처음 나간 시각을 유지한다`() {
+        val participant = VoiceParticipant(sessionId = 1, userId = 7, joinedAt = now.minusMinutes(30))
+
+        participant.leave(now)
+        participant.leave(now.plusMinutes(1))
+
+        assertEquals(now, participant.leftAt)
+        assertFalse(participant.isActive)
     }
 }
