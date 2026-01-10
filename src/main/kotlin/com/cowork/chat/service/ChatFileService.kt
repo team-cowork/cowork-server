@@ -16,6 +16,12 @@ import org.springframework.transaction.annotation.Transactional
 import java.net.URLConnection
 import java.util.UUID
 
+/**
+ * 채팅 첨부파일의 업로드 URL 발급, 업로드 확인, 파일 목록 조회를 담당한다.
+ *
+ * - 객체 키는 `chat/{channelId}/{userId}/` 아래에서만 받는다.
+ * - 한 파일은 한 메시지에만 첨부할 수 있다.
+ */
 @Service
 class ChatFileService(
     private val messageAttachmentRepository: MessageAttachmentRepository,
