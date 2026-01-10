@@ -1,11 +1,12 @@
 [versions]
-spring-boot = "3.5.4"
+spring-boot = "3.5.8"
 spring-dependency-management = "1.1.7"
 kotlin = "1.9.25"
 jjwt = "0.12.6"
-springdoc = "2.8.9"
-aws-sdk = "2.32.10"
-mockk = "1.14.5"
+springdoc = "2.8.13"
+aws-sdk = "2.39.6"
+firebase-admin = "9.7.0"
+mockk = "1.14.6"
 
 [libraries]
 spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
@@ -26,6 +27,7 @@ jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
 springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc" }
 aws-sdk-bom = { module = "software.amazon.awssdk:bom", version.ref = "aws-sdk" }
 aws-sdk-s3 = { module = "software.amazon.awssdk:s3" }
+firebase-admin = { module = "com.google.firebase:firebase-admin", version.ref = "firebase-admin" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 
 [plugins]

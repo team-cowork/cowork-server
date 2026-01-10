@@ -16,7 +16,7 @@ aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS 
 $COMPOSE pull app
 $COMPOSE up -d --no-deps app
 
-for attempt in $(seq 1 12); do
+for attempt in $(seq 1 30); do
   status="$(docker inspect --format '{{.State.Health.Status}}' cowork-server 2>/dev/null || echo starting)"
   if [ "$status" = "healthy" ]; then
     echo "cowork-server is healthy (tag: $IMAGE_TAG)"
@@ -24,7 +24,7 @@ for attempt in $(seq 1 12); do
     docker image prune -af --filter "until=72h"
     exit 0
   fi
-  echo "Waiting for cowork-server to become healthy ($attempt/12): $status"
+  echo "Waiting for cowork-server to become healthy ($attempt/30): $status"
   sleep 5
 done
 
