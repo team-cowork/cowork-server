@@ -36,9 +36,21 @@ class SharedAccountService(
         return sharedAccountRepository.findAllByChannelIdOrderByIdAsc(channelId).map(SharedAccountResponse::from)
     }
 
+    @Transactional
+    fun getAccount(channelId: Long, accountId: Long, userId: Long): SharedAccountDetailResponse {
+        requireAccountChannel(channelId, userId)
+        val account = findAccount(channelId, accountId)
+        val copies = credentialCopyHistoryRepository.findTop20ByAccountIdOrderByIdDesc(account.id)
+        return SharedAccountDetailResponse(SharedAccountResponse.from(account), copies.map(CredentialCopyResponse::from))
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)
         return channel
     }
+
+    private fun findAccount(channelId: Long, accountId: Long): SharedAccount =
+        sharedAccountRepository.findByIdAndChannelId(accountId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "공유 계정을 찾을 수 없습니다.")
 }

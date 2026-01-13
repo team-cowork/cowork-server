@@ -27,4 +27,11 @@ class SharedAccountController(
     @GetMapping
     fun getAccounts(@CurrentUser user: AuthUser, @PathVariable channelId: Long): List<SharedAccountResponse> =
         sharedAccountService.getAccounts(channelId, user.id)
+
+    @GetMapping("/{accountId}")
+    fun getAccount(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable accountId: Long,
+    ): SharedAccountDetailResponse = sharedAccountService.getAccount(channelId, accountId, user.id)
 }
