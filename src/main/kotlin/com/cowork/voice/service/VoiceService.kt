@@ -25,6 +25,13 @@ import java.time.Clock
 import java.time.LocalDateTime
 import java.util.UUID
 
+/**
+ * 음성 채널 참여, 나가기, 세션 기록을 담당한다.
+ *
+ * - 채널마다 진행 중인 세션은 하나만 둔다.
+ * - 마지막 참여자가 나가면 세션을 끝낸다.
+ * - LiveKit 웹훅으로 받은 변경도 같은 규칙으로 반영한다.
+ */
 @Service
 class VoiceService(
     private val voiceSessionRepository: VoiceSessionRepository,
