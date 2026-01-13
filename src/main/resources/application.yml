@@ -73,3 +73,5 @@ cowork:
     url: ${LIVEKIT_URL:ws://localhost:7880}
     api-key: ${LIVEKIT_API_KEY:devkey}
     api-secret: ${LIVEKIT_API_SECRET:local-development-livekit-secret-32bytes}
+  crypto:
+    credential-key: ${CREDENTIAL_ENCRYPTION_KEY:bG9jYWwtZGV2ZWxvcG1lbnQta2V5LTMyLWJ5dGVzISE=}
