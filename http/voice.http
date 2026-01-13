@@ -1,0 +1,21 @@
+### 음성 채널 참여
+POST {{baseUrl}}/voice/channels/{{channelId}}/join
+Authorization: Bearer {{accessToken}}
+
+### 음성 채널 나가기
+POST {{baseUrl}}/voice/channels/{{channelId}}/leave
+Authorization: Bearer {{accessToken}}
+
+### 음성 채널 참여자 조회
+GET {{baseUrl}}/voice/channels/{{channelId}}/participants
+Authorization: Bearer {{accessToken}}
+
+### 음성 세션 조회
+GET {{baseUrl}}/voice/sessions/1
+Authorization: Bearer {{accessToken}}
+
+### LiveKit 웹훅 수신
+POST {{baseUrl}}/voice/webhook
+Content-Type: application/json
+
+{}
