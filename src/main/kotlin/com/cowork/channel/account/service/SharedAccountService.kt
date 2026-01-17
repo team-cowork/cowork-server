@@ -99,6 +99,14 @@ class SharedAccountService(
         return CredentialResponse(credentialEncryptor.decrypt(encrypted))
     }
 
+    @EventListener
+    fun onChannelDeleted(event: ChannelDeletedEvent) {
+        val accountIds = sharedAccountRepository.findIdsByChannelId(event.channelId)
+        if (accountIds.isEmpty()) return
+        credentialCopyHistoryRepository.deleteAllByAccountIdIn(accountIds)
+        sharedAccountRepository.deleteAllById(accountIds)
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)
