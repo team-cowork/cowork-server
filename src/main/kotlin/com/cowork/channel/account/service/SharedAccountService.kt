@@ -30,13 +30,13 @@ class SharedAccountService(
     private val credentialEncryptor: CredentialEncryptor,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getAccounts(channelId: Long, userId: Long): List<SharedAccountResponse> {
         requireAccountChannel(channelId, userId)
         return sharedAccountRepository.findAllByChannelIdOrderByIdAsc(channelId).map(SharedAccountResponse::from)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getAccount(channelId: Long, accountId: Long, userId: Long): SharedAccountDetailResponse {
         requireAccountChannel(channelId, userId)
         val account = findAccount(channelId, accountId)
