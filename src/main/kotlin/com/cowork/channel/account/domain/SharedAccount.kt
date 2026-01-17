@@ -43,8 +43,8 @@ class SharedAccount(
     val hasCredential: Boolean get() = !encryptedCredential.isNullOrEmpty()
 
     fun update(providerLabel: String?, accountIdentifier: String?, encryptedCredential: String?) {
-        providerLabel?.let { this.providerLabel = it }
-        accountIdentifier?.let { this.accountIdentifier = it }
+        providerLabel?.let { this.providerLabel = it.ifBlank { null } }
+        accountIdentifier?.let { this.accountIdentifier = it.ifBlank { null } }
         encryptedCredential?.let { this.encryptedCredential = it }
     }
 }
