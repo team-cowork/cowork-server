@@ -89,6 +89,16 @@ class SharedAccountService(
         sharedAccountRepository.delete(account)
     }
 
+    @Transactional
+    fun copyCredential(channelId: Long, accountId: Long, userId: Long): CredentialResponse {
+        requireAccountChannel(channelId, userId)
+        val account = findAccount(channelId, accountId)
+        val encrypted = account.encryptedCredential
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "저장된 자격 증명이 없습니다.")
+        credentialCopyHistoryRepository.save(CredentialCopyHistory(accountId = account.id, userId = userId))
+        return CredentialResponse(credentialEncryptor.decrypt(encrypted))
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)

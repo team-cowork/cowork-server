@@ -56,4 +56,11 @@ class SharedAccountController(
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
     ) = sharedAccountService.delete(channelId, accountId, user.id)
+
+    @PostMapping("/{accountId}/credential/copy")
+    fun copyCredential(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable accountId: Long,
+    ): CredentialResponse = sharedAccountService.copyCredential(channelId, accountId, user.id)
 }
