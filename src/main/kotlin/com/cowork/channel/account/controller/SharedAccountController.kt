@@ -34,4 +34,11 @@ class SharedAccountController(
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
     ): SharedAccountDetailResponse = sharedAccountService.getAccount(channelId, accountId, user.id)
+
+    @PostMapping
+    fun create(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestBody request: CreateSharedAccountRequest,
+    ): SharedAccountResponse = sharedAccountService.create(channelId, user.id, request)
 }

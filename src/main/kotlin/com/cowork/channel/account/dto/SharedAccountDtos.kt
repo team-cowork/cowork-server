@@ -5,6 +5,19 @@ import com.cowork.channel.account.domain.CredentialCopyHistory
 import com.cowork.channel.account.domain.SharedAccount
 import java.time.LocalDateTime
 
+data class CreateSharedAccountRequest(
+    val provider: AccountProvider,
+    val providerLabel: String? = null,
+    val accountIdentifier: String? = null,
+    val credential: String? = null,
+)
+
+data class UpdateSharedAccountRequest(
+    val providerLabel: String? = null,
+    val accountIdentifier: String? = null,
+    val credential: String? = null,
+)
+
 data class SharedAccountResponse(
     val id: Long,
     val channelId: Long,
@@ -46,3 +59,7 @@ data class CredentialCopyResponse(
         fun from(history: CredentialCopyHistory) = CredentialCopyResponse(history.userId, history.copiedAt)
     }
 }
+
+data class CredentialResponse(
+    val credential: String,
+)

@@ -44,6 +44,26 @@ class SharedAccountService(
         return SharedAccountDetailResponse(SharedAccountResponse.from(account), copies.map(CredentialCopyResponse::from))
     }
 
+    @Transactional
+    fun create(channelId: Long, userId: Long, request: CreateSharedAccountRequest): SharedAccountResponse {
+        requireAccountChannel(channelId, userId)
+        if (request.provider == AccountProvider.CUSTOM && request.providerLabel.isNullOrBlank()) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "직접 입력한 서비스는 이름이 필요합니다.")
+        }
+        val account = sharedAccountRepository.save(
+            SharedAccount(
+                channelId = channelId,
+                provider = request.provider,
+                providerLabel = request.providerLabel?.ifBlank { null },
+                accountIdentifier = request.accountIdentifier?.ifBlank { null },
+                encryptedCredential = request.credential?.takeIf { it.isNotEmpty() }?.let(credentialEncryptor::encrypt),
+                connectedViaOAuth = false,
+                createdBy = userId,
+            ),
+        )
+        return SharedAccountResponse.from(account)
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)
