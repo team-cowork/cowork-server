@@ -80,6 +80,15 @@ class SharedAccountService(
         return SharedAccountResponse.from(account)
     }
 
+    @Transactional
+    fun delete(channelId: Long, accountId: Long, userId: Long) {
+        val channel = requireAccountChannel(channelId, userId)
+        val account = findAccount(channelId, accountId)
+        requireOwnerOrManager(channel, account, userId)
+        credentialCopyHistoryRepository.deleteAllByAccountIdIn(listOf(account.id))
+        sharedAccountRepository.delete(account)
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)

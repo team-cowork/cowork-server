@@ -49,4 +49,11 @@ class SharedAccountController(
         @PathVariable accountId: Long,
         @RequestBody request: UpdateSharedAccountRequest,
     ): SharedAccountResponse = sharedAccountService.update(channelId, accountId, user.id, request)
+
+    @DeleteMapping("/{accountId}")
+    fun delete(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable accountId: Long,
+    ) = sharedAccountService.delete(channelId, accountId, user.id)
 }
