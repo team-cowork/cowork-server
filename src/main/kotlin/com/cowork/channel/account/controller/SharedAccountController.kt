@@ -41,4 +41,12 @@ class SharedAccountController(
         @PathVariable channelId: Long,
         @RequestBody request: CreateSharedAccountRequest,
     ): SharedAccountResponse = sharedAccountService.create(channelId, user.id, request)
+
+    @PatchMapping("/{accountId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable accountId: Long,
+        @RequestBody request: UpdateSharedAccountRequest,
+    ): SharedAccountResponse = sharedAccountService.update(channelId, accountId, user.id, request)
 }

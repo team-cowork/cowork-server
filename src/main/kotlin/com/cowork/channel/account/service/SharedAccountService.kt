@@ -64,10 +64,32 @@ class SharedAccountService(
         return SharedAccountResponse.from(account)
     }
 
+    @Transactional
+    fun update(channelId: Long, accountId: Long, userId: Long, request: UpdateSharedAccountRequest): SharedAccountResponse {
+        val channel = requireAccountChannel(channelId, userId)
+        val account = findAccount(channelId, accountId)
+        requireOwnerOrManager(channel, account, userId)
+        if (account.connectedViaOAuth && request.credential != null) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "OAuth로 연결한 계정의 자격 증명은 수정할 수 없습니다.")
+        }
+        account.update(
+            providerLabel = request.providerLabel,
+            accountIdentifier = request.accountIdentifier,
+            encryptedCredential = request.credential?.takeIf { it.isNotEmpty() }?.let(credentialEncryptor::encrypt),
+        )
+        return SharedAccountResponse.from(account)
+    }
+
     fun requireAccountChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.ACCOUNT_SHARE)
         return channel
+    }
+
+    private fun requireOwnerOrManager(channel: Channel, account: SharedAccount, userId: Long) {
+        if (account.createdBy != userId && !channelAccessChecker.canManage(channel, userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "계정을 등록한 사용자나 채널 관리자만 변경할 수 있습니다.")
+        }
     }
 
     private fun findAccount(channelId: Long, accountId: Long): SharedAccount =
