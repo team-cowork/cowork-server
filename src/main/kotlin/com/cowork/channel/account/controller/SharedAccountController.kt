@@ -10,6 +10,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -45,7 +46,7 @@ class SharedAccountController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateSharedAccountRequest,
+        @Valid @RequestBody request: CreateSharedAccountRequest,
     ): SharedAccountResponse = sharedAccountService.create(channelId, user.id, request)
 
     @Operation(summary = "공유 계정 수정")
@@ -54,7 +55,7 @@ class SharedAccountController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-        @RequestBody request: UpdateSharedAccountRequest,
+        @Valid @RequestBody request: UpdateSharedAccountRequest,
     ): SharedAccountResponse = sharedAccountService.update(channelId, accountId, user.id, request)
 
     @Operation(summary = "공유 계정 삭제")
