@@ -32,9 +32,36 @@ class MeetingNoteTemplateService(
         return templates.map { TemplateResponse.of(it, sections[it.id].orEmpty()) }
     }
 
+    @Transactional
+    fun create(channelId: Long, userId: Long, request: CreateTemplateRequest): TemplateResponse {
+        requireNoteChannel(channelId, userId)
+        val isFirst = templateRepository.findFirstByChannelIdAndIsActiveTrue(channelId) == null
+        val template = templateRepository.save(
+            MeetingNoteTemplate(channelId = channelId, name = request.name, createdBy = userId, isActive = isFirst),
+        )
+        request.sections.forEachIndexed { index, section -> saveSection(template.id, section, index) }
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)
         return channel
     }
+
+    private fun saveSection(templateId: Long, request: CreateSectionRequest, position: Int) {
+        sectionRepository.save(
+            TemplateSection(
+                templateId = templateId,
+                title = request.title,
+                type = request.type,
+                placeholder = request.placeholder,
+                required = request.required,
+                position = position,
+            ),
+        )
+    }
+
+    private fun toResponse(template: MeetingNoteTemplate) =
+        TemplateResponse.of(template, sectionRepository.findAllByTemplateIdOrderByPositionAscIdAsc(template.id))
 }
