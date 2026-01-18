@@ -9,7 +9,9 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpHeaders
 import org.springframework.test.web.servlet.post
 
 class VoiceControllerTest : ControllerTestSupport() {
@@ -34,5 +36,18 @@ class VoiceControllerTest : ControllerTestSupport() {
         every { voiceService.leave(3, 1) } just runs
 
         mockMvc.post("/voice/channels/3/leave").andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `LiveKit 웹훅은 원본 본문과 인증 헤더를 그대로 넘긴다`() {
+        every { voiceWebhookService.handle("Bearer jwt", """{"event":"room_finished"}""") } just runs
+
+        mockMvc.post("/voice/webhook") {
+            contentType = org.springframework.http.MediaType.parseMediaType("application/webhook+json")
+            header(HttpHeaders.AUTHORIZATION, "Bearer jwt")
+            content = """{"event":"room_finished"}"""
+        }.andExpect { status { isNoContent() } }
+
+        verify { voiceWebhookService.handle("Bearer jwt", """{"event":"room_finished"}""") }
     }
 }
