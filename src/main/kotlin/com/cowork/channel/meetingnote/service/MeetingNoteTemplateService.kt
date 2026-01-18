@@ -95,6 +95,13 @@ class MeetingNoteTemplateService(
         return toResponse(template)
     }
 
+    @Transactional
+    fun deleteSection(channelId: Long, templateId: Long, sectionId: Long, userId: Long): TemplateResponse {
+        val template = requireEditableTemplate(channelId, templateId, userId)
+        sectionRepository.delete(findSection(template.id, sectionId))
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)

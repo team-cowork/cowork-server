@@ -80,4 +80,12 @@ class MeetingNoteTemplateController(
         @PathVariable sectionId: Long,
         @RequestBody request: UpdateSectionRequest,
     ): TemplateResponse = templateService.updateSection(channelId, templateId, sectionId, user.id, request)
+
+    @DeleteMapping("/{templateId}/sections/{sectionId}")
+    fun deleteSection(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+        @PathVariable sectionId: Long,
+    ): TemplateResponse = templateService.deleteSection(channelId, templateId, sectionId, user.id)
 }
