@@ -63,4 +63,12 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
     ): TemplateResponse = templateService.activate(channelId, templateId, user.id)
+
+    @PostMapping("/{templateId}/sections")
+    fun addSection(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+        @RequestBody request: CreateSectionRequest,
+    ): TemplateResponse = templateService.addSection(channelId, templateId, user.id, request)
 }

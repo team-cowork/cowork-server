@@ -80,6 +80,13 @@ class MeetingNoteTemplateService(
         return toResponse(template)
     }
 
+    @Transactional
+    fun addSection(channelId: Long, templateId: Long, userId: Long, request: CreateSectionRequest): TemplateResponse {
+        val template = requireEditableTemplate(channelId, templateId, userId)
+        saveSection(template.id, request, sectionRepository.findMaxPosition(template.id) + 1)
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)
