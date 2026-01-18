@@ -75,3 +75,23 @@ cowork:
     api-secret: ${LIVEKIT_API_SECRET:local-development-livekit-secret-32bytes}
   crypto:
     credential-key: ${CREDENTIAL_ENCRYPTION_KEY:bG9jYWwtZGV2ZWxvcG1lbnQta2V5LTMyLWJ5dGVzISE=}
+  account-oauth:
+    client-redirect-url: ${CLIENT_BASE_URL:http://localhost:3000}
+    callback-base-url: ${PUBLIC_BASE_URL:http://localhost:8080}
+    providers:
+      github:
+        client-id: ${ACCOUNT_OAUTH_GITHUB_CLIENT_ID:}
+        client-secret: ${ACCOUNT_OAUTH_GITHUB_CLIENT_SECRET:}
+        authorize-url: https://github.com/login/oauth/authorize
+        token-url: https://github.com/login/oauth/access_token
+        user-info-url: https://api.github.com/user
+        scope: read:user
+        identifier-field: login
+      google:
+        client-id: ${ACCOUNT_OAUTH_GOOGLE_CLIENT_ID:}
+        client-secret: ${ACCOUNT_OAUTH_GOOGLE_CLIENT_SECRET:}
+        authorize-url: https://accounts.google.com/o/oauth2/v2/auth
+        token-url: https://oauth2.googleapis.com/token
+        user-info-url: https://openidconnect.googleapis.com/v1/userinfo
+        scope: openid email
+        identifier-field: email
