@@ -1,5 +1,6 @@
 package com.cowork.global.config
 
+import com.cowork.global.logging.MdcTaskDecorator
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.scheduling.annotation.EnableAsync
@@ -19,5 +20,6 @@ class AsyncConfig {
         setThreadNamePrefix("cowork-async-")
         setWaitForTasksToCompleteOnShutdown(true)
         setAwaitTerminationSeconds(20)
+        setTaskDecorator(MdcTaskDecorator())
     }
 }
