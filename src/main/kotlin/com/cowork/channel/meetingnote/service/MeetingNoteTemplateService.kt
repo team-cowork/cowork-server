@@ -87,6 +87,14 @@ class MeetingNoteTemplateService(
         return toResponse(template)
     }
 
+    @Transactional
+    fun updateSection(channelId: Long, templateId: Long, sectionId: Long, userId: Long, request: UpdateSectionRequest): TemplateResponse {
+        val template = requireEditableTemplate(channelId, templateId, userId)
+        val section = findSection(template.id, sectionId)
+        section.update(request.title, request.type, request.placeholder, request.required, request.position)
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)
@@ -118,6 +126,10 @@ class MeetingNoteTemplateService(
     private fun findTemplate(channelId: Long, templateId: Long): MeetingNoteTemplate =
         templateRepository.findByIdAndChannelId(templateId, channelId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "템플릿을 찾을 수 없습니다.")
+
+    private fun findSection(templateId: Long, sectionId: Long): TemplateSection =
+        sectionRepository.findByIdAndTemplateId(sectionId, templateId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "섹션을 찾을 수 없습니다.")
 
     private fun toResponse(template: MeetingNoteTemplate) =
         TemplateResponse.of(template, sectionRepository.findAllByTemplateIdOrderByPositionAscIdAsc(template.id))
