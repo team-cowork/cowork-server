@@ -56,6 +56,16 @@ class MeetingNoteTemplateService(
         return toResponse(template)
     }
 
+    @Transactional
+    fun delete(channelId: Long, templateId: Long, userId: Long) {
+        val template = requireEditableTemplate(channelId, templateId, userId)
+        if (template.isActive) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "사용 중인 템플릿은 삭제할 수 없습니다. 다른 템플릿을 먼저 활성화해 주세요.")
+        }
+        sectionRepository.deleteAllByTemplateIdIn(listOf(template.id))
+        templateRepository.delete(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)

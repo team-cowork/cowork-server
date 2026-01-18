@@ -49,4 +49,11 @@ class MeetingNoteTemplateController(
         @PathVariable templateId: Long,
         @RequestBody request: UpdateTemplateRequest,
     ): TemplateResponse = templateService.rename(channelId, templateId, user.id, request.name)
+
+    @DeleteMapping("/{templateId}")
+    fun delete(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+    ) = templateService.delete(channelId, templateId, user.id)
 }
