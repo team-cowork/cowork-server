@@ -10,6 +10,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -37,7 +38,7 @@ class MeetingNoteTemplateController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateTemplateRequest,
+        @Valid @RequestBody request: CreateTemplateRequest,
     ): TemplateResponse = templateService.create(channelId, user.id, request)
 
     @Operation(summary = "템플릿 조회")
@@ -54,7 +55,7 @@ class MeetingNoteTemplateController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-        @RequestBody request: UpdateTemplateRequest,
+        @Valid @RequestBody request: UpdateTemplateRequest,
     ): TemplateResponse = templateService.rename(channelId, templateId, user.id, request.name)
 
     @Operation(summary = "템플릿 삭제")
@@ -79,7 +80,7 @@ class MeetingNoteTemplateController(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-        @RequestBody request: CreateSectionRequest,
+        @Valid @RequestBody request: CreateSectionRequest,
     ): TemplateResponse = templateService.addSection(channelId, templateId, user.id, request)
 
     @Operation(summary = "섹션 수정")
@@ -89,7 +90,7 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @PathVariable sectionId: Long,
-        @RequestBody request: UpdateSectionRequest,
+        @Valid @RequestBody request: UpdateSectionRequest,
     ): TemplateResponse = templateService.updateSection(channelId, templateId, sectionId, user.id, request)
 
     @Operation(summary = "섹션 삭제")
