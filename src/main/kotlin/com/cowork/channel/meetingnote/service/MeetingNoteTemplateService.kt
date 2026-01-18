@@ -33,6 +33,12 @@ class MeetingNoteTemplateService(
     }
 
     @Transactional
+    fun getTemplate(channelId: Long, templateId: Long, userId: Long): TemplateResponse {
+        requireNoteChannel(channelId, userId)
+        return toResponse(findTemplate(channelId, templateId))
+    }
+
+    @Transactional
     fun create(channelId: Long, userId: Long, request: CreateTemplateRequest): TemplateResponse {
         requireNoteChannel(channelId, userId)
         val isFirst = templateRepository.findFirstByChannelIdAndIsActiveTrue(channelId) == null
@@ -61,6 +67,10 @@ class MeetingNoteTemplateService(
             ),
         )
     }
+
+    private fun findTemplate(channelId: Long, templateId: Long): MeetingNoteTemplate =
+        templateRepository.findByIdAndChannelId(templateId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "템플릿을 찾을 수 없습니다.")
 
     private fun toResponse(template: MeetingNoteTemplate) =
         TemplateResponse.of(template, sectionRepository.findAllByTemplateIdOrderByPositionAscIdAsc(template.id))

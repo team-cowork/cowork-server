@@ -34,4 +34,11 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @RequestBody request: CreateTemplateRequest,
     ): TemplateResponse = templateService.create(channelId, user.id, request)
+
+    @GetMapping("/{templateId}")
+    fun getTemplate(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+    ): TemplateResponse = templateService.getTemplate(channelId, templateId, user.id)
 }
