@@ -3,10 +3,12 @@ package com.cowork.voice
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.service.ChannelAccessChecker
+import com.cowork.global.error.BusinessException
 import com.cowork.preference.service.PreferenceReader
 import com.cowork.user.dto.UserSummaryResponse
 import com.cowork.user.service.UserService
 import com.cowork.voice.domain.VoiceParticipant
+import com.cowork.voice.domain.VoiceSession
 import com.cowork.voice.domain.VoiceSessionStatus
 import com.cowork.voice.livekit.LiveKitProperties
 import com.cowork.voice.livekit.LiveKitTokenIssuer
@@ -19,7 +21,9 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.context.ApplicationEventPublisher
+import org.springframework.http.HttpStatus
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -61,5 +65,25 @@ class VoiceJoinLeaveTest {
         assertTrue(response.roomName.startsWith("channel-3-"))
         assertEquals("wss://livekit", response.serverUrl)
         verify { tokenIssuer.issue(response.roomName, "7", "길동") }
+    }
+
+    @Test
+    fun `진행 중인 세션이 없으면 나갈 수 없다`() {
+        every { channelAccessChecker.findChannel(3) } returns channel
+        every { sessionRepository.findFirstByChannelIdAndStatusOrderByIdDesc(3, VoiceSessionStatus.ACTIVE) } returns null
+
+        val exception = assertThrows<BusinessException> { service.leave(3, 7) }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `참여하지 않은 세션에서는 나갈 수 없다`() {
+        every { channelAccessChecker.findChannel(3) } returns channel
+        every { sessionRepository.findFirstByChannelIdAndStatusOrderByIdDesc(3, VoiceSessionStatus.ACTIVE) } returns
+            VoiceSession(channelId = 3, roomName = "room", startedAt = java.time.LocalDateTime.now(), id = 100)
+        every { participantRepository.findFirstBySessionIdAndUserIdAndLeftAtIsNull(100, 7) } returns null
+
+        assertThrows<BusinessException> { service.leave(3, 7) }
     }
 }
