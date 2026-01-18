@@ -66,6 +66,20 @@ class MeetingNoteTemplateService(
         templateRepository.delete(template)
     }
 
+    @Transactional
+    fun activate(channelId: Long, templateId: Long, userId: Long): TemplateResponse {
+        val channel = requireNoteChannel(channelId, userId)
+        if (!channelAccessChecker.canManage(channel, userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "채널 관리자만 템플릿을 활성화할 수 있습니다.")
+        }
+        val template = findTemplate(channelId, templateId)
+        templateRepository.findFirstByChannelIdAndIsActiveTrue(channelId)
+            ?.takeIf { it.id != template.id }
+            ?.deactivate()
+        template.activate()
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)

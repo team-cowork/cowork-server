@@ -56,4 +56,11 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
     ) = templateService.delete(channelId, templateId, user.id)
+
+    @PatchMapping("/{templateId}/activate")
+    fun activate(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+    ): TemplateResponse = templateService.activate(channelId, templateId, user.id)
 }
