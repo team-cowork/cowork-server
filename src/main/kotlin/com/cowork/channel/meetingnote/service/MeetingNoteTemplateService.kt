@@ -49,10 +49,26 @@ class MeetingNoteTemplateService(
         return toResponse(template)
     }
 
+    @Transactional
+    fun rename(channelId: Long, templateId: Long, userId: Long, name: String): TemplateResponse {
+        val template = requireEditableTemplate(channelId, templateId, userId)
+        template.rename(name)
+        return toResponse(template)
+    }
+
     fun requireNoteChannel(channelId: Long, userId: Long): Channel {
         val channel = channelAccessChecker.requireReadable(channelId, userId)
         channelAccessChecker.requireViewType(channel, ChannelViewType.MEETING_NOTE)
         return channel
+    }
+
+    private fun requireEditableTemplate(channelId: Long, templateId: Long, userId: Long): MeetingNoteTemplate {
+        val channel = requireNoteChannel(channelId, userId)
+        val template = findTemplate(channelId, templateId)
+        if (template.createdBy != userId && !channelAccessChecker.canManage(channel, userId)) {
+            throw BusinessException(HttpStatus.FORBIDDEN, "템플릿을 만든 사용자나 채널 관리자만 수정할 수 있습니다.")
+        }
+        return template
     }
 
     private fun saveSection(templateId: Long, request: CreateSectionRequest, position: Int) {

@@ -41,4 +41,12 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
     ): TemplateResponse = templateService.getTemplate(channelId, templateId, user.id)
+
+    @PatchMapping("/{templateId}")
+    fun rename(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable templateId: Long,
+        @RequestBody request: UpdateTemplateRequest,
+    ): TemplateResponse = templateService.rename(channelId, templateId, user.id, request.name)
 }
