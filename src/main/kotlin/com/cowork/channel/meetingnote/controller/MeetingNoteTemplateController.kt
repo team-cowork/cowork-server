@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "회의록 템플릿")
@@ -35,6 +36,7 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 생성")
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
@@ -60,6 +62,7 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 삭제")
     @DeleteMapping("/{templateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
@@ -76,6 +79,7 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 추가")
     @PostMapping("/{templateId}/sections")
+    @ResponseStatus(HttpStatus.CREATED)
     fun addSection(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
