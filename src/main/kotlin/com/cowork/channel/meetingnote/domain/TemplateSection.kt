@@ -38,7 +38,7 @@ class TemplateSection(
     fun update(title: String?, type: SectionType?, placeholder: String?, required: Boolean?, position: Int?) {
         title?.let { this.title = it }
         type?.let { this.type = it }
-        placeholder?.let { this.placeholder = it }
+        placeholder?.let { this.placeholder = it.ifBlank { null } }
         required?.let { this.required = it }
         position?.let { this.position = it }
     }
