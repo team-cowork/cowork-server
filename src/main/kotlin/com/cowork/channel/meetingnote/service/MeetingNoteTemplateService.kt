@@ -23,7 +23,7 @@ class MeetingNoteTemplateService(
     private val channelAccessChecker: ChannelAccessChecker,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getTemplates(channelId: Long, userId: Long): List<TemplateResponse> {
         requireNoteChannel(channelId, userId)
         val templates = templateRepository.findAllByChannelIdOrderByIdAsc(channelId)
@@ -32,7 +32,7 @@ class MeetingNoteTemplateService(
         return templates.map { TemplateResponse.of(it, sections[it.id].orEmpty()) }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getTemplate(channelId: Long, templateId: Long, userId: Long): TemplateResponse {
         requireNoteChannel(channelId, userId)
         return toResponse(findTemplate(channelId, templateId))
