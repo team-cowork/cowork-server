@@ -5,6 +5,8 @@ import com.cowork.channel.account.service.OAuthAccountService
 import com.cowork.global.error.BusinessException
 import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -14,12 +16,14 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 
+@Tag(name = "계정 공유")
 @RestController
 class OAuthAccountController(
     private val oAuthAccountService: OAuthAccountService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
+    @Operation(summary = "외부 서비스 OAuth 연결 시작 (authorize URL 반환)")
     @GetMapping("/channels/{channelId}/accounts/oauth/authorize/{provider}")
     fun authorize(
         @CurrentUser user: AuthUser,
@@ -31,6 +35,7 @@ class OAuthAccountController(
         return mapOf("redirectUrl" to oAuthAccountService.buildAuthorizeUrl(channelId, user.id, accountProvider))
     }
 
+    @Operation(hidden = true)
     @GetMapping("/channels/oauth/callback/{provider}")
     fun callback(
         @PathVariable provider: String,
