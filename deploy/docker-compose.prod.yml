@@ -3,6 +3,7 @@ services:
     image: ${ECR_REGISTRY}/cowork-server:${IMAGE_TAG:-latest}
     container_name: cowork-server
     restart: unless-stopped
+    stop_grace_period: 40s
     env_file:
       - .env
     environment:
