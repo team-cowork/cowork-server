@@ -30,4 +30,21 @@ class OAuthAccountController(
             ?: throw BusinessException(HttpStatus.BAD_REQUEST, "지원하지 않는 서비스입니다.")
         return mapOf("redirectUrl" to oAuthAccountService.buildAuthorizeUrl(channelId, user.id, accountProvider))
     }
+
+    @GetMapping("/channels/oauth/callback/{provider}")
+    fun callback(
+        @PathVariable provider: String,
+        @RequestParam code: String,
+        @RequestParam state: String,
+    ): ResponseEntity<Void> {
+        val baseUrl = oAuthAccountService.clientRedirectUrl()
+        val location = try {
+            val account = oAuthAccountService.handleCallback(provider, code, state)
+            "$baseUrl/channels/${account.channelId}?newAccountId=${account.id}"
+        } catch (e: BusinessException) {
+            log.warn("Fail to connect OAuth account: {}", e.message)
+            "$baseUrl/error?message=oauth_failed"
+        }
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI.create(location)).build()
+    }
 }

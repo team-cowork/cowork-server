@@ -33,6 +33,23 @@ class OAuthAccountService(
             .toUriString()
     }
 
+    fun handleCallback(providerName: String, code: String, stateToken: String): SharedAccount {
+        val provider = AccountProvider.entries.firstOrNull { it.name.equals(providerName, ignoreCase = true) }
+            ?: throw BusinessException(HttpStatus.BAD_REQUEST, "지원하지 않는 서비스입니다.")
+        val state = stateCodec.decode(stateToken)
+        if (state == null || state.provider != provider) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "유효하지 않은 인증 요청입니다.")
+        }
+        sharedAccountService.requireAccountChannel(state.channelId, state.userId)
+
+        val config = requireProvider(provider)
+        val accessToken = providerClient.exchangeCode(config, code, callbackUrl(provider))
+        val identifier = providerClient.fetchIdentifier(config, accessToken)
+        return sharedAccountService.saveOAuthAccount(state.channelId, state.userId, provider, identifier, accessToken)
+    }
+
+    fun clientRedirectUrl(): String = properties.clientRedirectUrl.trimEnd('/')
+
     private fun requireProvider(provider: AccountProvider): AccountOAuthProperties.Provider {
         if (!provider.oauthSupported) {
             throw BusinessException(HttpStatus.BAD_REQUEST, "OAuth 연결을 지원하지 않는 서비스입니다.")
