@@ -37,6 +37,14 @@ class MeetingNoteService(
         )
     }
 
+    @Transactional
+    fun getNote(channelId: Long, noteId: Long, userId: Long): MeetingNoteResponse {
+        templateService.requireNoteChannel(channelId, userId)
+        val note = meetingNoteRepository.findByIdAndChannelId(noteId, channelId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "회의록을 찾을 수 없습니다.")
+        return MeetingNoteResponse.from(note)
+    }
+
     companion object {
         private const val MAX_PAGE_SIZE = 50
     }

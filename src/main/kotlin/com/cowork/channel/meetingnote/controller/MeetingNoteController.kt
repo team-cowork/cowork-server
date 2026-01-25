@@ -28,4 +28,11 @@ class MeetingNoteController(
         @RequestParam(required = false) before: Long?,
         @RequestParam(defaultValue = "20") limit: Int,
     ): MeetingNotePageResponse = meetingNoteService.getNotes(channelId, user.id, before, limit)
+
+    @GetMapping("/{noteId}")
+    fun getNote(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @PathVariable noteId: Long,
+    ): MeetingNoteResponse = meetingNoteService.getNote(channelId, noteId, user.id)
 }
