@@ -66,6 +66,15 @@ class MeetingNoteService(
         return MeetingNoteResponse.from(note)
     }
 
+    @EventListener
+    fun onChannelDeleted(event: ChannelDeletedEvent) {
+        meetingNoteRepository.deleteAllByChannelId(event.channelId)
+        val templateIds = templateRepository.findIdsByChannelId(event.channelId)
+        if (templateIds.isEmpty()) return
+        sectionRepository.deleteAllByTemplateIdIn(templateIds)
+        templateRepository.deleteAllById(templateIds)
+    }
+
     companion object {
         private const val MAX_PAGE_SIZE = 50
     }
