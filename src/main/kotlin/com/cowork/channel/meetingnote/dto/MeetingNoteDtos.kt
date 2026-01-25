@@ -1,6 +1,8 @@
 package com.cowork.channel.meetingnote.dto
 
+import com.cowork.channel.meetingnote.domain.MeetingNote
 import com.cowork.channel.meetingnote.domain.MeetingNoteTemplate
+import com.cowork.channel.meetingnote.domain.NoteSection
 import com.cowork.channel.meetingnote.domain.SectionType
 import com.cowork.channel.meetingnote.domain.TemplateSection
 import jakarta.validation.Valid
@@ -86,3 +88,48 @@ data class TemplateResponse(
         )
     }
 }
+
+data class CreateMeetingNoteRequest(
+    @field:NotBlank
+    @field:Size(max = 200)
+    val title: String,
+    val values: Map<Long, Any?> = emptyMap(),
+)
+
+data class MeetingNoteSummaryResponse(
+    val id: Long,
+    val title: String,
+    val createdBy: Long,
+    val createdAt: LocalDateTime,
+) {
+    companion object {
+        fun from(note: MeetingNote) = MeetingNoteSummaryResponse(note.id, note.title, note.createdBy, note.createdAt)
+    }
+}
+
+data class MeetingNoteResponse(
+    val id: Long,
+    val channelId: Long,
+    val templateId: Long,
+    val title: String,
+    val content: List<NoteSection>,
+    val createdBy: Long,
+    val createdAt: LocalDateTime,
+) {
+    companion object {
+        fun from(note: MeetingNote) = MeetingNoteResponse(
+            id = note.id,
+            channelId = note.channelId,
+            templateId = note.templateId,
+            title = note.title,
+            content = note.content,
+            createdBy = note.createdBy,
+            createdAt = note.createdAt,
+        )
+    }
+}
+
+data class MeetingNotePageResponse(
+    val notes: List<MeetingNoteSummaryResponse>,
+    val nextCursor: Long?,
+)
