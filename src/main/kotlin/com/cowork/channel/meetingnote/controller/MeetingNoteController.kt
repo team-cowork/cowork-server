@@ -8,6 +8,7 @@ import com.cowork.global.security.AuthUser
 import com.cowork.global.security.CurrentUser
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -46,6 +47,6 @@ class MeetingNoteController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateMeetingNoteRequest,
+        @Valid @RequestBody request: CreateMeetingNoteRequest,
     ): MeetingNoteResponse = meetingNoteService.create(channelId, user.id, request)
 }
