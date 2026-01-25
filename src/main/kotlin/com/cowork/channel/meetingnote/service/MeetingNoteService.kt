@@ -26,7 +26,7 @@ class MeetingNoteService(
     private val templateService: MeetingNoteTemplateService,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getNotes(channelId: Long, userId: Long, before: Long?, limit: Int): MeetingNotePageResponse {
         templateService.requireNoteChannel(channelId, userId)
         val pageSize = limit.coerceIn(1, MAX_PAGE_SIZE)
@@ -37,7 +37,7 @@ class MeetingNoteService(
         )
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getNote(channelId: Long, noteId: Long, userId: Long): MeetingNoteResponse {
         templateService.requireNoteChannel(channelId, userId)
         val note = meetingNoteRepository.findByIdAndChannelId(noteId, channelId)
