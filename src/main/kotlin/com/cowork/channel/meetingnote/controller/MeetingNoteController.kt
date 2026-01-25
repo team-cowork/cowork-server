@@ -35,4 +35,11 @@ class MeetingNoteController(
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
     ): MeetingNoteResponse = meetingNoteService.getNote(channelId, noteId, user.id)
+
+    @PostMapping
+    fun create(
+        @CurrentUser user: AuthUser,
+        @PathVariable channelId: Long,
+        @RequestBody request: CreateMeetingNoteRequest,
+    ): MeetingNoteResponse = meetingNoteService.create(channelId, user.id, request)
 }

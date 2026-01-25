@@ -45,6 +45,27 @@ class MeetingNoteService(
         return MeetingNoteResponse.from(note)
     }
 
+    @Transactional
+    fun create(channelId: Long, userId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
+        val channel = templateService.requireNoteChannel(channelId, userId)
+        val template = templateRepository.findFirstByChannelIdAndIsActiveTrue(channelId)
+            ?: throw BusinessException(HttpStatus.BAD_REQUEST, "활성화된 회의록 템플릿이 없습니다.")
+        val sections = sectionRepository.findAllByTemplateIdOrderByPositionAscIdAsc(template.id)
+        val memberIds = teamMemberRepository.findUserIdsByTeamId(channel.teamId).toSet()
+        val content = MeetingNoteContentValidator.validate(sections, request.values, memberIds)
+
+        val note = meetingNoteRepository.save(
+            MeetingNote(
+                channelId = channelId,
+                templateId = template.id,
+                title = request.title,
+                content = content,
+                createdBy = userId,
+            ),
+        )
+        return MeetingNoteResponse.from(note)
+    }
+
     companion object {
         private const val MAX_PAGE_SIZE = 50
     }
