@@ -65,6 +65,20 @@ class SharedAccountService(
     }
 
     @Transactional
+    fun saveOAuthAccount(channelId: Long, userId: Long, provider: AccountProvider, identifier: String?, accessToken: String): SharedAccount =
+        sharedAccountRepository.save(
+            SharedAccount(
+                channelId = channelId,
+                provider = provider,
+                providerLabel = null,
+                accountIdentifier = identifier,
+                encryptedCredential = credentialEncryptor.encrypt(accessToken),
+                connectedViaOAuth = true,
+                createdBy = userId,
+            ),
+        )
+
+    @Transactional
     fun update(channelId: Long, accountId: Long, userId: Long, request: UpdateSharedAccountRequest): SharedAccountResponse {
         val channel = requireAccountChannel(channelId, userId)
         val account = findAccount(channelId, accountId)
