@@ -96,4 +96,9 @@ class OAuthAccountServiceTest {
         assertEquals(account, service.handleCallback("GitHub", "code", "state"))
         verify { sharedAccountService.saveOAuthAccount(20, 1, AccountProvider.GITHUB, "cowork-bot", "token") }
     }
+
+    @Test
+    fun `클라이언트 이동 주소의 끝 슬래시를 제거한다`() {
+        assertEquals("https://cowork.team", service.clientRedirectUrl())
+    }
 }
