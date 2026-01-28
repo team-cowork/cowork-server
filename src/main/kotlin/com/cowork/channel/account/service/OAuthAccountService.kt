@@ -10,6 +10,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriComponentsBuilder
 
+/**
+ * 외부 서비스 OAuth로 공유 계정을 연결한다.
+ *
+ * - state에 채널, 사용자, 서비스를 서명해 넣고 콜백에서 다시 확인한다.
+ * - 받은 액세스 토큰은 공유 계정의 자격 증명으로 암호화해 저장한다.
+ */
 @Service
 class OAuthAccountService(
     private val properties: AccountOAuthProperties,

@@ -22,6 +22,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 계정 공유 채널의 외부 서비스 계정을 관리한다.
+ *
+ * - 자격 증명은 AES-GCM으로 암호화해 저장하고, 복사할 때마다 이력을 남긴다.
+ * - 등록자나 채널 관리자만 수정하고 삭제할 수 있다.
+ * - OAuth로 연결한 계정의 자격 증명은 직접 바꿀 수 없다.
+ */
 @Service
 class SharedAccountService(
     private val sharedAccountRepository: SharedAccountRepository,
