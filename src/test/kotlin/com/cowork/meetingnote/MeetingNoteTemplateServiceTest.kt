@@ -19,6 +19,7 @@ import io.mockk.runs
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -93,5 +94,26 @@ class MeetingNoteTemplateServiceTest {
         val exception = assertThrows<BusinessException> { service.delete(30, 5, 1) }
 
         assertEquals(HttpStatus.BAD_REQUEST, exception.status)
+    }
+
+    @Test
+    fun `템플릿을 활성화하면 기존 활성 템플릿을 끈다`() {
+        val current = template(1, active = true)
+        val next = template(2)
+        every { channelAccessChecker.canManage(channel, 1) } returns true
+        every { templateRepository.findByIdAndChannelId(2, 30) } returns next
+        every { templateRepository.findFirstByChannelIdAndIsActiveTrue(30) } returns current
+
+        service.activate(30, 2, 1)
+
+        assertFalse(current.isActive)
+        assertTrue(next.isActive)
+    }
+
+    @Test
+    fun `채널 관리자가 아니면 템플릿을 활성화할 수 없다`() {
+        every { channelAccessChecker.canManage(channel, 2) } returns false
+
+        assertThrows<BusinessException> { service.activate(30, 2, 2) }
     }
 }
