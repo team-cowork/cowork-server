@@ -11,15 +11,19 @@ import com.cowork.channel.meetingnote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.meetingnote.repository.TemplateSectionRepository
 import com.cowork.channel.meetingnote.service.MeetingNoteTemplateService
 import com.cowork.channel.service.ChannelAccessChecker
+import com.cowork.global.error.BusinessException
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
+import org.springframework.http.HttpStatus
 
 class MeetingNoteTemplateServiceTest {
 
@@ -70,5 +74,24 @@ class MeetingNoteTemplateServiceTest {
 
         verify { sectionRepository.save(match<TemplateSection> { it.title == "날짜" && it.position == 0 }) }
         verify { sectionRepository.save(match<TemplateSection> { it.title == "내용" && it.position == 1 }) }
+    }
+
+    @Test
+    fun `만든 사람이 아니고 관리자도 아니면 이름을 바꿀 수 없다`() {
+        every { templateRepository.findByIdAndChannelId(5, 30) } returns template(5, createdBy = 1)
+        every { channelAccessChecker.canManage(channel, 2) } returns false
+
+        val exception = assertThrows<BusinessException> { service.rename(30, 5, 2, "새 이름") }
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
+    }
+
+    @Test
+    fun `사용 중인 템플릿은 삭제할 수 없다`() {
+        every { templateRepository.findByIdAndChannelId(5, 30) } returns template(5, active = true)
+
+        val exception = assertThrows<BusinessException> { service.delete(30, 5, 1) }
+
+        assertEquals(HttpStatus.BAD_REQUEST, exception.status)
     }
 }
