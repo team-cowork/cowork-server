@@ -116,4 +116,14 @@ class MeetingNoteTemplateServiceTest {
 
         assertThrows<BusinessException> { service.activate(30, 2, 2) }
     }
+
+    @Test
+    fun `새 섹션은 마지막 위치 뒤에 붙인다`() {
+        every { templateRepository.findByIdAndChannelId(5, 30) } returns template(5)
+        every { sectionRepository.findMaxPosition(5) } returns 3
+
+        service.addSection(30, 5, 1, CreateSectionRequest("참석자", SectionType.USER_LIST))
+
+        verify { sectionRepository.save(match<TemplateSection> { it.position == 4 && it.type == SectionType.USER_LIST }) }
+    }
 }
