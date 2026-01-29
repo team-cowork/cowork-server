@@ -26,4 +26,11 @@ class TeamRoleController(
     @GetMapping("/roles")
     fun getRoles(@CurrentUser user: AuthUser, @PathVariable teamId: Long): List<TeamRoleResponse> =
         teamRoleService.getRoles(teamId, user.id)
+
+    @GetMapping("/members/{userId}/roles")
+    fun getMemberRoles(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable userId: Long,
+    ): List<TeamRoleResponse> = teamRoleService.getMemberRoles(teamId, user.id, userId)
 }

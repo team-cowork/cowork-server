@@ -25,4 +25,10 @@ class TeamRoleService(
         teamAccessChecker.requireMember(teamId, actorId)
         return teamRoleRepository.findAllByTeamIdOrderByPriorityDescIdAsc(teamId).map(TeamRoleResponse::from)
     }
+
+    @Transactional
+    fun getMemberRoles(teamId: Long, actorId: Long, targetUserId: Long): List<TeamRoleResponse> {
+        teamAccessChecker.requireMember(teamId, actorId)
+        return teamRoleRepository.findAllAssignedTo(teamId, targetUserId).map(TeamRoleResponse::from)
+    }
 }
