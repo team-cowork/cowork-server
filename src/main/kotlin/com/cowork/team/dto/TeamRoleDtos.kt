@@ -2,9 +2,15 @@ package com.cowork.team.dto
 
 import com.cowork.team.domain.TeamPermission
 import com.cowork.team.domain.TeamRole
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Pattern
+import jakarta.validation.constraints.Size
 
 data class CreateTeamRoleRequest(
+    @field:NotBlank
+    @field:Size(max = 50)
     val name: String,
+    @field:Pattern(regexp = HEX_COLOR_PATTERN)
     val colorHex: String? = null,
     val priority: Int = 0,
     val mentionable: Boolean = false,
@@ -12,7 +18,9 @@ data class CreateTeamRoleRequest(
 )
 
 data class UpdateTeamRoleRequest(
+    @field:Size(min = 1, max = 50)
     val name: String? = null,
+    @field:Pattern(regexp = HEX_COLOR_PATTERN)
     val colorHex: String? = null,
     val priority: Int? = null,
     val mentionable: Boolean? = null,

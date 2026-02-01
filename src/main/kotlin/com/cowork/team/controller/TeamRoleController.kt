@@ -8,6 +8,7 @@ import com.cowork.team.dto.UpdateTeamRoleRequest
 import com.cowork.team.service.TeamRoleService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
@@ -44,7 +45,7 @@ class TeamRoleController(
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
-        @RequestBody request: CreateTeamRoleRequest,
+        @Valid @RequestBody request: CreateTeamRoleRequest,
     ): TeamRoleResponse = teamRoleService.create(teamId, user.id, request)
 
     @Operation(summary = "팀 역할 수정")
@@ -53,7 +54,7 @@ class TeamRoleController(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
-        @RequestBody request: UpdateTeamRoleRequest,
+        @Valid @RequestBody request: UpdateTeamRoleRequest,
     ): TeamRoleResponse = teamRoleService.update(teamId, user.id, roleId, request)
 
     @Operation(summary = "팀 역할 삭제")
