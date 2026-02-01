@@ -40,4 +40,12 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @RequestBody request: CreateTeamRoleRequest,
     ): TeamRoleResponse = teamRoleService.create(teamId, user.id, request)
+
+    @PatchMapping("/roles/{roleId}")
+    fun update(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable roleId: Long,
+        @RequestBody request: UpdateTeamRoleRequest,
+    ): TeamRoleResponse = teamRoleService.update(teamId, user.id, roleId, request)
 }

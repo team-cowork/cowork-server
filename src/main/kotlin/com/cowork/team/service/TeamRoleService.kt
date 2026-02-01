@@ -50,4 +50,19 @@ class TeamRoleService(
         )
         return TeamRoleResponse.from(role)
     }
+
+    @Transactional
+    fun update(teamId: Long, actorId: Long, roleId: Long, request: UpdateTeamRoleRequest): TeamRoleResponse {
+        teamAccessChecker.requirePermission(teamId, actorId, TeamPermission.MANAGE_ROLES)
+        val role = findRole(teamId, roleId)
+        if (request.name != null && request.name != role.name && teamRoleRepository.existsByTeamIdAndName(teamId, request.name)) {
+            throw BusinessException(HttpStatus.CONFLICT, "같은 이름의 역할이 이미 있습니다.")
+        }
+        role.update(request.name, request.colorHex, request.priority, request.mentionable, request.permissions)
+        return TeamRoleResponse.from(role)
+    }
+
+    private fun findRole(teamId: Long, roleId: Long): TeamRole =
+        teamRoleRepository.findByIdAndTeamId(roleId, teamId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "역할을 찾을 수 없습니다.")
 }
