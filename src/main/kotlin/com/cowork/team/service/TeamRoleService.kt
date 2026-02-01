@@ -70,6 +70,19 @@ class TeamRoleService(
         teamRoleRepository.delete(role)
     }
 
+    @Transactional
+    fun assign(teamId: Long, actorId: Long, targetUserId: Long, roleId: Long) {
+        teamAccessChecker.requirePermission(teamId, actorId, TeamPermission.MANAGE_ROLES)
+        if (!teamAccessChecker.isMember(teamId, targetUserId)) {
+            throw BusinessException(HttpStatus.NOT_FOUND, "팀 멤버를 찾을 수 없습니다.")
+        }
+        val role = findRole(teamId, roleId)
+        if (teamRoleAssignmentRepository.existsByRoleIdAndUserId(role.id, targetUserId)) {
+            return
+        }
+        teamRoleAssignmentRepository.save(TeamRoleAssignment(teamId = teamId, roleId = role.id, userId = targetUserId))
+    }
+
     private fun findRole(teamId: Long, roleId: Long): TeamRole =
         teamRoleRepository.findByIdAndTeamId(roleId, teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "역할을 찾을 수 없습니다.")

@@ -55,4 +55,12 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
     ) = teamRoleService.delete(teamId, user.id, roleId)
+
+    @PutMapping("/members/{targetUserId}/roles/{roleId}")
+    fun assign(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable targetUserId: Long,
+        @PathVariable roleId: Long,
+    ) = teamRoleService.assign(teamId, user.id, targetUserId, roleId)
 }
