@@ -48,4 +48,11 @@ class TeamRoleController(
         @PathVariable roleId: Long,
         @RequestBody request: UpdateTeamRoleRequest,
     ): TeamRoleResponse = teamRoleService.update(teamId, user.id, roleId, request)
+
+    @DeleteMapping("/roles/{roleId}")
+    fun delete(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @PathVariable roleId: Long,
+    ) = teamRoleService.delete(teamId, user.id, roleId)
 }

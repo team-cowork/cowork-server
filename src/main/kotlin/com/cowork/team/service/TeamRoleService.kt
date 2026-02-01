@@ -62,6 +62,14 @@ class TeamRoleService(
         return TeamRoleResponse.from(role)
     }
 
+    @Transactional
+    fun delete(teamId: Long, actorId: Long, roleId: Long) {
+        teamAccessChecker.requirePermission(teamId, actorId, TeamPermission.MANAGE_ROLES)
+        val role = findRole(teamId, roleId)
+        teamRoleAssignmentRepository.deleteAllByRoleId(role.id)
+        teamRoleRepository.delete(role)
+    }
+
     private fun findRole(teamId: Long, roleId: Long): TeamRole =
         teamRoleRepository.findByIdAndTeamId(roleId, teamId)
             ?: throw BusinessException(HttpStatus.NOT_FOUND, "역할을 찾을 수 없습니다.")
