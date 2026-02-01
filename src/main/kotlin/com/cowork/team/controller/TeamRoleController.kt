@@ -33,4 +33,11 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable userId: Long,
     ): List<TeamRoleResponse> = teamRoleService.getMemberRoles(teamId, user.id, userId)
+
+    @PostMapping("/roles")
+    fun create(
+        @CurrentUser user: AuthUser,
+        @PathVariable teamId: Long,
+        @RequestBody request: CreateTeamRoleRequest,
+    ): TeamRoleResponse = teamRoleService.create(teamId, user.id, request)
 }

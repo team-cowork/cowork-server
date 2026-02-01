@@ -31,4 +31,23 @@ class TeamRoleService(
         teamAccessChecker.requireMember(teamId, actorId)
         return teamRoleRepository.findAllAssignedTo(teamId, targetUserId).map(TeamRoleResponse::from)
     }
+
+    @Transactional
+    fun create(teamId: Long, actorId: Long, request: CreateTeamRoleRequest): TeamRoleResponse {
+        teamAccessChecker.requirePermission(teamId, actorId, TeamPermission.MANAGE_ROLES)
+        if (teamRoleRepository.existsByTeamIdAndName(teamId, request.name)) {
+            throw BusinessException(HttpStatus.CONFLICT, "같은 이름의 역할이 이미 있습니다.")
+        }
+        val role = teamRoleRepository.save(
+            TeamRole(
+                teamId = teamId,
+                name = request.name,
+                colorHex = request.colorHex ?: TeamRole.DEFAULT_COLOR,
+                priority = request.priority,
+                mentionable = request.mentionable,
+                permissions = request.permissions,
+            ),
+        )
+        return TeamRoleResponse.from(role)
+    }
 }
