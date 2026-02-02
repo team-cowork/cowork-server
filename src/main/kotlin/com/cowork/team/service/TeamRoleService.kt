@@ -20,13 +20,13 @@ class TeamRoleService(
     private val teamAccessChecker: TeamAccessChecker,
 ) {
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getRoles(teamId: Long, actorId: Long): List<TeamRoleResponse> {
         teamAccessChecker.requireMember(teamId, actorId)
         return teamRoleRepository.findAllByTeamIdOrderByPriorityDescIdAsc(teamId).map(TeamRoleResponse::from)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getMemberRoles(teamId: Long, actorId: Long, targetUserId: Long): List<TeamRoleResponse> {
         teamAccessChecker.requireMember(teamId, actorId)
         return teamRoleRepository.findAllAssignedTo(teamId, targetUserId).map(TeamRoleResponse::from)
