@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "팀 역할")
@@ -42,6 +43,7 @@ class TeamRoleController(
 
     @Operation(summary = "팀 역할 생성")
     @PostMapping("/roles")
+    @ResponseStatus(HttpStatus.CREATED)
     fun create(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
@@ -59,6 +61,7 @@ class TeamRoleController(
 
     @Operation(summary = "팀 역할 삭제")
     @DeleteMapping("/roles/{roleId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun delete(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
@@ -67,6 +70,7 @@ class TeamRoleController(
 
     @Operation(summary = "멤버에게 역할 부여")
     @PutMapping("/members/{targetUserId}/roles/{roleId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun assign(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
@@ -76,6 +80,7 @@ class TeamRoleController(
 
     @Operation(summary = "멤버의 역할 회수")
     @DeleteMapping("/members/{targetUserId}/roles/{roleId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun unassign(
         @CurrentUser user: AuthUser,
         @PathVariable teamId: Long,
