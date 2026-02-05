@@ -6,6 +6,7 @@ import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamPermission
 import com.cowork.team.domain.TeamRole
 import com.cowork.team.dto.CreateTeamRoleRequest
+import com.cowork.team.dto.UpdateTeamRoleRequest
 import com.cowork.team.repository.TeamRoleAssignmentRepository
 import com.cowork.team.repository.TeamRoleRepository
 import com.cowork.team.service.TeamAccessChecker
@@ -13,6 +14,7 @@ import com.cowork.team.service.TeamRoleService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -52,5 +54,27 @@ class TeamRoleServiceTest {
         val exception = assertThrows<BusinessException> { service.create(1, 2, CreateTeamRoleRequest(name = "디자인")) }
 
         assertEquals(HttpStatus.CONFLICT, exception.status)
+    }
+
+    @Test
+    fun `다른 역할과 이름이 겹치면 수정할 수 없다`() {
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+        every { roleRepository.existsByTeamIdAndName(1, "기획") } returns true
+
+        assertThrows<BusinessException> { service.update(1, 2, 30, UpdateTeamRoleRequest(name = "기획")) }
+    }
+
+    @Test
+    fun `이름을 그대로 두면 중복 검사 없이 나머지 항목을 수정한다`() {
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+
+        val response = service.update(
+            1, 2, 30,
+            UpdateTeamRoleRequest(name = "디자인", priority = 5, permissions = setOf(TeamPermission.MANAGE_CHANNELS)),
+        )
+
+        assertEquals(5, response.priority)
+        assertEquals(setOf(TeamPermission.MANAGE_CHANNELS), response.permissions)
+        verify(exactly = 0) { roleRepository.existsByTeamIdAndName(any(), any()) }
     }
 }
