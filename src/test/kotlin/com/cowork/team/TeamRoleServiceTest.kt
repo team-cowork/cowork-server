@@ -5,6 +5,7 @@ import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamPermission
 import com.cowork.team.domain.TeamRole
+import com.cowork.team.domain.TeamRoleAssignment
 import com.cowork.team.dto.CreateTeamRoleRequest
 import com.cowork.team.dto.UpdateTeamRoleRequest
 import com.cowork.team.repository.TeamRoleAssignmentRepository
@@ -95,5 +96,44 @@ class TeamRoleServiceTest {
         val exception = assertThrows<BusinessException> { service.delete(1, 2, 30) }
 
         assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `팀 멤버가 아닌 사용자에게는 역할을 부여할 수 없다`() {
+        every { accessChecker.isMember(1, 9) } returns false
+
+        val exception = assertThrows<BusinessException> { service.assign(1, 2, 9, 30) }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `이미 부여한 역할은 다시 저장하지 않는다`() {
+        every { accessChecker.isMember(1, 9) } returns true
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+        every { assignmentRepository.existsByRoleIdAndUserId(30, 9) } returns true
+
+        service.assign(1, 2, 9, 30)
+
+        verify(exactly = 0) { assignmentRepository.save(any()) }
+    }
+
+    @Test
+    fun `부여하지 않은 역할은 회수할 수 없다`() {
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+        every { assignmentRepository.findByRoleIdAndUserId(30, 9) } returns null
+
+        assertThrows<BusinessException> { service.unassign(1, 2, 9, 30) }
+    }
+
+    @Test
+    fun `부여한 역할을 회수한다`() {
+        val assignment = TeamRoleAssignment(teamId = 1, roleId = 30, userId = 9)
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+        every { assignmentRepository.findByRoleIdAndUserId(30, 9) } returns assignment
+
+        service.unassign(1, 2, 9, 30)
+
+        verify { assignmentRepository.delete(assignment) }
     }
 }
