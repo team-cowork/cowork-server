@@ -77,4 +77,23 @@ class TeamRoleServiceTest {
         assertEquals(setOf(TeamPermission.MANAGE_CHANNELS), response.permissions)
         verify(exactly = 0) { roleRepository.existsByTeamIdAndName(any(), any()) }
     }
+
+    @Test
+    fun `역할을 삭제하면 부여 정보도 함께 삭제한다`() {
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns role
+
+        service.delete(1, 2, 30)
+
+        verify { assignmentRepository.deleteAllByRoleId(30) }
+        verify { roleRepository.delete(role) }
+    }
+
+    @Test
+    fun `다른 팀의 역할은 찾을 수 없다`() {
+        every { roleRepository.findByIdAndTeamId(30, 1) } returns null
+
+        val exception = assertThrows<BusinessException> { service.delete(1, 2, 30) }
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
 }
