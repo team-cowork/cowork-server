@@ -136,4 +136,15 @@ class TeamRoleServiceTest {
 
         verify { assignmentRepository.delete(assignment) }
     }
+
+    @Test
+    fun `팀 멤버는 역할 목록을 우선순위 순으로 조회한다`() {
+        every { accessChecker.requireMember(1, 3) } returns TeamMember(teamId = 1, userId = 3, role = TeamMemberRole.MEMBER)
+        every { roleRepository.findAllByTeamIdOrderByPriorityDescIdAsc(1) } returns
+            listOf(TeamRole(teamId = 1, name = "리드", priority = 9, id = 31), role)
+
+        val roles = service.getRoles(1, 3)
+
+        assertEquals(listOf("리드", "디자인"), roles.map { it.name })
+    }
 }
