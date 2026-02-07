@@ -98,4 +98,8 @@ class User(
     fun changeProfileImage(objectKey: String?) {
         this.profileImageKey = objectKey
     }
+
+    fun changeRole(role: UserRole) {
+        this.role = role
+    }
 }
