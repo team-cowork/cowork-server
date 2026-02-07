@@ -41,4 +41,20 @@ class TeamAccessCheckerTest {
 
         assertEquals(HttpStatus.FORBIDDEN, exception.status)
     }
+
+    @Test
+    fun `관리자는 소유자 전용 작업을 할 수 없다`() {
+        every { teamRepository.existsById(1) } returns true
+        every { teamMemberRepository.findByTeamIdAndUserId(1, 5) } returns member(TeamMemberRole.ADMIN)
+
+        assertThrows<BusinessException> { checker.requireOwner(1, 5) }
+    }
+
+    @Test
+    fun `소유자는 소유자 전용 작업을 할 수 있다`() {
+        every { teamRepository.existsById(1) } returns true
+        every { teamMemberRepository.findByTeamIdAndUserId(1, 5) } returns member(TeamMemberRole.OWNER)
+
+        assertEquals(TeamMemberRole.OWNER, checker.requireOwner(1, 5).role)
+    }
 }
