@@ -2,6 +2,7 @@ package com.cowork.team
 
 import com.cowork.team.domain.TeamPermission
 import com.cowork.team.domain.TeamPermissionsConverter
+import com.cowork.team.domain.TeamRole
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
@@ -27,5 +28,17 @@ class TeamRoleDomainTest {
     fun `null 컬럼은 빈 권한 목록으로 읽는다`() {
         assertEquals(emptySet<TeamPermission>(), converter.convertToEntityAttribute(null))
         assertEquals("", converter.convertToDatabaseColumn(null))
+    }
+
+    @Test
+    fun `전달한 항목만 수정한다`() {
+        val role = TeamRole(teamId = 1, name = "디자인", colorHex = "#FFFFFF", priority = 1)
+
+        role.update(null, "#000000", null, true, null)
+
+        assertEquals("디자인", role.name)
+        assertEquals("#000000", role.colorHex)
+        assertEquals(1, role.priority)
+        assertEquals(true, role.mentionable)
     }
 }
