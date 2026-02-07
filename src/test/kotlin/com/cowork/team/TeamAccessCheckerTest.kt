@@ -3,13 +3,18 @@ package com.cowork.team
 import com.cowork.global.error.BusinessException
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamMemberRole
+import com.cowork.team.domain.TeamPermission
+import com.cowork.team.domain.TeamRole
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
 import com.cowork.team.repository.TeamRoleRepository
 import com.cowork.team.service.TeamAccessChecker
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
@@ -56,5 +61,34 @@ class TeamAccessCheckerTest {
         every { teamMemberRepository.findByTeamIdAndUserId(1, 5) } returns member(TeamMemberRole.OWNER)
 
         assertEquals(TeamMemberRole.OWNER, checker.requireOwner(1, 5).role)
+    }
+
+    @Test
+    fun `관리자 이상은 역할 조회 없이 모든 권한을 가진다`() {
+        assertTrue(checker.hasPermission(member(TeamMemberRole.ADMIN), TeamPermission.MANAGE_ROLES))
+        verify(exactly = 0) { teamRoleRepository.findAllAssignedTo(any(), any()) }
+    }
+
+    @Test
+    fun `일반 멤버는 부여받은 역할의 권한만 가진다`() {
+        every { teamRoleRepository.findAllAssignedTo(1, 5) } returns
+            listOf(TeamRole(teamId = 1, name = "기획", permissions = setOf(TeamPermission.MANAGE_PROJECTS)))
+        val member = member(TeamMemberRole.MEMBER)
+
+        assertTrue(checker.hasPermission(member, TeamPermission.MANAGE_PROJECTS))
+        assertFalse(checker.hasPermission(member, TeamPermission.KICK_MEMBERS))
+    }
+
+    @Test
+    fun `권한이 없으면 403을 반환한다`() {
+        every { teamRepository.existsById(1) } returns true
+        every { teamMemberRepository.findByTeamIdAndUserId(1, 5) } returns member(TeamMemberRole.MEMBER)
+        every { teamRoleRepository.findAllAssignedTo(1, 5) } returns emptyList()
+
+        val exception = assertThrows<BusinessException> {
+            checker.requirePermission(1, 5, TeamPermission.INVITE_MEMBERS)
+        }
+
+        assertEquals(HttpStatus.FORBIDDEN, exception.status)
     }
 }
