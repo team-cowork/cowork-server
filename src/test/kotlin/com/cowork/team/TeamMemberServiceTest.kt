@@ -9,6 +9,7 @@ import com.cowork.team.domain.TeamVisibility
 import com.cowork.team.event.TeamMemberRemovedEvent
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleAssignmentRepository
 import com.cowork.team.service.TeamAccessChecker
 import com.cowork.team.service.TeamMemberService
 import com.cowork.user.service.UserService
@@ -26,12 +27,14 @@ class TeamMemberServiceTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>(relaxed = true)
+    private val assignmentRepository = mockk<TeamRoleAssignmentRepository>(relaxed = true)
     private val accessChecker = mockk<TeamAccessChecker>()
     private val userService = mockk<UserService>()
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
     private val service = TeamMemberService(
         teamRepository,
         teamMemberRepository,
+        assignmentRepository,
         accessChecker,
         userService,
         eventPublisher,
@@ -71,6 +74,7 @@ class TeamMemberServiceTest {
 
         service.removeMember(1, 4, 4)
 
+        verify { assignmentRepository.deleteAllByTeamIdAndUserId(1, 4) }
         verify { teamMemberRepository.delete(self) }
         verify { eventPublisher.publishEvent(TeamMemberRemovedEvent(1, 4)) }
     }

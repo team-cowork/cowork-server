@@ -6,6 +6,8 @@ import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamVisibility
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleAssignmentRepository
+import com.cowork.team.repository.TeamRoleRepository
 import com.cowork.team.service.TeamAccessChecker
 import com.cowork.team.service.TeamService
 import io.mockk.every
@@ -21,12 +23,16 @@ class TeamServiceTest {
 
     private val teamRepository = mockk<TeamRepository>(relaxed = true)
     private val teamMemberRepository = mockk<TeamMemberRepository>(relaxed = true)
+    private val teamRoleRepository = mockk<TeamRoleRepository>(relaxed = true)
+    private val assignmentRepository = mockk<TeamRoleAssignmentRepository>(relaxed = true)
     private val accessChecker = mockk<TeamAccessChecker>()
     private val storageService = mockk<StorageService>(relaxed = true)
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
     private val service = TeamService(
         teamRepository,
         teamMemberRepository,
+        teamRoleRepository,
+        assignmentRepository,
         accessChecker,
         storageService,
         eventPublisher,
