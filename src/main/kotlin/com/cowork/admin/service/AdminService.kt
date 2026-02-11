@@ -7,9 +7,11 @@ import com.cowork.global.error.BusinessException
 import com.cowork.global.security.AuthUser
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.user.domain.UserRole
 import com.cowork.user.repository.UserRepository
 import com.cowork.voice.domain.VoiceSessionStatus
 import com.cowork.voice.repository.VoiceSessionRepository
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -38,6 +40,17 @@ class AdminService(
             messages = messageRepository.count(),
             activeVoiceSessions = voiceSessionRepository.countByStatus(VoiceSessionStatus.ACTIVE),
         )
+    }
+
+    @Transactional
+    fun changeUserRole(actor: AuthUser, userId: Long, role: UserRole) {
+        requireAdmin(actor)
+        if (actor.id == userId) {
+            throw BusinessException(HttpStatus.BAD_REQUEST, "자신의 권한은 바꿀 수 없습니다.")
+        }
+        val user = userRepository.findByIdOrNull(userId)
+            ?: throw BusinessException(HttpStatus.NOT_FOUND, "사용자를 찾을 수 없습니다.")
+        user.changeRole(role)
     }
 
     private fun requireAdmin(actor: AuthUser) {
