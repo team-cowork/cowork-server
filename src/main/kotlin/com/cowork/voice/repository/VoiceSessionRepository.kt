@@ -11,6 +11,8 @@ interface VoiceSessionRepository : JpaRepository<VoiceSession, Long> {
 
     fun findByRoomName(roomName: String): VoiceSession?
 
+    fun countByStatus(status: VoiceSessionStatus): Long
+
     fun findAllByChannelIdAndStatus(channelId: Long, status: VoiceSessionStatus): List<VoiceSession>
 
     fun findAllByStatusAndStartedAtBefore(status: VoiceSessionStatus, startedAt: LocalDateTime): List<VoiceSession>
