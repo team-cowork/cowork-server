@@ -79,12 +79,12 @@ class TeamService(
         teamAccessChecker.requireOwner(teamId, userId)
         val team = findTeam(teamId)
         val iconKey = team.iconKey
+        eventPublisher.publishEvent(TeamDeletedEvent(teamId))
         teamRoleAssignmentRepository.deleteAllByTeamId(teamId)
         teamRoleRepository.deleteAllByTeamId(teamId)
         teamMemberRepository.deleteAllByTeamId(teamId)
         teamRepository.delete(team)
         iconKey?.let(storageService::delete)
-        eventPublisher.publishEvent(TeamDeletedEvent(teamId))
     }
 
     fun createIconUploadUrl(userId: Long, request: PresignedUploadRequest): PresignedUploadResponse {
