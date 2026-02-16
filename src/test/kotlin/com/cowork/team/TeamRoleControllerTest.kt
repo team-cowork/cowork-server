@@ -6,11 +6,16 @@ import com.cowork.team.domain.TeamRole
 import com.cowork.team.dto.TeamRoleResponse
 import com.cowork.team.service.TeamRoleService
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.runs
+import io.mockk.verify
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.test.web.servlet.put
 
 class TeamRoleControllerTest : ControllerTestSupport() {
 
@@ -35,5 +40,21 @@ class TeamRoleControllerTest : ControllerTestSupport() {
             jsonPath("$[0].name") { value("디자인") }
             jsonPath("$[0].colorHex") { value(TeamRole.DEFAULT_COLOR) }
         }
+    }
+
+    @Test
+    fun `역할을 부여하면 204를 반환한다`() {
+        every { teamRoleService.assign(3, 1, 7, 30) } just runs
+
+        mockMvc.put("/teams/3/members/7/roles/30").andExpect { status { isNoContent() } }
+    }
+
+    @Test
+    fun `역할을 회수하면 204를 반환한다`() {
+        every { teamRoleService.unassign(3, 1, 7, 30) } just runs
+
+        mockMvc.delete("/teams/3/members/7/roles/30").andExpect { status { isNoContent() } }
+
+        verify { teamRoleService.unassign(3, 1, 7, 30) }
     }
 }
