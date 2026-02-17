@@ -4,6 +4,7 @@ import com.cowork.notification.domain.DeviceToken
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import java.time.LocalDateTime
 
 interface DeviceTokenRepository : JpaRepository<DeviceToken, Long> {
 
@@ -14,4 +15,8 @@ interface DeviceTokenRepository : JpaRepository<DeviceToken, Long> {
     @Modifying
     @Query("DELETE FROM DeviceToken d WHERE d.token IN :tokens")
     fun deleteAllByTokenIn(tokens: Collection<String>)
+
+    @Modifying
+    @Query("DELETE FROM DeviceToken d WHERE d.lastRegisteredAt < :threshold")
+    fun deleteAllRegisteredBefore(threshold: LocalDateTime): Int
 }
