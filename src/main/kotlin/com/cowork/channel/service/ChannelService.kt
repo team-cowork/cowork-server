@@ -99,9 +99,9 @@ class ChannelService(
     }
 
     fun deleteChannel(channel: Channel) {
+        eventPublisher.publishEvent(ChannelDeletedEvent(channel.id, channel.teamId))
         channelMemberRepository.deleteAllByChannelId(channel.id)
         channelRepository.delete(channel)
-        eventPublisher.publishEvent(ChannelDeletedEvent(channel.id, channel.teamId))
     }
 
     private fun validateProject(teamId: Long, projectId: Long) {
