@@ -6,6 +6,7 @@ import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.service.ProjectTeamLifecycleListener
 import com.cowork.team.event.TeamDeletedEvent
+import com.cowork.team.event.TeamMemberRemovedEvent
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -45,5 +46,14 @@ class ProjectTeamLifecycleListenerTest {
         listener.onTeamDeleted(TeamDeletedEvent(1))
 
         verify(exactly = 0) { projectRepository.deleteAll(any<Iterable<Project>>()) }
+    }
+
+    @Test
+    fun `팀에서 나간 사용자는 팀의 모든 프로젝트에서 제외한다`() {
+        every { projectRepository.findIdsByTeamId(1) } returns listOf(10, 11)
+
+        listener.onTeamMemberRemoved(TeamMemberRemovedEvent(1, 5))
+
+        verify { projectMemberRepository.deleteAllByUserIdAndProjectIdIn(5, listOf(10, 11)) }
     }
 }
