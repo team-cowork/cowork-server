@@ -26,6 +26,9 @@ class OpenApiGroupConfig {
     fun realtimeApi(): GroupedOpenApi =
         group("preference-notification-voice", "com.cowork.preference", "com.cowork.notification", "com.cowork.voice")
 
+    @Bean
+    fun adminApi(): GroupedOpenApi = group("admin", "com.cowork.admin")
+
     private fun group(name: String, vararg packages: String): GroupedOpenApi =
         GroupedOpenApi.builder().group(name).packagesToScan(*packages).build()
 }
