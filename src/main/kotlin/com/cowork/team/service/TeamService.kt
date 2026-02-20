@@ -51,10 +51,20 @@ class TeamService(
     }
 
     @Transactional(readOnly = true)
-    fun getMyTeams(userId: Long): List<TeamResponse> =
-        teamRepository.findAllByMemberUserId(userId).map { team ->
-            toResponse(team, teamMemberRepository.findByTeamIdAndUserId(team.id, userId)?.role)
+    fun getMyTeams(userId: Long): List<TeamResponse> {
+        val teams = teamRepository.findAllByMemberUserId(userId)
+        if (teams.isEmpty()) return emptyList()
+        val roles = teamMemberRepository.findAllByUserId(userId).associate { it.teamId to it.role }
+        val counts = teamMemberRepository.countByTeamIds(teams.map { it.id }).associate { it.teamId to it.count }
+        return teams.map { team ->
+            TeamResponse.of(
+                team = team,
+                iconUrl = team.iconKey?.let(storageService::createDownloadUrl),
+                memberCount = counts[team.id] ?: 0,
+                myRole = roles[team.id],
+            )
         }
+    }
 
     @Transactional(readOnly = true)
     fun getTeam(teamId: Long, userId: Long): TeamResponse {
