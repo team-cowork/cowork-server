@@ -60,4 +60,24 @@ class TeamMemberInviteTest {
         assertEquals(TeamMemberRole.MEMBER, response.role)
         verify { eventPublisher.publishEvent(TeamMemberAddedEvent(1, "cowork", 9, 2)) }
     }
+
+    @Test
+    fun `자신의 역할은 바꿀 수 없다`() {
+        every { accessChecker.requireOwner(1, 2) } returns owner
+
+        assertThrows<BusinessException> { service.changeRole(1, 2, 2, TeamMemberRole.ADMIN) }
+    }
+
+    @Test
+    fun `관리자로 바꾸면 소유권은 그대로 둔다`() {
+        val target = TeamMember(teamId = 1, userId = 9, role = TeamMemberRole.MEMBER)
+        every { accessChecker.requireOwner(1, 2) } returns owner
+        every { memberRepository.findByTeamIdAndUserId(1, 9) } returns target
+
+        service.changeRole(1, 2, 9, TeamMemberRole.ADMIN)
+
+        assertEquals(TeamMemberRole.ADMIN, target.role)
+        assertEquals(TeamMemberRole.OWNER, owner.role)
+        verify(exactly = 0) { teamRepository.findById(any()) }
+    }
 }
