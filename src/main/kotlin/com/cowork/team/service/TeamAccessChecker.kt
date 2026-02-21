@@ -6,6 +6,7 @@ import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamPermission
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 
@@ -13,6 +14,7 @@ import org.springframework.stereotype.Component
 class TeamAccessChecker(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val teamRoleRepository: TeamRoleRepository,
 ) {
 
     fun requireTeamExists(teamId: Long) {
@@ -38,8 +40,9 @@ class TeamAccessChecker(
         return member
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun hasPermission(member: TeamMember, permission: TeamPermission): Boolean = member.role.isManager
+    fun hasPermission(member: TeamMember, permission: TeamPermission): Boolean =
+        member.role.isManager ||
+            teamRoleRepository.findAllAssignedTo(member.teamId, member.userId).any { permission in it.permissions }
 
     fun requirePermission(teamId: Long, userId: Long, permission: TeamPermission): TeamMember {
         val member = requireMember(teamId, userId)

@@ -3,13 +3,20 @@ package com.cowork.team
 import com.cowork.global.error.BusinessException
 import com.cowork.global.storage.StorageService
 import com.cowork.team.domain.Team
+import com.cowork.team.domain.TeamMember
+import com.cowork.team.domain.TeamMemberRole
 import com.cowork.team.domain.TeamVisibility
+import com.cowork.team.event.TeamDeletedEvent
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleAssignmentRepository
+import com.cowork.team.repository.TeamRoleRepository
 import com.cowork.team.service.TeamAccessChecker
 import com.cowork.team.service.TeamService
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -21,12 +28,16 @@ class TeamServiceTest {
 
     private val teamRepository = mockk<TeamRepository>(relaxed = true)
     private val teamMemberRepository = mockk<TeamMemberRepository>(relaxed = true)
+    private val teamRoleRepository = mockk<TeamRoleRepository>(relaxed = true)
+    private val assignmentRepository = mockk<TeamRoleAssignmentRepository>(relaxed = true)
     private val accessChecker = mockk<TeamAccessChecker>()
     private val storageService = mockk<StorageService>(relaxed = true)
     private val eventPublisher = mockk<ApplicationEventPublisher>(relaxed = true)
     private val service = TeamService(
         teamRepository,
         teamMemberRepository,
+        teamRoleRepository,
+        assignmentRepository,
         accessChecker,
         storageService,
         eventPublisher,
@@ -55,5 +66,21 @@ class TeamServiceTest {
 
         assertEquals(null, response.myRole)
         assertEquals(3, response.memberCount)
+    }
+
+    @Test
+    fun `팀을 삭제하면 하위 리소스 정리 이벤트를 먼저 발행한다`() {
+        val team = team(TeamVisibility.PUBLIC)
+        every { accessChecker.requireOwner(1, 1) } returns TeamMember(teamId = 1, userId = 1, role = TeamMemberRole.OWNER)
+        every { teamRepository.findById(1) } returns Optional.of(team)
+
+        service.delete(1, 1)
+
+        verifyOrder {
+            eventPublisher.publishEvent(TeamDeletedEvent(1))
+            teamMemberRepository.deleteAllByTeamId(1)
+            teamRepository.delete(team)
+        }
+        verify(exactly = 0) { storageService.delete(any()) }
     }
 }
