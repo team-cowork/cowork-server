@@ -14,3 +14,15 @@
 - 원인: Flyway 마이그레이션과 Firebase 초기화로 시작 시간이 60초를 넘었는데, 헬스 체크 대기는 60초였다.
 - 해결: 컨테이너 `start_period`를 40초로 늘리고 배포 스크립트의 대기 횟수를 30회(150초)로 늘렸다.
 - 확인 방법: `docker logs --tail 200 cowork-server`에서 `Started CoworkApplication` 로그 시각을 본다.
+
+## 사용자 검색 응답 직렬화 경고 (2026-02)
+
+- 증상: 사용자 검색을 호출하면 `Serializing PageImpl instances as-is is not supported` 경고가 반복되었다.
+- 원인: Spring Data 3.3부터 `PageImpl`을 그대로 JSON으로 만드는 방식이 권장되지 않는다.
+- 해결: `@EnableSpringDataWebSupport(pageSerializationMode = VIA_DTO)`를 켰다. 응답의 페이지 정보는 `page` 항목으로 바뀌었으므로 프론트엔드에도 공유했다.
+
+## 기동 로그에 임시 비밀번호가 출력됨 (2026-02)
+
+- 증상: 애플리케이션을 시작할 때 `Using generated security password` 로그가 남았다.
+- 원인: `UserDetailsService` 빈이 없어 Spring Boot가 기본 사용자를 자동으로 만들었다. JWT 인증만 쓰므로 필요 없는 계정이다.
+- 해결: `UserDetailsServiceAutoConfiguration`을 자동 구성에서 제외했다.

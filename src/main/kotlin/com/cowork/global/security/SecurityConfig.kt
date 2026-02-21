@@ -78,6 +78,7 @@ class SecurityConfig(
             "/v3/api-docs/**",
             "/ws/**",
             "/voice/webhook",
+            "/channels/oauth/callback/**",
             "/webhooks/**",
             "/error",
         )

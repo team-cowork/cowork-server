@@ -20,9 +20,9 @@ class ProjectTeamLifecycleListener(
     fun onTeamDeleted(event: TeamDeletedEvent) {
         val projects = projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(event.teamId)
         if (projects.isEmpty()) return
+        projects.forEach { eventPublisher.publishEvent(ProjectDeletedEvent(it.id, it.teamId)) }
         projectMemberRepository.deleteAllByProjectIdIn(projects.map { it.id })
         projectRepository.deleteAll(projects)
-        projects.forEach { eventPublisher.publishEvent(ProjectDeletedEvent(it.id, it.teamId)) }
     }
 
     @EventListener

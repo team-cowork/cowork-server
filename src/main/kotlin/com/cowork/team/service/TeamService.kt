@@ -16,6 +16,8 @@ import com.cowork.team.dto.UpdateTeamRequest
 import com.cowork.team.event.TeamDeletedEvent
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleAssignmentRepository
+import com.cowork.team.repository.TeamRoleRepository
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
@@ -27,6 +29,8 @@ import java.util.UUID
 class TeamService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val teamRoleRepository: TeamRoleRepository,
+    private val teamRoleAssignmentRepository: TeamRoleAssignmentRepository,
     private val teamAccessChecker: TeamAccessChecker,
     private val storageService: StorageService,
     private val eventPublisher: ApplicationEventPublisher,
@@ -47,10 +51,20 @@ class TeamService(
     }
 
     @Transactional(readOnly = true)
-    fun getMyTeams(userId: Long): List<TeamResponse> =
-        teamRepository.findAllByMemberUserId(userId).map { team ->
-            toResponse(team, teamMemberRepository.findByTeamIdAndUserId(team.id, userId)?.role)
+    fun getMyTeams(userId: Long): List<TeamResponse> {
+        val teams = teamRepository.findAllByMemberUserId(userId)
+        if (teams.isEmpty()) return emptyList()
+        val roles = teamMemberRepository.findAllByUserId(userId).associate { it.teamId to it.role }
+        val counts = teamMemberRepository.countByTeamIds(teams.map { it.id }).associate { it.teamId to it.count }
+        return teams.map { team ->
+            TeamResponse.of(
+                team = team,
+                iconUrl = team.iconKey?.let(storageService::createDownloadUrl),
+                memberCount = counts[team.id] ?: 0,
+                myRole = roles[team.id],
+            )
         }
+    }
 
     @Transactional(readOnly = true)
     fun getTeam(teamId: Long, userId: Long): TeamResponse {
@@ -75,10 +89,12 @@ class TeamService(
         teamAccessChecker.requireOwner(teamId, userId)
         val team = findTeam(teamId)
         val iconKey = team.iconKey
+        eventPublisher.publishEvent(TeamDeletedEvent(teamId))
+        teamRoleAssignmentRepository.deleteAllByTeamId(teamId)
+        teamRoleRepository.deleteAllByTeamId(teamId)
         teamMemberRepository.deleteAllByTeamId(teamId)
         teamRepository.delete(team)
         iconKey?.let(storageService::delete)
-        eventPublisher.publishEvent(TeamDeletedEvent(teamId))
     }
 
     fun createIconUploadUrl(userId: Long, request: PresignedUploadRequest): PresignedUploadResponse {

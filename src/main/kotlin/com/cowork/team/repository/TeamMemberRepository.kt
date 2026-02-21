@@ -15,6 +15,11 @@ interface TeamMemberRepository : JpaRepository<TeamMember, Long> {
 
     fun countByTeamId(teamId: Long): Long
 
+    fun findAllByUserId(userId: Long): List<TeamMember>
+
+    @Query("SELECT m.teamId AS teamId, COUNT(m) AS count FROM TeamMember m WHERE m.teamId IN :teamIds GROUP BY m.teamId")
+    fun countByTeamIds(teamIds: Collection<Long>): List<TeamMemberCount>
+
     @Query("SELECT m.userId FROM TeamMember m WHERE m.teamId = :teamId")
     fun findUserIdsByTeamId(teamId: Long): List<Long>
 

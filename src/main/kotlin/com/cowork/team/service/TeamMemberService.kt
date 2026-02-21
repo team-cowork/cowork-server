@@ -9,6 +9,7 @@ import com.cowork.team.event.TeamMemberAddedEvent
 import com.cowork.team.event.TeamMemberRemovedEvent
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.repository.TeamRoleAssignmentRepository
 import com.cowork.user.service.UserService
 import org.springframework.context.ApplicationEventPublisher
 import org.springframework.data.repository.findByIdOrNull
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 class TeamMemberService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val teamRoleAssignmentRepository: TeamRoleAssignmentRepository,
     private val teamAccessChecker: TeamAccessChecker,
     private val userService: UserService,
     private val eventPublisher: ApplicationEventPublisher,
@@ -88,6 +90,7 @@ class TeamMemberService(
                 throw BusinessException(HttpStatus.FORBIDDEN, "관리자는 팀 소유자만 내보낼 수 있습니다.")
             }
         }
+        teamRoleAssignmentRepository.deleteAllByTeamIdAndUserId(teamId, targetUserId)
         teamMemberRepository.delete(target)
         eventPublisher.publishEvent(TeamMemberRemovedEvent(teamId, targetUserId))
     }
