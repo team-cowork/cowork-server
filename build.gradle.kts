@@ -41,6 +41,7 @@ dependencies {
     implementation(libs.aws.sdk.s3)
     implementation(libs.firebase.admin)
     runtimeOnly(libs.mysql.connector.j)
+    runtimeOnly(libs.micrometer.registry.prometheus)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)
 
