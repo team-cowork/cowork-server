@@ -61,6 +61,10 @@ allOpen {
     annotation("jakarta.persistence.Embeddable")
 }
 
+springBoot {
+    buildInfo()
+}
+
 tasks.withType<Test> {
     useJUnitPlatform()
 }
