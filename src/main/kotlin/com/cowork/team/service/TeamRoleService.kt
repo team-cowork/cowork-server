@@ -13,6 +13,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 팀 커스텀 역할과 역할 부여를 담당한다.
+ *
+ * - 역할 이름은 팀 안에서 겹칠 수 없다.
+ * - 역할을 지우면 부여 정보도 함께 지운다.
+ */
 @Service
 class TeamRoleService(
     private val teamRoleRepository: TeamRoleRepository,

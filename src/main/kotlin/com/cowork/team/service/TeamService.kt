@@ -25,6 +25,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
+/**
+ * 팀 생성, 조회, 수정, 삭제와 팀 아이콘을 담당한다.
+ *
+ * - 팀을 만든 사용자는 소유자가 된다.
+ * - 비공개 팀은 멤버만 조회할 수 있다.
+ * - 팀을 삭제할 때는 하위 리소스 정리 이벤트를 먼저 발행한 뒤 팀을 지운다.
+ */
 @Service
 class TeamService(
     private val teamRepository: TeamRepository,
