@@ -10,4 +10,6 @@ interface VoiceParticipantRepository : JpaRepository<VoiceParticipant, Long> {
     fun findFirstBySessionIdAndUserIdAndLeftAtIsNull(sessionId: Long, userId: Long): VoiceParticipant?
 
     fun countBySessionIdAndLeftAtIsNull(sessionId: Long): Long
+
+    fun countByLeftAtIsNull(): Long
 }
