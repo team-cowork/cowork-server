@@ -34,6 +34,8 @@ class SseEmitterRegistry {
 
     fun isConnected(userId: Long): Boolean = !emitters[userId].isNullOrEmpty()
 
+    fun connectionCount(): Int = emitters.values.sumOf { it.size }
+
     @Scheduled(fixedRate = HEARTBEAT_INTERVAL_MILLIS)
     fun heartbeat() {
         emitters.forEach { (userId, userEmitters) ->
