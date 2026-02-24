@@ -10,6 +10,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 비공개 채널 멤버 추가, 조회, 제외를 담당한다.
+ *
+ * - 팀 멤버만 채널에 추가할 수 있다.
+ * - 본인은 관리 권한 없이 채널에서 나갈 수 있다.
+ */
 @Service
 class ChannelMemberService(
     private val channelMemberRepository: ChannelMemberRepository,

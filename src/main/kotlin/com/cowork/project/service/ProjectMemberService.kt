@@ -13,6 +13,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 프로젝트 멤버 추가, 역할 변경, 제외를 담당한다.
+ *
+ * - 팀 멤버만 프로젝트에 추가할 수 있다.
+ * - 마지막 소유자는 프로젝트를 떠날 수 없다.
+ */
 @Service
 class ProjectMemberService(
     private val projectMemberRepository: ProjectMemberRepository,
