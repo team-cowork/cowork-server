@@ -17,6 +17,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 프로젝트 생성, 조회, 수정, 삭제와 순서 변경을 담당한다.
+ *
+ * - 프로젝트를 만든 사용자는 프로젝트 소유자가 된다.
+ * - 순서를 바꿀 때는 팀의 모든 프로젝트를 중복 없이 받아야 한다.
+ */
 @Service
 class ProjectService(
     private val projectRepository: ProjectRepository,
