@@ -12,6 +12,7 @@
 |---|---|---|
 | `cowork_chat_messages_total{source}` | 카운터 | 저장된 메시지 수. `source`는 `user` 또는 `webhook` |
 | `cowork_voice_participants` | 게이지 | 현재 음성 채널 참여자 수 |
+| `cowork_notification_sse_connections` | 게이지 | 현재 SSE 알림 연결 수 |
 
 ## 자주 보는 기본 메트릭
 
