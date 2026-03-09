@@ -10,7 +10,7 @@ import com.cowork.channel.meetingnote.repository.MeetingNoteRepository
 import com.cowork.channel.meetingnote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.meetingnote.repository.TemplateSectionRepository
 import com.cowork.global.error.BusinessException
-import com.cowork.team.repository.TeamMemberRepository
+import com.cowork.team.service.TeamAccessChecker
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
 import org.springframework.http.HttpStatus
@@ -22,7 +22,7 @@ class MeetingNoteService(
     private val meetingNoteRepository: MeetingNoteRepository,
     private val templateRepository: MeetingNoteTemplateRepository,
     private val sectionRepository: TemplateSectionRepository,
-    private val teamMemberRepository: TeamMemberRepository,
+    private val teamAccessChecker: TeamAccessChecker,
     private val templateService: MeetingNoteTemplateService,
 ) {
 
@@ -51,7 +51,7 @@ class MeetingNoteService(
         val template = templateRepository.findFirstByChannelIdAndIsActiveTrue(channelId)
             ?: throw BusinessException(HttpStatus.BAD_REQUEST, "활성화된 회의록 템플릿이 없습니다.")
         val sections = sectionRepository.findAllByTemplateIdOrderByPositionAscIdAsc(template.id)
-        val memberIds = teamMemberRepository.findUserIdsByTeamId(channel.teamId).toSet()
+        val memberIds = teamAccessChecker.findMemberIds(channel.teamId)
         val content = MeetingNoteContentValidator.validate(sections, request.values, memberIds)
 
         val note = meetingNoteRepository.save(
