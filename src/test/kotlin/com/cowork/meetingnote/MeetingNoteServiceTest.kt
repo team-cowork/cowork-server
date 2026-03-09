@@ -2,6 +2,7 @@ package com.cowork.meetingnote
 
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
+import com.cowork.channel.event.ChannelDeletedEvent
 import com.cowork.channel.meetingnote.dto.CreateMeetingNoteRequest
 import com.cowork.channel.meetingnote.repository.MeetingNoteRepository
 import com.cowork.channel.meetingnote.repository.MeetingNoteTemplateRepository
@@ -12,6 +13,7 @@ import com.cowork.global.error.BusinessException
 import com.cowork.team.service.TeamAccessChecker
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -53,5 +55,26 @@ class MeetingNoteServiceTest {
         val exception = assertThrows<BusinessException> { service.getNote(30, 9, 1) }
 
         assertEquals(HttpStatus.NOT_FOUND, exception.status)
+    }
+
+    @Test
+    fun `채널이 삭제되면 회의록, 섹션, 템플릿을 모두 지운다`() {
+        every { templateRepository.findIdsByChannelId(30) } returns listOf(5, 6)
+
+        service.onChannelDeleted(ChannelDeletedEvent(30, 1))
+
+        verify { noteRepository.deleteAllByChannelId(30) }
+        verify { sectionRepository.deleteAllByTemplateIdIn(listOf(5, 6)) }
+        verify { templateRepository.deleteAllById(listOf(5, 6)) }
+    }
+
+    @Test
+    fun `템플릿이 없는 채널은 회의록만 지운다`() {
+        every { templateRepository.findIdsByChannelId(30) } returns emptyList()
+
+        service.onChannelDeleted(ChannelDeletedEvent(30, 1))
+
+        verify { noteRepository.deleteAllByChannelId(30) }
+        verify(exactly = 0) { sectionRepository.deleteAllByTemplateIdIn(any()) }
     }
 }
