@@ -23,3 +23,20 @@ cowork-server는 하나의 Spring Boot 애플리케이션으로 인증, 팀, 프
 3. 도메인별 테이블 소유 관계를 확정한다.
 4. 서비스별 기술 스택을 정하고, 새 모노레포 구조에서 서비스를 다시 구성한다.
 5. 모놀리식 운영 배포를 중지하고 저장소를 모노레포 구조로 전환한다.
+
+## 도메인별 테이블 소유 관계
+
+| 도메인 | 테이블 | 비고 |
+|---|---|---|
+| 인증 | `tb_refresh_tokens` | 사용자 ID만 참조 |
+| 사용자 | `tb_users` | DataGSM 계정 정보 동기화 |
+| 팀 | `tb_teams`, `tb_team_members`, `tb_team_roles`, `tb_team_role_assignments` | |
+| 프로젝트 | `tb_projects`, `tb_project_members` | 팀 ID는 FK 없이 참조 예정 |
+| 채널 | `tb_channels`, `tb_channel_members`, `tb_webhooks`, `tb_threads`, `tb_shared_accounts`, `tb_credential_copy_histories`, `tb_meeting_note_*`, `tb_meeting_notes` | |
+| 채팅 | `tb_messages`, `tb_message_attachments` | 문서형 저장소로 이전 검토 |
+| 설정 | `tb_resource_settings`, `tb_channel_notification_settings` | |
+| 알림 | `tb_device_tokens` | |
+| 음성 | `tb_voice_sessions`, `tb_voice_participants` | |
+
+서비스를 나누면 도메인 사이의 외래 키는 제거하고, 다른 서비스의 ID를 참조하는 컬럼에는 출처를 주석으로 남긴다.
+도메인 이벤트(`TeamDeletedEvent`, `ChannelDeletedEvent` 등)는 Kafka 토픽으로 옮긴다.
