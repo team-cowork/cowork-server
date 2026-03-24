@@ -21,6 +21,7 @@ class SecurityConfig(
     private val jwtTokenProvider: JwtTokenProvider,
     private val objectMapper: ObjectMapper,
     @Value("\${cowork.cors.allowed-origins}") private val allowedOrigins: List<String>,
+    @Value("\${cowork.auth.trust-gateway-headers:false}") private val trustGatewayHeaders: Boolean,
 ) {
 
     @Bean
@@ -44,6 +45,9 @@ class SecurityConfig(
                 }
             }
             .addFilterBefore(JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter::class.java)
+        if (trustGatewayHeaders) {
+            http.addFilterAfter(GatewayHeaderAuthenticationFilter(), JwtAuthenticationFilter::class.java)
+        }
         return http.build()
     }
 

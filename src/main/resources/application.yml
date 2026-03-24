@@ -49,6 +49,8 @@ cowork:
   public-base-url: ${PUBLIC_BASE_URL:http://localhost:8080}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  auth:
+    trust-gateway-headers: ${TRUST_GATEWAY_HEADERS:false}
   jwt:
     secret: ${JWT_SECRET:local-development-secret-key-must-be-at-least-32-bytes}
     access-token-ttl: ${JWT_ACCESS_TOKEN_TTL:30m}
