@@ -17,6 +17,11 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 회의록 작성과 조회를 담당한다.
+ *
+ * - 회의록은 활성 템플릿 기준으로 검증한 뒤 섹션 제목과 값을 함께 저장한다.
+ */
 @Service
 class MeetingNoteService(
     private val meetingNoteRepository: MeetingNoteRepository,
