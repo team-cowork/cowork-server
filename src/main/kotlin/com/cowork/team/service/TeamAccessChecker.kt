@@ -26,6 +26,9 @@ class TeamAccessChecker(
     fun isMember(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
 
+    fun findMemberIds(teamId: Long): Set<Long> =
+        teamMemberRepository.findUserIdsByTeamId(teamId).toSet()
+
     fun requireMember(teamId: Long, userId: Long): TeamMember {
         requireTeamExists(teamId)
         return teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
