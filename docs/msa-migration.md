@@ -47,3 +47,24 @@ cowork-server는 하나의 Spring Boot 애플리케이션으로 인증, 팀, 프
 
 서비스를 나누면 도메인 사이의 외래 키는 제거하고, 다른 서비스의 ID를 참조하는 컬럼에는 출처를 주석으로 남긴다.
 도메인 이벤트(`TeamDeletedEvent`, `ChannelDeletedEvent` 등)는 Kafka 토픽으로 옮긴다.
+
+## 서비스 구성과 기술 스택
+
+기술 스택은 서비스별 부하 특성과 담당 팀의 운영 경험을 기준으로 정했다.
+트래픽이 몰리는 실시간·인증 경로는 가벼운 런타임을 우선했고, 기존 도메인 로직을 옮기는 서비스는 Spring Boot를 유지했다.
+
+| 서비스 | 역할 | 기술 스택 |
+|---|---|---|
+| cowork-gateway | 라우팅, JWT 검증 | Spring Cloud Gateway (Kotlin) |
+| cowork-config | 설정 서버, 서비스 디스커버리 | Spring Cloud Config, Eureka (Kotlin) |
+| cowork-authorization | DataGSM 로그인, 토큰 발급 | Go |
+| cowork-user | 사용자 프로필 | Elixir |
+| cowork-team | 팀, 팀 멤버 | Spring Boot (Kotlin) |
+| cowork-project | 프로젝트 | Spring Boot (Kotlin) |
+| cowork-channel | 채널, 웹훅, 스레드, 계정 공유, 회의록 | Spring Boot (Kotlin) |
+| cowork-preference | 설정 | Vert.x (Kotlin) |
+| cowork-chat | 채팅 | NestJS (TypeScript) |
+| cowork-voice | 음성 | Go |
+| cowork-notification | 푸시, SSE 알림 | Go |
+
+모놀리식 코드는 새 구조로 옮긴 뒤 저장소에서 제거한다.
