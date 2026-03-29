@@ -1,9 +1,7 @@
 name: CD
 
+# MSA 전환 기간에는 모놀리식 운영 배포를 수동으로만 실행한다.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
