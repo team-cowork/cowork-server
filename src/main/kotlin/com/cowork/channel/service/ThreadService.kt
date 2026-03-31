@@ -13,6 +13,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 메시지에서 시작하는 스레드의 생성, 조회, 수정을 담당한다.
+ *
+ * - 메시지를 지원하는 채널의 일반 메시지에서만 스레드를 시작할 수 있다.
+ * - 스레드는 만든 사람이나 채널 관리자만 수정하고 보관할 수 있다.
+ */
 @Service
 class ThreadService(
     private val channelThreadRepository: ChannelThreadRepository,

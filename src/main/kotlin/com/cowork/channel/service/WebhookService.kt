@@ -16,6 +16,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.MessageDigest
 
+/**
+ * 채널 웹훅 관리와 웹훅 토큰 인증을 담당한다.
+ *
+ * - 토큰은 상수 시간 비교로 확인한다.
+ * - 웹훅이 없을 때와 토큰이 틀릴 때 같은 오류를 돌려준다.
+ */
 @Service
 class WebhookService(
     private val webhookRepository: WebhookRepository,

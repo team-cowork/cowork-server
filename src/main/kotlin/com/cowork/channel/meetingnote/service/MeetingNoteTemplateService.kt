@@ -16,6 +16,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 회의록 템플릿과 섹션 관리를 담당한다.
+ *
+ * - 채널마다 활성 템플릿은 하나이며, 첫 템플릿은 바로 활성화한다.
+ * - 사용 중인 템플릿은 삭제할 수 없다.
+ */
 @Service
 class MeetingNoteTemplateService(
     private val templateRepository: MeetingNoteTemplateRepository,

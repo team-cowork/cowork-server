@@ -17,6 +17,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 팀 멤버 초대, 역할 변경, 내보내기, 소유권 이전을 담당한다.
+ *
+ * - 소유자 역할은 소유권 이전으로만 넘길 수 있다.
+ * - 소유자가 아닌 관리자는 다른 관리자를 내보낼 수 없다.
+ */
 @Service
 class TeamMemberService(
     private val teamRepository: TeamRepository,

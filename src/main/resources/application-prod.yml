@@ -8,6 +8,12 @@ server:
     threads:
       max: 200
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
 logging:
   level:
     root: INFO

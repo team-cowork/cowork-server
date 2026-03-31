@@ -17,6 +17,12 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+/**
+ * 채널 생성, 조회, 수정, 삭제와 순서 변경을 담당한다.
+ *
+ * - 비공개 채널은 채널 멤버와 채널 관리 권한이 있는 사용자만 볼 수 있다.
+ * - 채널은 같은 팀의 프로젝트에만 연결할 수 있다.
+ */
 @Service
 class ChannelService(
     private val channelRepository: ChannelRepository,
