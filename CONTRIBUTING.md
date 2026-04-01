@@ -32,10 +32,10 @@ Examples include `TeamController`, `ProjectController`, and `RoadmapController`.
 
 Keep the naming family used by the surrounding module:
 
-| Modules | Request examples | Response examples |
-| --- | --- | --- |
-| `cowork-team`, `cowork-channel` | `CreateTeamRequest`, `CreateChannelRequest` | `TeamResponse`, `ChannelResponse` |
-| `cowork-project`, `cowork-roadmap` | `CreateProjectReqDto`, `CreateRoadmapReqDto` | `ProjectResDto`, `RoadmapResDto` |
+| Modules                            | Request examples                             | Response examples                 |
+|------------------------------------|----------------------------------------------|-----------------------------------|
+| `cowork-team`, `cowork-channel`    | `CreateTeamRequest`, `CreateChannelRequest`  | `TeamResponse`, `ChannelResponse` |
+| `cowork-project`, `cowork-roadmap` | `CreateProjectReqDto`, `CreateRoadmapReqDto` | `ProjectResDto`, `RoadmapResDto`  |
 
 An action prefix is optional for shared or generic DTOs. Request and response DTOs live under `presentation/data/request` and `presentation/data/response` in these Spring business modules.
 
@@ -257,11 +257,11 @@ val count = teams.size
 
 Run commands from the repository root:
 
-| Scope | Check | Format |
-| --- | --- | --- |
-| Gradle Kotlin modules (`gateway`, `config`, `channel`, `team`) | `./gradlew ktlintCheck` | `./gradlew ktlintFormat` |
-| One Gradle Kotlin module | `./gradlew :cowork-team:ktlintCheck` | `./gradlew :cowork-team:ktlintFormat` |
-| Java roadmap | `./gradlew :cowork-roadmap:spotlessCheck` | `./gradlew :cowork-roadmap:spotlessApply` |
+| Scope                                                          | Check                                     | Format                                    |
+|----------------------------------------------------------------|-------------------------------------------|-------------------------------------------|
+| Gradle Kotlin modules (`gateway`, `config`, `channel`, `team`) | `./gradlew ktlintCheck`                   | `./gradlew ktlintFormat`                  |
+| One Gradle Kotlin module                                       | `./gradlew :cowork-team:ktlintCheck`      | `./gradlew :cowork-team:ktlintFormat`     |
+| Java roadmap                                                   | `./gradlew :cowork-roadmap:spotlessCheck` | `./gradlew :cowork-roadmap:spotlessApply` |
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `compileJava` and `compileTestJava` depend on `spotlessApply`, so compiling or testing roadmap can reformat Java files.
 
@@ -380,12 +380,12 @@ class QueryTeamServiceTest : DescribeSpec({
 
 Run the owning module's tests from the repository root:
 
-| Scope | Command |
-| --- | --- |
+| Scope                | Command                                                                               |
+|----------------------|---------------------------------------------------------------------------------------|
 | Gradle Kotlin module | `./gradlew :cowork-team:test` (replace `team` with `gateway`, `config`, or `channel`) |
-| Java roadmap | `./gradlew :cowork-roadmap:test` |
-| Maven project | `(cd cowork-project && ./mvnw test)` |
-| Amper preference | `./gradlew :cowork-preference:amperTest` |
+| Java roadmap         | `./gradlew :cowork-roadmap:test`                                                      |
+| Maven project        | `(cd cowork-project && ./mvnw test)`                                                  |
+| Amper preference     | `./gradlew :cowork-preference:amperTest`                                              |
 
 The Amper wrapper uses `KOTLIN_CLI`, defaulting to `~/.local/bin/kotlin`; install that toolchain before running it. There is no `:cowork-project:test` or `:cowork-preference:test` Gradle task. An unqualified root `./gradlew test` does not cover those wrappers or the non-JVM services. Use each non-JVM module's documented native test command.
 
