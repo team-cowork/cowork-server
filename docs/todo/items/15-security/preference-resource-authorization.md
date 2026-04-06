@@ -14,14 +14,14 @@
 
 ## 권한 정책
 
-| API 범위 | 최소 조회 권한 | 최소 수정 권한 |
-|----------|----------------|----------------|
-| `/preferences/account/{id}` | 본인 또는 명시된 운영자 | 본인 또는 명시된 운영자 |
+| API 범위                                                             | 최소 조회 권한            | 최소 수정 권한            |
+|----------------------------------------------------------------------|---------------------------|---------------------------|
+| `/preferences/account/{id}`                                          | 본인 또는 명시된 운영자   | 본인 또는 명시된 운영자   |
 | `/preferences/account/{accountId}/channels/{channelId}/notification` | 본인과 유효한 채널 멤버십 | 본인과 유효한 채널 멤버십 |
-| `/preferences/team/{id}` | 팀 멤버 | 팀 설정 관리 권한 |
-| `/preferences/project/{id}` | 프로젝트가 속한 팀의 멤버 | 프로젝트 설정 관리 권한 |
-| `/preferences/voice-channel/{id}`, `/preferences/text-channel/{id}` | 채널 멤버 | 채널 설정 관리 권한 |
-| `/preferences/project/{projectId}/roles/**` | 프로젝트 멤버 | 프로젝트 역할 관리 권한 |
+| `/preferences/team/{id}`                                             | 팀 멤버                   | 팀 설정 관리 권한         |
+| `/preferences/project/{id}`                                          | 프로젝트가 속한 팀의 멤버 | 프로젝트 설정 관리 권한   |
+| `/preferences/voice-channel/{id}`, `/preferences/text-channel/{id}`  | 채널 멤버                 | 채널 설정 관리 권한       |
+| `/preferences/project/{projectId}/roles/**`                          | 프로젝트 멤버             | 프로젝트 역할 관리 권한   |
 
 세부 역할 이름과 ADMIN 예외 범위는 `cowork-team`, `cowork-project`, `cowork-channel`의 현재 권한 계약과 맞춰 확정한다.
 
