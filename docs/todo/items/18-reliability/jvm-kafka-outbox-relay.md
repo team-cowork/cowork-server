@@ -14,14 +14,14 @@
 
 ## 전달 정책
 
-| 항목 | 결정할 내용 |
-|------|-------------|
+| 항목      | 결정할 내용                                                                  |
+|-----------|------------------------------------------------------------------------------|
 | 순서 보장 | 전체 전역 순서가 필요한지, 동일 aggregate·event key 안에서만 필요한지 결정함 |
-| claim | 짧은 transaction에서 owner와 lease 만료 시각을 기록함 |
-| publish | database lock 밖에서 Kafka 전송을 수행함 |
-| finalize | 성공 삭제·완료 표시와 실패 backoff를 짧은 transaction으로 반영함 |
+| claim     | 짧은 transaction에서 owner와 lease 만료 시각을 기록함                        |
+| publish   | database lock 밖에서 Kafka 전송을 수행함                                     |
+| finalize  | 성공 삭제·완료 표시와 실패 backoff를 짧은 transaction으로 반영함             |
 | 영구 실패 | 최대 시도 뒤 별도 격리 테이블 또는 상태로 이동하고 운영 재처리 경로를 제공함 |
-| 중복 | claim 후 crash로 생길 수 있는 재발행을 event ID와 소비자 멱등성으로 흡수함 |
+| 중복      | claim 후 crash로 생길 수 있는 재발행을 event ID와 소비자 멱등성으로 흡수함   |
 
 ## 할 일
 
