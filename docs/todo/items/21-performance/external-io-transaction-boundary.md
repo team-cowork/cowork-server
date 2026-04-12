@@ -16,12 +16,12 @@
 
 ## 경계 설계
 
-| 단계 | transaction 정책 |
-|------|--------------------|
-| 프로젝트·멤버십·repo link 권한 또는 OAuth 중복 여부 조회 | 짧은 read-only transaction에서 불변 DTO로 반환함 |
-| GitHub App·OAuth provider HTTP 호출 | 로컬 DB transaction 밖에서 timeout·circuit breaker를 적용함 |
-| Kafka command 발행 | request transaction과 분리하거나 로컬 outbox에서 비동기 발행함 |
-| shared account·후속 event·outbox 기록 | 별도의 짧은 write transaction과 idempotency key로 처리함 |
+| 단계                                                     | transaction 정책                                               |
+|----------------------------------------------------------|----------------------------------------------------------------|
+| 프로젝트·멤버십·repo link 권한 또는 OAuth 중복 여부 조회 | 짧은 read-only transaction에서 불변 DTO로 반환함               |
+| GitHub App·OAuth provider HTTP 호출                      | 로컬 DB transaction 밖에서 timeout·circuit breaker를 적용함    |
+| Kafka command 발행                                       | request transaction과 분리하거나 로컬 outbox에서 비동기 발행함 |
+| shared account·후속 event·outbox 기록                    | 별도의 짧은 write transaction과 idempotency key로 처리함       |
 
 권한 조회와 외부 변경 사이의 권한 회수 경합을 어느 수준까지 허용할지도 명시한다. 강한 일관성이 필요한 mutation은 비동기 command와 재검증 가능한 상태 머신을 검토한다.
 
