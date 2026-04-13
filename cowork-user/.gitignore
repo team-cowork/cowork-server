@@ -1,0 +1,28 @@
+### Gradle ###
+.gradle/
+build/
+out/
+
+### Spring Boot ###
+*.jar
+*.war
+*.ear
+application-local.yml
+application-local.properties
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.iws
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### Logs ###
+*.log
+logs/
