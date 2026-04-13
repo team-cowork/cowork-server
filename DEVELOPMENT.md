@@ -201,18 +201,55 @@ spring:
 
 ## 7. 로컬 개발 환경 실행 순서
 
+### 1단계 — 인프라 기동 (Docker Compose)
+
+루트의 `docker-compose.yml`로 MySQL, MongoDB, Kafka를 한 번에 띄웁니다.
+
+```bash
+# 최초 1회: 환경변수 파일 생성 후 값 채우기
+cp .env.example .env
+
+# 인프라 전체 기동
+docker compose up -d
+
+# 특정 서비스만 기동
+docker compose up -d mysql mongodb
+```
+
+**포트 정보**
+
+| 서비스 | 포트 | 비고 |
+|---|---|---|
+| MySQL | 3306 | 서비스별 DB 자동 생성 (`cowork_authorization` 등 5개) |
+| MongoDB | 27017 | |
+| Kafka | 9094 | 호스트 접근용 (컨테이너 간 통신은 9092) |
+| Kafka UI | 8090 | 브라우저에서 토픽/메시지 확인 |
+
+MySQL 최초 기동 시 `docker/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다.  
+볼륨이 이미 존재하면 init 스크립트는 재실행되지 않습니다. 초기화가 필요하면 볼륨을 삭제하세요.
+
+```bash
+# 볼륨까지 삭제 후 재생성 (데이터 초기화)
+docker compose down -v
+docker compose up -d
+```
+
+**유용한 명령어**
+
+```bash
+docker compose logs -f          # 전체 로그
+docker compose logs -f mysql    # 특정 서비스 로그
+docker compose ps               # 컨테이너 상태
+docker compose down             # 중지 (데이터 유지)
+docker compose down -v          # 중지 + 데이터 초기화
+```
+
+### 2단계 — Spring Boot 서비스 기동 순서
+
 MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 
 ```
-1. cowork-config   (Eureka + Config Server 먼저 기동)
-2. cowork-gateway  (Config Server 등록 후 기동)
-3. 비즈니스 서비스  (순서 무관)
-```
-
-### 필요한 인프라 (Docker Compose 권장)
-
-```
-MySQL   (포트 3306)
-MongoDB (포트 27017)
-Kafka   (포트 9092)
+1. cowork-config   (Eureka + Config Server — 가장 먼저 기동)
+2. cowork-gateway  (Config Server에 등록 후 기동)
+3. 비즈니스 서비스  (authorization, user, team, project, channel — 순서 무관)
 ```
