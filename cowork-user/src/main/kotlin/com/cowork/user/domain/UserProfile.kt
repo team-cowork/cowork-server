@@ -1,6 +1,8 @@
 package com.cowork.user.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.CreationTimestamp
+import org.hibernate.annotations.UpdateTimestamp
 import java.time.LocalDateTime
 
 @Entity
@@ -16,8 +18,9 @@ class UserProfile(
     @Column(nullable = false, unique = true)
     val email: String,
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    val sex: String,
+    val sex: Sex,
 
     @Column
     val grade: Byte?,
@@ -28,8 +31,9 @@ class UserProfile(
     @Column(name = "class_num")
     val classNum: Byte?,
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    val major: String,
+    val major: Major,
 
     @Column(length = 255)
     var specialty: String?,
@@ -40,22 +44,23 @@ class UserProfile(
     @Column(name = "profile_image_key", length = 500)
     var profileImageKey: String?,
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    val role: String,
+    val role: Role,
 
+    @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
 
+    @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
 ) {
     fun updateSpecialty(newSpecialty: String?) {
         specialty = newSpecialty
-        updatedAt = LocalDateTime.now()
     }
 
     fun updateProfileImageKey(key: String?) {
         profileImageKey = key
-        updatedAt = LocalDateTime.now()
     }
 }
