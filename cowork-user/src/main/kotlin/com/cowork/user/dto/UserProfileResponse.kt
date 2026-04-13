@@ -20,15 +20,15 @@ data class UserProfileResponse(
             UserProfileResponse(
                 id = profile.id,
                 name = profile.name,
-                sex = profile.sex,
+                sex = profile.sex.name,
                 grade = profile.grade,
                 `class` = profile.`class`,
                 classNum = profile.classNum,
-                major = profile.major,
+                major = profile.major.name,
                 specialty = profile.specialty,
                 githubId = profile.githubId,
                 profileImageUrl = profileImageUrl,
-                role = profile.role,
+                role = profile.role.name,
             )
     }
 }
