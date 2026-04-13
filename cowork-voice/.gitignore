@@ -24,3 +24,6 @@ Thumbs.db
 ### IDE ###
 .idea/
 .vscode/
+
+### Rust ###
+target/
