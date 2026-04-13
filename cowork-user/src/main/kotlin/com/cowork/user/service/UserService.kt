@@ -50,15 +50,17 @@ class UserService(
             throw ExpectedException("유효하지 않은 objectKey입니다.", HttpStatus.BAD_REQUEST)
         }
         val profile = findProfileOrThrow(userId)
-        profile.profileImageKey?.let { s3Service.deleteObject(it) }
-        profile.updateProfileImageKey(objectKey)
+        val oldKey = profile.profileImageKey
+        profile.updateProfileImageKey(objectKey)   // DB 먼저
+        oldKey?.let { s3Service.deleteObject(it) } // S3 나중
     }
 
     @Transactional
     fun deleteProfileImage(userId: Long) {
         val profile = findProfileOrThrow(userId)
-        profile.profileImageKey?.let { s3Service.deleteObject(it) }
-        profile.updateProfileImageKey(null)
+        val oldKey = profile.profileImageKey
+        profile.updateProfileImageKey(null)        // DB 먼저
+        oldKey?.let { s3Service.deleteObject(it) } // S3 나중
     }
 
     fun getUserProfile(userId: Long): UserProfileResponse {

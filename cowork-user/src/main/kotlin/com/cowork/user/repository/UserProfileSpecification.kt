@@ -1,5 +1,7 @@
 package com.cowork.user.repository
 
+import com.cowork.user.domain.Major
+import com.cowork.user.domain.Role
 import com.cowork.user.domain.UserProfile
 import org.springframework.data.jpa.domain.Specification
 
@@ -11,9 +13,9 @@ object UserProfileSpecification {
         }
 
     fun majorEq(major: String?): Specification<UserProfile>? =
-        major?.takeIf { it.isNotBlank() }?.let { m ->
-            Specification { root, _, cb -> cb.equal(root.get<String>("major"), m) }
-        }
+        major?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { Major.valueOf(it) }.getOrNull() }
+            ?.let { m -> Specification { root, _, cb -> cb.equal(root.get<Major>("major"), m) } }
 
     fun gradeEq(grade: Byte?): Specification<UserProfile>? =
         grade?.let { g ->
@@ -26,9 +28,9 @@ object UserProfileSpecification {
         }
 
     fun roleEq(role: String?): Specification<UserProfile>? =
-        role?.takeIf { it.isNotBlank() }?.let { r ->
-            Specification { root, _, cb -> cb.equal(root.get<String>("role"), r) }
-        }
+        role?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { Role.valueOf(it) }.getOrNull() }
+            ?.let { r -> Specification { root, _, cb -> cb.equal(root.get<Role>("role"), r) } }
 
     fun build(
         name: String?,
@@ -36,14 +38,7 @@ object UserProfileSpecification {
         grade: Byte?,
         cls: Byte?,
         role: String?,
-    ): Specification<UserProfile> {
-        val specs = listOfNotNull(
-            nameLike(name),
-            majorEq(major),
-            gradeEq(grade),
-            classEq(cls),
-            roleEq(role),
-        )
-        return specs.fold(Specification.where(null)) { acc, spec -> acc.and(spec) }
-    }
+    ): Specification<UserProfile> =
+        listOfNotNull(nameLike(name), majorEq(major), gradeEq(grade), classEq(cls), roleEq(role))
+            .fold(Specification.where(null)) { acc, spec -> acc.and(spec) }
 }
