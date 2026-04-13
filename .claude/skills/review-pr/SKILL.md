@@ -104,7 +104,7 @@ Post an inline reply for each comment. Always quote `path` and `comment_id` to p
 
 ```bash
 gh api "repos/$REPO/pulls/$PR_NUMBER/comments/<comment_id>/replies" \
-  --field body=@- <<EOF
+  --field body=@- <<'EOF'
 <reply_body>
 EOF
 ```
