@@ -4,6 +4,8 @@ import com.cowork.user.domain.Major
 import com.cowork.user.domain.Role
 import com.cowork.user.domain.UserProfile
 import org.springframework.data.jpa.domain.Specification
+import org.springframework.http.HttpStatus
+import team.themoment.sdk.exception.ExpectedException
 
 object UserProfileSpecification {
 
@@ -14,7 +16,10 @@ object UserProfileSpecification {
 
     fun majorEq(major: String?): Specification<UserProfile>? =
         major?.takeIf { it.isNotBlank() }
-            ?.let { runCatching { Major.valueOf(it) }.getOrNull() }
+            ?.let { value ->
+                runCatching { Major.valueOf(value) }
+                    .getOrElse { throw ExpectedException("유효하지 않은 major 값입니다: $value", HttpStatus.BAD_REQUEST) }
+            }
             ?.let { m -> Specification { root, _, cb -> cb.equal(root.get<Major>("major"), m) } }
 
     fun gradeEq(grade: Byte?): Specification<UserProfile>? =
@@ -29,7 +34,10 @@ object UserProfileSpecification {
 
     fun roleEq(role: String?): Specification<UserProfile>? =
         role?.takeIf { it.isNotBlank() }
-            ?.let { runCatching { Role.valueOf(it) }.getOrNull() }
+            ?.let { value ->
+                runCatching { Role.valueOf(value) }
+                    .getOrElse { throw ExpectedException("유효하지 않은 role 값입니다: $value", HttpStatus.BAD_REQUEST) }
+            }
             ?.let { r -> Specification { root, _, cb -> cb.equal(root.get<Role>("role"), r) } }
 
     fun build(
