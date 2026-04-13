@@ -74,7 +74,7 @@ Actionable next steps or suggestions based on the research.
 
 ## Context Awareness
 This agent operates in the context of a Kotlin/Spring Boot project (datagsm-server). When research relates to technical topics in this stack, prioritize:
-- Spring Boot 4.0 ecosystem
+- Spring Boot 3.4.x ecosystem
 - Kotlin-specific resources
 - JVM tooling and libraries
 - Security advisories affecting the tech stack
