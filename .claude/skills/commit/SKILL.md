@@ -36,19 +36,11 @@ Format: `type(scope): 설명`
 
 - **Types**: `add` / `update` / `fix` / `refactor` / `ci/cd` / `docs` / `test` / `delete` / `merge` (English)
 - **Scopes** (English):
-    - **Primary**: Domain names
-    - **Cross-cutting concerns only**: Module names or `global`
-    - Use domain names by default. Only use module names when changes affect multiple modules or are cross-cutting.
+    - **Primary**: Module names or `global`
 - **Description**: Korean, no period, avoid endings: `~한다/~된다`, `~하기/~하기 위해`, `~합니다/~됩니다`, `~했습니다`
     - Good examples: `엔티티 필드 추가`, `트랜잭션 롤백 방지`, `로직 개선`
 - Subject line only (no body)
 - Do NOT add AI tool as co-author
-
-## Scope Selection
-
-For the full scope selection table and examples, read `references/scope-guide.md`.
-
-Quick rule: use domain name by default. Use `global` / `ci/cd` / module names only for cross-cutting changes.
 
 ## Commit Flow
 
