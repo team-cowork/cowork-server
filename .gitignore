@@ -1,0 +1,30 @@
+### IntelliJ IDEA ###
+.idea/*
+!.idea/externalDependencies.xml
+!.idea/icon.svg
+*.iws
+*.iml
+*.ipr
+out/
+!**/src/main/**/out/
+!**/src/test/**/out/
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+### VS Code ###
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+### Kotlin ###
+.kotlin
+
+### LLM Outputs ###
+PR_BODY.md
+.pr-tmp/
+/.claude/command.log
