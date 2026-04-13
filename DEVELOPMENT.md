@@ -55,7 +55,7 @@ cowork-server/
 6. MySQL 사용 시 [DB 스키마 관리](#3-db-스키마-관리-flyway) 절차 따르기
 7. Eureka Client 등록 (`spring.application.name: cowork-{name}`)
 
-### JVM 외 서비스 (NestJS / Go / .NET 등)
+### JVM 외 서비스 (NestJS / Go / Rust / .NET 등)
 
 1. 루트에 `cowork-{name}/` 디렉터리 생성
 2. `cowork-{name}/README.md` 작성
