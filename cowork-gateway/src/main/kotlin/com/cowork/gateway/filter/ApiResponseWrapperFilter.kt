@@ -49,9 +49,10 @@ class ApiResponseWrapperFilter(
                 if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
                     return super.writeWith(body)
                 }
-                // Content-Length가 있고 임계값을 초과하면 래핑 스킵 (OOM 방지)
+                // Content-Length가 없거나(Chunked 등) 임계값을 초과하면 래핑 스킵 (OOM 방지)
+                // contentLength == -1: Content-Length 헤더 없음 → 전체 크기 불명 → 버퍼링 불가
                 val contentLength = headers.contentLength
-                if (contentLength > maxWrappableBytes) {
+                if (contentLength < 0 || contentLength > maxWrappableBytes) {
                     return super.writeWith(body)
                 }
 
