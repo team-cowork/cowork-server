@@ -4,7 +4,13 @@
     "vscjava.vscode-spring-boot-dashboard",
     "vmware.vscode-spring-boot",
     "vscjava.vscode-gradle",
-    "redhat.vscode-yaml"
+    "redhat.vscode-yaml",
+    "ms-dotnettools.csharp",
+    "ms-dotnettools.csdevkit",
+    "formulahendry.dotnet-test-explorer",
+    "jmrog.vscode-nuget-package-manager",
+    "rust-lang.rust-analyzer",
+    "vadimcn.vscode-lldb"
   ],
   "unwantedRecommendations": []
 }
