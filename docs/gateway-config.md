@@ -133,7 +133,7 @@ Client Response
 | `channel-service` | `/api/channels/**` | `cowork-channel` | O | - | - |
 | `chat-service` | `/api/chats/**` | `cowork-chat` | O | - | - |
 
-> `authorization-service`는 인증 없이 접근 가능하므로 (`POST /api/auth/**` permitAll) Circuit Breaker 등이 적용되지 않습니다.
+> `authorization-service`는 현재 설정에서 Circuit Breaker나 Rate Limiter가 적용되어 있지 않습니다. 인증 여부와 CB 적용은 별개이며, 추후 필요에 따라 추가할 수 있습니다.
 
 ---
 
@@ -235,6 +235,7 @@ redis-rate-limiter.requestedTokens: 1
 **래핑 예외 조건:**
 - `/actuator/**`, `/fallback` 경로
 - JSON이 아닌 Content-Type
+- `Content-Length` 헤더가 없는 응답 (Chunked Transfer-Encoding 등 — 크기 불명으로 버퍼링 불가)
 - Content-Length > 1MB (OOM 방지)
 - 이미 `CommonApiResponse` 형태인 응답 (중복 래핑 방지)
 
