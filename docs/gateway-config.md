@@ -126,14 +126,16 @@ Client Response
 
 | 라우트 ID | 경로 | 대상 서비스 | CB | Retry | RateLimit |
 |----------|------|------------|:--:|:-----:|:---------:|
-| `authorization-service` | `/api/auth/**` | `cowork-authorization` | - | - | - |
+| `authorization-service` | `/api/auth/**` | `cowork-authorization` | O | - | O |
 | `user-service` | `/api/users/**` | `cowork-user` | O | O | O |
 | `team-service` | `/api/teams/**` | `cowork-team` | O | - | - |
 | `project-service` | `/api/projects/**` | `cowork-project` | O | - | - |
 | `channel-service` | `/api/channels/**` | `cowork-channel` | O | - | - |
 | `chat-service` | `/api/chats/**` | `cowork-chat` | O | - | - |
 
-> `authorization-service`는 현재 설정에서 Circuit Breaker나 Rate Limiter가 적용되어 있지 않습니다. 인증 여부와 CB 적용은 별개이며, 추후 필요에 따라 추가할 수 있습니다.
+> `authorization-service`는 Retry를 적용하지 않습니다. 로그인·회원가입 등 대부분의 auth 엔드포인트는 POST로 idempotent하지 않아 재시도가 적합하지 않기 때문입니다.
+>
+> Rate Limiter는 브루트포스·크리덴셜 스터핑 방어를 위해 `user-service`(20/40)보다 엄격한 초당 10개 / 순간 최대 20개로 설정하였습니다.
 
 ---
 
@@ -203,18 +205,17 @@ backoff:
 
 ---
 
-### Rate Limiting (user-service만 적용)
+### Rate Limiting
 
-Redis Token Bucket 알고리즘 기반:
+Redis Token Bucket 알고리즘 기반. 서비스별로 다른 수치를 적용합니다.
 
-```yaml
-redis-rate-limiter.replenishRate: 20    # 초당 20개 토큰 보충
-redis-rate-limiter.burstCapacity: 40    # 순간 최대 40개
-redis-rate-limiter.requestedTokens: 1
-```
+| 서비스 | replenishRate | burstCapacity | 비고 |
+|--------|:------------:|:-------------:|------|
+| `authorization-service` | 10 | 20 | 브루트포스·크리덴셜 스터핑 방어를 위해 엄격하게 설정 |
+| `user-service` | 20 | 40 | 일반 API 수준 |
 
 **Rate Limit 키 전략 (`userKeyResolver`):**
-- 인증된 요청 → `X-User-Id` 기준 (사용자별 제한)
+- 인증된 요청 → `X-User-Id` 기준 (사용자별 제한), `AuthHeaderMutatingFilter`가 JWT에서 추출한 값으로 덮어쓰므로 헤더 위조 불가
 - 미인증 요청 → 클라이언트 IP 기준 (fallback)
 
 ---
