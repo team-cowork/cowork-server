@@ -24,6 +24,38 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Gradle ###
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+### Spring Boot ###
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+
+### Node.js ###
+node_modules/
+
+### Go ###
+vendor/
+bin/
+
+### Environment ###
+.env
+.env.*
+!.env.example
+
+### OS ###
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+### Logs ###
+*.log
+logs/
+
 ### LLM Outputs ###
 PR_BODY.md
 .pr-tmp/
