@@ -8,6 +8,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -51,16 +53,24 @@ class UserService(
         }
         val profile = findProfileOrThrow(userId)
         val oldKey = profile.profileImageKey
-        profile.updateProfileImageKey(objectKey)   // DB 먼저
-        oldKey?.let { s3Service.deleteObject(it) } // S3 나중
+        profile.updateProfileImageKey(objectKey)
+        oldKey?.let { key ->
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() = s3Service.deleteObject(key)
+            })
+        }
     }
 
     @Transactional
     fun deleteProfileImage(userId: Long) {
         val profile = findProfileOrThrow(userId)
         val oldKey = profile.profileImageKey
-        profile.updateProfileImageKey(null)        // DB 먼저
-        oldKey?.let { s3Service.deleteObject(it) } // S3 나중
+        profile.updateProfileImageKey(null)
+        oldKey?.let { key ->
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() = s3Service.deleteObject(key)
+            })
+        }
     }
 
     fun getUserProfile(userId: Long): UserProfileResponse {
