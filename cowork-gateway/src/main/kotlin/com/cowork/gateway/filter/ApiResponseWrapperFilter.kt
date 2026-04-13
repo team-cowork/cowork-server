@@ -30,6 +30,9 @@ class ApiResponseWrapperFilter(
     )
     private val matcher = AntPathMatcher()
 
+    // 이 크기를 초과하는 응답은 버퍼링 OOM 위험이 있으므로 래핑 스킵 (1MB)
+    private val maxWrappableBytes = 1024 * 1024L
+
     // NettyWriteResponseFilter 직전에 실행되어야 응답 바디를 가로챌 수 있음
     override fun getOrder(): Int = NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1
 
@@ -46,16 +49,24 @@ class ApiResponseWrapperFilter(
                 if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
                     return super.writeWith(body)
                 }
+                // Content-Length가 있고 임계값을 초과하면 래핑 스킵 (OOM 방지)
+                val contentLength = headers.contentLength
+                if (contentLength > maxWrappableBytes) {
+                    return super.writeWith(body)
+                }
 
                 val modifiedBody: Mono<DataBuffer> = Flux.from(body)
                     .collectList()
                     .flatMap { buffers ->
-                        // 여러 청크를 하나로 합침
-                        val bytes = buffers.fold(byteArrayOf()) { acc, buf ->
-                            val chunk = ByteArray(buf.readableByteCount())
-                            buf.read(chunk)
+                        // 미리 전체 크기를 계산해 단일 배열에 복사 (O(n) 보장)
+                        val totalSize = buffers.sumOf { it.readableByteCount() }
+                        val bytes = ByteArray(totalSize)
+                        var offset = 0
+                        buffers.forEach { buf ->
+                            val len = buf.readableByteCount()
+                            buf.read(bytes, offset, len)
                             DataBufferUtils.release(buf)
-                            acc + chunk
+                            offset += len
                         }
 
                         val httpStatus = statusCode?.let {
