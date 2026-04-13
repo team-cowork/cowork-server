@@ -27,9 +27,12 @@ class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
                 val userId = details?.get("userId") ?: auth.name
                 val role = details?.get("role") ?: auth.authorities.firstOrNull()?.authority ?: ""
 
+                // set()으로 덮어써서 외부에서 조작된 헤더가 흘러가는 것을 방지
                 val mutatedRequest = exchange.request.mutate()
-                    .header("X-User-Id", userId)
-                    .header("X-User-Role", role)
+                    .headers { h ->
+                        h.set("X-User-Id", userId)
+                        h.set("X-User-Role", role)
+                    }
                     .build()
 
                 chain.filter(exchange.mutate().request(mutatedRequest).build())
