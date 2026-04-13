@@ -8,10 +8,11 @@ import team.themoment.sdk.exception.ExpectedException
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
-
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
-    data class ErrorResponse(val message: String)
+    data class ErrorResponse(
+        val message: String,
+    )
 
     @ExceptionHandler(ExpectedException::class)
     fun handleExpectedException(e: ExpectedException): ResponseEntity<ErrorResponse> =
