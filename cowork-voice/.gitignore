@@ -1,0 +1,29 @@
+### Go ###
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+bin/
+
+### Environment ###
+.env
+.env.local
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.idea/
+.vscode/
+
+### Rust ###
+target/
