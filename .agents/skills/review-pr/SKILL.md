@@ -7,7 +7,7 @@ compatibility: Requires git, gh (GitHub CLI), and jq
 ## Step 1 — Collect PR Data
 
 ```bash
-bash scripts/get-pr-data.sh
+bash .agents/skills/review-pr/scripts/get-pr-data.sh
 ```
 
 Output files:
@@ -92,10 +92,11 @@ Accept? (y / n / s = skip for now)
 Post an inline reply for each comment. Always quote `path` and `comment_id` to prevent shell injection.
 
 ```bash
-gh api "repos/<owner>/<repo>/pulls/<pr_number>/comments/<comment_id>/replies" \
-  -f body="<reply_body>"
+gh api "repos/$REPO/pulls/$PR_NUMBER/comments/<comment_id>/replies" \
+  --field body=@- <<'EOF'
+<reply_body>
+EOF
 ```
-
 For reply body templates, read `references/reply-formats.md`.
 
 ## Step 6 — Cleanup
