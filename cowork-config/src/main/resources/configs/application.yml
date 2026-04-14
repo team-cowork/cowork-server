@@ -1,0 +1,25 @@
+# 모든 서비스에 공통 적용되는 설정
+spring:
+  cloud:
+    config:
+      uri: http://localhost:8761
+    bus:
+      enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 10
+    lease-expiration-duration-in-seconds: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, refresh, busrefresh
