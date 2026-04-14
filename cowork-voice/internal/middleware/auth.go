@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/cowork/cowork-voice/internal/global/apperror"
+	"github.com/cowork/cowork-voice/internal/apperror"
 )
 
 type contextKey string
