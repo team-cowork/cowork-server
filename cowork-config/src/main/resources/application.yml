@@ -1,0 +1,83 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: cowork-config
+
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+
+  cloud:
+    config:
+      server:
+        # composite: 여러 백엔드를 순서대로 조회 (앞 백엔드가 우선)
+        # Vault → 민감한 값 (DB 패스워드, JWT 시크릿 등)
+        # native/git → 일반 애플리케이션 설정
+        composite:
+          - type: vault
+            host: ${VAULT_HOST:localhost}
+            port: ${VAULT_PORT:8200}
+            scheme: ${VAULT_SCHEME:http}
+            authentication: TOKEN
+            token: ${VAULT_TOKEN:dev-root-token}
+            kv-version: 2
+            backend: secret       # KV v2 마운트 경로
+            profile-separator: "/" # secret/{application}/{profile} 형태로 조회
+            default-context: application  # 공통 시크릿 경로
+          - type: native
+            search-locations: classpath:/configs/
+    bus:
+      enabled: true
+
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+eureka:
+  instance:
+    hostname: localhost
+  client:
+    register-with-eureka: false
+    fetch-registry: false
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    enable-self-preservation: false
+    eviction-interval-timer-in-ms: 5000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, refresh, busrefresh, monitor
+  endpoint:
+    health:
+      show-details: always
+
+---
+# prod 프로필: native 대신 Git 레포 사용
+spring:
+  config:
+    activate:
+      on-profile: prod
+  cloud:
+    config:
+      server:
+        composite:
+          - type: vault
+            host: ${VAULT_HOST}
+            port: ${VAULT_PORT:8200}
+            scheme: https
+            authentication: TOKEN
+            token: ${VAULT_TOKEN}
+            kv-version: 2
+            backend: secret
+            profile-separator: "/"
+            default-context: application
+          - type: git
+            uri: ${CONFIG_GIT_URI}
+            username: ${CONFIG_GIT_USERNAME}
+            password: ${CONFIG_GIT_PASSWORD}
+            default-label: main
+            clone-on-start: true
+            force-pull: true
