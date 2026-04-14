@@ -14,12 +14,12 @@
 
 ## 실패 정책
 
-| 경로 | Redis 실패 시 목표 동작 |
-|------|-------------------------|
-| 단건·bulk 조회 | PostgreSQL 결과를 반환하고 cache 실패를 metric·로그로 기록함 |
-| HTTP 설정 변경 | DB·outbox commit 성공을 API 성공 기준으로 삼음 |
-| Kafka command | durable inbox·outbox 성공 뒤 offset을 전진시키고 cache 복구는 별도로 수행함 |
-| stale cache | 짧은 TTL, version 비교 또는 durable invalidation repair로 수렴시킴 |
+| 경로           | Redis 실패 시 목표 동작                                                     |
+|----------------|-----------------------------------------------------------------------------|
+| 단건·bulk 조회 | PostgreSQL 결과를 반환하고 cache 실패를 metric·로그로 기록함                |
+| HTTP 설정 변경 | DB·outbox commit 성공을 API 성공 기준으로 삼음                              |
+| Kafka command  | durable inbox·outbox 성공 뒤 offset을 전진시키고 cache 복구는 별도로 수행함 |
+| stale cache    | 짧은 TTL, version 비교 또는 durable invalidation repair로 수렴시킴          |
 
 ## 할 일
 
