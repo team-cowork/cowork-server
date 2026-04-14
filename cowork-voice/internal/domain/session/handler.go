@@ -12,12 +12,12 @@ import (
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"github.com/cowork/cowork-voice/internal/apperror"
+	"github.com/cowork/cowork-voice/internal/config"
 	"github.com/cowork/cowork-voice/internal/domain/channel"
 	lkdomain "github.com/cowork/cowork-voice/internal/domain/livekit"
-	"github.com/cowork/cowork-voice/internal/global/apperror"
-	"github.com/cowork/cowork-voice/internal/global/config"
-	"github.com/cowork/cowork-voice/internal/global/dto"
-	"github.com/cowork/cowork-voice/internal/global/middleware"
+	"github.com/cowork/cowork-voice/internal/dto"
+	"github.com/cowork/cowork-voice/internal/middleware"
 )
 
 type Handler struct {

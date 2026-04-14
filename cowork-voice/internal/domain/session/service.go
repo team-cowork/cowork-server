@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/cowork/cowork-voice/internal/global/apperror"
+	"github.com/cowork/cowork-voice/internal/apperror"
 )
 
 func CreateIndexes(ctx context.Context, db *mongo.Database) error {
