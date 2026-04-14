@@ -50,23 +50,21 @@ class ApiResponseWrapperFilter(
                     return super.writeWith(body)
                 }
 
-                // 버퍼를 전부 수집한 뒤 크기를 판단 (Chunked 응답도 처리)
+                // 1단계: Content-Length가 명시된 경우 collectList 전에 조기 반환 (OOM 방지)
+                val contentLength = headers.contentLength
+                if (contentLength > maxWrappableBytes) {
+                    return super.writeWith(body)
+                }
+
+                // 2단계: 버퍼를 전부 수집한 뒤 실제 크기를 재검증 (Chunked 응답 대응)
                 val modifiedBody: Mono<DataBuffer> = Flux.from(body)
                     .collectList()
                     .flatMap { buffers ->
                         val totalSize = buffers.sumOf { it.readableByteCount() }
 
-                        // 임계값 초과 시 수집한 버퍼를 합쳐서 그대로 통과 (OOM 방지)
+                        // 수집 후에도 임계값 초과 시 버퍼를 그대로 합쳐 통과
                         if (totalSize > maxWrappableBytes) {
-                            val bytes = ByteArray(totalSize)
-                            var offset = 0
-                            buffers.forEach { buf ->
-                                val len = buf.readableByteCount()
-                                buf.read(bytes, offset, len)
-                                DataBufferUtils.release(buf)
-                                offset += len
-                            }
-                            return@flatMap Mono.just(bufferFactory().wrap(bytes))
+                            return@flatMap DataBufferUtils.join(Flux.fromIterable(buffers))
                         }
 
                         val bytes = ByteArray(totalSize)
