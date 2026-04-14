@@ -62,3 +62,6 @@ PR_BODY.md
 SPEC.md
 .pr-tmp/
 /.claude/command.log
+
+### Docs ###
+docs/
