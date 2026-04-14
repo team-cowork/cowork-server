@@ -15,13 +15,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/cowork/cowork-voice/internal/config"
 	"github.com/cowork/cowork-voice/internal/domain/channel"
 	kafkadomain "github.com/cowork/cowork-voice/internal/domain/kafka"
 	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
-	"github.com/cowork/cowork-voice/internal/global/config"
-	"github.com/cowork/cowork-voice/internal/global/health"
-	"github.com/cowork/cowork-voice/internal/global/middleware"
+	"github.com/cowork/cowork-voice/internal/health"
+	"github.com/cowork/cowork-voice/internal/middleware"
 )
 
 func main() {
