@@ -1,0 +1,117 @@
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: authorization-service
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: user-service
+          uri: lb://cowork-user
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: team-service
+          uri: lb://cowork-team
+          predicates:
+            - Path=/api/teams/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: project-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/projects/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+# jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      defaultCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
