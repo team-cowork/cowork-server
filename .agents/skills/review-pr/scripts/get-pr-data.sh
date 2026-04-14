@@ -12,9 +12,9 @@ BASE=$(gh pr view "$PR_NUMBER" --json baseRefName -q .baseRefName)
 
 mkdir -p .pr-tmp
 
-gh api "repos/$REPO/pulls/$PR_NUMBER/comments" \
-  --jq '[.[] | {id, path, line, body, user: .user.login}]' \
-  > .pr-tmp/pr_comments.json
+gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/comments" \
+  --jq '.[] | {id, path, line, body, user: .user.login}' \
+  | jq -s '.' > .pr-tmp/pr_comments.json
 
 git log "origin/$BASE..HEAD" --pretty=format:"%H %h %s" > .pr-tmp/pr_commits.txt
 
