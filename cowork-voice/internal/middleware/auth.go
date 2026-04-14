@@ -29,6 +29,7 @@ func ExtractAuthUser(next http.Handler) http.Handler {
 	})
 }
 
-func GetUserID(ctx context.Context) int64 {
-	return ctx.Value(UserIDKey).(int64)
+func GetUserID(ctx context.Context) (int64, bool) {
+	userID, ok := ctx.Value(UserIDKey).(int64)
+	return userID, ok
 }
