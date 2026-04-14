@@ -13,10 +13,10 @@ import (
 	lkwebhook "github.com/livekit/protocol/webhook"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 
+	"github.com/cowork/cowork-voice/internal/apperror"
+	"github.com/cowork/cowork-voice/internal/config"
 	kafkadomain "github.com/cowork/cowork-voice/internal/domain/kafka"
 	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
-	"github.com/cowork/cowork-voice/internal/global/apperror"
-	"github.com/cowork/cowork-voice/internal/global/config"
 )
 
 type Handler struct {
