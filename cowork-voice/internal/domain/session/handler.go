@@ -33,7 +33,11 @@ func NewHandler(db *mongo.Database, cc *channel.Client, lk *lksdk.RoomServiceCli
 
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID := middleware.GetUserID(ctx)
+	userID, ok := middleware.GetUserID(ctx)
+	if !ok {
+		apperror.WriteResponse(w, apperror.Unauthorized())
+		return
+	}
 
 	channelID, err := parseChannelIDParam(r)
 	if err != nil {
@@ -91,7 +95,11 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID := middleware.GetUserID(ctx)
+	userID, ok := middleware.GetUserID(ctx)
+	if !ok {
+		apperror.WriteResponse(w, apperror.Unauthorized())
+		return
+	}
 
 	channelID, err := parseChannelIDParam(r)
 	if err != nil {
@@ -134,7 +142,11 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID := middleware.GetUserID(ctx)
+	userID, ok := middleware.GetUserID(ctx)
+	if !ok {
+		apperror.WriteResponse(w, apperror.Unauthorized())
+		return
+	}
 
 	channelID, err := parseChannelIDParam(r)
 	if err != nil {
@@ -176,7 +188,11 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	userID := middleware.GetUserID(ctx)
+	userID, ok := middleware.GetUserID(ctx)
+	if !ok {
+		apperror.WriteResponse(w, apperror.Unauthorized())
+		return
+	}
 	sessionID := chi.URLParam(r, "session_id")
 
 	s, err := GetSession(ctx, h.db, sessionID)
