@@ -49,18 +49,24 @@ class ApiResponseWrapperFilter(
                 if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
                     return super.writeWith(body)
                 }
-                // Content-Length가 없거나(Chunked 등) 임계값을 초과하면 래핑 스킵 (OOM 방지)
-                // contentLength == -1: Content-Length 헤더 없음 → 전체 크기 불명 → 버퍼링 불가
+
+                // 1단계: Content-Length가 명시된 경우 collectList 전에 조기 반환 (OOM 방지)
                 val contentLength = headers.contentLength
-                if (contentLength < 0 || contentLength > maxWrappableBytes) {
+                if (contentLength > maxWrappableBytes) {
                     return super.writeWith(body)
                 }
 
+                // 2단계: 버퍼를 전부 수집한 뒤 실제 크기를 재검증 (Chunked 응답 대응)
                 val modifiedBody: Mono<DataBuffer> = Flux.from(body)
                     .collectList()
                     .flatMap { buffers ->
-                        // 미리 전체 크기를 계산해 단일 배열에 복사 (O(n) 보장)
                         val totalSize = buffers.sumOf { it.readableByteCount() }
+
+                        // 수집 후에도 임계값 초과 시 버퍼를 그대로 합쳐 통과
+                        if (totalSize > maxWrappableBytes) {
+                            return@flatMap DataBufferUtils.join(Flux.fromIterable(buffers))
+                        }
+
                         val bytes = ByteArray(totalSize)
                         var offset = 0
                         buffers.forEach { buf ->
@@ -77,7 +83,7 @@ class ApiResponseWrapperFilter(
                         val wrapped = buildWrappedResponse(bytes, httpStatus)
                         val wrappedBytes = objectMapper.writeValueAsBytes(wrapped)
 
-                        // Content-Length 갱신
+                        // Content-Length 갱신 (Chunked였던 경우에도 명시)
                         headers.contentLength = wrappedBytes.size.toLong()
 
                         Mono.just(bufferFactory().wrap(wrappedBytes))

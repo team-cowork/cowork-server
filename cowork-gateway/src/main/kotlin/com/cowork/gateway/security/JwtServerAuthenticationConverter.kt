@@ -4,7 +4,6 @@ import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
-import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.web.server.authentication.ServerAuthenticationConverter
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
@@ -31,8 +30,8 @@ class JwtServerAuthenticationConverter(
                 .payload
 
             val userId = claims.subject
-            val role = claims.get("role", String::class.java) ?: "ROLE_USER"
-            val authorities = listOf(SimpleGrantedAuthority(role))
+            val role = claims.get("role", String::class.java) ?: "USER"
+            val authorities = listOf(RoleGrantedAuthority(role))
 
             val auth = UsernamePasswordAuthenticationToken(userId, token, authorities)
             auth.details = mapOf("userId" to userId, "role" to role)
