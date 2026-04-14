@@ -10,7 +10,7 @@ import (
 	livekit "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
-	"github.com/cowork/cowork-voice/internal/global/apperror"
+	"github.com/cowork/cowork-voice/internal/apperror"
 )
 
 func NewRoomServiceClient(hostURL, apiKey, apiSecret string) *lksdk.RoomServiceClient {
