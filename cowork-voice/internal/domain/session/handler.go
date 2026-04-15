@@ -2,7 +2,6 @@ package session
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -159,7 +158,7 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roomName := fmt.Sprintf("voice-%d", channelID)
+	roomName := RoomName(channelID)
 	lkParticipants, err := lkdomain.ListParticipants(ctx, h.livekitClient, roomName)
 	if err != nil {
 		apperror.WriteResponse(w, toAppError(err))
