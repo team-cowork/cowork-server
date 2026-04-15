@@ -27,8 +27,8 @@ class Profile(
     @JoinColumn(name = "account_id", nullable = false)
     val account: Account,
 
-    @Column(length = 500)
-    var img: String?,
+    @Column(name = "profile_image_key", length = 500)
+    var profileImageKey: String?,
 
     @Column(length = 50)
     var nickname: String?,
@@ -68,7 +68,7 @@ class Profile(
         )
     }
 
-    fun updateImg(key: String?) {
-        img = key
+    fun updateProfileImageKey(key: String?) {
+        profileImageKey = key
     }
 }
