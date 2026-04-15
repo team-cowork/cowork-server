@@ -38,6 +38,10 @@ func main() {
 		slog.Error("mongodb connect failed", "err", err)
 		os.Exit(1)
 	}
+	if err := mongoClient.Ping(context.Background(), nil); err != nil {
+		slog.Error("mongodb ping failed", "err", err)
+		os.Exit(1)
+	}
 	db := mongoClient.Database(cfg.MongoDBDB)
 
 	indexCtx, indexCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -85,18 +89,24 @@ func main() {
 	}
 
 	done := make(chan os.Signal, 1)
+	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	exitCode := 0
 
 	go func() {
 		slog.Info("cowork-voice starting", "port", cfg.Port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("server error", "err", err)
-			os.Exit(1)
+			serverErrCh <- err
 		}
 	}()
 
-	<-done
-	slog.Info("shutting down...")
+	select {
+	case sig := <-done:
+		slog.Info("shutting down", "signal", sig.String())
+	case err := <-serverErrCh:
+		slog.Error("server error", "err", err)
+		exitCode = 1
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -112,4 +122,7 @@ func main() {
 	}
 
 	slog.Info("shutdown complete")
+	if exitCode != 0 {
+		os.Exit(exitCode)
+	}
 }
