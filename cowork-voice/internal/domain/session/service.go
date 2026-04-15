@@ -97,7 +97,7 @@ func CreateSession(ctx context.Context, db *mongo.Database, channelID, teamID in
 	}
 	_, err := col.InsertOne(ctx, s)
 	if err != nil {
-		if isDuplicateKeyError(err) {
+		if mongo.IsDuplicateKeyError(err) {
 			// 동시 첫 입장 경쟁 조건: 다른 요청이 먼저 생성함 → 해당 세션 반환
 			return FindActiveSession(ctx, db, channelID)
 		}
@@ -218,8 +218,4 @@ func GetParticipantJoinedAt(ctx context.Context, db *mongo.Database, sessionID s
 		return nil, apperror.Internal(err.Error())
 	}
 	return &p.JoinedAt, nil
-}
-
-func isDuplicateKeyError(err error) bool {
-	return mongo.IsDuplicateKeyError(err)
 }
