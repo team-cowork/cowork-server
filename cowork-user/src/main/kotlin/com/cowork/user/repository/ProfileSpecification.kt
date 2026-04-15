@@ -46,12 +46,37 @@ object ProfileSpecification {
         status: String?,
         role: String?,
     ): Specification<Profile> =
-        listOfNotNull(
-            nameLike(name),
-            nicknameLike(nickname),
-            majorEq(major),
-            stRoleEq(stRole),
-            statusEq(status),
-            roleEq(role),
-        ).fold(Specification.where(null)) { acc, spec -> acc.and(spec) }
+        Specification { root, query, cb ->
+            val predicates = mutableListOf<jakarta.persistence.criteria.Predicate>()
+            var accountJoin: jakarta.persistence.criteria.Join<Any, Any>? = null
+
+            fun getAccountJoin() = accountJoin ?: root.join<Any, Any>("account").also { accountJoin = it }
+
+            name?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.like(getAccountJoin().get("name"), "%$value%"))
+            }
+
+            nickname?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.like(root.get("nickname"), "%$value%"))
+            }
+
+            major?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.equal(getAccountJoin().get<String>("major"), value))
+            }
+
+            stRole?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.equal(getAccountJoin().get<String>("stRole"), value))
+            }
+
+            status?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.equal(getAccountJoin().get<String>("status"), value))
+            }
+
+            role?.takeIf { it.isNotBlank() }?.let { value ->
+                query?.distinct(true)
+                predicates.add(cb.equal(root.joinSet<String>("roles"), value))
+            }
+
+            cb.and(*predicates.toTypedArray())
+        }
 }
