@@ -3,6 +3,7 @@ package livekit
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -38,9 +39,24 @@ func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, ttlS
 func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient, roomName string) error {
 	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName})
 	if err != nil {
+		if isRoomAlreadyExistsError(err) {
+			return nil
+		}
 		return apperror.Internal(err.Error())
 	}
 	return nil
+}
+
+func isRoomAlreadyExistsError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "already exists") ||
+		strings.Contains(msg, "already_exists") ||
+		strings.Contains(msg, "409") ||
+		strings.Contains(msg, http.StatusText(http.StatusConflict))
 }
 
 func RemoveParticipant(ctx context.Context, client *lksdk.RoomServiceClient, roomName, identity string) error {
