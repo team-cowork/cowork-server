@@ -4,6 +4,9 @@
   "description": "채팅 서비스.",
   "main": "index.js",
   "scripts": {
+    "start": "ts-node src/main.ts",
+    "start:dev": "ts-node src/main.ts",
+    "build": "tsc",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
