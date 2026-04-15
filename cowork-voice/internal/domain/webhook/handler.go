@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/livekit/protocol/auth"
@@ -72,8 +71,8 @@ func (h *Handler) handleParticipantJoined(ctx context.Context, event *livekit.We
 	if err != nil {
 		return
 	}
-	channelID := parseChannelID(room.Name)
-	if channelID == 0 {
+	channelID, ok := sessiondomain.ParseRoomName(room.Name)
+	if !ok {
 		return
 	}
 
@@ -83,7 +82,12 @@ func (h *Handler) handleParticipantJoined(ctx context.Context, event *livekit.We
 		return
 	}
 
-	if room.NumParticipants == 1 {
+	firstStart, err := sessiondomain.MarkSessionStarted(ctx, h.db, voiceSession.SessionID, now)
+	if err != nil {
+		slog.Error("failed to mark session started", "err", err, "session_id", voiceSession.SessionID)
+		return
+	}
+	if firstStart {
 		if err := h.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionStartedEvent{
 			EventType: kafkadomain.EventSessionStarted,
 			SessionID: voiceSession.SessionID,
@@ -122,8 +126,8 @@ func (h *Handler) handleParticipantLeft(ctx context.Context, event *livekit.Webh
 	if err != nil {
 		return
 	}
-	channelID := parseChannelID(room.Name)
-	if channelID == 0 {
+	channelID, ok := sessiondomain.ParseRoomName(room.Name)
+	if !ok {
 		return
 	}
 
@@ -172,8 +176,8 @@ func (h *Handler) handleRoomFinished(ctx context.Context, event *livekit.Webhook
 		return
 	}
 
-	channelID := parseChannelID(room.Name)
-	if channelID == 0 {
+	channelID, ok := sessiondomain.ParseRoomName(room.Name)
+	if !ok {
 		return
 	}
 
@@ -206,16 +210,4 @@ func (h *Handler) handleRoomFinished(ctx context.Context, event *livekit.Webhook
 	}); err != nil {
 		slog.Error("failed to publish SESSION_ENDED", "err", err)
 	}
-}
-
-func parseChannelID(roomName string) int64 {
-	s, ok := strings.CutPrefix(roomName, "voice-")
-	if !ok {
-		return 0
-	}
-	id, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return 0
-	}
-	return id
 }

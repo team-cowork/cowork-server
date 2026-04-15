@@ -91,7 +91,7 @@ func CreateSession(ctx context.Context, db *mongo.Database, channelID, teamID in
 		SessionID: uuid.NewString(),
 		ChannelID: channelID,
 		TeamID:    teamID,
-		RoomName:  fmt.Sprintf("voice-%d", channelID),
+		RoomName:  RoomName(channelID),
 		Status:    StatusActive,
 		StartedAt: now,
 	}
@@ -118,6 +118,21 @@ func EndSession(ctx context.Context, db *mongo.Database, sessionID string, ended
 		return apperror.Internal(err.Error())
 	}
 	return nil
+}
+
+func MarkSessionStarted(ctx context.Context, db *mongo.Database, sessionID string, startedAt time.Time) (bool, error) {
+	col := db.Collection(CollectionSessions)
+	filter := bson.D{
+		{Key: "session_id", Value: sessionID},
+		{Key: "status", Value: StatusActive},
+		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+	}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "started_event_sent_at", Value: startedAt}}}}
+	result, err := col.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return false, apperror.Internal(err.Error())
+	}
+	return result.ModifiedCount == 1, nil
 }
 
 func InsertParticipant(ctx context.Context, db *mongo.Database, p *VoiceParticipant) error {
@@ -206,13 +221,5 @@ func GetParticipantJoinedAt(ctx context.Context, db *mongo.Database, sessionID s
 }
 
 func isDuplicateKeyError(err error) bool {
-	var we mongo.WriteException
-	if errors.As(err, &we) {
-		for _, e := range we.WriteErrors {
-			if e.Code == 11000 {
-				return true
-			}
-		}
-	}
-	return false
+	return mongo.IsDuplicateKeyError(err)
 }
