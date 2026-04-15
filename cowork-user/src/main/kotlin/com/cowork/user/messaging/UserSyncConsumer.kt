@@ -34,10 +34,10 @@ class UserSyncConsumer(
                 sex = event.sex,
                 github = event.github,
                 description = event.description,
-                stRole = event.stRole,
-                stNum = event.stNum,
+                studentRole = event.studentRole,
+                studentNumber = event.studentNumber,
                 major = event.major,
-                spe = event.spe,
+                specialty = event.specialty,
                 status = event.status ?: "offline",
             ),
         )
@@ -45,7 +45,7 @@ class UserSyncConsumer(
         profileRepository.save(
             Profile(
                 account = account,
-                img = null,
+                profileImageKey = null,
                 nickname = null,
                 description = null,
                 roles = mutableSetOf(),
