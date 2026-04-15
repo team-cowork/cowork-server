@@ -33,17 +33,17 @@ class Account(
     @Column(length = 500)
     var description: String?,
 
-    @Column(name = "st_role", length = 50)
-    var stRole: String?,
+    @Column(name = "student_role", length = 50)
+    var studentRole: String?,
 
-    @Column(name = "st_num", length = 30)
-    var stNum: String?,
+    @Column(name = "student_number", length = 30)
+    var studentNumber: String?,
 
     @Column(length = 50)
     var major: String?,
 
-    @Column(length = 255)
-    var spe: String?,
+    @Column(name = "specialty", length = 255)
+    var specialty: String?,
 
     @Column(nullable = false, length = 30)
     var status: String,
