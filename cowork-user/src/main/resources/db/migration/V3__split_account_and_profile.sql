@@ -6,19 +6,19 @@ CREATE TABLE tb_accounts
     sex         VARCHAR(10)  NOT NULL COMMENT 'MAN, WOMAN',
     github      VARCHAR(100)          DEFAULT NULL,
     description VARCHAR(500)          DEFAULT NULL,
-    st_role     VARCHAR(50)           DEFAULT NULL,
-    st_num      VARCHAR(30)           DEFAULT NULL,
+    student_role     VARCHAR(50)      DEFAULT NULL,
+    student_number   VARCHAR(30)      DEFAULT NULL,
     major       VARCHAR(50)           DEFAULT NULL,
-    spe         VARCHAR(255)          DEFAULT NULL,
+    specialty   VARCHAR(255)          DEFAULT NULL,
     status      VARCHAR(30)  NOT NULL DEFAULT 'offline',
     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
     UNIQUE KEY uq_tb_accounts_email (email),
     UNIQUE KEY uq_tb_accounts_github (github),
-    INDEX idx_tb_accounts_st_num (st_num),
-    INDEX idx_tb_accounts_status_major_st_role_id (status, major, st_role, id),
-    INDEX idx_tb_accounts_major_st_role_id (major, st_role, id)
+    INDEX idx_tb_accounts_student_number (student_number),
+    INDEX idx_tb_accounts_status_major_student_role_id (status, major, student_role, id),
+    INDEX idx_tb_accounts_major_student_role_id (major, student_role, id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
@@ -27,7 +27,7 @@ CREATE TABLE tb_profiles
 (
     id          BIGINT       NOT NULL AUTO_INCREMENT,
     account_id  BIGINT       NOT NULL,
-    img         VARCHAR(500)          DEFAULT NULL COMMENT 'S3 object key (profiles/{userId}/{uuid}.ext)',
+    profile_image_key VARCHAR(500)    DEFAULT NULL COMMENT 'S3 object key (profiles/{userId}/{uuid}.ext)',
     nickname    VARCHAR(50)           DEFAULT NULL,
     description VARCHAR(500)          DEFAULT NULL,
     created_at  DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -58,10 +58,10 @@ INSERT INTO tb_accounts (
     sex,
     github,
     description,
-    st_role,
-    st_num,
+    student_role,
+    student_number,
     major,
-    spe,
+    specialty,
     status,
     created_at,
     updated_at
@@ -84,7 +84,7 @@ FROM tb_user_profiles;
 
 INSERT INTO tb_profiles (
     account_id,
-    img,
+    profile_image_key,
     nickname,
     description,
     created_at,
