@@ -26,7 +26,7 @@ class UserService(
 
     fun getMyProfile(userId: Long): MyProfileResponse {
         val profile = findProfileOrThrow(userId)
-        val imageUrl = profile.img?.let { s3Service.generateGetPresignedUrl(it) }
+        val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
         return MyProfileResponse.of(profile, imageUrl)
     }
 
@@ -38,7 +38,7 @@ class UserService(
             description = request.description,
             roles = request.roles,
         )
-        val imageUrl = profile.img?.let { s3Service.generateGetPresignedUrl(it) }
+        val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
         return MyProfileResponse.of(profile, imageUrl)
     }
 
@@ -56,9 +56,9 @@ class UserService(
             throw ExpectedException("유효하지 않은 objectKey입니다.", HttpStatus.BAD_REQUEST)
         }
         val profile = findProfileOrThrow(userId)
-        val oldKey = profile.img
-        profile.updateImg(objectKey)
-        oldKey?.let { key ->
+        val previousProfileImageKey = profile.profileImageKey
+        profile.updateProfileImageKey(objectKey)
+        previousProfileImageKey?.let { key ->
             TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
                 override fun afterCommit() = s3Service.deleteObject(key)
             })
@@ -68,9 +68,9 @@ class UserService(
     @Transactional
     fun deleteProfileImage(userId: Long) {
         val profile = findProfileOrThrow(userId)
-        val oldKey = profile.img
-        profile.updateImg(null)
-        oldKey?.let { key ->
+        val previousProfileImageKey = profile.profileImageKey
+        profile.updateProfileImageKey(null)
+        previousProfileImageKey?.let { key ->
             TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
                 override fun afterCommit() = s3Service.deleteObject(key)
             })
@@ -79,7 +79,7 @@ class UserService(
 
     fun getUserProfile(userId: Long): UserProfileResponse {
         val profile = findProfileOrThrow(userId)
-        val imageUrl = profile.img?.let { s3Service.generateGetPresignedUrl(it) }
+        val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
         return UserProfileResponse.of(profile, imageUrl)
     }
 
@@ -87,14 +87,14 @@ class UserService(
         name: String?,
         nickname: String?,
         major: String?,
-        stRole: String?,
+        studentRole: String?,
         status: String?,
         role: String?,
         pageable: Pageable,
     ): Page<UserProfileResponse> {
-        val spec = ProfileSpecification.build(name, nickname, major, stRole, status, role)
+        val spec = ProfileSpecification.build(name, nickname, major, studentRole, status, role)
         return profileRepository.findAll(spec, pageable).map { profile ->
-            val imageUrl = profile.img?.let { s3Service.generateGetPresignedUrl(it) }
+            val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
             UserProfileResponse.of(profile, imageUrl)
         }
     }
