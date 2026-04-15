@@ -20,9 +20,9 @@ object ProfileSpecification {
             Specification { root, _, cb -> cb.equal(root.join<Any, Any>("account").get<String>("major"), value) }
         }
 
-    fun stRoleEq(stRole: String?): Specification<Profile>? =
-        stRole?.takeIf { it.isNotBlank() }?.let { value ->
-            Specification { root, _, cb -> cb.equal(root.join<Any, Any>("account").get<String>("stRole"), value) }
+    fun studentRoleEquals(studentRole: String?): Specification<Profile>? =
+        studentRole?.takeIf { it.isNotBlank() }?.let { value ->
+            Specification { root, _, cb -> cb.equal(root.join<Any, Any>("account").get<String>("studentRole"), value) }
         }
 
     fun statusEq(status: String?): Specification<Profile>? =
@@ -42,7 +42,7 @@ object ProfileSpecification {
         name: String?,
         nickname: String?,
         major: String?,
-        stRole: String?,
+        studentRole: String?,
         status: String?,
         role: String?,
     ): Specification<Profile> =
@@ -64,8 +64,8 @@ object ProfileSpecification {
                 predicates.add(cb.equal(getAccountJoin().get<String>("major"), value))
             }
 
-            stRole?.takeIf { it.isNotBlank() }?.let { value ->
-                predicates.add(cb.equal(getAccountJoin().get<String>("stRole"), value))
+            studentRole?.takeIf { it.isNotBlank() }?.let { value ->
+                predicates.add(cb.equal(getAccountJoin().get<String>("studentRole"), value))
             }
 
             status?.takeIf { it.isNotBlank() }?.let { value ->
