@@ -82,10 +82,9 @@ class UserService(
     }
 
     @Transactional
-    fun upsertUser(request: UpsertUserRequest): Long {
-        val existing = userProfileRepository.findByIdOrNull(request.userId)
-        if (existing != null) {
-            existing.updateFromSync(
+    fun upsertUser(request: UpsertUserRequest): UserProfileResponse {
+        val profile = userProfileRepository.findByIdOrNull(request.userId)?.also {
+            it.updateFromSync(
                 name = request.name,
                 email = request.email,
                 sex = request.sex,
@@ -96,9 +95,7 @@ class UserService(
                 role = request.role,
                 githubId = request.githubId,
             )
-            return existing.id
-        }
-        val profile = userProfileRepository.save(
+        } ?: userProfileRepository.save(
             UserProfile(
                 id = request.userId,
                 name = request.name,
@@ -114,7 +111,8 @@ class UserService(
                 profileImageKey = null,
             )
         )
-        return profile.id
+        val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
+        return UserProfileResponse.of(profile, imageUrl)
     }
 
     fun searchUsers(
