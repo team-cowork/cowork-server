@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/cowork/authorization/internal/config"
-	"github.com/cowork/authorization/internal/domain"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -27,17 +26,17 @@ func NewTokenService(cfg *config.AppConfig) *TokenService {
 	return &TokenService{cfg: cfg}
 }
 
-func (s *TokenService) GenerateAccessToken(user *domain.User) (string, error) {
+func (s *TokenService) GenerateAccessToken(userID int64, email, role, gsmRole string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   fmt.Sprintf("%d", user.ID),
+			Subject:   fmt.Sprintf("%d", userID),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.JWTAccessExpire)),
 		},
-		Email:   user.Email,
-		Role:    user.SystemRole,
-		GsmRole: user.GsmRole,
+		Email:   email,
+		Role:    role,
+		GsmRole: gsmRole,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
