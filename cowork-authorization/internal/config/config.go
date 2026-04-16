@@ -27,6 +27,8 @@ type AppConfig struct {
 	EurekaAppName      string
 	EurekaInstanceHost string
 	EurekaInstancePort int
+
+	UserServiceURL string
 }
 
 func Load() (*AppConfig, error) {
@@ -64,6 +66,8 @@ func Load() (*AppConfig, error) {
 		EurekaAppName:      getEnvOrDefault("EUREKA_APP_NAME", "cowork-authorization"),
 		EurekaInstanceHost: getEnvOrDefault("EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort: eurekaPort,
+
+		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8080"),
 	}
 
 	return cfg, nil

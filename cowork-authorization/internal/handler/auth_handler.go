@@ -86,36 +86,6 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *AuthHandler) Me(c *gin.Context) {
-	userID, ok := c.Get(userIDKey)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
-		return
-	}
-
-	user, err := h.authSvc.GetCurrentUser(userID.(int64))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch user"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":          user.ID,
-		"email":       user.Email,
-		"name":        user.Name,
-		"sex":         user.Sex,
-		"grade":       user.Grade,
-		"class":       user.Class,
-		"class_num":   user.ClassNum,
-		"major":       user.Major,
-		"specialty":   user.Specialty,
-		"github_id":   user.GithubID,
-		"gsm_role":    user.GsmRole,
-		"system_role": user.SystemRole,
-		"created_at":  user.CreatedAt,
-	})
-}
-
 func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
