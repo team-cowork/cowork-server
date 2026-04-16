@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	"github.com/cowork/authorization/internal/repository"
@@ -35,11 +36,11 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	userRepo := repository.NewUserRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 
+	userClient := client.NewUserClient(cfg.UserServiceURL)
 	tokenSvc := service.NewTokenService(cfg)
-	authSvc := service.NewAuthService(cfg, userRepo, refreshTokenRepo, tokenSvc)
+	authSvc := service.NewAuthService(cfg, userClient, refreshTokenRepo, tokenSvc)
 
 	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
 
@@ -53,7 +54,6 @@ func main() {
 		auth.GET("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/logout", authHandler.AuthMiddleware(), authHandler.Logout)
-		auth.GET("/me", authHandler.AuthMiddleware(), authHandler.Me)
 	}
 
 	eurekaClient := eurekaclient.NewClient(cfg)
