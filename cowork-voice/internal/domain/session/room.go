@@ -1,7 +1,6 @@
 package session
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -9,7 +8,7 @@ import (
 const roomNamePrefix = "voice-"
 
 func RoomName(channelID int64) string {
-	return fmt.Sprintf("%s%d", roomNamePrefix, channelID)
+	return roomNamePrefix + strconv.FormatInt(channelID, 10)
 }
 
 func ParseRoomName(roomName string) (int64, bool) {

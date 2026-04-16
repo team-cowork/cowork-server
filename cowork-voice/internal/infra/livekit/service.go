@@ -2,8 +2,8 @@ package livekit
 
 import (
 	"context"
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,7 +19,7 @@ func NewRoomServiceClient(hostURL, apiKey, apiSecret string) *lksdk.RoomServiceC
 }
 
 func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, ttlSecs int64) (string, error) {
-	identity := fmt.Sprintf("%d", userID)
+	identity := strconv.FormatInt(userID, 10)
 	at := auth.NewAccessToken(apiKey, apiSecret)
 	grant := &auth.VideoGrant{
 		RoomJoin: true,
