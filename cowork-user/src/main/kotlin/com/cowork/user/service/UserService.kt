@@ -4,6 +4,7 @@ import com.cowork.user.domain.UserProfile
 import com.cowork.user.dto.*
 import com.cowork.user.repository.UserProfileRepository
 import com.cowork.user.repository.UserProfileSpecification
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -82,7 +83,7 @@ class UserService(
 
     @Transactional
     fun upsertUser(request: UpsertUserRequest): Long {
-        val existing = userProfileRepository.findById(request.userId).orElse(null)
+        val existing = userProfileRepository.findByIdOrNull(request.userId)
         if (existing != null) {
             existing.updateFromSync(
                 name = request.name,

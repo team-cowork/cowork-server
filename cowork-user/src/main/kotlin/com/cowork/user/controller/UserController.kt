@@ -60,8 +60,8 @@ class UserController(
     @PostMapping("/internal")
     fun upsertUser(
         @RequestBody request: UpsertUserRequest,
-    ): ResponseEntity<Map<String, Long>> =
-        ResponseEntity.ok(mapOf("userId" to userService.upsertUser(request)))
+    ): ResponseEntity<UpsertUserResponse> =
+        ResponseEntity.ok(UpsertUserResponse(userId = userService.upsertUser(request)))
 
     @GetMapping("/search")
     fun searchUsers(
