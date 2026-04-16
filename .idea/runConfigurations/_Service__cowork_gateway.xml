@@ -1,0 +1,8 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[Service] cowork-gateway" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.cowork.gateway.CoworkGatewayApplicationKt" />
+    <module name="cowork-server.cowork-gateway.main" />
+    <option name="VM_PARAMETERS" value="-Dspring.profiles.active=local" />
+    <method v="2" />
+  </configuration>
+</component>
