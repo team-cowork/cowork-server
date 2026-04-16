@@ -1,6 +1,5 @@
 package com.cowork.user.messaging
 
-import com.cowork.user.dto.UpsertUserRequest
 import com.cowork.user.messaging.event.UserCreatedEvent
 import com.cowork.user.service.UserService
 import org.slf4j.LoggerFactory
@@ -16,20 +15,7 @@ class UserSyncConsumer(
 
     @KafkaListener(topics = ["user.data.sync"], groupId = "cowork-user")
     fun handleUserCreated(event: UserCreatedEvent) {
-        val response = userService.upsertUser(
-            event.userId,
-            UpsertUserRequest(
-                name = event.name,
-                email = event.email,
-                sex = event.sex,
-                grade = event.grade,
-                `class` = event.`class`,
-                classNum = event.classNum,
-                major = event.major,
-                role = event.role,
-                githubId = event.githubId,
-            )
-        )
-        log.info("UserProfile upserted. userId={}", response.id)
+        val response = userService.upsertUserFromSyncEvent(event)
+        log.info("User profile upserted. userId={}", response.id)
     }
 }
