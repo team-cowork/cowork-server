@@ -13,9 +13,9 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apperror"
 	"github.com/cowork/cowork-voice/internal/config"
-	"github.com/cowork/cowork-voice/internal/domain/channel"
-	lkdomain "github.com/cowork/cowork-voice/internal/domain/livekit"
 	"github.com/cowork/cowork-voice/internal/dto"
+	"github.com/cowork/cowork-voice/internal/infra/channel"
+	lkdomain "github.com/cowork/cowork-voice/internal/infra/livekit"
 	"github.com/cowork/cowork-voice/internal/middleware"
 )
 
