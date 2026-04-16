@@ -8,7 +8,8 @@
 - Kafka: 음성 세션 이벤트 발행 (`voice.session.event`)
 
 ## 스택
-Rust (Axum/Tokio 등 팀 결정)
+- Go
+- LiveKit
 
 ## 포트
 `9000`
