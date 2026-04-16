@@ -13,40 +13,40 @@ class UserProfile(
     val id: Long,
 
     @Column(nullable = false, length = 50)
-    val name: String,
+    var name: String,
 
     @Column(nullable = false, unique = true)
-    val email: String,
+    var email: String,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    val sex: Sex,
+    var sex: Sex,
 
     @Column
-    val grade: Byte?,
+    var grade: Byte?,
 
     @Column(name = "class")
-    val `class`: Byte?,
+    var `class`: Byte?,
 
     @Column(name = "class_num")
-    val classNum: Byte?,
+    var classNum: Byte?,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    val major: Major,
+    var major: Major,
 
     @Column(length = 255)
     var specialty: String?,
 
     @Column(name = "github_id", length = 100, unique = true)
-    val githubId: String?,
+    var githubId: String?,
 
     @Column(name = "profile_image_key", length = 500)
     var profileImageKey: String?,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
-    val role: Role,
+    var role: Role,
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -62,5 +62,27 @@ class UserProfile(
 
     fun updateProfileImageKey(key: String?) {
         profileImageKey = key
+    }
+
+    fun updateFromSync(
+        name: String,
+        email: String,
+        sex: Sex,
+        grade: Byte?,
+        `class`: Byte?,
+        classNum: Byte?,
+        major: Major,
+        role: Role,
+        githubId: String?,
+    ) {
+        this.name = name
+        this.email = email
+        this.sex = sex
+        this.grade = grade
+        this.`class` = `class`
+        this.classNum = classNum
+        this.major = major
+        this.role = role
+        this.githubId = githubId
     }
 }
