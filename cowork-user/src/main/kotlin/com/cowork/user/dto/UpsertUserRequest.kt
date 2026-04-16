@@ -5,7 +5,6 @@ import com.cowork.user.domain.Role
 import com.cowork.user.domain.Sex
 
 data class UpsertUserRequest(
-    val userId: Long,
     val name: String,
     val email: String,
     val sex: Sex,
