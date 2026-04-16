@@ -1,5 +1,6 @@
 package com.cowork.user.service
 
+import com.cowork.user.domain.UserProfile
 import com.cowork.user.dto.*
 import com.cowork.user.repository.UserProfileRepository
 import com.cowork.user.repository.UserProfileSpecification
@@ -77,6 +78,42 @@ class UserService(
         val profile = findProfileOrThrow(userId)
         val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
         return UserProfileResponse.of(profile, imageUrl)
+    }
+
+    @Transactional
+    fun upsertUser(request: UpsertUserRequest): Long {
+        val existing = userProfileRepository.findById(request.userId).orElse(null)
+        if (existing != null) {
+            existing.updateFromSync(
+                name = request.name,
+                email = request.email,
+                sex = request.sex,
+                grade = request.grade,
+                `class` = request.`class`,
+                classNum = request.classNum,
+                major = request.major,
+                role = request.role,
+                githubId = request.githubId,
+            )
+            return existing.id
+        }
+        val profile = userProfileRepository.save(
+            UserProfile(
+                id = request.userId,
+                name = request.name,
+                email = request.email,
+                sex = request.sex,
+                grade = request.grade,
+                `class` = request.`class`,
+                classNum = request.classNum,
+                major = request.major,
+                role = request.role,
+                githubId = request.githubId,
+                specialty = null,
+                profileImageKey = null,
+            )
+        )
+        return profile.id
     }
 
     fun searchUsers(
