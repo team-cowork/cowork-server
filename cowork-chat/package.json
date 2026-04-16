@@ -26,6 +26,7 @@
     "class-transformer": "^0.5.1"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   }
