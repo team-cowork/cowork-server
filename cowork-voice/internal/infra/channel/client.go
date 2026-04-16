@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -34,7 +35,8 @@ func (c *Client) VerifyMembership(ctx context.Context, channelID, userID int64) 
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, apperror.ServiceUnavailable(err.Error())
+		slog.Error("channel service request failed", "err", err)
+		return 0, apperror.ServiceUnavailable("channel service connection failed")
 	}
 	defer resp.Body.Close()
 
