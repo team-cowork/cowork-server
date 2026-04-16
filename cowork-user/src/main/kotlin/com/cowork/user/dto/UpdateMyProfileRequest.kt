@@ -1,5 +1,7 @@
 package com.cowork.user.dto
 
 data class UpdateMyProfileRequest(
-    val specialty: String?,
+    val nickname: String?,
+    val description: String?,
+    val roles: List<String>?,
 )
