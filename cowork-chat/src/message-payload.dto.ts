@@ -2,8 +2,8 @@ import { IsString } from 'class-validator';
 
 export class MessagePayload {
     @IsString()
-    channelId: string;
+    channelId!: string;
 
     @IsString()
-    content: string;
+    content!: string;
 }
