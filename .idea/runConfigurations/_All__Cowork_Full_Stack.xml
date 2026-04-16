@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[All] Cowork Full Stack" type="CompoundRunConfigurationType">
+    <toRun name="[Infra] Docker Compose Up" type="ShConfigurationType" />
+    <toRun name="[Service] cowork-config" type="SpringBootApplicationConfigurationType" />
+    <toRun name="[Service] cowork-gateway" type="SpringBootApplicationConfigurationType" />
+    <toRun name="[Service] cowork-user" type="SpringBootApplicationConfigurationType" />
+    <toRun name="[Service] cowork-authorization" type="ShConfigurationType" />
+    <toRun name="[Service] cowork-chat" type="ShConfigurationType" />
+    <toRun name="[Service] cowork-voice" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
