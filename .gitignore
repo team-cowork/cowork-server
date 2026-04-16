@@ -65,3 +65,6 @@ SPEC.md
 
 ### Docs ###
 docs/
+
+### Worktrees ###
+.worktrees/
