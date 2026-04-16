@@ -1,0 +1,6 @@
+target/
+.git/
+*.md
+src/
+Cargo.toml
+Cargo.lock
