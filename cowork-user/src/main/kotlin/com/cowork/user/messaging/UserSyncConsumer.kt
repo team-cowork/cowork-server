@@ -16,9 +16,9 @@ class UserSyncConsumer(
 
     @KafkaListener(topics = ["user.data.sync"], groupId = "cowork-user")
     fun handleUserCreated(event: UserCreatedEvent) {
-        val userId = userService.upsertUser(
+        val response = userService.upsertUser(
+            event.userId,
             UpsertUserRequest(
-                userId = event.userId,
                 name = event.name,
                 email = event.email,
                 sex = event.sex,
@@ -30,6 +30,6 @@ class UserSyncConsumer(
                 githubId = event.githubId,
             )
         )
-        log.info("UserProfile upserted. userId={}", userId)
+        log.info("UserProfile upserted. userId={}", response.id)
     }
 }
