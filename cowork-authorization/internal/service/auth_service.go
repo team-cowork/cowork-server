@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/repository"
@@ -40,14 +42,14 @@ type DataGSMUserInfo struct {
 type AuthService struct {
 	cfg              *config.AppConfig
 	oauth2Config     *oauth2.Config
-	userRepo         *repository.UserRepository
+	userClient       *client.UserClient
 	refreshTokenRepo *repository.RefreshTokenRepository
 	tokenSvc         *TokenService
 }
 
 func NewAuthService(
 	cfg *config.AppConfig,
-	userRepo *repository.UserRepository,
+	userClient *client.UserClient,
 	refreshTokenRepo *repository.RefreshTokenRepository,
 	tokenSvc *TokenService,
 ) *AuthService {
@@ -65,7 +67,7 @@ func NewAuthService(
 	return &AuthService{
 		cfg:              cfg,
 		oauth2Config:     oauth2Cfg,
-		userRepo:         userRepo,
+		userClient:       userClient,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
 	}
@@ -92,28 +94,29 @@ func (s *AuthService) HandleCallback(ctx context.Context, code, state, cookieSta
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
 
-	user := &domain.User{
-		Email:    userInfo.Email,
+	datgasmUserID, err := strconv.ParseInt(userInfo.ID, 10, 64)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse DataGSM user ID: %w", err)
+	}
+
+	upsertReq := client.UpsertUserRequest{
 		Name:     userInfo.Name,
+		Email:    userInfo.Email,
 		Sex:      userInfo.Sex,
 		Grade:    userInfo.Grade,
 		Class:    userInfo.Class,
 		ClassNum: userInfo.ClassNum,
 		Major:    userInfo.Major,
-		GsmRole:  userInfo.GsmRole,
+		Role:     userInfo.GsmRole,
 		GithubID: userInfo.GithubID,
 	}
 
-	if err := s.userRepo.Upsert(user); err != nil {
+	userID, err := s.userClient.Upsert(ctx, datgasmUserID, upsertReq)
+	if err != nil {
 		return nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
-	savedUser, err := s.userRepo.FindByEmail(userInfo.Email)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user after upsert: %w", err)
-	}
-
-	return s.issueTokenPair(savedUser, "")
+	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", userInfo.GsmRole, "")
 }
 
 func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
@@ -131,11 +134,6 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 		return nil, fmt.Errorf("refresh token expired")
 	}
 
-	user, err := s.userRepo.FindByID(rt.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find user: %w", err)
-	}
-
 	if err := s.refreshTokenRepo.DeleteByHash(hash); err != nil {
 		return nil, fmt.Errorf("failed to delete old refresh token: %w", err)
 	}
@@ -144,7 +142,7 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 	if rt.DeviceInfo != nil {
 		deviceInfo = *rt.DeviceInfo
 	}
-	return s.issueTokenPair(user, deviceInfo)
+	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo)
 }
 
 func (s *AuthService) Logout(rawRefreshToken string) error {
@@ -152,12 +150,8 @@ func (s *AuthService) Logout(rawRefreshToken string) error {
 	return s.refreshTokenRepo.DeleteByHash(hash)
 }
 
-func (s *AuthService) GetCurrentUser(userID int64) (*domain.User, error) {
-	return s.userRepo.FindByID(userID)
-}
-
-func (s *AuthService) issueTokenPair(user *domain.User, deviceInfo string) (*TokenPair, error) {
-	accessToken, err := s.tokenSvc.GenerateAccessToken(user)
+func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo string) (*TokenPair, error) {
+	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
@@ -168,8 +162,10 @@ func (s *AuthService) issueTokenPair(user *domain.User, deviceInfo string) (*Tok
 	}
 
 	rt := &domain.RefreshToken{
-		UserID:    user.ID,
+		UserID:    userID,
 		TokenHash: refreshHash,
+		Email:     email,
+		GsmRole:   gsmRole,
 		ExpiresAt: time.Now().Add(s.tokenSvc.RefreshExpire()),
 	}
 	if deviceInfo != "" {
