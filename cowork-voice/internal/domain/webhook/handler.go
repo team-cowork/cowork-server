@@ -14,8 +14,8 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apperror"
 	"github.com/cowork/cowork-voice/internal/config"
-	kafkadomain "github.com/cowork/cowork-voice/internal/domain/kafka"
 	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
 type Handler struct {
