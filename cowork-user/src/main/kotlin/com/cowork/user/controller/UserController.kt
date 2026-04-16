@@ -67,11 +67,23 @@ class UserController(
     @GetMapping("/search")
     fun searchUsers(
         @RequestParam(required = false) name: String?,
+        @RequestParam(required = false) nickname: String?,
         @RequestParam(required = false) major: String?,
-        @RequestParam(required = false) grade: Byte?,
-        @RequestParam(required = false) `class`: Byte?,
+        @RequestParam(required = false) studentRole: String?,
+        @RequestParam(name = "stRole", required = false) legacyStudentRole: String?,
+        @RequestParam(required = false) status: String?,
         @RequestParam(required = false) role: String?,
-        @PageableDefault(size = 20, sort = ["name"]) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["id"]) pageable: Pageable,
     ): ResponseEntity<Page<UserProfileResponse>> =
-        ResponseEntity.ok(userService.searchUsers(name, major, grade, `class`, role, pageable))
+        ResponseEntity.ok(
+            userService.searchUsers(
+                name = name,
+                nickname = nickname,
+                major = major,
+                studentRole = studentRole ?: legacyStudentRole,
+                status = status,
+                role = role,
+                pageable = pageable,
+            ),
+        )
 }
