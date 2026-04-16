@@ -7,13 +7,13 @@
 
 ## 진행 상태 (2026-09-03)
 
-| 경로 | 코드에서 확인한 상태 |
-|------|---------------------|
-| `MembershipConsumer` | `LEAVE` projection 뒤 현재 읽기 권한이 없으면 `user:{userId}` 소켓의 `chat:{channelId}` room을 제거함 |
-| `TeamMemberEventConsumer` | 팀 채널의 읽기 권한을 다시 평가해 소켓을 제거하고, 유효한 팀 삭제 상태이면 팀 room도 제거함 |
-| `ChannelEventConsumer` | 삭제 이벤트와 삭제 snapshot 적용 뒤 채널 room을 비움 |
-| `ChatGateway.relayTyping` | room 가입 여부와 현재 읽기 권한을 다시 확인하고 거부된 소켓을 room에서 제거함 |
-| 남은 범위 | 실제 여러 replica의 remote room 해제, adapter 장애 중 회수 보장, reconnect·동시 발행 경합을 이번 문서 점검에서 검증하지 않음 |
+| 경로                      | 코드에서 확인한 상태                                                                                                         |
+|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `MembershipConsumer`      | `LEAVE` projection 뒤 현재 읽기 권한이 없으면 `user:{userId}` 소켓의 `chat:{channelId}` room을 제거함                        |
+| `TeamMemberEventConsumer` | 팀 채널의 읽기 권한을 다시 평가해 소켓을 제거하고, 유효한 팀 삭제 상태이면 팀 room도 제거함                                  |
+| `ChannelEventConsumer`    | 삭제 이벤트와 삭제 snapshot 적용 뒤 채널 room을 비움                                                                         |
+| `ChatGateway.relayTyping` | room 가입 여부와 현재 읽기 권한을 다시 확인하고 거부된 소켓을 room에서 제거함                                                |
+| 남은 범위                 | 실제 여러 replica의 remote room 해제, adapter 장애 중 회수 보장, reconnect·동시 발행 경합을 이번 문서 점검에서 검증하지 않음 |
 
 ## 문제
 
@@ -25,12 +25,12 @@
 
 ## 회수 이벤트별 처리 범위
 
-| 원본 이벤트 | projection 반영 후 강제 조치 | 후속 알림 |
-|-------------|------------------------------|-----------|
-| `channel.member.event.v2`의 `LEAVE` | 해당 사용자의 모든 소켓을 `chat:{channelId}`에서 제거함 | 남은 채널 멤버에게 `member:left`를 전송함 |
-| `team.member.event`의 `DELETE` | 해당 사용자의 소켓을 `team:{teamId}`와 팀 소속 채널 room에서 제거함 | 회수 대상에게 직접 권한 변경 이벤트를 전송할지 계약을 정함 |
-| `channel.event.v2`의 `DELETED` | 모든 소켓을 `chat:{channelId}`에서 제거함 | 팀 room에 `channel:deleted`를 전송함 |
-| `project.member.event.v2`의 `REMOVED` | 프로젝트 채널 멤버십 회수 이벤트와의 순서·책임을 확정함 | 중복 해제는 멱등하게 처리함 |
+| 원본 이벤트                           | projection 반영 후 강제 조치                                        | 후속 알림                                                  |
+|---------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------|
+| `channel.member.event.v2`의 `LEAVE`   | 해당 사용자의 모든 소켓을 `chat:{channelId}`에서 제거함             | 남은 채널 멤버에게 `member:left`를 전송함                  |
+| `team.member.event`의 `DELETE`        | 해당 사용자의 소켓을 `team:{teamId}`와 팀 소속 채널 room에서 제거함 | 회수 대상에게 직접 권한 변경 이벤트를 전송할지 계약을 정함 |
+| `channel.event.v2`의 `DELETED`        | 모든 소켓을 `chat:{channelId}`에서 제거함                           | 팀 room에 `channel:deleted`를 전송함                       |
+| `project.member.event.v2`의 `REMOVED` | 프로젝트 채널 멤버십 회수 이벤트와의 순서·책임을 확정함             | 중복 해제는 멱등하게 처리함                                |
 
 projection 저장 성공 후 room 해제를 수행하고, 해제가 완료된 뒤 보호 이벤트가 더 전달되지 않도록 처리 순서를 고정한다. 동일 이벤트 재처리와 이미 연결이 끊긴 소켓에 대한 해제는 오류 없이 멱등하게 끝나야 한다.
 
