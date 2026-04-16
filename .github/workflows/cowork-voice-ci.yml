@@ -1,0 +1,48 @@
+name: cowork-voice CI
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'cowork-voice/**'
+      - '.github/workflows/cowork-voice-ci.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - 'cowork-voice/**'
+      - '.github/workflows/cowork-voice-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: cowork-voice/go.mod
+          cache-dependency-path: cowork-voice/go.sum
+
+      - name: Vet
+        working-directory: cowork-voice
+        run: go vet ./...
+
+      - name: Test
+        working-directory: cowork-voice
+        run: go test ./...
+
+      - name: Build
+        working-directory: cowork-voice
+        run: go build ./cmd/server
