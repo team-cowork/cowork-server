@@ -1,8 +1,10 @@
 package com.cowork.user.service
 
+import com.cowork.user.domain.UserProfile
 import com.cowork.user.dto.*
 import com.cowork.user.repository.UserProfileRepository
 import com.cowork.user.repository.UserProfileSpecification
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -75,6 +77,40 @@ class UserService(
 
     fun getUserProfile(userId: Long): UserProfileResponse {
         val profile = findProfileOrThrow(userId)
+        val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
+        return UserProfileResponse.of(profile, imageUrl)
+    }
+
+    @Transactional
+    fun upsertUser(userId: Long, request: UpsertUserRequest): UserProfileResponse {
+        val profile = userProfileRepository.findByIdOrNull(userId)?.also {
+            it.updateFromSync(
+                name = request.name,
+                email = request.email,
+                sex = request.sex,
+                grade = request.grade,
+                `class` = request.`class`,
+                classNum = request.classNum,
+                major = request.major,
+                role = request.role,
+                githubId = request.githubId,
+            )
+        } ?: userProfileRepository.save(
+            UserProfile(
+                id = userId,
+                name = request.name,
+                email = request.email,
+                sex = request.sex,
+                grade = request.grade,
+                `class` = request.`class`,
+                classNum = request.classNum,
+                major = request.major,
+                role = request.role,
+                githubId = request.githubId,
+                specialty = null,
+                profileImageKey = null,
+            )
+        )
         val imageUrl = profile.profileImageKey?.let { s3Service.generateGetPresignedUrl(it) }
         return UserProfileResponse.of(profile, imageUrl)
     }
