@@ -38,7 +38,9 @@ func main() {
 		slog.Error("mongodb connect failed", "err", err)
 		os.Exit(1)
 	}
-	if err := mongoClient.Ping(context.Background(), nil); err != nil {
+	pingCtx, pingCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer pingCancel()
+	if err := mongoClient.Ping(pingCtx, nil); err != nil {
 		slog.Error("mongodb ping failed", "err", err)
 		os.Exit(1)
 	}
