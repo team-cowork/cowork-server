@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -44,7 +45,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 
 	pair, err := h.authSvc.HandleCallback(c.Request.Context(), code, state, cookieState)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		log.Printf("callback error: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
 		return
 	}
 

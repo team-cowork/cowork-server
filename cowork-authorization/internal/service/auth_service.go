@@ -191,7 +191,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 	if err != nil {
 		return nil, err
 	}
