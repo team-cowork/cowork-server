@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MessagePayload } from './message-payload.interface';
+import { MessagePayload } from './message-payload.dto';
 
 @Injectable()
 export class ChatService {

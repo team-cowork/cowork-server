@@ -4,7 +4,7 @@ import {
     MessageBody,
 } from '@nestjs/websockets';
 import { ChatService } from './chat.service';
-import { MessagePayload } from './message-payload.interface';
+import { MessagePayload } from './message-payload.dto';
 
 @WebSocketGateway()
 export class ChatGateway {
