@@ -82,8 +82,8 @@ class UserService(
     }
 
     @Transactional
-    fun upsertUser(request: UpsertUserRequest): UserProfileResponse {
-        val profile = userProfileRepository.findByIdOrNull(request.userId)?.also {
+    fun upsertUser(userId: Long, request: UpsertUserRequest): UserProfileResponse {
+        val profile = userProfileRepository.findByIdOrNull(userId)?.also {
             it.updateFromSync(
                 name = request.name,
                 email = request.email,
@@ -97,7 +97,7 @@ class UserService(
             )
         } ?: userProfileRepository.save(
             UserProfile(
-                id = request.userId,
+                id = userId,
                 name = request.name,
                 email = request.email,
                 sex = request.sex,

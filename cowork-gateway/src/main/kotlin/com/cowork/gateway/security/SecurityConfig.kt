@@ -36,7 +36,6 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/fallback").permitAll()
-                    .pathMatchers("/*/internal/**").denyAll()
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
