@@ -77,6 +77,10 @@ func RemoveParticipant(ctx context.Context, client *lksdk.RoomServiceClient, roo
 func ListParticipants(ctx context.Context, client *lksdk.RoomServiceClient, roomName string) ([]*livekit.ParticipantInfo, error) {
 	res, err := client.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: roomName})
 	if err != nil {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "not_found") || strings.Contains(msg, "not found") || strings.Contains(msg, "404") {
+			return nil, nil
+		}
 		return nil, apperror.Internal(err.Error())
 	}
 	return res.Participants, nil
@@ -85,6 +89,10 @@ func ListParticipants(ctx context.Context, client *lksdk.RoomServiceClient, room
 func DeleteRoom(ctx context.Context, client *lksdk.RoomServiceClient, roomName string) error {
 	_, err := client.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: roomName})
 	if err != nil {
+		msg := strings.ToLower(err.Error())
+		if strings.Contains(msg, "not_found") || strings.Contains(msg, "not found") || strings.Contains(msg, "404") {
+			return nil
+		}
 		return apperror.Internal(err.Error())
 	}
 	return nil
