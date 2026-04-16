@@ -18,17 +18,17 @@ class Account(
     val id: Long,
 
     @Column(nullable = false, length = 50)
-    val name: String,
+    var name: String,
 
     @Column(nullable = false, unique = true)
-    val email: String,
+    var email: String,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    val sex: Sex,
+    var sex: Sex,
 
     @Column(length = 100, unique = true)
-    val github: String?,
+    var github: String?,
 
     @Column(length = 500)
     var description: String?,
@@ -55,4 +55,28 @@ class Account(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
-)
+) {
+    fun updateFromSync(
+        name: String,
+        email: String,
+        sex: Sex,
+        github: String?,
+        description: String?,
+        studentRole: String?,
+        studentNumber: String?,
+        major: String?,
+        specialty: String?,
+        status: String?,
+    ) {
+        this.name = name
+        this.email = email
+        this.sex = sex
+        this.github = github
+        this.description = description
+        this.studentRole = studentRole
+        this.studentNumber = studentNumber
+        this.major = major
+        this.specialty = specialty
+        this.status = status ?: this.status
+    }
+}
