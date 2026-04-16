@@ -57,6 +57,12 @@ class UserController(
     ): ResponseEntity<UserProfileResponse> =
         ResponseEntity.ok(userService.getUserProfile(userId))
 
+    @PostMapping("/internal")
+    fun upsertUser(
+        @RequestBody request: UpsertUserRequest,
+    ): ResponseEntity<Map<String, Long>> =
+        ResponseEntity.ok(mapOf("userId" to userService.upsertUser(request)))
+
     @GetMapping("/search")
     fun searchUsers(
         @RequestParam(required = false) name: String?,
