@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
-      any-changed: ${{ steps.build-matrix.outputs.any-changed }}
+      services-list: ${{ steps.build-matrix.outputs.services-list }}
 
     steps:
       - name: Checkout Code
@@ -116,31 +116,40 @@ jobs:
               {"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"},
               {"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}
             ]}'
+            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-authorization, cowork-voice, cowork-chat"
           else
             MATRIX='{"include":[]}'
+            SERVICES=""
             [ "${{ steps.filter.outputs.cowork-gateway }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","lang":"kotlin","gradle-task":":cowork-gateway:build"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","lang":"kotlin","gradle-task":":cowork-gateway:build"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-gateway"
             [ "${{ steps.filter.outputs.cowork-config }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-config"
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-user"
             [ "${{ steps.filter.outputs.cowork-authorization }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-authorization"
             [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
+            if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
+              MATRIX='{"include":[{"service":"변경 없음","lang":"skip"}]}'
+              SERVICES="없음"
+            fi
           fi
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
-          echo "any-changed=$(echo "$MATRIX" | jq '.include | length > 0')" >> $GITHUB_OUTPUT
+          echo "services-list=${SERVICES}" >> $GITHUB_OUTPUT
 
   build-and-test:
     runs-on: ubuntu-latest
     needs: [validate-title, detect-changes]
-    if: |
-      always() &&
-      (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped') &&
-      needs.detect-changes.outputs.any-changed == 'true'
+    if: always() && (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped')
     name: build (${{ matrix.service }})
 
     strategy:
@@ -148,7 +157,11 @@ jobs:
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
+      - name: No Changed Services
+        if: matrix.lang == 'skip'
+        run: echo "변경된 서비스가 없습니다."
       - name: Checkout Code
+        if: matrix.lang != 'skip'
         uses: actions/checkout@v6
       - name: Setup JDK 21
         if: matrix.lang == 'kotlin'
@@ -201,10 +214,14 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [validate-title, setup-pr-metadata, build-and-test]
+    needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test]
     if: always()
 
     steps:
+      - name: Get Short SHA
+        id: sha
+        run: echo "short=$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
+
       - name: Determine Status
         id: status
         run: |
@@ -229,6 +246,10 @@ jobs:
           color: ${{ steps.status.outputs.color }}
           title: "Cowork Server Stage CI"
           description: |
+            **Triggered by:** ${{ github.actor }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** `${{ steps.sha.outputs.short }}`
+            **Changed Services:** ${{ needs.detect-changes.outputs.services-list }}
             **Validate Title:** ${{ needs.validate-title.result }}
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
