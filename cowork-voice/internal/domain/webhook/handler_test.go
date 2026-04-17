@@ -3,7 +3,7 @@ package webhook
 import (
 	"testing"
 
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 )
 
 func Test룸_이름에서_채널_ID를_추출한다(t *testing.T) {
@@ -43,7 +43,7 @@ func Test룸_이름에서_채널_ID를_추출한다(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotID, gotSess, ok := sessiondomain.ParseRoomName(tc.roomName)
+			gotID, gotSess, ok := roomdomain.ParseRoomName(tc.roomName)
 			if gotID != tc.wantID {
 				t.Fatalf("ParseRoomName(%q) channelID = %d, want %d", tc.roomName, gotID, tc.wantID)
 			}
