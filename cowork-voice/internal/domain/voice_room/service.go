@@ -7,22 +7,20 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
-	"github.com/cowork/cowork-voice/internal/config"
-	"github.com/cowork/cowork-voice/internal/dto"
 )
 
 type RoomService struct {
-	repo       Repository
-	membership MembershipChecker
-	livekit    LiveKitRoom
-	cfg        *config.AppConfig
+	repo         Repository
+	membership   MembershipChecker
+	livekit      LiveKitRoom
+	livekitWsURL string
 }
 
-func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, cfg *config.AppConfig) *RoomService {
-	return &RoomService{repo: repo, membership: membership, livekit: livekit, cfg: cfg}
+func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
+	return &RoomService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
-func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*dto.JoinResponse, error) {
+func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
 	teamID, err := s.membership.VerifyMembership(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
@@ -57,9 +55,9 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*dto.J
 		return nil, err
 	}
 
-	return &dto.JoinResponse{
+	return &JoinResponse{
 		Token:      token,
-		LiveKitURL: s.cfg.LiveKitWsURL,
+		LiveKitURL: s.livekitWsURL,
 		SessionID:  voiceSession.SessionID,
 		RoomName:   voiceSession.RoomName,
 	}, nil
@@ -95,7 +93,7 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 	return nil
 }
 
-func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*dto.ParticipantsResponse, error) {
+func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error) {
 	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
@@ -105,9 +103,9 @@ func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int
 		return nil, err
 	}
 	if voiceSession == nil {
-		return &dto.ParticipantsResponse{
+		return &ParticipantsResponse{
 			ChannelID:    channelID,
-			Participants: []dto.ParticipantInfo{},
+			Participants: []ParticipantResponse{},
 		}, nil
 	}
 
@@ -117,27 +115,26 @@ func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int
 		return nil, err
 	}
 
-	participants := make([]dto.ParticipantInfo, 0, len(lkParticipants))
+	participants := make([]ParticipantResponse, 0, len(lkParticipants))
 	for _, p := range lkParticipants {
 		uid, err := strconv.ParseInt(p.Identity, 10, 64)
 		if err != nil {
 			continue
 		}
-		joinedAt := time.Unix(p.JoinedAt, 0).UTC().Format(time.RFC3339)
-		participants = append(participants, dto.ParticipantInfo{
+		participants = append(participants, ParticipantResponse{
 			UserID:   uid,
-			JoinedAt: joinedAt,
+			JoinedAt: time.Unix(p.JoinedAt, 0).UTC(),
 		})
 	}
 
-	return &dto.ParticipantsResponse{
+	return &ParticipantsResponse{
 		ChannelID:    channelID,
 		RoomName:     roomName,
 		Participants: participants,
 	}, nil
 }
 
-func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID int64) (*dto.SessionResponse, error) {
+func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID int64) (*SessionResponse, error) {
 	sess, err := s.repo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
@@ -150,18 +147,18 @@ func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID i
 		return nil, err
 	}
 
-	var endedAt *string
+	var endedAt *time.Time
 	if sess.EndedAt != nil {
-		v := sess.EndedAt.UTC().Format(time.RFC3339)
+		v := sess.EndedAt.UTC()
 		endedAt = &v
 	}
 
-	return &dto.SessionResponse{
+	return &SessionResponse{
 		SessionID: sess.SessionID,
 		ChannelID: sess.ChannelID,
 		TeamID:    sess.TeamID,
 		Status:    sess.Status,
-		StartedAt: sess.StartedAt.UTC().Format(time.RFC3339),
+		StartedAt: sess.StartedAt.UTC(),
 		EndedAt:   endedAt,
 	}, nil
 }
