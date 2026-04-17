@@ -11,7 +11,7 @@ import (
 	livekit "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
-	"github.com/cowork/cowork-voice/internal/apperror"
+	"github.com/cowork/cowork-voice/internal/apperr"
 )
 
 func NewRoomServiceClient(hostURL, apiKey, apiSecret string) *lksdk.RoomServiceClient {
@@ -31,7 +31,7 @@ func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, ttlS
 		SetValidFor(time.Duration(ttlSecs) * time.Second)
 	token, err := at.ToJWT()
 	if err != nil {
-		return "", apperror.Internal(err.Error())
+		return "", apperr.Internal(err.Error())
 	}
 	return token, nil
 }
@@ -42,7 +42,7 @@ func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient,
 		if isRoomAlreadyExistsError(err) {
 			return nil
 		}
-		return apperror.Internal(err.Error())
+		return apperr.Internal(err.Error())
 	}
 	return nil
 }
@@ -69,7 +69,7 @@ func RemoveParticipant(ctx context.Context, client *lksdk.RoomServiceClient, roo
 		if strings.Contains(msg, "not_found") || strings.Contains(msg, "not found") || strings.Contains(msg, "404") {
 			return nil
 		}
-		return apperror.Internal(err.Error())
+		return apperr.Internal(err.Error())
 	}
 	return nil
 }
@@ -81,7 +81,7 @@ func ListParticipants(ctx context.Context, client *lksdk.RoomServiceClient, room
 		if strings.Contains(msg, "not_found") || strings.Contains(msg, "not found") || strings.Contains(msg, "404") {
 			return []*livekit.ParticipantInfo{}, nil
 		}
-		return nil, apperror.Internal(err.Error())
+		return nil, apperr.Internal(err.Error())
 	}
 	return res.Participants, nil
 }
@@ -93,7 +93,7 @@ func DeleteRoom(ctx context.Context, client *lksdk.RoomServiceClient, roomName s
 		if strings.Contains(msg, "not_found") || strings.Contains(msg, "not found") || strings.Contains(msg, "404") {
 			return nil
 		}
-		return apperror.Internal(err.Error())
+		return apperr.Internal(err.Error())
 	}
 	return nil
 }
