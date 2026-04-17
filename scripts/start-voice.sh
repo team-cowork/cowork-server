@@ -10,7 +10,9 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
   exit 1
 fi
 
-export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
+set -a
+source "$PROJECT_ROOT/.env"
+set +a
 
 cd "$PROJECT_ROOT/cowork-voice"
 go run .
