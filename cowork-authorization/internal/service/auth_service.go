@@ -51,6 +51,7 @@ type DataGSMStudent struct {
 type AuthService struct {
 	cfg              *config.AppConfig
 	oauth2Config     *oauth2.Config
+	httpClient       *http.Client
 	userClient       *client.UserClient
 	refreshTokenRepo *repository.RefreshTokenRepository
 	tokenSvc         *TokenService
@@ -76,6 +77,7 @@ func NewAuthService(
 	return &AuthService{
 		cfg:              cfg,
 		oauth2Config:     oauth2Cfg,
+		httpClient:       &http.Client{Timeout: 5 * time.Second},
 		userClient:       userClient,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
@@ -212,7 +214,7 @@ func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, er
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -245,7 +247,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
