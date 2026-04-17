@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -84,6 +83,48 @@ func TestHandleEvent_퇴장_이벤트가_중복이면_아무것도_발행하지_
 
 	if len(publisher.messages) != 0 {
 		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	}
+}
+
+func TestHandleEvent_퇴장_이벤트_첫_처리면_USER_LEFT를_발행한다(t *testing.T) {
+	t.Parallel()
+
+	joinedAt := time.Unix(1700000000, 0).UTC()
+	repo := &stubRepository{
+		findSessionByRoomNameResult: &roomdomain.VoiceSession{
+			SessionID: "session-1",
+			ChannelID: 123,
+			TeamID:    456,
+			RoomName:  "voice-123-session-1",
+			Status:    roomdomain.StatusActive,
+			StartedAt: joinedAt,
+		},
+		getParticipantJoinedAtResult: &joinedAt,
+		markParticipantLeftResult:    true,
+	}
+	publisher := &stubPublisher{}
+	svc := NewWebhookService(repo, publisher)
+	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
+
+	svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
+		Event: "participant_left",
+		Room: &livekit.Room{
+			Name: "voice-123-session-1",
+		},
+		Participant: &livekit.ParticipantInfo{
+			Identity: "42",
+		},
+	})
+
+	if len(publisher.messages) != 1 {
+		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	}
+	left, ok := publisher.messages[0].event.(*kafkadomain.UserLeftEvent)
+	if !ok {
+		t.Fatalf("event type = %T, want *UserLeftEvent", publisher.messages[0].event)
+	}
+	if left.DurationSeconds != 300 {
+		t.Fatalf("duration_seconds = %d, want 300", left.DurationSeconds)
 	}
 }
 
@@ -169,20 +210,20 @@ type stubRepository struct {
 	cleanupSessionID                 string
 }
 
-func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*roomdomain.VoiceSession, error) {
-	return nil, errors.New("unexpected call")
-}
-
 func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
-func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*roomdomain.VoiceSession, error) {
-	return nil, errors.New("unexpected call")
+func (s *stubRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
+	return s.markSessionStartedResult, s.markSessionStartedErr
 }
 
-func (s *stubRepository) GetSession(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
-	return nil, errors.New("unexpected call")
+func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
+	return s.getParticipantJoinedAtResult, s.getParticipantJoinedAtErr
+}
+
+func (s *stubRepository) MarkParticipantLeft(_ context.Context, _ string, _ int64, _ time.Time) (bool, error) {
+	return s.markParticipantLeftResult, s.markParticipantLeftErr
 }
 
 func (s *stubRepository) EndSession(_ context.Context, sessionID string, _ time.Time) error {
@@ -190,23 +231,7 @@ func (s *stubRepository) EndSession(_ context.Context, sessionID string, _ time.
 	return s.endSessionErr
 }
 
-func (s *stubRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
-	return s.markSessionStartedResult, s.markSessionStartedErr
-}
-
-func (s *stubRepository) InsertParticipant(_ context.Context, _ *roomdomain.VoiceParticipant) error {
-	return errors.New("unexpected call")
-}
-
-func (s *stubRepository) MarkParticipantLeft(_ context.Context, _ string, _ int64, _ time.Time) (bool, error) {
-	return s.markParticipantLeftResult, s.markParticipantLeftErr
-}
-
 func (s *stubRepository) CleanupOrphanParticipants(_ context.Context, sessionID string, _ time.Time) (int64, error) {
 	s.cleanupSessionID = sessionID
 	return s.cleanupOrphanParticipantsResult, s.cleanupOrphanParticipantsErr
-}
-
-func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
-	return s.getParticipantJoinedAtResult, s.getParticipantJoinedAtErr
 }
