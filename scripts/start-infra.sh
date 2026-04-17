@@ -10,7 +10,9 @@ if [ ! -f "$PROJECT_ROOT/.env" ]; then
   exit 1
 fi
 
-export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
+set -a
+source "$PROJECT_ROOT/.env"
+set +a
 
 REQUIRED_VARS=(
   MYSQL_ROOT_PASSWORD
@@ -43,9 +45,16 @@ docker-compose up -d
 
 wait_healthy() {
   local container=$1
+  local timeout_seconds=120
+  local waited=0
   echo "Waiting for $container to be healthy..."
   until [ "$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null)" = "healthy" ]; do
+    if [ "$waited" -ge "$timeout_seconds" ]; then
+      echo "ERROR: Timed out waiting for $container to become healthy."
+      exit 1
+    fi
     sleep 2
+    waited=$((waited + 2))
   done
   echo "$container is healthy."
 }
