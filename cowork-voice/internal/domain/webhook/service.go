@@ -8,7 +8,7 @@ import (
 
 	livekit "github.com/livekit/protocol/livekit"
 
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
@@ -17,12 +17,12 @@ type EventPublisher interface {
 }
 
 type WebhookService struct {
-	repo  sessiondomain.Repository
+	repo  roomdomain.Repository
 	kafka EventPublisher
 	now   func() time.Time
 }
 
-func NewWebhookService(repo sessiondomain.Repository, kafka EventPublisher) *WebhookService {
+func NewWebhookService(repo roomdomain.Repository, kafka EventPublisher) *WebhookService {
 	return &WebhookService{
 		repo:  repo,
 		kafka: kafka,
@@ -60,14 +60,14 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	if err != nil {
 		return
 	}
-	channelID, _, ok := sessiondomain.ParseRoomName(room.Name)
+	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}
 
 	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
 	if err != nil || voiceSession == nil {
-		slog.Warn("participant_joined: session not found", "room_name", room.Name, "channel_id", channelID)
+		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", channelID)
 		return
 	}
 
@@ -115,14 +115,14 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	if err != nil {
 		return
 	}
-	channelID, _, ok := sessiondomain.ParseRoomName(room.Name)
+	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}
 
 	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
 	if err != nil || voiceSession == nil {
-		slog.Warn("participant_left: session not found", "room_name", room.Name, "channel_id", channelID)
+		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", channelID)
 		return
 	}
 
@@ -164,7 +164,7 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return
 	}
 
-	channelID, _, ok := sessiondomain.ParseRoomName(room.Name)
+	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}

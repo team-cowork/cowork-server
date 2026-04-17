@@ -8,7 +8,7 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apperr"
 	"github.com/cowork/cowork-voice/internal/config"
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 )
 
 type Handler struct {
@@ -16,7 +16,7 @@ type Handler struct {
 	svc          *WebhookService
 }
 
-func NewHandler(repo sessiondomain.Repository, kafka EventPublisher, cfg *config.AppConfig) *Handler {
+func NewHandler(repo roomdomain.Repository, kafka EventPublisher, cfg *config.AppConfig) *Handler {
 	return &Handler{
 		authProvider: auth.NewSimpleKeyProvider(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret),
 		svc:          NewWebhookService(repo, kafka),
