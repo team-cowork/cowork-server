@@ -78,38 +78,74 @@ jobs:
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-assignee "$PR_AUTHOR"
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-reviewer "team-cowork/cowork-server"
 
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+      any-changed: ${{ steps.build-matrix.outputs.any-changed }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+      - name: Detect Changed Services
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            cowork-gateway:
+              - 'cowork-gateway/**'
+            cowork-config:
+              - 'cowork-config/**'
+            cowork-user:
+              - 'cowork-user/**'
+            cowork-authorization:
+              - 'cowork-authorization/**'
+            cowork-voice:
+              - 'cowork-voice/**'
+            cowork-chat:
+              - 'cowork-chat/**'
+      - name: Build Service Matrix
+        id: build-matrix
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            MATRIX='{"include":[
+              {"service":"cowork-gateway","lang":"kotlin","gradle-task":":cowork-gateway:build"},
+              {"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"},
+              {"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"},
+              {"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."},
+              {"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"},
+              {"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}
+            ]}'
+          else
+            MATRIX='{"include":[]}'
+            [ "${{ steps.filter.outputs.cowork-gateway }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","lang":"kotlin","gradle-task":":cowork-gateway:build"}]')
+            [ "${{ steps.filter.outputs.cowork-config }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"}]')
+            [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"}]')
+            [ "${{ steps.filter.outputs.cowork-authorization }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."}]')
+            [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"}]')
+            [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}]')
+          fi
+          echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
+          echo "any-changed=$(echo "$MATRIX" | jq '.include | length > 0')" >> $GITHUB_OUTPUT
+
   build-and-test:
     runs-on: ubuntu-latest
-    needs: [validate-title]
-    if: always() && (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped')
+    needs: [validate-title, detect-changes]
+    if: |
+      always() &&
+      (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped') &&
+      needs.detect-changes.outputs.any-changed == 'true'
+    name: build (${{ matrix.service }})
 
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - service: cowork-gateway
-            lang: kotlin
-            gradle-task: ':cowork-gateway:build'
-          - service: cowork-config
-            lang: kotlin
-            gradle-task: ':cowork-config:build'
-          - service: cowork-user
-            lang: kotlin
-            gradle-task: ':cowork-user:build'
-          - service: cowork-authorization
-            lang: go
-            working-directory: cowork-authorization
-            go-version-file: cowork-authorization/go.mod
-            go-build: 'go build ./...'
-          - service: cowork-voice
-            lang: go
-            working-directory: cowork-voice
-            go-version-file: cowork-voice/go.mod
-            go-build: 'go build ./cmd/server'
-          - service: cowork-chat
-            lang: node
-            working-directory: cowork-chat
-            node-version: '22'
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
 
     steps:
       - name: Checkout Code
@@ -176,7 +212,8 @@ jobs:
              [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "color=0xFF4C4C" >> $GITHUB_OUTPUT
-          elif [[ "${{ needs.build-and-test.result }}" == "success" ]]; then
+          elif [[ "${{ needs.build-and-test.result }}" == "success" ]] || \
+               [[ "${{ needs.build-and-test.result }}" == "skipped" ]]; then
             echo "status=success" >> $GITHUB_OUTPUT
             echo "color=0x4CAF50" >> $GITHUB_OUTPUT
           else
