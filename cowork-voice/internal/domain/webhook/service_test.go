@@ -8,7 +8,7 @@ import (
 
 	livekit "github.com/livekit/protocol/livekit"
 
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
@@ -16,12 +16,12 @@ func TestHandleEvent_참가_이벤트_첫_입장이면_세션시작과_유저입
 	t.Parallel()
 
 	repo := &stubRepository{
-		findSessionByRoomNameResult: &sessiondomain.VoiceSession{
+		findSessionByRoomNameResult: &roomdomain.VoiceSession{
 			SessionID: "session-1",
 			ChannelID: 123,
 			TeamID:    456,
 			RoomName:  "voice-123-session-1",
-			Status:    sessiondomain.StatusActive,
+			Status:    roomdomain.StatusActive,
 			StartedAt: time.Unix(1700000000, 0).UTC(),
 		},
 		markSessionStartedResult: true,
@@ -57,12 +57,12 @@ func TestHandleEvent_퇴장_이벤트가_중복이면_아무것도_발행하지_
 
 	joinedAt := time.Unix(1700000000, 0).UTC()
 	repo := &stubRepository{
-		findSessionByRoomNameResult: &sessiondomain.VoiceSession{
+		findSessionByRoomNameResult: &roomdomain.VoiceSession{
 			SessionID: "session-1",
 			ChannelID: 123,
 			TeamID:    456,
 			RoomName:  "voice-123-session-1",
-			Status:    sessiondomain.StatusActive,
+			Status:    roomdomain.StatusActive,
 			StartedAt: joinedAt,
 		},
 		getParticipantJoinedAtResult: &joinedAt,
@@ -93,12 +93,12 @@ func TestHandleEvent_룸종료_이벤트면_세션종료와_정리후_이벤트�
 	startedAt := time.Unix(1700000000, 0).UTC()
 	now := time.Unix(1700000600, 0).UTC()
 	repo := &stubRepository{
-		findSessionByRoomNameResult: &sessiondomain.VoiceSession{
+		findSessionByRoomNameResult: &roomdomain.VoiceSession{
 			SessionID: "session-1",
 			ChannelID: 123,
 			TeamID:    456,
 			RoomName:  "voice-123-session-1",
-			Status:    sessiondomain.StatusActive,
+			Status:    roomdomain.StatusActive,
 			StartedAt: startedAt,
 		},
 		cleanupOrphanParticipantsResult: 2,
@@ -154,7 +154,7 @@ func (s *stubPublisher) Publish(_ context.Context, sessionID string, v any) erro
 }
 
 type stubRepository struct {
-	findSessionByRoomNameResult      *sessiondomain.VoiceSession
+	findSessionByRoomNameResult      *roomdomain.VoiceSession
 	findSessionByRoomNameErr         error
 	markSessionStartedResult         bool
 	markSessionStartedErr            error
@@ -169,19 +169,19 @@ type stubRepository struct {
 	cleanupSessionID                 string
 }
 
-func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*sessiondomain.VoiceSession, error) {
+func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*roomdomain.VoiceSession, error) {
 	return nil, errors.New("unexpected call")
 }
 
-func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*sessiondomain.VoiceSession, error) {
+func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
-func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*sessiondomain.VoiceSession, error) {
+func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*roomdomain.VoiceSession, error) {
 	return nil, errors.New("unexpected call")
 }
 
-func (s *stubRepository) GetSession(_ context.Context, _ string) (*sessiondomain.VoiceSession, error) {
+func (s *stubRepository) GetSession(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
 	return nil, errors.New("unexpected call")
 }
 
@@ -194,7 +194,7 @@ func (s *stubRepository) MarkSessionStarted(_ context.Context, _ string, _ time.
 	return s.markSessionStartedResult, s.markSessionStartedErr
 }
 
-func (s *stubRepository) InsertParticipant(_ context.Context, _ *sessiondomain.VoiceParticipant) error {
+func (s *stubRepository) InsertParticipant(_ context.Context, _ *roomdomain.VoiceParticipant) error {
 	return errors.New("unexpected call")
 }
 
