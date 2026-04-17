@@ -1,4 +1,4 @@
-package session
+package room
 
 import (
 	"context"
@@ -11,18 +11,18 @@ import (
 	"github.com/cowork/cowork-voice/internal/dto"
 )
 
-type SessionService struct {
+type RoomService struct {
 	repo       Repository
 	membership MembershipChecker
 	livekit    LiveKitRoom
 	cfg        *config.AppConfig
 }
 
-func NewSessionService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, cfg *config.AppConfig) *SessionService {
-	return &SessionService{repo: repo, membership: membership, livekit: livekit, cfg: cfg}
+func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, cfg *config.AppConfig) *RoomService {
+	return &RoomService{repo: repo, membership: membership, livekit: livekit, cfg: cfg}
 }
 
-func (s *SessionService) Join(ctx context.Context, channelID, userID int64) (*dto.JoinResponse, error) {
+func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*dto.JoinResponse, error) {
 	teamID, err := s.membership.VerifyMembership(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (s *SessionService) Join(ctx context.Context, channelID, userID int64) (*dt
 	}, nil
 }
 
-func (s *SessionService) Leave(ctx context.Context, channelID, userID int64) error {
+func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error {
 	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
 		return err
 	}
@@ -75,7 +75,7 @@ func (s *SessionService) Leave(ctx context.Context, channelID, userID int64) err
 		return err
 	}
 	if voiceSession == nil {
-		return apperr.NotFound("active session not found")
+		return apperr.NotFound("active room not found")
 	}
 
 	identity := strconv.FormatInt(userID, 10)
@@ -95,7 +95,7 @@ func (s *SessionService) Leave(ctx context.Context, channelID, userID int64) err
 	return nil
 }
 
-func (s *SessionService) GetParticipants(ctx context.Context, channelID, userID int64) (*dto.ParticipantsResponse, error) {
+func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*dto.ParticipantsResponse, error) {
 	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (s *SessionService) GetParticipants(ctx context.Context, channelID, userID 
 	}, nil
 }
 
-func (s *SessionService) GetSession(ctx context.Context, sessionID string, userID int64) (*dto.SessionResponse, error) {
+func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID int64) (*dto.SessionResponse, error) {
 	sess, err := s.repo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
