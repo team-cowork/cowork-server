@@ -2,6 +2,7 @@ package apperr
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -36,6 +37,7 @@ func Unauthorized() *Error {
 }
 
 func Internal(msg string) *Error {
+	slog.Error("internal error", "detail", msg)
 	return &Error{HTTPStatus: http.StatusInternalServerError, Code: "INTERNAL_SERVER_ERROR", Message: "일시적인 서버 오류가 발생했습니다."}
 }
 
@@ -43,8 +45,8 @@ func WriteResponse(w http.ResponseWriter, err *Error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	json.NewEncoder(w).Encode(map[string]any{
-		"status":  err.Code,
-		"code":    err.HTTPStatus,
+		"error":   err.Code,
+		"status":  err.HTTPStatus,
 		"message": err.Message,
 	})
 }
