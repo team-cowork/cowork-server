@@ -36,7 +36,12 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.github.themoment-team:the-sdk:1.5")
+    implementation("com.github.themoment-team:the-sdk:1.5") {
+        exclude(group = "org.springframework.boot")
+        exclude(group = "org.springframework.cloud")
+        exclude(group = "org.springdoc")
+    }
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
     implementation("org.springframework.kafka:spring-kafka")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
