@@ -36,6 +36,17 @@ func main() {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
 
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("failed to get sql.DB: %v", err)
+	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+	if err := sqlDB.Ping(); err != nil {
+		log.Fatalf("database is not reachable: %v", err)
+	}
+
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 
 	userClient := client.NewUserClient(cfg.UserServiceURL)
@@ -75,9 +86,26 @@ func main() {
 		}
 	}()
 
+	stopCleanup := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := refreshTokenRepo.DeleteExpired(); err != nil {
+					log.Printf("failed to delete expired refresh tokens: %v", err)
+				}
+			case <-stopCleanup:
+				return
+			}
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
+	close(stopCleanup)
 
 	log.Println("shutting down server...")
 	eurekaClient.Deregister(cfg)
