@@ -2,220 +2,166 @@ package session
 
 import (
 	"context"
-	"errors"
-	"fmt"
+	"log/slog"
+	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"go.mongodb.org/mongo-driver/v2/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
-	"go.mongodb.org/mongo-driver/v2/mongo/options"
-
-	"github.com/cowork/cowork-voice/internal/apperror"
+	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/config"
+	"github.com/cowork/cowork-voice/internal/dto"
 )
 
-func CreateIndexes(ctx context.Context, db *mongo.Database) error {
-	sessions := db.Collection(CollectionSessions)
-	participants := db.Collection(CollectionParticipants)
-
-	sessionIndexes := []mongo.IndexModel{
-		{
-			Keys:    bson.D{{Key: "session_id", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
-		{
-			Keys: bson.D{{Key: "channel_id", Value: 1}},
-			Options: options.Index().
-				SetUnique(true).
-				SetPartialFilterExpression(bson.D{{Key: "status", Value: bson.D{{Key: "$eq", Value: "active"}}}}),
-		},
-		{
-			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
-		},
-	}
-	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
-		return fmt.Errorf("voice_sessions index creation failed: %w", err)
-	}
-
-	participantIndexes := []mongo.IndexModel{
-		{
-			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "user_id", Value: 1}},
-			Options: options.Index().
-				SetUnique(true).
-				SetPartialFilterExpression(bson.D{{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}}}),
-		},
-		{
-			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "joined_at", Value: 1}},
-		},
-	}
-	if _, err := participants.Indexes().CreateMany(ctx, participantIndexes); err != nil {
-		return fmt.Errorf("voice_participants index creation failed: %w", err)
-	}
-
-	return nil
+type SessionService struct {
+	repo       Repository
+	membership MembershipChecker
+	livekit    LiveKitRoom
+	cfg        *config.AppConfig
 }
 
-func FindActiveSession(ctx context.Context, db *mongo.Database, channelID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: StatusActive}}
-	var s VoiceSession
-	err := col.FindOne(ctx, filter).Decode(&s)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, apperror.Internal(err.Error())
-	}
-	return &s, nil
+func NewSessionService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, cfg *config.AppConfig) *SessionService {
+	return &SessionService{repo: repo, membership: membership, livekit: livekit, cfg: cfg}
 }
 
-func FindLatestSessionByChannel(ctx context.Context, db *mongo.Database, channelID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}}
-	opts := options.FindOne().SetSort(bson.D{{Key: "started_at", Value: -1}})
-	var s VoiceSession
-	err := col.FindOne(ctx, filter, opts).Decode(&s)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
+func (s *SessionService) Join(ctx context.Context, channelID, userID int64) (*dto.JoinResponse, error) {
+	teamID, err := s.membership.VerifyMembership(ctx, channelID, userID)
 	if err != nil {
-		return nil, apperror.Internal(err.Error())
+		return nil, err
 	}
-	return &s, nil
-}
 
-func CreateSession(ctx context.Context, db *mongo.Database, channelID, teamID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	now := time.Now().UTC()
-	s := &VoiceSession{
-		SessionID: uuid.NewString(),
-		ChannelID: channelID,
-		TeamID:    teamID,
-		RoomName:  RoomName(channelID),
-		Status:    StatusActive,
-		StartedAt: now,
-	}
-	_, err := col.InsertOne(ctx, s)
+	voiceSession, err := s.repo.FindActiveSession(ctx, channelID)
 	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
-			// 동시 첫 입장 경쟁 조건: 다른 요청이 먼저 생성함 → 해당 세션 반환
-			return FindActiveSession(ctx, db, channelID)
+		return nil, err
+	}
+	if voiceSession == nil {
+		voiceSession, err = s.repo.CreateSession(ctx, channelID, teamID)
+		if err != nil {
+			return nil, err
 		}
-		return nil, apperror.Internal(err.Error())
 	}
-	return s, nil
+
+	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName); err != nil {
+		return nil, err
+	}
+
+	if err := s.repo.InsertParticipant(ctx, &VoiceParticipant{
+		SessionID: voiceSession.SessionID,
+		UserID:    userID,
+		ChannelID: channelID,
+		JoinedAt:  time.Now().UTC(),
+	}); err != nil {
+		return nil, err
+	}
+
+	token, err := s.livekit.GenerateToken(userID, voiceSession.RoomName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.JoinResponse{
+		Token:      token,
+		LiveKitURL: s.cfg.LiveKitWsURL,
+		SessionID:  voiceSession.SessionID,
+		RoomName:   voiceSession.RoomName,
+	}, nil
 }
 
-func EndSession(ctx context.Context, db *mongo.Database, sessionID string, endedAt time.Time) error {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: StatusActive}}
-	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "status", Value: StatusEnded},
-		{Key: "ended_at", Value: endedAt},
-	}}}
-	_, err := col.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return apperror.Internal(err.Error())
+func (s *SessionService) Leave(ctx context.Context, channelID, userID int64) error {
+	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+		return err
 	}
+
+	voiceSession, err := s.repo.FindActiveSession(ctx, channelID)
+	if err != nil {
+		return err
+	}
+	if voiceSession == nil {
+		return apperr.NotFound("active session not found")
+	}
+
+	identity := strconv.FormatInt(userID, 10)
+	if err := s.livekit.RemoveParticipant(ctx, voiceSession.RoomName, identity); err != nil {
+		return err
+	}
+
+	participants, err := s.livekit.ListParticipants(ctx, voiceSession.RoomName)
+	if err != nil {
+		slog.Warn("failed to list participants after leave", "err", err)
+	} else if len(participants) == 0 {
+		if err := s.livekit.DeleteRoom(ctx, voiceSession.RoomName); err != nil {
+			slog.Warn("failed to delete empty room", "err", err, "room", voiceSession.RoomName)
+		}
+	}
+
 	return nil
 }
 
-func MarkSessionStarted(ctx context.Context, db *mongo.Database, sessionID string, startedAt time.Time) (bool, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{
-		{Key: "session_id", Value: sessionID},
-		{Key: "status", Value: StatusActive},
-		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+func (s *SessionService) GetParticipants(ctx context.Context, channelID, userID int64) (*dto.ParticipantsResponse, error) {
+	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+		return nil, err
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "started_event_sent_at", Value: startedAt}}}}
-	result, err := col.UpdateOne(ctx, filter, update)
+
+	voiceSession, err := s.repo.FindActiveSession(ctx, channelID)
 	if err != nil {
-		return false, apperror.Internal(err.Error())
+		return nil, err
 	}
-	return result.ModifiedCount == 1, nil
+	if voiceSession == nil {
+		return &dto.ParticipantsResponse{
+			ChannelID:    channelID,
+			Participants: []dto.ParticipantInfo{},
+		}, nil
+	}
+
+	roomName := voiceSession.RoomName
+	lkParticipants, err := s.livekit.ListParticipants(ctx, roomName)
+	if err != nil {
+		return nil, err
+	}
+
+	participants := make([]dto.ParticipantInfo, 0, len(lkParticipants))
+	for _, p := range lkParticipants {
+		uid, err := strconv.ParseInt(p.Identity, 10, 64)
+		if err != nil {
+			continue
+		}
+		joinedAt := time.Unix(p.JoinedAt, 0).UTC().Format(time.RFC3339)
+		participants = append(participants, dto.ParticipantInfo{
+			UserID:   uid,
+			JoinedAt: joinedAt,
+		})
+	}
+
+	return &dto.ParticipantsResponse{
+		ChannelID:    channelID,
+		RoomName:     roomName,
+		Participants: participants,
+	}, nil
 }
 
-func InsertParticipant(ctx context.Context, db *mongo.Database, p *VoiceParticipant) error {
-	col := db.Collection(CollectionParticipants)
-	filter := bson.D{
-		{Key: "session_id", Value: p.SessionID},
-		{Key: "user_id", Value: p.UserID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
-	}
-	update := bson.D{
-		{Key: "$set", Value: bson.D{
-			{Key: "joined_at", Value: p.JoinedAt},
-		}},
-		{Key: "$setOnInsert", Value: bson.D{
-			{Key: "session_id", Value: p.SessionID},
-			{Key: "user_id", Value: p.UserID},
-			{Key: "channel_id", Value: p.ChannelID},
-		}},
-	}
-	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
+func (s *SessionService) GetSession(ctx context.Context, sessionID string, userID int64) (*dto.SessionResponse, error) {
+	sess, err := s.repo.GetSession(ctx, sessionID)
 	if err != nil {
-		return apperror.Internal(err.Error())
+		return nil, err
 	}
-	return nil
-}
+	if sess == nil {
+		return nil, apperr.NotFound("session not found")
+	}
 
-func MarkParticipantLeft(ctx context.Context, db *mongo.Database, sessionID string, userID int64, now time.Time) (bool, error) {
-	col := db.Collection(CollectionParticipants)
-	filter := bson.D{
-		{Key: "session_id", Value: sessionID},
-		{Key: "user_id", Value: userID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+	if _, err := s.membership.VerifyMembership(ctx, sess.ChannelID, userID); err != nil {
+		return nil, err
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
-	result, err := col.UpdateOne(ctx, filter, update)
-	if err != nil {
-		return false, apperror.Internal(err.Error())
-	}
-	return result.ModifiedCount == 1, nil
-}
 
-func CleanupOrphanParticipants(ctx context.Context, db *mongo.Database, sessionID string, now time.Time) (int64, error) {
-	col := db.Collection(CollectionParticipants)
-	filter := bson.D{
-		{Key: "session_id", Value: sessionID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+	var endedAt *string
+	if sess.EndedAt != nil {
+		v := sess.EndedAt.UTC().Format(time.RFC3339)
+		endedAt = &v
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
-	result, err := col.UpdateMany(ctx, filter, update)
-	if err != nil {
-		return 0, apperror.Internal(err.Error())
-	}
-	return result.ModifiedCount, nil
-}
 
-func GetSession(ctx context.Context, db *mongo.Database, sessionID string) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "session_id", Value: sessionID}}
-	var s VoiceSession
-	err := col.FindOne(ctx, filter).Decode(&s)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, apperror.Internal(err.Error())
-	}
-	return &s, nil
-}
-
-func GetParticipantJoinedAt(ctx context.Context, db *mongo.Database, sessionID string, userID int64) (*time.Time, error) {
-	col := db.Collection(CollectionParticipants)
-	filter := bson.D{
-		{Key: "session_id", Value: sessionID},
-		{Key: "user_id", Value: userID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
-	}
-	var p VoiceParticipant
-	err := col.FindOne(ctx, filter).Decode(&p)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, apperror.Internal(err.Error())
-	}
-	return &p.JoinedAt, nil
+	return &dto.SessionResponse{
+		SessionID: sess.SessionID,
+		ChannelID: sess.ChannelID,
+		TeamID:    sess.TeamID,
+		Status:    sess.Status,
+		StartedAt: sess.StartedAt.UTC().Format(time.RFC3339),
+		EndedAt:   endedAt,
+	}, nil
 }
