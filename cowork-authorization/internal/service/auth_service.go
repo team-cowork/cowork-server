@@ -160,8 +160,18 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo)
 }
 
-func (s *AuthService) Logout(rawRefreshToken string) error {
+func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
 	hash := HashToken(rawRefreshToken)
+	rt, err := s.refreshTokenRepo.FindByHash(hash)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("refresh token not found")
+		}
+		return fmt.Errorf("failed to find refresh token: %w", err)
+	}
+	if rt.UserID != userID {
+		return fmt.Errorf("token does not belong to user")
+	}
 	return s.refreshTokenRepo.DeleteByHash(hash)
 }
 
@@ -200,13 +210,16 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 }
 
 func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, error) {
-	body, _ := json.Marshal(map[string]string{
+	body, err := json.Marshal(map[string]string{
 		"grant_type":    "authorization_code",
 		"code":          code,
 		"client_id":     s.cfg.DataGSMClientID,
 		"client_secret": s.cfg.DataGSMClientSecret,
 		"redirect_uri":  s.cfg.DataGSMRedirectURL,
 	})
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal token request: %w", err)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.DataGSMTokenURL, bytes.NewReader(body))
 	if err != nil {
