@@ -17,12 +17,12 @@ type EventPublisher interface {
 }
 
 type WebhookService struct {
-	repo  roomdomain.Repository
+	repo  SessionRepository
 	kafka EventPublisher
 	now   func() time.Time
 }
 
-func NewWebhookService(repo roomdomain.Repository, kafka EventPublisher) *WebhookService {
+func NewWebhookService(repo SessionRepository, kafka EventPublisher) *WebhookService {
 	return &WebhookService{
 		repo:  repo,
 		kafka: kafka,
