@@ -24,6 +24,16 @@ dependencyManagement {
         mavenBom(libs.spring.cloud.dependencies.get().toString())
         mavenBom(libs.awspring.cloud.bom.get().toString())
     }
+    dependencies {
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.17")
+        dependency("org.springdoc:springdoc-openapi-starter-common:2.8.17")
+        dependency("org.springframework.cloud:spring-cloud-context:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-commons:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-starter:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-starter-loadbalancer:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-loadbalancer:4.2.1")
+    }
 }
 
 dependencies {
