@@ -67,8 +67,11 @@ func main() {
 	)
 
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
-	sessionHandler := sessiondomain.NewHandler(db, channelClient, livekitClient, cfg)
-	webhookHandler := webhookdomain.NewHandler(db, kafkaProducer, cfg)
+	sessionRepo := sessiondomain.NewMongoSessionRepository(db)
+	livekitRoom := sessiondomain.NewLiveKitRoom(livekitClient, cfg)
+	sessionSvc := sessiondomain.NewSessionService(sessionRepo, channelClient, livekitRoom, cfg)
+	sessionHandler := sessiondomain.NewHandler(sessionSvc)
+	webhookHandler := webhookdomain.NewHandler(sessionRepo, kafkaProducer, cfg)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
