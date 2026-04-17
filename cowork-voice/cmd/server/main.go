@@ -16,7 +16,7 @@ import (
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/cowork/cowork-voice/internal/config"
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
@@ -47,7 +47,7 @@ func main() {
 	db := mongoClient.Database(cfg.MongoDBDB)
 
 	indexCtx, indexCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	if err := sessiondomain.CreateIndexes(indexCtx, db); err != nil {
+	if err := roomdomain.CreateIndexes(indexCtx, db); err != nil {
 		indexCancel()
 		slog.Error("mongodb index creation failed", "err", err)
 		os.Exit(1)
@@ -67,10 +67,10 @@ func main() {
 	)
 
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
-	sessionRepo := sessiondomain.NewMongoSessionRepository(db)
-	livekitRoom := sessiondomain.NewLiveKitRoom(livekitClient, cfg)
-	sessionSvc := sessiondomain.NewSessionService(sessionRepo, channelClient, livekitRoom, cfg)
-	sessionHandler := sessiondomain.NewHandler(sessionSvc)
+	sessionRepo := roomdomain.NewMongoSessionRepository(db)
+	livekitRoom := roomdomain.NewLiveKitRoom(livekitClient, cfg)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, cfg)
+	roomHandler := roomdomain.NewHandler(roomSvc)
 	webhookHandler := webhookdomain.NewHandler(sessionRepo, kafkaProducer, cfg)
 
 	r := chi.NewRouter()
@@ -82,10 +82,10 @@ func main() {
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.ExtractAuthUser)
-		r.Post("/voice/channels/{channel_id}/join", sessionHandler.Join)
-		r.Post("/voice/channels/{channel_id}/leave", sessionHandler.Leave)
-		r.Get("/voice/channels/{channel_id}/participants", sessionHandler.Participants)
-		r.Get("/voice/sessions/{session_id}", sessionHandler.GetSession)
+		r.Post("/voice/channels/{channel_id}/join", roomHandler.Join)
+		r.Post("/voice/channels/{channel_id}/leave", roomHandler.Leave)
+		r.Get("/voice/channels/{channel_id}/participants", roomHandler.Participants)
+		r.Get("/voice/sessions/{session_id}", roomHandler.GetSession)
 	})
 
 	srv := &http.Server{

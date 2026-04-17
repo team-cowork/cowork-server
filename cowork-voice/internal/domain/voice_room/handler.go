@@ -1,4 +1,4 @@
-package session
+package room
 
 import (
 	"encoding/json"
@@ -12,10 +12,10 @@ import (
 )
 
 type Handler struct {
-	svc *SessionService
+	svc *RoomService
 }
 
-func NewHandler(svc *SessionService) *Handler {
+func NewHandler(svc *RoomService) *Handler {
 	return &Handler{svc: svc}
 }
 
