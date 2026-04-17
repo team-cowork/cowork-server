@@ -80,8 +80,9 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.authSvc.Logout(req.RefreshToken); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to logout"})
+	userID := c.GetInt64(userIDKey)
+	if err := h.authSvc.Logout(userID, req.RefreshToken); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
