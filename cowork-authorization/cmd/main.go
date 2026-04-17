@@ -61,10 +61,10 @@ func main() {
 
 	auth := router.Group("/auth")
 	{
-		auth.GET("/login", authHandler.Login)
+		auth.GET("/signin", authHandler.Login)
 		auth.GET("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
-		auth.POST("/logout", authHandler.AuthMiddleware(), authHandler.Logout)
+		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
 	}
 
 	eurekaClient := eurekaclient.NewClient(cfg)
