@@ -1,4 +1,4 @@
-package session
+package room
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func TestJoin_활성_세션이_없으면_생성하고_참가자를_추가한다(
 	}
 	membership := &stubMembershipChecker{teamID: 456}
 	livekit := &stubLiveKitRoom{token: "issued-token"}
-	svc := NewSessionService(repo, membership, livekit, testConfig())
+	svc := NewRoomService(repo, membership, livekit, testConfig())
 
 	resp, err := svc.Join(context.Background(), 123, 42)
 	if err != nil {
@@ -71,7 +71,7 @@ func TestJoin_활성_세션이_있으면_재사용한다(t *testing.T) {
 			StartedAt: time.Unix(1700000000, 0).UTC(),
 		},
 	}
-	svc := NewSessionService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, testConfig())
+	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, testConfig())
 
 	_, err := svc.Join(context.Background(), 123, 42)
 	if err != nil {
@@ -102,7 +102,7 @@ func TestGetParticipants_유효하지_않은_아이덴티티는_제외한다(t *
 			{Identity: "84", JoinedAt: 1700000300},
 		},
 	}
-	svc := NewSessionService(repo, &stubMembershipChecker{teamID: 456}, livekit, testConfig())
+	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, livekit, testConfig())
 
 	resp, err := svc.GetParticipants(context.Background(), 123, 42)
 	if err != nil {
@@ -123,7 +123,7 @@ func TestGetParticipants_유효하지_않은_아이덴티티는_제외한다(t *
 func TestGetParticipants_활성_세션이_없으면_빈_목록을_반환한다(t *testing.T) {
 	t.Parallel()
 
-	svc := NewSessionService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
+	svc := NewRoomService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
 
 	resp, err := svc.GetParticipants(context.Background(), 123, 42)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestGetParticipants_활성_세션이_없으면_빈_목록을_반환한다(t
 func TestGetSession_세션이_없으면_NotFound를_반환한다(t *testing.T) {
 	t.Parallel()
 
-	svc := NewSessionService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
+	svc := NewRoomService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
 
 	_, err := svc.GetSession(context.Background(), "missing-session", 42)
 	if err == nil {
@@ -171,7 +171,7 @@ func TestGetSession_종료_시각이_있으면_RFC3339로_반환한다(t *testin
 			EndedAt:   &endedAt,
 		},
 	}
-	svc := NewSessionService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
+	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, testConfig())
 
 	resp, err := svc.GetSession(context.Background(), "session-1", 42)
 	if err != nil {
