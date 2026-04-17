@@ -246,10 +246,9 @@ jobs:
           color: ${{ steps.status.outputs.color }}
           title: "Cowork Server Prod CI"
           description: |
-            **Triggered by:** ${{ github.actor }}
-            **Branch:** ${{ github.ref_name }}
-            **Commit:** `${{ steps.sha.outputs.short }}`
-            **Changed Services:** ${{ needs.detect-changes.outputs.services-list }}
-            **Validate Title:** ${{ needs.validate-title.result }}
-            **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
-            **Build & Test:** ${{ needs.build-and-test.result }}
+            `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by ${{ github.actor }}
+            Changed: ${{ needs.detect-changes.outputs.services-list }}
+            ─────────────────────────────
+            Validate Title: ${{ needs.validate-title.result }}
+            Setup Metadata: ${{ needs.setup-pr-metadata.result }}
+            Build & Test: ${{ needs.build-and-test.result }}
