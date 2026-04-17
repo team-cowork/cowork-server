@@ -1,13 +1,13 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/cowork/authorization/internal/client"
@@ -27,16 +27,25 @@ type TokenPair struct {
 }
 
 type DataGSMUserInfo struct {
-	ID       string  `json:"id"`
-	Email    string  `json:"email"`
-	Name     string  `json:"name"`
-	Sex      string  `json:"sex"`
-	Grade    *int8   `json:"grade"`
-	Class    *int8   `json:"class"`
-	ClassNum *int8   `json:"number"`
-	Major    string  `json:"major"`
-	GsmRole  string  `json:"role"`
-	GithubID *string `json:"githubId"`
+	ID        int64           `json:"id"`
+	Email     string          `json:"email"`
+	Role      string          `json:"role"` // USER, ADMIN
+	IsStudent bool            `json:"isStudent"`
+	Student   *DataGSMStudent `json:"student"`
+}
+
+type DataGSMStudent struct {
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Sex           string  `json:"sex"`
+	Grade         int8    `json:"grade"`
+	ClassNum      int8    `json:"classNum"` // 반
+	Number        int8    `json:"number"`   // 번호
+	Major         string  `json:"major"`
+	Specialty     *string `json:"specialty"`
+	GithubID      *string `json:"githubId"`
+	Role          string  `json:"role"` // GENERAL_STUDENT, STUDENT_COUNCIL, ...
+	IsLeaveSchool bool    `json:"isLeaveSchool"`
 }
 
 type AuthService struct {
@@ -84,39 +93,43 @@ func (s *AuthService) HandleCallback(ctx context.Context, code, state, cookieSta
 		return nil, fmt.Errorf("invalid oauth state")
 	}
 
-	token, err := s.oauth2Config.Exchange(ctx, code)
+	accessToken, err := s.exchangeCode(ctx, code)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
 
-	userInfo, err := s.fetchUserInfo(ctx, token.AccessToken)
+	userInfo, err := s.fetchUserInfo(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user info: %w", err)
 	}
 
-	datgasmUserID, err := strconv.ParseInt(userInfo.ID, 10, 64)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse DataGSM user ID: %w", err)
+	if !userInfo.IsStudent || userInfo.Student == nil {
+		return nil, fmt.Errorf("non-student users are not supported")
 	}
+
+	st := userInfo.Student
+	grade := st.Grade
+	classNum := st.ClassNum
+	number := st.Number
 
 	upsertReq := client.UpsertUserRequest{
-		Name:     userInfo.Name,
+		Name:     st.Name,
 		Email:    userInfo.Email,
-		Sex:      userInfo.Sex,
-		Grade:    userInfo.Grade,
-		Class:    userInfo.Class,
-		ClassNum: userInfo.ClassNum,
-		Major:    userInfo.Major,
-		Role:     userInfo.GsmRole,
-		GithubID: userInfo.GithubID,
+		Sex:      st.Sex,
+		Grade:    &grade,
+		Class:    &classNum,
+		ClassNum: &number,
+		Major:    st.Major,
+		Role:     st.Role,
+		GithubID: st.GithubID,
 	}
 
-	userID, err := s.userClient.Upsert(ctx, datgasmUserID, upsertReq)
+	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
-	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", userInfo.GsmRole, "")
+	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "")
 }
 
 func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
@@ -182,6 +195,47 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 		TokenType:    "Bearer",
 		ExpiresIn:    int(s.cfg.JWTAccessExpire.Seconds()),
 	}, nil
+}
+
+func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, error) {
+	body, _ := json.Marshal(map[string]string{
+		"grant_type":    "authorization_code",
+		"code":          code,
+		"client_id":     s.cfg.DataGSMClientID,
+		"client_secret": s.cfg.DataGSMClientSecret,
+		"redirect_uri":  s.cfg.DataGSMRedirectURL,
+	})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.DataGSMTokenURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, respBody)
+	}
+
+	var result struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return "", fmt.Errorf("failed to parse token response: %w", err)
+	}
+	if result.AccessToken == "" {
+		return "", fmt.Errorf("empty access_token in response")
+	}
+	return result.AccessToken, nil
 }
 
 func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*DataGSMUserInfo, error) {
