@@ -10,8 +10,8 @@ java {
     toolchain { languageVersion = JavaLanguageVersion.of(21) }
 }
 
-val vertxVersion = "4.5.10"
-val coroutinesVersion = "1.8.1"
+val vertxVersion = libs.versions.vertx.get()
+val coroutinesVersion = libs.versions.coroutines.get()
 
 dependencies {
     implementation(platform("io.vertx:vertx-stack-depchain:$vertxVersion"))
@@ -28,6 +28,7 @@ dependencies {
 
     // Flyway (JDBC, 시작 시 블로킹 실행)
     implementation("org.flywaydb:flyway-core:10.15.0")
+    implementation("org.flywaydb:flyway-database-postgresql:10.15.0")
     implementation("org.postgresql:postgresql:42.7.3")
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
