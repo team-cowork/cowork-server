@@ -25,3 +25,20 @@ CREATE TABLE resource_setting
 );
 
 CREATE INDEX idx_rs_settings ON resource_setting USING GIN (settings);
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    NEW.updated_at = now();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_acn_updated_at
+    BEFORE UPDATE ON account_channel_notification
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE TRIGGER trg_rs_updated_at
+    BEFORE UPDATE ON resource_setting
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
