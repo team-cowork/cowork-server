@@ -24,8 +24,7 @@ dependencies {
     implementation("io.vertx:vertx-redis-client")
     implementation("io.vertx:vertx-kafka-client")
     implementation("io.vertx:vertx-service-discovery")
-    // TODO: Eureka 통합 구현 시 HTTP Client로 직접 Eureka REST API 연동 필요
-    //       vertx-service-discovery-backend-eureka는 Vert.x 4.x에서 별도 artifact 미제공
+    implementation("com.netflix.eureka:eureka-client:2.0.6")
 
     // Flyway (JDBC, 시작 시 블로킹 실행)
     implementation("org.flywaydb:flyway-core:10.15.0")
