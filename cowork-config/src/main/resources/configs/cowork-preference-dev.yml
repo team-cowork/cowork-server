@@ -1,0 +1,14 @@
+preference:
+  db:
+    host: ${POSTGRES_HOST:cowork-postgres}
+    port: 5432
+    database: cowork_preference
+    schema: preference
+  redis:
+    host: ${REDIS_HOST:cowork-redis}
+    port: 6379
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+eureka:
+  url: http://cowork-config:8761/eureka/
