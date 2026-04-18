@@ -38,8 +38,9 @@ class TeamMemberService(
         requireRole(teamId, actorId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = findTeamOrThrow(teamId)
 
+        val existingUserIds = teamMemberRepository.findAllByTeamId(teamId).map { it.userId }.toSet()
         val newMembers = request.userIds
-            .filterNot { teamMemberRepository.existsByTeamIdAndUserId(teamId, it) }
+            .filter { it !in existingUserIds }
             .map { userId -> TeamMember(team = team, userId = userId, role = TeamRole.MEMBER) }
 
         val savedMembers = teamMemberRepository.saveAll(newMembers)
@@ -94,11 +95,11 @@ class TeamMemberService(
             throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
 
-        val targetMember = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+        val targetMember = if (isSelf) actorMember else teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
             ?: throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
-        if (targetMember.role == TeamRole.OWNER && !isSelf) {
-            throw ExpectedException("OWNER는 제거할 수 없습니다.", HttpStatus.FORBIDDEN)
+        if (targetMember.role == TeamRole.OWNER) {
+            throw ExpectedException("OWNER는 팀을 탈퇴하거나 제거할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
 
         teamMemberRepository.delete(targetMember)
