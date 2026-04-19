@@ -15,7 +15,9 @@ import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectRoleService
 import io.vertx.core.AbstractVerticle
+import io.vertx.core.Future
 import io.vertx.core.Promise
+import java.time.Instant
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.pgclient.PgBuilder
 import io.vertx.pgclient.PgConnectOptions
@@ -67,7 +69,7 @@ class MainVerticle : AbstractVerticle() {
 
         val router = buildRouter(vertx, prefHandler, notifHandler, roleHandler)
 
-        scheduleStatusExpiryCheck(prefRepo, preferenceProducer)
+        scheduleStatusExpiryCheck(prefRepo, preferenceProducer, preferenceCache)
 
         vertx.createHttpServer()
             .requestHandler(router)
@@ -84,10 +86,11 @@ class MainVerticle : AbstractVerticle() {
     private fun scheduleStatusExpiryCheck(
         prefRepo: PreferenceRepository,
         preferenceProducer: PreferenceProducer,
+        cache: PreferenceCache,
     ) {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
-                checkExpiredStatuses(prefRepo, preferenceProducer)
+                checkExpiredStatuses(prefRepo, preferenceProducer, cache)
             }
         }
     }
@@ -95,8 +98,13 @@ class MainVerticle : AbstractVerticle() {
     private suspend fun checkExpiredStatuses(
         prefRepo: PreferenceRepository,
         preferenceProducer: PreferenceProducer,
+        cache: PreferenceCache,
     ) {
         runCatching {
+            val expiredIds = cache.getExpiredAccountIds(Instant.now().epochSecond)
+            if (expiredIds.isEmpty()) return
+
+            cache.removeFromExpireQueue(expiredIds)
             val expired = prefRepo.findExpiredAccountStatuses()
             expired.forEach { (accountId, previousStatus) ->
                 preferenceProducer.publishStatusChanged(
@@ -105,10 +113,10 @@ class MainVerticle : AbstractVerticle() {
                     newStatus = null,
                     reason = "EXPIRED",
                 )
-                prefRepo.clearExpiredStatus(accountId)
-                preferenceCache.invalidateSettings(ResourceType.ACCOUNT, accountId)
+                cache.invalidateSettings(ResourceType.ACCOUNT, accountId)
                 log.info("Status expired for accountId={}", accountId)
             }
+            prefRepo.clearExpiredStatuses(expired.map { it.first })
         }.onFailure { log.error("Error checking expired statuses", it) }
     }
 
@@ -143,10 +151,19 @@ class MainVerticle : AbstractVerticle() {
         return KafkaProducer.create(vertx, kafkaConfig)
     }
 
-    override fun stop() {
+    override fun stop(stopPromise: Promise<Void>) {
         scope.cancel()
-        if (::pool.isInitialized) pool.close()
-        if (::redis.isInitialized) redis.close()
-        if (::producer.isInitialized) producer.close()
+        val futures = mutableListOf<Future<Void>>()
+        if (::pool.isInitialized) futures.add(pool.close())
+        if (::producer.isInitialized) futures.add(producer.close())
+        if (::redis.isInitialized) futures.add(redis.close())
+
+        if (futures.isEmpty()) {
+            stopPromise.complete()
+            return
+        }
+        Future.all(futures).onComplete { ar ->
+            if (ar.succeeded()) stopPromise.complete() else stopPromise.fail(ar.cause())
+        }
     }
 }
