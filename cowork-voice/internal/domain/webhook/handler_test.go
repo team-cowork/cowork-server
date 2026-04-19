@@ -14,27 +14,35 @@ func Test룸_이름에서_채널_ID를_추출한다(t *testing.T) {
 		roomName string
 		wantID   int64
 		wantSess string
+		wantOK   bool
 	}{
 		{
 			name:     "정상 포맷",
 			roomName: "voice-123-session-1",
 			wantID:   123,
 			wantSess: "session-1",
+			wantOK:   true,
+		},
+		{
+			name:     "레거시 포맷",
+			roomName: "voice-123",
+			wantID:   123,
+			wantOK:   true,
 		},
 		{
 			name:     "접두사가 다름",
 			roomName: "room-123",
-			wantID:   0,
+			wantOK:   false,
 		},
 		{
 			name:     "숫자가 아님",
 			roomName: "voice-abc",
-			wantID:   0,
+			wantOK:   false,
 		},
 		{
 			name:     "빈 값",
 			roomName: "",
-			wantID:   0,
+			wantOK:   false,
 		},
 	}
 
@@ -43,15 +51,18 @@ func Test룸_이름에서_채널_ID를_추출한다(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			gotID, gotSess, ok := roomdomain.ParseRoomName(tc.roomName)
-			if gotID != tc.wantID {
-				t.Fatalf("ParseRoomName(%q) channelID = %d, want %d", tc.roomName, gotID, tc.wantID)
+			parsed, ok := roomdomain.ParseRoomName(tc.roomName)
+			if ok != tc.wantOK {
+				t.Fatalf("ParseRoomName(%q) ok = %t, want %t", tc.roomName, ok, tc.wantOK)
 			}
-			if gotSess != tc.wantSess {
-				t.Fatalf("ParseRoomName(%q) sessionID = %q, want %q", tc.roomName, gotSess, tc.wantSess)
+			if !tc.wantOK {
+				return
 			}
-			if ok != (tc.wantID != 0) {
-				t.Fatalf("ParseRoomName(%q) ok = %t, want %t", tc.roomName, ok, tc.wantID != 0)
+			if parsed.ChannelID != tc.wantID {
+				t.Fatalf("ParseRoomName(%q) channelID = %d, want %d", tc.roomName, parsed.ChannelID, tc.wantID)
+			}
+			if parsed.SessionID != tc.wantSess {
+				t.Fatalf("ParseRoomName(%q) sessionID = %q, want %q", tc.roomName, parsed.SessionID, tc.wantSess)
 			}
 		})
 	}

@@ -33,10 +33,6 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 		{
 			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
 		},
-		{
-			Keys:    bson.D{{Key: "room_name", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
 	}
 	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
 		return fmt.Errorf("voice_sessions index creation failed: %w", err)
@@ -64,7 +60,7 @@ type mongoSessionRepository struct {
 	db *mongo.Database
 }
 
-func NewMongoSessionRepository(db *mongo.Database) room.Repository {
+func NewMongoSessionRepository(db *mongo.Database) *mongoSessionRepository {
 	return &mongoSessionRepository{db: db}
 }
 
@@ -87,6 +83,21 @@ func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, room
 	filter := bson.D{{Key: "room_name", Value: roomName}}
 	var s room.VoiceSession
 	err := col.FindOne(ctx, filter).Decode(&s)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	return &s, nil
+}
+
+func (r *mongoSessionRepository) FindLatestSessionByChannel(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
+	col := r.db.Collection(room.CollectionSessions)
+	filter := bson.D{{Key: "channel_id", Value: channelID}}
+	opts := options.FindOne().SetSort(bson.D{{Key: "started_at", Value: -1}})
+	var s room.VoiceSession
+	err := col.FindOne(ctx, filter, opts).Decode(&s)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
 	}
