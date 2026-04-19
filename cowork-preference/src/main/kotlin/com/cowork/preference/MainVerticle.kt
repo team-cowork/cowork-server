@@ -17,7 +17,6 @@ import com.cowork.preference.service.ProjectRoleService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Future
 import io.vertx.core.Promise
-import java.time.Instant
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.pgclient.PgBuilder
 import io.vertx.pgclient.PgConnectOptions
@@ -102,10 +101,8 @@ class MainVerticle : AbstractVerticle() {
     ) {
         if (!cache.acquireExpiryLock()) return
         runCatching {
-            val expiredIds = cache.getExpiredAccountIds(Instant.now().epochSecond)
-            if (expiredIds.isEmpty()) return
-
             val expired = prefRepo.findExpiredAccountStatuses()
+            if (expired.isEmpty()) return
             expired.forEach { (accountId, previousStatus) ->
                 preferenceProducer.publishStatusChanged(
                     accountId = accountId,
