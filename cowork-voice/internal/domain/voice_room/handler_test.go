@@ -226,7 +226,7 @@ func TestParticipants_성공하면_200과_응답을_반환한다(t *testing.T) {
 		partResp: &ParticipantsResponse{
 			ChannelID:    3,
 			RoomName:     "voice-3-s1",
-			Participants: []ParticipantResponse{{UserID: 10, JoinedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)}},
+			Participants: []ParticipantResponse{{UserID: 10, JoinedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)}},
 		},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/voice/channels/3/participants", nil)
@@ -288,7 +288,7 @@ func TestGetSession_성공하면_200과_응답을_반환한다(t *testing.T) {
 	t.Parallel()
 
 	stub := &stubService{
-		sessResp: &SessionResponse{SessionID: "sess-1", ChannelID: 3, TeamID: 1, Status: "active", StartedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)},
+		sessResp: &SessionResponse{SessionID: "sess-1", ChannelID: 3, TeamID: 1, Status: "active", StartedAt: time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)},
 	}
 	req := httptest.NewRequest(http.MethodGet, "/voice/sessions/sess-1", nil)
 	req = req.WithContext(withRouteContext(req.Context(), "session_id", "sess-1"))
