@@ -44,25 +44,28 @@ private fun loadConfig(): JsonObject {
 }
 
 private fun fetchFromConfigServer(baseUrl: String, profile: String): JsonObject {
-    return try {
-        val url = "$baseUrl/cowork-preference/$profile"
-        val client = HttpClient.newHttpClient()
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("Accept", "application/json")
-            .timeout(Duration.ofSeconds(5))
-            .build()
-        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-        if (response.statusCode() == 200) {
-            parseSpringConfig(JsonObject(response.body()))
-        } else {
-            log.warn("Config server returned HTTP {}, falling back to defaults", response.statusCode())
-            JsonObject()
+    val url = "$baseUrl/cowork-preference/$profile"
+    val client = HttpClient.newHttpClient()
+    val request = HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("Accept", "application/json")
+        .timeout(Duration.ofSeconds(5))
+        .build()
+
+    repeat(3) { attempt ->
+        try {
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() == 200) return parseSpringConfig(JsonObject(response.body()))
+            log.warn("Config server returned HTTP {} (attempt {})", response.statusCode(), attempt + 1)
+        } catch (e: Exception) {
+            log.warn("Config server unreachable (attempt {}): {}", attempt + 1, e.message)
         }
-    } catch (e: Exception) {
-        log.warn("Config server unreachable ({}), falling back to defaults", e.message)
-        JsonObject()
+        if (attempt < 2) Thread.sleep(2_000)
     }
+
+    log.error("Config server unreachable after 3 attempts. Aborting startup.")
+    System.exit(1)
+    error("unreachable")
 }
 
 private fun parseSpringConfig(json: JsonObject): JsonObject {
