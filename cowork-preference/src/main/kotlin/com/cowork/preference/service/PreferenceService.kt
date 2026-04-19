@@ -26,24 +26,30 @@ class PreferenceService(
         val validationError = SettingSchema.validate(resourceType, filtered)
         if (validationError != null) return Result.failure(IllegalArgumentException(validationError))
 
+        // ACCOUNT 상태 변경 시 이전 상태를 DB 쓰기 전에 미리 조회
+        val previousStatus = if (resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")) {
+            runCatching { repository.findSettings(resourceId, resourceType)?.getString("status") }.getOrNull()
+        } else null
+
+        // DB 쓰기 후 RETURNING으로 병합된 최신 설정을 바로 반환
+        val updated = repository.upsertSettings(resourceId, resourceType, filtered) ?: filtered
+        cache.setSettings(resourceType, resourceId, updated)
+
+        // Kafka 이벤트는 DB 쓰기 성공 후 발행
         if (resourceType == ResourceType.ACCOUNT) {
-            handleAccountStatusChange(resourceId, filtered)
+            handleAccountStatusChange(resourceId, filtered, previousStatus)
         }
 
-        repository.upsertSettings(resourceId, resourceType, filtered)
-        val updated = repository.findSettings(resourceId, resourceType) ?: filtered
-        cache.setSettings(resourceType, resourceId, updated)
         return Result.success(updated)
     }
 
-    private suspend fun handleAccountStatusChange(accountId: Long, settings: JsonObject) {
+    private suspend fun handleAccountStatusChange(
+        accountId: Long,
+        settings: JsonObject,
+        previousStatus: String?,
+    ) {
         val newStatus = settings.getString("status") ?: return
         val expiresAt = settings.getString("status_expires_at")
-
-        val previousStatus = try {
-            val current = repository.findSettings(accountId, ResourceType.ACCOUNT)
-            current?.getString("status")
-        } catch (_: Exception) { null }
 
         producer.publishStatusChanged(
             accountId = accountId,
@@ -53,11 +59,9 @@ class PreferenceService(
         )
 
         if (expiresAt != null) {
-            val expireInstant = Instant.parse(expiresAt)
-            val remainingSeconds = expireInstant.epochSecond - Instant.now().epochSecond
-            if (remainingSeconds > 0) {
-                cache.setStatusExpiry(accountId, remainingSeconds, newStatus)
-            }
+            // SettingSchema.validate에서 이미 ISO-8601 검증 완료
+            val remainingSeconds = Instant.parse(expiresAt).epochSecond - Instant.now().epochSecond
+            if (remainingSeconds > 0) cache.setStatusExpiry(accountId, remainingSeconds, newStatus)
         } else {
             cache.deleteStatusExpiry(accountId)
         }
