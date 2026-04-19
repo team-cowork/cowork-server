@@ -60,14 +60,14 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	if err != nil {
 		return
 	}
-	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}
 
-	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
+	voiceSession, err := s.findSessionForJoin(ctx, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
-		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", channelID)
+		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
 	}
 
@@ -80,7 +80,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 		if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionStartedEvent{
 			EventType: kafkadomain.EventSessionStarted,
 			SessionID: voiceSession.SessionID,
-			ChannelID: channelID,
+			ChannelID: parsedRoom.ChannelID,
 			TeamID:    voiceSession.TeamID,
 			UserID:    userID,
 			Timestamp: nowStr,
@@ -92,7 +92,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserJoinedEvent{
 		EventType: kafkadomain.EventUserJoined,
 		SessionID: voiceSession.SessionID,
-		ChannelID: channelID,
+		ChannelID: parsedRoom.ChannelID,
 		TeamID:    voiceSession.TeamID,
 		UserID:    userID,
 		Timestamp: nowStr,
@@ -115,14 +115,14 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	if err != nil {
 		return
 	}
-	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}
 
-	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
+	voiceSession, err := s.findSessionForLeave(ctx, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
-		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", channelID)
+		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
 		EventType:       kafkadomain.EventUserLeft,
 		SessionID:       voiceSession.SessionID,
-		ChannelID:       channelID,
+		ChannelID:       parsedRoom.ChannelID,
 		TeamID:          voiceSession.TeamID,
 		UserID:          userID,
 		DurationSeconds: durationSeconds,
@@ -164,12 +164,12 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return
 	}
 
-	channelID, _, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
 		return
 	}
 
-	voiceSession, err := s.repo.FindSessionByRoomName(ctx, room.Name)
+	voiceSession, err := s.findSessionForRoomFinished(ctx, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
 		return
 	}
@@ -191,11 +191,38 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionEndedEvent{
 		EventType:       kafkadomain.EventSessionEnded,
 		SessionID:       voiceSession.SessionID,
-		ChannelID:       channelID,
+		ChannelID:       parsedRoom.ChannelID,
 		TeamID:          voiceSession.TeamID,
 		DurationSeconds: durationSeconds,
 		Timestamp:       nowStr,
 	}); err != nil {
 		slog.Error("failed to publish SESSION_ENDED", "err", err)
 	}
+}
+
+func (s *WebhookService) findSessionForJoin(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
+	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
+		return s.repo.FindSessionByRoomName(ctx, roomName)
+	}
+	return s.repo.FindActiveSession(ctx, parsedRoom.ChannelID)
+}
+
+func (s *WebhookService) findSessionForLeave(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
+	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
+		voiceSession, err := s.repo.FindSessionByRoomName(ctx, roomName)
+		if err != nil || voiceSession != nil {
+			return voiceSession, err
+		}
+	}
+	return s.repo.FindLatestSessionByChannel(ctx, parsedRoom.ChannelID)
+}
+
+func (s *WebhookService) findSessionForRoomFinished(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
+	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
+		voiceSession, err := s.repo.FindSessionByRoomName(ctx, roomName)
+		if err != nil || voiceSession != nil {
+			return voiceSession, err
+		}
+	}
+	return s.repo.FindActiveSession(ctx, parsedRoom.ChannelID)
 }
