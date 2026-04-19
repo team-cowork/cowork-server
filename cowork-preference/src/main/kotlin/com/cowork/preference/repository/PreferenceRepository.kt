@@ -15,15 +15,17 @@ class PreferenceRepository(private val pool: Pool) {
         return rows.firstOrNull()?.getJsonObject("settings")
     }
 
-    suspend fun upsertSettings(resourceId: Long, resourceType: ResourceType, settings: JsonObject) {
-        pool.preparedQuery(
+    suspend fun upsertSettings(resourceId: Long, resourceType: ResourceType, settings: JsonObject): JsonObject? {
+        val rows = pool.preparedQuery(
             """
             INSERT INTO resource_setting (resource_id, resource_type, settings)
             VALUES (${'$'}1, ${'$'}2::resource_type, ${'$'}3::jsonb)
             ON CONFLICT (resource_id, resource_type)
             DO UPDATE SET settings = resource_setting.settings || EXCLUDED.settings
+            RETURNING settings
             """.trimIndent()
         ).execute(Tuple.of(resourceId, resourceType.name, settings)).coAwait()
+        return rows.firstOrNull()?.getJsonObject("settings")
     }
 
     /** status_expires_at이 현재 시각보다 이전인 ACCOUNT 설정 목록 조회 */
