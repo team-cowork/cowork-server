@@ -100,11 +100,11 @@ class MainVerticle : AbstractVerticle() {
         preferenceProducer: PreferenceProducer,
         cache: PreferenceCache,
     ) {
+        if (!cache.acquireExpiryLock()) return
         runCatching {
             val expiredIds = cache.getExpiredAccountIds(Instant.now().epochSecond)
             if (expiredIds.isEmpty()) return
 
-            cache.removeFromExpireQueue(expiredIds)
             val expired = prefRepo.findExpiredAccountStatuses()
             expired.forEach { (accountId, previousStatus) ->
                 preferenceProducer.publishStatusChanged(
@@ -116,7 +116,9 @@ class MainVerticle : AbstractVerticle() {
                 cache.invalidateSettings(ResourceType.ACCOUNT, accountId)
                 log.info("Status expired for accountId={}", accountId)
             }
-            prefRepo.clearExpiredStatuses(expired.map { it.first })
+            val processedIds = expired.map { it.first }
+            prefRepo.clearExpiredStatuses(processedIds)
+            cache.removeFromExpireQueue(processedIds)
         }.onFailure { log.error("Error checking expired statuses", it) }
     }
 

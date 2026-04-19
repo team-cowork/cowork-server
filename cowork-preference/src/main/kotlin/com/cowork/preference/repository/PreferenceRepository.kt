@@ -15,17 +15,35 @@ class PreferenceRepository(private val pool: Pool) {
         return rows.firstOrNull()?.getJsonObject("settings")
     }
 
-    suspend fun upsertSettings(resourceId: Long, resourceType: ResourceType, settings: JsonObject): JsonObject? {
-        val rows = pool.preparedQuery(
-            """
+    suspend fun upsertSettings(
+        resourceId: Long,
+        resourceType: ResourceType,
+        settings: JsonObject,
+        fetchPreviousStatus: Boolean = false,
+    ): Pair<JsonObject?, String?> {
+        val query = if (fetchPreviousStatus) """
+            WITH before_update AS (
+                SELECT settings->>'status' AS prev_status
+                FROM resource_setting
+                WHERE resource_id = ${'$'}1 AND resource_type = ${'$'}2::resource_type
+            )
+            INSERT INTO resource_setting (resource_id, resource_type, settings)
+            VALUES (${'$'}1, ${'$'}2::resource_type, ${'$'}3::jsonb)
+            ON CONFLICT (resource_id, resource_type)
+            DO UPDATE SET settings = resource_setting.settings || EXCLUDED.settings
+            RETURNING settings, (SELECT prev_status FROM before_update LIMIT 1) AS previous_status
+        """.trimIndent() else """
             INSERT INTO resource_setting (resource_id, resource_type, settings)
             VALUES (${'$'}1, ${'$'}2::resource_type, ${'$'}3::jsonb)
             ON CONFLICT (resource_id, resource_type)
             DO UPDATE SET settings = resource_setting.settings || EXCLUDED.settings
             RETURNING settings
-            """.trimIndent()
-        ).execute(Tuple.of(resourceId, resourceType.name, settings)).coAwait()
-        return rows.firstOrNull()?.getJsonObject("settings")
+        """.trimIndent()
+        val rows = pool.preparedQuery(query).execute(Tuple.of(resourceId, resourceType.name, settings)).coAwait()
+        val row = rows.firstOrNull() ?: return Pair(null, null)
+        val updatedSettings = row.getJsonObject("settings")
+        val previousStatus = if (fetchPreviousStatus) row.getString("previous_status") else null
+        return Pair(updatedSettings, previousStatus)
     }
 
     /** status_expires_at이 현재 시각보다 이전인 ACCOUNT 설정 목록 조회 */
