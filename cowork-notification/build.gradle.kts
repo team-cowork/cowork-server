@@ -21,22 +21,16 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation("org.springframework.cloud:spring-cloud-config-server")
-    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-server")
-    implementation("org.springframework.cloud:spring-cloud-starter-bus-kafka")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.vault:spring-vault-core")
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
+    implementation("org.springframework.cloud:spring-cloud-starter-config")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-
+    // FCM: implementation("com.google.firebase:firebase-admin:x.x.x")
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
 kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
+    compilerOptions { freeCompilerArgs.addAll("-Xjsr305=strict") }
 }
 
-tasks.withType<Test> {
-    useJUnitPlatform()
-}
+tasks.withType<Test> { useJUnitPlatform() }
