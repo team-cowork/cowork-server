@@ -123,7 +123,7 @@ func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int
 		}
 		participants = append(participants, ParticipantResponse{
 			UserID:   uid,
-			JoinedAt: time.Unix(p.JoinedAt, 0).UTC(),
+			JoinedAt: time.Unix(p.JoinedAt, 0).UTC().Format(time.RFC3339),
 		})
 	}
 
@@ -147,9 +147,9 @@ func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID i
 		return nil, err
 	}
 
-	var endedAt *time.Time
+	var endedAt *string
 	if sess.EndedAt != nil {
-		v := sess.EndedAt.UTC()
+		v := sess.EndedAt.UTC().Format(time.RFC3339)
 		endedAt = &v
 	}
 
@@ -158,7 +158,7 @@ func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID i
 		ChannelID: sess.ChannelID,
 		TeamID:    sess.TeamID,
 		Status:    sess.Status,
-		StartedAt: sess.StartedAt.UTC(),
+		StartedAt: sess.StartedAt.UTC().Format(time.RFC3339),
 		EndedAt:   endedAt,
 	}, nil
 }
