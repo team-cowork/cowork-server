@@ -153,10 +153,10 @@ class MainVerticle : AbstractVerticle() {
 
     override fun stop(stopPromise: Promise<Void>) {
         scope.cancel()
+        if (::redis.isInitialized) redis.close()
         val futures = mutableListOf<Future<Void>>()
         if (::pool.isInitialized) futures.add(pool.close())
         if (::producer.isInitialized) futures.add(producer.close())
-        if (::redis.isInitialized) futures.add(redis.close())
 
         if (futures.isEmpty()) {
             stopPromise.complete()
