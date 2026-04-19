@@ -1,7 +1,5 @@
 package room
 
-import "time"
-
 type JoinResponse struct {
 	Token      string `json:"token"`
 	LiveKitURL string `json:"livekit_url"`
@@ -10,8 +8,8 @@ type JoinResponse struct {
 }
 
 type ParticipantResponse struct {
-	UserID   int64     `json:"user_id"`
-	JoinedAt time.Time `json:"joined_at"`
+	UserID   int64  `json:"user_id"`
+	JoinedAt string `json:"joined_at"`
 }
 
 type ParticipantsResponse struct {
@@ -21,10 +19,10 @@ type ParticipantsResponse struct {
 }
 
 type SessionResponse struct {
-	SessionID string     `json:"session_id"`
-	ChannelID int64      `json:"channel_id"`
-	TeamID    int64      `json:"team_id"`
-	Status    string     `json:"status"`
-	StartedAt time.Time  `json:"started_at"`
-	EndedAt   *time.Time `json:"ended_at"`
+	SessionID string  `json:"session_id"`
+	ChannelID int64   `json:"channel_id"`
+	TeamID    int64   `json:"team_id"`
+	Status    string  `json:"status"`
+	StartedAt string  `json:"started_at"`
+	EndedAt   *string `json:"ended_at"`
 }
