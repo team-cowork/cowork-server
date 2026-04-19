@@ -3,11 +3,18 @@ package com.cowork.preference
 import com.cowork.preference.config.AppConfig
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
+import java.net.URI
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
+import java.time.Duration
 
 private val log = LoggerFactory.getLogger("CoworkPreferenceMain")
+private val PLACEHOLDER_REGEX = Regex("""\$\{([^:}]+)(?::([^}]*))?\}""")
 
 fun main() {
     val config = loadConfig()
@@ -28,36 +35,71 @@ fun main() {
 }
 
 private fun loadConfig(): JsonObject {
-    val host = System.getenv("POSTGRES_HOST") ?: "localhost"
-    val username = System.getenv("POSTGRES_USER") ?: "cowork"
-    val password = System.getenv("POSTGRES_PASSWORD") ?: ""
-    val redisHost = System.getenv("REDIS_HOST") ?: "localhost"
-    val redisPort = System.getenv("REDIS_PORT")?.toIntOrNull() ?: 6379
-    val kafkaBootstrap = System.getenv("KAFKA_BOOTSTRAP_SERVERS") ?: "localhost:9094"
-    val eurekaUrl = System.getenv("EUREKA_URL") ?: "http://localhost:8761/eureka/"
-    val serverPort = System.getenv("SERVER_PORT")?.toIntOrNull() ?: 8085
+    val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
+    val profile = System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
 
-    return JsonObject()
-        .put("server", JsonObject().put("port", serverPort))
-        .put("preference", JsonObject()
-            .put("db", JsonObject()
-                .put("host", host)
-                .put("port", 5432)
-                .put("database", "cowork_preference")
-                .put("schema", "preference")
-                .put("username", username)
-                .put("password", password)
-                .put("pool-size", 5)
-            )
-            .put("redis", JsonObject()
-                .put("host", redisHost)
-                .put("port", redisPort)
-            )
-            .put("kafka", JsonObject()
-                .put("bootstrap-servers", kafkaBootstrap)
-            )
-        )
-        .put("eureka.url", eurekaUrl)
+    log.info("Fetching config from {} profile={}", configServerUrl, profile)
+    val serverConfig = fetchFromConfigServer(configServerUrl, profile)
+    return resolveJsonObject(serverConfig)
+}
+
+private fun fetchFromConfigServer(baseUrl: String, profile: String): JsonObject {
+    return try {
+        val url = "$baseUrl/cowork-preference/$profile"
+        val client = HttpClient.newHttpClient()
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Accept", "application/json")
+            .timeout(Duration.ofSeconds(5))
+            .build()
+        val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() == 200) {
+            parseSpringConfig(JsonObject(response.body()))
+        } else {
+            log.warn("Config server returned HTTP {}, falling back to defaults", response.statusCode())
+            JsonObject()
+        }
+    } catch (e: Exception) {
+        log.warn("Config server unreachable ({}), falling back to defaults", e.message)
+        JsonObject()
+    }
+}
+
+private fun parseSpringConfig(json: JsonObject): JsonObject {
+    val result = JsonObject()
+    val sources = json.getJsonArray("propertySources") ?: return result
+    // 낮은 우선순위부터 역순으로 처리하여 높은 우선순위가 덮어쓰도록
+    for (i in sources.size() - 1 downTo 0) {
+        val source = (sources.getValue(i) as? JsonObject)?.getJsonObject("source") ?: continue
+        source.fieldNames().forEach { key -> setNested(result, key, source.getValue(key)) }
+    }
+    return result
+}
+
+private fun setNested(root: JsonObject, dotKey: String, value: Any?) {
+    val parts = dotKey.split(".")
+    var node = root
+    for (i in 0 until parts.size - 1) {
+        val part = parts[i]
+        if (node.getValue(part) !is JsonObject) node.put(part, JsonObject())
+        node = node.getJsonObject(part)
+    }
+    node.put(parts.last(), value)
+}
+
+private fun resolveJsonObject(obj: JsonObject): JsonObject {
+    val resolved = JsonObject()
+    obj.fieldNames().forEach { key -> resolved.put(key, resolveValue(obj.getValue(key))) }
+    return resolved
+}
+
+private fun resolveValue(value: Any?): Any? = when (value) {
+    is String -> PLACEHOLDER_REGEX.replace(value) { match ->
+        System.getenv(match.groupValues[1]) ?: match.groupValues[2]
+    }
+    is JsonObject -> resolveJsonObject(value)
+    is JsonArray -> JsonArray(value.map { resolveValue(it) })
+    else -> value
 }
 
 private fun runFlyway(config: AppConfig) {
