@@ -11,6 +11,7 @@ object SettingSchema {
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
+    // webhook은 PUT 전체 교체 계약 — 클라이언트는 항상 객체 전체를 전송해야 하며 부분 업데이트(PATCH)는 지원하지 않음
     private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
     val NOTIFICATION_KEYS = setOf("notification")
 
