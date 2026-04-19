@@ -25,7 +25,7 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-server")
     implementation("org.springframework.cloud:spring-cloud-starter-bus-kafka")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.springframework.cloud:spring-cloud-vault-config")
+    implementation("org.springframework.vault:spring-vault-core")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
