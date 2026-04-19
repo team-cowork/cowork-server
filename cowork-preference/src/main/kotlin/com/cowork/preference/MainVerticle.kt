@@ -2,6 +2,7 @@ package com.cowork.preference
 
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
+import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
@@ -15,14 +16,13 @@ import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectRoleService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Promise
-import io.vertx.core.json.JsonObject
 import io.vertx.kafka.client.producer.KafkaProducer
 import io.vertx.pgclient.PgBuilder
 import io.vertx.pgclient.PgConnectOptions
 import io.vertx.redis.client.Redis
-import io.vertx.sqlclient.Pool
 import io.vertx.redis.client.RedisAPI
 import io.vertx.redis.client.RedisOptions
+import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -36,19 +36,21 @@ class MainVerticle : AbstractVerticle() {
     private val log = LoggerFactory.getLogger(MainVerticle::class.java)
     private lateinit var scope: CoroutineScope
     private lateinit var preferenceCache: PreferenceCache
+    private lateinit var pool: Pool
+    private lateinit var redis: Redis
+    private lateinit var producer: KafkaProducer<String, String>
 
     override fun start(startPromise: Promise<Void>) {
         scope = CoroutineScope(SupervisorJob())
 
-        val configJson = config()
-        val appConfig = AppConfig.from(configJson)
+        val appConfig = AppConfig.from(config())
 
-        val pool = buildPgPool(appConfig)
-        val redis = buildRedis(appConfig)
+        pool = buildPgPool(appConfig)
+        redis = buildRedis(appConfig)
         val redisApi = RedisAPI.api(redis)
         preferenceCache = PreferenceCache(redisApi)
 
-        val producer = buildKafkaProducer(appConfig)
+        producer = buildKafkaProducer(appConfig)
         val preferenceProducer = PreferenceProducer(producer)
 
         val prefRepo = PreferenceRepository(pool)
@@ -81,33 +83,30 @@ class MainVerticle : AbstractVerticle() {
 
     private fun scheduleStatusExpiryCheck(
         prefRepo: PreferenceRepository,
-        producer: PreferenceProducer,
+        preferenceProducer: PreferenceProducer,
     ) {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
-                checkExpiredStatuses(prefRepo, producer)
+                checkExpiredStatuses(prefRepo, preferenceProducer)
             }
         }
     }
 
     private suspend fun checkExpiredStatuses(
         prefRepo: PreferenceRepository,
-        producer: PreferenceProducer,
+        preferenceProducer: PreferenceProducer,
     ) {
         runCatching {
             val expired = prefRepo.findExpiredAccountStatuses()
             expired.forEach { (accountId, previousStatus) ->
-                producer.publishStatusChanged(
+                preferenceProducer.publishStatusChanged(
                     accountId = accountId,
                     previousStatus = previousStatus,
                     newStatus = null,
                     reason = "EXPIRED",
                 )
                 prefRepo.clearExpiredStatus(accountId)
-                preferenceCache.invalidateSettings(
-                    com.cowork.preference.domain.ResourceType.ACCOUNT,
-                    accountId,
-                )
+                preferenceCache.invalidateSettings(ResourceType.ACCOUNT, accountId)
                 log.info("Status expired for accountId={}", accountId)
             }
         }.onFailure { log.error("Error checking expired statuses", it) }
@@ -146,5 +145,8 @@ class MainVerticle : AbstractVerticle() {
 
     override fun stop() {
         scope.cancel()
+        if (::pool.isInitialized) pool.close()
+        if (::redis.isInitialized) redis.close()
+        if (::producer.isInitialized) producer.close()
     }
 }
