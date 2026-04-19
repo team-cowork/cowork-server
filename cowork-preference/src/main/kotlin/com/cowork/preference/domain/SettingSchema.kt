@@ -8,7 +8,7 @@ object SettingSchema {
 
     private val ACCOUNT_KEYS = setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format")
     private val TEAM_KEYS = setOf("tag_spam_block")
-    private val PROJECT_KEYS = emptySet<String>()
+    private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
     private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
