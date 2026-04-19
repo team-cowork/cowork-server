@@ -46,14 +46,15 @@ class PreferenceRepository(private val pool: Pool) {
         }
     }
 
-    /** status_expires_at 및 status 필드를 제거 (만료 후 클리어) */
-    suspend fun clearExpiredStatus(resourceId: Long) {
+    /** status_expires_at 및 status 필드를 배치 제거 (만료 후 클리어) */
+    suspend fun clearExpiredStatuses(resourceIds: List<Long>) {
+        if (resourceIds.isEmpty()) return
         pool.preparedQuery(
             """
             UPDATE resource_setting
             SET settings = settings - 'status' - 'status_expires_at'
-            WHERE resource_id = ${'$'}1 AND resource_type = 'ACCOUNT'
+            WHERE resource_id = ANY(${'$'}1) AND resource_type = 'ACCOUNT'
             """.trimIndent()
-        ).execute(Tuple.of(resourceId)).coAwait()
+        ).execute(Tuple.of(resourceIds.toTypedArray<Long>())).coAwait()
     }
 }
