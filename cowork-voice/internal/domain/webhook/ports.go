@@ -9,6 +9,8 @@ import (
 
 type SessionRepository interface {
 	FindSessionByRoomName(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error)
+	FindActiveSession(ctx context.Context, channelID int64) (*roomdomain.VoiceSession, error)
+	FindLatestSessionByChannel(ctx context.Context, channelID int64) (*roomdomain.VoiceSession, error)
 	MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error)
 	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
 	MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
