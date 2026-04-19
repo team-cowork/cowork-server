@@ -17,15 +17,17 @@ type EventPublisher interface {
 }
 
 type WebhookService struct {
-	repo  SessionRepository
-	kafka EventPublisher
-	now   func() time.Time
+	repo     SessionRepository
+	resolver LegacySessionResolver
+	kafka    EventPublisher
+	now      func() time.Time
 }
 
-func NewWebhookService(repo SessionRepository, kafka EventPublisher) *WebhookService {
+func NewWebhookService(repo SessionRepository, resolver LegacySessionResolver, kafka EventPublisher) *WebhookService {
 	return &WebhookService{
-		repo:  repo,
-		kafka: kafka,
+		repo:     repo,
+		resolver: resolver,
+		kafka:    kafka,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -36,12 +38,12 @@ func (s *WebhookService) HandleEvent(ctx context.Context, event *livekit.Webhook
 	now := s.now()
 	nowStr := now.Format(time.RFC3339)
 
-	switch event.GetEvent() {
-	case "participant_joined":
+	switch WebhookEventType(event.GetEvent()) {
+	case EventParticipantJoined:
 		s.handleParticipantJoined(ctx, event, now, nowStr)
-	case "participant_left":
+	case EventParticipantLeft:
 		s.handleParticipantLeft(ctx, event, now, nowStr)
-	case "room_finished":
+	case EventRoomFinished:
 		s.handleRoomFinished(ctx, event, now, nowStr)
 	}
 }
@@ -65,7 +67,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 		return
 	}
 
-	voiceSession, err := s.findSessionForJoin(ctx, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, EventParticipantJoined, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
 		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
@@ -120,7 +122,7 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 		return
 	}
 
-	voiceSession, err := s.findSessionForLeave(ctx, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, EventParticipantLeft, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
 		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
@@ -169,7 +171,7 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return
 	}
 
-	voiceSession, err := s.findSessionForRoomFinished(ctx, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, EventRoomFinished, room.Name, parsedRoom)
 	if err != nil || voiceSession == nil {
 		return
 	}
@@ -200,29 +202,12 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	}
 }
 
-func (s *WebhookService) findSessionForJoin(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
+func (s *WebhookService) findSession(ctx context.Context, eventType WebhookEventType, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
 	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
 		return s.repo.FindSessionByRoomName(ctx, roomName)
 	}
-	return s.repo.FindActiveSession(ctx, parsedRoom.ChannelID)
-}
-
-func (s *WebhookService) findSessionForLeave(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
-	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
-		voiceSession, err := s.repo.FindSessionByRoomName(ctx, roomName)
-		if err != nil || voiceSession != nil {
-			return voiceSession, err
-		}
-	}
-	return s.repo.FindLatestSessionByChannel(ctx, parsedRoom.ChannelID)
-}
-
-func (s *WebhookService) findSessionForRoomFinished(ctx context.Context, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
-	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
-		voiceSession, err := s.repo.FindSessionByRoomName(ctx, roomName)
-		if err != nil || voiceSession != nil {
-			return voiceSession, err
-		}
-	}
-	return s.repo.FindActiveSession(ctx, parsedRoom.ChannelID)
+	return s.resolver.Resolve(ctx, LegacySessionResolveRequest{
+		EventType: eventType,
+		RoomName:  roomName,
+	})
 }
