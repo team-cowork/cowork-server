@@ -14,13 +14,13 @@ pub/sub client는 `connectToRedis`의 지역 변수로만 유지되어 애플리
 
 ## 상태와 트래픽 정책
 
-| 상태 | 판정 기준 | WebSocket·readiness 정책 |
-|------|-----------|---------------------------|
-| `CONNECTING` | pub/sub 중 하나 이상이 아직 `ready`가 아님 | WebSocket 가입을 받지 않고 readiness를 내림 |
-| `READY` | pub/sub 모두 준비되고 Redis adapter가 서버에 설치됨 | 다중 replica 실시간 트래픽을 허용함 |
-| `DEGRADED` | 준비 후 연결 상실 또는 adapter 오류 발생 | readiness를 내리고 신규 연결·room 가입을 차단함 |
-| `IN_MEMORY` | 명시적인 단일 인스턴스 개발 모드 | 상태를 응답에 표시하고 운영 다중 replica에서는 허용하지 않음 |
-| `STOPPED` | 애플리케이션 종료 중 | 재연결을 중단하고 두 client를 닫음 |
+| 상태         | 판정 기준                                           | WebSocket·readiness 정책                                     |
+|--------------|-----------------------------------------------------|--------------------------------------------------------------|
+| `CONNECTING` | pub/sub 중 하나 이상이 아직 `ready`가 아님          | WebSocket 가입을 받지 않고 readiness를 내림                  |
+| `READY`      | pub/sub 모두 준비되고 Redis adapter가 서버에 설치됨 | 다중 replica 실시간 트래픽을 허용함                          |
+| `DEGRADED`   | 준비 후 연결 상실 또는 adapter 오류 발생            | readiness를 내리고 신규 연결·room 가입을 차단함              |
+| `IN_MEMORY`  | 명시적인 단일 인스턴스 개발 모드                    | 상태를 응답에 표시하고 운영 다중 replica에서는 허용하지 않음 |
+| `STOPPED`    | 애플리케이션 종료 중                                | 재연결을 중단하고 두 client를 닫음                           |
 
 운영에서 timeout에 의한 암묵적 in-memory fallback을 허용하지 않는다. HTTP health 응답 자체는 제공하되 Redis adapter가 복구되어 `READY`가 되기 전에는 Eureka 등록과 WebSocket 트래픽을 열지 않는 방향으로 startup 정책을 맞춘다.
 
