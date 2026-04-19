@@ -32,7 +32,7 @@ class PreferenceService(
         cache.setSettings(resourceType, resourceId, updated)
 
         if (resourceType == ResourceType.ACCOUNT) {
-            handleAccountStatusChange(resourceId, filtered, previousStatus)
+            handleAccountStatusChange(resourceId, filtered, updated, previousStatus)
         }
 
         return Result.success(updated)
@@ -41,23 +41,29 @@ class PreferenceService(
     private suspend fun handleAccountStatusChange(
         accountId: Long,
         settings: JsonObject,
+        updatedSettings: JsonObject,
         previousStatus: String?,
     ) {
-        val newStatus = settings.getString("status") ?: return
+        val newStatus = settings.getString("status")
         val expiresAt = settings.getString("status_expires_at")
 
-        producer.publishStatusChanged(
-            accountId = accountId,
-            previousStatus = previousStatus,
-            newStatus = newStatus,
-            reason = "MANUAL",
-        )
+        if (newStatus == null && expiresAt == null) return
+
+        if (newStatus != null) {
+            producer.publishStatusChanged(
+                accountId = accountId,
+                previousStatus = previousStatus,
+                newStatus = newStatus,
+                reason = "MANUAL",
+            )
+        }
 
         if (expiresAt != null) {
+            val currentStatus = newStatus ?: updatedSettings.getString("status") ?: return
             val expireAtEpoch = Instant.parse(expiresAt).epochSecond
             val remainingSeconds = expireAtEpoch - Instant.now().epochSecond
-            if (remainingSeconds > 0) cache.setStatusExpiry(accountId, remainingSeconds, expireAtEpoch, newStatus)
-        } else {
+            if (remainingSeconds > 0) cache.setStatusExpiry(accountId, remainingSeconds, expireAtEpoch, currentStatus)
+        } else if (newStatus != null) {
             cache.deleteStatusExpiry(accountId)
         }
     }
