@@ -14,7 +14,8 @@
   "marketing_email": true,
   "theme": "WHITE",
   "language": "KO",
-  "time_format": "24H"
+  "time_format": "24H",
+  "date_format": "YYYY_MM_DD"
 }
 ```
 
@@ -26,6 +27,7 @@
 | `theme` | string | `WHITE`, `BLACK` | UI 테마 |
 | `language` | string | `KO`, `EN` | 표시 언어 |
 | `time_format` | string | `12H`, `24H` | 시간 표기 형식 |
+| `date_format` | string | `YYYY_MM_DD`, `MM_DD_YYYY`, `DD_MM_YYYY`, `YYYY_DD_MM`, `DD_YYYY_MM`, `MM_YYYY_DD` | 날짜 표기 순서 |
 
 **주의사항**
 - `status`와 `status_expires_at`은 독립적으로 업데이트 가능
