@@ -7,6 +7,8 @@ import io.vertx.redis.client.RedisAPI
 
 private const val TTL_SECONDS = 300L
 private const val EXPIRY_QUEUE_KEY = "status:expiry:pending"
+private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
+private const val LOCK_TTL_SECONDS = 55L
 
 class PreferenceCache(private val redis: RedisAPI) {
 
@@ -36,10 +38,14 @@ class PreferenceCache(private val redis: RedisAPI) {
         redis.del(listOf(notificationKey(accountId, channelId))).coAwait()
     }
 
-    suspend fun setStatusExpiry(accountId: Long, expiresInSeconds: Long, previousStatus: String) {
-        val expireEpoch = (System.currentTimeMillis() / 1000) + expiresInSeconds
+    suspend fun acquireExpiryLock(): Boolean {
+        val result = redis.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
+        return result?.toString() == "OK"
+    }
+
+    suspend fun setStatusExpiry(accountId: Long, expiresInSeconds: Long, expireAtEpoch: Long, previousStatus: String) {
         redis.setex(statusExpireKey(accountId), expiresInSeconds.toString(), previousStatus).coAwait()
-        redis.zadd(listOf(EXPIRY_QUEUE_KEY, expireEpoch.toString(), accountId.toString())).coAwait()
+        redis.zadd(listOf(EXPIRY_QUEUE_KEY, expireAtEpoch.toString(), accountId.toString())).coAwait()
     }
 
     suspend fun getStatusExpiry(accountId: Long): String? {
