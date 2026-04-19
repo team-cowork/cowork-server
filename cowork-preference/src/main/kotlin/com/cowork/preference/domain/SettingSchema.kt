@@ -1,6 +1,8 @@
 package com.cowork.preference.domain
 
 import io.vertx.core.json.JsonObject
+import java.time.Instant
+import java.time.format.DateTimeParseException
 
 object SettingSchema {
 
@@ -43,6 +45,11 @@ object SettingSchema {
         }
         settings.getString("time_format")?.let { fmt ->
             if (fmt !in ACCOUNT_TIME_FORMAT_VALUES) return "time_format must be one of $ACCOUNT_TIME_FORMAT_VALUES"
+        }
+        settings.getString("status_expires_at")?.let { expiresAt ->
+            try { Instant.parse(expiresAt) } catch (_: DateTimeParseException) {
+                return "status_expires_at must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
+            }
         }
         return null
     }
