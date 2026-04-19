@@ -34,7 +34,7 @@ object ProfileSpecification {
         role?.takeIf { it.isNotBlank() }?.let { value ->
             Specification { root, query, cb ->
                 query?.distinct(true)
-                cb.equal(root.joinSet<String>("roles"), value)
+                cb.equal(root.joinSet<Any, String>("roles"), value)
             }
         }
 
@@ -74,7 +74,7 @@ object ProfileSpecification {
 
             role?.takeIf { it.isNotBlank() }?.let { value ->
                 query?.distinct(true)
-                predicates.add(cb.equal(root.joinSet<String>("roles"), value))
+                predicates.add(cb.equal(root.joinSet<Profile, String>("roles"), value))
             }
 
             cb.and(*predicates.toTypedArray())
