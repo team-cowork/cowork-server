@@ -8,4 +8,4 @@
 
 *.json linguist-detectable
 *.yml linguist-detectable
-*.md linguist-detectable
+*.properties linguist-detectable

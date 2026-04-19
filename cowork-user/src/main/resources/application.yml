@@ -4,9 +4,9 @@ server:
 spring:
   application:
     name: cowork-user
+  config:
+    import: "optional:configserver:http://localhost:8761"
   cloud:
-    config:
-      enabled: false
     compatibility-verifier:
       enabled: false
   datasource:
