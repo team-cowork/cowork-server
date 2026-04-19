@@ -115,7 +115,6 @@ class MainVerticle : AbstractVerticle() {
             }
             val processedIds = expired.map { it.first }
             prefRepo.clearExpiredStatuses(processedIds)
-            cache.removeFromExpireQueue(processedIds)
         }.onFailure { log.error("Error checking expired statuses", it) }
     }
 
