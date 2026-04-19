@@ -1,0 +1,6 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="[Infra Only] DB &amp; Infra" type="CompoundRunConfigurationType">
+    <toRun name="[Infra] Docker Compose Up" type="ShConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
