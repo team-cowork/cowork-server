@@ -11,6 +11,7 @@ object SettingSchema {
     private val PROJECT_KEYS = emptySet<String>()
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
+    private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
     val NOTIFICATION_KEYS = setOf("notification")
 
     private val ACCOUNT_STATUS_VALUES = setOf("ONLINE", "DO_NOT_DISTURB")
@@ -26,10 +27,20 @@ object SettingSchema {
         ResourceType.TEXT_CHANNEL -> TEXT_CHANNEL_KEYS
     }
 
-    fun filter(type: ResourceType, raw: JsonObject): JsonObject =
-        validKeys(type).fold(JsonObject()) { acc, key ->
+    fun filter(type: ResourceType, raw: JsonObject): JsonObject {
+        val result = validKeys(type).fold(JsonObject()) { acc, key ->
             if (raw.containsKey(key)) acc.put(key, raw.getValue(key)) else acc
         }
+        if (type == ResourceType.TEXT_CHANNEL) {
+            result.getJsonObject("webhook")?.let { rawWebhook ->
+                val filteredWebhook = WEBHOOK_KEYS.fold(JsonObject()) { acc, key ->
+                    if (rawWebhook.containsKey(key)) acc.put(key, rawWebhook.getValue(key)) else acc
+                }
+                result.put("webhook", filteredWebhook)
+            }
+        }
+        return result
+    }
 
     fun validate(type: ResourceType, settings: JsonObject): String? {
         if (type != ResourceType.ACCOUNT) return null
