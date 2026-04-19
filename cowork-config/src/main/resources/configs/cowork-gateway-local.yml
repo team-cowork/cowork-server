@@ -1,0 +1,2 @@
+jwt:
+  secret: local-dev-secret-key-minimum-32-characters-long
