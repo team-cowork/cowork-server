@@ -6,7 +6,7 @@ import java.time.format.DateTimeParseException
 
 object SettingSchema {
 
-    private val ACCOUNT_KEYS = setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format")
+    private val ACCOUNT_KEYS = setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format", "date_format")
     private val TEAM_KEYS = setOf("tag_spam_block")
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
@@ -19,6 +19,7 @@ object SettingSchema {
     private val ACCOUNT_THEME_VALUES = setOf("WHITE", "BLACK")
     private val ACCOUNT_LANGUAGE_VALUES = setOf("KO", "EN")
     private val ACCOUNT_TIME_FORMAT_VALUES = setOf("12H", "24H")
+    private val ACCOUNT_DATE_FORMAT_VALUES = setOf("YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD")
 
     fun validKeys(type: ResourceType): Set<String> = when (type) {
         ResourceType.ACCOUNT -> ACCOUNT_KEYS
@@ -57,6 +58,9 @@ object SettingSchema {
         }
         settings.getString("time_format")?.let { fmt ->
             if (fmt !in ACCOUNT_TIME_FORMAT_VALUES) return "time_format must be one of $ACCOUNT_TIME_FORMAT_VALUES"
+        }
+        settings.getString("date_format")?.let { fmt ->
+            if (fmt !in ACCOUNT_DATE_FORMAT_VALUES) return "date_format must be one of $ACCOUNT_DATE_FORMAT_VALUES"
         }
         settings.getString("status_expires_at")?.let { expiresAt ->
             try { Instant.parse(expiresAt) } catch (_: DateTimeParseException) {
