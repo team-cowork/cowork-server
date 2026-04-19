@@ -180,8 +180,8 @@ func TestGetSession_종료_시각이_있으면_RFC3339로_반환한다(t *testin
 	if resp.EndedAt == nil {
 		t.Fatal("EndedAt = nil, want value")
 	}
-	if !resp.EndedAt.Equal(endedAt) {
-		t.Fatalf("EndedAt = %v, want %v", *resp.EndedAt, endedAt)
+	if *resp.EndedAt != endedAt.Format(time.RFC3339) {
+		t.Fatalf("EndedAt = %q, want %q", *resp.EndedAt, endedAt.Format(time.RFC3339))
 	}
 }
 
@@ -266,15 +266,15 @@ func (s *stubLiveKitRoom) DeleteRoom(_ context.Context, _ string) error {
 }
 
 type stubRepository struct {
-	findActiveSessionResult *VoiceSession
-	findActiveSessionErr    error
-	createSessionResult     *VoiceSession
-	createSessionErr        error
-	getSessionResult        *VoiceSession
-	getSessionErr           error
-	insertParticipantErr    error
-	insertParticipant       *VoiceParticipant
-	createSessionCalls      int
+	findActiveSessionResult  *VoiceSession
+	findActiveSessionErr     error
+	createSessionResult      *VoiceSession
+	createSessionErr         error
+	getSessionResult         *VoiceSession
+	getSessionErr            error
+	insertParticipantErr     error
+	insertParticipant        *VoiceParticipant
+	createSessionCalls       int
 	markParticipantLeftCalls int
 }
 
