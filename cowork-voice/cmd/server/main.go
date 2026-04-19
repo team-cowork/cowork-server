@@ -79,7 +79,7 @@ func main() {
 	)
 	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
-	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, kafkaProducer)
+	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, sessionRepo, kafkaProducer)
 	webhookHandler := webhookdomain.NewHandler(
 		webhookSvc,
 		auth.NewSimpleKeyProvider(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret),
