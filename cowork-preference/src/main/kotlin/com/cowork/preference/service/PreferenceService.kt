@@ -26,16 +26,11 @@ class PreferenceService(
         val validationError = SettingSchema.validate(resourceType, filtered)
         if (validationError != null) return Result.failure(IllegalArgumentException(validationError))
 
-        // ACCOUNT 상태 변경 시 이전 상태를 DB 쓰기 전에 미리 조회
-        val previousStatus = if (resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")) {
-            runCatching { repository.findSettings(resourceId, resourceType)?.getString("status") }.getOrNull()
-        } else null
-
-        // DB 쓰기 후 RETURNING으로 병합된 최신 설정을 바로 반환
-        val updated = repository.upsertSettings(resourceId, resourceType, filtered) ?: filtered
+        val needPrevStatus = resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")
+        val (updatedSettings, previousStatus) = repository.upsertSettings(resourceId, resourceType, filtered, fetchPreviousStatus = needPrevStatus)
+        val updated = updatedSettings ?: filtered
         cache.setSettings(resourceType, resourceId, updated)
 
-        // Kafka 이벤트는 DB 쓰기 성공 후 발행
         if (resourceType == ResourceType.ACCOUNT) {
             handleAccountStatusChange(resourceId, filtered, previousStatus)
         }
@@ -59,9 +54,9 @@ class PreferenceService(
         )
 
         if (expiresAt != null) {
-            // SettingSchema.validate에서 이미 ISO-8601 검증 완료
-            val remainingSeconds = Instant.parse(expiresAt).epochSecond - Instant.now().epochSecond
-            if (remainingSeconds > 0) cache.setStatusExpiry(accountId, remainingSeconds, newStatus)
+            val expireAtEpoch = Instant.parse(expiresAt).epochSecond
+            val remainingSeconds = expireAtEpoch - Instant.now().epochSecond
+            if (remainingSeconds > 0) cache.setStatusExpiry(accountId, remainingSeconds, expireAtEpoch, newStatus)
         } else {
             cache.deleteStatusExpiry(accountId)
         }
