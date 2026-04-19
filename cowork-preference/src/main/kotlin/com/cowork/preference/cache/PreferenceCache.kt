@@ -52,8 +52,8 @@ class PreferenceCache(private val redis: RedisAPI) {
     }
 
     suspend fun getExpiredAccountIds(epochSeconds: Long): List<Long> {
-        val result = redis.zrangebyscore(EXPIRY_QUEUE_KEY, "0", epochSeconds.toString()).coAwait()
-        return result?.mapNotNull { it?.toString()?.toLongOrNull() } ?: emptyList()
+        val result = redis.zrangebyscore(listOf(EXPIRY_QUEUE_KEY, "0", epochSeconds.toString())).coAwait()
+        return result?.mapNotNull { it.toString().toLongOrNull() } ?: emptyList()
     }
 
     suspend fun removeFromExpireQueue(accountIds: List<Long>) {
