@@ -6,7 +6,6 @@ import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.redis.client.RedisAPI
 
 private const val TTL_SECONDS = 300L
-private const val EXPIRY_QUEUE_KEY = "status:expiry:pending"
 private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
 private const val LOCK_TTL_SECONDS = 55L
 
@@ -43,36 +42,9 @@ class PreferenceCache(private val redis: RedisAPI) {
         return result?.toString() == "OK"
     }
 
-    suspend fun setStatusExpiry(accountId: Long, expiresInSeconds: Long, expireAtEpoch: Long, previousStatus: String) {
-        redis.setex(statusExpireKey(accountId), expiresInSeconds.toString(), previousStatus).coAwait()
-        redis.zadd(listOf(EXPIRY_QUEUE_KEY, expireAtEpoch.toString(), accountId.toString())).coAwait()
-    }
-
-    suspend fun getStatusExpiry(accountId: Long): String? {
-        return redis.get(statusExpireKey(accountId)).coAwait()?.toString()
-    }
-
-    suspend fun deleteStatusExpiry(accountId: Long) {
-        redis.del(listOf(statusExpireKey(accountId))).coAwait()
-        redis.zrem(listOf(EXPIRY_QUEUE_KEY, accountId.toString())).coAwait()
-    }
-
-    suspend fun getExpiredAccountIds(epochSeconds: Long): List<Long> {
-        val result = redis.zrangebyscore(listOf(EXPIRY_QUEUE_KEY, "0", epochSeconds.toString())).coAwait()
-        return result?.mapNotNull { it.toString().toLongOrNull() } ?: emptyList()
-    }
-
-    suspend fun removeFromExpireQueue(accountIds: List<Long>) {
-        if (accountIds.isEmpty()) return
-        redis.zrem(listOf(EXPIRY_QUEUE_KEY) + accountIds.map { it.toString() }).coAwait()
-    }
-
     private fun settingKey(resourceType: ResourceType, resourceId: Long) =
         "pref:${resourceType.name}:$resourceId"
 
     private fun notificationKey(accountId: Long, channelId: Long) =
         "pref:notification:$accountId:$channelId"
-
-    private fun statusExpireKey(accountId: Long) =
-        "status:expire:$accountId"
 }
