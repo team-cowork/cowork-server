@@ -17,7 +17,7 @@ class EditHistory {
     @Prop({ required: true }) editedAt!: Date;
 }
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, versionKey: false })
 export class Message {
     @Prop({ required: true }) teamId!: number;
     @Prop({ type: Number, default: null }) projectId!: number | null;

@@ -44,12 +44,13 @@ export class ChatController {
     }
 
     @Get('messages')
-    getMessages(
+    async getMessages(
         @Param('channelId') channelId: string,
         @Query() query: GetMessagesDto,
         @Headers() headers: Record<string, string>,
     ) {
-        RequestContextUtil.getUserId(headers);
+        const userId = RequestContextUtil.getUserId(headers);
+        await this.chatService.checkMembership(Number(channelId), userId);
         return this.chatService.getMessages(Number(channelId), query.before);
     }
 
