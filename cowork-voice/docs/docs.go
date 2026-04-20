@@ -43,25 +43,25 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_dto.JoinResponse"
+                            "$ref": "#/definitions/internal_domain_voice_room.JoinResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
                     "403": {
                         "description": "채널 멤버가 아님",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     }
                 }
@@ -95,13 +95,13 @@ const docTemplate = `{
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
                     "404": {
                         "description": "활성 세션 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     }
                 }
@@ -135,19 +135,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_dto.ParticipantsResponse"
+                            "$ref": "#/definitions/internal_domain_voice_room.ParticipantsResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     }
                 }
@@ -181,19 +181,19 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_dto.SessionResponse"
+                            "$ref": "#/definitions/internal_domain_voice_room.SessionResponse"
                         }
                     },
                     "401": {
                         "description": "Unauthorized",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     }
                 }
@@ -230,89 +230,103 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "github_com_cowork_cowork-voice_internal_apperror.AppError": {
+        "github_com_cowork_cowork-voice_internal_apperr.Error": {
             "description": "API 에러 응답",
             "type": "object",
             "properties": {
-                "code": {
-                    "type": "integer",
-                    "example": 404
+                "error": {
+                    "type": "string",
+                    "example": "NOT_FOUND"
                 },
                 "message": {
                     "type": "string",
                     "example": "session not found"
                 },
                 "status": {
-                    "type": "string",
-                    "example": "NOT_FOUND"
+                    "type": "integer",
+                    "example": 404
                 }
             }
         },
-        "github_com_cowork_cowork-voice_internal_dto.JoinResponse": {
+        "internal_domain_voice_room.JoinResponse": {
             "type": "object",
             "properties": {
                 "livekit_url": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "wss://livekit.example.com"
                 },
                 "room_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "channel-42"
                 },
                 "session_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "token": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiJ9..."
                 }
             }
         },
-        "github_com_cowork_cowork-voice_internal_dto.ParticipantInfo": {
+        "internal_domain_voice_room.ParticipantResponse": {
             "type": "object",
             "properties": {
                 "joined_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "user_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 }
             }
         },
-        "github_com_cowork_cowork-voice_internal_dto.ParticipantsResponse": {
+        "internal_domain_voice_room.ParticipantsResponse": {
             "type": "object",
             "properties": {
                 "channel_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 42
                 },
                 "participants": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_dto.ParticipantInfo"
+                        "$ref": "#/definitions/internal_domain_voice_room.ParticipantResponse"
                     }
                 },
                 "room_name": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "channel-42"
                 }
             }
         },
-        "github_com_cowork_cowork-voice_internal_dto.SessionResponse": {
+        "internal_domain_voice_room.SessionResponse": {
             "type": "object",
             "properties": {
                 "channel_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 42
                 },
                 "ended_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-01T01:00:00Z"
                 },
                 "session_id": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
                 },
                 "started_at": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
                 },
                 "status": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "active"
                 },
                 "team_id": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 1
                 }
             }
         }
