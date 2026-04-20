@@ -33,7 +33,13 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         await this.consumer.run({
             eachMessage: async ({ message }) => {
                 if (!message.value) return;
-                const event: ChatMessageEvent = JSON.parse(message.value.toString());
+                let event: ChatMessageEvent;
+                try {
+                    event = JSON.parse(message.value.toString());
+                } catch {
+                    this.logger.error('Kafka 메시지 역직렬화 실패 — 스킵');
+                    return;
+                }
                 await this.handleMessageEvent(event);
             },
         });
@@ -55,7 +61,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 content: event.content,
                 type: event.type,
                 attachments: event.attachments ?? [],
-                parentMessageId: event.parentMessageId
+                parentMessageId: (event.parentMessageId && Types.ObjectId.isValid(event.parentMessageId))
                     ? new Types.ObjectId(event.parentMessageId)
                     : null,
                 clientMessageId: event.clientMessageId ?? null,
