@@ -1,7 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { Logger, ValidationPipe } from '@nestjs/common';
-import { ChatModule } from './chat.module';
+import { ChatModule } from './chat/chat.module';
 
 async function bootstrap() {
     const app = await NestFactory.create(ChatModule);
