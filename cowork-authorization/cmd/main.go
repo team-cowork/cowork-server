@@ -1,7 +1,6 @@
 // @title           Cowork Authorization API
 // @version         1.0
 // @description     인증/인가 서비스 — Google OAuth2 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
-// @host            localhost:8080
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
 // @in              header
