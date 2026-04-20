@@ -43,7 +43,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.emit('error', { message: 'Failed to save message' });
             return;
         }
-        this.server.to(`channel:${payload.channelId}`).emit('message', saved);
+        this.server.to(`channel:${payload.channelId}`).emit('message', saved.toObject());
         return { success: true };
     }
 }
