@@ -4,7 +4,7 @@ SWAG   := $(GOPATH)/bin/swag
 .PHONY: swagger-install swagger-deps swagger-gen tidy build setup
 
 swagger-install:
-	go install github.com/swaggo/swag/cmd/swag@latest
+	go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
 swagger-deps:
 	go get github.com/swaggo/swag@v1.16.4
