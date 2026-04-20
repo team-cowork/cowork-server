@@ -1,7 +1,6 @@
 // @title           Cowork Voice API
 // @version         1.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
-// @host            localhost:8080
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
 // @in              header
