@@ -13,7 +13,6 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apperr"
 	room "github.com/cowork/cowork-voice/internal/domain/voice_room"
-	webhook "github.com/cowork/cowork-voice/internal/domain/webhook"
 )
 
 func CreateIndexes(ctx context.Context, db *mongo.Database) error {
@@ -91,41 +90,6 @@ func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, room
 		return nil, apperr.Internal(err.Error())
 	}
 	return &s, nil
-}
-
-func (r *mongoSessionRepository) FindLatestSessionByChannel(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
-	col := r.db.Collection(room.CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}}
-	opts := options.FindOne().SetSort(bson.D{{Key: "started_at", Value: -1}})
-	var s room.VoiceSession
-	err := col.FindOne(ctx, filter, opts).Decode(&s)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, apperr.Internal(err.Error())
-	}
-	return &s, nil
-}
-
-func (r *mongoSessionRepository) Resolve(ctx context.Context, req webhook.LegacySessionResolveRequest) (*room.VoiceSession, error) {
-	if !req.EventType.IsSupported() {
-		return nil, webhook.UnsupportedWebhookEventTypeError(req.EventType)
-	}
-
-	parsedRoom, ok := room.ParseRoomName(req.RoomName)
-	if !ok || parsedRoom.Format != room.RoomNameFormatLegacy {
-		return nil, nil
-	}
-
-	switch req.EventType {
-	case webhook.EventParticipantJoined, webhook.EventRoomFinished:
-		return r.FindActiveSession(ctx, parsedRoom.ChannelID)
-	case webhook.EventParticipantLeft:
-		return r.FindLatestSessionByChannel(ctx, parsedRoom.ChannelID)
-	default:
-		return nil, webhook.UnsupportedWebhookEventTypeError(req.EventType)
-	}
 }
 
 func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, error) {
