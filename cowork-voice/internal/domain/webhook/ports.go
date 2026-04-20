@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
@@ -24,25 +23,3 @@ const (
 	EventParticipantLeft   WebhookEventType = "participant_left"
 	EventRoomFinished      WebhookEventType = "room_finished"
 )
-
-type LegacySessionResolveRequest struct {
-	EventType WebhookEventType
-	RoomName  string
-}
-
-type LegacySessionResolver interface {
-	Resolve(ctx context.Context, req LegacySessionResolveRequest) (*roomdomain.VoiceSession, error)
-}
-
-func (t WebhookEventType) IsSupported() bool {
-	switch t {
-	case EventParticipantJoined, EventParticipantLeft, EventRoomFinished:
-		return true
-	default:
-		return false
-	}
-}
-
-func UnsupportedWebhookEventTypeError(eventType WebhookEventType) error {
-	return fmt.Errorf("unsupported webhook event type: %s", eventType)
-}
