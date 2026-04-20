@@ -22,6 +22,7 @@ Apply the following rules whenever editing code, configuration, or database arti
   - `X-User-Id`: `Long`
   - `X-User-Role`: `String` with values `ADMIN` or `MEMBER`
 - In production-oriented code or config, prevent direct service access that bypasses the Gateway.
+- Handle CORS consistently at the gateway level (`cowork-gateway`) and avoid redundant service-level CORS configuration unless a service has a documented exception.
 
 ## Database
 
