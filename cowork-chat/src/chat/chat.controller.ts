@@ -63,6 +63,7 @@ export class ChatController {
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
+        await this.chatService.checkMembership(Number(channelId), userId);
         const updated = await this.chatService.editMessage(messageId, userId, dto, userRole);
 
         this.chatGateway.server
@@ -84,6 +85,7 @@ export class ChatController {
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
+        await this.chatService.checkMembership(Number(channelId), userId);
         const result = await this.chatService.deleteMessage(messageId, userId, userRole);
 
         this.chatGateway.server
