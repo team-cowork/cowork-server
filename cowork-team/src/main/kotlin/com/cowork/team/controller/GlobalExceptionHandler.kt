@@ -1,4 +1,4 @@
-package com.cowork.user.controller
+package com.cowork.team.controller
 
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -15,9 +15,7 @@ import team.themoment.sdk.exception.ExpectedException
 class GlobalExceptionHandler {
     private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
-    data class ErrorResponse(
-        val message: String,
-    )
+    data class ErrorResponse(val message: String)
 
     @ExceptionHandler(ExpectedException::class)
     fun handleExpectedException(e: ExpectedException): ResponseEntity<ErrorResponse> =
