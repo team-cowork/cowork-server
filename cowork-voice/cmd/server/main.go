@@ -11,16 +11,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/cowork/cowork-voice/internal/config"
-	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
+	lkinfra "github.com/cowork/cowork-voice/internal/infra/livekit"
+	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 	"github.com/cowork/cowork-voice/internal/middleware"
 )
 
@@ -47,7 +50,7 @@ func main() {
 	db := mongoClient.Database(cfg.MongoDBDB)
 
 	indexCtx, indexCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	if err := sessiondomain.CreateIndexes(indexCtx, db); err != nil {
+	if err := mongoinfra.CreateIndexes(indexCtx, db); err != nil {
 		indexCancel()
 		slog.Error("mongodb index creation failed", "err", err)
 		os.Exit(1)
@@ -67,8 +70,20 @@ func main() {
 	)
 
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
-	sessionHandler := sessiondomain.NewHandler(db, channelClient, livekitClient, cfg)
-	webhookHandler := webhookdomain.NewHandler(db, kafkaProducer, cfg)
+	sessionRepo := mongoinfra.NewMongoSessionRepository(db)
+	livekitRoom := lkinfra.NewLiveKitRoom(
+		livekitClient,
+		cfg.LiveKitAPIKey,
+		cfg.LiveKitAPISecret,
+		cfg.LiveKitTokenTTLSecs,
+	)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, cfg.LiveKitWsURL)
+	roomHandler := roomdomain.NewHandler(roomSvc)
+	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, kafkaProducer)
+	webhookHandler := webhookdomain.NewHandler(
+		webhookSvc,
+		auth.NewSimpleKeyProvider(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret),
+	)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
@@ -79,10 +94,10 @@ func main() {
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.ExtractAuthUser)
-		r.Post("/voice/channels/{channel_id}/join", sessionHandler.Join)
-		r.Post("/voice/channels/{channel_id}/leave", sessionHandler.Leave)
-		r.Get("/voice/channels/{channel_id}/participants", sessionHandler.Participants)
-		r.Get("/voice/sessions/{session_id}", sessionHandler.GetSession)
+		r.Post("/voice/channels/{channel_id}/join", roomHandler.Join)
+		r.Post("/voice/channels/{channel_id}/leave", roomHandler.Leave)
+		r.Get("/voice/channels/{channel_id}/participants", roomHandler.Participants)
+		r.Get("/voice/sessions/{session_id}", roomHandler.GetSession)
 	})
 
 	srv := &http.Server{
