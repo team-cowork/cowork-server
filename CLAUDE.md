@@ -1,7 +1,6 @@
 # Cowork Server
 
-## Project Structure
+## Overview
 
-This project is a microservices architecture with multiple tech.
-
-A `docker-compose.yml` is located at the root, and each service is organized as an independent module directory. The main modules are cowork-gateway, cowork-authorization, cowork-user, cowork-team, cowork-project, cowork-channel, cowork-chat, cowork-voice, and cowork-config.
+Team collaboration platform backend. MSA monorepo based on Spring Boot.  
+Tech stack: Spring Cloud Gateway, Eureka, OpenFeign, Kafka, Flyway, MySQL, MongoDB
