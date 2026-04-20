@@ -6,7 +6,7 @@ import { Message, MessageSchema } from './schema/message.schema';
 
 @Module({
     imports: [
-        MongooseModule.forRoot('mongodb://localhost:27017/cowork'),
+        MongooseModule.forRoot(process.env.MONGODB_URI ?? 'mongodb://localhost:27017/cowork'),
         MongooseModule.forFeature([{ name: Message.name, schema: MessageSchema }]),
     ],
     providers: [ChatGateway, ChatService],
