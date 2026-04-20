@@ -104,6 +104,17 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: authorization-service-docs
           uri: lb://cowork-authorization
           predicates:
