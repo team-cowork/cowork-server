@@ -19,8 +19,7 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
-val springdocWebmvcVersion = libs.versions.springdocWebmvc.get()
-val springCloudComponentsVersion = libs.versions.springCloudComponents.get()
+val springdocVersion = libs.versions.springdoc.webmvc.get()
 
 dependencyManagement {
     imports {
@@ -28,14 +27,14 @@ dependencyManagement {
         mavenBom(libs.awspring.cloud.bom.get().toString())
     }
     dependencies {
-        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocWebmvcVersion")
-        dependency("org.springdoc:springdoc-openapi-starter-webmvc-api:$springdocWebmvcVersion")
-        dependency("org.springdoc:springdoc-openapi-starter-common:$springdocWebmvcVersion")
-        dependency("org.springframework.cloud:spring-cloud-context:$springCloudComponentsVersion")
-        dependency("org.springframework.cloud:spring-cloud-commons:$springCloudComponentsVersion")
-        dependency("org.springframework.cloud:spring-cloud-starter:$springCloudComponentsVersion")
-        dependency("org.springframework.cloud:spring-cloud-starter-loadbalancer:$springCloudComponentsVersion")
-        dependency("org.springframework.cloud:spring-cloud-loadbalancer:$springCloudComponentsVersion")
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-api:$springdocVersion")
+        dependency("org.springdoc:springdoc-openapi-starter-common:$springdocVersion")
+        dependency("org.springframework.cloud:spring-cloud-context:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-commons:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-starter:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-starter-loadbalancer:4.2.1")
+        dependency("org.springframework.cloud:spring-cloud-loadbalancer:4.2.1")
     }
 }
 
