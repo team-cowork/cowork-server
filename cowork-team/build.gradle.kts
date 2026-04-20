@@ -36,6 +36,7 @@ dependencies {
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.github.themoment-team:the-sdk:1.5")
+    implementation(libs.springdoc.openapi.webmvc.ui)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
