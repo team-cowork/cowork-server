@@ -13,3 +13,7 @@ socket.on("connect", () => {
 socket.on("message", (data) => {
     console.log("📨 received:", data);
 });
+
+socket.on("connect_error", (err) => {
+    console.error("❌ connection error:", err.message);
+});
