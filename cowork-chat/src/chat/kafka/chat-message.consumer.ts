@@ -58,10 +58,15 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 parentMessageId: event.parentMessageId
                     ? new Types.ObjectId(event.parentMessageId)
                     : null,
+                clientMessageId: event.clientMessageId ?? null,
             });
 
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
-        } catch (err) {
+        } catch (err: any) {
+            if (err?.code === 11000) {
+                this.logger.warn(`중복 메시지 감지, 스킵합니다 (clientMessageId: ${event.clientMessageId})`);
+                return;
+            }
             this.logger.error('메시지 저장 실패 — offset 미커밋으로 Kafka 재전달 예정', err);
             throw err;
         }
