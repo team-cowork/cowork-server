@@ -14,7 +14,7 @@ export class ChatService {
         try {
             return await this.messageModel.create(payload);
         } catch (e) {
-            this.logger.error('Failed to save message', e);
+            this.logger.error('메시지 저장 실패', e);
             return null;
         }
     }
