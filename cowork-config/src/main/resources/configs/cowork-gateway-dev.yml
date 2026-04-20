@@ -143,6 +143,13 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
 
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
 # jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
 
 resilience4j:
