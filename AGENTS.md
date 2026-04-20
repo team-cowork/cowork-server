@@ -35,7 +35,7 @@ Apply the following rules whenever editing code, configuration, or database arti
 - Use these database naming conventions:
   - Index: `idx_tb_{table}_{column}`
   - Unique key: `uq_tb_{table}_{column}`
-  - FK-like column name: `fk_tb_{table}_{target}`
+  - FK-like constraint name: `fk_tb_{table}_{target}`
 - Never create real foreign key constraints across services.
 - When referencing another service's resource, store the ID as a normal column and document the source in the column `COMMENT`.
 - Example:
@@ -46,6 +46,8 @@ team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
 
 - MongoDB-based services such as `cowork-chat` and `cowork-voice` do not use Flyway.
 - For MongoDB services, manage schema-related definitions inside each service's `schema/` directory.
+- Do not remove or transform the `_id` field from Mongoose documents sent to the client.
+- Set `versionKey: false` in the schema to exclude the `__v` key.
 
 ## Configuration
 
