@@ -73,21 +73,31 @@ describe('ChatController', () => {
     });
 
     describe('getMessages', () => {
-        it('채널 메시지를 조회한다', async () => {
+        it('멤버십 검증 후 채널 메시지를 조회한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.getMessages.mockResolvedValue([]);
+
             const result = await controller.getMessages('1', {}, authHeaders);
+
+            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
             expect(mockChatService.getMessages).toHaveBeenCalledWith(1, undefined);
             expect(result).toEqual([]);
         });
 
         it('cursor(before) 파라미터를 서비스로 전달한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.getMessages.mockResolvedValue([]);
             await controller.getMessages('1', { before: mockMessageId }, authHeaders);
             expect(mockChatService.getMessages).toHaveBeenCalledWith(1, mockMessageId);
         });
 
-        it('x-user-id 헤더 없이 요청하면 UnauthorizedException이 발생한다', () => {
-            expect(() => controller.getMessages('1', {}, {})).toThrow();
+        it('채널 멤버가 아니면 ForbiddenException이 발생한다', async () => {
+            mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
+            await expect(controller.getMessages('1', {}, authHeaders)).rejects.toThrow(ForbiddenException);
+        });
+
+        it('x-user-id 헤더 없이 요청하면 UnauthorizedException이 발생한다', async () => {
+            await expect(controller.getMessages('1', {}, {})).rejects.toThrow();
         });
     });
 
