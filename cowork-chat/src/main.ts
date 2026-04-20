@@ -1,10 +1,11 @@
 import 'reflect-metadata';
+import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
-import { ChatModule } from './chat.module';
+import { ChatModule } from './chat/chat.module';
 
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(ChatModule);
