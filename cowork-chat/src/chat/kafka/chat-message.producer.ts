@@ -13,6 +13,7 @@ export interface ChatMessageEvent {
     type: string;
     attachments?: object[];
     parentMessageId?: string;
+    clientMessageId?: string;
     occurredAt: string;
 }
 
@@ -47,6 +48,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             type: dto.type ?? 'TEXT',
             attachments: dto.attachments,
             parentMessageId: dto.parentMessageId,
+            clientMessageId: dto.clientMessageId,
             occurredAt: new Date().toISOString(),
         };
 
