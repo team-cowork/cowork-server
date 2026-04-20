@@ -24,12 +24,12 @@ dependencies {
     implementation("io.vertx:vertx-redis-client")
     implementation("io.vertx:vertx-kafka-client")
     implementation("io.vertx:vertx-service-discovery")
-    implementation("com.netflix.eureka:eureka-client:2.0.6")
+    implementation(libs.eureka.client)
 
     // Flyway (JDBC, 시작 시 블로킹 실행)
-    implementation("org.flywaydb:flyway-core:10.15.0")
-    implementation("org.flywaydb:flyway-database-postgresql:10.15.0")
-    implementation("org.postgresql:postgresql:42.7.3")
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.database.postgresql)
+    implementation(libs.postgresql)
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
