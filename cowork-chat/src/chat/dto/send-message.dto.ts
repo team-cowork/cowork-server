@@ -15,4 +15,5 @@ export class SendMessageDto {
     @IsEnum(['TEXT', 'FILE']) @IsOptional() type?: string;
     @IsArray() @IsOptional() attachments?: AttachmentDto[];
     @IsMongoId() @IsOptional() parentMessageId?: string;
+    @IsString() @IsOptional() clientMessageId?: string;
 }
