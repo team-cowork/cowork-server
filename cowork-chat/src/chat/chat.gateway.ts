@@ -21,11 +21,11 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     constructor(private readonly chatService: ChatService) {}
 
     handleConnection(client: Socket) {
-        this.logger.log(`connected: ${client.id}`);
+        this.logger.log(`클라이언트 연결됨: ${client.id}`);
     }
 
     handleDisconnect(client: Socket) {
-        this.logger.log(`disconnected: ${client.id}`);
+        this.logger.log(`클라이언트 연결 해제됨: ${client.id}`);
     }
 
     @SubscribeMessage('join')
