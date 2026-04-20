@@ -22,4 +22,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh
+        include: health, info, refresh, busrefresh, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
