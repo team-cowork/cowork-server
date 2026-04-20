@@ -10,17 +10,8 @@ NEW_VERSION="${DATE}.${EXISTING}"
 
 printf '%s' "${NEW_VERSION}" > "$VERSION_FILE"
 
-GRADLE_FILES=(
-  "cowork-user/build.gradle.kts"
-  "cowork-gateway/build.gradle.kts"
-  "cowork-team/build.gradle.kts"
-  "cowork-config/build.gradle.kts"
-  "cowork-notification/build.gradle.kts"
-  "cowork-preference/build.gradle.kts"
-)
-
-for FILE in "${GRADLE_FILES[@]}"; do
-  perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$ROOT_DIR/$FILE"
+for FILE in "$ROOT_DIR"/cowork-*/build.gradle.kts; do
+  perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$FILE"
 done
 
 perl -i -pe "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$ROOT_DIR/cowork-chat/package.json"
