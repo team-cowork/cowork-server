@@ -12,7 +12,6 @@ the-sdk = "1.5"
 eureka-client = "2.0.6"
 flyway = "10.15.0"
 postgresql = "42.7.3"
-spring-cloud-components = "4.2.1"
 
 [libraries]
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
