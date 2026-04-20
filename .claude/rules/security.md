@@ -20,3 +20,4 @@ paths:
 - Never parse JWT in downstream services. Gateway validates the token and forwards user info via headers.
 - Downstream services must trust `X-User-Id` (Long) and `X-User-Role` (String: ADMIN | MEMBER) headers from Gateway.
 - Block direct calls that bypass Gateway in production environments.
+- Handle CORS consistently at the gateway level (`cowork-gateway`) and avoid duplicating service-level CORS configuration unless a service has a documented exception.
