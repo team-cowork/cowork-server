@@ -1,3 +1,12 @@
+// @title           Cowork Voice API
+// @version         1.0
+// @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
+// @host            localhost:8080
+// @BasePath        /api
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     "Bearer {access_token}" 형식으로 입력하세요.
 package main
 
 import (
@@ -12,12 +21,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/cowork/cowork-voice/internal/config"
 	sessiondomain "github.com/cowork/cowork-voice/internal/domain/session"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
+	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
@@ -75,6 +86,9 @@ func main() {
 	r.Use(chimiddleware.Recoverer)
 
 	r.Get("/health", health.Handler)
+	r.Get("/swagger/*", httpSwagger.Handler(
+		httpSwagger.URL("/swagger/doc.json"),
+	))
 	r.Post("/voice/webhook", webhookHandler.Handle)
 
 	r.Group(func(r chi.Router) {

@@ -5,10 +5,12 @@ import (
 	"net/http"
 )
 
+// AppError godoc
+// @Description API 에러 응답
 type AppError struct {
-	HTTPStatus int
-	Code       string
-	Message    string
+	HTTPStatus int    `json:"code" example:"404"`
+	Code       string `json:"status" example:"NOT_FOUND"`
+	Message    string `json:"message" example:"session not found"`
 }
 
 func (e *AppError) Error() string {
