@@ -37,6 +37,8 @@ export class Message {
     @Prop({ type: [EditHistory], default: [] }) editHistory!: EditHistory[];
 
     @Prop({ default: false }) isPinned!: boolean;
+
+    @Prop({ type: String, default: null }) clientMessageId!: string | null;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
@@ -45,3 +47,4 @@ MessageSchema.index({ channelId: 1, _id: -1 });
 MessageSchema.index({ authorId: 1 });
 MessageSchema.index({ parentMessageId: 1 });
 MessageSchema.index({ isPinned: 1, channelId: 1 });
+MessageSchema.index({ clientMessageId: 1 }, { unique: true, sparse: true });
