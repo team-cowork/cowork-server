@@ -7,6 +7,7 @@ import {
     OnGatewayConnection,
     OnGatewayDisconnect,
 } from '@nestjs/websockets';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { MessagePayloadDto } from './dto/message-payload.dto';
@@ -14,16 +15,17 @@ import { JoinChannelDto } from './dto/join-channel.dto';
 
 @WebSocketGateway({ namespace: '/chat' })
 export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
+    private readonly logger = new Logger(ChatGateway.name);
     @WebSocketServer() server!: Server;
 
     constructor(private readonly chatService: ChatService) {}
 
     handleConnection(client: Socket) {
-        console.log(`connected: ${client.id}`);
+        this.logger.log(`connected: ${client.id}`);
     }
 
     handleDisconnect(client: Socket) {
-        console.log(`disconnected: ${client.id}`);
+        this.logger.log(`disconnected: ${client.id}`);
     }
 
     @SubscribeMessage('join')
