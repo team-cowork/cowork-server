@@ -8,7 +8,7 @@ import (
 // AppError godoc
 // @Description API 에러 응답
 type AppError struct {
-	HTTPStatus int    `json:"code" example:"404"`
+	HTTPStatus int    `json:"-"`
 	Code       string `json:"status" example:"NOT_FOUND"`
 	Message    string `json:"message" example:"session not found"`
 }
@@ -42,7 +42,6 @@ func WriteResponse(w http.ResponseWriter, err *AppError) {
 	w.WriteHeader(err.HTTPStatus)
 	json.NewEncoder(w).Encode(map[string]any{
 		"status":  err.Code,
-		"code":    err.HTTPStatus,
 		"message": err.Message,
 	})
 }
