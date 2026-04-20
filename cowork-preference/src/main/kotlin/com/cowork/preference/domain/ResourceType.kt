@@ -1,5 +1,5 @@
 package com.cowork.preference.domain
 
 enum class ResourceType {
-    ACCOUNT, TEAM, PROJECT, CHANNEL
+    ACCOUNT, TEAM, PROJECT, VOICE_CHANNEL, TEXT_CHANNEL,
 }
