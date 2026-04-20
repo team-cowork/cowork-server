@@ -44,7 +44,7 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 	var invalid []string
 	for i, r := range resp.Responses {
 		if !r.Success {
-			if messaging.IsRegistrationTokenNotRegistered(r.Error) || messaging.IsInvalidArgument(r.Error) {
+			if messaging.IsRegistrationTokenNotRegistered(r.Error) {
 				invalid = append(invalid, tokens[i])
 			} else {
 				slog.Warn("fcm send failed for token", "err", r.Error, "token", tokens[i])
