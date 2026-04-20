@@ -1,0 +1,106 @@
+{
+  "title": "Cowork Go 서비스 (authorization + voice)",
+  "uid": "cowork-go-services",
+  "tags": ["cowork", "golang"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP 요청 Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum by (job, handler) (rate(promhttp_metric_handler_requests_total{job=~\"cowork-authorization|cowork-voice\", code=\"200\"}[1m]))",
+          "legendFormat": "{{job}} {{handler}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Go 힙 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "go_memstats_heap_inuse_bytes{job=~\"cowork-authorization|cowork-voice\"}",
+          "legendFormat": "Heap InUse {{job}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "go_memstats_heap_alloc_bytes{job=~\"cowork-authorization|cowork-voice\"}",
+          "legendFormat": "Heap Alloc {{job}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 3,
+      "title": "Go Goroutine 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "go_goroutines{job=~\"cowork-authorization|cowork-voice\"}",
+          "legendFormat": "{{job}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Go GC 빈도 (회/분)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(go_gc_duration_seconds_count{job=~\"cowork-authorization|cowork-voice\"}[1m]) * 60",
+          "legendFormat": "GC/min {{job}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "HTTP 에러 (4xx + 5xx)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum by (job, code) (rate(promhttp_metric_handler_requests_total{job=~\"cowork-authorization|cowork-voice\", code!=\"200\"}[1m]))",
+          "legendFormat": "{{job}} {{code}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "CPU 사용 시간 (초/분)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(process_cpu_seconds_total{job=~\"cowork-authorization|cowork-voice\"}[1m]) * 60",
+          "legendFormat": "{{job}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "Datasource"
+      }
+    ]
+  }
+}
