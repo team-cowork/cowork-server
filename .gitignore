@@ -67,6 +67,8 @@ SPEC.md
 
 ### Docs ###
 docs/
+!cowork-authorization/docs/
+!cowork-voice/docs/
 
 ### Worktrees ###
 .worktrees/
