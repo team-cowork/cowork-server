@@ -36,6 +36,8 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/fallback").permitAll()
+                    .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
+                    .pathMatchers("/v3/api-docs/**").permitAll()
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
