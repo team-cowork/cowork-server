@@ -1,0 +1,54 @@
+name: cowork prod CD Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Calculate Version
+        id: version
+        run: |
+          DATE=$(date -u +"%Y%m%d")
+          EXISTING=$(git tag -l "v${DATE}.*" | wc -l | tr -d ' ')
+          VERSION="v${DATE}.${EXISTING}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Create Tag
+        run: git tag ${{ steps.version.outputs.version }}
+
+      - name: Push Tag
+        run: git push origin ${{ steps.version.outputs.version }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes $'## 수정내역\n\n- '
+
+      - name: Notify Discord
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          status: ${{ job.status }}
+          title: "Cowork Server Prod CD"
+          description: |
+            Released `${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
