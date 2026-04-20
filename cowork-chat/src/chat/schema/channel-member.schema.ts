@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 
 export type ChannelMemberDocument = HydratedDocument<ChannelMember>;
 
-@Schema({ timestamps: true })
+@Schema({ timestamps: true, versionKey: false })
 export class ChannelMember {
     @Prop({ required: true }) channelId!: number;
     @Prop({ required: true }) userId!: number;
