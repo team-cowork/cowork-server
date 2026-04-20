@@ -19,14 +19,9 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
-val springdocVersion = libs.versions.springdoc.webmvc.get()
-
 dependencyManagement {
     imports {
         mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
-    dependencies {
-        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
     }
 }
 
