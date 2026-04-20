@@ -1,4 +1,4 @@
-package dto
+package room
 
 type JoinResponse struct {
 	Token      string `json:"token"`
@@ -7,15 +7,15 @@ type JoinResponse struct {
 	RoomName   string `json:"room_name"`
 }
 
-type ParticipantInfo struct {
+type ParticipantResponse struct {
 	UserID   int64  `json:"user_id"`
 	JoinedAt string `json:"joined_at"`
 }
 
 type ParticipantsResponse struct {
-	ChannelID    int64             `json:"channel_id"`
-	RoomName     string            `json:"room_name"`
-	Participants []ParticipantInfo `json:"participants"`
+	ChannelID    int64                 `json:"channel_id"`
+	RoomName     string                `json:"room_name"`
+	Participants []ParticipantResponse `json:"participants"`
 }
 
 type SessionResponse struct {
