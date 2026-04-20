@@ -40,7 +40,7 @@ export class Message {
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
-/
+
 MessageSchema.index({ channelId: 1, _id: -1 });
 MessageSchema.index({ authorId: 1 });
 MessageSchema.index({ parentMessageId: 1 });
