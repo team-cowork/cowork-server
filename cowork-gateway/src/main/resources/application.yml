@@ -43,3 +43,19 @@ logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: chat
+        url: /v3/api-docs/chat
+    urls-primary-name: user
+  api-docs:
+    enabled: false
