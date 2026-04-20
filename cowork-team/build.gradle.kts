@@ -19,9 +19,14 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
+val springdocVersion = libs.versions.springdoc.webmvc.get()
+
 dependencyManagement {
     imports {
         mavenBom(libs.spring.cloud.dependencies.get().toString())
+    }
+    dependencies {
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
     }
 }
 
@@ -36,6 +41,7 @@ dependencies {
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("com.github.themoment-team:the-sdk:1.5")
+    implementation(libs.springdoc.openapi.webmvc.ui)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
