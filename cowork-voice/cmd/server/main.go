@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -100,6 +101,7 @@ func main() {
 	r.Use(chimiddleware.Recoverer)
 
 	r.Get("/health", health.Handler)
+	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
