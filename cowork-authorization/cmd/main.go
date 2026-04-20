@@ -26,6 +26,7 @@ import (
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
 	"gorm.io/driver/mysql"
@@ -69,6 +70,7 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/health", handler.Health)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	auth := router.Group("/auth")
