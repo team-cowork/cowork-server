@@ -2,6 +2,7 @@
 .idea/*
 !.idea/externalDependencies.xml
 !.idea/icon.svg
+!.idea/runConfigurations/
 *.iws
 *.iml
 *.ipr
@@ -62,3 +63,12 @@ PR_BODY.md
 SPEC.md
 .pr-tmp/
 /.claude/command.log
+.codex
+
+### Docs ###
+docs/
+!cowork-authorization/docs/
+!cowork-voice/docs/
+
+### Worktrees ###
+.worktrees/

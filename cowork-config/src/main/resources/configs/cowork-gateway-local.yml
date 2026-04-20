@@ -1,0 +1,94 @@
+jwt:
+  secret: local-dev-secret-key-minimum-32-characters-long
+
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost:3000"
+            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: authorization-service
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: user-service
+          uri: lb://cowork-user
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: authorization-service-docs
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/v3/api-docs/authorization
+          filters:
+            - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
+
+        - id: user-service-docs
+          uri: lb://cowork-user
+          predicates:
+            - Path=/v3/api-docs/user
+          filters:
+            - RewritePath=/v3/api-docs/user, /v3/api-docs
+
+        - id: voice-service-docs
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/v3/api-docs/voice
+          filters:
+            - RewritePath=/v3/api-docs/voice, /swagger/doc.json
+
+        - id: chat-service-docs
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/v3/api-docs/chat
+          filters:
+            - RewritePath=/v3/api-docs/chat, /api-json
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      defaultCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true

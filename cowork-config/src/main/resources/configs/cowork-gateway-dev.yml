@@ -104,6 +104,59 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: authorization-service-docs
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/v3/api-docs/authorization
+          filters:
+            - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
+
+        - id: user-service-docs
+          uri: lb://cowork-user
+          predicates:
+            - Path=/v3/api-docs/user
+          filters:
+            - RewritePath=/v3/api-docs/user, /v3/api-docs
+
+        - id: voice-service-docs
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/v3/api-docs/voice
+          filters:
+            - RewritePath=/v3/api-docs/voice, /swagger/doc.json
+
+        - id: chat-service-docs
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/v3/api-docs/chat
+          filters:
+            - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
+
 # jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
 
 resilience4j:

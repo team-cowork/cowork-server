@@ -1,16 +1,36 @@
 [versions]
-spring-boot = "3.4.4"
-spring-cloud = "2024.0.1"
+spring-boot = "3.5.13"
+spring-cloud = "2025.0.1"
 kotlin = "2.1.20"
 awspring-cloud = "3.2.1"
+vertx = "4.5.10"
+coroutines = "1.8.1"
+jjwt = "0.12.6"
+springdoc-webflux = "2.8.8"
+springdoc-webmvc = "2.8.17"
+the-sdk = "1.5"
+eureka-client = "2.0.6"
+flyway = "10.15.0"
+postgresql = "42.7.3"
 
 [libraries]
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 awspring-cloud-bom = { module = "io.awspring.cloud:spring-cloud-aws-dependencies", version.ref = "awspring-cloud" }
 awspring-cloud-s3 = { module = "io.awspring.cloud:spring-cloud-aws-starter-s3" }
+jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
+jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
+jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
+springdoc-openapi-webflux-ui = { module = "org.springdoc:springdoc-openapi-starter-webflux-ui", version.ref = "springdoc-webflux" }
+springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc-webmvc" }
+the-sdk = { module = "com.github.themoment-team:the-sdk", version.ref = "the-sdk" }
+eureka-client = { module = "com.netflix.eureka:eureka-client", version.ref = "eureka-client" }
+flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
+postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
+kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }

@@ -1,0 +1,222 @@
+basePath: /api
+definitions:
+  github_com_cowork_cowork-voice_internal_apperr.Error:
+    description: API 에러 응답
+    properties:
+      error:
+        example: NOT_FOUND
+        type: string
+      message:
+        example: session not found
+        type: string
+      status:
+        example: 404
+        type: integer
+    type: object
+  internal_domain_voice_room.JoinResponse:
+    properties:
+      livekit_url:
+        example: wss://livekit.example.com
+        type: string
+      room_name:
+        example: channel-42
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiJ9...
+        type: string
+    type: object
+  internal_domain_voice_room.ParticipantResponse:
+    properties:
+      joined_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user_id:
+        example: 1
+        type: integer
+    type: object
+  internal_domain_voice_room.ParticipantsResponse:
+    properties:
+      channel_id:
+        example: 42
+        type: integer
+      participants:
+        items:
+          $ref: '#/definitions/internal_domain_voice_room.ParticipantResponse'
+        type: array
+      room_name:
+        example: channel-42
+        type: string
+    type: object
+  internal_domain_voice_room.SessionResponse:
+    properties:
+      channel_id:
+        example: 42
+        type: integer
+      ended_at:
+        example: "2024-01-01T01:00:00Z"
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      started_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      status:
+        example: active
+        type: string
+      team_id:
+        example: 1
+        type: integer
+    type: object
+info:
+  contact: {}
+  description: 음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
+  title: Cowork Voice API
+  version: "1.0"
+paths:
+  /voice/channels/{channel_id}/join:
+    post:
+      description: 채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새로 생성됩니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_voice_room.JoinResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "403":
+          description: 채널 멤버가 아님
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 음성 채널 입장
+      tags:
+      - voice
+  /voice/channels/{channel_id}/leave:
+    post:
+      description: 채널에서 퇴장합니다. 마지막 참여자가 나가면 방이 자동으로 삭제됩니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: 퇴장 성공
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "404":
+          description: 활성 세션 없음
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 음성 채널 퇴장
+      tags:
+      - voice
+  /voice/channels/{channel_id}/participants:
+    get:
+      description: 현재 음성 채널에 참여 중인 사용자 목록을 반환합니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_voice_room.ParticipantsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 채널 참여자 목록 조회
+      tags:
+      - voice
+  /voice/sessions/{session_id}:
+    get:
+      description: session_id로 음성 세션 정보를 조회합니다.
+      parameters:
+      - description: 세션 ID
+        in: path
+        name: session_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_voice_room.SessionResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 세션 조회
+      tags:
+      - voice
+  /voice/webhook:
+    post:
+      consumes:
+      - application/json
+      description: LiveKit 서버가 전송하는 participant_joined / participant_left / room_finished
+        이벤트를 처리합니다. LiveKit 서버 내부 호출용이며 직접 호출하지 않습니다.
+      parameters:
+      - description: LiveKit 웹훅 서명
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+        "401":
+          description: Unauthorized
+      summary: LiveKit 웹훅 수신
+      tags:
+      - webhook
+securityDefinitions:
+  BearerAuth:
+    description: '"Bearer {access_token}" 형식으로 입력하세요.'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
