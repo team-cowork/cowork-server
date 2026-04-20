@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 )
 
 type AppConfig struct {
@@ -45,6 +46,8 @@ func Load() (*AppConfig, error) {
 		return nil, err
 	}
 
+	eurekaPort, _ := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", "8086"))
+
 	return &AppConfig{
 		Port:                 getEnv("PORT", "8086"),
 		DBDSN:                dbDSN,
@@ -56,7 +59,7 @@ func Load() (*AppConfig, error) {
 		EurekaServerURL:      getEnv("EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
 		EurekaAppName:        getEnv("EUREKA_APP_NAME", "cowork-notification"),
 		EurekaInstanceHost:   getEnv("EUREKA_INSTANCE_HOST", "localhost"),
-		EurekaInstancePort:   8086,
+		EurekaInstancePort:   eurekaPort,
 	}, nil
 }
 
