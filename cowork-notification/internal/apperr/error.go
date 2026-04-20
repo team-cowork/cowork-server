@@ -8,7 +8,7 @@ type AppError struct {
 }
 
 func (e *AppError) Error() string {
-	return fmt.Sprintf("code=%d message=%s", e.Code, e.Message)
+	return fmt.Sprintf("[%d] %s", e.Code, e.Message)
 }
 
 func NotFound(msg string) *AppError   { return &AppError{Code: 404, Message: msg} }
