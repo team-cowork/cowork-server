@@ -19,14 +19,15 @@
     "@nestjs/platform-express": "^11.1.19",
     "@nestjs/platform-socket.io": "^11.1.19",
     "@nestjs/websockets": "^11.1.19",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
-    "socket.io": "^4.8.3",
-    "class-validator": "^0.14.1",
-    "class-transformer": "^0.5.1"
+    "socket.io": "^4.8.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "socket.io-client": "^4.8.3",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.2"
   }
