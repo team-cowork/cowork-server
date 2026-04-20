@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { Message } from './schema/message.schema';
 import { ChannelMember } from './schema/channel-member.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
+import { UserRole } from '../common/enum/user-role.enum';
 
 @Injectable()
 export class ChatService {
@@ -35,7 +36,7 @@ export class ChatService {
                 { $limit: 100 },
                 {
                     $lookup: {
-                        from: 'messages',
+                        from: this.messageModel.collection.name,
                         localField: 'parentMessageId',
                         foreignField: '_id',
                         as: 'mentionedMessage',
@@ -68,6 +69,7 @@ export class ChatService {
             throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
         }
 
+        if (message.content === dto.content) return message;
         message.editHistory.push({ content: message.content, editedAt: new Date() });
         message.content = dto.content;
         message.isEdited = true;
@@ -86,6 +88,6 @@ export class ChatService {
     }
 
     private isAdmin(role: string): boolean {
-        return role === 'ROLE_ADMIN';
+        return role === UserRole.ADMIN;
     }
 }
