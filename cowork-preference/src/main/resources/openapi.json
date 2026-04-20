@@ -6,7 +6,7 @@
     "version": "1.0"
   },
   "servers": [
-    { "url": "http://localhost:8085", "description": "로컬" }
+    { "url": "/", "description": "현재 서버" }
   ],
   "security": [{ "BearerAuth": [] }],
   "tags": [
