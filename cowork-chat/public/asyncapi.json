@@ -1,0 +1,75 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {
+    "title": "Cowork Chat WebSocket API",
+    "version": "1.0.0",
+    "description": "Socket.io 기반 실시간 채팅 서비스 이벤트 명세"
+  },
+  "servers": {
+    "development": {
+      "url": "localhost:{port}",
+      "protocol": "ws",
+      "description": "개발 서버",
+      "variables": {
+        "port": {
+          "default": "3000"
+        }
+      }
+    }
+  },
+  "channels": {
+    "/": {
+      "description": "Socket.io 기본 네임스페이스",
+      "subscribe": {
+        "summary": "서버 → 클라이언트 이벤트",
+        "message": {
+          "oneOf": [
+            { "$ref": "#/components/messages/MessageBroadcast" }
+          ]
+        }
+      },
+      "publish": {
+        "summary": "클라이언트 → 서버 이벤트",
+        "message": {
+          "oneOf": [
+            { "$ref": "#/components/messages/SendMessage" }
+          ]
+        }
+      }
+    }
+  },
+  "components": {
+    "messages": {
+      "SendMessage": {
+        "name": "message",
+        "title": "채팅 메시지 전송",
+        "summary": "클라이언트가 채널에 메시지를 전송합니다.",
+        "payload": { "$ref": "#/components/schemas/MessagePayload" }
+      },
+      "MessageBroadcast": {
+        "name": "message",
+        "title": "채팅 메시지 브로드캐스트",
+        "summary": "서버가 같은 채널의 모든 멤버에게 메시지를 브로드캐스트합니다.",
+        "payload": { "$ref": "#/components/schemas/MessagePayload" }
+      }
+    },
+    "schemas": {
+      "MessagePayload": {
+        "type": "object",
+        "required": ["channelId", "content"],
+        "properties": {
+          "channelId": {
+            "type": "string",
+            "description": "메시지를 전송할 채널 ID",
+            "example": "42"
+          },
+          "content": {
+            "type": "string",
+            "description": "메시지 내용",
+            "example": "안녕하세요!"
+          }
+        }
+      }
+    }
+  }
+}
