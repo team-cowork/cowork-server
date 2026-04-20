@@ -17,10 +17,10 @@ fun buildRouter(
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
 
+    val openapiSpec = object {}.javaClass.getResourceAsStream("/openapi.json")?.use { it.bufferedReader().readText() }
     router.get("/swagger/doc.json").handler { ctx ->
-        val spec = object {}.javaClass.getResourceAsStream("/openapi.json")?.bufferedReader()?.readText()
-        if (spec != null) {
-            ctx.response().putHeader("Content-Type", "application/json").end(spec)
+        if (openapiSpec != null) {
+            ctx.response().putHeader("Content-Type", "application/json").end(openapiSpec)
         } else {
             ctx.response().setStatusCode(404).end()
         }
