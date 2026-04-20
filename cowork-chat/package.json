@@ -18,7 +18,6 @@
     "@nestjs/core": "^11.1.19",
     "@nestjs/platform-express": "^11.1.19",
     "@nestjs/platform-socket.io": "^11.1.19",
-    "@nestjs/serve-static": "^4.0.2",
     "@nestjs/swagger": "^8.1.1",
     "@nestjs/websockets": "^11.1.19",
     "reflect-metadata": "^0.2.2",
