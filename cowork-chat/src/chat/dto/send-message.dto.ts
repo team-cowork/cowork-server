@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, MaxLength, IsEnum, IsArray } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MaxLength, IsEnum, IsArray, IsMongoId } from 'class-validator';
 
 export class AttachmentDto {
     @IsString() name!: string;
@@ -14,5 +14,5 @@ export class SendMessageDto {
     @IsString() @MaxLength(25000) content!: string;
     @IsEnum(['TEXT', 'FILE']) @IsOptional() type?: string;
     @IsArray() @IsOptional() attachments?: AttachmentDto[];
-    @IsString() @IsOptional() parentMessageId?: string;
+    @IsMongoId() @IsOptional() parentMessageId?: string;
 }

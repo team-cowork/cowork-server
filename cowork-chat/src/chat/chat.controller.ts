@@ -66,7 +66,7 @@ export class ChatController {
         const updated = await this.chatService.editMessage(messageId, userId, dto, userRole);
 
         this.chatGateway.server
-            ?.to(`chat:${channelId}`)
+            ?.to(`chat:${Number(channelId)}`)
             .emit('message:edited', {
                 messageId,
                 content: updated.content,
@@ -87,7 +87,7 @@ export class ChatController {
         const result = await this.chatService.deleteMessage(messageId, userId, userRole);
 
         this.chatGateway.server
-            ?.to(`chat:${channelId}`)
+            ?.to(`chat:${Number(channelId)}`)
             .emit('message:deleted', { messageId });
 
         return result;
