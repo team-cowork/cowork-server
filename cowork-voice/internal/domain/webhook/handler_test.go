@@ -24,10 +24,9 @@ func Test룸_이름에서_채널_ID를_추출한다(t *testing.T) {
 			wantOK:   true,
 		},
 		{
-			name:     "레거시 포맷",
+			name:     "세션 ID 없음",
 			roomName: "voice-123",
-			wantID:   123,
-			wantOK:   true,
+			wantOK:   false,
 		},
 		{
 			name:     "접두사가 다름",
