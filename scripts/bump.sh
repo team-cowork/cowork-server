@@ -20,9 +20,9 @@ GRADLE_FILES=(
 )
 
 for FILE in "${GRADLE_FILES[@]}"; do
-  sed -i '' "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$ROOT_DIR/$FILE"
+  perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$ROOT_DIR/$FILE"
 done
 
-sed -i '' "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$ROOT_DIR/cowork-chat/package.json"
+perl -i -pe "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$ROOT_DIR/cowork-chat/package.json"
 
 echo "Version set to v${NEW_VERSION}"
