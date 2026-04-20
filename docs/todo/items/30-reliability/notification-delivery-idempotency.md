@@ -16,20 +16,20 @@
 
 ## 멱등성 경계
 
-| 단계 | 안정적인 식별자·상태 | 보장할 결과 |
-|------|----------------------|-------------|
-| `cowork-chat` outbox claim | 메시지 ID 기반 event ID와 무작위 claim token | 한 시점에 한 worker만 같은 메시지를 처리함 |
-| Kafka 발행 | event ID를 record key와 envelope에 포함함 | 재발행돼도 동일한 논리 이벤트로 식별됨 |
-| `cowork-notification` 소비 | event ID unique inbox와 처리 lease | 동일 이벤트의 fan-out 상태가 하나만 생성됨 |
-| 수신자 전달 | `(eventId, userId, channel)` 전달 상태 | 재시작 후 수신자별 처리 상태를 이어감 |
-| unread cache | event ID guarded 변경 또는 멱등한 cache invalidation | 같은 메시지가 cache count를 두 번 증가시키지 않음 |
+| 단계                       | 안정적인 식별자·상태                                 | 보장할 결과                                       |
+|----------------------------|------------------------------------------------------|---------------------------------------------------|
+| `cowork-chat` outbox claim | 메시지 ID 기반 event ID와 무작위 claim token         | 한 시점에 한 worker만 같은 메시지를 처리함        |
+| Kafka 발행                 | event ID를 record key와 envelope에 포함함            | 재발행돼도 동일한 논리 이벤트로 식별됨            |
+| `cowork-notification` 소비 | event ID unique inbox와 처리 lease                   | 동일 이벤트의 fan-out 상태가 하나만 생성됨        |
+| 수신자 전달                | `(eventId, userId, channel)` 전달 상태               | 재시작 후 수신자별 처리 상태를 이어감             |
+| unread cache               | event ID guarded 변경 또는 멱등한 cache invalidation | 같은 메시지가 cache count를 두 번 증가시키지 않음 |
 
 FCM과 SSE 같은 외부 전달 경계는 DB transaction과 원자적으로 묶을 수 없으므로 transport 재전달 가능성을 명시한다. event ID를 SSE payload와 FCM data에 포함해 수신 측 중복 제거가 가능하게 하고, 제공자가 지원하는 collapse 정책을 사용하되 외부 제공자의 정확히 한 번 전달을 보장한다고 표현하지 않는다.
 
 ## 범위
 
-| 포함 | 제외 |
-|------|------|
+| 포함                                                                                                        | 제외                                                                         |
+|-------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------|
 | source outbox claim, Kafka 재발행, downstream inbox, 수신자별 처리 상태, SSE/FCM event ID, unread 중복 방지 | FCM batch 안에서 개별 token의 transient 실패를 분류하고 선택 재시도하는 문제 |
 
 FCM 개별 transient 실패 처리는 별도 TODO에서 다룬다. 이 문서는 동일한 논리 알림이 crash와 Kafka 재전달 때문에 새 이벤트처럼 처리되는 문제에만 집중한다.
