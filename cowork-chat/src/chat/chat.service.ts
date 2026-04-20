@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Message } from './schema/message.schema';
@@ -6,13 +6,15 @@ import { MessagePayloadDto } from './dto/message-payload.dto';
 
 @Injectable()
 export class ChatService {
+    private readonly logger = new Logger(ChatService.name);
+
     constructor(@InjectModel(Message.name) private messageModel: Model<Message>) {}
 
     async saveMessage(payload: MessagePayloadDto): Promise<Message | null> {
         try {
             return await this.messageModel.create(payload);
         } catch (e) {
-            console.error('Failed to save message:', e);
+            this.logger.error('Failed to save message', e);
             return null;
         }
     }
