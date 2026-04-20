@@ -34,6 +34,15 @@ func NewHandler(db *mongo.Database, kp *kafkadomain.Producer, cfg *config.AppCon
 	}
 }
 
+// Handle godoc
+// @Summary      LiveKit 웹훅 수신
+// @Description  LiveKit 서버가 전송하는 participant_joined / participant_left / room_finished 이벤트를 처리합니다. LiveKit 서버 내부 호출용이며 직접 호출하지 않습니다.
+// @Tags         webhook
+// @Accept       json
+// @Param        Authorization  header  string  true  "LiveKit 웹훅 서명"
+// @Success      200
+// @Failure      401
+// @Router       /voice/webhook [post]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	event, err := lkwebhook.ReceiveWebhookEvent(r, h.authProvider)
 	if err != nil {
