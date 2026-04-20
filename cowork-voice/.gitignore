@@ -8,6 +8,7 @@
 *.out
 vendor/
 bin/
+target/
 
 ### Environment ###
 .env
@@ -25,5 +26,6 @@ Thumbs.db
 .idea/
 .vscode/
 
-### Rust ###
-target/
+### LLM OUTPUT ###
+.codex
+
