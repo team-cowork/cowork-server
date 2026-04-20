@@ -6,10 +6,12 @@ import (
 	"net/http"
 )
 
+// Error godoc
+// @Description API 에러 응답
 type Error struct {
-	HTTPStatus int
-	Code       string
-	Message    string
+	HTTPStatus int    `json:"status"  example:"404"`
+	Code       string `json:"error"   example:"NOT_FOUND"`
+	Message    string `json:"message" example:"session not found"`
 }
 
 func (e *Error) Error() string {
@@ -44,9 +46,5 @@ func Internal(msg string) *Error {
 func WriteResponse(w http.ResponseWriter, err *Error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
-	json.NewEncoder(w).Encode(map[string]any{
-		"error":   err.Code,
-		"status":  err.HTTPStatus,
-		"message": err.Message,
-	})
+	json.NewEncoder(w).Encode(err)
 }

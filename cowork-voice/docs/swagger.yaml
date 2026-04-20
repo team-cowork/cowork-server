@@ -1,60 +1,74 @@
 basePath: /api
 definitions:
-  github_com_cowork_cowork-voice_internal_apperror.AppError:
+  github_com_cowork_cowork-voice_internal_apperr.Error:
     description: API 에러 응답
     properties:
-      code:
-        example: 404
-        type: integer
+      error:
+        example: NOT_FOUND
+        type: string
       message:
         example: session not found
         type: string
       status:
-        example: NOT_FOUND
-        type: string
-    type: object
-  github_com_cowork_cowork-voice_internal_dto.JoinResponse:
-    properties:
-      livekit_url:
-        type: string
-      room_name:
-        type: string
-      session_id:
-        type: string
-      token:
-        type: string
-    type: object
-  github_com_cowork_cowork-voice_internal_dto.ParticipantInfo:
-    properties:
-      joined_at:
-        type: string
-      user_id:
+        example: 404
         type: integer
     type: object
-  github_com_cowork_cowork-voice_internal_dto.ParticipantsResponse:
+  internal_domain_voice_room.JoinResponse:
+    properties:
+      livekit_url:
+        example: wss://livekit.example.com
+        type: string
+      room_name:
+        example: channel-42
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiJ9...
+        type: string
+    type: object
+  internal_domain_voice_room.ParticipantResponse:
+    properties:
+      joined_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      user_id:
+        example: 1
+        type: integer
+    type: object
+  internal_domain_voice_room.ParticipantsResponse:
     properties:
       channel_id:
+        example: 42
         type: integer
       participants:
         items:
-          $ref: '#/definitions/github_com_cowork_cowork-voice_internal_dto.ParticipantInfo'
+          $ref: '#/definitions/internal_domain_voice_room.ParticipantResponse'
         type: array
       room_name:
+        example: channel-42
         type: string
     type: object
-  github_com_cowork_cowork-voice_internal_dto.SessionResponse:
+  internal_domain_voice_room.SessionResponse:
     properties:
       channel_id:
+        example: 42
         type: integer
       ended_at:
+        example: "2024-01-01T01:00:00Z"
         type: string
       session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
         type: string
       started_at:
+        example: "2024-01-01T00:00:00Z"
         type: string
       status:
+        example: active
         type: string
       team_id:
+        example: 1
         type: integer
     type: object
 host: localhost:8080
@@ -79,19 +93,19 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_dto.JoinResponse'
+            $ref: '#/definitions/internal_domain_voice_room.JoinResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
         "403":
           description: 채널 멤버가 아님
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
         "500":
           description: Internal Server Error
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
       security:
       - BearerAuth: []
       summary: 음성 채널 입장
@@ -112,11 +126,11 @@ paths:
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
         "404":
           description: 활성 세션 없음
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
       security:
       - BearerAuth: []
       summary: 음성 채널 퇴장
@@ -137,15 +151,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_dto.ParticipantsResponse'
+            $ref: '#/definitions/internal_domain_voice_room.ParticipantsResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
         "403":
           description: Forbidden
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
       security:
       - BearerAuth: []
       summary: 채널 참여자 목록 조회
@@ -166,15 +180,15 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_dto.SessionResponse'
+            $ref: '#/definitions/internal_domain_voice_room.SessionResponse'
         "401":
           description: Unauthorized
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
         "404":
           description: Not Found
           schema:
-            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperror.AppError'
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
       security:
       - BearerAuth: []
       summary: 세션 조회
