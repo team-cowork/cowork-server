@@ -4,6 +4,7 @@
   },
   "dependencies": {
     "@nestjs/mongoose": "^11.0.4",
+    "@nestjs/serve-static": "^5.0.5",
     "mongoose": "^9.4.1"
   }
 }
