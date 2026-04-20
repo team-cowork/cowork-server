@@ -1,3 +1,12 @@
+// @title           Cowork Authorization API
+// @version         1.0
+// @description     인증/인가 서비스 — Google OAuth2 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
+// @host            localhost:8080
+// @BasePath        /api
+// @securityDefinitions.apikey BearerAuth
+// @in              header
+// @name            Authorization
+// @description     "Bearer {access_token}" 형식으로 입력하세요.
 package main
 
 import (
@@ -9,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/cowork/authorization/docs"
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
@@ -17,6 +27,8 @@ import (
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	swaggerFiles "github.com/swaggo/files"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -58,6 +70,7 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/health", handler.Health)
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	auth := router.Group("/auth")
 	{
