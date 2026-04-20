@@ -1,4 +1,4 @@
-package session
+package mongo
 
 import (
 	"context"
@@ -11,12 +11,13 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/cowork/cowork-voice/internal/apperror"
+	"github.com/cowork/cowork-voice/internal/apperr"
+	room "github.com/cowork/cowork-voice/internal/domain/voice_room"
 )
 
 func CreateIndexes(ctx context.Context, db *mongo.Database) error {
-	sessions := db.Collection(CollectionSessions)
-	participants := db.Collection(CollectionParticipants)
+	sessions := db.Collection(room.CollectionSessions)
+	participants := db.Collection(room.CollectionParticipants)
 
 	sessionIndexes := []mongo.IndexModel{
 		{
@@ -55,112 +56,135 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	return nil
 }
 
-func FindActiveSession(ctx context.Context, db *mongo.Database, channelID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: StatusActive}}
-	var s VoiceSession
+type mongoSessionRepository struct {
+	db *mongo.Database
+}
+
+func NewMongoSessionRepository(db *mongo.Database) *mongoSessionRepository {
+	return &mongoSessionRepository{db: db}
+}
+
+func (r *mongoSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
+	col := r.db.Collection(room.CollectionSessions)
+	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: room.StatusActive}}
+	var s room.VoiceSession
 	err := col.FindOne(ctx, filter).Decode(&s)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, apperror.Internal(err.Error())
+		return nil, apperr.Internal(err.Error())
 	}
 	return &s, nil
 }
 
-func FindLatestSessionByChannel(ctx context.Context, db *mongo.Database, channelID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}}
-	opts := options.FindOne().SetSort(bson.D{{Key: "started_at", Value: -1}})
-	var s VoiceSession
-	err := col.FindOne(ctx, filter, opts).Decode(&s)
+func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*room.VoiceSession, error) {
+	col := r.db.Collection(room.CollectionSessions)
+	filter := bson.D{{Key: "room_name", Value: roomName}}
+	var s room.VoiceSession
+	err := col.FindOne(ctx, filter).Decode(&s)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, apperror.Internal(err.Error())
+		return nil, apperr.Internal(err.Error())
 	}
 	return &s, nil
 }
 
-func CreateSession(ctx context.Context, db *mongo.Database, channelID, teamID int64) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
+func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, error) {
+	col := r.db.Collection(room.CollectionSessions)
 	now := time.Now().UTC()
-	s := &VoiceSession{
-		SessionID: uuid.NewString(),
+	sessionID := uuid.NewString()
+	s := &room.VoiceSession{
+		SessionID: sessionID,
 		ChannelID: channelID,
 		TeamID:    teamID,
-		RoomName:  RoomName(channelID),
-		Status:    StatusActive,
+		RoomName:  room.RoomName(channelID, sessionID),
+		Status:    room.StatusActive,
 		StartedAt: now,
 	}
 	_, err := col.InsertOne(ctx, s)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
 			// 동시 첫 입장 경쟁 조건: 다른 요청이 먼저 생성함 → 해당 세션 반환
-			return FindActiveSession(ctx, db, channelID)
+			return r.FindActiveSession(ctx, channelID)
 		}
-		return nil, apperror.Internal(err.Error())
+		return nil, apperr.Internal(err.Error())
 	}
 	return s, nil
 }
 
-func EndSession(ctx context.Context, db *mongo.Database, sessionID string, endedAt time.Time) error {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: StatusActive}}
+func (r *mongoSessionRepository) GetSession(ctx context.Context, sessionID string) (*room.VoiceSession, error) {
+	col := r.db.Collection(room.CollectionSessions)
+	filter := bson.D{{Key: "session_id", Value: sessionID}}
+	var s room.VoiceSession
+	err := col.FindOne(ctx, filter).Decode(&s)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	return &s, nil
+}
+
+func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) error {
+	col := r.db.Collection(room.CollectionSessions)
+	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: room.StatusActive}}
 	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "status", Value: StatusEnded},
+		{Key: "status", Value: room.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
 	}}}
 	_, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return apperror.Internal(err.Error())
+		return apperr.Internal(err.Error())
 	}
 	return nil
 }
 
-func MarkSessionStarted(ctx context.Context, db *mongo.Database, sessionID string, startedAt time.Time) (bool, error) {
-	col := db.Collection(CollectionSessions)
+func (r *mongoSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {
+	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
-		{Key: "status", Value: StatusActive},
+		{Key: "status", Value: room.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "started_event_sent_at", Value: startedAt}}}}
+	update := bson.D{{Key: "$set", Value: bson.D{
+		{Key: "started_at", Value: startedAt},
+		{Key: "started_event_sent_at", Value: startedAt},
+	}}}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return false, apperror.Internal(err.Error())
+		return false, apperr.Internal(err.Error())
 	}
 	return result.ModifiedCount == 1, nil
 }
 
-func InsertParticipant(ctx context.Context, db *mongo.Database, p *VoiceParticipant) error {
-	col := db.Collection(CollectionParticipants)
+func (r *mongoSessionRepository) InsertParticipant(ctx context.Context, p *room.VoiceParticipant) error {
+	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: p.SessionID},
 		{Key: "user_id", Value: p.UserID},
 		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
 	update := bson.D{
-		{Key: "$set", Value: bson.D{
-			{Key: "joined_at", Value: p.JoinedAt},
-		}},
 		{Key: "$setOnInsert", Value: bson.D{
 			{Key: "session_id", Value: p.SessionID},
 			{Key: "user_id", Value: p.UserID},
 			{Key: "channel_id", Value: p.ChannelID},
+			{Key: "joined_at", Value: p.JoinedAt},
 		}},
 	}
 	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	if err != nil {
-		return apperror.Internal(err.Error())
+		return apperr.Internal(err.Error())
 	}
 	return nil
 }
 
-func MarkParticipantLeft(ctx context.Context, db *mongo.Database, sessionID string, userID int64, now time.Time) (bool, error) {
-	col := db.Collection(CollectionParticipants)
+func (r *mongoSessionRepository) MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error) {
+	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
@@ -169,13 +193,13 @@ func MarkParticipantLeft(ctx context.Context, db *mongo.Database, sessionID stri
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return false, apperror.Internal(err.Error())
+		return false, apperr.Internal(err.Error())
 	}
 	return result.ModifiedCount == 1, nil
 }
 
-func CleanupOrphanParticipants(ctx context.Context, db *mongo.Database, sessionID string, now time.Time) (int64, error) {
-	col := db.Collection(CollectionParticipants)
+func (r *mongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error) {
+	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
@@ -183,39 +207,25 @@ func CleanupOrphanParticipants(ctx context.Context, db *mongo.Database, sessionI
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
 	result, err := col.UpdateMany(ctx, filter, update)
 	if err != nil {
-		return 0, apperror.Internal(err.Error())
+		return 0, apperr.Internal(err.Error())
 	}
 	return result.ModifiedCount, nil
 }
 
-func GetSession(ctx context.Context, db *mongo.Database, sessionID string) (*VoiceSession, error) {
-	col := db.Collection(CollectionSessions)
-	filter := bson.D{{Key: "session_id", Value: sessionID}}
-	var s VoiceSession
-	err := col.FindOne(ctx, filter).Decode(&s)
-	if errors.Is(err, mongo.ErrNoDocuments) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, apperror.Internal(err.Error())
-	}
-	return &s, nil
-}
-
-func GetParticipantJoinedAt(ctx context.Context, db *mongo.Database, sessionID string, userID int64) (*time.Time, error) {
-	col := db.Collection(CollectionParticipants)
+func (r *mongoSessionRepository) GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error) {
+	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
 		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
-	var p VoiceParticipant
+	var p room.VoiceParticipant
 	err := col.FindOne(ctx, filter).Decode(&p)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, apperror.Internal(err.Error())
+		return nil, apperr.Internal(err.Error())
 	}
 	return &p.JoinedAt, nil
 }
