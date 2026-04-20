@@ -1,14 +1,15 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { readFileSync } from 'fs';
 import { join } from 'path';
 import { ChatModule } from './chat.module';
 
 async function bootstrap() {
-    const app = await NestFactory.create(ChatModule);
+    const app = await NestFactory.create<NestExpressApplication>(ChatModule);
     app.useGlobalPipes(new ValidationPipe());
+    app.useStaticAssets(join(__dirname, '..', 'public'));
 
     const config = new DocumentBuilder()
         .setTitle('Cowork Chat API')
