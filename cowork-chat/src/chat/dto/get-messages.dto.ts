@@ -1,5 +1,5 @@
-import { IsOptional, IsString } from 'class-validator';
+import { IsOptional, IsMongoId } from 'class-validator';
 
 export class GetMessagesDto {
-    @IsString() @IsOptional() before?: string;
+    @IsMongoId() @IsOptional() before?: string;
 }
