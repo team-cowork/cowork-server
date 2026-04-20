@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 
+	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/token"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -32,5 +33,12 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 }
 
 func (r *TokenRepository) DeleteByToken(ctx context.Context, tkn string) error {
-	return r.db.WithContext(ctx).Where("token = ?", tkn).Delete(&token.DeviceToken{}).Error
+	result := r.db.WithContext(ctx).Where("token = ?", tkn).Delete(&token.DeviceToken{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return apperr.NotFound("token not found")
+	}
+	return nil
 }
