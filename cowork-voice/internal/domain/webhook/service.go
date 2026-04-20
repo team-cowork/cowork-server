@@ -17,17 +17,15 @@ type EventPublisher interface {
 }
 
 type WebhookService struct {
-	repo     SessionRepository
-	resolver LegacySessionResolver
-	kafka    EventPublisher
-	now      func() time.Time
+	repo  SessionRepository
+	kafka EventPublisher
+	now   func() time.Time
 }
 
-func NewWebhookService(repo SessionRepository, resolver LegacySessionResolver, kafka EventPublisher) *WebhookService {
+func NewWebhookService(repo SessionRepository, kafka EventPublisher) *WebhookService {
 	return &WebhookService{
-		repo:     repo,
-		resolver: resolver,
-		kafka:    kafka,
+		repo:  repo,
+		kafka: kafka,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -67,7 +65,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 		return
 	}
 
-	voiceSession, err := s.findSession(ctx, EventParticipantJoined, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, room.Name)
 	if err != nil || voiceSession == nil {
 		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
@@ -122,7 +120,7 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 		return
 	}
 
-	voiceSession, err := s.findSession(ctx, EventParticipantLeft, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, room.Name)
 	if err != nil || voiceSession == nil {
 		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return
@@ -171,7 +169,7 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return
 	}
 
-	voiceSession, err := s.findSession(ctx, EventRoomFinished, room.Name, parsedRoom)
+	voiceSession, err := s.findSession(ctx, room.Name)
 	if err != nil || voiceSession == nil {
 		return
 	}
@@ -202,12 +200,6 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	}
 }
 
-func (s *WebhookService) findSession(ctx context.Context, eventType WebhookEventType, roomName string, parsedRoom *roomdomain.ParsedRoomName) (*roomdomain.VoiceSession, error) {
-	if parsedRoom.Format == roomdomain.RoomNameFormatScoped {
-		return s.repo.FindSessionByRoomName(ctx, roomName)
-	}
-	return s.resolver.Resolve(ctx, LegacySessionResolveRequest{
-		EventType: eventType,
-		RoomName:  roomName,
-	})
+func (s *WebhookService) findSession(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error) {
+	return s.repo.FindSessionByRoomName(ctx, roomName)
 }
