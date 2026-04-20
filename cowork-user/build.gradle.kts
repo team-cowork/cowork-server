@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
-    id("org.jetbrains.kotlin.plugin.jpa") version "2.1.20"
+    alias(libs.plugins.kotlin.jpa)
 }
 
 group = "com.cowork"
@@ -19,15 +19,17 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
+val springdocVersion = libs.versions.springdoc.webmvc.get()
+
 dependencyManagement {
     imports {
         mavenBom(libs.spring.cloud.dependencies.get().toString())
         mavenBom(libs.awspring.cloud.bom.get().toString())
     }
     dependencies {
-        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
-        dependency("org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.17")
-        dependency("org.springdoc:springdoc-openapi-starter-common:2.8.17")
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-ui:$springdocVersion")
+        dependency("org.springdoc:springdoc-openapi-starter-webmvc-api:$springdocVersion")
+        dependency("org.springdoc:springdoc-openapi-starter-common:$springdocVersion")
         dependency("org.springframework.cloud:spring-cloud-context:4.2.1")
         dependency("org.springframework.cloud:spring-cloud-commons:4.2.1")
         dependency("org.springframework.cloud:spring-cloud-starter:4.2.1")
@@ -46,12 +48,12 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.github.themoment-team:the-sdk:1.5") {
+    implementation(libs.the.sdk) {
         exclude(group = "org.springframework.boot")
         exclude(group = "org.springframework.cloud")
         exclude(group = "org.springdoc")
     }
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    implementation(libs.springdoc.openapi.webmvc.ui)
     implementation("org.springframework.kafka:spring-kafka")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
