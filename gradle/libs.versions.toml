@@ -12,8 +12,10 @@ the-sdk = "1.5"
 eureka-client = "2.0.6"
 flyway = "10.15.0"
 postgresql = "42.7.3"
+micrometer = "1.14.5"
 
 [libraries]
+micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 awspring-cloud-bom = { module = "io.awspring.cloud:spring-cloud-aws-dependencies", version.ref = "awspring-cloud" }
 awspring-cloud-s3 = { module = "io.awspring.cloud:spring-cloud-aws-starter-s3" }
