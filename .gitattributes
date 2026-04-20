@@ -1,8 +1,11 @@
+* text=auto eol=lf
+
 /gradlew text eol=lf
+*.sh text eol=lf
 *.bat text eol=crlf
+
 *.jar binary
-*.md linguist-detectable
-*.xml linguist-detectable
+
 *.json linguist-detectable
 *.yml linguist-detectable
-*.properties linguist-detectable
+*.md linguist-detectable
