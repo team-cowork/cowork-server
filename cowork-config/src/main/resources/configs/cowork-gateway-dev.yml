@@ -104,6 +104,17 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
 # jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
 
 resilience4j:
