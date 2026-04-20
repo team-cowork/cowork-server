@@ -1,0 +1,371 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cowork Preference API",
+    "description": "환경 설정 서비스 — 계정/팀/프로젝트/채널 설정 및 프로젝트 역할 관리",
+    "version": "1.0"
+  },
+  "servers": [
+    { "url": "/", "description": "현재 서버" }
+  ],
+  "security": [{ "BearerAuth": [] }],
+  "tags": [
+    { "name": "preference", "description": "리소스별 설정 조회/수정" },
+    { "name": "project-role", "description": "프로젝트 역할 관리" },
+    { "name": "notification", "description": "채널 알림 설정" }
+  ],
+  "paths": {
+    "/preferences/account/{id}": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "계정 설정 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["preference"],
+        "summary": "계정 설정 수정",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/team/{id}": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "팀 설정 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TeamSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["preference"],
+        "summary": "팀 설정 수정",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TeamSettings" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TeamSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{id}": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "프로젝트 설정 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["preference"],
+        "summary": "프로젝트 설정 수정",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/voice-channel/{id}": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "음성 채널 설정 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["preference"],
+        "summary": "음성 채널 설정 수정",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/text-channel/{id}": {
+      "get": {
+        "tags": ["preference"],
+        "summary": "텍스트 채널 설정 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["preference"],
+        "summary": "텍스트 채널 설정 수정",
+        "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{projectId}/roles": {
+      "get": {
+        "tags": ["project-role"],
+        "summary": "프로젝트 역할 목록 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProjectRole" } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "post": {
+        "tags": ["project-role"],
+        "summary": "프로젝트 역할 생성",
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRoleRequest" } } } },
+        "responses": {
+          "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectRole" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "description": "역할 이름 중복", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{projectId}/roles/{roleName}": {
+      "delete": {
+        "tags": ["project-role"],
+        "summary": "프로젝트 역할 삭제",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/RoleName" }
+        ],
+        "responses": {
+          "204": { "description": "삭제 성공" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{projectId}/roles/members": {
+      "get": {
+        "tags": ["project-role"],
+        "summary": "프로젝트 멤버 역할 목록 조회",
+        "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MemberRole" } } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{projectId}/roles/{roleName}/members": {
+      "post": {
+        "tags": ["project-role"],
+        "summary": "멤버에게 역할 부여",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/RoleName" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AssignRoleRequest" } } } },
+        "responses": {
+          "204": { "description": "부여 성공" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/project/{projectId}/roles/{roleName}/members/{accountId}": {
+      "delete": {
+        "tags": ["project-role"],
+        "summary": "멤버 역할 제거",
+        "parameters": [
+          { "$ref": "#/components/parameters/ProjectId" },
+          { "$ref": "#/components/parameters/RoleName" },
+          { "name": "accountId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "계정 ID" }
+        ],
+        "responses": {
+          "204": { "description": "제거 성공" },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/preferences/account/{accountId}/channels/{channelId}/notification": {
+      "get": {
+        "tags": ["notification"],
+        "summary": "채널 알림 설정 조회",
+        "parameters": [
+          { "name": "accountId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "계정 ID" },
+          { "name": "channelId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "채널 ID" }
+        ],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      },
+      "put": {
+        "tags": ["notification"],
+        "summary": "채널 알림 설정 수정",
+        "parameters": [
+          { "name": "accountId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "계정 ID" },
+          { "name": "channelId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "채널 ID" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationSettings" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationSettings" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer {access_token} 형식으로 입력하세요."
+      }
+    },
+    "parameters": {
+      "ResourceId": {
+        "name": "id", "in": "path", "required": true,
+        "schema": { "type": "integer", "format": "int64" },
+        "description": "리소스 ID"
+      },
+      "ProjectId": {
+        "name": "projectId", "in": "path", "required": true,
+        "schema": { "type": "integer", "format": "int64" },
+        "description": "프로젝트 ID"
+      },
+      "RoleName": {
+        "name": "roleName", "in": "path", "required": true,
+        "schema": { "type": "string" },
+        "description": "역할 이름"
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "잘못된 요청",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      },
+      "NotFound": {
+        "description": "리소스 없음",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      },
+      "InternalServerError": {
+        "description": "서버 오류",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Internal server error" }
+        }
+      },
+      "AccountSettings": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "enum": ["ONLINE", "DO_NOT_DISTURB"], "example": "ONLINE" },
+          "status_expires_at": { "type": "string", "format": "date-time", "example": "2026-04-20T12:00:00Z" },
+          "marketing_email": { "type": "boolean", "example": true },
+          "theme": { "type": "string", "enum": ["WHITE", "BLACK"], "example": "BLACK" },
+          "language": { "type": "string", "enum": ["KO", "EN"], "example": "KO" },
+          "time_format": { "type": "string", "enum": ["12H", "24H"], "example": "24H" },
+          "date_format": { "type": "string", "enum": ["YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD"], "example": "YYYY_MM_DD" }
+        }
+      },
+      "TeamSettings": {
+        "type": "object",
+        "properties": {
+          "tag_spam_block": { "type": "boolean", "example": false }
+        }
+      },
+      "VoiceChannelSettings": {
+        "type": "object",
+        "properties": {
+          "bitrate": { "type": "integer", "example": 64000 },
+          "max_participants": { "type": "integer", "example": 20 }
+        }
+      },
+      "WebhookSettings": {
+        "type": "object",
+        "properties": {
+          "is_active": { "type": "boolean", "example": true },
+          "secret_key": { "type": "string", "example": "secret-abc" },
+          "retry_count": { "type": "integer", "example": 3 },
+          "retry_interval_ms": { "type": "integer", "example": 1000 }
+        }
+      },
+      "TextChannelSettings": {
+        "type": "object",
+        "properties": {
+          "webhook": { "$ref": "#/components/schemas/WebhookSettings" }
+        }
+      },
+      "ProjectRole": {
+        "type": "object",
+        "properties": {
+          "roleName": { "type": "string", "example": "DEVELOPER" },
+          "permissions": { "type": "object", "example": { "read": true, "write": false } }
+        }
+      },
+      "CreateRoleRequest": {
+        "type": "object",
+        "required": ["roleName"],
+        "properties": {
+          "roleName": { "type": "string", "example": "DEVELOPER" },
+          "permissions": { "type": "object", "example": { "read": true, "write": false } }
+        }
+      },
+      "MemberRole": {
+        "type": "object",
+        "properties": {
+          "accountId": { "type": "integer", "format": "int64", "example": 1 },
+          "roleName": { "type": "string", "example": "DEVELOPER" }
+        }
+      },
+      "AssignRoleRequest": {
+        "type": "object",
+        "required": ["accountId"],
+        "properties": {
+          "accountId": { "type": "integer", "format": "int64", "example": 1 }
+        }
+      },
+      "NotificationSettings": {
+        "type": "object",
+        "properties": {
+          "notification": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "example": "ALL" }
+        }
+      }
+    }
+  }
+}

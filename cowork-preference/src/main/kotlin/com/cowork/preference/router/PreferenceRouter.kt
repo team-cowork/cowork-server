@@ -17,6 +17,15 @@ fun buildRouter(
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
 
+    val openapiSpec = object {}.javaClass.getResourceAsStream("/openapi.json")?.use { it.bufferedReader().readText() }
+    router.get("/swagger/doc.json").handler { ctx ->
+        if (openapiSpec != null) {
+            ctx.response().putHeader("Content-Type", "application/json").end(openapiSpec)
+        } else {
+            ctx.response().setStatusCode(404).end()
+        }
+    }
+
     // ACCOUNT
     router.get("/preferences/account/:id").handler(preferenceHandler.getSettings(ResourceType.ACCOUNT))
     router.put("/preferences/account/:id").handler(preferenceHandler.updateSettings(ResourceType.ACCOUNT))
