@@ -10,6 +10,7 @@ import {
     Headers,
     HttpCode,
     HttpStatus,
+    ParseIntPipe,
 } from '@nestjs/common';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -30,48 +31,48 @@ export class ChatController {
     @Post('messages')
     @HttpCode(HttpStatus.CREATED)
     async sendMessage(
-        @Param('channelId') channelId: string,
+        @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SendMessageDto,
         @Headers() headers: Record<string, string>,
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
 
-        await this.chatService.checkMembership(Number(channelId), userId);
-        await this.producer.sendMessage({ ...dto, channelId: Number(channelId) }, userId, userRole);
+        await this.chatService.checkMembership(channelId, userId);
+        await this.producer.sendMessage({ ...dto, channelId }, userId, userRole);
 
         return { queued: true };
     }
 
     @Get('messages')
     async getMessages(
-        @Param('channelId') channelId: string,
+        @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @Headers() headers: Record<string, string>,
     ) {
         const userId = RequestContextUtil.getUserId(headers);
-        await this.chatService.checkMembership(Number(channelId), userId);
-        return this.chatService.getMessages(Number(channelId), query.before);
+        await this.chatService.checkMembership(channelId, userId);
+        return this.chatService.getMessages(channelId, query.before);
     }
 
     @Patch('messages/:messageId')
     async editMessage(
-        @Param('channelId') channelId: string,
+        @Param('channelId', ParseIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Body() dto: EditMessageDto,
         @Headers() headers: Record<string, string>,
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
-        await this.chatService.checkMembership(Number(channelId), userId);
+        await this.chatService.checkMembership(channelId, userId);
         const updated = await this.chatService.editMessage(messageId, userId, dto, userRole);
 
         this.chatGateway.server
-            ?.to(`chat:${Number(channelId)}`)
+            ?.to(`chat:${channelId}`)
             .emit('message:edited', {
                 messageId,
                 content: updated.content,
-                editedAt: new Date().toISOString(),
+                editedAt: (updated as any).updatedAt?.toISOString() ?? new Date().toISOString(),
             });
 
         return updated;
@@ -79,17 +80,17 @@ export class ChatController {
 
     @Delete('messages/:messageId')
     async deleteMessage(
-        @Param('channelId') channelId: string,
+        @Param('channelId', ParseIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Headers() headers: Record<string, string>,
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
-        await this.chatService.checkMembership(Number(channelId), userId);
+        await this.chatService.checkMembership(channelId, userId);
         const result = await this.chatService.deleteMessage(messageId, userId, userRole);
 
         this.chatGateway.server
-            ?.to(`chat:${Number(channelId)}`)
+            ?.to(`chat:${channelId}`)
             .emit('message:deleted', { messageId });
 
         return result;
