@@ -1,6 +1,21 @@
 jwt:
   secret: local-dev-secret-key-minimum-32-characters-long
 
+cowork:
+  swagger-ui:
+    primary-name: user
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: team
+        url: /v3/api-docs/team
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: chat
+        url: /v3/api-docs/chat
+
 spring:
   data:
     redis:
@@ -55,6 +70,19 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: team-service
+          uri: lb://cowork-team
+          predicates:
+            - Path=/api/teams/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: authorization-service-docs
           uri: lb://cowork-authorization
           predicates:
@@ -68,6 +96,13 @@ spring:
             - Path=/v3/api-docs/user
           filters:
             - RewritePath=/v3/api-docs/user, /v3/api-docs
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
 
         - id: voice-service-docs
           uri: lb://cowork-voice
