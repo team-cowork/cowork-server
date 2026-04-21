@@ -128,6 +128,7 @@ Flyway를 사용하지 않습니다. 스키마 정의는 각 서비스의 `schem
 |---|---|---|---|
 | `chat.message` | cowork-chat | cowork-chat | 메시지 저장 |
 | `notification.trigger` | 모든 서비스 | notification 서비스 | 알림 발송 |
+| `preference.team.setting.changed` | cowork-preference | 관련 서비스 | 팀 설정 변경 |
 | `voice.session.event` | cowork-voice | cowork-voice | 음성 세션 상태 |
 | `user.data.sync` | cowork-user | 관련 서비스 | 유저 데이터 동기화 |
 
