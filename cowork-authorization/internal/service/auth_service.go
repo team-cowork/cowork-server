@@ -14,7 +14,6 @@ import (
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/repository"
-	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
@@ -82,18 +81,19 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) GetLoginURL() (authURL, state string) {
-	state = uuid.NewString()
-	authURL = s.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOnline)
-	return authURL, state
+func (s *AuthService) GetLoginURL(redirectURI, codeChallenge, codeChallengeMethod, state string) string {
+	cfg := *s.oauth2Config // 공유 Config 뮤테이션 방지를 위해 복사본 사용
+	cfg.RedirectURL = redirectURI
+
+	return cfg.AuthCodeURL(
+		state,
+		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
+		oauth2.SetAuthURLParam("code_challenge_method", codeChallengeMethod),
+	)
 }
 
-func (s *AuthService) HandleCallback(ctx context.Context, code, state, cookieState string) (*TokenPair, error) {
-	if state != cookieState {
-		return nil, fmt.Errorf("invalid oauth state")
-	}
-
-	accessToken, err := s.exchangeCode(ctx, code)
+func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (*TokenPair, error) {
+	accessToken, err := s.exchangeCode(ctx, code, codeVerifier, redirectURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
@@ -207,11 +207,13 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 	}, nil
 }
 
-func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, error) {
+func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (string, error) {
 	body, err := json.Marshal(map[string]string{
-		"grant_type": "authorization_code",
-		"code":       code,
-		"client_id":  s.cfg.DataGSMClientID,
+		"grant_type":    "authorization_code",
+		"code":          code,
+		"client_id":     s.cfg.DataGSMClientID,
+		"redirect_uri":  redirectURI,
+		"code_verifier": codeVerifier,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal token request: %w", err)
