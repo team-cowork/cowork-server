@@ -4,6 +4,9 @@ global:
   external_labels:
     project: cowork
 
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
 scrape_configs:
   # ── Spring Boot 서비스 (WSL2 호스트에서 실행) ──
   - job_name: cowork-gateway
@@ -33,13 +36,6 @@ scrape_configs:
       - targets: ['host.docker.internal:8085']
         labels:
           service: team
-
-  - job_name: cowork-notification
-    metrics_path: /actuator/prometheus
-    static_configs:
-      - targets: ['host.docker.internal:8086']
-        labels:
-          service: notification
 
   # ── Vert.x 서비스 ──
   - job_name: cowork-preference
