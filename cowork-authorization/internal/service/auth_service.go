@@ -254,13 +254,13 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*DataGSMUserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.DataGSMUserInfoURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -270,7 +270,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read userinfo response: %w", err)
 	}
 
 	var info DataGSMUserInfo

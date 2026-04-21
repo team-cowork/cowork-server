@@ -46,6 +46,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required parameters"})
 		return
 	}
+	if codeChallengeMethod != "S256" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "code_challenge_method must be S256"})
+		return
+	}
 
 	authURL := h.authSvc.GetLoginURL(redirectURI, codeChallenge, codeChallengeMethod, state)
 	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
