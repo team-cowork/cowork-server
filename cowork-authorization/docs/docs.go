@@ -316,7 +316,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api",
 	Schemes:          []string{},
 	Title:            "Cowork Authorization API",
-	Description:      "인증/인가 서비스 — Google OAuth2 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
+	Description:      "인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
