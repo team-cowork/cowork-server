@@ -145,6 +145,37 @@ services:
       timeout: 5s
       retries: 5
 
+  cowork-notification:
+    build:
+      context: ./cowork-notification
+      dockerfile: Dockerfile
+    container_name: cowork-notification
+    restart: unless-stopped
+    environment:
+      PORT: 8086
+      DB_DSN: ${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(cowork-mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_NOTIFICATION: notification.trigger
+      KAFKA_GROUP_ID: cowork-notification
+      FCM_CREDENTIALS_FILE: /etc/secrets/firebase-credentials.json
+      PREFERENCE_SERVICE_URL: http://cowork-preference:8084
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+      EUREKA_APP_NAME: cowork-notification
+      EUREKA_INSTANCE_HOST: cowork-notification
+      EUREKA_INSTANCE_PORT: 8086
+    ports:
+      - "8086:8086"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:8086/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   mysql_data:
   postgres_data:
