@@ -74,7 +74,7 @@ func main() {
 	auth := router.Group("/auth")
 	{
 		auth.GET("/signin", authHandler.Login)
-		auth.GET("/callback", authHandler.Callback)
+		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
 	}
