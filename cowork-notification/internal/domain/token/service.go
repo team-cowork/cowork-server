@@ -28,28 +28,34 @@ func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) 
 }
 
 func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, title, body string, channelID int64) error {
-	var allTokens []string
-	for _, uid := range targetUserIDs {
-		if channelID > 0 {
+	enabledIDs := targetUserIDs
+	if channelID > 0 {
+		enabledIDs = make([]int64, 0, len(targetUserIDs))
+		for _, uid := range targetUserIDs {
 			enabled, err := s.pref.IsNotificationEnabled(ctx, uid, channelID)
 			if err != nil {
 				slog.Warn("preference check failed, defaulting to enabled", "accountId", uid, "err", err)
 				enabled = true
 			}
-			if !enabled {
-				continue
+			if enabled {
+				enabledIDs = append(enabledIDs, uid)
 			}
 		}
-		tokens, err := s.repo.FindByAccountID(ctx, uid)
-		if err != nil {
-			slog.Warn("failed to fetch tokens", "accountId", uid, "err", err)
-			continue
-		}
+	}
+	if len(enabledIDs) == 0 {
+		return nil
+	}
+
+	tokenMap, err := s.repo.FindByAccountIDs(ctx, enabledIDs)
+	if err != nil {
+		return err
+	}
+	var allTokens []string
+	for _, tokens := range tokenMap {
 		for _, t := range tokens {
 			allTokens = append(allTokens, t.Token)
 		}
 	}
-
 	if len(allTokens) == 0 {
 		return nil
 	}

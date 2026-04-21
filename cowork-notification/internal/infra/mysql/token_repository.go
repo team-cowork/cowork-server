@@ -32,6 +32,21 @@ func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) 
 	return tokens, err
 }
 
+func (r *TokenRepository) FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64][]token.DeviceToken, error) {
+	if len(accountIDs) == 0 {
+		return nil, nil
+	}
+	var rows []token.DeviceToken
+	if err := r.db.WithContext(ctx).Where("account_id IN ?", accountIDs).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	result := make(map[int64][]token.DeviceToken, len(accountIDs))
+	for _, t := range rows {
+		result[t.AccountID] = append(result[t.AccountID], t)
+	}
+	return result, nil
+}
+
 func (r *TokenRepository) DeleteByTokens(ctx context.Context, tokens []string) error {
 	if len(tokens) == 0 {
 		return nil

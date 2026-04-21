@@ -27,6 +27,15 @@ func (m *mockRepo) Save(_ context.Context, t *token.DeviceToken) error {
 func (m *mockRepo) FindByAccountID(_ context.Context, id int64) ([]token.DeviceToken, error) {
 	return m.tokens[id], m.err
 }
+func (m *mockRepo) FindByAccountIDs(_ context.Context, ids []int64) (map[int64][]token.DeviceToken, error) {
+	result := make(map[int64][]token.DeviceToken)
+	for _, id := range ids {
+		if ts, ok := m.tokens[id]; ok {
+			result[id] = ts
+		}
+	}
+	return result, m.err
+}
 func (m *mockRepo) DeleteByTokens(_ context.Context, tokens []string) error {
 	m.deletedBulk = tokens
 	return m.err
