@@ -75,68 +75,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/signin": {
-            "get": {
-                "description": "프론트엔드가 PKCE 파라미터(code_challenge, code_challenge_method, state, redirect_uri)를 제공하면 DataGSM 인가 URL을 반환합니다.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "OAuth 로그인 URL 반환 (PKCE)",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "리다이렉트 URI",
-                        "name": "redirect_uri",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "PKCE code challenge",
-                        "name": "code_challenge",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "PKCE code challenge method (S256)",
-                        "name": "code_challenge_method",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "CSRF 방지용 state",
-                        "name": "state",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "auth_url",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "missing required parameters",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/auth/signout": {
             "post": {
                 "security": [
@@ -198,7 +136,7 @@ const docTemplate = `{
         },
         "/auth/token": {
             "post": {
-                "description": "프론트엔드가 DataGSM에서 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.",
+                "description": "프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.",
                 "consumes": [
                     "application/json"
                 ],
