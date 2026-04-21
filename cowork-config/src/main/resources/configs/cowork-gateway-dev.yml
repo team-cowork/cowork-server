@@ -109,8 +109,6 @@ spring:
           predicates:
             - Path=/chat-ws/**
           filters:
-            - RemoveRequestHeader=X-User-Id
-            - RemoveRequestHeader=X-User-Role
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 10
