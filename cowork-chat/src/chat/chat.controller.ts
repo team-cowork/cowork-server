@@ -38,7 +38,7 @@ export class ChatController {
     async sendMessage(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SendMessageDto,
-        @Headers() headers: Record<string, string>,
+        @Headers() headers: Record<string, string | string[] | undefined>,
     ) {
         const userId = RequestContextUtil.getUserId(headers);
         const userRole = RequestContextUtil.getUserRole(headers);
@@ -84,7 +84,7 @@ export class ChatController {
             .emit('message:edited', {
                 messageId,
                 content: updated.content,
-                editedAt: (updated as any).updatedAt?.toISOString() ?? new Date().toISOString(),
+                editedAt: updated.updatedAt?.toISOString() ?? new Date().toISOString(),
             });
 
         return updated;
