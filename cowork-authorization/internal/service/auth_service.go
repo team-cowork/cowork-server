@@ -221,19 +221,19 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.DataGSMTokenURL, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to call token endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, respBody)
