@@ -80,8 +80,13 @@ object SettingSchema {
         if (settings.containsKey("nickname_format_enforced") && settings.getValue("nickname_format_enforced") !is Boolean) {
             return "nickname_format_enforced must be a boolean"
         }
-        if (settings.containsKey("nickname_format_example") && settings.getValue("nickname_format_example") !is String) {
-            return "nickname_format_example must be a string"
+        if (settings.containsKey("nickname_format_example")) {
+            val example = settings.getValue("nickname_format_example")
+            if (example !is String) return "nickname_format_example must be a string"
+            if (example.isBlank()) return "nickname_format_example cannot be blank"
+        }
+        if (settings.getBoolean("nickname_format_enforced") == true && settings.getString("nickname_format_example").isNullOrBlank()) {
+            return "nickname_format_example is required when nickname_format_enforced is true"
         }
         return null
     }
