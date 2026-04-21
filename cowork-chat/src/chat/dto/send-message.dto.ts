@@ -25,7 +25,7 @@ export class SendMessageDto {
     @ApiProperty({ description: '채널 ID' })
     @IsNumber() channelId!: number;
 
-    @ApiProperty({ description: '메시지 내용 (최대 25000자)', maxLength: 25000 })
+    @ApiProperty({ description: '메시지 내용 (최대 25000자)', maxLength: 25000, minLength: 1 })
     @IsString() @MaxLength(25000) content!: string;
 
     @ApiPropertyOptional({ enum: ['TEXT', 'FILE'], default: 'TEXT' })
