@@ -23,6 +23,12 @@ func Init(serviceName string) {
 
 	Default = slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
+		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{Key: "@timestamp", Value: a.Value}
+			}
+			return a
+		},
 	})).With("service", serviceName)
 
 	slog.SetDefault(Default)
