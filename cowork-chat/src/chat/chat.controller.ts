@@ -20,6 +20,7 @@ import { EditMessageDto } from './dto/edit-message.dto';
 import { GetMessagesDto } from './dto/get-messages.dto';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
+import { MessageDocument } from './schema/message.schema';
 
 @ApiTags('Chat')
 @Controller('channels/:channelId')
@@ -84,7 +85,7 @@ export class ChatController {
             .emit('message:edited', {
                 messageId,
                 content: updated.content,
-                editedAt: updated.updatedAt?.toISOString() ?? new Date().toISOString(),
+                editedAt: (updated as MessageDocument).updatedAt?.toISOString() ?? new Date().toISOString(),
             });
 
         return updated;
