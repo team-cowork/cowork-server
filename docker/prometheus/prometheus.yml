@@ -37,6 +37,13 @@ scrape_configs:
         labels:
           service: team
 
+  - job_name: cowork-notification
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['host.docker.internal:8086']
+        labels:
+          service: notification
+
   # ── Vert.x 서비스 ──
   - job_name: cowork-preference
     metrics_path: /metrics
