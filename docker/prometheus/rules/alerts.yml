@@ -1,0 +1,144 @@
+groups:
+  - name: cowork-availability
+    rules:
+      - alert: CoworkServiceDown
+        expr: up{job=~"cowork-(gateway|config|user|team|preference|authorization|voice|chat)"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서비스 다운: {{ $labels.job }}"
+          description: "{{ $labels.job }} 메트릭 수집이 2분 이상 실패했습니다. target={{ $labels.instance }}"
+
+      - alert: CoworkInfrastructureExporterDown
+        expr: up{job=~"mysql|redis|kafka|postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "인프라 exporter 다운: {{ $labels.job }}"
+          description: "{{ $labels.job }} exporter 메트릭 수집이 2분 이상 실패했습니다. target={{ $labels.instance }}"
+
+  - name: cowork-http-errors
+    rules:
+      - alert: CoworkSpringBootHigh5xxErrorRate
+        expr: |
+          (
+            sum by (application) (
+              rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)", status=~"5.."}[5m])
+            )
+            /
+            clamp_min(
+              sum by (application) (
+                rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)"}[5m])
+              ),
+              0.1
+            )
+          ) * 100 > 5
+          and on(application)
+          sum by (application) (
+            rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)"}[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Spring Boot 5xx 에러율 증가: {{ $labels.application }}"
+          description: "{{ $labels.application }} 의 5xx 에러율이 5분 이상 5%를 초과했습니다."
+
+      - alert: CoworkAuthorizationHigh5xxErrorRate
+        expr: |
+          (
+            sum by (job) (
+              rate(cowork_authorization_http_requests_total{status=~"5.."}[5m])
+            )
+            /
+            clamp_min(
+              sum by (job) (
+                rate(cowork_authorization_http_requests_total[5m])
+              ),
+              0.1
+            )
+          ) * 100 > 5
+          and on(job)
+          sum by (job) (
+            rate(cowork_authorization_http_requests_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Authorization 5xx 에러율 증가"
+          description: "{{ $labels.job }} 의 5xx 에러율이 5분 이상 5%를 초과했습니다."
+
+      - alert: CoworkVoiceHigh5xxErrorRate
+        expr: |
+          (
+            sum by (job) (
+              rate(cowork_voice_http_requests_total{status=~"5.."}[5m])
+            )
+            /
+            clamp_min(
+              sum by (job) (
+                rate(cowork_voice_http_requests_total[5m])
+              ),
+              0.1
+            )
+          ) * 100 > 5
+          and on(job)
+          sum by (job) (
+            rate(cowork_voice_http_requests_total[5m])
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Voice 5xx 에러율 증가"
+          description: "{{ $labels.job }} 의 5xx 에러율이 5분 이상 5%를 초과했습니다."
+
+  - name: cowork-latency
+    rules:
+      - alert: CoworkPreferenceHighP99Latency
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(vertx_http_server_response_time_seconds_bucket{job="cowork-preference"}[5m])
+            )
+          ) > 1
+          and
+          sum(rate(vertx_http_server_requests_total{job="cowork-preference"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Preference P99 지연시간 증가"
+          description: "cowork-preference 의 P99 응답 시간이 5분 이상 1초를 초과했습니다."
+
+      - alert: CoworkVoiceHighP99Latency
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (
+              rate(cowork_voice_http_request_duration_seconds_bucket[5m])
+            )
+          ) > 1
+          and
+          sum(rate(cowork_voice_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Voice P99 지연시간 증가"
+          description: "cowork-voice 의 P99 응답 시간이 5분 이상 1초를 초과했습니다."
+
+  - name: cowork-kafka
+    rules:
+      - alert: CoworkKafkaConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag{job="kafka", consumergroup!=""}) > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Kafka consumer lag 증가: {{ $labels.consumergroup }}"
+          description: "consumer group {{ $labels.consumergroup }} 의 topic {{ $labels.topic }} lag 가 10분 이상 1000을 초과했습니다."
