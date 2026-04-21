@@ -1,6 +1,21 @@
 jwt:
   secret: local-dev-secret-key-minimum-32-characters-long
 
+cowork:
+  swagger-ui:
+    primary-name: user
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: team
+        url: /v3/api-docs/team
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: chat
+        url: /v3/api-docs/chat
+
 spring:
   data:
     redis:
