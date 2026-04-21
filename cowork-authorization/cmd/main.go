@@ -25,6 +25,7 @@ import (
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
+	"github.com/cowork/authorization/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -35,6 +36,8 @@ import (
 )
 
 func main() {
+	logger.Init("cowork-authorization")
+
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found, reading from environment")
 	}
