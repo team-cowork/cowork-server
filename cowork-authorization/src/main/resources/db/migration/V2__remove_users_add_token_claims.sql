@@ -2,8 +2,6 @@
 ALTER TABLE tb_refresh_tokens
     DROP FOREIGN KEY fk_tb_refresh_tokens_user;
 
--- tb_oauth2_connections 제거 (tb_users 참조 의존성 제거)
-DROP TABLE IF EXISTS tb_oauth2_connections;
 
 -- tb_users 제거
 DROP TABLE IF EXISTS tb_users;
@@ -12,3 +10,7 @@ DROP TABLE IF EXISTS tb_users;
 ALTER TABLE tb_refresh_tokens
     ADD COLUMN email    VARCHAR(255) NOT NULL DEFAULT '' AFTER token_hash,
     ADD COLUMN gsm_role VARCHAR(30)  NOT NULL DEFAULT '' AFTER email;
+``
+
+-- tb_oauth2_connections 제거 (tb_users 참조 의존성 제거)
+DROP TABLE IF EXISTS tb_oauth2_connections;
