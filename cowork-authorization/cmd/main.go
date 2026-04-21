@@ -1,6 +1,6 @@
 // @title           Cowork Authorization API
 // @version         1.0
-// @description     인증/인가 서비스 — Google OAuth2 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
+// @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
 // @in              header
@@ -73,8 +73,7 @@ func main() {
 
 	auth := router.Group("/auth")
 	{
-		auth.GET("/signin", authHandler.Login)
-		auth.GET("/callback", authHandler.Callback)
+		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
 	}
