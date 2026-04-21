@@ -54,7 +54,8 @@ func TestConsumer_handle_memberInvited(t *testing.T) {
 		Type:          "MEMBER_INVITED",
 		TargetUserIDs: []int64{5},
 	}
-	raw, _ := json.Marshal(event)
+	raw, err := json.Marshal(event)
+	require.NoError(t, err)
 	c.HandleForTest(context.Background(), segkafka.Message{Value: raw})
 
 	assert.Equal(t, "팀 초대", svc.calledTitle)
