@@ -28,6 +28,7 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-config")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     // FCM: implementation("com.google.firebase:firebase-admin:x.x.x")
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
