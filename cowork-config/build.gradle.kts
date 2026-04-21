@@ -29,6 +29,7 @@ dependencies {
     implementation("org.springframework.vault:spring-vault-core")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
 
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 

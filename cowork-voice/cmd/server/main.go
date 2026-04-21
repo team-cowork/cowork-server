@@ -28,6 +28,7 @@ import (
 
 	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
+	"github.com/cowork/cowork-voice/pkg/logger"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
@@ -40,7 +41,7 @@ import (
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	logger.Init("cowork-voice")
 
 	cfg, err := config.Load()
 	if err != nil {

@@ -22,6 +22,7 @@ private val log = LoggerFactory.getLogger("CoworkPreferenceMain")
 private val PLACEHOLDER_REGEX = Regex("""\$\{([^:}]+)(?::([^}]*))?\}""")
 
 fun main() {
+    System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory")
     val config = loadConfig()
     val appConfig = AppConfig.from(config)
 
