@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	oauthStateCookie = "oauth_state"
-	userIDKey        = "userID"
+	userIDKey = "userID"
 )
 
 type AuthHandler struct {
@@ -25,44 +24,31 @@ func NewAuthHandler(authSvc *service.AuthService, tokenSvc *service.TokenService
 	return &AuthHandler{authSvc: authSvc, tokenSvc: tokenSvc}
 }
 
-// Login godoc
-// @Summary      OAuth 로그인 리다이렉트
-// @Description  Google OAuth 로그인 페이지로 리다이렉트합니다. state 쿠키가 자동으로 설정됩니다.
+// Token godoc
+// @Summary      토큰 발급 (PKCE code exchange)
+// @Description  프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
 // @Tags         auth
-// @Success      302  {string}  string  "OAuth provider로 리다이렉트"
-// @Router       /auth/signin [get]
-func (h *AuthHandler) Login(c *gin.Context) {
-	authURL, state := h.authSvc.GetLoginURL()
-
-	c.SetCookie(oauthStateCookie, state, 300, "/", "", false, true)
-	c.Redirect(http.StatusFound, authURL)
-}
-
-// Callback godoc
-// @Summary      OAuth 콜백 처리
-// @Description  OAuth provider가 리다이렉트하는 콜백 엔드포인트입니다. 액세스/리프레시 토큰을 반환합니다.
-// @Tags         auth
+// @Accept       json
 // @Produce      json
-// @Param        code   query  string  true  "OAuth authorization code"
-// @Param        state  query  string  true  "CSRF 방지용 state 파라미터"
-// @Success      200    {object}  map[string]string  "access_token, refresh_token"
-// @Failure      400    {object}  map[string]string  "missing oauth state cookie"
-// @Failure      401    {object}  map[string]string  "authentication failed"
-// @Router       /auth/callback [get]
-func (h *AuthHandler) Callback(c *gin.Context) {
-	code := c.Query("code")
-	state := c.Query("state")
-
-	cookieState, err := c.Cookie(oauthStateCookie)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing oauth state cookie"})
+// @Param        body  body      object{code=string,code_verifier=string,redirect_uri=string}  true  "코드 교환 요청"
+// @Success      200   {object}  service.TokenPair
+// @Failure      400   {object}  map[string]string  "missing required fields"
+// @Failure      401   {object}  map[string]string  "authentication failed"
+// @Router       /auth/token [post]
+func (h *AuthHandler) Token(c *gin.Context) {
+	var req struct {
+		Code         string `json:"code"          binding:"required"`
+		CodeVerifier string `json:"code_verifier" binding:"required"`
+		RedirectURI  string `json:"redirect_uri"  binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
 		return
 	}
-	c.SetCookie(oauthStateCookie, "", -1, "/", "", false, true)
 
-	pair, err := h.authSvc.HandleCallback(c.Request.Context(), code, state, cookieState)
+	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
 	if err != nil {
-		log.Printf("callback error: %v", err)
+		log.Printf("token exchange error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
 		return
 	}
