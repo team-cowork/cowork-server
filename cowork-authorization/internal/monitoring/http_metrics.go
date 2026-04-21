@@ -63,10 +63,7 @@ func normalizedRoute(fullPath string, rawPath string) string {
 	if fullPath != "" {
 		return fullPath
 	}
-	if rawPath == "" {
-		return "unknown"
-	}
-	return rawPath
+	return "not_found"
 }
 
 func shouldSkipRoute(route string) bool {
