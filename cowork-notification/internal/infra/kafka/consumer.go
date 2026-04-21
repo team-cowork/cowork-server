@@ -46,6 +46,9 @@ func (c *Consumer) HandleForTest(ctx context.Context, msg segkafka.Message) {
 }
 
 func (c *Consumer) Start(ctx context.Context) {
+	if c.reader == nil {
+		panic("kafka: Consumer.Start called on test-only Consumer with nil reader")
+	}
 	for {
 		msg, err := c.reader.ReadMessage(ctx)
 		if err != nil {
