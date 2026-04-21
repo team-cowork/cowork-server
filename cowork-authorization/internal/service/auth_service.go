@@ -64,10 +64,8 @@ func NewAuthService(
 	tokenSvc *TokenService,
 ) *AuthService {
 	oauth2Cfg := &oauth2.Config{
-		ClientID:     cfg.DataGSMClientID,
-		ClientSecret: cfg.DataGSMClientSecret,
-		RedirectURL:  cfg.DataGSMRedirectURL,
-		Scopes:       []string{"openid", "profile", "email"},
+		ClientID: cfg.DataGSMClientID,
+		Scopes:   []string{"openid", "profile", "email"},
 		Endpoint: oauth2.Endpoint{
 			AuthURL:  cfg.DataGSMAuthURL,
 			TokenURL: cfg.DataGSMTokenURL,
@@ -211,11 +209,9 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 
 func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, error) {
 	body, err := json.Marshal(map[string]string{
-		"grant_type":    "authorization_code",
-		"code":          code,
-		"client_id":     s.cfg.DataGSMClientID,
-		"client_secret": s.cfg.DataGSMClientSecret,
-		"redirect_uri":  s.cfg.DataGSMRedirectURL,
+		"grant_type": "authorization_code",
+		"code":       code,
+		"client_id":  s.cfg.DataGSMClientID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal token request: %w", err)
