@@ -15,7 +15,13 @@ import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { JoinChannelDto } from './dto/join-channel.dto';
 
-@WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
+@WebSocketGateway({ namespace: '/chat',
+    cors: {
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || 'http://localhost:3000',
+        methods: ['GET', 'POST'],
+        credentials: true, }
+        }
+    )
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     private readonly logger = new Logger(ChatGateway.name);
 
