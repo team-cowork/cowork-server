@@ -75,14 +75,10 @@ func HTTPInFlightMiddleware(next http.Handler) http.Handler {
 }
 
 func normalizedRoute(pattern string, rawPath string) string {
-	switch {
-	case pattern != "":
+	if pattern != "" {
 		return strings.TrimSuffix(pattern, "/*")
-	case rawPath != "":
-		return rawPath
-	default:
-		return "unknown"
 	}
+	return "not_found"
 }
 
 func shouldSkipRoute(route string) bool {
