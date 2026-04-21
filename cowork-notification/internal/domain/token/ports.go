@@ -5,6 +5,7 @@ import "context"
 type Repository interface {
 	Save(ctx context.Context, t *DeviceToken) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]DeviceToken, error)
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64][]DeviceToken, error)
 	DeleteByAccountIDAndToken(ctx context.Context, accountID int64, token string) error
 	DeleteByTokens(ctx context.Context, tokens []string) error // for FCM invalid token bulk cleanup
 }
