@@ -39,11 +39,6 @@ func main() {
 		slog.Error("mysql connect failed", "err", err)
 		os.Exit(1)
 	}
-	if err := db.AutoMigrate(&tokendomain.DeviceToken{}); err != nil {
-		slog.Error("auto migrate failed", "err", err)
-		os.Exit(1)
-	}
-
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
 	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)

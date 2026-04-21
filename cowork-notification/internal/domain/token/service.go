@@ -23,8 +23,8 @@ func (s *Service) RegisterToken(ctx context.Context, accountID int64, tkn, platf
 	})
 }
 
-func (s *Service) DeleteToken(ctx context.Context, tkn string) error {
-	return s.repo.DeleteByToken(ctx, tkn)
+func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) error {
+	return s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn)
 }
 
 func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, title, body string, channelID int64) error {
