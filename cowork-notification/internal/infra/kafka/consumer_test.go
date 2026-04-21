@@ -34,7 +34,7 @@ func TestConsumer_handle_chatMessage(t *testing.T) {
 	event := kafkainfra.NotificationTriggerEvent{
 		Type:          "CHAT_MESSAGE",
 		TargetUserIDs: []int64{1, 2},
-		Data:          map[string]interface{}{"channelId": float64(42)},
+		Data:          map[string]any{"channelId": float64(42)},
 	}
 	raw, err := json.Marshal(event)
 	require.NoError(t, err)
