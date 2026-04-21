@@ -104,6 +104,11 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/chat-ws/**
+
         - id: preference-service
           uri: lb://cowork-preference
           predicates:
