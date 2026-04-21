@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation("org.springframework.kafka:spring-kafka")
 
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
