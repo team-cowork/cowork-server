@@ -13,10 +13,11 @@ import (
 // --- mocks ---
 
 type mockRepo struct {
-	saved   *token.DeviceToken
-	tokens  map[int64][]token.DeviceToken
-	deleted string
-	err     error
+	saved          *token.DeviceToken
+	tokens         map[int64][]token.DeviceToken
+	deleted        string
+	deletedBulk    []string
+	err            error
 }
 
 func (m *mockRepo) Save(_ context.Context, t *token.DeviceToken) error {
@@ -26,11 +27,10 @@ func (m *mockRepo) Save(_ context.Context, t *token.DeviceToken) error {
 func (m *mockRepo) FindByAccountID(_ context.Context, id int64) ([]token.DeviceToken, error) {
 	return m.tokens[id], m.err
 }
-func (m *mockRepo) DeleteByToken(_ context.Context, tkn string) error {
-	m.deleted = tkn
+func (m *mockRepo) DeleteByTokens(_ context.Context, tokens []string) error {
+	m.deletedBulk = tokens
 	return m.err
 }
-
 func (m *mockRepo) DeleteByAccountIDAndToken(_ context.Context, _ int64, tkn string) error {
 	m.deleted = tkn
 	return m.err
@@ -112,7 +112,7 @@ func TestService_Notify_deletesInvalidTokens(t *testing.T) {
 
 	err := svc.Notify(context.Background(), []int64{1}, "title", "body", 0)
 	require.NoError(t, err)
-	assert.Equal(t, "bad-token", repo.deleted)
+	assert.Equal(t, []string{"bad-token"}, repo.deletedBulk)
 }
 
 func TestService_Notify_preferenceFailDefaultsToEnabled(t *testing.T) {
