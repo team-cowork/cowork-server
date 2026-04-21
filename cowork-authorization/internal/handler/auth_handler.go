@@ -51,9 +51,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
 }
 
-// Callback godoc
-// @Summary      인가 코드 교환 (PKCE)
-// @Description  프론트엔드가 인가 코드와 PKCE code_verifier를 제공하면 액세스/리프레시 토큰을 반환합니다.
+// Token godoc
+// @Summary      토큰 발급 (PKCE code exchange)
+// @Description  프론트엔드가 DataGSM에서 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
@@ -61,8 +61,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // @Success      200   {object}  service.TokenPair
 // @Failure      400   {object}  map[string]string  "missing required fields"
 // @Failure      401   {object}  map[string]string  "authentication failed"
-// @Router       /auth/callback [post]
-func (h *AuthHandler) Callback(c *gin.Context) {
+// @Router       /auth/token [post]
+func (h *AuthHandler) Token(c *gin.Context) {
 	var req struct {
 		Code         string `json:"code"          binding:"required"`
 		CodeVerifier string `json:"code_verifier" binding:"required"`
