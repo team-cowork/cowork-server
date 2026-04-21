@@ -35,7 +35,7 @@
     },
     {
       "id": 2,
-      "title": "전체 HTTP 요청 Rate (req/s)",
+      "title": "Spring Boot HTTP 요청 Rate (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -48,7 +48,7 @@
     },
     {
       "id": 3,
-      "title": "전체 HTTP 5xx 에러율 (%)",
+      "title": "Spring Boot HTTP 5xx 에러율 (%)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
