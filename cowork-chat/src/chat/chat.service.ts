@@ -55,7 +55,6 @@ export class ChatService {
                 },
                 {
                     $addFields: {
-                        // 배열을 단일 객체로, 없으면 null
                         mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
                     },
                 },
