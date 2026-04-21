@@ -21,14 +21,15 @@ import (
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
+	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -68,6 +69,7 @@ func main() {
 	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
 
 	router := gin.Default()
+	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET("/health", handler.Health)
 	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
