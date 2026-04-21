@@ -110,6 +110,15 @@ spring:
           uri: lb:ws://cowork-chat
           predicates:
             - Path=/chat-ws/**
+          filters:
+            - RemoveRequestHeader=X-User-Id
+            - RemoveRequestHeader=X-User-Role
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
 
         - id: preference-service
           uri: lb://cowork-preference
