@@ -43,7 +43,7 @@ func TestHandler_RegisterToken_success(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 }
 
-func TestHandler_RegisterToken_missingBody(t *testing.T) {
+func TestHandler_RegisterToken_missingRequiredFields(t *testing.T) {
 	h := token.NewHandler(&mockService{})
 
 	r := httptest.NewRequest(http.MethodPost, "/notifications/tokens", strings.NewReader(`{}`))
@@ -53,6 +53,18 @@ func TestHandler_RegisterToken_missingBody(t *testing.T) {
 	h.RegisterToken(w, r)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestHandler_RegisterToken_unauthorized(t *testing.T) {
+	h := token.NewHandler(&mockService{})
+
+	body := `{"token":"fcm-token","platform":"ANDROID"}`
+	r := httptest.NewRequest(http.MethodPost, "/notifications/tokens", strings.NewReader(body))
+	w := httptest.NewRecorder()
+
+	h.RegisterToken(w, r)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
 }
 
 func TestHandler_RegisterToken_serviceError(t *testing.T) {
