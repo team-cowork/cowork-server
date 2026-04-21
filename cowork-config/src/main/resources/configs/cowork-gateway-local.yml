@@ -111,6 +111,11 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/voice, /swagger/doc.json
 
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/chat-ws/**
+
         - id: chat-service-docs
           uri: lb://cowork-chat
           predicates:
