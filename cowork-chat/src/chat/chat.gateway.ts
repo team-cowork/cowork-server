@@ -15,7 +15,6 @@ import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { JoinChannelDto } from './dto/join-channel.dto';
 
-// WebSocket은 수신 전용 — 메시지 전송은 REST POST /channels/:id/messages
 @WebSocketGateway({ namespace: '/chat', cors: { origin: '*' } })
 export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
     private readonly logger = new Logger(ChatGateway.name);
