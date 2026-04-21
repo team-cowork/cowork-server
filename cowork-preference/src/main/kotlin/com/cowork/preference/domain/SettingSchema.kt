@@ -7,7 +7,7 @@ import java.time.format.DateTimeParseException
 object SettingSchema {
 
     private val ACCOUNT_KEYS = setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format", "date_format")
-    private val TEAM_KEYS = setOf("tag_spam_block")
+    private val TEAM_KEYS = setOf("tag_spam_block", "nickname_format_enforced", "nickname_format_example")
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
@@ -44,9 +44,15 @@ object SettingSchema {
         return result
     }
 
-    fun validate(type: ResourceType, settings: JsonObject): String? {
-        if (type != ResourceType.ACCOUNT) return null
+    fun validate(type: ResourceType, settings: JsonObject): String? = when (type) {
+        ResourceType.ACCOUNT -> validateAccount(settings)
+        ResourceType.TEAM -> validateTeam(settings)
+        ResourceType.PROJECT,
+        ResourceType.VOICE_CHANNEL,
+        ResourceType.TEXT_CHANNEL -> null
+    }
 
+    private fun validateAccount(settings: JsonObject): String? {
         settings.getString("status")?.let { status ->
             if (status !in ACCOUNT_STATUS_VALUES) return "status must be one of $ACCOUNT_STATUS_VALUES"
         }
@@ -66,6 +72,16 @@ object SettingSchema {
             try { Instant.parse(expiresAt) } catch (_: DateTimeParseException) {
                 return "status_expires_at must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
             }
+        }
+        return null
+    }
+
+    private fun validateTeam(settings: JsonObject): String? {
+        if (settings.containsKey("nickname_format_enforced") && settings.getValue("nickname_format_enforced") !is Boolean) {
+            return "nickname_format_enforced must be a boolean"
+        }
+        if (settings.containsKey("nickname_format_example") && settings.getValue("nickname_format_example") !is String) {
+            return "nickname_format_example must be a string"
         }
         return null
     }
