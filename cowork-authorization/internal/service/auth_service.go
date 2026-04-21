@@ -14,7 +14,6 @@ import (
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/repository"
-	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
@@ -49,7 +48,6 @@ type DataGSMStudent struct {
 
 type AuthService struct {
 	cfg              *config.AppConfig
-	oauth2Config     *oauth2.Config
 	httpClient       *http.Client
 	userClient       *client.UserClient
 	refreshTokenRepo *repository.RefreshTokenRepository
@@ -62,34 +60,13 @@ func NewAuthService(
 	refreshTokenRepo *repository.RefreshTokenRepository,
 	tokenSvc *TokenService,
 ) *AuthService {
-	oauth2Cfg := &oauth2.Config{
-		ClientID: cfg.DataGSMClientID,
-		Scopes:   []string{"openid", "profile", "email"},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  cfg.DataGSMAuthURL,
-			TokenURL: cfg.DataGSMTokenURL,
-		},
-	}
-
 	return &AuthService{
 		cfg:              cfg,
-		oauth2Config:     oauth2Cfg,
 		httpClient:       &http.Client{Timeout: 5 * time.Second},
 		userClient:       userClient,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
 	}
-}
-
-func (s *AuthService) GetLoginURL(redirectURI, codeChallenge, codeChallengeMethod, state string) string {
-	cfg := *s.oauth2Config // 공유 Config 뮤테이션 방지를 위해 복사본 사용
-	cfg.RedirectURL = redirectURI
-
-	return cfg.AuthCodeURL(
-		state,
-		oauth2.SetAuthURLParam("code_challenge", codeChallenge),
-		oauth2.SetAuthURLParam("code_challenge_method", codeChallengeMethod),
-	)
 }
 
 func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (*TokenPair, error) {

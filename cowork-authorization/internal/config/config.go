@@ -13,7 +13,6 @@ type AppConfig struct {
 	DBDSN string
 
 	DataGSMClientID    string
-	DataGSMAuthURL     string
 	DataGSMTokenURL    string
 	DataGSMUserInfoURL string
 
@@ -50,7 +49,6 @@ func Load() (*AppConfig, error) {
 		DBDSN: mustGetEnv("DB_DSN"),
 
 		DataGSMClientID:    mustGetEnv("DATAGSM_CLIENT_ID"),
-		DataGSMAuthURL:     mustGetEnv("DATAGSM_AUTH_URL"),
 		DataGSMTokenURL:    mustGetEnv("DATAGSM_TOKEN_URL"),
 		DataGSMUserInfoURL: mustGetEnv("DATAGSM_USERINFO_URL"),
 
