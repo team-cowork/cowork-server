@@ -10,12 +10,14 @@ import (
 )
 
 type Client struct {
-	inner *eurekaclient.Client
+	inner  *eurekaclient.Client
+	stopCh chan struct{}
 }
 
 func New(cfg *config.AppConfig) *Client {
 	return &Client{
-		inner: eurekaclient.NewClient([]string{cfg.EurekaServerURL}),
+		inner:  eurekaclient.NewClient([]string{cfg.EurekaServerURL}),
+		stopCh: make(chan struct{}),
 	}
 }
 
@@ -37,14 +39,21 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
-		for range ticker.C {
-			if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
-				slog.Warn("eureka heartbeat failed", "err", err)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.stopCh:
+				return
+			case <-ticker.C:
+				if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
+					slog.Warn("eureka heartbeat failed", "err", err)
+				}
 			}
 		}
 	}()
 }
 
 func (c *Client) Deregister(cfg *config.AppConfig) error {
+	close(c.stopCh)
 	return c.inner.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceHost)
 }
