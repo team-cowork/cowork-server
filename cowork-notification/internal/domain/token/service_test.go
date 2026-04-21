@@ -31,6 +31,11 @@ func (m *mockRepo) DeleteByToken(_ context.Context, tkn string) error {
 	return m.err
 }
 
+func (m *mockRepo) DeleteByAccountIDAndToken(_ context.Context, _ int64, tkn string) error {
+	m.deleted = tkn
+	return m.err
+}
+
 type mockFCM struct {
 	calledTokens []string
 	invalid      []string
@@ -68,7 +73,7 @@ func TestService_DeleteToken(t *testing.T) {
 	repo := &mockRepo{}
 	svc := token.NewService(repo, &mockFCM{}, &mockPref{enabled: true})
 
-	err := svc.DeleteToken(context.Background(), "token-abc")
+	err := svc.DeleteToken(context.Background(), 1, "token-abc")
 	require.NoError(t, err)
 	assert.Equal(t, "token-abc", repo.deleted)
 }
