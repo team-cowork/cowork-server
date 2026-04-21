@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	firebase.google.com/go/v4 v4.19.0
+	github.com/segmentio/kafka-go v0.4.50
 	github.com/stretchr/testify v1.11.1
 	google.golang.org/api v0.276.0
 	gorm.io/gorm v1.31.1
@@ -41,6 +42,8 @@ require (
 	github.com/googleapis/gax-go/v2 v2.21.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/klauspost/compress v1.15.9 // indirect
+	github.com/pierrec/lz4/v4 v4.1.15 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
