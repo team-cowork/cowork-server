@@ -29,7 +29,27 @@ class PreferenceProducer(private val producer: KafkaProducer<String, String>) {
         producer.send(record).coAwait()
     }
 
+    suspend fun publishTeamSettingsChanged(
+        teamId: Long,
+        changedSettings: JsonObject,
+        settings: JsonObject,
+    ) {
+        val payload = JsonObject()
+            .put("teamId", teamId)
+            .put("changedSettings", changedSettings)
+            .put("settings", settings)
+            .put("timestamp", Instant.now().toString())
+
+        val record = KafkaProducerRecord.create<String, String>(
+            TOPIC_TEAM_SETTING_CHANGED,
+            teamId.toString(),
+            payload.encode(),
+        )
+        producer.send(record).coAwait()
+    }
+
     companion object {
         const val TOPIC_STATUS_CHANGED = "preference.status.changed"
+        const val TOPIC_TEAM_SETTING_CHANGED = "preference.team.setting.changed"
     }
 }
