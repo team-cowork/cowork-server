@@ -15,6 +15,8 @@ cowork:
         url: /v3/api-docs/voice
       - name: chat
         url: /v3/api-docs/chat
+      - name: preference
+        url: /v3/api-docs/preference
 
 spring:
   data:
@@ -83,6 +85,39 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: project-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/projects/**
+          filters:
+            - StripPrefix=1
+
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/chat-ws/**
+
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+
         - id: authorization-service-docs
           uri: lb://cowork-authorization
           predicates:
@@ -97,13 +132,6 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/user, /v3/api-docs
 
-        - id: team-service-docs
-          uri: lb://cowork-team
-          predicates:
-            - Path=/v3/api-docs/team
-          filters:
-            - RewritePath=/v3/api-docs/team, /v3/api-docs
-
         - id: voice-service-docs
           uri: lb://cowork-voice
           predicates:
@@ -111,17 +139,26 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/voice, /swagger/doc.json
 
-        - id: chat-service-ws
-          uri: lb:ws://cowork-chat
-          predicates:
-            - Path=/chat-ws/**
-
         - id: chat-service-docs
           uri: lb://cowork-chat
           predicates:
             - Path=/v3/api-docs/chat
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
 
 resilience4j:
   circuitbreaker:
