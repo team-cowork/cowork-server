@@ -75,7 +75,7 @@ func (h *AuthHandler) Token(c *gin.Context) {
 
 	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
 	if err != nil {
-		log.Printf("callback error: %v", err)
+		log.Printf("token exchange error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
 		return
 	}
