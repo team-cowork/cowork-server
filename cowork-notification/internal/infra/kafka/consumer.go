@@ -12,7 +12,7 @@ import (
 type NotificationTriggerEvent struct {
 	Type          string                 `json:"type"`
 	TargetUserIDs []int64                `json:"targetUserIds"`
-	Data          map[string]interface{} `json:"data"`
+	Data          map[string]any `json:"data"`
 }
 
 type NotificationService interface {
@@ -97,7 +97,7 @@ func buildMessage(eventType string) (title, body string) {
 	}
 }
 
-func extractChannelID(data map[string]interface{}) int64 {
+func extractChannelID(data map[string]any) int64 {
 	if data == nil {
 		return 0
 	}
