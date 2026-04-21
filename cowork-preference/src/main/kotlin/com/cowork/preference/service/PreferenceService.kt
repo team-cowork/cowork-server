@@ -38,7 +38,33 @@ class PreferenceService(
                 reason = "MANUAL",
             )
         }
+        if (resourceType == ResourceType.TEAM) {
+            val changedNicknameSettings = nicknameFormatSettings(filtered)
+            if (changedNicknameSettings.size() > 0) {
+                producer.publishTeamSettingsChanged(
+                    teamId = resourceId,
+                    changedSettings = changedNicknameSettings,
+                    settings = updated,
+                )
+            }
+        }
 
         return Result.success(updated)
+    }
+
+    private fun nicknameFormatSettings(settings: JsonObject): JsonObject {
+        val result = JsonObject()
+        if (settings.containsKey(NICKNAME_FORMAT_ENFORCED)) {
+            result.put(NICKNAME_FORMAT_ENFORCED, settings.getValue(NICKNAME_FORMAT_ENFORCED))
+        }
+        if (settings.containsKey(NICKNAME_FORMAT_EXAMPLE)) {
+            result.put(NICKNAME_FORMAT_EXAMPLE, settings.getValue(NICKNAME_FORMAT_EXAMPLE))
+        }
+        return result
+    }
+
+    companion object {
+        private const val NICKNAME_FORMAT_ENFORCED = "nickname_format_enforced"
+        private const val NICKNAME_FORMAT_EXAMPLE = "nickname_format_example"
     }
 }
