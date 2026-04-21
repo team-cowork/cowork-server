@@ -31,6 +31,8 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 		30,
 		false,
 	)
+	instance.VipAddress = cfg.EurekaAppName
+	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
 			"management.port": fmt.Sprintf("%d", cfg.EurekaInstancePort),
