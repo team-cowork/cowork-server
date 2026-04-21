@@ -42,3 +42,14 @@ func (r *TokenRepository) DeleteByToken(ctx context.Context, tkn string) error {
 	}
 	return nil
 }
+
+func (r *TokenRepository) DeleteByAccountIDAndToken(ctx context.Context, accountID int64, tkn string) error {
+	result := r.db.WithContext(ctx).Where("account_id = ? AND token = ?", accountID, tkn).Delete(&token.DeviceToken{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return apperr.NotFound("token not found")
+	}
+	return nil
+}

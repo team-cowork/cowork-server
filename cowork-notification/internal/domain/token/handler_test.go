@@ -22,7 +22,7 @@ type mockService struct {
 func (m *mockService) RegisterToken(_ context.Context, _ int64, _, _ string) error {
 	return m.registerErr
 }
-func (m *mockService) DeleteToken(_ context.Context, _ string) error {
+func (m *mockService) DeleteToken(_ context.Context, _ int64, _ string) error {
 	return m.deleteErr
 }
 func (m *mockService) Notify(_ context.Context, _ []int64, _, _ string, _ int64) error {
@@ -87,7 +87,9 @@ func TestHandler_DeleteToken_success(t *testing.T) {
 	r := httptest.NewRequest(http.MethodDelete, "/notifications/tokens/my-token", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("token", "my-token")
-	r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, rctx))
+	ctx := context.WithValue(r.Context(), chi.RouteCtxKey, rctx)
+	ctx = middleware.WithAccountID(ctx, int64(1))
+	r = r.WithContext(ctx)
 	w := httptest.NewRecorder()
 
 	h.DeleteToken(w, r)
