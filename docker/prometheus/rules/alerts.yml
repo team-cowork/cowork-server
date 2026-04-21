@@ -2,7 +2,7 @@ groups:
   - name: cowork-availability
     rules:
       - alert: CoworkServiceDown
-        expr: up{job=~"cowork-(gateway|config|user|team|preference|authorization|voice|chat)"} == 0
+        expr: up{job=~"cowork-(gateway|config|user|team|notification|preference|authorization|voice|chat)"} == 0
         for: 2m
         labels:
           severity: critical
@@ -25,19 +25,19 @@ groups:
         expr: |
           (
             sum by (application) (
-              rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)", status=~"5.."}[5m])
+              rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team|notification)", status=~"5.."}[5m])
             )
             /
             clamp_min(
               sum by (application) (
-                rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)"}[5m])
+                rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team|notification)"}[5m])
               ),
               0.1
             )
           ) * 100 > 5
           and on(application)
           sum by (application) (
-            rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team)"}[5m])
+            rate(http_server_requests_seconds_count{application=~"cowork-(gateway|config|user|team|notification)"}[5m])
           ) > 0.1
         for: 5m
         labels:
