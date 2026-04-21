@@ -306,7 +306,9 @@
       "TeamSettings": {
         "type": "object",
         "properties": {
-          "tag_spam_block": { "type": "boolean", "example": false }
+          "tag_spam_block": { "type": "boolean", "example": false },
+          "nickname_format_enforced": { "type": "boolean", "example": true },
+          "nickname_format_example": { "type": "string", "minLength": 1, "example": "홍길동 / 프론트엔드" }
         }
       },
       "VoiceChannelSettings": {
