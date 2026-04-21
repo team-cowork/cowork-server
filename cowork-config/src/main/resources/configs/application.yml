@@ -1,5 +1,7 @@
 # 모든 서비스에 공통 적용되는 설정
 spring:
+  reactor:
+    context-propagation: auto
   cloud:
     config:
       uri: http://localhost:8761

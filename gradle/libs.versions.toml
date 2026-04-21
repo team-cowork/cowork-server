@@ -13,6 +13,7 @@ eureka-client = "2.0.6"
 flyway = "10.15.0"
 postgresql = "42.7.3"
 micrometer = "1.14.5"
+logstash-logback = "8.0"
 
 [libraries]
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
@@ -29,6 +30,7 @@ eureka-client = { module = "com.netflix.eureka:eureka-client", version.ref = "eu
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
+logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

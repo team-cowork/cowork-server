@@ -145,6 +145,35 @@ services:
       timeout: 5s
       retries: 5
 
+  loki:
+    image: grafana/loki:3.5.0
+    container_name: cowork-loki
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./cowork-monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  promtail:
+    image: grafana/promtail:3.5.0
+    container_name: cowork-promtail
+    restart: unless-stopped
+    volumes:
+      - ./cowork-monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/log/cowork:/var/log/cowork:ro
+      - promtail_positions:/tmp
+    command: -config.file=/etc/promtail/config.yml -config.expand-env=true
+    depends_on:
+      loki:
+        condition: service_healthy
+
   prometheus:
     image: prom/prometheus:v3.3.1
     container_name: cowork-prometheus
@@ -236,3 +265,5 @@ volumes:
   redis_data:
   prometheus_data:
   grafana_data:
+  loki_data:
+  promtail_positions:
