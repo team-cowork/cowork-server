@@ -40,6 +40,7 @@ dependencies {
     implementation("com.github.themoment-team:the-sdk:1.5")
     implementation(libs.springdoc.openapi.webmvc.ui)
 
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 

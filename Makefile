@@ -1,6 +1,6 @@
 VERSION := $(shell cat VERSION)
 
-.PHONY: version bump tag release
+.PHONY: version bump tag release init-logs
 
 version:
 	@cat VERSION
@@ -15,3 +15,6 @@ tag:
 
 release: tag
 	git push origin main --follow-tags
+
+init-logs:
+	@bash scripts/init-log-dirs.sh
