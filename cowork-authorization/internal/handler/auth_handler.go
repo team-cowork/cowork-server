@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	oauthStateCookie = "oauth_state"
-	userIDKey        = "userID"
+	userIDKey = "userID"
 )
 
 type AuthHandler struct {
@@ -26,41 +25,55 @@ func NewAuthHandler(authSvc *service.AuthService, tokenSvc *service.TokenService
 }
 
 // Login godoc
-// @Summary      OAuth 로그인 리다이렉트
-// @Description  Google OAuth 로그인 페이지로 리다이렉트합니다. state 쿠키가 자동으로 설정됩니다.
+// @Summary      OAuth 로그인 URL 반환 (PKCE)
+// @Description  프론트엔드가 PKCE 파라미터(code_challenge, code_challenge_method, state, redirect_uri)를 제공하면 DataGSM 인가 URL을 반환합니다.
 // @Tags         auth
-// @Success      302  {string}  string  "OAuth provider로 리다이렉트"
+// @Produce      json
+// @Param        redirect_uri           query  string  true  "리다이렉트 URI"
+// @Param        code_challenge         query  string  true  "PKCE code challenge"
+// @Param        code_challenge_method  query  string  true  "PKCE code challenge method (S256)"
+// @Param        state                  query  string  true  "CSRF 방지용 state"
+// @Success      200  {object}  map[string]string  "auth_url"
+// @Failure      400  {object}  map[string]string  "missing required parameters"
 // @Router       /auth/signin [get]
 func (h *AuthHandler) Login(c *gin.Context) {
-	authURL, state := h.authSvc.GetLoginURL()
+	redirectURI := c.Query("redirect_uri")
+	codeChallenge := c.Query("code_challenge")
+	codeChallengeMethod := c.Query("code_challenge_method")
+	state := c.Query("state")
 
-	c.SetCookie(oauthStateCookie, state, 300, "/", "", false, true)
-	c.Redirect(http.StatusFound, authURL)
+	if redirectURI == "" || codeChallenge == "" || codeChallengeMethod == "" || state == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required parameters"})
+		return
+	}
+
+	authURL := h.authSvc.GetLoginURL(redirectURI, codeChallenge, codeChallengeMethod, state)
+	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
 }
 
 // Callback godoc
-// @Summary      OAuth 콜백 처리
-// @Description  OAuth provider가 리다이렉트하는 콜백 엔드포인트입니다. 액세스/리프레시 토큰을 반환합니다.
+// @Summary      인가 코드 교환 (PKCE)
+// @Description  프론트엔드가 인가 코드와 PKCE code_verifier를 제공하면 액세스/리프레시 토큰을 반환합니다.
 // @Tags         auth
+// @Accept       json
 // @Produce      json
-// @Param        code   query  string  true  "OAuth authorization code"
-// @Param        state  query  string  true  "CSRF 방지용 state 파라미터"
-// @Success      200    {object}  map[string]string  "access_token, refresh_token"
-// @Failure      400    {object}  map[string]string  "missing oauth state cookie"
-// @Failure      401    {object}  map[string]string  "authentication failed"
-// @Router       /auth/callback [get]
+// @Param        body  body      object{code=string,code_verifier=string,redirect_uri=string}  true  "코드 교환 요청"
+// @Success      200   {object}  service.TokenPair
+// @Failure      400   {object}  map[string]string  "missing required fields"
+// @Failure      401   {object}  map[string]string  "authentication failed"
+// @Router       /auth/callback [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
-	code := c.Query("code")
-	state := c.Query("state")
-
-	cookieState, err := c.Cookie(oauthStateCookie)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing oauth state cookie"})
+	var req struct {
+		Code         string `json:"code"          binding:"required"`
+		CodeVerifier string `json:"code_verifier" binding:"required"`
+		RedirectURI  string `json:"redirect_uri"  binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
 		return
 	}
-	c.SetCookie(oauthStateCookie, "", -1, "/", "", false, true)
 
-	pair, err := h.authSvc.HandleCallback(c.Request.Context(), code, state, cookieState)
+	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
 	if err != nil {
 		log.Printf("callback error: %v", err)
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
