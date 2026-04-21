@@ -6,7 +6,7 @@ type Repository interface {
 	Save(ctx context.Context, t *DeviceToken) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]DeviceToken, error)
 	DeleteByAccountIDAndToken(ctx context.Context, accountID int64, token string) error
-	DeleteByToken(ctx context.Context, token string) error // for FCM invalid token cleanup
+	DeleteByTokens(ctx context.Context, tokens []string) error // for FCM invalid token bulk cleanup
 }
 
 type FCMSender interface {
