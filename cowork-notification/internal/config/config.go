@@ -46,7 +46,10 @@ func Load() (*AppConfig, error) {
 		return nil, err
 	}
 
-	eurekaPort, _ := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", "8086"))
+	eurekaPort, err := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", "8086"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
+	}
 
 	return &AppConfig{
 		Port:                 getEnv("PORT", "8086"),
