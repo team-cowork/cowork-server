@@ -24,40 +24,9 @@ func NewAuthHandler(authSvc *service.AuthService, tokenSvc *service.TokenService
 	return &AuthHandler{authSvc: authSvc, tokenSvc: tokenSvc}
 }
 
-// Login godoc
-// @Summary      OAuth 로그인 URL 반환 (PKCE)
-// @Description  프론트엔드가 PKCE 파라미터(code_challenge, code_challenge_method, state, redirect_uri)를 제공하면 DataGSM 인가 URL을 반환합니다.
-// @Tags         auth
-// @Produce      json
-// @Param        redirect_uri           query  string  true  "리다이렉트 URI"
-// @Param        code_challenge         query  string  true  "PKCE code challenge"
-// @Param        code_challenge_method  query  string  true  "PKCE code challenge method (S256)"
-// @Param        state                  query  string  true  "CSRF 방지용 state"
-// @Success      200  {object}  map[string]string  "auth_url"
-// @Failure      400  {object}  map[string]string  "missing required parameters"
-// @Router       /auth/signin [get]
-func (h *AuthHandler) Login(c *gin.Context) {
-	redirectURI := c.Query("redirect_uri")
-	codeChallenge := c.Query("code_challenge")
-	codeChallengeMethod := c.Query("code_challenge_method")
-	state := c.Query("state")
-
-	if redirectURI == "" || codeChallenge == "" || codeChallengeMethod == "" || state == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required parameters"})
-		return
-	}
-	if codeChallengeMethod != "S256" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "code_challenge_method must be S256"})
-		return
-	}
-
-	authURL := h.authSvc.GetLoginURL(redirectURI, codeChallenge, codeChallengeMethod, state)
-	c.JSON(http.StatusOK, gin.H{"auth_url": authURL})
-}
-
 // Token godoc
 // @Summary      토큰 발급 (PKCE code exchange)
-// @Description  프론트엔드가 DataGSM에서 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
+// @Description  프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
