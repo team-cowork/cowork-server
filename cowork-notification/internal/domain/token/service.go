@@ -58,9 +58,9 @@ func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, title, body
 	if err != nil {
 		return err
 	}
-	for _, t := range invalidTokens {
-		if delErr := s.repo.DeleteByToken(ctx, t); delErr != nil {
-			slog.Warn("failed to delete invalid token", "token", t, "err", delErr)
+	if len(invalidTokens) > 0 {
+		if delErr := s.repo.DeleteByTokens(ctx, invalidTokens); delErr != nil {
+			slog.Warn("failed to bulk delete invalid tokens", "count", len(invalidTokens), "err", delErr)
 		}
 	}
 	return nil
