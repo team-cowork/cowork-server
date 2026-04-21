@@ -44,8 +44,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	ctx := context.Background()
-	fcmSender, err := fcm.NewSender(ctx, cfg.FCMCredentialsFile)
+	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer fcmCancel()
+	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)
 	if err != nil {
 		slog.Error("fcm init failed", "err", err)
 		os.Exit(1)
