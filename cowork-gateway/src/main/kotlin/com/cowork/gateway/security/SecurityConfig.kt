@@ -4,6 +4,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
+import org.springframework.http.HttpStatus
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder
 import org.springframework.security.config.web.server.ServerHttpSecurity
@@ -31,9 +32,17 @@ class SecurityConfig(
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
             .securityContextRepository(NoOpServerSecurityContextRepository.getInstance())
+            .exceptionHandling { exceptions ->
+                exceptions.authenticationEntryPoint { exchange, _ ->
+                    exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+                    exchange.response.setComplete()
+                }
+            }
             .authorizeExchange { exchanges ->
                 exchanges
-                    .pathMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
+                    .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/auth/signin", "/api/auth/callback").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()

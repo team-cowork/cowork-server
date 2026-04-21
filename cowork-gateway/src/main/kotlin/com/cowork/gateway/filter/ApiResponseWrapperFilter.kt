@@ -27,6 +27,10 @@ class ApiResponseWrapperFilter(
     private val skipPatterns = listOf(
         "/actuator/**",
         "/fallback",
+        "/v3/api-docs/**",
+        "/swagger-ui.html",
+        "/swagger-ui/**",
+        "/webjars/**",
     )
     private val matcher = AntPathMatcher()
 
