@@ -15,63 +15,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/auth/callback": {
-            "get": {
-                "description": "OAuth provider가 리다이렉트하는 콜백 엔드포인트입니다. 액세스/리프레시 토큰을 반환합니다.",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "OAuth 콜백 처리",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "OAuth authorization code",
-                        "name": "code",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "CSRF 방지용 state 파라미터",
-                        "name": "state",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "access_token, refresh_token",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "missing oauth state cookie",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "authentication failed",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
         "/auth/refresh": {
             "post": {
                 "description": "리프레시 토큰으로 새로운 액세스/리프레시 토큰 쌍을 발급합니다.",
@@ -127,23 +70,6 @@ const docTemplate = `{
                             "additionalProperties": {
                                 "type": "string"
                             }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/signin": {
-            "get": {
-                "description": "Google OAuth 로그인 페이지로 리다이렉트합니다. state 쿠키가 자동으로 설정됩니다.",
-                "tags": [
-                    "auth"
-                ],
-                "summary": "OAuth 로그인 리다이렉트",
-                "responses": {
-                    "302": {
-                        "description": "OAuth provider로 리다이렉트",
-                        "schema": {
-                            "type": "string"
                         }
                     }
                 }
@@ -208,6 +134,69 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/token": {
+            "post": {
+                "description": "프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "토큰 발급 (PKCE code exchange)",
+                "parameters": [
+                    {
+                        "description": "코드 교환 요청",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "code": {
+                                    "type": "string"
+                                },
+                                "code_verifier": {
+                                    "type": "string"
+                                },
+                                "redirect_uri": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/service.TokenPair"
+                        }
+                    },
+                    "400": {
+                        "description": "missing required fields",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "authentication failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "produces": [
@@ -229,6 +218,25 @@ const docTemplate = `{
             }
         }
     },
+    "definitions": {
+        "service.TokenPair": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string"
+                },
+                "expires_in": {
+                    "type": "integer"
+                },
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token_type": {
+                    "type": "string"
+                }
+            }
+        }
+    },
     "securityDefinitions": {
         "BearerAuth": {
             "description": "\"Bearer {access_token}\" 형식으로 입력하세요.",
@@ -246,7 +254,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api",
 	Schemes:          []string{},
 	Title:            "Cowork Authorization API",
-	Description:      "인증/인가 서비스 — Google OAuth2 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
+	Description:      "인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
