@@ -22,6 +22,19 @@ type registerTokenRequest struct {
 	Platform string `json:"platform"`
 }
 
+// RegisterToken godoc
+//
+//	@Summary		FCM 토큰 등록
+//	@Description	사용자의 디바이스 FCM 토큰을 등록합니다
+//	@Tags			tokens
+//	@Accept			json
+//	@Param			X-User-Id	header	int64					true	"사용자 ID (Gateway 주입)"
+//	@Param			request		body	registerTokenRequest	true	"토큰 등록 요청"
+//	@Success		201
+//	@Failure		400	{string}	string	"잘못된 요청"
+//	@Failure		401	{string}	string	"인증 실패"
+//	@Failure		500	{string}	string	"내부 서버 오류"
+//	@Router			/notifications/tokens [post]
 func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromContext(r.Context())
 	if !ok {
@@ -51,6 +64,19 @@ func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
+// DeleteToken godoc
+//
+//	@Summary		FCM 토큰 삭제
+//	@Description	사용자의 디바이스 FCM 토큰을 삭제합니다
+//	@Tags			tokens
+//	@Param			X-User-Id	header	int64	true	"사용자 ID (Gateway 주입)"
+//	@Param			token		path	string	true	"FCM 토큰"
+//	@Success		204
+//	@Failure		400	{string}	string	"잘못된 요청"
+//	@Failure		401	{string}	string	"인증 실패"
+//	@Failure		404	{string}	string	"토큰 없음"
+//	@Failure		500	{string}	string	"내부 서버 오류"
+//	@Router			/notifications/tokens/{token} [delete]
 func (h *Handler) DeleteToken(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromContext(r.Context())
 	if !ok {
