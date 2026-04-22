@@ -27,11 +27,22 @@ func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) 
 	return s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn)
 }
 
-func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, title, body string, channelID int64) error {
-	enabledIDs := targetUserIDs
+func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) error {
+	forcedSet := make(map[int64]bool, len(forcedUserIDs))
+	for _, id := range forcedUserIDs {
+		forcedSet[id] = true
+	}
+
+	// forcedUserIDs는 뮤트 무시하고 무조건 포함
+	enabledIDs := make([]int64, 0, len(targetUserIDs))
+	enabledIDs = append(enabledIDs, forcedUserIDs...)
+
+	// 나머지는 preference 확인
 	if channelID > 0 {
-		enabledIDs = make([]int64, 0, len(targetUserIDs))
 		for _, uid := range targetUserIDs {
+			if forcedSet[uid] {
+				continue
+			}
 			enabled, err := s.pref.IsNotificationEnabled(ctx, uid, channelID)
 			if err != nil {
 				slog.Warn("preference check failed, defaulting to enabled", "accountId", uid, "err", err)
@@ -41,7 +52,14 @@ func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, title, body
 				enabledIDs = append(enabledIDs, uid)
 			}
 		}
+	} else {
+		for _, uid := range targetUserIDs {
+			if !forcedSet[uid] {
+				enabledIDs = append(enabledIDs, uid)
+			}
+		}
 	}
+
 	if len(enabledIDs) == 0 {
 		return nil
 	}

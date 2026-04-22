@@ -19,6 +19,8 @@ type AppConfig struct {
 	KafkaGroupID         string
 	FCMCredentialsFile   string
 	PreferenceServiceURL string
+	TeamServiceURL       string
+	UserServiceURL       string
 	EurekaServerURL      string
 	EurekaAppName        string
 	EurekaInstanceHost   string
@@ -36,6 +38,8 @@ func Load() (*AppConfig, error) {
 		KafkaGroupID:         lookup(flatMap, "kafka.group-id", ""),
 		FCMCredentialsFile:   lookup(flatMap, "fcm.credentials-file", ""),
 		PreferenceServiceURL: lookup(flatMap, "preference.service-url", ""),
+		TeamServiceURL:       lookup(flatMap, "team.service-url", ""),
+		UserServiceURL:       lookup(flatMap, "user.service-url", ""),
 		EurekaServerURL:      lookup(flatMap, "eureka.server-url", "http://localhost:8761/eureka"),
 		EurekaAppName:        lookup(flatMap, "eureka.app-name", "cowork-notification"),
 		EurekaInstanceHost:   lookup(flatMap, "eureka.instance.host", "localhost"),
@@ -98,6 +102,12 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("PREFERENCE_SERVICE_URL"); v != "" {
 		cfg.PreferenceServiceURL = v
 	}
+	if v := os.Getenv("TEAM_SERVICE_URL"); v != "" {
+		cfg.TeamServiceURL = v
+	}
+	if v := os.Getenv("USER_SERVICE_URL"); v != "" {
+		cfg.UserServiceURL = v
+	}
 	if v := os.Getenv("EUREKA_SERVER_URL"); v != "" {
 		cfg.EurekaServerURL = v
 	}
@@ -120,6 +130,8 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 		"KAFKA_GROUP_ID (or kafka.group-id from config server)":             cfg.KafkaGroupID,
 		"FCM_CREDENTIALS_FILE (or fcm.credentials-file from config server)": cfg.FCMCredentialsFile,
 		"PREFERENCE_SERVICE_URL (or preference.service-url from config server)": cfg.PreferenceServiceURL,
+		"TEAM_SERVICE_URL (or team.service-url from config server)":             cfg.TeamServiceURL,
+		"USER_SERVICE_URL (or user.service-url from config server)":             cfg.UserServiceURL,
 	}
 	for name, val := range required {
 		if val == "" {
