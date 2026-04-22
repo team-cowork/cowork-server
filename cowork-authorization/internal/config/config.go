@@ -12,12 +12,9 @@ type AppConfig struct {
 
 	DBDSN string
 
-	DataGSMClientID     string
-	DataGSMClientSecret string
-	DataGSMAuthURL      string
-	DataGSMTokenURL     string
-	DataGSMUserInfoURL  string
-	DataGSMRedirectURL  string
+	DataGSMClientID    string
+	DataGSMTokenURL    string
+	DataGSMUserInfoURL string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -51,12 +48,9 @@ func Load() (*AppConfig, error) {
 		Port:  getEnvOrDefault("PORT", "8081"),
 		DBDSN: mustGetEnv("DB_DSN"),
 
-		DataGSMClientID:     mustGetEnv("DATAGSM_CLIENT_ID"),
-		DataGSMClientSecret: mustGetEnv("DATAGSM_CLIENT_SECRET"),
-		DataGSMAuthURL:      mustGetEnv("DATAGSM_AUTH_URL"),
-		DataGSMTokenURL:     mustGetEnv("DATAGSM_TOKEN_URL"),
-		DataGSMUserInfoURL:  mustGetEnv("DATAGSM_USERINFO_URL"),
-		DataGSMRedirectURL:  mustGetEnv("DATAGSM_REDIRECT_URL"),
+		DataGSMClientID:    mustGetEnv("DATAGSM_CLIENT_ID"),
+		DataGSMTokenURL:    mustGetEnv("DATAGSM_TOKEN_URL"),
+		DataGSMUserInfoURL: mustGetEnv("DATAGSM_USERINFO_URL"),
 
 		JWTSecret:        mustGetEnv("JWT_SECRET"),
 		JWTAccessExpire:  accessExpire,
