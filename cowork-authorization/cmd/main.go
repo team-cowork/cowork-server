@@ -21,18 +21,23 @@ import (
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
+	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
+	"github.com/cowork/authorization/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
 func main() {
+	logger.Init("cowork-authorization")
+
 	if err := godotenv.Load(); err != nil {
 		log.Println("no .env file found, reading from environment")
 	}
@@ -67,8 +72,10 @@ func main() {
 	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
 
 	router := gin.Default()
+	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET("/health", handler.Health)
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	auth := router.Group("/auth")
