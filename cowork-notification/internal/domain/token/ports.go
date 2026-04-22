@@ -16,6 +16,7 @@ type FCMSender interface {
 
 type PreferenceClient interface {
 	IsNotificationEnabled(ctx context.Context, accountID, channelID int64) (bool, error)
+	AreNotificationsEnabled(ctx context.Context, accountIDs []int64, channelID int64) (map[int64]bool, error)
 }
 
 type TokenService interface {
