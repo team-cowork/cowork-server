@@ -15,6 +15,8 @@ cowork:
         url: /v3/api-docs/voice
       - name: chat
         url: /v3/api-docs/chat
+      - name: notification
+        url: /v3/api-docs/notification
       - name: preference
         url: /v3/api-docs/preference
 
@@ -166,6 +168,13 @@ spring:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
 
 resilience4j:
   circuitbreaker:
