@@ -7,7 +7,7 @@ definitions:
       token:
         type: string
     type: object
-host: localhost:8086
+host: ""
 info:
   contact: {}
   description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
