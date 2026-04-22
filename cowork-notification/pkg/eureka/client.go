@@ -47,6 +47,9 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 			case <-ticker.C:
 				if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
 					slog.Warn("eureka heartbeat failed", "err", err)
+					if registerErr := c.Register(cfg); registerErr != nil {
+						slog.Warn("eureka re-registration failed", "err", registerErr)
+					}
 				}
 			}
 		}
