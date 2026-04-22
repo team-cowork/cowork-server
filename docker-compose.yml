@@ -161,6 +161,8 @@ services:
       KAFKA_GROUP_ID: cowork-notification
       FCM_CREDENTIALS_FILE: /etc/secrets/firebase-credentials.json
       PREFERENCE_SERVICE_URL: http://cowork-preference:8084
+      TEAM_SERVICE_URL: http://cowork-team:8085
+      USER_SERVICE_URL: http://cowork-user:8082
       EUREKA_SERVER_URL: http://cowork-config:8761/eureka
       EUREKA_APP_NAME: cowork-notification
       EUREKA_INSTANCE_HOST: cowork-notification
