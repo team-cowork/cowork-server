@@ -39,17 +39,23 @@ func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, forcedUserI
 
 	// 나머지는 preference 확인
 	if channelID > 0 {
+		nonForcedIDs := make([]int64, 0, len(targetUserIDs))
 		for _, uid := range targetUserIDs {
-			if forcedSet[uid] {
-				continue
+			if !forcedSet[uid] {
+				nonForcedIDs = append(nonForcedIDs, uid)
 			}
-			enabled, err := s.pref.IsNotificationEnabled(ctx, uid, channelID)
+		}
+		if len(nonForcedIDs) > 0 {
+			enabledMap, err := s.pref.AreNotificationsEnabled(ctx, nonForcedIDs, channelID)
 			if err != nil {
-				slog.Warn("preference check failed, defaulting to enabled", "accountId", uid, "err", err)
-				enabled = true
-			}
-			if enabled {
-				enabledIDs = append(enabledIDs, uid)
+				slog.Warn("batch preference check failed, defaulting to enabled", "err", err)
+				enabledIDs = append(enabledIDs, nonForcedIDs...)
+			} else {
+				for _, uid := range nonForcedIDs {
+					if enabled, ok := enabledMap[uid]; !ok || enabled {
+						enabledIDs = append(enabledIDs, uid)
+					}
+				}
 			}
 		}
 	} else {
