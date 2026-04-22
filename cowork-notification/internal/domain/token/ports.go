@@ -21,5 +21,5 @@ type PreferenceClient interface {
 type TokenService interface {
 	RegisterToken(ctx context.Context, accountID int64, token, platform string) error
 	DeleteToken(ctx context.Context, accountID int64, token string) error
-	Notify(ctx context.Context, targetUserIDs []int64, title, body string, channelID int64) error
+	Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) error
 }
