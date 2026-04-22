@@ -43,6 +43,7 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/auth/signin", "/api/auth/callback").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
