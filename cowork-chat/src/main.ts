@@ -5,10 +5,12 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
+import { Logger as PinoLogger } from 'nestjs-pino';
 import { ChatModule } from './chat/chat.module';
 
 async function bootstrap() {
-    const app = await NestFactory.create<NestExpressApplication>(ChatModule);
+    const app = await NestFactory.create<NestExpressApplication>(ChatModule, { bufferLogs: true });
+    app.useLogger(app.get(PinoLogger));
     app.setGlobalPrefix('chat');
     app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
     app.useStaticAssets(join(__dirname, '..', 'public'));
