@@ -167,6 +167,8 @@ services:
       EUREKA_INSTANCE_PORT: 8086
     ports:
       - "8086:8086"
+    volumes:
+      - cowork_logs:/var/log/cowork
     depends_on:
       mysql:
         condition: service_healthy
@@ -200,7 +202,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./cowork-monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
-      - /var/log/cowork:/var/log/cowork:ro
+      - cowork_logs:/var/log/cowork:ro
       - promtail_positions:/tmp
     command: -config.file=/etc/promtail/config.yml -config.expand-env=true
     depends_on:
@@ -299,4 +301,5 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  cowork_logs:
   promtail_positions:
