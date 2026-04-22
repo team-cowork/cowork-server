@@ -26,8 +26,8 @@ import (
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
@@ -81,9 +81,8 @@ func main() {
 	eurekaClient := eurekaclient.NewClient(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
 		log.Printf("warning: eureka registration failed: %v", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
