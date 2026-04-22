@@ -62,7 +62,11 @@ logs/
 PR_BODY.md
 SPEC.md
 .pr-tmp/
+.pr-tmp-comments.json
 /.claude/command.log
+
+### Crash Dumps ###
+*.stackdump
 
 ### Docs ###
 docs/
