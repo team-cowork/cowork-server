@@ -65,6 +65,17 @@ func (m *mockPref) IsNotificationEnabled(_ context.Context, _, _ int64) (bool, e
 	return m.enabled, m.err
 }
 
+func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64, _ int64) (map[int64]bool, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	result := make(map[int64]bool, len(accountIDs))
+	for _, id := range accountIDs {
+		result[id] = m.enabled
+	}
+	return result, nil
+}
+
 // --- tests ---
 
 func TestService_RegisterToken(t *testing.T) {
