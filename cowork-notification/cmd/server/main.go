@@ -19,9 +19,9 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
+	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/config"
 	tokendomain "github.com/cowork/cowork-notification/internal/domain/token"
-	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
@@ -63,9 +63,8 @@ func main() {
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
 		slog.Warn("eureka registration failed", "err", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
