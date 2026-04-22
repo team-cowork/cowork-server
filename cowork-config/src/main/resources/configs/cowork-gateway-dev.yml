@@ -150,6 +150,13 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/preference, /swagger/doc.json
 
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
         - id: team-service-docs
           uri: lb://cowork-team
           predicates:
