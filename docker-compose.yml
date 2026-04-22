@@ -152,6 +152,8 @@ services:
     container_name: cowork-notification
     restart: unless-stopped
     environment:
+      APP_CONFIG_URL: http://cowork-config:8761
+      APP_PROFILE: dev
       PORT: 8086
       DB_DSN: ${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(cowork-mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
       KAFKA_BROKERS: kafka:9092
