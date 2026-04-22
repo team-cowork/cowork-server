@@ -1,3 +1,7 @@
+// @title          cowork-notification API
+// @version        1.0
+// @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
+// @BasePath       /
 package main
 
 import (
@@ -11,11 +15,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	httpswagger "github.com/swaggo/http-swagger/v2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
 	"github.com/cowork/cowork-notification/internal/config"
 	tokendomain "github.com/cowork/cowork-notification/internal/domain/token"
+	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
@@ -65,6 +71,7 @@ func main() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
 	r.Get("/health", health.Handler)
+	r.Get("/swagger/*", httpswagger.WrapHandler)
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.ExtractAuthUser)
