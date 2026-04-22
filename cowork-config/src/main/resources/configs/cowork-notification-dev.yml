@@ -1,0 +1,19 @@
+# db.dsn은 Vault secret/cowork-notification 에서 주입됨
+
+kafka:
+  brokers: kafka:9092
+  topic: notification.trigger
+  group-id: cowork-notification
+
+fcm:
+  credentials-file: /etc/secrets/firebase-credentials.json
+
+preference:
+  service-url: http://cowork-preference:8084
+
+eureka:
+  server-url: http://cowork-config:8761/eureka
+  app-name: cowork-notification
+  instance:
+    host: cowork-notification
+    port: 8086
