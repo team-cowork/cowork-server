@@ -7,7 +7,8 @@ import { ChatGateway } from './chat.gateway';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 
 const mockMessageId = new Types.ObjectId().toString();
-const authHeaders = { 'x-user-id': '42', 'x-user-role': 'ROLE_USER' };
+const userId = 42;
+const userRole = 'ROLE_USER';
 
 const mockChatService = {
     checkMembership: jest.fn(),
@@ -50,7 +51,7 @@ describe('ChatController', () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
             mockProducer.sendMessage.mockResolvedValue(undefined);
 
-            const result = await controller.sendMessage(1, dto as any, authHeaders);
+            const result = await controller.sendMessage(1, dto as any, userId, userRole);
 
             expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
             expect(mockProducer.sendMessage).toHaveBeenCalledWith(
@@ -65,7 +66,7 @@ describe('ChatController', () => {
             mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
 
             await expect(
-                controller.sendMessage(1, dto as any, authHeaders),
+                controller.sendMessage(1, dto as any, userId, userRole),
             ).rejects.toThrow(ForbiddenException);
 
             expect(mockProducer.sendMessage).not.toHaveBeenCalled();
@@ -77,7 +78,7 @@ describe('ChatController', () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.getMessages.mockResolvedValue([]);
 
-            const result = await controller.getMessages(1,{}, authHeaders);
+            const result = await controller.getMessages(1, {}, userId);
 
             expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
             expect(mockChatService.getMessages).toHaveBeenCalledWith(1, undefined);
@@ -87,26 +88,23 @@ describe('ChatController', () => {
         it('cursor(before) 파라미터를 서비스로 전달한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.getMessages.mockResolvedValue([]);
-            await controller.getMessages(1,{ before: mockMessageId }, authHeaders);
+            await controller.getMessages(1, { before: mockMessageId }, userId);
             expect(mockChatService.getMessages).toHaveBeenCalledWith(1, mockMessageId);
         });
 
         it('채널 멤버가 아니면 ForbiddenException이 발생한다', async () => {
             mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
-            await expect(controller.getMessages(1,{}, authHeaders)).rejects.toThrow(ForbiddenException);
-        });
-
-        it('x-user-id 헤더 없이 요청하면 UnauthorizedException이 발생한다', async () => {
-            await expect(controller.getMessages(1,{}, {})).rejects.toThrow();
+            await expect(controller.getMessages(1, {}, userId)).rejects.toThrow(ForbiddenException);
         });
     });
 
     describe('editMessage', () => {
         it('메시지를 수정하고 Socket.io로 브로드캐스트한다', async () => {
             const updated = { content: '수정됨' };
+            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.editMessage.mockResolvedValue(updated);
 
-            const result = await controller.editMessage(1, mockMessageId, { content: '수정됨' }, authHeaders);
+            const result = await controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole);
 
             expect(mockChatService.editMessage).toHaveBeenCalledWith(
                 mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER',
@@ -122,23 +120,24 @@ describe('ChatController', () => {
         it('본인 메시지가 아니면 ForbiddenException이 전파된다', async () => {
             mockChatService.editMessage.mockRejectedValue(new ForbiddenException());
             await expect(
-                controller.editMessage(1, mockMessageId, { content: '수정됨' }, authHeaders),
+                controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole),
             ).rejects.toThrow(ForbiddenException);
         });
 
         it('메시지가 없으면 NotFoundException이 전파된다', async () => {
             mockChatService.editMessage.mockRejectedValue(new NotFoundException());
             await expect(
-                controller.editMessage(1, mockMessageId, { content: '수정됨' }, authHeaders),
+                controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole),
             ).rejects.toThrow(NotFoundException);
         });
     });
 
     describe('deleteMessage', () => {
         it('메시지를 삭제하고 Socket.io로 브로드캐스트한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.deleteMessage.mockResolvedValue({ channelId: 1, messageId: mockMessageId });
 
-            await controller.deleteMessage(1, mockMessageId, authHeaders);
+            await controller.deleteMessage(1, mockMessageId, userId, userRole);
 
             expect(mockChatService.deleteMessage).toHaveBeenCalledWith(
                 mockMessageId, 42, 'ROLE_USER',
@@ -150,7 +149,7 @@ describe('ChatController', () => {
         it('본인 메시지가 아니면 ForbiddenException이 전파된다', async () => {
             mockChatService.deleteMessage.mockRejectedValue(new ForbiddenException());
             await expect(
-                controller.deleteMessage(1, mockMessageId, authHeaders),
+                controller.deleteMessage(1, mockMessageId, userId, userRole),
             ).rejects.toThrow(ForbiddenException);
         });
     });
