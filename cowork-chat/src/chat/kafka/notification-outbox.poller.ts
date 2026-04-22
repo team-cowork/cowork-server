@@ -12,6 +12,7 @@ const BATCH_SIZE = 10;
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(NotificationOutboxPoller.name);
     private timer?: ReturnType<typeof setInterval>;
+    private isPolling = false;
 
     constructor(
         @InjectModel(Message.name) private readonly messageModel: Model<Message>,
@@ -20,7 +21,15 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     ) {}
 
     onModuleInit() {
-        this.timer = setInterval(() => this.poll(), POLL_INTERVAL_MS);
+        this.timer = setInterval(async () => {
+            if (this.isPolling) return;
+            this.isPolling = true;
+            try {
+                await this.poll();
+            } finally {
+                this.isPolling = false;
+            }
+        }, POLL_INTERVAL_MS);
         this.logger.log('Notification outbox poller started');
     }
 
@@ -29,6 +38,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     }
 
     private async poll(): Promise<void> {
+        const memberCache = new Map<string, ChannelMember[]>();
         for (let i = 0; i < BATCH_SIZE; i++) {
             const msg = await this.messageModel.findOneAndUpdate(
                 { notificationStatus: 'PENDING' },
@@ -39,7 +49,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             if (!msg) break;
 
             try {
-                await this.processMessage(msg);
+                await this.processMessage(msg, memberCache);
                 await this.messageModel.updateOne(
                     { _id: msg._id },
                     { $set: { notificationStatus: 'SENT' } },
@@ -56,8 +66,14 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
     private async processMessage(
         msg: Message & { _id: Types.ObjectId; createdAt: Date },
+        memberCache: Map<string, ChannelMember[]>,
     ): Promise<void> {
-        const members = await this.memberModel.find({ channelId: msg.channelId }).lean();
+        const cacheKey = String(msg.channelId);
+        let members = memberCache.get(cacheKey);
+        if (!members) {
+            members = await this.memberModel.find({ channelId: msg.channelId }).lean() as ChannelMember[];
+            memberCache.set(cacheKey, members);
+        }
         const memberIdSet = new Set(members.map((m) => m.userId));
 
         const targetUserIds = [...memberIdSet].filter((id) => id !== msg.authorId);
