@@ -63,7 +63,11 @@ func (c *Client) Fetch(ctx context.Context) (map[string]string, error) {
 	flatMap := make(map[string]string)
 	for i := len(cfgResp.PropertySources) - 1; i >= 0; i-- {
 		for k, v := range cfgResp.PropertySources[i].Source {
-			flatMap[k] = fmt.Sprintf("%v", v)
+			if v == nil {
+				flatMap[k] = ""
+			} else {
+				flatMap[k] = fmt.Sprintf("%v", v)
+			}
 		}
 	}
 	return flatMap, nil
