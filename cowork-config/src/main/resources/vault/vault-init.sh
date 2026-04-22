@@ -34,5 +34,10 @@ vault kv put secret/cowork-authorization \
   spring.datasource.url="jdbc:postgresql://localhost:5432/cowork_auth"
 
 echo ""
+echo "=== cowork-notification 시크릿 ==="
+vault kv put secret/cowork-notification \
+  db.dsn="cowork:notification-db-password@tcp(cowork-mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local"
+
+echo ""
 echo "=== 완료. 확인: ==="
 vault kv list secret/
