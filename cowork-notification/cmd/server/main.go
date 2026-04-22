@@ -1,7 +1,6 @@
 // @title          cowork-notification API
 // @version        1.0
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
-// @host           localhost:8086
 // @BasePath       /
 package main
 
