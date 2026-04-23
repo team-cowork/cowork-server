@@ -39,17 +39,39 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     }
 
     private async poll(): Promise<void> {
-        const memberCache = new Map<string, ChannelMember[]>();
-        const parentCache = new Map<string, { authorId: number } | null>();
+        // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
+        type MsgDoc = Message & { _id: Types.ObjectId; createdAt: Date };
+        const msgs: MsgDoc[] = [];
         for (let i = 0; i < BATCH_SIZE; i++) {
             const msg = await this.messageModel.findOneAndUpdate(
                 { notificationStatus: 'PENDING' },
                 { $set: { notificationStatus: 'PROCESSING' } },
                 { new: true },
-            ).lean() as (Message & { _id: Types.ObjectId; createdAt: Date }) | null;
-
+            ).lean() as MsgDoc | null;
             if (!msg) break;
+            msgs.push(msg);
+        }
+        if (msgs.length === 0) return;
 
+        // 2단계: 배치 내 고유 parentMessageId를 한 번에 조회해 parentCache 사전 채움
+        const memberCache = new Map<string, ChannelMember[]>();
+        const parentCache = new Map<string, { authorId: number } | null>();
+        const parentIds = [...new Set(
+            msgs.filter((m) => m.parentMessageId != null).map((m) => m.parentMessageId!),
+        )];
+        if (parentIds.length > 0) {
+            const parents = await this.messageModel
+                .find({ _id: { $in: parentIds } })
+                .select('authorId')
+                .lean() as { _id: Types.ObjectId; authorId: number }[];
+            const parentMap = new Map(parents.map((p) => [p._id.toString(), p]));
+            for (const id of parentIds) {
+                parentCache.set(id.toString(), parentMap.get(id.toString()) ?? null);
+            }
+        }
+
+        // 3단계: 각 메시지 처리
+        for (const msg of msgs) {
             try {
                 await this.processMessage(msg, memberCache, parentCache);
                 await this.messageModel.updateOne(
@@ -90,15 +112,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
         if (msg.parentMessageId) {
-            const parentKey = msg.parentMessageId.toString();
-            if (!parentCache.has(parentKey)) {
-                const fetched = await this.messageModel
-                    .findById(msg.parentMessageId)
-                    .select('authorId')
-                    .lean() as { authorId: number } | null;
-                parentCache.set(parentKey, fetched);
-            }
-            const parent = parentCache.get(parentKey)!;
+            const parent = parentCache.get(msg.parentMessageId.toString()) ?? null;
             if (parent && parent.authorId !== msg.authorId && memberIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }
