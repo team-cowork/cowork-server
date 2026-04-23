@@ -2,7 +2,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 if [ ! -f "$PROJECT_ROOT/.env" ]; then
   echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
@@ -41,7 +41,7 @@ fi
 cd "$PROJECT_ROOT"
 
 echo ">>> Starting Docker Compose infrastructure..."
-docker-compose up -d
+docker compose up -d
 
 wait_healthy() {
   local container=$1
@@ -59,7 +59,7 @@ wait_healthy() {
   echo "$container is healthy."
 }
 
-CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis)
+CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis cowork-minio)
 
 for c in "${CONTAINERS[@]}"; do
   wait_healthy "$c"
@@ -71,7 +71,7 @@ shutdown() {
   echo ""
   echo ">>> Stopping infrastructure..."
   cd "$PROJECT_ROOT"
-  docker-compose down
+  docker compose down
   echo ">>> Infrastructure stopped."
   exit 0
 }
