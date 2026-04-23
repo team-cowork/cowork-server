@@ -2,7 +2,7 @@
 spring-boot = "3.5.13"
 spring-cloud = "2025.0.1"
 kotlin = "2.1.20"
-awspring-cloud = "3.2.1"
+awspring-cloud = "3.4.0"
 vertx = "4.5.10"
 coroutines = "1.8.1"
 jjwt = "0.12.6"
