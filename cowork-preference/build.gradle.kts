@@ -21,6 +21,7 @@ dependencies {
     implementation("io.vertx:vertx-lang-kotlin-coroutines")
     implementation("io.vertx:vertx-config")
     implementation("io.vertx:vertx-pg-client")
+    implementation("com.ongres.scram:client:2.1")
     implementation("io.vertx:vertx-redis-client")
     implementation("io.vertx:vertx-kafka-client")
     implementation("io.vertx:vertx-service-discovery")
