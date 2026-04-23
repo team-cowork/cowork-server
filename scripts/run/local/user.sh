@@ -1,17 +1,11 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$SCRIPT_DIR/_service.sh"
 
-if [ ! -f "$PROJECT_ROOT/.env" ]; then
-  echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
-  exit 1
-fi
+SERVICE_NAME="cowork-user"
+SERVICE_WORKDIR="$PROJECT_ROOT"
+SERVICE_COMMAND=("$PROJECT_ROOT/gradlew" ":cowork-user:bootRun")
 
-set -a
-source "$PROJECT_ROOT/.env"
-set +a
-
-cd "$PROJECT_ROOT"
-./gradlew :cowork-user:bootRun
+run_managed_service "${1:-start}"
