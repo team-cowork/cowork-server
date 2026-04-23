@@ -4,6 +4,8 @@ import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamRole
 import com.cowork.team.dto.CreateTeamRequest
+import com.cowork.team.dto.IconConfirmResponse
+import com.cowork.team.dto.IconPresignedUrlResponse
 import com.cowork.team.dto.TeamEventPayload
 import com.cowork.team.dto.TeamResponse
 import com.cowork.team.dto.TeamSummaryResponse
@@ -24,6 +26,7 @@ class TeamService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
+    private val s3Service: S3Service,
 ) {
 
     private fun findTeamOrThrow(teamId: Long): Team =
@@ -34,6 +37,18 @@ class TeamService(
     private fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())
             ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+
+    fun generateIconPresignedUrl(contentType: String): IconPresignedUrlResponse {
+        s3Service.validateContentType(contentType)
+        val objectKey = s3Service.buildObjectKey(contentType)
+        val uploadUrl = s3Service.generatePutPresignedUrl(objectKey, contentType)
+        return IconPresignedUrlResponse(uploadUrl = uploadUrl, objectKey = objectKey)
+    }
+
+    fun confirmIconUpload(objectKey: String): IconConfirmResponse {
+        val iconUrl = s3Service.confirmObject(objectKey)
+        return IconConfirmResponse(iconUrl = iconUrl)
+    }
 
     @Transactional
     fun createTeam(ownerId: Long, request: CreateTeamRequest): TeamResponse {
@@ -76,6 +91,36 @@ class TeamService(
         val team = findTeamOrThrow(teamId)
         team.update(request.name, request.description, request.iconUrl)
         return TeamResponse.of(team)
+    }
+
+    @Transactional
+    fun updateIcon(userId: Long, teamId: Long, iconUrl: String): IconConfirmResponse {
+        requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
+        val team = findTeamOrThrow(teamId)
+        val previousIconUrl = team.iconUrl
+        team.iconUrl = iconUrl
+
+        previousIconUrl?.let { prev ->
+            val key = s3Service.extractObjectKey(prev)
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() = s3Service.deleteObject(key)
+            })
+        }
+        return IconConfirmResponse(iconUrl = iconUrl)
+    }
+
+    @Transactional
+    fun deleteIcon(userId: Long, teamId: Long) {
+        requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
+        val team = findTeamOrThrow(teamId)
+        val previousIconUrl = team.iconUrl
+            ?: throw ExpectedException("아이콘이 없습니다.", HttpStatus.NOT_FOUND)
+        team.iconUrl = null
+
+        val key = s3Service.extractObjectKey(previousIconUrl)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = s3Service.deleteObject(key)
+        })
     }
 
     @Transactional
