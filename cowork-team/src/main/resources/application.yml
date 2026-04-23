@@ -41,3 +41,43 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
+
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/actuator/**"
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  response:
+    not-wrapping-urls:
+      - "/actuator/**"
+      - "/v3/api-docs/**"
+      - "/v3/api-docs"
+      - "/swagger-ui/**"
+  swagger:
+    enabled: true
+    title: "cowork-team API"
+    description: "cowork-team 팀 관리 서비스 API"
+    version: "v1"
+    group: "team"
+    paths-to-match:
+      - "/teams/**"
+      - "/team-members/**"
+
+spring.cloud.aws:
+  region:
+    static: ${AWS_REGION:ap-northeast-2}
+  credentials:
+    access-key: ${AWS_ACCESS_KEY:}
+    secret-key: ${AWS_SECRET_KEY:}
+
+s3:
+  bucket: ${S3_BUCKET:cowork-bucket}
+  base-url: ${S3_BASE_URL:http://localhost:9000/cowork-bucket}
+  presigned-put-expiry-minutes: 10
+  max-file-size-bytes: 1048576
+  allowed-content-types:
+    - image/jpeg
+    - image/png
+    - image/webp
