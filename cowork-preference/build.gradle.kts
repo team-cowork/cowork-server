@@ -24,12 +24,19 @@ dependencies {
     implementation("io.vertx:vertx-redis-client")
     implementation("io.vertx:vertx-kafka-client")
     implementation("io.vertx:vertx-service-discovery")
+    implementation("io.vertx:vertx-micrometer-metrics")
+    implementation(libs.micrometer.registry.prometheus)
     implementation(libs.eureka.client)
 
     // Flyway (JDBC, 시작 시 블로킹 실행)
     implementation(libs.flyway.core)
     implementation(libs.flyway.database.postgresql)
     implementation(libs.postgresql)
+
+    // JSON 로깅
+    implementation("org.apache.logging.log4j:log4j-core:2.24.3")
+    implementation("org.apache.logging.log4j:log4j-layout-template-json:2.24.3")
+    implementation("org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3")
 
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:$coroutinesVersion")
