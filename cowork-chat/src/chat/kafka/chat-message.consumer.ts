@@ -1,24 +1,22 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Server } from 'socket.io';
 import { Message } from '../schema/message.schema';
-import { ChatMessageEvent } from './chat-message.producer';
+import { ChatMessageEvent } from './event/chat-message.event';
 
 @Injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ChatMessageConsumer.name);
-    private readonly kafka = new Kafka({
-        clientId: 'cowork-chat-consumer',
-        brokers: [(process.env.KAFKA_BOOTSTRAP_SERVERS ?? 'localhost:9092')],
-    });
     private consumer!: Consumer;
 
     private io?: Server;
 
     constructor(
         @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+        private readonly configService: ConfigService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -26,21 +24,24 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     async onModuleInit() {
-        this.consumer = this.kafka.consumer({ groupId: 'cowork-chat' });
+        const kafka = new Kafka({
+            clientId: 'cowork-chat-consumer',
+            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+        });
+        this.consumer = kafka.consumer({ groupId: 'cowork-chat' });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'chat.message', fromBeginning: false });
 
         await this.consumer.run({
             eachMessage: async ({ message }) => {
                 if (!message.value) return;
-                let event: ChatMessageEvent;
                 try {
-                    event = JSON.parse(message.value.toString());
-                } catch {
-                    this.logger.error('Kafka 메시지 역직렬화 실패 — 스킵');
-                    return;
+                    const event: ChatMessageEvent = JSON.parse(message.value.toString());
+                    await this.handleMessageEvent(event);
+                } catch (err) {
+                    this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
+                    // Critical logic error or serialization error - might need manual intervention or dead-letter queue
                 }
-                await this.handleMessageEvent(event);
             },
         });
 
@@ -51,7 +52,17 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         await this.consumer.disconnect();
     }
 
+    private parseMentions(content: string): number[] {
+        const ids: number[] = [];
+        for (const match of content.matchAll(/<@(\d+)>/g)) {
+            ids.push(parseInt(match[1], 10));
+        }
+        return [...new Set(ids)];
+    }
+
     private async handleMessageEvent(event: ChatMessageEvent): Promise<void> {
+        const mentions = this.parseMentions(event.content);
+
         try {
             const saved = await this.messageModel.create({
                 teamId: event.teamId,
@@ -65,6 +76,8 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                     ? new Types.ObjectId(event.parentMessageId)
                     : null,
                 clientMessageId: event.clientMessageId ?? null,
+                mentions,
+                notificationStatus: 'PENDING',
             });
 
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
