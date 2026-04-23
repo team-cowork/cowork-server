@@ -45,7 +45,8 @@ export class Message {
 
     @Prop({ type: [Number], default: [] }) mentions!: number[];
 
-    @Prop({ enum: ['PENDING', 'PROCESSING', 'SENT'], default: 'PENDING' }) notificationStatus!: string;
+    @Prop({ enum: ['PENDING', 'PROCESSING', 'SENT', 'FAILED'], default: 'PENDING' }) notificationStatus!: string;
+    @Prop({ default: 0 }) notificationRetryCount!: number;
 }
 
 export const MessageSchema = SchemaFactory.createForClass(Message);
