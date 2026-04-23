@@ -25,7 +25,7 @@ dependencies {
     implementation("io.vertx:vertx-kafka-client")
     implementation("io.vertx:vertx-service-discovery")
     implementation("io.vertx:vertx-micrometer-metrics")
-    implementation(libs.micrometer.registry.prometheus)
+    implementation("io.micrometer:micrometer-registry-prometheus:1.12.13")
     implementation(libs.eureka.client)
 
     // Flyway (JDBC, 시작 시 블로킹 실행)
