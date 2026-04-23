@@ -1,17 +1,15 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$SCRIPT_DIR/_service.sh"
 
-if [ ! -f "$PROJECT_ROOT/.env" ]; then
-  echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
-  exit 1
-fi
+SERVICE_NAME="cowork-chat"
+SERVICE_WORKDIR="$PROJECT_ROOT/cowork-chat"
+SERVICE_COMMAND=(
+  bash -lc
+  'export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
+   npm run start:dev'
+)
 
-set -a
-source "$PROJECT_ROOT/.env"
-set +a
-
-cd "$PROJECT_ROOT/cowork-chat"
-npm run start:dev
+run_managed_service "${1:-start}"
