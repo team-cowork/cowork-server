@@ -25,7 +25,7 @@ func (m *mockService) RegisterToken(_ context.Context, _ int64, _, _ string) err
 func (m *mockService) DeleteToken(_ context.Context, _ int64, _ string) error {
 	return m.deleteErr
 }
-func (m *mockService) Notify(_ context.Context, _ []int64, _, _ string, _ int64) error {
+func (m *mockService) Notify(_ context.Context, _ []int64, _ []int64, _, _ string, _ int64) error {
 	return nil
 }
 
