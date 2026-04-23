@@ -1,3 +1,6 @@
+server:
+  port: 9001
+
 preference:
   db:
     host: ${POSTGRES_HOST:cowork-postgres}
