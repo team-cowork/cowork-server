@@ -7,6 +7,7 @@ import { NotificationTriggerProducer } from './notification-trigger.producer';
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
+const MAX_RETRY = 3;
 
 @Injectable()
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
@@ -39,6 +40,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
     private async poll(): Promise<void> {
         const memberCache = new Map<string, ChannelMember[]>();
+        const parentCache = new Map<string, { authorId: number } | null>();
         for (let i = 0; i < BATCH_SIZE; i++) {
             const msg = await this.messageModel.findOneAndUpdate(
                 { notificationStatus: 'PENDING' },
@@ -49,16 +51,18 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             if (!msg) break;
 
             try {
-                await this.processMessage(msg, memberCache);
+                await this.processMessage(msg, memberCache, parentCache);
                 await this.messageModel.updateOne(
                     { _id: msg._id },
                     { $set: { notificationStatus: 'SENT' } },
                 );
             } catch (err) {
-                this.logger.error(`outbox 처리 실패 (messageId: ${msg._id}), PENDING 복구`, err);
+                const retryCount = (msg.notificationRetryCount ?? 0) + 1;
+                const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
+                this.logger.error(`outbox 처리 실패 (messageId: ${msg._id}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
                 await this.messageModel.updateOne(
                     { _id: msg._id },
-                    { $set: { notificationStatus: 'PENDING' } },
+                    { $set: { notificationStatus: nextStatus, notificationRetryCount: retryCount } },
                 );
             }
         }
@@ -67,6 +71,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private async processMessage(
         msg: Message & { _id: Types.ObjectId; createdAt: Date },
         memberCache: Map<string, ChannelMember[]>,
+        parentCache: Map<string, { authorId: number } | null>,
     ): Promise<void> {
         const cacheKey = String(msg.channelId);
         let members = memberCache.get(cacheKey);
@@ -85,10 +90,15 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
         if (msg.parentMessageId) {
-            const parent = await this.messageModel
-                .findById(msg.parentMessageId)
-                .select('authorId')
-                .lean();
+            const parentKey = msg.parentMessageId.toString();
+            if (!parentCache.has(parentKey)) {
+                const fetched = await this.messageModel
+                    .findById(msg.parentMessageId)
+                    .select('authorId')
+                    .lean() as { authorId: number } | null;
+                parentCache.set(parentKey, fetched);
+            }
+            const parent = parentCache.get(parentKey)!;
             if (parent && parent.authorId !== msg.authorId && memberIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }
