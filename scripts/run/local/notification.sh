@@ -1,17 +1,11 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+source "$SCRIPT_DIR/_service.sh"
 
-if [ ! -f "$PROJECT_ROOT/.env" ]; then
-  echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
-  exit 1
-fi
+SERVICE_NAME="cowork-notification"
+SERVICE_WORKDIR="$PROJECT_ROOT/cowork-notification"
+SERVICE_COMMAND=(env APP_CONFIG_URL=http://localhost:8761 APP_PROFILE=local go run ./cmd/server/)
 
-set -a
-source "$PROJECT_ROOT/.env"
-set +a
-
-cd "$PROJECT_ROOT/cowork-notification"
-APP_CONFIG_URL=http://localhost:8761 APP_PROFILE=local go run ./cmd/server/
+run_managed_service "${1:-start}"
