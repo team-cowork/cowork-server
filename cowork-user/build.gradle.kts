@@ -40,6 +40,8 @@ dependencyManagement {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.micrometer.registry.prometheus)
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
     implementation("org.springframework.cloud:spring-cloud-starter-config")
@@ -56,6 +58,7 @@ dependencies {
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation("org.springframework.kafka:spring-kafka")
 
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
