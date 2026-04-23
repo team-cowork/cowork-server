@@ -47,3 +47,18 @@ func TestClient_IsNotificationEnabled_serverError(t *testing.T) {
 	_, err := c.IsNotificationEnabled(context.Background(), 1, 2)
 	assert.Error(t, err)
 }
+
+func TestClient_AreNotificationsEnabled(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/channels/2/notifications", r.URL.Path)
+		ids := r.URL.Query()["accountIds"]
+		assert.ElementsMatch(t, []string{"1", "3"}, ids)
+		json.NewEncoder(w).Encode(map[string]bool{"1": true, "3": false})
+	}))
+	defer srv.Close()
+
+	c := preference.NewClient(srv.URL)
+	result, err := c.AreNotificationsEnabled(context.Background(), []int64{1, 3}, 2)
+	require.NoError(t, err)
+	assert.Equal(t, map[int64]bool{1: true, 3: false}, result)
+}
