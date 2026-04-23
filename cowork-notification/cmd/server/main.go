@@ -27,6 +27,8 @@ import (
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
 	mysqlinfra "github.com/cowork/cowork-notification/internal/infra/mysql"
 	"github.com/cowork/cowork-notification/internal/infra/preference"
+	"github.com/cowork/cowork-notification/internal/infra/team"
+	"github.com/cowork/cowork-notification/internal/infra/user"
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/pkg/eureka"
 )
@@ -55,10 +57,12 @@ func main() {
 
 	repo := mysqlinfra.NewTokenRepository(db)
 	prefClient := preference.NewClient(cfg.PreferenceServiceURL)
+	teamClient := team.NewClient(cfg.TeamServiceURL)
+	userClient := user.NewClient(cfg.UserServiceURL)
 	svc := tokendomain.NewService(repo, fcmSender, prefClient)
 	handler := tokendomain.NewHandler(svc)
 
-	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc)
+	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc, teamClient, userClient)
 
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
