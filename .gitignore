@@ -76,3 +76,6 @@ docs/
 
 ### Worktrees ###
 .worktrees/
+
+### Secrets ###
+docker/secrets/
