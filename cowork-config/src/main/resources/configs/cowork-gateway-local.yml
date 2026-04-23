@@ -1,5 +1,5 @@
 jwt:
-  secret: local-dev-secret-key-minimum-32-characters-long
+  secret: ${JWT_SECRET}
 
 cowork:
   swagger-ui:
