@@ -17,6 +17,7 @@
   "type": "commonjs",
   "dependencies": {
     "@nestjs/common": "^11.1.19",
+    "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.19",
     "@nestjs/microservices": "^11.1.19",
     "@nestjs/mongoose": "^11.0.4",
@@ -42,8 +43,8 @@
     "@nestjs/testing": "^11.1.19",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
-    "@types/uuid": "^10.0.0",
     "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
     "jest": "^30.3.0",
     "socket.io-client": "^4.8.3",
     "ts-jest": "^29.4.9",
