@@ -254,3 +254,19 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 2. cowork-gateway  (Config Server에 등록 후 기동)
 3. 비즈니스 서비스  (authorization, user, team, project, channel — 순서 무관)
 ```
+
+---
+
+## Swagger / 모니터링
+
+### Swagger (Gateway 경유)
+
+Gateway는 서비스별 OpenAPI 문서를 아래 경로로 프록시합니다.
+
+- `/v3/api-docs/{service}` (예: `/v3/api-docs/channel`)
+
+로컬에서 Swagger UI는 `cowork-gateway`에서 확인합니다.
+
+### Prometheus / Grafana
+
+`docker-compose.yml`에서 Prometheus/Grafana가 함께 기동되며, Prometheus는 `cowork-monitoring/prometheus/prometheus.yml`에 정의된 타겟을 스크랩합니다.
