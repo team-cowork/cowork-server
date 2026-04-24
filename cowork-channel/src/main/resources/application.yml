@@ -7,7 +7,7 @@ spring:
   config:
     import: "optional:configserver:http://localhost:8761"
   datasource:
-    url: jdbc:mysql://localhost:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${MYSQL_USER:cowork}
     password: ${MYSQL_PASSWORD:}
