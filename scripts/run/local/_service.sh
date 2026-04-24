@@ -26,8 +26,18 @@ log_file() {
 }
 
 is_running() {
-  local pid="$1"
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
+  local id="$1"
+  [ -n "$id" ] || return 1
+
+  # numeric pid
+  if [[ "$id" =~ ^[0-9]+$ ]]; then
+    kill -0 "$id" 2>/dev/null
+    return $?
+  fi
+
+  # screen session name
+  screen -ls 2>/dev/null | grep -q "[[:space:]]\\+\\.[^[:space:]]*${id}[[:space:]]" || \
+    screen -ls 2>/dev/null | grep -q "\\.${id}[[:space:]]"
 }
 
 current_pid() {
@@ -41,10 +51,10 @@ current_pid() {
 start_service() {
   mkdir -p "$LOG_DIR"
 
-  local pid
-  pid="$(current_pid || true)"
-  if is_running "$pid"; then
-    echo "$SERVICE_NAME is already running (pid $pid)."
+  local id
+  id="$(current_pid || true)"
+  if is_running "$id"; then
+    echo "$SERVICE_NAME is already running ($id)."
     echo "Log: $(log_file)"
     exit 0
   fi
@@ -53,27 +63,45 @@ start_service() {
 
   (
     cd "$SERVICE_WORKDIR"
-    nohup "${SERVICE_COMMAND[@]}" >"$(log_file)" 2>&1 &
-    echo $! >"$(pid_file)"
+    if command -v screen >/dev/null 2>&1; then
+      # Prefer screen for long-running local services; detached background processes
+      # tend to be reaped by some execution environments.
+      screen -S "$SERVICE_NAME" -X quit >/dev/null 2>&1 || true
+      # Old macOS screen may not support -Logfile. Redirect output ourselves.
+      cmd=""
+      for arg in "${SERVICE_COMMAND[@]}"; do
+        cmd+=" $(printf '%q' "$arg")"
+      done
+      screen -dmS "$SERVICE_NAME" bash -lc "cd $(printf '%q' "$SERVICE_WORKDIR"); exec${cmd} >>$(printf '%q' "$(log_file)") 2>&1"
+      echo "$SERVICE_NAME" >"$(pid_file)"
+    else
+      nohup "${SERVICE_COMMAND[@]}" >"$(log_file)" 2>&1 &
+      echo $! >"$(pid_file)"
+    fi
   )
 
-  pid="$(current_pid)"
-  echo "Started $SERVICE_NAME in background (pid $pid)."
+  id="$(current_pid)"
+  echo "Started $SERVICE_NAME in background ($id)."
   echo "Log: $(log_file)"
 }
 
 stop_service() {
-  local pid
-  pid="$(current_pid || true)"
-  if ! is_running "$pid"; then
+  local id
+  id="$(current_pid || true)"
+  if ! is_running "$id"; then
     echo "$SERVICE_NAME is not running."
     rm -f "$(pid_file)"
     return 0
   fi
 
-  kill "$pid"
+  if [[ "$id" =~ ^[0-9]+$ ]]; then
+    kill "$id"
+  else
+    screen -S "$id" -X quit || true
+  fi
+
   for _ in {1..30}; do
-    if ! is_running "$pid"; then
+    if ! is_running "$id"; then
       rm -f "$(pid_file)"
       echo "Stopped $SERVICE_NAME."
       return 0
@@ -81,15 +109,15 @@ stop_service() {
     sleep 1
   done
 
-  echo "ERROR: $SERVICE_NAME did not stop within 30 seconds (pid $pid)."
+  echo "ERROR: $SERVICE_NAME did not stop within 30 seconds ($id)."
   exit 1
 }
 
 status_service() {
-  local pid
-  pid="$(current_pid || true)"
-  if is_running "$pid"; then
-    echo "$SERVICE_NAME is running (pid $pid)."
+  local id
+  id="$(current_pid || true)"
+  if is_running "$id"; then
+    echo "$SERVICE_NAME is running ($id)."
   else
     echo "$SERVICE_NAME is not running."
   fi
