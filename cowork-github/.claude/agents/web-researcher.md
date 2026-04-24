@@ -73,8 +73,8 @@ Actionable next steps or suggestions based on the research.
 - **No hallucination**: Only report what you actually found via search. Do not fill gaps with training knowledge without clearly labeling it as such.
 
 ## Context Awareness
-This agent operates in the context of a Kotlin/Spring Boot project (datagsm-server). When research relates to technical topics in this stack, prioritize:
-- Spring Boot 3.4.x ecosystem
-- Kotlin-specific resources
-- JVM tooling and libraries
+This agent operates in the context of a NestJS/TypeScript project (cowork-github). When research relates to technical topics in this stack, prioritize:
+- NestJS ecosystem
+- TypeScript-specific resources
+- Node.js tooling and libraries
 - Security advisories affecting the tech stack
