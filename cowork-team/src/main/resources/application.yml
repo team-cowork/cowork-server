@@ -78,10 +78,8 @@ spring.cloud.aws:
 minio:
   # presigned URL 서명용
   public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
-
-s3:
   bucket: ${MINIO_BUCKET:cowork-bucket}
-  base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
+  public-base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
   presigned-put-expiry-minutes: 10
   max-file-size-bytes: 1048576
   allowed-content-types:
