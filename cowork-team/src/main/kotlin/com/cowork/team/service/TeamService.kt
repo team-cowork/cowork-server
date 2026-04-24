@@ -95,6 +95,7 @@ class TeamService(
 
     @Transactional
     fun updateIcon(userId: Long, teamId: Long, iconUrl: String): IconConfirmResponse {
+        s3Service.validateIconUrl(iconUrl)
         requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = findTeamOrThrow(teamId)
         val previousIconUrl = team.iconUrl
