@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
 import { createWriteStream, mkdirSync } from 'fs';
@@ -14,58 +13,61 @@ import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
 import { MembershipModule } from '../membership/membership.module';
+import { HealthController } from '../health.controller';
 
-const LOG_DIR = '/var/log/cowork/chat';
+const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
+const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
+    ? []
+    : [
+        LoggerModule.forRoot({
+            pinoHttp: {
+                level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
+                stream: createLogStream(),
+                timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
+                formatters: {
+                    level: (label: string) => ({ level: label }),
+                },
+                base: { service: 'cowork-chat' },
+                messageKey: 'message',
+            },
+        }),
+    ];
 
 function createLogStream() {
-  try {
-    mkdirSync(LOG_DIR, { recursive: true });
-    return createWriteStream(`${LOG_DIR}/app.log`, { flags: 'a' });
-  } catch {
-    return process.stdout;
-  }
+    try {
+        mkdirSync(LOG_DIR, { recursive: true });
+        return createWriteStream(`${LOG_DIR}/app.log`, { flags: 'a' });
+    } catch {
+        return process.stdout;
+    }
 }
 
 @Module({
-  imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-        stream: createLogStream(),
-        timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
-        formatters: {
-          level: (label: string) => ({ level: label }),
-        },
-        base: { service: 'cowork-chat' },
-        messageKey: 'message',
-      },
-    }),
-    PrometheusModule.register({
-      defaultMetrics: { enabled: true },
-      path: '/metrics',
-    }),
-    MongooseModule.forRootAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI', 'mongodb://localhost:27017/cowork'),
-      }),
-      inject: [ConfigService],
-    }),
-    MongooseModule.forFeature([
-      { name: Message.name, schema: MessageSchema },
-      { name: ChannelMember.name, schema: ChannelMemberSchema },
-    ]),
-    MembershipModule,
-  ],
-  controllers: [ChatController],
-  providers: [
-    ChatGateway,
-    ChatService,
-    ChatMessageProducer,
-    ChatMessageConsumer,
-    NotificationTriggerProducer,
-    NotificationOutboxPoller,
-  ],
+    imports: [
+        ...loggerImports,
+        PrometheusModule.register({
+            defaultMetrics: { enabled: true },
+            path: '/metrics',
+        }),
+        MongooseModule.forRoot(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/cowork_chat', {
+            serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS ?? 5000),
+            connectTimeoutMS: Number(process.env.MONGODB_CONNECT_TIMEOUT_MS ?? 5000),
+            directConnection: process.env.MONGODB_DIRECT_CONNECTION !== 'false',
+        }),
+        MongooseModule.forFeature([
+            { name: Message.name, schema: MessageSchema },
+            { name: ChannelMember.name, schema: ChannelMemberSchema },
+        ]),
+        MembershipModule,
+    ],
+    controllers: [ChatController, HealthController],
+    providers: [
+        ChatGateway,
+        ChatService,
+        ChatMessageProducer,
+        ChatMessageConsumer,
+        NotificationTriggerProducer,
+        NotificationOutboxPoller,
+    ],
 })
 export class ChatModule {}
