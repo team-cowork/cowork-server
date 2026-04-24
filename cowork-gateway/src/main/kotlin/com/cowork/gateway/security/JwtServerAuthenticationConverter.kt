@@ -43,8 +43,14 @@ class JwtServerAuthenticationConverter(
     }
 
     private fun extractToken(exchange: ServerWebExchange): String? {
-        val authHeader = exchange.request.headers.getFirst("Authorization") ?: return null
-        if (!authHeader.startsWith("Bearer ")) return null
-        return authHeader.removePrefix("Bearer ").trim()
+        val authHeader = exchange.request.headers.getFirst("Authorization")?.trim()
+            ?: return null
+
+        val bearerPrefix = "Bearer "
+        if (authHeader.startsWith(bearerPrefix, ignoreCase = true)) {
+            return authHeader.substring(bearerPrefix.length).trim().ifEmpty { null }
+        }
+
+        return authHeader.takeIf { it.count { ch -> ch == '.' } == 2 }
     }
 }
