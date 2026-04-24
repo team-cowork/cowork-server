@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.cloud.client.discovery.ReactiveDiscoveryClient
+import org.springframework.cloud.gateway.route.RouteLocator
 import org.springframework.cloud.netflix.eureka.EurekaServiceInstance
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -22,16 +23,17 @@ import reactor.core.publisher.Mono
 @RestController
 @RequestMapping("/api/health")
 class HealthCheckController(
-    private val discoveryClient: ReactiveDiscoveryClient
+    private val discoveryClient: ReactiveDiscoveryClient,
+    private val routeLocator: RouteLocator,
 ) {
 
     @Operation(
         summary = "전체 서비스 상태 조회",
-        description = """Eureka에 등록된 모든 서비스의 인스턴스 상태를 집계하여 반환합니다.
+        description = """게이트웨이 라우트에 등록된 모든 서비스의 상태를 반환합니다.
 
 - **UP**: 모든 인스턴스가 정상
 - **DEGRADED**: 일부 인스턴스가 비정상 (부분 장애)
-- **DOWN**: 등록된 인스턴스 없음""",
+- **DOWN**: Eureka 미등록 또는 모든 인스턴스 비정상""",
     )
     @ApiResponse(
         responseCode = "200",
@@ -57,18 +59,34 @@ class HealthCheckController(
     )
     @GetMapping
     fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> {
-        return discoveryClient.services
-            .flatMap { serviceId ->
-                discoveryClient.getInstances(serviceId)
-                    .collectList()
-                    .map { instances ->
-                        val status = when {
-                            instances.isEmpty() || instances.none { it.isUp() } -> ServiceStatus.DOWN
-                            instances.all { it.isUp() } -> ServiceStatus.UP
-                            else -> ServiceStatus.DEGRADED
-                        }
-                        serviceId to status
+        return routeLocator.routes
+            .map { route -> route.uri }
+            .filter { it.scheme == "lb" }
+            .map { it.host.lowercase() }
+            .distinct()
+            .collectList()
+            .flatMap { serviceIds ->
+                discoveryClient.services.collectList().map { registeredIds ->
+                    serviceIds to registeredIds.map { it.lowercase() }.toSet()
+                }
+            }
+            .flatMapMany { (serviceIds, registeredIds) ->
+                reactor.core.publisher.Flux.fromIterable(serviceIds).flatMap { serviceId ->
+                    if (serviceId !in registeredIds) {
+                        Mono.just(serviceId to ServiceStatus.DOWN)
+                    } else {
+                        discoveryClient.getInstances(serviceId)
+                            .collectList()
+                            .map { instances ->
+                                val status = when {
+                                    instances.isEmpty() || instances.none { it.isUp() } -> ServiceStatus.DOWN
+                                    instances.all { it.isUp() } -> ServiceStatus.UP
+                                    else -> ServiceStatus.DEGRADED
+                                }
+                                serviceId to status
+                            }
                     }
+                }
             }
             .collectMap({ it.first }, { it.second })
             .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
