@@ -6,9 +6,6 @@ spring:
     name: cowork-user
   config:
     import: "optional:configserver:http://localhost:8761"
-  cloud:
-    compatibility-verifier:
-      enabled: false
   datasource:
     url: jdbc:mysql://localhost:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -43,13 +40,18 @@ eureka:
 
 spring.cloud.aws:
   region:
-    static: ${AWS_REGION:ap-northeast-2}
+    static: ${MINIO_REGION:ap-northeast-2}
   credentials:
-    access-key: ${AWS_ACCESS_KEY:}
-    secret-key: ${AWS_SECRET_KEY:}
+    access-key: ${MINIO_ACCESS_KEY:}
+    secret-key: ${MINIO_SECRET_KEY:}
+  s3:
+    endpoint: ${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}
+    path-style-access-enabled: ${MINIO_PATH_STYLE_ACCESS_ENABLED:true}
 
-s3:
-  bucket: ${S3_BUCKET:cowork-bucket}
+minio:
+  # presigned URL 서명용
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
+  bucket: ${MINIO_BUCKET:cowork-bucket}
   presigned-put-expiry-minutes: 5
   presigned-get-expiry-minutes: 15
   max-file-size-bytes: 5242880  # 5MB
@@ -62,6 +64,7 @@ sdk:
   logging:
     enabled: true
     not-logging-urls:
+      - "/actuator/**"
       - "/v3/api-docs/**"
       - "/swagger-ui/**"
   response:

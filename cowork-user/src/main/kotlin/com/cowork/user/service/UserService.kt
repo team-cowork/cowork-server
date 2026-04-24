@@ -57,9 +57,7 @@ class UserService(
 
     @Transactional
     fun confirmUpload(userId: Long, objectKey: String) {
-        if (!objectKey.startsWith("profiles/$userId/")) {
-            throw ExpectedException("유효하지 않은 objectKey입니다.", HttpStatus.BAD_REQUEST)
-        }
+        s3Service.verifyUpload(userId, objectKey)
         val profile = findProfileOrThrow(userId)
         val previousProfileImageKey = profile.profileImageKey
         profile.updateProfileImageKey(objectKey)
