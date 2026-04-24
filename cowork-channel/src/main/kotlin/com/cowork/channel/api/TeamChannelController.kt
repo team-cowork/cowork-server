@@ -1,6 +1,6 @@
 package com.cowork.channel.api
 
-import com.cowork.channel.channel.ChannelService
+import com.cowork.channel.channel.TeamChannelService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/teams")
 class TeamChannelController(
-    private val channelService: ChannelService,
+    private val teamChannelService: TeamChannelService,
 ) {
 
     @Operation(summary = "팀 채널 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -30,5 +30,5 @@ class TeamChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
     ): List<ChannelResponse> =
-        channelService.listByTeam(userId, teamId).map(ChannelResponse::from)
+        teamChannelService.listByTeam(userId, teamId).map(ChannelResponse::from)
 }
