@@ -44,7 +44,7 @@ spring:
         - id: channel-service
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/teams/*/channels/**, /api/teams/*/channels
+            - Path=/api/channels/**, /api/teams/*/channels/**, /api/teams/*/channels
           filters:
             - StripPrefix=1
 
@@ -100,13 +100,6 @@ spring:
           uri: lb://cowork-project
           predicates:
             - Path=/api/projects/**
-          filters:
-            - StripPrefix=1
-
-        - id: channel-service
-          uri: lb://cowork-channel
-          predicates:
-            - Path=/api/channels/**
           filters:
             - StripPrefix=1
 
@@ -177,6 +170,13 @@ spring:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: channel-service-docs
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/v3/api-docs/channel
+          filters:
+            - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
         - id: notification-service-docs
           uri: lb://cowork-notification
