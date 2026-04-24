@@ -182,6 +182,7 @@ interface ChatMessageEvent {
 - Kafka 발행 성공 시 해당 도큐먼트 삭제
 - 발행 실패 시 그대로 PENDING 유지 → 다음 폴링에서 재시도
 - 서비스 시작 시 poller 자동 실행
+- ⚠️ 주의: 멀티 인스턴스 배포 시 동일 PENDING 항목을 여러 인스턴스가 중복 처리할 수 있음. 확장 필요 시 `findOneAndUpdate`를 이용한 원자적 상태 전환(`PENDING → PROCESSING`) 또는 BullMQ 같은 전용 큐 도입을 검토할 것.
 
 ### Notification 모듈 - Notify 로직 변경
 ```
