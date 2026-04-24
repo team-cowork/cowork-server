@@ -62,4 +62,10 @@ bash "${CLAUDE_SKILL_DIR}/scripts/create-pr.sh" "<confirmed-title>" "PR_BODY.md"
 ```
 
 After creation, display the PR URL.
-Cleanup: remove `PR_BODY.md`.
+
+## Step 6 — Cleanup
+
+```bash
+rm -f PR_BODY.md
+rm -rf .pr-tmp
+```
