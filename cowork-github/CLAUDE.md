@@ -1,139 +1,78 @@
 # cowork-github
 
-## Overview
+## Current State
 
-Microservice responsible for creating GitHub issues via GitHub App authentication.
-Part of the `cowork-server` ecosystem, it consumes events from `cowork-chat` via Kafka and calls the GitHub API.
+이 저장소는 현재 기본 NestJS 단일 애플리케이션입니다.
+GitHub App 인증, Kafka 연동, GitHub Issue 생성 기능은 아직 구현되지 않았습니다.
 
-- Core stack: NestJS, TypeScript, Kafka, Axios
-- GitHub auth: GitHub App (RS256 JWT → Installation Token)
+## Runtime
 
-## Architecture
+- Framework: NestJS
+- Language: TypeScript
+- HTTP server: Express 기반 Nest 기본 서버
+- Default port: `3000`
 
-```
-cowork-chat (NestJS)
-    → Kafka produce (topic: github.issue.create)
-    → cowork-github (NestJS) consume
-    → GitHub API
-```
+## Current Structure
 
-External client requests enter through `cowork-gateway`.
-Internal service-to-service events are handled asynchronously via Kafka.
-
-## Project Structure
-
-```
+```text
 src/
-├── github/
-│   ├── auth/
-│   │   └── github-auth.service.ts   # JWT generation + Installation Token exchange
-│   ├── client/
-│   │   └── github-api.client.ts     # GitHub API HTTP calls
-│   ├── issue/
-│   │   └── issue.service.ts         # Issue creation business logic
-│   ├── dto/
-│   │   └── create-issue.dto.ts      # Kafka event payload DTO
-│   ├── github.controller.ts         # Kafka Consumer (MessagePattern)
-│   └── github.module.ts
+├── app.controller.ts
+├── app.controller.spec.ts
 ├── app.module.ts
+├── app.service.ts
 └── main.ts
+
+test/
+├── app.e2e-spec.ts
+└── jest-e2e.json
 ```
 
-## Environment Variables (.env)
+## Current Behavior
 
-```
-# GitHub App
-GITHUB_APP_ID=           # GitHub App ID (numeric)
-GITHUB_PRIVATE_KEY_PATH= # Path to .pem file (e.g. ./private-key.pem)
+- `GET /` 요청에 `Hello World!` 문자열을 반환합니다.
+- `main.ts`에서 `process.env.PORT ?? 3000` 값을 사용해 서버를 실행합니다.
+- 단위 테스트와 e2e 테스트가 기본 예제로 포함되어 있습니다.
 
-# Kafka
-KAFKA_BROKER=localhost:9094
+## Environment Variables
 
-# Server
-PORT=3001
-```
+현재 코드에서 실제로 참조하는 환경 변수:
 
-## Kafka
-
-- Broker: `kafka:9092` (internal) / `localhost:9094` (local dev)
-- Auto topic creation is enabled (`KAFKA_AUTO_CREATE_TOPICS_ENABLE: true`)
-- Kafka UI: `http://localhost:8090`
-
-### Topics
-
-| Topic | Direction | Description |
-|-------|-----------|-------------|
-| `github.issue.create` | consume | cowork-chat → cowork-github |
-
-### Event Payload (github.issue.create)
-
-```json
-{
-  "installationId": 123456,
-  "owner": "team-cowork",
-  "repo": "my-repo",
-  "title": "Issue title",
-  "body": "Issue body"
-}
+```env
+PORT=3000
 ```
 
-## GitHub App Auth Flow
-
-```
-1. Generate JWT using private-key.pem (RS256, expires in 10 minutes)
-   payload: { iat: now - 60, exp: now + 600, iss: APP_ID }
-
-2. Exchange JWT for Installation Token
-   POST https://api.github.com/app/installations/{installationId}/access_tokens
-   Authorization: Bearer {JWT}
-
-3. Call GitHub API with Installation Token
-   POST https://api.github.com/repos/{owner}/{repo}/issues
-   Authorization: Bearer {installation_token}
-```
-
-## Agent Working Rules
+## Development Rules
 
 ### Security
 
-- Never use Personal Access Tokens — GitHub App authentication only
-- Never commit secrets (`.env`, `.pem`) to git
-- Always include `.env` and `private-key.pem` in `.gitignore`
-- Always include `X-GitHub-Api-Version: 2022-11-28` header in GitHub API calls
+- `.env`, `.pem`, 토큰 등 비밀값은 저장소에 커밋하지 않습니다.
+- 테스트용 키라도 실키 형태의 개인키 파일은 장기 보관하지 않습니다.
 
 ### Code
 
-- All GitHub-related logic must live inside the `github/` module
-- Access environment variables only via `ConfigService` from `@nestjs/config`
-- Fetch a new Installation Token on every request — no caching
-- Handle GitHub API errors in `github-api.client.ts`
-    - 401 → Authentication failure
-    - 403 → Permission denied (App not installed on target repo)
-    - 404 → Repository not found
+- 현재는 `app.*` 중심의 기본 구조만 존재하므로, 새 기능은 목적별 모듈로 분리해 추가합니다.
+- 환경 변수 사용이 늘어나면 `@nestjs/config`를 도입한 뒤 직접 `process.env` 접근을 줄입니다.
+- 예제 코드를 실제 기능 코드로 교체할 때는 테스트도 함께 갱신합니다.
 
-### Kafka
+### Testing
 
-- Consumer group ID: `cowork-github`
-- Topic naming convention: `{service}.{resource}.{action}` (e.g. `github.issue.create`)
-- On message processing failure, log the error and consider dead letter queue handling
+- `npm test`는 단위 테스트를 실행합니다.
+- `npm run test:e2e`는 HTTP 레벨 e2e 테스트를 실행합니다.
+- `npm run build`가 항상 통과하도록 유지합니다.
 
-## Service Startup Order
+## GitHub Actions
 
-Follow the startup order defined in `cowork-server`:
+현재 워크플로는 단일 서비스 저장소 기준입니다.
 
-1. `cowork-config`
-2. `cowork-gateway`
-3. Business services (including `cowork-github`)
+- `cowork-stage-ci.yml`
+  - `develop` 대상 PR/Push에서 설치, 린트, 빌드, 테스트를 수행합니다.
+- `cowork-prod-ci.yml`
+  - `main` 대상 PR/Push에서 설치, 린트, 빌드, 테스트를 수행합니다.
+- `cowork-prod-cd.yml`
+  - `main` 푸시 후 검증이 끝나면 날짜 기반 태그와 GitHub Release를 생성합니다.
+- `cowork-pr-cleanup.yml`
+  - 머지된 PR에서 대기 라벨을 제거합니다.
 
-Ensure Kafka is healthy before starting `cowork-github`.
+## Planned Work
 
-## Development
-
-```bash
-# Start dev server
-npm run start:dev
-
-# Start Kafka via cowork-server docker-compose
-cd /path/to/cowork-server
-docker-compose up kafka
-```
+향후 이 저장소를 GitHub 연동 서비스로 확장할 수 있지만, 현재 문서와 워크플로는 구현된 코드만 기준으로 유지합니다.
