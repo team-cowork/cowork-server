@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class ChannelService(
+class TeamChannelService(
     private val channelRepository: ChannelRepository,
     private val teamClient: TeamClient,
 ) {
