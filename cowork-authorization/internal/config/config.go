@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+const (
+	defaultJWTAccessExpire  = "30m"
+	defaultJWTRefreshExpire = "2160h"
+)
+
 type AppConfig struct {
 	Port string
 
@@ -29,12 +34,12 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", "30m"))
+	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRE: %w", err)
 	}
 
-	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", "2160h"))
+	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
