@@ -8,7 +8,10 @@ SERVICE_NAME="cowork-chat"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-chat"
 SERVICE_COMMAND=(
   bash -lc
-  'export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
+  'export PORT="${CHAT_PORT:-8087}"
+   export ALLOWED_ORIGINS="${ALLOWED_ORIGINS:-http://localhost:3000}"
+   export MONGODB_URI="${MONGODB_URI:-mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@localhost:27017/cowork_chat?authSource=admin}"
+   export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    npm run start:dev'
 )
 
