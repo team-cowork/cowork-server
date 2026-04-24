@@ -140,11 +140,14 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
+      MINIO_BUCKET: ${MINIO_BUCKET:-cowork-bucket}
+    volumes:
+      - ./docker/minio/cors.json:/cors.json:ro
     entrypoint: >
       /bin/sh -c "
       mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
-      mc mb --ignore-existing local/$${S3_BUCKET};
+      mc mb --ignore-existing local/$${MINIO_BUCKET};
+      mc cors set local/$${MINIO_BUCKET} /cors.json;
       exit 0;
       "
 
