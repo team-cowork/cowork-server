@@ -2,7 +2,7 @@ server:
   port: 8086
 
 db:
-  dsn: cowork:1234@tcp(localhost:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
+  dsn: ${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(localhost:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
 
 kafka:
   brokers: localhost:9094
