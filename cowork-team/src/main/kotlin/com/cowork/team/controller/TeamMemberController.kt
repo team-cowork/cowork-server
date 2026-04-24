@@ -44,6 +44,17 @@ class TeamMemberController(
     ): ResponseEntity<List<TeamMemberResponse>> =
         ResponseEntity.ok(teamMemberService.getMembers(teamId))
 
+    @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "멤버 여부 반환"),
+    )
+    @GetMapping("/{userId}/exists")
+    fun isMember(
+        @PathVariable teamId: Long,
+        @PathVariable userId: Long,
+    ): ResponseEntity<Map<String, Boolean>> =
+        ResponseEntity.ok(mapOf("isMember" to teamMemberService.isMember(teamId, userId)))
+
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "변경 성공"),
