@@ -67,14 +67,21 @@ sdk:
 
 spring.cloud.aws:
   region:
-    static: ${AWS_REGION:ap-northeast-2}
+    static: ${MINIO_REGION:ap-northeast-2}
   credentials:
-    access-key: ${AWS_ACCESS_KEY:}
-    secret-key: ${AWS_SECRET_KEY:}
+    access-key: ${MINIO_ACCESS_KEY:}
+    secret-key: ${MINIO_SECRET_KEY:}
+  s3:
+    endpoint: ${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}
+    path-style-access-enabled: ${MINIO_PATH_STYLE_ACCESS_ENABLED:true}
+
+minio:
+  # presigned URL 서명용
+  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
 
 s3:
-  bucket: ${S3_BUCKET:cowork-bucket}
-  base-url: ${S3_BASE_URL:http://localhost:9000/cowork-bucket}
+  bucket: ${MINIO_BUCKET:cowork-bucket}
+  base-url: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
   presigned-put-expiry-minutes: 10
   max-file-size-bytes: 1048576
   allowed-content-types:
