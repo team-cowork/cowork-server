@@ -2,7 +2,7 @@ server:
   port: 8086
 
 db:
-  dsn: cowork:local-password@tcp(localhost:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
+  dsn: ${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(localhost:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
 
 kafka:
   brokers: localhost:9094
@@ -10,10 +10,10 @@ kafka:
   group-id: cowork-notification
 
 fcm:
-  credentials-file: ./firebase-credentials.json
+  credentials-file: ../docker/secrets/firebase-credentials.json
 
 preference:
-  service-url: http://localhost:8085
+  service-url: http://localhost:9001
 
 eureka:
   server-url: http://localhost:8761/eureka
