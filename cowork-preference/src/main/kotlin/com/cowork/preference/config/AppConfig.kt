@@ -35,19 +35,19 @@ data class AppConfig(
             val redis = pref.getJsonObject("redis") ?: JsonObject()
             val kafka = pref.getJsonObject("kafka") ?: JsonObject()
             return AppConfig(
-                serverPort = json.getJsonObject("server")?.getInteger("port") ?: 8085,
+                serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001,
                 db = DbConfig(
                     host = db.getString("host", "localhost"),
-                    port = db.getInteger("port", 5432),
+                    port = db.getInt("port", 5432),
                     database = db.getString("database", "cowork_preference"),
                     schema = db.getString("schema", "preference"),
                     username = db.getString("username", "cowork"),
                     password = db.getString("password", ""),
-                    poolSize = db.getInteger("pool-size", 5),
+                    poolSize = db.getInt("pool-size", 5),
                 ),
                 redis = RedisConfig(
                     host = redis.getString("host", "localhost"),
-                    port = redis.getInteger("port", 6379),
+                    port = redis.getInt("port", 6379),
                 ),
                 kafka = KafkaConfig(
                     bootstrapServers = kafka.getString("bootstrap-servers", "localhost:9092"),
@@ -55,5 +55,12 @@ data class AppConfig(
                 eurekaUrl = json.getString("eureka.url", "http://localhost:8761/eureka/"),
             )
         }
+
+        private fun JsonObject.getInt(key: String, defaultValue: Int): Int =
+            when (val value = getValue(key)) {
+                is Number -> value.toInt()
+                is String -> value.toIntOrNull() ?: defaultValue
+                else -> defaultValue
+            }
     }
 }

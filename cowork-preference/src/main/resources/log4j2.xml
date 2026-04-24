@@ -7,8 +7,8 @@
       </JsonTemplateLayout>
     </Console>
     <RollingFile name="FILE"
-                 fileName="/var/log/cowork/preference/app.log"
-                 filePattern="/var/log/cowork/preference/app.%d{yyyy-MM-dd}.log">
+                 fileName="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.log"
+                 filePattern="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.%d{yyyy-MM-dd}.log">
       <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
         <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
       </JsonTemplateLayout>

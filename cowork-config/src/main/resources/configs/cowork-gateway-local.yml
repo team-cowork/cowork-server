@@ -1,5 +1,5 @@
 jwt:
-  secret: local-dev-secret-key-minimum-32-characters-long
+  secret: ${JWT_SECRET}
 
 cowork:
   swagger-ui:
@@ -121,7 +121,7 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: preference-service
-          uri: lb://cowork-preference
+          uri: http://localhost:9001
           predicates:
             - Path=/api/preferences/**
           filters:
@@ -156,7 +156,7 @@ spring:
             - RewritePath=/v3/api-docs/chat, /api-json
 
         - id: preference-service-docs
-          uri: lb://cowork-preference
+          uri: http://localhost:9001
           predicates:
             - Path=/v3/api-docs/preference
           filters:
