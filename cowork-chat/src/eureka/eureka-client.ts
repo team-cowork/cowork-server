@@ -113,7 +113,7 @@ export class EurekaClient {
     private resolveIpAddress(): string {
         for (const interfaces of Object.values(os.networkInterfaces())) {
             for (const iface of interfaces ?? []) {
-                if (iface.family === 'IPv4' && !iface.internal) {
+                if ((iface.family === 'IPv4' || (iface.family as any) === 4) && !iface.internal) {
                     return iface.address;
                 }
             }
