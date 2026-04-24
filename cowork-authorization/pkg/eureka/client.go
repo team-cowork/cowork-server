@@ -54,6 +54,9 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 		for range ticker.C {
 			if err := c.client.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
 				log.Printf("eureka heartbeat failed: %v", err)
+				if regErr := c.Register(cfg); regErr != nil {
+					log.Printf("eureka re-registration failed: %v", regErr)
+				}
 			}
 		}
 	}()

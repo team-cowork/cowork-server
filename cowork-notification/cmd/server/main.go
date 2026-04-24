@@ -19,9 +19,9 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
+	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/config"
 	tokendomain "github.com/cowork/cowork-notification/internal/domain/token"
-	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
@@ -45,6 +45,10 @@ func main() {
 	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{})
 	if err != nil {
 		slog.Error("mysql connect failed", "err", err)
+		os.Exit(1)
+	}
+	if err := mysqlinfra.EnsureSchema(context.Background(), db); err != nil {
+		slog.Error("mysql schema init failed", "err", err)
 		os.Exit(1)
 	}
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)

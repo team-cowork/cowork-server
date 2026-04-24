@@ -124,11 +124,11 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 
 func validate(cfg *AppConfig) (*AppConfig, error) {
 	required := map[string]string{
-		"DB_DSN (or db.dsn from config server)":                             cfg.DBDSN,
-		"KAFKA_BROKERS (or kafka.brokers from config server)":               cfg.KafkaBrokers,
-		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":      cfg.KafkaTopicNotify,
-		"KAFKA_GROUP_ID (or kafka.group-id from config server)":             cfg.KafkaGroupID,
-		"FCM_CREDENTIALS_FILE (or fcm.credentials-file from config server)": cfg.FCMCredentialsFile,
+		"DB_DSN (or db.dsn from config server)":                                 cfg.DBDSN,
+		"KAFKA_BROKERS (or kafka.brokers from config server)":                   cfg.KafkaBrokers,
+		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":          cfg.KafkaTopicNotify,
+		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                 cfg.KafkaGroupID,
+		"FCM_CREDENTIALS_FILE (or fcm.credentials-file from config server)":     cfg.FCMCredentialsFile,
 		"PREFERENCE_SERVICE_URL (or preference.service-url from config server)": cfg.PreferenceServiceURL,
 		"TEAM_SERVICE_URL (or team.service-url from config server)":             cfg.TeamServiceURL,
 		"USER_SERVICE_URL (or user.service-url from config server)":             cfg.UserServiceURL,
@@ -137,6 +137,9 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 		if val == "" {
 			return nil, fmt.Errorf("required config %q is not set", name)
 		}
+	}
+	if _, err := os.Stat(cfg.FCMCredentialsFile); err != nil {
+		return nil, fmt.Errorf("fcm credentials file %q is not accessible: %w", cfg.FCMCredentialsFile, err)
 	}
 	return cfg, nil
 }
