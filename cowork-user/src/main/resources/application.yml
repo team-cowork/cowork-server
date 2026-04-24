@@ -51,8 +51,6 @@ spring.cloud.aws:
 minio:
   # presigned URL 서명용
   public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
-
-s3:
   bucket: ${MINIO_BUCKET:cowork-bucket}
   presigned-put-expiry-minutes: 5
   presigned-get-expiry-minutes: 15
