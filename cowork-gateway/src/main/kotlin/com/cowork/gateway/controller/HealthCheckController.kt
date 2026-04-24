@@ -1,5 +1,6 @@
 package com.cowork.gateway.controller
 
+import com.cowork.gateway.health.ServiceStatus
 import com.cowork.gateway.response.CommonApiResponse
 import com.netflix.appinfo.InstanceInfo
 import io.swagger.v3.oas.annotations.Operation
@@ -55,16 +56,16 @@ class HealthCheckController(
         )]
     )
     @GetMapping
-    fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, String>>>> {
+    fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> {
         return discoveryClient.services
             .flatMap { serviceId ->
                 discoveryClient.getInstances(serviceId)
                     .collectList()
                     .map { instances ->
                         val status = when {
-                            instances.isEmpty() || instances.none { it.isUp() } -> "DOWN"
-                            instances.all { it.isUp() } -> "UP"
-                            else -> "DEGRADED"
+                            instances.isEmpty() || instances.none { it.isUp() } -> ServiceStatus.DOWN
+                            instances.all { it.isUp() } -> ServiceStatus.UP
+                            else -> ServiceStatus.DEGRADED
                         }
                         serviceId to status
                     }
