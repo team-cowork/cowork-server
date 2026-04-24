@@ -5,7 +5,9 @@ import io.awspring.cloud.s3.S3Template
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
+import software.amazon.awssdk.services.s3.model.GetObjectRequest
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
@@ -50,12 +52,20 @@ class S3Service(
         return s3Presigner.presignPutObject(presignRequest).url().toString()
     }
 
-    fun generateGetPresignedUrl(objectKey: String): String =
-        s3Template.createSignedGetURL(
-            minioProperties.bucket,
-            objectKey,
-            Duration.ofMinutes(minioProperties.presignedGetExpiryMinutes),
-        ).toString()
+    fun generateGetPresignedUrl(objectKey: String): String {
+        val getObjectRequest = GetObjectRequest.builder()
+            .bucket(minioProperties.bucket)
+            .key(objectKey)
+            .build()
+
+        val presignRequest = GetObjectPresignRequest.builder()
+            .signatureDuration(Duration.ofMinutes(minioProperties.presignedGetExpiryMinutes))
+            .getObjectRequest(getObjectRequest)
+            .build()
+
+        // @Primary로 등록된 presigner가 public endpoint로 서명하도록 구성돼 있어야 한다.
+        return s3Presigner.presignGetObject(presignRequest).url().toString()
+    }
 
     fun verifyUpload(userId: Long, objectKey: String) {
         if (!objectKey.startsWith("profiles/$userId/")) {
