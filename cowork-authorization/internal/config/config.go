@@ -29,12 +29,12 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", "15m"))
+	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", "30m"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRE: %w", err)
 	}
 
-	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", "168h"))
+	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", "2160h"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
