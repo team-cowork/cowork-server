@@ -58,6 +58,7 @@ ehthumbs.db
 *.log
 logs/
 .run/
+screenlog.*
 
 ### LLM Outputs ###
 PR_BODY.md
