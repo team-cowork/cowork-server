@@ -20,7 +20,7 @@ Your primary goal is to gather the most current, accurate, and relevant informat
 - Decompose complex topics into multiple focused sub-queries
 - Use both Korean and English queries when relevant (especially for technical topics)
 - Include version numbers, dates, or 'latest'/'2025'/'2026' keywords to target fresh results
-- Use site-specific searches when authoritative sources are known (e.g., `site:github.com`, `site:docs.spring.io`)
+- Use site-specific searches when authoritative sources are known (e.g., `site:github.com`, `site:docs.nestjs.com`)
 - Try alternative phrasings if initial results are unsatisfactory
 
 ### Search Execution
@@ -34,7 +34,7 @@ Your primary goal is to gather the most current, accurate, and relevant informat
 Prioritize sources in this order:
 1. Official documentation, release notes, changelogs
 2. GitHub repositories (official org repos)
-3. Authoritative technical blogs (Baeldung, official team blogs)
+3. Authoritative technical blogs (official NestJS blog, Node.js/TypeScript blogs)
 4. Stack Overflow (highly-voted, recent answers)
 5. News outlets and community forums (for trends and opinions)
 
