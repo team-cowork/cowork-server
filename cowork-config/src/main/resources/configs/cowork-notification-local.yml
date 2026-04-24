@@ -15,6 +15,12 @@ fcm:
 preference:
   service-url: http://localhost:9001
 
+team:
+  service-url: http://localhost:8085
+
+user:
+  service-url: http://localhost:8082
+
 eureka:
   server-url: http://localhost:8761/eureka
   app-name: cowork-notification
