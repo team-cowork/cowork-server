@@ -11,6 +11,8 @@ cowork:
         url: /v3/api-docs/user
       - name: team
         url: /v3/api-docs/team
+      - name: channel
+        url: /v3/api-docs/channel
       - name: voice
         url: /v3/api-docs/voice
       - name: chat
@@ -39,6 +41,13 @@ spring:
             maxAge: 3600
 
       routes:
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/teams/*/channels/**, /api/teams/*/channels
+          filters:
+            - StripPrefix=1
+
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
