@@ -74,6 +74,12 @@ class S3Service(
         return "${minioProperties.publicBaseUrl}/$objectKey"
     }
 
+    fun validateIconUrl(iconUrl: String) {
+        if (!iconUrl.startsWith("${minioProperties.publicBaseUrl}/")) {
+            throw ExpectedException("유효하지 않은 아이콘 URL입니다.", HttpStatus.BAD_REQUEST)
+        }
+    }
+
     fun extractObjectKey(iconUrl: String): String =
         iconUrl.removePrefix("${minioProperties.publicBaseUrl}/")
 
