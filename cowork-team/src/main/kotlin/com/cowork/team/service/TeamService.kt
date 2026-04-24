@@ -98,13 +98,15 @@ class TeamService(
         requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = findTeamOrThrow(teamId)
         val previousIconUrl = team.iconUrl
-        team.iconUrl = iconUrl
 
-        previousIconUrl?.let { prev ->
-            val key = s3Service.extractObjectKey(prev)
-            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-                override fun afterCommit() = s3Service.deleteObject(key)
-            })
+        if (previousIconUrl != iconUrl) {
+            team.iconUrl = iconUrl
+            previousIconUrl?.let { prev ->
+                val key = s3Service.extractObjectKey(prev)
+                TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                    override fun afterCommit() = s3Service.deleteObject(key)
+                })
+            }
         }
         return IconConfirmResponse(iconUrl = iconUrl)
     }
