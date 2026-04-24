@@ -15,6 +15,44 @@ load_env() {
   set -a
   source "$PROJECT_ROOT/.env"
   set +a
+
+  # Some endpoints must be reachable from external clients (mobile app/emulator).
+  # Local IP can change frequently; allow using __LOCAL_IP__ placeholder in .env.
+  local ip
+  ip="$(detect_local_ip || true)"
+  if [ -n "$ip" ]; then
+    if [ -n "${MINIO_PUBLIC_ENDPOINT:-}" ] && [[ "$MINIO_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      export MINIO_PUBLIC_ENDPOINT="${MINIO_PUBLIC_ENDPOINT/__LOCAL_IP__/$ip}"
+    fi
+    if [ -n "${MINIO_PUBLIC_BASE_URL:-}" ] && [[ "$MINIO_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      export MINIO_PUBLIC_BASE_URL="${MINIO_PUBLIC_BASE_URL/__LOCAL_IP__/$ip}"
+    fi
+  else
+    if [ -n "${MINIO_PUBLIC_ENDPOINT:-}" ] && [[ "$MINIO_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; MINIO_PUBLIC_ENDPOINT still contains __LOCAL_IP__"
+    fi
+    if [ -n "${MINIO_PUBLIC_BASE_URL:-}" ] && [[ "$MINIO_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; MINIO_PUBLIC_BASE_URL still contains __LOCAL_IP__"
+    fi
+  fi
+}
+
+detect_local_ip() {
+  local ip=""
+
+  # macOS: en0 is typically Wi-Fi, but can vary.
+  if command -v ipconfig >/dev/null 2>&1; then
+    ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+    if [ -z "$ip" ]; then
+      ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+    fi
+  fi
+
+  if [ -z "$ip" ] && command -v ifconfig >/dev/null 2>&1; then
+    ip="$(ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')"
+  fi
+
+  echo "$ip"
 }
 
 pid_file() {
