@@ -62,7 +62,7 @@ class HealthCheckController(
                     .collectList()
                     .map { instances ->
                         val status = when {
-                            instances.isEmpty() -> "DOWN"
+                            instances.isEmpty() || instances.none { it.isUp() } -> "DOWN"
                             instances.all { it.isUp() } -> "UP"
                             else -> "DEGRADED"
                         }
