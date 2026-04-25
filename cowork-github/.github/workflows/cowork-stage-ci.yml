@@ -26,7 +26,7 @@ jobs:
         with:
           script: |
             const title = context.payload.pull_request.title;
-            const allowedScopes = ['global', 'app', 'docs', 'ci/cd'];
+            const allowedScopes = ['global', 'app', 'docs', 'ci/cd', 'github'];
 
             const versionPattern = /^v\d{8}\.\d+$/;
             if (versionPattern.test(title)) {
