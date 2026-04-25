@@ -14,14 +14,14 @@
 
 ## cache 일관성 정책
 
-| 상황 | 목표 동작 |
-|------|-----------|
-| active cache hit | cached session ID가 MongoDB의 현재 active session과 일치하고 status가 `active`일 때만 반환함 |
-| MongoDB 종료 성공 | session generation을 종료 tombstone으로 전환하고 이전 generation의 cache write를 차단함 |
-| Redis eviction 실패 | 요청 성공 여부와 무관하게 durable repair 대상으로 남기고 active 조회는 MongoDB를 우선함 |
-| 늦게 도착한 cache write | session ID 또는 version 비교에 실패하면 tombstone을 덮어쓰지 못함 |
-| 손상·unknown cache 값 | 해당 key를 우회하고 MongoDB 결과로 복구함 |
-| 새 active 세션 생성 | 이전 session의 channel·room·session key와 구분되는 새 generation만 노출함 |
+| 상황                    | 목표 동작                                                                                    |
+|-------------------------|----------------------------------------------------------------------------------------------|
+| active cache hit        | cached session ID가 MongoDB의 현재 active session과 일치하고 status가 `active`일 때만 반환함 |
+| MongoDB 종료 성공       | session generation을 종료 tombstone으로 전환하고 이전 generation의 cache write를 차단함      |
+| Redis eviction 실패     | 요청 성공 여부와 무관하게 durable repair 대상으로 남기고 active 조회는 MongoDB를 우선함      |
+| 늦게 도착한 cache write | session ID 또는 version 비교에 실패하면 tombstone을 덮어쓰지 못함                            |
+| 손상·unknown cache 값   | 해당 key를 우회하고 MongoDB 결과로 복구함                                                    |
+| 새 active 세션 생성     | 이전 session의 channel·room·session key와 구분되는 새 generation만 노출함                    |
 
 ## 할 일
 
