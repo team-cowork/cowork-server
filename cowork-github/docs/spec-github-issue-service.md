@@ -162,8 +162,7 @@ src/github/github.controller.ts
   transport: Transport.KAFKA,
   options: {
     client: { brokers: process.env.KAFKA_BROKERS.split(',') },
-    consumer: { groupId: process.env.KAFKA_GROUP_ID },
-    consumer: { allowAutoTopicCreation: false },
+    consumer: { groupId: process.env.KAFKA_GROUP_ID, allowAutoTopicCreation: false },
   }
   ```
 - `app.startAllMicroservices()` 후 `app.listen(PORT)`

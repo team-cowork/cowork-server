@@ -2,7 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
-import { GITHUB_HEADERS } from '../constants';
+import { GITHUB_API, GITHUB_HEADERS } from '../constants';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
 
@@ -19,7 +19,7 @@ export class GithubApiClient {
     try {
       const { data } = await firstValueFrom(
         this.httpService.post<CreatedIssue>(
-          `https://api.github.com/repos/${dto.owner}/${dto.repo}/issues`,
+          `${GITHUB_API}/repos/${dto.owner}/${dto.repo}/issues`,
           {
             title: dto.title,
             body: dto.body,
