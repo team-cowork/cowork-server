@@ -25,13 +25,19 @@ echo ""
 echo "=== cowork-user 시크릿 ==="
 vault kv put secret/cowork-user \
   spring.datasource.password="user-db-password" \
-  spring.datasource.url="jdbc:postgresql://localhost:5432/cowork_user"
+  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
 
 echo ""
-echo "=== cowork-authorization 시크릿 ==="
-vault kv put secret/cowork-authorization \
-  spring.datasource.password="auth-db-password" \
-  spring.datasource.url="jdbc:postgresql://localhost:5432/cowork_auth"
+echo "=== cowork-team 시크릿 ==="
+vault kv put secret/cowork-team \
+  spring.datasource.password="team-db-password" \
+  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_team?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+
+echo ""
+echo "=== cowork-channel 시크릿 ==="
+vault kv put secret/cowork-channel \
+  spring.datasource.password="channel-db-password" \
+  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
 
 echo ""
 echo "=== cowork-notification 시크릿 ==="
