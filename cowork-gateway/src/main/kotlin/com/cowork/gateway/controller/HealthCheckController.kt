@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.cloud.client.ServiceInstance
 import org.springframework.cloud.client.discovery.ReactiveDiscoveryClient
 import org.springframework.cloud.gateway.route.RouteLocator
 import org.springframework.cloud.netflix.eureka.EurekaServiceInstance
@@ -92,10 +93,10 @@ class HealthCheckController(
             .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
     }
 
-    private fun org.springframework.cloud.client.ServiceInstance.isUp(): Boolean {
+    private fun ServiceInstance.isUp(): Boolean {
         if (this is EurekaServiceInstance) {
             return instanceInfo.status == InstanceInfo.InstanceStatus.UP
         }
-        return true
+        return false
     }
 }
