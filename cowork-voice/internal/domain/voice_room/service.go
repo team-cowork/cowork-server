@@ -41,7 +41,9 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 
 	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName); err != nil {
 		if sessionCreatedByUs {
-			_ = s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC())
+			if err := s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC()); err != nil {
+				slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
+			}
 		}
 		return nil, err
 	}
