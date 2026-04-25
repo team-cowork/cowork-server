@@ -67,5 +67,4 @@ After creation, display the PR URL.
 
 ```bash
 rm -f PR_BODY.md
-rm -rf .pr-tmp
 ```

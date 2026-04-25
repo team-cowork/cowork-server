@@ -58,8 +58,13 @@ Ask the user to confirm which title to use. If no answer is given, proceed with 
 Run the creation script with the confirmed title and labels:
 
 ```bash
-bash scripts/create-pr.sh "<confirmed-title>" "PR_BODY.md" "<label1>,<label2>"
+bash .agents/skills/write-pr/scripts/create-pr.sh "<confirmed-title>" "PR_BODY.md" "<label1>,<label2>"
 ```
 
 After creation, display the PR URL.
-Cleanup: remove `PR_BODY.md`.
+
+## Step 6 — Cleanup
+
+```bash
+rm -f PR_BODY.md
+```

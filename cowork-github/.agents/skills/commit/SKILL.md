@@ -22,7 +22,7 @@ This project uses Git Flow. Feature branches must be created from `develop` and 
     - Examples: `add/add-user-profile-api`, `fix/authorization-token-expiry`, `refactor/optimize-chat-query`
 3. Create and checkout the branch:
    ```bash
-   git checkout -b <type>/<inferred-name>
+   git checkout -b <inferred-name>
    ```
 4. Proceed with the commit flow below
 
