@@ -49,7 +49,9 @@ describe('GithubController', () => {
   });
 
   it('GithubClientError 발생 시 오프셋을 커밋한다 (4xx 스킵)', async () => {
-    issueService.createIssue.mockRejectedValue(new GithubClientError('Repo not found', 404));
+    issueService.createIssue.mockRejectedValue(
+      new GithubClientError('Repo not found', 404),
+    );
 
     await controller.handleIssueCreate(validPayload, ctx);
 
