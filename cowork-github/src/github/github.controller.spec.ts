@@ -8,16 +8,14 @@ describe('GithubController', () => {
   let controller: GithubController;
   let issueService: { createIssue: jest.Mock };
   let commitOffsets: jest.Mock;
-  let pause: jest.Mock;
   let ctx: KafkaContext;
 
   beforeEach(async () => {
     issueService = { createIssue: jest.fn() };
     commitOffsets = jest.fn().mockResolvedValue(undefined);
-    pause = jest.fn();
     ctx = {
       getMessage: jest.fn().mockReturnValue({ offset: '5' }),
-      getConsumer: jest.fn().mockReturnValue({ commitOffsets, pause }),
+      getConsumer: jest.fn().mockReturnValue({ commitOffsets }),
       getTopic: jest.fn().mockReturnValue('github.issue.create'),
       getPartition: jest.fn().mockReturnValue(0),
     } as unknown as KafkaContext;
@@ -68,7 +66,7 @@ describe('GithubController', () => {
     expect(commitOffsets).toHaveBeenCalledTimes(1);
   });
 
-  it('서버 에러 발생 시 파티션을 중단하고 프로세스를 종료한다', async () => {
+  it('서버 에러 발생 시 프로세스를 종료한다', async () => {
     issueService.createIssue.mockRejectedValue(new Error('GitHub 503'));
 
     await expect(
@@ -76,9 +74,6 @@ describe('GithubController', () => {
     ).rejects.toThrow('GitHub 503');
 
     expect(commitOffsets).not.toHaveBeenCalled();
-    expect(pause).toHaveBeenCalledWith([
-      { topic: 'github.issue.create', partitions: [0] },
-    ]);
     expect(
       (controller as { exitProcess: jest.Mock }).exitProcess,
     ).toHaveBeenCalledWith(1);
