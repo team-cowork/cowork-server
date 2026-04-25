@@ -1,4 +1,4 @@
-const TEST_ENV: Record<string, string> = {
+export const TEST_ENV: Record<string, string> = {
   PORT: '3000',
   KAFKA_BROKERS: 'localhost:9092',
   KAFKA_GROUP_ID: 'cowork-github-test',
