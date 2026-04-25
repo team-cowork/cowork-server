@@ -1,10 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
-import { of } from 'rxjs';
+import { AxiosError } from 'axios';
+import { of, throwError } from 'rxjs';
 import { GithubAuthService } from './github-auth.service';
 import { AppConfigService } from '../../config/app-config.service';
 import { REDIS_CLIENT } from '../constants';
 import { githubCacheKeys } from '../github.cache';
+import { GithubClientError } from '../github.errors';
 
 jest.mock('jsonwebtoken', () => ({
   sign: jest.fn().mockReturnValue('mock-jwt'),
@@ -39,6 +41,15 @@ describe('GithubAuthService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  const createAxiosError = (status: number, message: string): AxiosError =>
+    new AxiosError(message, undefined, { headers: {} }, undefined, {
+      status,
+      statusText: 'error',
+      headers: {},
+      config: { headers: {} },
+      data: { message },
+    });
 
   it('installationId 메모리 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
     (
@@ -104,5 +115,29 @@ describe('GithubAuthService', () => {
     await service.getInstallationToken('my-org');
 
     expect(httpService.get).toHaveBeenCalledTimes(1); // installationId API: 1번만
+  });
+
+  it('installation 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
+    redis.get.mockResolvedValue(null);
+    httpService.get.mockReturnValueOnce(
+      throwError(() => createAxiosError(404, 'Installation not found')),
+    );
+
+    await expect(service.getInstallationToken('my-org')).rejects.toEqual(
+      new GithubClientError('Installation not found', 404),
+    );
+    expect(httpService.post).not.toHaveBeenCalled();
+  });
+
+  it('토큰 발급의 4xx 에러는 GithubClientError로 변환한다', async () => {
+    redis.get.mockResolvedValue(null);
+    httpService.get.mockReturnValue(of({ data: { id: 555 } }));
+    httpService.post.mockReturnValueOnce(
+      throwError(() => createAxiosError(403, 'Forbidden')),
+    );
+
+    await expect(service.getInstallationToken('my-org')).rejects.toEqual(
+      new GithubClientError('Forbidden', 403),
+    );
   });
 });
