@@ -16,11 +16,11 @@ export class IssueService {
   ) {}
 
   async createIssue(dto: CreateIssueDto): Promise<void> {
-    const token = await this.authService.getInstallationToken(dto.owner);
     const maxRetries = this.config.githubIssueMaxRetries;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
+        const token = await this.authService.getInstallationToken(dto.owner);
         const result = await this.apiClient.createIssue(token, dto);
         this.logger.log(`Issue created: ${result.html_url}`);
         return;
