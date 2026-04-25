@@ -64,6 +64,9 @@ class TeamMemberService(
     fun getMembers(teamId: Long): List<TeamMemberResponse> =
         teamMemberRepository.findAllByTeamId(teamId).map { TeamMemberResponse.of(it) }
 
+    fun isMember(teamId: Long, userId: Long): Boolean =
+        teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
+
     @Transactional
     fun changeRole(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
         requireRole(teamId, actorId, TeamRole.OWNER)
