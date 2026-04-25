@@ -38,7 +38,10 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	h.svc.HandleEvent(ctx, event)
+	if err := h.svc.HandleEvent(ctx, event); err != nil {
+		apperr.WriteResponse(w, apperr.Internal(err.Error()))
+		return
+	}
 
 	w.WriteHeader(http.StatusOK)
 }
