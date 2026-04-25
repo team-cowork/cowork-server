@@ -6,7 +6,9 @@ import { AppConfigService } from '../../config/app-config.service';
 import { REDIS_CLIENT } from '../constants';
 import { githubCacheKeys } from '../github.cache';
 
-jest.mock('jsonwebtoken', () => ({ sign: jest.fn().mockReturnValue('mock-jwt') }));
+jest.mock('jsonwebtoken', () => ({
+  sign: jest.fn().mockReturnValue('mock-jwt'),
+}));
 
 describe('GithubAuthService', () => {
   let service: GithubAuthService;
@@ -39,7 +41,9 @@ describe('GithubAuthService', () => {
   afterEach(() => jest.clearAllMocks());
 
   it('installationId 메모리 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
-    (service as any).installationIdCache.set('my-org', 111);
+    (
+      service as unknown as { installationIdCache: Map<string, number> }
+    ).installationIdCache.set('my-org', 111);
     redis.get.mockResolvedValueOnce('cached-token');
 
     const token = await service.getInstallationToken('my-org');
@@ -51,14 +55,18 @@ describe('GithubAuthService', () => {
 
   it('installationId Redis 캐시 히트 시 GitHub API를 호출하지 않고 메모리 캐시를 채운다', async () => {
     redis.get
-      .mockResolvedValueOnce('999')       // installation cache hit
+      .mockResolvedValueOnce('999') // installation cache hit
       .mockResolvedValueOnce('redis-token'); // token cache hit
 
     const token = await service.getInstallationToken('my-org');
 
     expect(token).toBe('redis-token');
     expect(httpService.get).not.toHaveBeenCalled();
-    expect((service as any).installationIdCache.get('my-org')).toBe(999);
+    expect(
+      (
+        service as unknown as { installationIdCache: Map<string, number> }
+      ).installationIdCache.get('my-org'),
+    ).toBe(999);
   });
 
   it('캐시 미스 시 GitHub API를 호출해 토큰을 발급하고 Redis에 저장한다', async () => {
