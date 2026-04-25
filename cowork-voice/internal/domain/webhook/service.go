@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -67,7 +68,11 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
+	if err != nil {
+		slog.Error("participant_joined: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
 		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return nil
 	}
@@ -123,7 +128,11 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
+	if err != nil {
+		slog.Error("participant_left: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
 		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
 		return nil
 	}
@@ -173,7 +182,11 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
+	if err != nil {
+		slog.Error("room_finished: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
 		return nil
 	}
 
