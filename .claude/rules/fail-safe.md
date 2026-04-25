@@ -1,29 +1,21 @@
-# Fail-Safe Principle
+---
+paths:
+  - "**/*.kt"
+  - "**/*.java"
+  - "**/*.gradle"
+  - "**/*.kts"
+---
 
-When handling unknown implementations or states, **never assume success or a healthy state — default to failure or unhealthy**.
+# No Fully Qualified Names (FQN)
 
-## Example
+Never use fully qualified type names inline. Always add an `import` at the top of the file and use the short name instead.
 
 ```kotlin
-// BAD: assumes unknown implementation is UP
-private fun ServiceInstance.isUp(): Boolean {
-    if (this is EurekaServiceInstance) {
-        return instanceInfo.status == InstanceInfo.InstanceStatus.UP
-    }
-    return true
-}
+// wrong
+private fun org.springframework.cloud.client.ServiceInstance.isUp(): Boolean { ... }
 
-// GOOD: treats unknown implementation as DOWN
-private fun ServiceInstance.isUp(): Boolean {
-    if (this is EurekaServiceInstance) {
-        return instanceInfo.status == InstanceInfo.InstanceStatus.UP
-    }
-    return false
-}
+// correct
+import org.springframework.cloud.client.ServiceInstance
+
+private fun ServiceInstance.isUp(): Boolean { ... }
 ```
-
-## Rationale
-
-- A false positive (incorrect DOWN alert) can be investigated and dismissed.
-- A false negative (incorrect UP report) silently hides a real failure.
-- Only trust explicitly known implementations; treat everything else conservatively.
