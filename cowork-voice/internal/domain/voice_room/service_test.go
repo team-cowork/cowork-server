@@ -185,7 +185,7 @@ func TestGetSession_종료_시각이_있으면_RFC3339로_반환한다(t *testin
 	}
 }
 
-func TestLeave_DB의_퇴장표시는_webhook에_위임한다(t *testing.T) {
+func TestLeave_퇴장시_DB에_직접_표시한다(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubRepository{
@@ -197,17 +197,40 @@ func TestLeave_DB의_퇴장표시는_webhook에_위임한다(t *testing.T) {
 			StartedAt: time.Unix(1700000000, 0).UTC(),
 		},
 	}
-	livekit := &stubLiveKitRoom{
-		participants: []LiveKitParticipant{{Identity: "84", JoinedAt: 1700000300}},
-	}
-	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	if err := svc.Leave(context.Background(), 123, 42); err != nil {
 		t.Fatalf("Leave() error = %v", err)
 	}
 
-	if repo.markParticipantLeftCalls != 0 {
-		t.Fatalf("MarkParticipantLeft() calls = %d, want 0", repo.markParticipantLeftCalls)
+	if repo.markParticipantLeftCalls != 1 {
+		t.Fatalf("MarkParticipantLeft() calls = %d, want 1", repo.markParticipantLeftCalls)
+	}
+}
+
+func TestJoin_LiveKit방_생성_실패시_생성된_세션을_정리한다(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubRepository{
+		createSessionResult: &VoiceSession{
+			SessionID: "session-1",
+			ChannelID: 123,
+			TeamID:    456,
+			RoomName:  "voice-123-session-1",
+			Status:    StatusActive,
+			StartedAt: time.Unix(1700000000, 0).UTC(),
+		},
+	}
+	lk := &stubLiveKitRoom{createErr: errors.New("livekit unavailable")}
+	svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, lk, "wss://livekit.example")
+
+	_, err := svc.Join(context.Background(), 123, 42)
+	if err == nil {
+		t.Fatal("Join() error = nil, want error")
+	}
+
+	if repo.endSessionCalls != 1 {
+		t.Fatalf("EndSession() calls = %d, want 1", repo.endSessionCalls)
 	}
 }
 
@@ -276,6 +299,8 @@ type stubRepository struct {
 	insertParticipant        *VoiceParticipant
 	createSessionCalls       int
 	markParticipantLeftCalls int
+	endSessionCalls          int
+	endSessionErr            error
 }
 
 func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*VoiceSession, error) {
@@ -296,7 +321,8 @@ func (s *stubRepository) GetSession(_ context.Context, _ string) (*VoiceSession,
 }
 
 func (s *stubRepository) EndSession(_ context.Context, _ string, _ time.Time) error {
-	return errors.New("unexpected call")
+	s.endSessionCalls++
+	return s.endSessionErr
 }
 
 func (s *stubRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
