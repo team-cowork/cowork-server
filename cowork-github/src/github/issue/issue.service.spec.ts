@@ -23,7 +23,9 @@ describe('IssueService', () => {
   };
 
   beforeEach(async () => {
-    authService = { getInstallationToken: jest.fn().mockResolvedValue('token') };
+    authService = {
+      getInstallationToken: jest.fn().mockResolvedValue('token'),
+    };
     apiClient = { createIssue: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
