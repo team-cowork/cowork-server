@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from '@nestjs/axios';
 import { AxiosError } from 'axios';
+import type { AxiosResponse } from 'axios';
 import { of, throwError } from 'rxjs';
 import { GithubApiClient } from './github-api.client';
 import { GithubClientError } from '../github.errors';
@@ -32,7 +33,12 @@ describe('GithubApiClient', () => {
 
   it('이슈 생성 성공 시 number와 html_url을 반환한다', async () => {
     httpService.post.mockReturnValue(
-      of({ data: { number: 42, html_url: 'https://github.com/my-org/my-repo/issues/42' } }),
+      of({
+        data: {
+          number: 42,
+          html_url: 'https://github.com/my-org/my-repo/issues/42',
+        },
+      }),
     );
 
     const result = await client.createIssue('my-token', dto);
@@ -45,17 +51,24 @@ describe('GithubApiClient', () => {
       'https://api.github.com/repos/my-org/my-repo/issues',
       expect.objectContaining({ title: dto.title, body: dto.body }),
       expect.objectContaining({
-        headers: expect.objectContaining({ Authorization: 'Bearer my-token' }),
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
       }),
     );
   });
 
   it('4xx 응답은 GithubClientError로 변환하고 statusCode를 포함한다', async () => {
     const axiosError = new AxiosError('Not Found');
-    axiosError.response = { data: { message: 'Not Found' }, status: 404 } as any;
+    axiosError.response = {
+      data: { message: 'Not Found' },
+      status: 404,
+    } as unknown as AxiosResponse;
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
-    const error = await client.createIssue('my-token', dto).catch((e) => e);
+    const error = await client
+      .createIssue('my-token', dto)
+      .catch((e: unknown) => e as GithubClientError);
 
     expect(error).toBeInstanceOf(GithubClientError);
     expect(error.statusCode).toBe(404);
@@ -67,10 +80,12 @@ describe('GithubApiClient', () => {
     axiosError.response = {
       data: { message: 'Validation Failed' },
       status: 422,
-    } as any;
+    } as unknown as AxiosResponse;
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
-    const error = await client.createIssue('my-token', dto).catch((e) => e);
+    const error = await client
+      .createIssue('my-token', dto)
+      .catch((e: unknown) => e as GithubClientError);
 
     expect(error).toBeInstanceOf(GithubClientError);
     expect(error.statusCode).toBe(422);
@@ -78,10 +93,12 @@ describe('GithubApiClient', () => {
 
   it('5xx 응답은 GithubClientError로 변환하지 않고 원본 에러를 던진다', async () => {
     const axiosError = new AxiosError('Internal Server Error');
-    axiosError.response = { data: {}, status: 500 } as any;
+    axiosError.response = { data: {}, status: 500 } as unknown as AxiosResponse;
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
-    const error = await client.createIssue('my-token', dto).catch((e) => e);
+    const error = await client
+      .createIssue('my-token', dto)
+      .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);
     expect(error).not.toBeInstanceOf(GithubClientError);
@@ -91,7 +108,9 @@ describe('GithubApiClient', () => {
     const networkError = new AxiosError('Network Error');
     httpService.post.mockReturnValue(throwError(() => networkError));
 
-    const error = await client.createIssue('my-token', dto).catch((e) => e);
+    const error = await client
+      .createIssue('my-token', dto)
+      .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);
     expect(error).not.toBeInstanceOf(GithubClientError);
