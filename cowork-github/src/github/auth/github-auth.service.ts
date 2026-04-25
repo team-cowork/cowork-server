@@ -134,7 +134,8 @@ export class GithubAuthService {
       if (
         error instanceof AxiosError &&
         error.response &&
-        error.response.status < 500
+        error.response.status < 500 &&
+        error.response.status !== 429
       ) {
         throw new GithubClientError(
           (error.response.data as { message?: string })?.message ??

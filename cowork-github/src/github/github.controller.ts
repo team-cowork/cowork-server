@@ -23,14 +23,11 @@ export class GithubController {
     @Payload() data: unknown,
     @Ctx() context: KafkaContext,
   ): Promise<void> {
-    const shouldCommit = await this.processMessage(data, context);
+    const shouldCommit = await this.processMessage(data);
     if (shouldCommit) await this.commitOffset(context);
   }
 
-  private async processMessage(
-    data: unknown,
-    context: KafkaContext,
-  ): Promise<boolean> {
+  private async processMessage(data: unknown): Promise<boolean> {
     if (data === null || typeof data !== 'object') {
       this.logger.error('Invalid payload type, skipping message');
       return true;
@@ -67,7 +64,6 @@ export class GithubController {
         message: (error as Error).message,
       });
 
-      this.pausePartition(context);
       this.exitProcess(1);
       throw error;
     }
@@ -82,13 +78,5 @@ export class GithubController {
         offset: (Number(message.offset) + 1).toString(),
       },
     ]);
-  }
-
-  private pausePartition(context: KafkaContext): void {
-    const consumer = context.getConsumer();
-    const topic = context.getTopic();
-    const partition = context.getPartition();
-
-    consumer.pause([{ topic, partitions: [partition] }]);
   }
 }
