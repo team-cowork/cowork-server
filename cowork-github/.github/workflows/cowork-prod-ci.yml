@@ -1,0 +1,132 @@
+name: cowork prod CI Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Validate PR Title
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const allowedScopes = ['global', 'app', 'docs', 'ci/cd'];
+
+            const versionPattern = /^v\d{8}\.\d+$/;
+            if (versionPattern.test(title)) {
+              return;
+            }
+
+            const titlePattern = /^\[([^\]]+)\]\s+(.+)$/;
+            const match = title.match(titlePattern);
+            if (!match) {
+              core.setFailed('Invalid title format. Use [scope] title or vYYYYMMDD.n format');
+              return;
+            }
+
+            const scopes = match[1].split(',').map((scope) => scope.trim());
+            const titlePart = match[2];
+
+            if (titlePart.includes(':')) {
+              core.setFailed('Colon (:) is not allowed in the title');
+              return;
+            }
+
+            const invalidScopes = scopes.filter((scope) => !allowedScopes.includes(scope));
+            if (invalidScopes.length > 0) {
+              core.setFailed(`Invalid scope(s): ${invalidScopes.join(', ')}`);
+            }
+
+  setup-pr-metadata:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Setup PR Metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_AUTHOR="${{ github.event.pull_request.user.login }}"
+          gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-label "waiting for review:검토 대기"
+          gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-assignee "$PR_AUTHOR"
+          gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "team-cowork/cowork-server"
+
+  build-and-test:
+    runs-on: ubuntu-latest
+    needs: [validate-title]
+    if: always() && (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped')
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit Test
+        run: npm test -- --runInBand
+
+      - name: E2E Test
+        run: npm run test:e2e
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [validate-title, setup-pr-metadata, build-and-test]
+    if: always()
+
+    steps:
+      - name: Determine Status
+        id: status
+        run: |
+          if [[ "${{ needs.validate-title.result }}" == "failure" ]] || \
+             [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
+            echo "status=failure" >> "$GITHUB_OUTPUT"
+            echo "color=0xFF4C4C" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ needs.build-and-test.result }}" == "success" ]]; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+            echo "color=0x4CAF50" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=cancelled" >> "$GITHUB_OUTPUT"
+            echo "color=0xFFA500" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Send Discord Notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          status: ${{ steps.status.outputs.status }}
+          color: ${{ steps.status.outputs.color }}
+          title: "Cowork GitHub Prod CI"
