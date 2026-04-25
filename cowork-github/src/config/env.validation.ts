@@ -16,5 +16,9 @@ export const envValidationSchema = Joi.object({
     .integer()
     .positive()
     .default(86400),
+  GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE: Joi.number()
+    .integer()
+    .min(1)
+    .default(1000),
   GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
 });
