@@ -26,6 +26,7 @@ describe('GithubController', () => {
     }).compile();
 
     controller = module.get<GithubController>(GithubController);
+    (controller as { exitProcess: jest.Mock }).exitProcess = jest.fn();
   });
 
   const validPayload = { owner: 'my-org', repo: 'my-repo', title: 'Bug fix' };
@@ -48,6 +49,13 @@ describe('GithubController', () => {
     expect(commitOffsets).toHaveBeenCalledTimes(1);
   });
 
+  it('payload가 객체가 아니면 서비스 호출 없이 오프셋을 커밋한다', async () => {
+    await controller.handleIssueCreate(null, ctx);
+
+    expect(issueService.createIssue).not.toHaveBeenCalled();
+    expect(commitOffsets).toHaveBeenCalledTimes(1);
+  });
+
   it('GithubClientError 발생 시 오프셋을 커밋한다 (4xx 스킵)', async () => {
     issueService.createIssue.mockRejectedValue(
       new GithubClientError('Repo not found', 404),
@@ -58,11 +66,16 @@ describe('GithubController', () => {
     expect(commitOffsets).toHaveBeenCalledTimes(1);
   });
 
-  it('서버 에러 발생 시 오프셋을 커밋하지 않는다 (Kafka 재처리 유도)', async () => {
+  it('서버 에러 발생 시 프로세스를 종료한다', async () => {
     issueService.createIssue.mockRejectedValue(new Error('GitHub 503'));
 
-    await controller.handleIssueCreate(validPayload, ctx);
+    await expect(
+      controller.handleIssueCreate(validPayload, ctx),
+    ).rejects.toThrow('GitHub 503');
 
     expect(commitOffsets).not.toHaveBeenCalled();
+    expect(
+      (controller as { exitProcess: jest.Mock }).exitProcess,
+    ).toHaveBeenCalledWith(1);
   });
 });

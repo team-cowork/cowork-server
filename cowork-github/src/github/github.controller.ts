@@ -14,6 +14,7 @@ import { GithubClientError } from './github.errors';
 @Controller()
 export class GithubController {
   private readonly logger = new Logger(GithubController.name);
+  private readonly exitProcess = (code: number): never => process.exit(code);
 
   constructor(private readonly issueService: IssueService) {}
 
@@ -27,6 +28,11 @@ export class GithubController {
   }
 
   private async processMessage(data: unknown): Promise<boolean> {
+    if (data === null || typeof data !== 'object') {
+      this.logger.error('Invalid payload type, skipping message');
+      return true;
+    }
+
     const dto = plainToInstance(CreateIssueDto, data);
     const errors = await validate(dto, { whitelist: true });
 
@@ -51,13 +57,15 @@ export class GithubController {
         });
         return true;
       }
-      this.logger.error('GitHub server error, offset not committed', {
+      this.logger.error('GitHub server error, consumer will stop for retry', {
         owner: dto.owner,
         repo: dto.repo,
         title: dto.title,
         message: (error as Error).message,
       });
-      return false;
+
+      this.exitProcess(1);
+      throw error;
     }
   }
 
