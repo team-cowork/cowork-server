@@ -14,6 +14,7 @@ import { GithubClientError } from './github.errors';
 @Controller()
 export class GithubController {
   private readonly logger = new Logger(GithubController.name);
+  private readonly exitProcess = (code: number): never => process.exit(code);
 
   constructor(private readonly issueService: IssueService) {}
 
@@ -22,11 +23,19 @@ export class GithubController {
     @Payload() data: unknown,
     @Ctx() context: KafkaContext,
   ): Promise<void> {
-    const shouldCommit = await this.processMessage(data);
+    const shouldCommit = await this.processMessage(data, context);
     if (shouldCommit) await this.commitOffset(context);
   }
 
-  private async processMessage(data: unknown): Promise<boolean> {
+  private async processMessage(
+    data: unknown,
+    context: KafkaContext,
+  ): Promise<boolean> {
+    if (data === null || typeof data !== 'object') {
+      this.logger.error('Invalid payload type, skipping message');
+      return true;
+    }
+
     const dto = plainToInstance(CreateIssueDto, data);
     const errors = await validate(dto, { whitelist: true });
 
@@ -51,13 +60,16 @@ export class GithubController {
         });
         return true;
       }
-      this.logger.error('GitHub server error, offset not committed', {
+      this.logger.error('GitHub server error, consumer will stop for retry', {
         owner: dto.owner,
         repo: dto.repo,
         title: dto.title,
         message: (error as Error).message,
       });
-      return false;
+
+      this.pausePartition(context);
+      this.exitProcess(1);
+      throw error;
     }
   }
 
@@ -70,5 +82,13 @@ export class GithubController {
         offset: (Number(message.offset) + 1).toString(),
       },
     ]);
+  }
+
+  private pausePartition(context: KafkaContext): void {
+    const consumer = context.getConsumer();
+    const topic = context.getTopic();
+    const partition = context.getPartition();
+
+    consumer.pause([{ topic, partitions: [partition] }]);
   }
 }
