@@ -11,6 +11,8 @@ cowork:
         url: /v3/api-docs/user
       - name: team
         url: /v3/api-docs/team
+      - name: channel
+        url: /v3/api-docs/channel
       - name: voice
         url: /v3/api-docs/voice
       - name: chat
@@ -39,6 +41,19 @@ spring:
             maxAge: 3600
 
       routes:
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**, /api/teams/*/channels/**, /api/teams/*/channels
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
@@ -91,13 +106,6 @@ spring:
           uri: lb://cowork-project
           predicates:
             - Path=/api/projects/**
-          filters:
-            - StripPrefix=1
-
-        - id: channel-service
-          uri: lb://cowork-channel
-          predicates:
-            - Path=/api/channels/**
           filters:
             - StripPrefix=1
 
@@ -168,6 +176,13 @@ spring:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: channel-service-docs
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/v3/api-docs/channel
+          filters:
+            - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
         - id: notification-service-docs
           uri: lb://cowork-notification
