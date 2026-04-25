@@ -2,7 +2,7 @@ import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
   PORT: Joi.number().port().default(3000),
-  KAFKA_BROKERS: Joi.string().trim().optional(),
+  KAFKA_BROKERS: Joi.string().trim().required(),
   KAFKA_GROUP_ID: Joi.string().trim().default('cowork-github-group'),
   GITHUB_APP_ID: Joi.string().trim().required(),
   GITHUB_PRIVATE_KEY: Joi.string().trim().required(),
