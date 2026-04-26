@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strconv"
 	"time"
@@ -32,49 +33,54 @@ func NewWebhookService(repo SessionRepository, kafka EventPublisher) *WebhookSer
 	}
 }
 
-func (s *WebhookService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) {
+func (s *WebhookService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
 	now := s.now()
 	nowStr := now.Format(time.RFC3339)
 
 	switch WebhookEventType(event.GetEvent()) {
 	case EventParticipantJoined:
-		s.handleParticipantJoined(ctx, event, now, nowStr)
+		return s.handleParticipantJoined(ctx, event, now, nowStr)
 	case EventParticipantLeft:
-		s.handleParticipantLeft(ctx, event, now, nowStr)
+		return s.handleParticipantLeft(ctx, event, now, nowStr)
 	case EventRoomFinished:
-		s.handleRoomFinished(ctx, event, now, nowStr)
+		return s.handleRoomFinished(ctx, event, now, nowStr)
 	}
+	return nil
 }
 
-func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) {
+func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
-		return
+		return nil
 	}
 	room := event.GetRoom()
 	if room == nil {
-		return
+		return nil
 	}
 
 	userID, err := strconv.ParseInt(participant.Identity, 10, 64)
 	if err != nil {
-		return
+		return nil
 	}
 	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
-		return
+		return nil
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
+	if err != nil {
+		slog.Error("participant_joined: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
 		slog.Warn("participant_joined: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
-		return
+		return nil
 	}
 
 	firstStart, err := s.repo.MarkSessionStarted(ctx, voiceSession.SessionID, now)
 	if err != nil {
 		slog.Error("failed to mark session started", "err", err, "session_id", voiceSession.SessionID)
-		return
+		return err
 	}
 	if firstStart {
 		if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionStartedEvent{
@@ -99,31 +105,36 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	}); err != nil {
 		slog.Error("failed to publish USER_JOINED", "err", err)
 	}
+	return nil
 }
 
-func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) {
+func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
-		return
+		return nil
 	}
 	room := event.GetRoom()
 	if room == nil {
-		return
+		return nil
 	}
 
 	userID, err := strconv.ParseInt(participant.Identity, 10, 64)
 	if err != nil {
-		return
+		return nil
 	}
 	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
-		return
+		return nil
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
+	if err != nil {
+		slog.Error("participant_left: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
 		slog.Warn("participant_left: voice session not found", "room_name", room.Name, "channel_id", parsedRoom.ChannelID)
-		return
+		return nil
 	}
 
 	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID)
@@ -134,10 +145,10 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	firstLeave, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, now)
 	if err != nil {
 		slog.Error("failed to mark participant left", "err", err)
-		return
+		return err
 	}
 	if !firstLeave {
-		return
+		return nil
 	}
 
 	var durationSeconds int64
@@ -156,27 +167,32 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	}); err != nil {
 		slog.Error("failed to publish USER_LEFT", "err", err)
 	}
+	return nil
 }
 
-func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) {
+func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	room := event.GetRoom()
 	if room == nil {
-		return
+		return nil
 	}
 
 	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
 	if !ok {
-		return
+		return nil
 	}
 
 	voiceSession, err := s.findSession(ctx, room.Name)
-	if err != nil || voiceSession == nil {
-		return
+	if err != nil {
+		slog.Error("room_finished: failed to find session", "err", err, "room_name", room.Name)
+		return errors.New("internal server error")
+	}
+	if voiceSession == nil {
+		return nil
 	}
 
 	if err := s.repo.EndSession(ctx, voiceSession.SessionID, now); err != nil {
 		slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
-		return
+		return err
 	}
 
 	count, err := s.repo.CleanupOrphanParticipants(ctx, voiceSession.SessionID, now)
@@ -198,6 +214,7 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	}); err != nil {
 		slog.Error("failed to publish SESSION_ENDED", "err", err)
 	}
+	return nil
 }
 
 func (s *WebhookService) findSession(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error) {
