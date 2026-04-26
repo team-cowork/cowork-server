@@ -183,6 +183,10 @@ export class LabelService {
   }
 
   private createCustomLabel(name: string): CreateLabelPayload {
-    return { name, color: 'ededed', description: '사용자 요청으로 생성된 라벨' };
+    return {
+      name,
+      color: 'ededed',
+      description: '사용자 요청으로 생성된 라벨',
+    };
   }
 }
