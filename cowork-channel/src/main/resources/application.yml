@@ -28,6 +28,9 @@ eureka:
       defaultZone: http://localhost:8761/eureka/
   instance:
     prefer-ip-address: true
+    metadata-map:
+      prometheus.scrape: "true"
+      prometheus.path: /actuator/prometheus
 
 springdoc:
   api-docs:
