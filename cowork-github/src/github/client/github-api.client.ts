@@ -74,7 +74,8 @@ export class GithubApiClient {
     dto: CreateIssueDto,
   ): Promise<SearchedIssue[]> {
     try {
-      const query = `repo:${dto.owner}/${dto.repo} is:issue is:open in:title "${dto.title}"`;
+      const escapedTitle = dto.title.replace(/"/g, '\\"');
+      const query = `repo:${dto.owner}/${dto.repo} is:issue is:open in:title "${escapedTitle}"`;
       const { data } = await firstValueFrom(
         this.httpService.get<{ items: SearchedIssue[] }>(
           `${GITHUB_API}/search/issues`,
