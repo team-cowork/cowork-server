@@ -154,12 +154,18 @@ export class IssueService {
           label: label.name,
         });
       } catch (error) {
-        if (error instanceof GithubClientError && error.statusCode === 422) {
-          this.logger.log('Repository label already exists', {
-            owner: dto.owner,
-            repo: dto.repo,
-            label: label.name,
-          });
+        if (
+          error instanceof GithubClientError &&
+          (error.statusCode === 422 || error.statusCode === 403)
+        ) {
+          this.logger.log(
+            `Repository label creation skipped (status: ${error.statusCode})`,
+            {
+              owner: dto.owner,
+              repo: dto.repo,
+              label: label.name,
+            },
+          );
           continue;
         }
         throw error;
