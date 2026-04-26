@@ -42,30 +42,12 @@ export class GithubApiClient {
             labels: dto.labels,
             assignees: dto.assignees,
           },
-          {
-            headers: {
-              ...GITHUB_HEADERS,
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          { headers: this.authHeaders(token) },
         ),
       );
-
       return { number: data.number, html_url: data.html_url };
     } catch (error) {
-      if (
-        error instanceof AxiosError &&
-        error.response &&
-        error.response.status < 500
-      ) {
-        throw new GithubClientError(
-          (error.response.data as { message?: string })?.message ??
-            error.message,
-          error.response.status,
-        );
-      }
-
-      throw error;
+      this.handleGithubError(error);
     }
   }
 
@@ -81,14 +63,10 @@ export class GithubApiClient {
           `${GITHUB_API}/search/issues`,
           {
             params: { q: query },
-            headers: {
-              ...GITHUB_HEADERS,
-              Authorization: `Bearer ${token}`,
-            },
+            headers: this.authHeaders(token),
           },
         ),
       );
-
       return data.items.map((item) => ({
         number: item.number,
         html_url: item.html_url,
@@ -110,12 +88,7 @@ export class GithubApiClient {
         this.httpService.post(
           `${GITHUB_API}/repos/${dto.owner}/${dto.repo}/issues/${issueNumber}/labels`,
           { labels },
-          {
-            headers: {
-              ...GITHUB_HEADERS,
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          { headers: this.authHeaders(token) },
         ),
       );
     } catch (error) {
@@ -128,15 +101,9 @@ export class GithubApiClient {
       const { data } = await firstValueFrom(
         this.httpService.get<GithubLabel[]>(
           `${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
-          {
-            headers: {
-              ...GITHUB_HEADERS,
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          { headers: this.authHeaders(token) },
         ),
       );
-
       return data.map((label) => label.name);
     } catch (error) {
       this.handleGithubError(error);
@@ -153,12 +120,7 @@ export class GithubApiClient {
         this.httpService.post(
           `${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
           label,
-          {
-            headers: {
-              ...GITHUB_HEADERS,
-              Authorization: `Bearer ${token}`,
-            },
-          },
+          { headers: this.authHeaders(token) },
         ),
       );
     } catch (error) {
@@ -166,18 +128,22 @@ export class GithubApiClient {
     }
   }
 
+  private authHeaders(token: string) {
+    return { ...GITHUB_HEADERS, Authorization: `Bearer ${token}` };
+  }
+
   private handleGithubError(error: unknown): never {
     if (
       error instanceof AxiosError &&
       error.response &&
-      error.response.status < 500
+      error.response.status < 500 &&
+      error.response.status !== 429
     ) {
       throw new GithubClientError(
         (error.response.data as { message?: string })?.message ?? error.message,
         error.response.status,
       );
     }
-
     throw error;
   }
 }
