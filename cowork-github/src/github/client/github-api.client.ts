@@ -101,7 +101,7 @@ export class GithubApiClient {
       const { data } = await firstValueFrom(
         this.httpService.get<GithubLabel[]>(
           `${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
-          { headers: this.authHeaders(token) },
+          { params: { per_page: 100 }, headers: this.authHeaders(token) },
         ),
       );
       return data.map((label) => label.name);
