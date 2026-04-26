@@ -6,6 +6,7 @@ import { GithubAuthService } from './auth/github-auth.service';
 import { GithubApiClient } from './client/github-api.client';
 import { REDIS_CLIENT } from './constants';
 import { IssueService } from './issue/issue.service';
+import { LabelService } from './issue/label.service';
 import { GithubController } from './github.controller';
 
 @Module({
@@ -24,6 +25,7 @@ import { GithubController } from './github.controller';
     },
     GithubAuthService,
     GithubApiClient,
+    LabelService,
     IssueService,
   ],
   controllers: [GithubController],

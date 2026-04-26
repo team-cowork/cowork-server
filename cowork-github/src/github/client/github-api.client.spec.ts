@@ -9,7 +9,7 @@ import { CreateIssueDto } from '../dto/create-issue.dto';
 
 describe('GithubApiClient', () => {
   let client: GithubApiClient;
-  let httpService: { post: jest.Mock };
+  let httpService: { get: jest.Mock; post: jest.Mock };
 
   const dto: CreateIssueDto = {
     owner: 'my-org',
@@ -19,7 +19,7 @@ describe('GithubApiClient', () => {
   };
 
   beforeEach(async () => {
-    httpService = { post: jest.fn() };
+    httpService = { get: jest.fn(), post: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -110,6 +110,132 @@ describe('GithubApiClient', () => {
 
     const error = await client
       .createIssue('my-token', dto)
+      .catch((e: unknown) => e as AxiosError);
+
+    expect(error).toBeInstanceOf(AxiosError);
+    expect(error).not.toBeInstanceOf(GithubClientError);
+  });
+
+  it('open issue를 제목 기준으로 검색한다', async () => {
+    httpService.get.mockReturnValue(
+      of({
+        data: {
+          items: [
+            {
+              number: 7,
+              html_url: 'https://github.com/my-org/my-repo/issues/7',
+              title: 'Bug fix',
+            },
+          ],
+        },
+      }),
+    );
+
+    const result = await client.searchOpenIssuesByTitle('my-token', dto);
+
+    expect(result).toEqual([
+      {
+        number: 7,
+        html_url: 'https://github.com/my-org/my-repo/issues/7',
+        title: 'Bug fix',
+      },
+    ]);
+    expect(httpService.get).toHaveBeenCalledWith(
+      'https://api.github.com/search/issues',
+      expect.objectContaining({
+        params: {
+          q: 'repo:my-org/my-repo is:issue is:open in:title "Bug fix"',
+        },
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('기존 이슈에 라벨을 추가한다', async () => {
+    httpService.post.mockReturnValue(of({ data: {} }));
+
+    await client.addLabelsToIssue('my-token', dto, 7, ['bug']);
+
+    expect(httpService.post).toHaveBeenCalledWith(
+      'https://api.github.com/repos/my-org/my-repo/issues/7/labels',
+      { labels: ['bug'] },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('repo 라벨 목록을 조회한다', async () => {
+    httpService.get.mockReturnValue(
+      of({
+        data: [{ name: 'bug' }, { name: 'enhancement:개선작업' }],
+      }),
+    );
+
+    const result = await client.listLabels('my-token', dto);
+
+    expect(result).toEqual(['bug', 'enhancement:개선작업']);
+    expect(httpService.get).toHaveBeenCalledWith(
+      'https://api.github.com/repos/my-org/my-repo/labels',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('repo에 라벨을 생성한다', async () => {
+    httpService.post.mockReturnValue(of({ data: {} }));
+
+    await client.createLabel('my-token', dto, {
+      name: 'bug:버그',
+      color: 'd73a4a',
+      description: '버그 또는 오작동',
+    });
+
+    expect(httpService.post).toHaveBeenCalledWith(
+      'https://api.github.com/repos/my-org/my-repo/labels',
+      {
+        name: 'bug:버그',
+        color: 'd73a4a',
+        description: '버그 또는 오작동',
+      },
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('검색 API의 4xx 응답은 GithubClientError로 변환한다', async () => {
+    const axiosError = new AxiosError('Validation Failed');
+    axiosError.response = {
+      data: { message: 'Validation Failed' },
+      status: 422,
+    } as unknown as AxiosResponse;
+    httpService.get.mockReturnValue(throwError(() => axiosError));
+
+    const error = await client
+      .searchOpenIssuesByTitle('my-token', dto)
+      .catch((e: unknown) => e as GithubClientError);
+
+    expect(error).toBeInstanceOf(GithubClientError);
+    expect(error.statusCode).toBe(422);
+  });
+
+  it('라벨 추가 API의 5xx 응답은 원본 에러를 던진다', async () => {
+    const axiosError = new AxiosError('Internal Server Error');
+    axiosError.response = { data: {}, status: 500 } as unknown as AxiosResponse;
+    httpService.post.mockReturnValue(throwError(() => axiosError));
+
+    const error = await client
+      .addLabelsToIssue('my-token', dto, 7, ['bug'])
       .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);

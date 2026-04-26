@@ -4,6 +4,7 @@ import { GithubApiClient } from '../client/github-api.client';
 import { GithubAuthService } from '../auth/github-auth.service';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
+import { LabelService } from './label.service';
 
 @Injectable()
 export class IssueService {
@@ -13,6 +14,7 @@ export class IssueService {
     private readonly config: AppConfigService,
     private readonly authService: GithubAuthService,
     private readonly apiClient: GithubApiClient,
+    private readonly labelService: LabelService,
   ) {}
 
   async createIssue(dto: CreateIssueDto): Promise<void> {
@@ -21,8 +23,55 @@ export class IssueService {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const token = await this.authService.getInstallationToken(dto.owner);
-        const result = await this.apiClient.createIssue(token, dto);
-        this.logger.log(`Issue created: ${result.html_url}`);
+        const repoLabels = await this.labelService.ensureUsableLabels(
+          token,
+          dto,
+        );
+        const labels = this.labelService.resolveLabels(dto, repoLabels);
+
+        const existingIssues = await this.apiClient.searchOpenIssuesByTitle(
+          token,
+          dto,
+        );
+        const existingIssue = existingIssues.find(
+          (issue) => issue.title === dto.title,
+        );
+
+        if (existingIssue) {
+          if (labels.length > 0) {
+            await this.apiClient.addLabelsToIssue(
+              token,
+              dto,
+              existingIssue.number,
+              labels,
+            );
+            this.logger.log('Labels added to existing issue', {
+              owner: dto.owner,
+              repo: dto.repo,
+              issueNumber: existingIssue.number,
+              labels,
+            });
+          }
+          this.logger.log('Existing issue found', {
+            owner: dto.owner,
+            repo: dto.repo,
+            issueNumber: existingIssue.number,
+            issueUrl: existingIssue.html_url,
+          });
+          return;
+        }
+
+        const result = await this.apiClient.createIssue(token, {
+          ...dto,
+          labels: labels.length > 0 ? labels : undefined,
+        });
+        this.logger.log('Issue created', {
+          owner: dto.owner,
+          repo: dto.repo,
+          issueNumber: result.number,
+          issueUrl: result.html_url,
+          labels,
+        });
         return;
       } catch (error) {
         if (error instanceof GithubClientError) throw error;
