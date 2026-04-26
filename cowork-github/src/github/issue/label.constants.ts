@@ -1,7 +1,11 @@
 import type { CreateLabelPayload } from '../client/github-api.client';
 
 export const COWORK_DEFAULT_LABELS: CreateLabelPayload[] = [
-  { name: 'blocked:차단됨', color: 'b60205', description: '진행이 차단된 이슈' },
+  {
+    name: 'blocked:차단됨',
+    color: 'b60205',
+    description: '진행이 차단된 이슈',
+  },
   { name: 'bug:버그', color: 'd73a4a', description: '버그 또는 오작동' },
   {
     name: 'documentation:문서화',
@@ -24,7 +28,11 @@ export const COWORK_DEFAULT_LABELS: CreateLabelPayload[] = [
     color: '008672',
     description: '도움이나 추가 논의가 필요한 이슈',
   },
-  { name: 'invalid:무효한', color: 'e4e669', description: '유효하지 않은 이슈' },
+  {
+    name: 'invalid:무효한',
+    color: 'e4e669',
+    description: '유효하지 않은 이슈',
+  },
   { name: 'release:릴리즈', color: '5319e7', description: '릴리즈 관련 작업' },
   {
     name: 'waiting for review:검토 대기',

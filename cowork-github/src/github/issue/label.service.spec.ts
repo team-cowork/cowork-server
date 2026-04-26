@@ -153,10 +153,9 @@ describe('LabelService', () => {
     });
 
     it('repo 라벨명이 prefix 형태면 해당 라벨명으로 매칭한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, title: '기능 개선' },
-        ['enhancement:개선작업'],
-      );
+      const result = service.resolveLabels({ ...dto, title: '기능 개선' }, [
+        'enhancement:개선작업',
+      ]);
       expect(result).toEqual(['enhancement:개선작업']);
     });
 
