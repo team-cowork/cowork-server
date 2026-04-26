@@ -33,7 +33,9 @@ export class IssueService {
           token,
           dto,
         );
-        const existingIssue = existingIssues[0];
+        const existingIssue = existingIssues.find(
+          (issue) => issue.title === dto.title,
+        );
 
         if (existingIssue) {
           if (labels.length > 0) {
