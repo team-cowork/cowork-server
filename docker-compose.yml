@@ -223,6 +223,7 @@ services:
     volumes:
       - ./cowork-monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./cowork-monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - ./cowork-monitoring/prometheus/sd:/etc/prometheus/sd:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
