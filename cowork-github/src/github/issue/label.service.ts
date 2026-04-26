@@ -30,19 +30,28 @@ export class LabelService {
     const requestedLabels = dto.labels ?? [];
 
     if (repoLabels.length === 0) {
-      await this.createMissingLabels(token, dto, COWORK_DEFAULT_LABELS, []);
-      const defaultLabelNames = COWORK_DEFAULT_LABELS.map((l) => l.name);
-      await this.createRequestedLabels(
+      const createdDefaults = await this.createMissingLabels(
+        token,
+        dto,
+        COWORK_DEFAULT_LABELS,
+        [],
+      );
+      const handledRequested = await this.createRequestedLabels(
         token,
         dto,
         requestedLabels,
-        defaultLabelNames,
+        createdDefaults,
       );
-      return this.uniqueLabels([...defaultLabelNames, ...requestedLabels]);
+      return this.uniqueLabels([...createdDefaults, ...handledRequested]);
     }
 
-    await this.createRequestedLabels(token, dto, requestedLabels, repoLabels);
-    return this.uniqueLabels([...repoLabels, ...requestedLabels]);
+    const handledRequested = await this.createRequestedLabels(
+      token,
+      dto,
+      requestedLabels,
+      repoLabels,
+    );
+    return this.uniqueLabels([...repoLabels, ...handledRequested]);
   }
 
   resolveLabels(dto: CreateIssueDto, repoLabels: string[]): string[] {
@@ -71,13 +80,23 @@ export class LabelService {
     dto: CreateIssueDto,
     requestedLabels: string[],
     existingLabels: string[],
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const alreadyExisting = this.uniqueLabels(requestedLabels).filter((label) =>
+      this.hasRepoLabel(existingLabels, label),
+    );
+
     const labelsToCreate = this.uniqueLabels(requestedLabels)
       .filter((label) => label.trim().length > 0)
       .filter((label) => !this.hasRepoLabel(existingLabels, label))
       .map((label) => this.createCustomLabel(label));
 
-    await this.createMissingLabels(token, dto, labelsToCreate, existingLabels);
+    const newlyCreated = await this.createMissingLabels(
+      token,
+      dto,
+      labelsToCreate,
+      existingLabels,
+    );
+    return this.uniqueLabels([...alreadyExisting, ...newlyCreated]);
   }
 
   private async createMissingLabels(
@@ -85,7 +104,8 @@ export class LabelService {
     dto: CreateIssueDto,
     labels: CreateLabelPayload[],
     existingLabels: string[],
-  ): Promise<void> {
+  ): Promise<string[]> {
+    const created: string[] = [];
     for (const label of labels) {
       if (this.hasRepoLabel(existingLabels, label.name)) continue;
 
@@ -96,6 +116,7 @@ export class LabelService {
           repo: dto.repo,
           label: label.name,
         });
+        created.push(label.name);
       } catch (error) {
         if (
           error instanceof GithubClientError &&
@@ -114,6 +135,7 @@ export class LabelService {
         throw error;
       }
     }
+    return created;
   }
 
   private includesAny(text: string, keywords: readonly string[]): boolean {

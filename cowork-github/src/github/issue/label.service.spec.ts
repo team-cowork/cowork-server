@@ -96,6 +96,19 @@ describe('LabelService', () => {
         service.ensureUsableLabels('token', dto),
       ).resolves.not.toThrow();
     });
+
+    it('요청 labels 생성 시 403 에러로 스킵되면 반환 목록에 포함하지 않는다', async () => {
+      apiClient.createLabel.mockRejectedValue(
+        new GithubClientError('forbidden', 403),
+      );
+
+      const result = await service.ensureUsableLabels('token', {
+        ...dto,
+        labels: ['unknown-label'],
+      });
+
+      expect(result).not.toContain('unknown-label');
+    });
   });
 
   describe('resolveLabels', () => {
