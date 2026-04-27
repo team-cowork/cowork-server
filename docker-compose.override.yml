@@ -4,45 +4,49 @@ services:
   cowork-config:
     build:
       context: .
-      dockerfile: cowork-config/Dockerfile
+      dockerfile: cowork-config/local.dockerfile
 
   cowork-gateway:
     build:
       context: .
-      dockerfile: cowork-gateway/Dockerfile
+      dockerfile: cowork-gateway/local.dockerfile
 
   cowork-authorization:
     build:
       context: cowork-authorization
+      dockerfile: local.dockerfile
 
   cowork-preference:
     build:
       context: .
-      dockerfile: cowork-preference/Dockerfile
+      dockerfile: cowork-preference/local.dockerfile
 
   cowork-user:
     build:
       context: .
-      dockerfile: cowork-user/Dockerfile
+      dockerfile: cowork-user/local.dockerfile
 
   cowork-team:
     build:
       context: .
-      dockerfile: cowork-team/Dockerfile
+      dockerfile: cowork-team/local.dockerfile
 
   cowork-channel:
     build:
       context: .
-      dockerfile: cowork-channel/Dockerfile
+      dockerfile: cowork-channel/local.dockerfile
 
   cowork-notification:
     build:
       context: cowork-notification
+      dockerfile: local.dockerfile
 
   cowork-chat:
     build:
       context: cowork-chat
+      dockerfile: local.dockerfile
 
   cowork-voice:
     build:
       context: cowork-voice
+      dockerfile: local.dockerfile
