@@ -55,7 +55,11 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 		rw := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rw, r)
 
-		route := chi.RouteContext(r.Context()).RoutePattern()
+		rctx := chi.RouteContext(r.Context())
+		route := ""
+		if rctx != nil {
+			route = rctx.RoutePattern()
+		}
 		if route == "" {
 			route = "not_found"
 		}
