@@ -29,7 +29,7 @@ jobs:
             const prNumber = context.payload.pull_request.number;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'chat', 'voice',
+              'team', 'project', 'channel', 'chat', 'voice', 'promotion',
               'config', 'notification', 'preference', 'ci/cd'
             ];
 
