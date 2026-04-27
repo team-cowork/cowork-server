@@ -22,3 +22,6 @@ preference:
 
 eureka:
   url: http://localhost:8761/eureka/
+  app-name: cowork-preference
+  instance:
+    host: localhost

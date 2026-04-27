@@ -30,6 +30,7 @@ import (
 	"github.com/cowork/cowork-notification/internal/infra/team"
 	"github.com/cowork/cowork-notification/internal/infra/user"
 	"github.com/cowork/cowork-notification/internal/middleware"
+	"github.com/cowork/cowork-notification/internal/monitoring"
 	"github.com/cowork/cowork-notification/pkg/eureka"
 )
 
@@ -79,6 +80,7 @@ func main() {
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
 	r.Get("/health", health.Handler)
+	r.Get("/metrics", monitoring.Handler)
 	r.Get("/swagger/*", httpswagger.WrapHandler)
 
 	r.Group(func(r chi.Router) {
