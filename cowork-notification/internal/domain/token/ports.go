@@ -16,10 +16,11 @@ type FCMSender interface {
 
 type PreferenceClient interface {
 	IsNotificationEnabled(ctx context.Context, accountID, channelID int64) (bool, error)
+	AreNotificationsEnabled(ctx context.Context, accountIDs []int64, channelID int64) (map[int64]bool, error)
 }
 
 type TokenService interface {
 	RegisterToken(ctx context.Context, accountID int64, token, platform string) error
 	DeleteToken(ctx context.Context, accountID int64, token string) error
-	Notify(ctx context.Context, targetUserIDs []int64, title, body string, channelID int64) error
+	Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) error
 }

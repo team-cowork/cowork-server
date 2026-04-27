@@ -1,33 +1,22 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { SendMessageDto } from '../dto/send-message.dto';
-
-export interface ChatMessageEvent {
-    eventType: string;
-    teamId: number;
-    projectId?: number | null;
-    channelId: number;
-    authorId: number;
-    authorRole: string;
-    content: string;
-    type: string;
-    attachments?: object[];
-    parentMessageId?: string;
-    clientMessageId?: string;
-    occurredAt: string;
-}
+import { ChatMessageEvent } from './event/chat-message.event';
 
 @Injectable()
 export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ChatMessageProducer.name);
-    private readonly kafka = new Kafka({
-        clientId: 'cowork-chat',
-        brokers: [(process.env.KAFKA_BOOTSTRAP_SERVERS ?? 'localhost:9092')],
-    });
     private producer!: Producer;
 
+    constructor(private readonly configService: ConfigService) {}
+
     async onModuleInit() {
-        this.producer = this.kafka.producer();
+        const kafka = new Kafka({
+            clientId: 'cowork-chat',
+            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+        });
+        this.producer = kafka.producer();
         await this.producer.connect();
         this.logger.log('Kafka producer connected');
     }

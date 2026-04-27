@@ -44,6 +44,7 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.GET, "/api/auth/signin", "/api/auth/callback").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/auth/token", "/api/auth/refresh").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
+                    .pathMatchers("/api/health").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
