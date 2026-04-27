@@ -125,6 +125,7 @@ describe('GithubApiClient', () => {
               number: 7,
               html_url: 'https://github.com/my-org/my-repo/issues/7',
               title: 'Bug fix',
+              labels: [{ name: 'bug' }],
             },
           ],
         },
@@ -138,6 +139,7 @@ describe('GithubApiClient', () => {
         number: 7,
         html_url: 'https://github.com/my-org/my-repo/issues/7',
         title: 'Bug fix',
+        labels: [{ name: 'bug' }],
       },
     ]);
     expect(httpService.get).toHaveBeenCalledWith(
