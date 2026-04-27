@@ -27,6 +27,7 @@ out/
 
 ### Gradle ###
 .gradle/
+.gradle-local/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
@@ -69,12 +70,6 @@ SPEC.md
 
 ### Crash Dumps ###
 *.stackdump
-
-### Docs ###
-docs/
-!cowork-authorization/docs/
-!cowork-voice/docs/
-!cowork-notification/docs/
 
 ### Worktrees ###
 .worktrees/
