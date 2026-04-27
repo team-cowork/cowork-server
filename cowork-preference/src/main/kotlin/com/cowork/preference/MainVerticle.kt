@@ -34,6 +34,10 @@ import org.slf4j.LoggerFactory
 
 class MainVerticle : AbstractVerticle() {
 
+    companion object {
+        private const val HEARTBEAT_INTERVAL_MS = 30_000L
+    }
+
     private val log = LoggerFactory.getLogger(MainVerticle::class.java)
     private lateinit var scope: CoroutineScope
     private lateinit var preferenceCache: PreferenceCache
@@ -79,7 +83,7 @@ class MainVerticle : AbstractVerticle() {
                     log.info("cowork-preference listening on port {}", appConfig.serverPort)
                     eurekaRegistration = EurekaRegistration(appConfig)
                     registerWithEureka()
-                    eurekaTimerId = vertx.setPeriodic(30_000L) { registerHeartbeat() }
+                    eurekaTimerId = vertx.setPeriodic(HEARTBEAT_INTERVAL_MS) { registerHeartbeat() }
                     startPromise.complete()
                 } else {
                     startPromise.fail(result.cause())
