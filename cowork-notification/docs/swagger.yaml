@@ -1,13 +1,12 @@
 basePath: /
 definitions:
-  internal_domain_token.registerTokenRequest:
+  token.registerTokenRequest:
     properties:
       platform:
         type: string
       token:
         type: string
     type: object
-host: ""
 info:
   contact: {}
   description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
@@ -27,6 +26,35 @@ paths:
       summary: 헬스 체크
       tags:
       - system
+  /notifications/stream:
+    get:
+      description: 인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive
+        ping을 전송합니다.
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: 'data: {type, title, body, channelId, teamId}'
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "500":
+          description: SSE not supported
+          schema:
+            type: string
+      summary: SSE 알림 스트림 구독
+      tags:
+      - notifications
   /notifications/tokens:
     post:
       consumes:
@@ -44,7 +72,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/internal_domain_token.registerTokenRequest'
+          $ref: '#/definitions/token.registerTokenRequest'
       responses:
         "201":
           description: Created
