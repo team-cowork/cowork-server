@@ -30,23 +30,30 @@ type UserNameResolver interface {
 	GetDisplayName(ctx context.Context, userID int64) (string, error)
 }
 
+// SSEBroadcaster는 SSE Hub의 Broadcast 메서드 인터페이스입니다.
+type SSEBroadcaster interface {
+	Broadcast(userIDs []int64, payload []byte)
+}
+
 type Consumer struct {
 	reader     *segkafka.Reader
 	svc        NotificationService
 	teamClient TeamNameResolver
 	userClient UserNameResolver
+	sseBroadcaster SSEBroadcaster
 }
 
-func NewConsumer(brokers, topic, groupID string, svc NotificationService, teamClient TeamNameResolver, userClient UserNameResolver) *Consumer {
+func NewConsumer(brokers, topic, groupID string, svc NotificationService, teamClient TeamNameResolver, userClient UserNameResolver, sseBroadcaster SSEBroadcaster) *Consumer {
 	return &Consumer{
 		reader: segkafka.NewReader(segkafka.ReaderConfig{
 			Brokers: strings.Split(brokers, ","),
 			Topic:   topic,
 			GroupID: groupID,
 		}),
-		svc:        svc,
-		teamClient: teamClient,
-		userClient: userClient,
+		svc:            svc,
+		teamClient:     teamClient,
+		userClient:     userClient,
+		sseBroadcaster: sseBroadcaster,
 	}
 }
 
@@ -100,6 +107,20 @@ func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) {
 	channelID := extractInt64(event.Data, "channelId")
 	if err := c.svc.Notify(ctx, event.TargetUserIDs, event.ForcedUserIDs, title, body, channelID); err != nil {
 		slog.Error("notification failed", "err", err, "type", event.Type)
+	}
+
+	// 데스크톱 앱(SSE)으로 알림 이벤트 브로드캐스트
+	if c.sseBroadcaster != nil {
+		ssePayload, err := json.Marshal(map[string]any{
+			"type":      event.Type,
+			"title":     title,
+			"body":      body,
+			"channelId": channelID,
+			"teamId":    extractInt64(event.Data, "teamId"),
+		})
+		if err == nil {
+			c.sseBroadcaster.Broadcast(event.TargetUserIDs, ssePayload)
+		}
 	}
 }
 
