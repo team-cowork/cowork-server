@@ -89,7 +89,8 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 		return
 	}
 
-	ticker := time.NewTicker(30 * time.Second)
+	const heartbeatInterval = 30 * time.Second
+	ticker := time.NewTicker(heartbeatInterval)
 	go func() {
 		defer ticker.Stop()
 		for {
