@@ -1,0 +1,48 @@
+# 로컬 개발 전용 오버라이드. docker compose up 시 자동으로 병합된다.
+# 소스에서 직접 빌드하는 build: 설정만 관리한다.
+services:
+  cowork-config:
+    build:
+      context: .
+      dockerfile: cowork-config/Dockerfile
+
+  cowork-gateway:
+    build:
+      context: .
+      dockerfile: cowork-gateway/Dockerfile
+
+  cowork-authorization:
+    build:
+      context: cowork-authorization
+
+  cowork-preference:
+    build:
+      context: .
+      dockerfile: cowork-preference/Dockerfile
+
+  cowork-user:
+    build:
+      context: .
+      dockerfile: cowork-user/Dockerfile
+
+  cowork-team:
+    build:
+      context: .
+      dockerfile: cowork-team/Dockerfile
+
+  cowork-channel:
+    build:
+      context: .
+      dockerfile: cowork-channel/Dockerfile
+
+  cowork-notification:
+    build:
+      context: cowork-notification
+
+  cowork-chat:
+    build:
+      context: cowork-chat
+
+  cowork-voice:
+    build:
+      context: cowork-voice
