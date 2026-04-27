@@ -35,6 +35,48 @@ const docTemplate = `{
                 }
             }
         },
+        "/notifications/stream": {
+            "get": {
+                "description": "인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다.",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "notifications"
+                ],
+                "summary": "SSE 알림 스트림 구독",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "사용자 ID (Gateway 주입)",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "data: {type, title, body, channelId, teamId}",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "인증 실패",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "SSE not supported",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/tokens": {
             "post": {
                 "description": "사용자의 디바이스 FCM 토큰을 등록합니다",
@@ -60,7 +102,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_token.registerTokenRequest"
+                            "$ref": "#/definitions/token.registerTokenRequest"
                         }
                     }
                 ],
@@ -146,7 +188,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_domain_token.registerTokenRequest": {
+        "token.registerTokenRequest": {
             "type": "object",
             "properties": {
                 "platform": {
