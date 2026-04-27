@@ -118,8 +118,10 @@ func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) {
 			"channelId": channelID,
 			"teamId":    extractInt64(event.Data, "teamId"),
 		})
-		if err == nil {
-			c.sseBroadcaster.Broadcast(event.TargetUserIDs, ssePayload)
+		if err != nil {
+			slog.Error("SSE 페이로드 직렬화 실패", "err", err, "type", event.Type)
+		} else {
+			c.sseBroadcaster.Broadcast(mergeUserIDs(event.TargetUserIDs, event.ForcedUserIDs), ssePayload)
 		}
 	}
 }
@@ -177,6 +179,19 @@ func formatTime(iso string) string {
 	}
 	kst := t.In(time.FixedZone("KST", 9*60*60))
 	return kst.Format("2006-01-02 15:04")
+}
+
+// mergeUserIDs는 두 슬라이스를 합치되 중복을 제거합니다.
+func mergeUserIDs(a, b []int64) []int64 {
+	seen := make(map[int64]struct{}, len(a)+len(b))
+	result := make([]int64, 0, len(a)+len(b))
+	for _, id := range append(a, b...) {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			result = append(result, id)
+		}
+	}
+	return result
 }
 
 func extractInt64(data map[string]any, key string) int64 {
