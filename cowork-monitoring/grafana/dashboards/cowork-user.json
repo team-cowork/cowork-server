@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=\"cowork-user\"}",
+          "expr": "up{service=\"user\"}",
           "legendFormat": "user",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }

@@ -40,6 +40,8 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var pool: Pool
     private lateinit var redis: Redis
     private lateinit var producer: KafkaProducer<String, String>
+    private lateinit var eurekaRegistration: EurekaRegistration
+    private var eurekaTimerId: Long? = null
 
     override fun start(startPromise: Promise<Void>) {
         scope = CoroutineScope(SupervisorJob())
@@ -75,11 +77,24 @@ class MainVerticle : AbstractVerticle() {
             .listen(appConfig.serverPort) { result ->
                 if (result.succeeded()) {
                     log.info("cowork-preference listening on port {}", appConfig.serverPort)
+                    eurekaRegistration = EurekaRegistration(appConfig)
+                    registerWithEureka()
+                    eurekaTimerId = vertx.setPeriodic(30_000L) { registerHeartbeat() }
                     startPromise.complete()
                 } else {
                     startPromise.fail(result.cause())
                 }
             }
+    }
+
+    private fun registerWithEureka() {
+        runCatching { eurekaRegistration.register() }
+            .onFailure { log.warn("eureka registration failed", it) }
+    }
+
+    private fun registerHeartbeat() {
+        runCatching { eurekaRegistration.heartbeat() }
+            .onFailure { log.warn("eureka heartbeat failed", it) }
     }
 
     private fun scheduleStatusExpiryCheck(
@@ -151,6 +166,11 @@ class MainVerticle : AbstractVerticle() {
 
     override fun stop(stopPromise: Promise<Void>) {
         scope.cancel()
+        eurekaTimerId?.let { vertx.cancelTimer(it) }
+        if (::eurekaRegistration.isInitialized) {
+            runCatching { eurekaRegistration.deregister() }
+                .onFailure { log.warn("eureka deregister failed", it) }
+        }
         if (::redis.isInitialized) redis.close()
         val futures = mutableListOf<Future<Void>>()
         if (::pool.isInitialized) futures.add(pool.close())
