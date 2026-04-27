@@ -6,13 +6,15 @@ spring:
     name: cowork-config
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+    group:
+      local: native
 
   cloud:
     bus:
       enabled: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
 
 eureka:
   instance:
@@ -30,10 +32,27 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh, monitor
+        include: health, info, refresh, busrefresh, monitor, prometheus
   endpoint:
     health:
       show-details: always
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  cloud:
+    config:
+      server:
+        composite:
+          - type: native
+            search-locations: classpath:/configs/
 
 ---
 spring:

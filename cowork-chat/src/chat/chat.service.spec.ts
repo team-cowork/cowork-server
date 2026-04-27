@@ -25,6 +25,7 @@ const mockMessageModel = {
     aggregate: mockAggregate,
     findById: jest.fn(),
     deleteOne: jest.fn(),
+    collection: { name: 'messages' },
 };
 
 

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="WARN">
+  <Appenders>
+    <Console name="CONSOLE" target="SYSTEM_OUT">
+      <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
+        <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
+      </JsonTemplateLayout>
+    </Console>
+    <RollingFile name="FILE"
+                 fileName="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.log"
+                 filePattern="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.%d{yyyy-MM-dd}.log">
+      <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
+        <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
+      </JsonTemplateLayout>
+      <Policies>
+        <TimeBasedTriggeringPolicy/>
+      </Policies>
+      <DefaultRolloverStrategy max="10"/>
+    </RollingFile>
+  </Appenders>
+  <Loggers>
+    <Root level="info">
+      <AppenderRef ref="CONSOLE"/>
+      <AppenderRef ref="FILE"/>
+    </Root>
+  </Loggers>
+</Configuration>
