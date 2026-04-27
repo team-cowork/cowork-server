@@ -8,7 +8,7 @@ groups:
           severity: critical
         annotations:
           summary: "Cowork service down"
-          description: "Service {{ $labels.job }} is unreachable for more than 2 minutes."
+          description: "Service {{ $labels.service }} is unreachable for more than 2 minutes."
 
   - name: cowork-jvm
     rules:
