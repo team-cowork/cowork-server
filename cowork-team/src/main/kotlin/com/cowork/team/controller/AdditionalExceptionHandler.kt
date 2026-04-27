@@ -9,6 +9,7 @@ import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import team.themoment.sdk.exception.ExpectedException
 import team.themoment.sdk.response.CommonApiResponse
 
 @RestControllerAdvice
@@ -34,6 +35,10 @@ class AdditionalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException::class)
     fun handleMissingServletRequestParameter(e: MissingServletRequestParameterException): ResponseEntity<CommonApiResponse<Nothing>> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(CommonApiResponse.error("필수 파라미터 '${e.parameterName}'이(가) 누락되었습니다.", HttpStatus.BAD_REQUEST))
+
+    @ExceptionHandler(ExpectedException::class)
+    fun handleExpected(e: ExpectedException): ResponseEntity<CommonApiResponse<Nothing>> =
+        ResponseEntity.status(e.statusCode).body(CommonApiResponse.error(e.message ?: "요청 처리 중 오류가 발생했습니다.", e.statusCode))
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {

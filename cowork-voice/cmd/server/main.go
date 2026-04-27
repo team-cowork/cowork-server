@@ -21,24 +21,27 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
+	"github.com/cowork/cowork-voice/pkg/logger"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
-	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 	lkinfra "github.com/cowork/cowork-voice/internal/infra/livekit"
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 	"github.com/cowork/cowork-voice/internal/middleware"
+	"github.com/cowork/cowork-voice/internal/monitoring"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	logger.Init("cowork-voice")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -98,8 +101,11 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(monitoring.HTTPInFlightMiddleware)
+	r.Use(monitoring.HTTPMetricsMiddleware)
 
 	r.Get("/health", health.Handler)
+	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
