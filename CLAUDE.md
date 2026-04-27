@@ -20,21 +20,10 @@ Tech stack: Spring Cloud Gateway, Eureka, OpenFeign, Kafka, Flyway, MySQL, Mongo
 | `cowork-chat` | TypeScript / NestJS | 3000 | 실시간 채팅 (Socket.io, MongoDB) |
 | `cowork-voice` | Go / chi | 9000 | 음성 채널 (LiveKit, MongoDB) |
 
-## Architecture Decisions
+## 코드 탐색 가이드
 
-- **Gateway 중심 인증**: JWT는 Gateway에서만 검증. 하위 서비스는 `X-User-Id`(Long), `X-User-Role`(String) 헤더만 신뢰.
-- **cowork-config 단일 장애점**: Eureka + Config Server가 동일 프로세스(8761). 반드시 가장 먼저 기동.
-- **Authorization → User 동기 호출**: 로그인 시 auth가 user 서비스를 HTTP로 직접 호출(`PUT /users/{userId}`). `user.data.sync` Kafka 토픽은 미래 예정.
-- **DB 분리**: auth(MySQL), user/channel/team(MySQL), preference(PostgreSQL), chat/voice(MongoDB). 서비스 간 FK 없음.
-- **Vert.x 예외**: `cowork-preference`는 Spring Boot가 아님. Config Server를 HTTP로 직접 파싱해 사용.
-
-## Kafka Topics
-
-| 토픽 | 프로듀서 | 컨슈머 |
-|---|---|---|
-| `user.data.sync` | authorization (예정) | cowork-user |
-| `notification.trigger` | cowork-team, cowork-chat | cowork-notification |
-| `chat.message` | cowork-chat | cowork-chat (self, WebSocket 팬아웃) |
-| `channel.member.event` | (미정) | cowork-chat |
-| `preference.status.changed` | cowork-preference | (미정) |
+- **Gateway 필터/인증**: `cowork-gateway/src/main/kotlin/**/filter/`
+- **Kafka 토픽**: 각 서비스 `src/main/resources/application.yml` → `kafka.topics`
+- **DB 스키마**: Spring 서비스 `src/main/resources/db/migration/*.sql`, MongoDB 서비스 `schema/*.md`
+- **서비스 간 호출**: 각 서비스 `**/client/` 또는 `**/infrastructure/` 디렉터리
 
