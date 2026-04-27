@@ -215,6 +215,17 @@ services:
       loki:
         condition: service_healthy
 
+  blackbox_exporter:
+    image: prom/blackbox-exporter:v0.25.0
+    container_name: cowork-blackbox-exporter
+    restart: unless-stopped
+    ports:
+      - "9115:9115"
+    volumes:
+      - ./cowork-monitoring/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - '--config.file=/etc/blackbox_exporter/config.yml'
+
   prometheus:
     image: prom/prometheus:v3.3.1
     container_name: cowork-prometheus
@@ -229,6 +240,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=15d'
+      - '--web.enable-lifecycle'
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -297,6 +309,18 @@ services:
       - DATA_SOURCE_NAME=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres?sslmode=disable
     depends_on:
       postgres:
+        condition: service_healthy
+
+  mongodb_exporter:
+    image: percona/mongodb_exporter:2.9.0
+    container_name: cowork-mongodb-exporter
+    restart: unless-stopped
+    ports:
+      - "9216:9216"
+    environment:
+      - MONGODB_URI=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/admin
+    depends_on:
+      mongodb:
         condition: service_healthy
 
   # ── Application Services ───────────────────────────────────────────────────
