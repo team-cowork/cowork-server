@@ -35,7 +35,9 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
-			"management.port": fmt.Sprintf("%d", cfg.EurekaInstancePort),
+			"management.port":   fmt.Sprintf("%d", cfg.EurekaInstancePort),
+			"prometheus.scrape": "true",
+			"prometheus.path":   "/metrics",
 		},
 	}
 
