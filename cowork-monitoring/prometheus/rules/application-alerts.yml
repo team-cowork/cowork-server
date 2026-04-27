@@ -2,7 +2,7 @@ groups:
   - name: cowork-availability
     rules:
       - alert: CoworkServiceDown
-        expr: up{project="cowork"} == 0
+        expr: up{job=~"cowork-.*"} == 0
         for: 2m
         labels:
           severity: critical
