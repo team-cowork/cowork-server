@@ -15,6 +15,7 @@ export interface SearchedIssue {
   number: number;
   html_url: string;
   title: string;
+  labels: { name: string }[];
 }
 
 export interface GithubLabel {
@@ -56,7 +57,9 @@ export class GithubApiClient {
     dto: CreateIssueDto,
   ): Promise<SearchedIssue[]> {
     try {
-      const escapedTitle = dto.title.replace(/"/g, '\\"');
+      const escapedTitle = dto.title
+        .replace(/\\/g, '\\\\')
+        .replace(/"/g, '\\"');
       const query = `repo:${dto.owner}/${dto.repo} is:issue is:open in:title "${escapedTitle}"`;
       const { data } = await firstValueFrom(
         this.httpService.get<{ items: SearchedIssue[] }>(
@@ -71,6 +74,7 @@ export class GithubApiClient {
         number: item.number,
         html_url: item.html_url,
         title: item.title,
+        labels: (item.labels ?? []).map((l) => ({ name: l.name })),
       }));
     } catch (error) {
       this.handleGithubError(error);
