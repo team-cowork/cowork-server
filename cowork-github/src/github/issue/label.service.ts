@@ -29,29 +29,24 @@ export class LabelService {
     const repoLabels = await this.apiClient.listLabels(token, dto);
     const requestedLabels = dto.labels ?? [];
 
-    if (repoLabels.length === 0) {
-      const createdDefaults = await this.createMissingLabels(
-        token,
-        dto,
-        COWORK_DEFAULT_LABELS,
-        [],
-      );
-      const handledRequested = await this.createRequestedLabels(
-        token,
-        dto,
-        requestedLabels,
-        createdDefaults,
-      );
-      return this.uniqueLabels([...createdDefaults, ...handledRequested]);
-    }
+    const createdDefaults = await this.createMissingLabels(
+      token,
+      dto,
+      COWORK_DEFAULT_LABELS,
+      repoLabels,
+    );
 
     const handledRequested = await this.createRequestedLabels(
       token,
       dto,
       requestedLabels,
-      repoLabels,
+      [...repoLabels, ...createdDefaults],
     );
-    return this.uniqueLabels([...repoLabels, ...handledRequested]);
+    return this.uniqueLabels([
+      ...repoLabels,
+      ...createdDefaults,
+      ...handledRequested,
+    ]);
   }
 
   resolveLabels(dto: CreateIssueDto, repoLabels: string[]): string[] {

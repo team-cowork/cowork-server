@@ -38,18 +38,26 @@ export class IssueService {
         );
 
         if (existingIssue) {
-          if (labels.length > 0) {
+          const newLabels = labels.filter(
+            (label) =>
+              !existingIssue.labels.some(
+                (existingLabel) =>
+                  existingLabel.name.toLowerCase() === label.toLowerCase(),
+              ),
+          );
+
+          if (newLabels.length > 0) {
             await this.apiClient.addLabelsToIssue(
               token,
               dto,
               existingIssue.number,
-              labels,
+              newLabels,
             );
             this.logger.log('Labels added to existing issue', {
               owner: dto.owner,
               repo: dto.repo,
               issueNumber: existingIssue.number,
-              labels,
+              labels: newLabels,
             });
           }
           this.logger.log('Existing issue found', {
