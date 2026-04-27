@@ -18,6 +18,12 @@ fun buildRouter(
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
 
+    router.get("/health").handler { ctx ->
+        ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end("""{"status":"UP"}""")
+    }
+
     router.get("/metrics").handler { ctx ->
         ctx.response()
             .putHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
