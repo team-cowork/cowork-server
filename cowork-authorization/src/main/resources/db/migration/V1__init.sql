@@ -33,7 +33,7 @@ CREATE TABLE tb_oauth2_connections
 (
     id               BIGINT       NOT NULL AUTO_INCREMENT,
     user_id          BIGINT       NOT NULL,
-    provider         VARCHAR(50)  NOT NULL COMMENT 'google, github, kakao 등',
+    provider         VARCHAR(50)  NOT NULL,
     provider_user_id VARCHAR(255) NOT NULL,
     created_at       DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
