@@ -7,7 +7,6 @@ import {
     Param,
     Body,
     Query,
-    Headers,
     HttpCode,
     HttpStatus,
     ParseIntPipe,
@@ -18,9 +17,9 @@ import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { GetMessagesDto } from './dto/get-messages.dto';
-import { RequestContextUtil } from '../common/util/request-context.util';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { MessageDocument } from './schema/message.schema';
+import { UserId, UserRole } from '../common/decorator/user.decorator';
 
 @ApiTags('Chat')
 @Controller('channels/:channelId')
@@ -39,11 +38,9 @@ export class ChatController {
     async sendMessage(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SendMessageDto,
-        @Headers() headers: Record<string, string | string[] | undefined>,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
     ) {
-        const userId = RequestContextUtil.getUserId(headers);
-        const userRole = RequestContextUtil.getUserRole(headers);
-
         await this.chatService.checkMembership(channelId, userId);
         await this.producer.sendMessage({ ...dto, channelId }, userId, userRole);
 
@@ -57,9 +54,8 @@ export class ChatController {
     async getMessages(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
-        @Headers() headers: Record<string, string>,
+        @UserId() userId: number,
     ) {
-        const userId = RequestContextUtil.getUserId(headers);
         await this.chatService.checkMembership(channelId, userId);
         return this.chatService.getMessages(channelId, query.before);
     }
@@ -73,10 +69,9 @@ export class ChatController {
         @Param('channelId', ParseIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Body() dto: EditMessageDto,
-        @Headers() headers: Record<string, string>,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
     ) {
-        const userId = RequestContextUtil.getUserId(headers);
-        const userRole = RequestContextUtil.getUserRole(headers);
         await this.chatService.checkMembership(channelId, userId);
         const updated = await this.chatService.editMessage(messageId, userId, dto, userRole);
 
@@ -99,10 +94,9 @@ export class ChatController {
     async deleteMessage(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Param('messageId') messageId: string,
-        @Headers() headers: Record<string, string>,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
     ) {
-        const userId = RequestContextUtil.getUserId(headers);
-        const userRole = RequestContextUtil.getUserRole(headers);
         await this.chatService.checkMembership(channelId, userId);
         const result = await this.chatService.deleteMessage(messageId, userId, userRole);
 

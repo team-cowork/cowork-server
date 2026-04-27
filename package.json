@@ -3,6 +3,8 @@
     "@types/node": "^25.6.0"
   },
   "dependencies": {
-    "@nestjs/serve-static": "^5.0.5"
+    "@nestjs/serve-static": "^5.0.5",
+    "nestjs-pino": "^4.6.1",
+    "pino": "^10.3.1"
   }
 }
