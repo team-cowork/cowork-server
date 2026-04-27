@@ -26,7 +26,7 @@ cowork-server MSA 모노레포 개발 지침서입니다.
 cowork-server/
 ├── cowork-gateway/       Spring Cloud Gateway (JWT 검증, 라우팅)
 ├── cowork-config/        Spring Cloud Config Server + Eureka Server
-├── cowork-authorization/ 인증 서비스 (JWT 발급, OAuth2)
+├── cowork-authorization/ 인증 서비스 (JWT 발급, DataGSM OAuth2)
 ├── cowork-user/          사용자 프로필 관리
 ├── cowork-team/          팀 관리
 ├── cowork-project/       프로젝트 관리
