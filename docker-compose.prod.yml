@@ -1,0 +1,43 @@
+# 운영 환경 오버라이드.
+# 사용: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 필수 환경변수 (CI/CD 또는 서버 .env에서 주입):
+#   REGISTRY     - 컨테이너 레지스트리 주소 (예: ghcr.io/your-org)
+#   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
+#   SPRING_PROFILES_ACTIVE=prod
+services:
+  cowork-config:
+    image: ${REGISTRY}/cowork-config:${IMAGE_TAG}
+
+  cowork-gateway:
+    image: ${REGISTRY}/cowork-gateway:${IMAGE_TAG}
+
+  cowork-authorization:
+    image: ${REGISTRY}/cowork-authorization:${IMAGE_TAG}
+
+  cowork-preference:
+    image: ${REGISTRY}/cowork-preference:${IMAGE_TAG}
+
+  cowork-user:
+    image: ${REGISTRY}/cowork-user:${IMAGE_TAG}
+
+  cowork-team:
+    image: ${REGISTRY}/cowork-team:${IMAGE_TAG}
+
+  cowork-channel:
+    image: ${REGISTRY}/cowork-channel:${IMAGE_TAG}
+
+  cowork-notification:
+    image: ${REGISTRY}/cowork-notification:${IMAGE_TAG}
+
+  cowork-chat:
+    image: ${REGISTRY}/cowork-chat:${IMAGE_TAG}
+
+  cowork-voice:
+    image: ${REGISTRY}/cowork-voice:${IMAGE_TAG}
+    environment:
+      LIVEKIT_CONFIG_FILE: livekit-cloud.yaml
+
+  livekit:
+    environment:
+      LIVEKIT_CONFIG_FILE: livekit-cloud.yaml
