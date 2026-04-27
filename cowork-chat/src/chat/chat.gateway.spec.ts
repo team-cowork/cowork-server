@@ -1,7 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
+
+const mockConfigService = {
+    get: jest.fn().mockReturnValue(''),
+};
 
 const mockSocket = (headers: Record<string, string> = { 'x-user-id': '42', 'x-user-role': 'ROLE_USER' }) => ({
     id: 'socket-1',
@@ -30,6 +35,7 @@ describe('ChatGateway', () => {
                 ChatGateway,
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatMessageConsumer, useValue: mockConsumer },
+                { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
 
