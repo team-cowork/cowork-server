@@ -30,7 +30,7 @@ jobs:
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
               'team', 'project', 'channel', 'chat', 'voice',
-              'config', 'notification', 'preference', 'ci/cd'
+              'config', 'notification', 'preference', 'monitoring', 'ci/cd'
             ];
 
             const versionPattern = /^v\d{8}\.\d+$/;
