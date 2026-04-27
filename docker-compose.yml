@@ -172,11 +172,12 @@ services:
     environment:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_USE_EXTERNAL_IP: ${LIVEKIT_USE_EXTERNAL_IP:-false}
     ports:
       - "7880:7880"
       - "7881:7881"
     volumes:
-      - ./docker/livekit/livekit.yaml:/etc/livekit.yaml
+      - ./docker/livekit/${LIVEKIT_CONFIG_FILE:-livekit.yaml}:/etc/livekit.yaml
     command: --config /etc/livekit.yaml
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1" ]
@@ -296,6 +297,305 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  # ── Application Services ───────────────────────────────────────────────────
+
+  cowork-config:
+    image: cowork-config:local
+    container_name: cowork-config
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "8761:8761"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 90s
+
+  cowork-gateway:
+    image: cowork-gateway:local
+    container_name: cowork-gateway
+    restart: unless-stopped
+    depends_on:
+      cowork-config:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis
+    ports:
+      - "8080:8080"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 90s
+
+  cowork-authorization:
+    image: cowork-authorization:local
+    container_name: cowork-authorization
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      PORT: "8081"
+      DB_DSN: "${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local"
+      DATAGSM_CLIENT_ID: ${DATAGSM_CLIENT_ID}
+      DATAGSM_TOKEN_URL: https://oauth.authorization.datagsm.kr/v1/oauth/token
+      DATAGSM_USERINFO_URL: https://oauth.resource.datagsm.kr/userinfo
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ACCESS_EXPIRE: ${JWT_ACCESS_EXPIRE:-30m}
+      JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-2160h}
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+      EUREKA_INSTANCE_HOST: cowork-authorization
+      EUREKA_INSTANCE_PORT: "8081"
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  cowork-preference:
+    image: cowork-preference:local
+    container_name: cowork-preference
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      REDIS_HOST: redis
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    ports:
+      - "9001:9001"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  cowork-user:
+    image: cowork-user:local
+    container_name: cowork-user
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+      MINIO_INTERNAL_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    ports:
+      - "8082:8082"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  cowork-team:
+    image: cowork-team:local
+    container_name: cowork-team
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_team?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+    ports:
+      - "8085:8085"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  cowork-channel:
+    image: cowork-channel:local
+    container_name: cowork-channel
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+    ports:
+      - "8083:8083"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  cowork-notification:
+    image: cowork-notification:local
+    container_name: cowork-notification
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      APP_CONFIG_URL: http://cowork-config:8761
+      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      DB_DSN: "${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local"
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_NOTIFICATION: notification.trigger
+      KAFKA_GROUP_ID: cowork-notification
+      FCM_CREDENTIALS_FILE: /run/secrets/firebase-credentials.json
+      PREFERENCE_SERVICE_URL: http://cowork-preference:9001
+      TEAM_SERVICE_URL: http://cowork-team:8085
+      USER_SERVICE_URL: http://cowork-user:8082
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+      EUREKA_INSTANCE_HOST: cowork-notification
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./docker/secrets/firebase-credentials.json:/run/secrets/firebase-credentials.json:ro
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  cowork-chat:
+    image: cowork-chat:local
+    container_name: cowork-chat
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      PORT: "8087"
+      NODE_ENV: production
+      MONGODB_URI: "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin"
+      MONGODB_DIRECT_CONNECTION: "false"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+      EUREKA_INSTANCE_HOST: cowork-chat
+    ports:
+      - "8087:8087"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  cowork-voice:
+    image: cowork-voice:local
+    container_name: cowork-voice
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      livekit:
+        condition: service_healthy
+      cowork-channel:
+        condition: service_healthy
+    environment:
+      PORT: "8084"
+      MONGODB_URI: "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin"
+      MONGODB_DB: cowork_voice
+      LIVEKIT_URL: http://cowork-livekit:7880
+      LIVEKIT_WS_URL: ws://cowork-livekit:7880
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC_VOICE_EVENT: voice.event
+      CHANNEL_SERVICE_URL: http://cowork-channel:8083
+    ports:
+      - "8084:8084"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   mysql_data:
