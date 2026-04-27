@@ -80,6 +80,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(monitoring.HTTPMetricsMiddleware)
 	r.Get("/health", health.Handler)
 	r.Get("/metrics", monitoring.Handler)
 	r.Get("/swagger/*", httpswagger.WrapHandler)
