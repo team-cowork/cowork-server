@@ -4,7 +4,7 @@
 인증 서비스.
 
 - JWT 액세스 토큰 / 리프레시 토큰 발급 및 갱신
-- OAuth2 소셜 로그인 (Google, GitHub 등)
+- DataGSM OAuth2 PKCE 로그인
 - 회원가입 / 로그인 처리
 
 ## 스택
