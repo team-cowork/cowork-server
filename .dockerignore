@@ -1,0 +1,17 @@
+.git
+.gradle
+.gradle-local
+.idea
+*.iml
+node_modules
+build
+**/build
+dist
+**/dist
+.env
+.env.*
+!.env.example
+screenlog.*
+docs
+*.md
+!**/src

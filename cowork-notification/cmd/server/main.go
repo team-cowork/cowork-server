@@ -27,6 +27,7 @@ import (
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
 	mysqlinfra "github.com/cowork/cowork-notification/internal/infra/mysql"
 	"github.com/cowork/cowork-notification/internal/infra/preference"
+	sseinfra "github.com/cowork/cowork-notification/internal/infra/sse"
 	"github.com/cowork/cowork-notification/internal/infra/team"
 	"github.com/cowork/cowork-notification/internal/infra/user"
 	"github.com/cowork/cowork-notification/internal/middleware"
@@ -67,14 +68,14 @@ func main() {
 	svc := tokendomain.NewService(repo, fcmSender, prefClient)
 	handler := tokendomain.NewHandler(svc)
 
-	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc, teamClient, userClient)
+	sseHub := sseinfra.NewHub()
+	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc, teamClient, userClient, sseHub)
 
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
 		slog.Warn("eureka registration failed", "err", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
@@ -87,6 +88,7 @@ func main() {
 		r.Use(middleware.ExtractAuthUser)
 		r.Post("/notifications/tokens", handler.RegisterToken)
 		r.Delete("/notifications/tokens/{token}", handler.DeleteToken)
+		r.Get("/notifications/stream", sseinfra.Handler(sseHub))
 	})
 
 	srv := &http.Server{
