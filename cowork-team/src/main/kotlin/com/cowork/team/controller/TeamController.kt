@@ -1,8 +1,13 @@
 package com.cowork.team.controller
 
 import com.cowork.team.dto.CreateTeamRequest
+import com.cowork.team.dto.IconConfirmRequest
+import com.cowork.team.dto.IconConfirmResponse
+import com.cowork.team.dto.IconPresignedUrlRequest
+import com.cowork.team.dto.IconPresignedUrlResponse
 import com.cowork.team.dto.TeamResponse
 import com.cowork.team.dto.TeamSummaryResponse
+import com.cowork.team.dto.UpdateIconRequest
 import com.cowork.team.dto.UpdateTeamRequest
 import com.cowork.team.service.TeamService
 import io.swagger.v3.oas.annotations.Operation
@@ -21,6 +26,30 @@ import org.springframework.web.bind.annotation.*
 class TeamController(
     private val teamService: TeamService,
 ) {
+
+    @Operation(summary = "팀 아이콘 Presigned URL 발급", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "발급 성공"),
+        ApiResponse(responseCode = "400", description = "허용되지 않는 파일 형식"),
+    )
+    @PostMapping("/icon/presigned")
+    fun generateIconPresignedUrl(
+        @RequestBody request: IconPresignedUrlRequest,
+    ): ResponseEntity<IconPresignedUrlResponse> =
+        ResponseEntity.ok(teamService.generateIconPresignedUrl(request.contentType))
+
+    @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "확인 성공"),
+        ApiResponse(responseCode = "400", description = "유효하지 않은 objectKey"),
+        ApiResponse(responseCode = "409", description = "S3에 파일 없음 (업로드 미완료)"),
+        ApiResponse(responseCode = "413", description = "파일 크기 초과"),
+    )
+    @PostMapping("/icon/confirm")
+    fun confirmIconUpload(
+        @RequestBody request: IconConfirmRequest,
+    ): ResponseEntity<IconConfirmResponse> =
+        ResponseEntity.ok(teamService.confirmIconUpload(request.objectKey))
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -66,6 +95,35 @@ class TeamController(
         @RequestBody request: UpdateTeamRequest,
     ): ResponseEntity<TeamResponse> =
         ResponseEntity.ok(teamService.updateTeam(userId, teamId, request))
+
+    @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "교체 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "팀 없음"),
+    )
+    @PatchMapping("/{teamId}/icon")
+    fun updateIcon(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+        @RequestBody request: UpdateIconRequest,
+    ): ResponseEntity<IconConfirmResponse> =
+        ResponseEntity.ok(teamService.updateIcon(userId, teamId, request.iconUrl))
+
+    @Operation(summary = "팀 아이콘 제거", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "204", description = "제거 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "팀 없음 또는 아이콘 없음"),
+    )
+    @DeleteMapping("/{teamId}/icon")
+    fun deleteIcon(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+    ): ResponseEntity<Void> {
+        teamService.deleteIcon(userId, teamId)
+        return ResponseEntity.noContent().build()
+    }
 
     @Operation(summary = "팀 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

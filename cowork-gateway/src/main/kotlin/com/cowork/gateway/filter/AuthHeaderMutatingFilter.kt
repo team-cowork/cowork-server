@@ -1,5 +1,6 @@
 package com.cowork.gateway.filter
 
+import org.slf4j.MDC
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
 import org.springframework.core.Ordered
@@ -8,10 +9,6 @@ import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 
-/**
- * JWT 검증 후 SecurityContext에서 userId/role을 꺼내
- * 하위 서비스로 X-User-Id, X-User-Role 헤더를 추가한다.
- */
 @Component
 class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
 
@@ -26,8 +23,8 @@ class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
                 val details = auth.details as? Map<String, String>
                 val userId = details?.get("userId") ?: auth.name
                 val role = details?.get("role") ?: auth.authorities.firstOrNull()?.authority ?: ""
+                val teamId = exchange.request.headers.getFirst("X-Team-Id") ?: ""
 
-                // set()으로 덮어써서 외부에서 조작된 헤더가 흘러가는 것을 방지
                 val mutatedRequest = exchange.request.mutate()
                     .headers { h ->
                         h.set("X-User-Id", userId)
@@ -36,7 +33,27 @@ class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
                     .build()
 
                 chain.filter(exchange.mutate().request(mutatedRequest).build())
+                    .doOnEach { signal ->
+                        // 스레드 전환 후에도 Reactor Context → MDC 복원
+                        val ctx = signal.contextView
+                        if (ctx.hasKey(MDC_USER_ID)) MDC.put(MDC_USER_ID, ctx.get(MDC_USER_ID))
+                        if (ctx.hasKey(MDC_TEAM_ID)) MDC.put(MDC_TEAM_ID, ctx.get(MDC_TEAM_ID))
+                    }
+                    .doFinally {
+                        MDC.remove(MDC_USER_ID)
+                        MDC.remove(MDC_TEAM_ID)
+                    }
+                    .contextWrite { ctx ->
+                        var c = ctx.put(MDC_USER_ID, userId)
+                        if (teamId.isNotEmpty()) c = c.put(MDC_TEAM_ID, teamId)
+                        c
+                    }
             }
             .switchIfEmpty(chain.filter(exchange))
+    }
+
+    companion object {
+        private const val MDC_USER_ID = "userId"
+        private const val MDC_TEAM_ID = "teamId"
     }
 }
