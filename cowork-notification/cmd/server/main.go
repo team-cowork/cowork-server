@@ -27,6 +27,9 @@ import (
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
 	mysqlinfra "github.com/cowork/cowork-notification/internal/infra/mysql"
 	"github.com/cowork/cowork-notification/internal/infra/preference"
+	sseinfra "github.com/cowork/cowork-notification/internal/infra/sse"
+	"github.com/cowork/cowork-notification/internal/infra/team"
+	"github.com/cowork/cowork-notification/internal/infra/user"
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/pkg/eureka"
 )
@@ -45,6 +48,10 @@ func main() {
 		slog.Error("mysql connect failed", "err", err)
 		os.Exit(1)
 	}
+	if err := mysqlinfra.EnsureSchema(context.Background(), db); err != nil {
+		slog.Error("mysql schema init failed", "err", err)
+		os.Exit(1)
+	}
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
 	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)
@@ -55,10 +62,13 @@ func main() {
 
 	repo := mysqlinfra.NewTokenRepository(db)
 	prefClient := preference.NewClient(cfg.PreferenceServiceURL)
+	teamClient := team.NewClient(cfg.TeamServiceURL)
+	userClient := user.NewClient(cfg.UserServiceURL)
 	svc := tokendomain.NewService(repo, fcmSender, prefClient)
 	handler := tokendomain.NewHandler(svc)
 
-	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc)
+	sseHub := sseinfra.NewHub()
+	consumer := kafkainfra.NewConsumer(cfg.KafkaBrokers, cfg.KafkaTopicNotify, cfg.KafkaGroupID, svc, teamClient, userClient, sseHub)
 
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
@@ -76,6 +86,7 @@ func main() {
 		r.Use(middleware.ExtractAuthUser)
 		r.Post("/notifications/tokens", handler.RegisterToken)
 		r.Delete("/notifications/tokens/{token}", handler.DeleteToken)
+		r.Get("/notifications/stream", sseinfra.Handler(sseHub))
 	})
 
 	srv := &http.Server{

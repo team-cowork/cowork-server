@@ -19,7 +19,7 @@ spring:
       enabled: true
 
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
 
   data:
     redis:
@@ -37,7 +37,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh
+        include: health, info, refresh, busrefresh, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
 
 logging:
   level:

@@ -1,40 +1,39 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ChannelMember } from '../chat/schema/channel-member.schema';
-
-interface ChannelMemberEvent {
-    eventType: 'JOIN' | 'LEAVE' | 'ROLE_CHANGE';
-    channelId: number;
-    userId: number;
-    role: string;
-    occurredAt: string;
-}
+import { ChannelMemberEvent } from './event/membership.event';
 
 @Injectable()
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MembershipConsumer.name);
-    private readonly kafka = new Kafka({
-        clientId: 'cowork-chat-membership',
-        brokers: [(process.env.KAFKA_BOOTSTRAP_SERVERS ?? 'localhost:9092')],
-    });
     private consumer!: Consumer;
 
     constructor(
         @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
+        private readonly configService: ConfigService,
     ) {}
 
     async onModuleInit() {
-        this.consumer = this.kafka.consumer({ groupId: 'cowork-chat-membership' });
+        const kafka = new Kafka({
+            clientId: 'cowork-chat-membership',
+            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+        });
+        this.consumer = kafka.consumer({ groupId: 'cowork-chat-membership' });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'channel.member.event', fromBeginning: false });
 
         await this.consumer.run({
             eachMessage: async ({ message }) => {
                 if (!message.value) return;
-                const event: ChannelMemberEvent = JSON.parse(message.value.toString());
-                await this.handleEvent(event);
+                try {
+                    const event: ChannelMemberEvent = JSON.parse(message.value.toString());
+                    await this.handleEvent(event);
+                } catch (err) {
+                    this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);
+                }
             },
         });
 
