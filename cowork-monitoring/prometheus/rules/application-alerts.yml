@@ -10,6 +10,8 @@ groups:
           summary: "Cowork service down"
           description: "Service {{ $labels.job }} is unreachable for more than 2 minutes."
 
+  - name: cowork-jvm
+    rules:
       - alert: CoworkHighJvmHeapUsage
         expr: |
           (
@@ -36,3 +38,65 @@ groups:
         annotations:
           summary: "HTTP 5xx spike detected"
           description: "Service {{ $labels.service }} is returning more than 1 5xx response/sec for 5 minutes."
+
+      - alert: CoworkHttp4xxSpike
+        expr: |
+          sum by (service) (
+            rate(http_server_requests_seconds_count{status=~"4.."}[5m])
+          ) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 4xx spike detected"
+          description: "Service {{ $labels.service }} is returning more than 5 4xx response/sec for 5 minutes."
+
+      - alert: CoworkHighResponseTime
+        expr: |
+          histogram_quantile(0.99,
+            sum by (service, le) (
+              rate(http_server_requests_seconds_bucket[5m])
+            )
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High HTTP P99 response time"
+          description: "Service {{ $labels.service }} P99 response time is above 2s for 5 minutes."
+
+  - name: cowork-go
+    rules:
+      - alert: CoworkGoHighMemory
+        expr: |
+          go_memstats_heap_inuse_bytes{job=~"cowork-.*"} /
+          go_memstats_heap_sys_bytes{job=~"cowork-.*"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Go heap usage"
+          description: "Go service {{ $labels.service }} heap usage is above 85% for 5 minutes."
+
+  - name: cowork-nodejs
+    rules:
+      - alert: CoworkNodeJsHighHeap
+        expr: |
+          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Node.js heap usage"
+          description: "Node.js service {{ $labels.service }} heap usage is above 85% for 5 minutes."
+
+  - name: cowork-kafka
+    rules:
+      - alert: CoworkKafkaConsumerLag
+        expr: kafka_consumergroup_lag_sum > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Kafka consumer lag"
+          description: "Consumer group {{ $labels.consumergroup }} lag is above 1000 for 5 minutes."
