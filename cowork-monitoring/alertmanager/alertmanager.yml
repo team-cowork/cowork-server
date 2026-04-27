@@ -7,6 +7,26 @@ route:
   group_wait: 10s
   group_interval: 5m
   repeat_interval: 3h
+  routes:
+    - matchers:
+        - severity="critical"
+      receiver: critical
+      repeat_interval: 1h
 
 receivers:
   - name: default
+    webhook_configs:
+      - url: "http://host.docker.internal:5001/webhook"
+        send_resolved: true
+
+  - name: critical
+    webhook_configs:
+      - url: "http://host.docker.internal:5001/webhook"
+        send_resolved: true
+
+inhibit_rules:
+  - source_matchers:
+      - severity="critical"
+    target_matchers:
+      - severity="warning"
+    equal: ["alertname", "service"]

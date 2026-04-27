@@ -7,6 +7,7 @@ global:
 rule_files:
   - /etc/prometheus/rules/*.yml
 
+
 scrape_configs:
   # ── 애플리케이션 서비스 (Eureka 자동 감지) ──
   # eureka.instance.metadata-map에 prometheus.scrape=true가 있는 인스턴스만 스크랩
@@ -38,6 +39,30 @@ scrape_configs:
           - /etc/prometheus/sd/*.json
         refresh_interval: 30s
 
+  # ── Blackbox Exporter (HTTP 엔드포인트 가용성 probe) ──
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://host.docker.internal:8080/actuator/health
+          - http://host.docker.internal:8081/health
+          - http://host.docker.internal:8082/actuator/health
+          - http://host.docker.internal:8083/actuator/health
+          - http://host.docker.internal:8084/health
+          - http://host.docker.internal:8085/actuator/health
+          - http://host.docker.internal:8086/health
+          - http://host.docker.internal:8087/health
+          - http://host.docker.internal:9001/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
   # ── 인프라 Exporter (Docker 내부 고정 서비스) ──
   - job_name: infrastructure
     static_configs:
@@ -53,3 +78,6 @@ scrape_configs:
       - targets: ['postgres_exporter:9187']
         labels:
           service: postgres
+      - targets: ['mongodb_exporter:9216']
+        labels:
+          service: mongodb
