@@ -73,9 +73,8 @@ func main() {
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
 		slog.Warn("eureka registration failed", "err", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
