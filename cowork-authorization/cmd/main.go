@@ -88,9 +88,8 @@ func main() {
 	eurekaClient := eurekaclient.NewClient(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
 		log.Printf("warning: eureka registration failed: %v", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
