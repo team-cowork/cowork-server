@@ -184,6 +184,22 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
+        - id: notification-service-sse
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: -1  # SSE는 타임아웃 없음
+
+        - id: notification-service
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+
         - id: notification-service-docs
           uri: lb://cowork-notification
           predicates:
