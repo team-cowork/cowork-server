@@ -9,12 +9,14 @@ import (
 	"github.com/cowork/cowork-notification/internal/middleware"
 )
 
+const keepaliveInterval = 30 * time.Second
+
 // Handler는 GET /notifications/stream SSE 엔드포인트를 처리합니다.
 func Handler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
-			http.Error(w, "SSE를 지원하지 않는 클라이언트입니다", http.StatusInternalServerError)
+			http.Error(w, "SSE not supported", http.StatusInternalServerError)
 			return
 		}
 
@@ -38,7 +40,7 @@ func Handler(hub *Hub) http.HandlerFunc {
 		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
 		flusher.Flush()
 
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(keepaliveInterval)
 		defer ticker.Stop()
 
 		for {
