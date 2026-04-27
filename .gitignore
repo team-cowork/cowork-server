@@ -57,6 +57,8 @@ ehthumbs.db
 ### Logs ###
 *.log
 logs/
+.run/
+screenlog.*
 
 ### LLM Outputs ###
 PR_BODY.md
@@ -76,3 +78,6 @@ docs/
 
 ### Worktrees ###
 .worktrees/
+
+### Secrets ###
+docker/secrets/
