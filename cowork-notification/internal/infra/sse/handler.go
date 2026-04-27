@@ -11,6 +11,19 @@ import (
 
 const keepaliveInterval = 30 * time.Second
 
+// streamHandler godoc
+//
+//	@Summary		SSE 알림 스트림 구독
+//	@Description	인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다.
+//	@Tags			notifications
+//	@Produce		text/event-stream
+//	@Param			X-User-Id	header	int64	true	"사용자 ID (Gateway 주입)"
+//	@Success		200	{string}	string	"data: {type, title, body, channelId, teamId}"
+//	@Failure		401	{string}	string	"인증 실패"
+//	@Failure		500	{string}	string	"SSE not supported"
+//	@Router			/notifications/stream [get]
+func streamHandler(w http.ResponseWriter, r *http.Request) {} //nolint:unused
+
 // Handler는 GET /notifications/stream SSE 엔드포인트를 처리합니다.
 func Handler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
