@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=\"cowork-voice\"}",
+          "expr": "up{service=\"voice\"}",
           "legendFormat": "voice",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -94,12 +94,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
-          "expr": "go_memstats_heap_inuse_bytes{job=\"cowork-voice\"}",
+          "expr": "go_memstats_heap_inuse_bytes{service=\"voice\"}",
           "legendFormat": "Heap InUse",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "go_memstats_heap_alloc_bytes{job=\"cowork-voice\"}",
+          "expr": "go_memstats_heap_alloc_bytes{service=\"voice\"}",
           "legendFormat": "Heap Alloc",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -113,12 +113,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "go_goroutines{job=\"cowork-voice\"}",
+          "expr": "go_goroutines{service=\"voice\"}",
           "legendFormat": "goroutines",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "rate(go_gc_duration_seconds_count{job=\"cowork-voice\"}[1m]) * 60",
+          "expr": "rate(go_gc_duration_seconds_count{service=\"voice\"}[1m]) * 60",
           "legendFormat": "GC/min",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
