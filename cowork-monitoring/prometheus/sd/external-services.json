@@ -5,40 +5,5 @@
       "service": "config",
       "__metrics_path__": "/actuator/prometheus"
     }
-  },
-  {
-    "targets": ["host.docker.internal:9001"],
-    "labels": {
-      "service": "preference",
-      "__metrics_path__": "/metrics"
-    }
-  },
-  {
-    "targets": ["host.docker.internal:8081"],
-    "labels": {
-      "service": "authorization",
-      "__metrics_path__": "/metrics"
-    }
-  },
-  {
-    "targets": ["host.docker.internal:9000"],
-    "labels": {
-      "service": "voice",
-      "__metrics_path__": "/metrics"
-    }
-  },
-  {
-    "targets": ["host.docker.internal:8086"],
-    "labels": {
-      "service": "notification",
-      "__metrics_path__": "/metrics"
-    }
-  },
-  {
-    "targets": ["host.docker.internal:3000"],
-    "labels": {
-      "service": "chat",
-      "__metrics_path__": "/metrics"
-    }
   }
 ]

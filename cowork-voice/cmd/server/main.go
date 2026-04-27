@@ -28,7 +28,6 @@ import (
 
 	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
-	"github.com/cowork/cowork-voice/pkg/logger"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
@@ -38,6 +37,8 @@ import (
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
+	"github.com/cowork/cowork-voice/pkg/eureka"
+	"github.com/cowork/cowork-voice/pkg/logger"
 )
 
 func main() {
@@ -124,6 +125,13 @@ func main() {
 		Handler: r,
 	}
 
+	eurekaClient := eureka.New(cfg)
+	if err := eurekaClient.Register(cfg); err != nil {
+		slog.Warn("eureka registration failed", "err", err)
+	} else {
+		eurekaClient.StartHeartbeat(cfg)
+	}
+
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
@@ -149,6 +157,9 @@ func main() {
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server shutdown error", "err", err)
+	}
+	if err := eurekaClient.Deregister(cfg); err != nil {
+		slog.Warn("eureka deregister failed", "err", err)
 	}
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
