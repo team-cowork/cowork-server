@@ -81,6 +81,7 @@ describe('IssueService', () => {
         number: 7,
         html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
         title: 'Issue title',
+        labels: [],
       },
     ]);
 
@@ -95,12 +96,35 @@ describe('IssueService', () => {
     expect(apiClient.createIssue).not.toHaveBeenCalled();
   });
 
+  it('기존 이슈가 이미 라벨을 가지고 있으면 중복 라벨 추가를 건너뛴다', async () => {
+    apiClient.searchOpenIssuesByTitle.mockResolvedValue([
+      {
+        number: 7,
+        html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
+        title: 'Issue title',
+        labels: [{ name: 'help wanted:도움 필요' }],
+      },
+    ]);
+    labelService.resolveLabels.mockReturnValue([
+      'help wanted:도움 필요',
+      'bug:버그',
+    ]);
+
+    await service.createIssue(dto);
+
+    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, [
+      'bug:버그',
+    ]);
+    expect(apiClient.createIssue).not.toHaveBeenCalled();
+  });
+
   it('기존 이슈가 있고 라벨이 없으면 addLabelsToIssue를 호출하지 않는다', async () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
       {
         number: 7,
         html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
         title: 'Issue title',
+        labels: [{ name: 'help wanted:도움 필요' }],
       },
     ]);
     labelService.resolveLabels.mockReturnValue([]);
