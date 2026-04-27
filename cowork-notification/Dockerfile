@@ -9,4 +9,5 @@ FROM alpine:3.20 AS runtime
 RUN apk --no-cache add ca-certificates tzdata
 COPY --from=builder /app/cowork-notification /usr/local/bin/cowork-notification
 EXPOSE 8086
+ENV PORT=8086
 CMD ["cowork-notification"]
