@@ -27,6 +27,8 @@ data class AppConfig(
     val redis: RedisConfig,
     val kafka: KafkaConfig,
     val eurekaUrl: String,
+    val eurekaAppName: String,
+    val eurekaInstanceHost: String,
 ) {
     companion object {
         fun from(json: JsonObject): AppConfig {
@@ -34,8 +36,10 @@ data class AppConfig(
             val db = pref.getJsonObject("db") ?: JsonObject()
             val redis = pref.getJsonObject("redis") ?: JsonObject()
             val kafka = pref.getJsonObject("kafka") ?: JsonObject()
+            val eureka = json.getJsonObject("eureka") ?: JsonObject()
+            val serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001
             return AppConfig(
-                serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001,
+                serverPort = serverPort,
                 db = DbConfig(
                     host = db.getString("host", "localhost"),
                     port = db.getInt("port", 5432),
@@ -52,7 +56,9 @@ data class AppConfig(
                 kafka = KafkaConfig(
                     bootstrapServers = kafka.getString("bootstrap-servers", "localhost:9092"),
                 ),
-                eurekaUrl = json.getString("eureka.url", "http://localhost:8761/eureka/"),
+                eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
+                eurekaAppName = eureka.getString("app-name", "cowork-preference"),
+                eurekaInstanceHost = eureka.getJsonObject("instance")?.getString("host", "localhost") ?: "localhost",
             )
         }
 
