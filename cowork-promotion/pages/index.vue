@@ -123,7 +123,7 @@ const positionConfig: Record<string, { color: string; description: string; techs
         techs: ['Kotlin', 'Kotlin Multiplatform'],
     },
     'Mobile App Client': {
-        color: '#EA580C',
+        color: '#F43F5E',
         description: '모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.',
         techs: ['Dart', 'Flutter'],
     },
