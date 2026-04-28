@@ -75,7 +75,7 @@ const repos = [
     {
         name: 'cowork-server',
         description: 'MSA 기반 통합 백엔드 API 서버',
-        badge: 'Spring Boot',
+        badge: 'Backend',
         url: 'https://github.com/team-cowork/cowork-server',
     },
     {
