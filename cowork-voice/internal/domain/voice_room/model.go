@@ -31,5 +31,5 @@ type VoiceParticipant struct {
 	UserID    int64         `bson:"user_id"`
 	ChannelID int64         `bson:"channel_id"`
 	JoinedAt  time.Time     `bson:"joined_at"`
-	LeftAt    *time.Time    `bson:"left_at,omitempty"`
+	LeftAt    *time.Time    `bson:"left_at"`
 }
