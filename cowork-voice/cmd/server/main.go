@@ -127,10 +127,10 @@ func main() {
 
 	eurekaClient := eureka.New(cfg.EurekaServerURL)
 	if err := eurekaClient.Register(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort); err != nil {
-		slog.Warn("eureka registration failed", "err", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
+		slog.Error("critical: eureka registration failed", "err", err)
+		os.Exit(1)
 	}
+	eurekaClient.StartHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
 
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
