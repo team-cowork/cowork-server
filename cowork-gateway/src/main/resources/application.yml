@@ -6,10 +6,9 @@ spring:
     name: cowork-gateway
   # Config 서버에서 설정을 가져옴 (라우팅, jwt, resilience4j 등)
   config:
-    import: "configserver:http://localhost:8761"
+    import: "optional:configserver:http://localhost:8761"
   cloud:
     config:
-      fail-fast: true
       retry:
         max-attempts: 10
         initial-interval: 2000
