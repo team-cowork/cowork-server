@@ -10,6 +10,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
 
+private const val HEARTBEAT_INTERVAL_SECONDS = 30L
+
 class EurekaRegistrar(
     private val eurekaUrl: String,
     private val appName: String,
@@ -38,12 +40,12 @@ class EurekaRegistrar(
         if (response.statusCode() in 200..204) {
             log.info("Registered with Eureka: app={} instance={}", appName, instanceId)
         } else {
-            log.warn("Eureka registration returned HTTP {}: {}", response.statusCode(), response.body())
+            throw IllegalStateException("Eureka registration returned HTTP ${response.statusCode()}: ${response.body()}")
         }
     }
 
     fun startHeartbeat() {
-        heartbeatFuture = scheduler.scheduleAtFixedRate(::sendHeartbeat, 30, 30, TimeUnit.SECONDS)
+        heartbeatFuture = scheduler.scheduleAtFixedRate(::sendHeartbeat, HEARTBEAT_INTERVAL_SECONDS, HEARTBEAT_INTERVAL_SECONDS, TimeUnit.SECONDS)
     }
 
     fun deregister() {
