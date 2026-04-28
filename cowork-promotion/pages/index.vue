@@ -110,7 +110,7 @@ const positionConfig: Record<string, { color: string; description: string; techs
     'Server': {
         color: '#8B5CF6',
         description: '서비스의 핵심 비즈니스 로직과 API를 설계하고 구현합니다. MSA 구조 위에서 각 도메인 서비스를 담당합니다.',
-        techs: ['Kotlin', 'Spring Boot', 'Spring Cloud Gateway', 'Eureka', 'OpenFeign', 'Vert.x', 'Apache Kafka', 'MySQL', 'MongoDB', 'Redis', 'Flyway'],
+        techs: ['Kotlin', 'Go', 'Spring Boot', 'Spring Cloud Gateway', 'Eureka', 'OpenFeign', 'Vert.x', 'Gin', 'Chi', 'LiveKit', 'Apache Kafka', 'MySQL', 'MongoDB', 'Redis', 'Flyway'],
     },
     'Web Client': {
         color: '#EAB308',
