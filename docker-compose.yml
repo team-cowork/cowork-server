@@ -332,7 +332,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       REDIS_HOST: redis
@@ -393,10 +393,14 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
+      POSTGRES_HOST: postgres
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       REDIS_HOST: redis
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_URL: http://cowork-config:8761/eureka/
+      EUREKA_APP_NAME: cowork-preference
+      EUREKA_INSTANCE_HOST: cowork-preference
     ports:
       - "9001:9001"
     volumes:
@@ -586,6 +590,10 @@ services:
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC_VOICE_EVENT: voice.event
       CHANNEL_SERVICE_URL: http://cowork-channel:8083
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+      EUREKA_APP_NAME: cowork-voice
+      EUREKA_INSTANCE_HOST: cowork-voice
+      EUREKA_INSTANCE_PORT: "8084"
     ports:
       - "8084:8084"
     volumes:
