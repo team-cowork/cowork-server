@@ -75,6 +75,12 @@ const techCategories: { label: string; items: TechItem[] }[] = [
             {name: 'Vault', color: '#0FC75E', positions: ['Cloud']},
         ],
     },
+    {
+        label: 'Design',
+        items: [
+            {name: 'Figma', color: '#F24E1E', positions: ['Design']},
+        ],
+    },
 ]
 
 const repos = [
