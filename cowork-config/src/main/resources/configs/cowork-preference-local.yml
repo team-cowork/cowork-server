@@ -7,7 +7,7 @@ spring:
 
 preference:
   db:
-    host: localhost
+    host: ${POSTGRES_HOST:localhost}
     port: 5432
     database: cowork_preference
     schema: preference
@@ -21,4 +21,7 @@ preference:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
 
 eureka:
-  url: http://localhost:8761/eureka/
+  url: ${EUREKA_URL:http://localhost:8761/eureka/}
+  app-name: ${EUREKA_APP_NAME:cowork-preference}
+  instance:
+    host: ${EUREKA_INSTANCE_HOST:localhost}
