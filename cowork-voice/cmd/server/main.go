@@ -127,10 +127,10 @@ func main() {
 
 	eurekaClient := eureka.New(cfg)
 	if err := eurekaClient.Register(cfg); err != nil {
-		slog.Warn("eureka registration failed", "err", err)
-	} else {
-		eurekaClient.StartHeartbeat(cfg)
+		slog.Error("critical: eureka registration failed", "err", err)
+		os.Exit(1)
 	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
@@ -152,14 +152,13 @@ func main() {
 		exitCode = 1
 	}
 
+	eurekaClient.Deregister(cfg)
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server shutdown error", "err", err)
-	}
-	if err := eurekaClient.Deregister(cfg); err != nil {
-		slog.Warn("eureka deregister failed", "err", err)
 	}
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
