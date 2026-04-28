@@ -80,7 +80,7 @@ const repos = [
     },
     {
         name: 'cowork-web-client',
-        description: 'MFA 기반 웹 브라우저 환경의 협업 클라이언트',
+        description: 'MFE 기반 웹 브라우저 환경의 협업 클라이언트',
         badge: 'Web',
         url: 'https://github.com/team-cowork/cowork-web-client',
     },
@@ -363,7 +363,7 @@ const row2 = [...marqueeItems, ...marqueeItems]
                     <span class="font-bold text-sm text-gray-900">cowork</span>
                 </div>
                 <p class="text-sm text-gray-400">
-                    © 2024 team-cowork · MIT License
+                    © 2026 team-cowork · MIT License
                 </p>
                 <a
                     class="text-sm text-gray-400 hover:text-gray-600 transition-colors duration-150"
