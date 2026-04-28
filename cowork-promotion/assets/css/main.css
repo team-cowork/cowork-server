@@ -41,3 +41,38 @@
 .marquee-track:hover .marquee-right {
   animation-play-state: paused;
 }
+
+/* Position section scroll-driven panel */
+.pos-panel-enter-active {
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pos-panel-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.pos-panel-enter-from {
+  opacity: 0;
+  transform: translateY(28px);
+}
+
+.pos-panel-leave-to {
+  opacity: 0;
+  transform: translateY(-16px);
+}
+
+@keyframes pos-member-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pos-member-entry {
+  opacity: 0;
+  animation: pos-member-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
