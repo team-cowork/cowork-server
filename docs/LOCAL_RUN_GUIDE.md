@@ -5,6 +5,7 @@
 기준일:
 - 2026-04-27 (초안)
 - 2026-04-27 (Docker 통합 실행으로 전면 개정)
+- 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
 
 검증 기준:
 - `docker-compose.yml`
@@ -122,7 +123,9 @@ docker compose down -v && docker compose up -d
 Docker Compose가 아래 의존 관계를 따라 자동으로 기동한다.
 
 ```
-infra (MySQL, Kafka, Redis, Mongo, Postgres, ...) 
+infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
+  ├─ vault → vault-init (시크릿 시드)
+  ├─ minio → minio-init (버킷 생성)
   └─ cowork-config (Config Server + Eureka)
        ├─ cowork-gateway
        ├─ cowork-authorization
@@ -181,25 +184,50 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | Spring profile | `local` | `dev` 또는 `prod` (Vault 연동) |
 | MinIO | 로컬 컨테이너 | S3 호환 엔드포인트로 변경 |
 
-`dev`/`prod` 프로파일은 Vault Config Server를 사용한다. `.env`에서 `SPRING_PROFILES_ACTIVE` 및 `VAULT_*` 값을 채워야 한다.
+### Vault 시크릿 배포 구조
+
+`dev`/`prod` 프로파일에서 config server(Spring Boot 서비스용)와 환경변수(Go 서비스용)로 시크릿이 각각 주입된다.
+
+| 서비스 유형 | 시크릿 경로 |
+|---|---|
+| Spring Boot (gateway 등) | Vault → config server → 서비스 |
+| Go (authorization, notification, voice) | 컨테이너 환경변수 직접 주입 |
+
+`vault-init` 컨테이너가 Vault 기동 직후 `secret/application` 경로에 아래 시크릿을 자동으로 기록한다.
+
+| Vault 키 | 참조하는 서비스 |
+|---|---|
+| `JWT_SECRET` | gateway (jwt.secret) |
+| `MYSQL_USER`, `MYSQL_PASSWORD` | notification (DB DSN) |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD` | preference (DB) |
+| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | user, preference (MinIO) |
+| `MINIO_PUBLIC_ENDPOINT`, `MINIO_INTERNAL_ENDPOINT` | user, preference (MinIO) |
+
+`.env`에서 `SPRING_PROFILES_ACTIVE=dev`로 변경하면 config server가 Vault composite 모드로 전환된다. `VAULT_HOST`는 `cowork-vault`로 자동 설정된다.
 
 ## 10. 자주 쓰는 확인 포인트
 
-| 서비스 | URL |
-|---|---|
-| Eureka Dashboard | `http://localhost:8761` |
-| Gateway Swagger | `http://localhost:8080/swagger-ui.html` |
-| Kafka UI | `http://localhost:8090` |
-| Prometheus | `http://localhost:9090` |
-| Grafana | `http://localhost:3001` |
-| MinIO Console | `http://localhost:9002` |
-| Vault | `http://localhost:8200` |
+| 서비스              | URL                                     |
+|------------------|-----------------------------------------|
+| Eureka Dashboard | `http://localhost:8761`                 |
+| Gateway Swagger  | `http://localhost:8080/swagger-ui.html` |
+| Kafka UI         | `http://localhost:8090`                 |
+| Prometheus       | `http://localhost:9090`                 |
+| Grafana          | `http://localhost:3001`                 |
+| MinIO Console    | `http://localhost:9002`                 |
+| Vault            | `http://localhost:8200`                 |
 
 ## 11. 알려진 주의사항
 
 `cowork-config`:
-- `SPRING_PROFILES_ACTIVE=local`이 적용돼야 native config를 읽는다.
-- `dev` 프로파일로 뜨면 Vault URI가 없어서 실패한다.
+- `local`/`dev`/`prod` 모든 프로파일에서 Vault + native composite 모드로 동작한다.
+- `vault-init` 완료 후 기동하도록 `depends_on`이 설정돼 있다. `VAULT_HOST=cowork-vault`는 docker-compose에 이미 설정돼 있다.
+
+`cowork-gateway`:
+- `jwt.secret`은 모든 프로파일에서 Vault → config server 경로로 주입된다.
+
+`cowork-authorization`:
+- `USER_SERVICE_URL` 기본값이 `http://cowork-user:8082`임. docker-compose에 명시돼 있으므로 별도 설정 불필요.
 
 `cowork-voice`:
 - `.env`의 `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`가 채워져야 기동된다.
