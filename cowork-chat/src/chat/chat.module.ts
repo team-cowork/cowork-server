@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
@@ -47,6 +48,7 @@ function createLogStream() {
 
 @Module({
     imports: [
+        ConfigModule,
         ...loggerImports,
         PrometheusModule.register({
             defaultMetrics: { enabled: true },

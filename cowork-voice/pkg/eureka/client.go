@@ -81,6 +81,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("eureka register failed: status=%d", resp.StatusCode)
 	}
+	slog.Info("registered with eureka", "app", cfg.EurekaAppName, "instance", c.instanceID)
 	return nil
 }
 
@@ -114,7 +115,13 @@ func (c *Client) Deregister(cfg *config.AppConfig) error {
 		return nil
 	}
 
-	close(c.stopCh)
+	select {
+	case <-c.stopCh:
+		// already closed
+	default:
+		close(c.stopCh)
+	}
+
 	req, err := http.NewRequest(http.MethodDelete, c.instanceURL(), nil)
 	if err != nil {
 		return err
@@ -127,6 +134,7 @@ func (c *Client) Deregister(cfg *config.AppConfig) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("eureka deregister failed: status=%d", resp.StatusCode)
 	}
+	slog.Info("deregistered from eureka", "app", c.appName, "instance", c.instanceID)
 	return nil
 }
 
