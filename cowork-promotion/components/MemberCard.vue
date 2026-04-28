@@ -15,7 +15,7 @@ const avatarUrl = computed(
 const positionColorMap: Record<string, string> = {
   'Server': '#8B5CF6',
   'Web Client': '#EAB308',
-  'Mobile App Client': '#EA580C',
+  'Mobile App Client': '#F43F5E',
   'Desktop App Client': '#0EA5E9',
   'Cloud': '#F97316',
   'Design': '#14B8A6',
