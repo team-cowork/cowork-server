@@ -63,7 +63,7 @@ class HealthCheckController(
         return routeLocator.routes
             .map { route -> route.uri }
             .filter { it.scheme == "lb" }
-            .map { it.host.lowercase() }
+            .flatMap { uri -> Mono.justOrEmpty(uri.host?.lowercase()) }
             .distinct()
             .collectList()
             .flatMap { serviceIds ->
