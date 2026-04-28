@@ -73,13 +73,14 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid KAFKA_MESSAGE_TIMEOUT_MS: %w", err)
 	}
-	eurekaPort, err := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", getEnv("PORT", "9000")))
+
+	eurekaPort, err := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", getEnv("PORT", "8084")))
 	if err != nil {
 		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
 	}
 
 	return &AppConfig{
-		Port:                  getEnv("PORT", "9000"),
+		Port:                  getEnv("PORT", "8084"),
 		MongoDBURI:            mongoURI,
 		MongoDBDB:             mongoDB,
 		LiveKitURL:            liveKitURL,
