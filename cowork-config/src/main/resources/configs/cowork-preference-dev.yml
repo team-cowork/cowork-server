@@ -15,3 +15,6 @@ preference:
 
 eureka:
   url: http://cowork-config:8761/eureka/
+  app-name: cowork-preference
+  instance:
+    host: cowork-preference
