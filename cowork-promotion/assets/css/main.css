@@ -30,11 +30,11 @@
 }
 
 .marquee-left {
-  animation: scroll-left 50s linear infinite;
+  animation: scroll-left 90s linear infinite;
 }
 
 .marquee-right {
-  animation: scroll-right 50s linear infinite;
+  animation: scroll-right 90s linear infinite;
 }
 
 .marquee-track:hover .marquee-left,
