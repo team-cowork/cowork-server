@@ -43,7 +43,7 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "user_id", Value: 1}},
 			Options: options.Index().
 				SetUnique(true).
-				SetPartialFilterExpression(bson.D{{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}}}),
+				SetPartialFilterExpression(bson.D{{Key: "left_at", Value: nil}}),
 		},
 		{
 			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "joined_at", Value: 1}},
@@ -166,7 +166,7 @@ func (r *mongoSessionRepository) InsertParticipant(ctx context.Context, p *room.
 	filter := bson.D{
 		{Key: "session_id", Value: p.SessionID},
 		{Key: "user_id", Value: p.UserID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "left_at", Value: nil},
 	}
 	update := bson.D{
 		{Key: "$setOnInsert", Value: bson.D{
@@ -174,6 +174,7 @@ func (r *mongoSessionRepository) InsertParticipant(ctx context.Context, p *room.
 			{Key: "user_id", Value: p.UserID},
 			{Key: "channel_id", Value: p.ChannelID},
 			{Key: "joined_at", Value: p.JoinedAt},
+			{Key: "left_at", Value: nil},
 		}},
 	}
 	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
@@ -188,7 +189,7 @@ func (r *mongoSessionRepository) MarkParticipantLeft(ctx context.Context, sessio
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "left_at", Value: nil},
 	}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
 	result, err := col.UpdateOne(ctx, filter, update)
@@ -202,7 +203,7 @@ func (r *mongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, 
 	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "left_at", Value: nil},
 	}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
 	result, err := col.UpdateMany(ctx, filter, update)
@@ -217,7 +218,7 @@ func (r *mongoSessionRepository) GetParticipantJoinedAt(ctx context.Context, ses
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
-		{Key: "left_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "left_at", Value: nil},
 	}
 	var p room.VoiceParticipant
 	err := col.FindOne(ctx, filter).Decode(&p)
