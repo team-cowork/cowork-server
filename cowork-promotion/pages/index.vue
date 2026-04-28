@@ -105,6 +105,7 @@ const repos = [
 ]
 
 function fillMarquee(list: Member[], min = 20): Member[] {
+    if (list.length === 0) return []
     const result: Member[] = []
     while (result.length < min) result.push(...list)
     return result
