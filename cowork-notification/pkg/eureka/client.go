@@ -30,6 +30,8 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 		30,
 		false,
 	)
+	instance.VipAddress = cfg.EurekaAppName
+	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.Metadata = &eurekaclient.MetaData{
 		Map: map[string]string{"startup": time.Now().String()},
 	}
