@@ -28,8 +28,6 @@ import (
 
 	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
-	"github.com/cowork/cowork-voice/pkg/eureka"
-	"github.com/cowork/cowork-voice/pkg/logger"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
@@ -39,6 +37,8 @@ import (
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
+	"github.com/cowork/cowork-voice/pkg/eureka"
+	"github.com/cowork/cowork-voice/pkg/logger"
 )
 
 func main() {
@@ -125,12 +125,12 @@ func main() {
 		Handler: r,
 	}
 
-	eurekaClient := eureka.New(cfg.EurekaServerURL)
-	if err := eurekaClient.Register(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort); err != nil {
+	eurekaClient := eureka.New(cfg)
+	if err := eurekaClient.Register(cfg); err != nil {
 		slog.Error("critical: eureka registration failed", "err", err)
 		os.Exit(1)
 	}
-	eurekaClient.StartHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
+	eurekaClient.StartHeartbeat(cfg)
 
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
@@ -152,7 +152,7 @@ func main() {
 		exitCode = 1
 	}
 
-	eurekaClient.Deregister(cfg.EurekaAppName, cfg.EurekaInstanceHost)
+	eurekaClient.Deregister(cfg)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
