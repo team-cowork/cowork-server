@@ -19,6 +19,10 @@ type AppConfig struct {
 	KafkaTopicVoiceEvent  string
 	KafkaMessageTimeoutMs int
 	ChannelServiceURL     string
+	EurekaServerURL       string
+	EurekaAppName         string
+	EurekaInstanceHost    string
+	EurekaInstancePort    int
 }
 
 func Load() (*AppConfig, error) {
@@ -69,8 +73,13 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_MESSAGE_TIMEOUT_MS: %w", err)
 	}
 
+	eurekaPort, err := strconv.Atoi(getEnv("EUREKA_INSTANCE_PORT", "8084"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
+	}
+
 	return &AppConfig{
-		Port:                  getEnv("PORT", "9000"),
+		Port:                  getEnv("PORT", "8084"),
 		MongoDBURI:            mongoURI,
 		MongoDBDB:             mongoDB,
 		LiveKitURL:            liveKitURL,
@@ -82,6 +91,10 @@ func Load() (*AppConfig, error) {
 		KafkaTopicVoiceEvent:  kafkaTopic,
 		KafkaMessageTimeoutMs: timeoutMs,
 		ChannelServiceURL:     channelServiceURL,
+		EurekaServerURL:       getEnv("EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
+		EurekaAppName:         getEnv("EUREKA_APP_NAME", "cowork-voice"),
+		EurekaInstanceHost:    getEnv("EUREKA_INSTANCE_HOST", "localhost"),
+		EurekaInstancePort:    eurekaPort,
 	}, nil
 }
 
