@@ -28,6 +28,7 @@ import (
 
 	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
+	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
@@ -124,6 +125,13 @@ func main() {
 		Handler: r,
 	}
 
+	eurekaClient := eureka.New(cfg.EurekaServerURL)
+	if err := eurekaClient.Register(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort); err != nil {
+		slog.Warn("eureka registration failed", "err", err)
+	} else {
+		eurekaClient.StartHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
+	}
+
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
@@ -143,6 +151,8 @@ func main() {
 		slog.Error("server error", "err", err)
 		exitCode = 1
 	}
+
+	eurekaClient.Deregister(cfg.EurekaAppName, cfg.EurekaInstanceHost)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
