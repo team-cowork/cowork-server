@@ -8,65 +8,77 @@ interface Member {
     cohort: string
 }
 
+interface TechItem {
+    name: string
+    color: string
+    positions: string[]
+}
+
 const members = rawMembers as Member[]
 
-const techCategories = [
+const techCategories: { label: string; items: TechItem[] }[] = [
     {
         label: 'Language',
         items: [
-            {name: 'Kotlin', color: '#7F52FF'},
-            {name: 'TypeScript', color: '#3178C6'},
-            {name: 'JavaScript', color: '#F7DF1E'},
-            {name: 'Go', color: '#00ADD8'},
-            {name: 'Dart', color: '#0175C2'},
+            {name: 'Kotlin', color: '#7F52FF', positions: ['Server', 'Desktop App Client']},
+            {name: 'TypeScript', color: '#3178C6', positions: ['Server', 'Web Client']},
+            {name: 'JavaScript', color: '#F7DF1E', positions: []},
+            {name: 'Go', color: '#00ADD8', positions: ['Server']},
+            {name: 'Dart', color: '#0175C2', positions: ['Mobile App Client']},
         ],
     },
     {
         label: 'Frontend',
         items: [
-            {name: 'React', color: '#61DAFB'},
-            {name: 'Vue.js', color: '#4FC08D'},
-            {name: 'Rsbuild', color: '#FF3E00'},
-            {name: 'Flutter', color: '#02569B'},
-            {name: 'Kotlin Multiplatform', color: '#7F52FF'},
+            {name: 'React', color: '#61DAFB', positions: ['Web Client']},
+            {name: 'Vue.js', color: '#4FC08D', positions: []},
+            {name: 'Rsbuild', color: '#FF3E00', positions: ['Web Client']},
+            {name: 'Flutter', color: '#02569B', positions: ['Mobile App Client']},
+            {name: 'Kotlin Multiplatform', color: '#7F52FF', positions: ['Desktop App Client']},
         ],
     },
     {
         label: 'Backend',
         items: [
-            {name: 'Spring Boot', color: '#6DB33F'},
-            {name: 'Spring Cloud Gateway', color: '#6DB33F'},
-            {name: 'Eureka', color: '#6DB33F'},
-            {name: 'OpenFeign', color: '#6DB33F'},
-            {name: 'Vert.x', color: '#2C3E50'},
-            {name: 'Node.js', color: '#339933'},
-            {name: 'NestJS', color: '#E0234E'},
-            {name: 'Gin', color: '#00ADD8'},
-            {name: 'Chi', color: '#00ADD8'},
-            {name: 'LiveKit', color: '#FF5C93'},
+            {name: 'Spring Boot', color: '#6DB33F', positions: ['Server']},
+            {name: 'Spring Cloud Gateway', color: '#6DB33F', positions: ['Server']},
+            {name: 'Eureka', color: '#6DB33F', positions: ['Server']},
+            {name: 'OpenFeign', color: '#6DB33F', positions: ['Server']},
+            {name: 'Vert.x', color: '#2C3E50', positions: ['Server']},
+            {name: 'Node.js', color: '#339933', positions: ['Server']},
+            {name: 'NestJS', color: '#E0234E', positions: ['Server']},
+            {name: 'Gin', color: '#00ADD8', positions: ['Server']},
+            {name: 'Chi', color: '#00ADD8', positions: ['Server']},
+            {name: 'LiveKit', color: '#FF5C93', positions: ['Server']},
         ],
     },
     {
         label: 'Database',
         items: [
-            {name: 'MySQL', color: '#4479A1'},
-            {name: 'PostgreSQL', color: '#336791'},
-            {name: 'MongoDB', color: '#47A248'},
-            {name: 'Redis', color: '#DC382D'},
-            {name: 'Flyway', color: '#CC0200'},
+            {name: 'MySQL', color: '#4479A1', positions: ['Server']},
+            {name: 'PostgreSQL', color: '#336791', positions: []},
+            {name: 'MongoDB', color: '#47A248', positions: ['Server']},
+            {name: 'Redis', color: '#DC382D', positions: ['Server']},
+            {name: 'Flyway', color: '#CC0200', positions: ['Server']},
         ],
     },
     {
         label: 'Messaging',
-        items: [{name: 'Apache Kafka', color: '#231F20'}],
+        items: [{name: 'Apache Kafka', color: '#231F20', positions: ['Server']}],
     },
     {
         label: 'Infrastructure',
         items: [
-            {name: 'Docker', color: '#2496ED'},
-            {name: 'Grafana', color: '#F46800'},
-            {name: 'Prometheus', color: '#E6522C'},
-            {name: 'Vault', color: '#0FC75E'},
+            {name: 'Docker', color: '#2496ED', positions: ['Cloud']},
+            {name: 'Grafana', color: '#F46800', positions: ['Cloud']},
+            {name: 'Prometheus', color: '#E6522C', positions: ['Cloud']},
+            {name: 'Vault', color: '#0FC75E', positions: ['Cloud']},
+        ],
+    },
+    {
+        label: 'Design',
+        items: [
+            {name: 'Figma', color: '#F24E1E', positions: ['Design']},
         ],
     },
 ]
@@ -106,38 +118,45 @@ const repos = [
 
 const positionOrder = ['Server', 'Web Client', 'Desktop App Client', 'Mobile App Client', 'Cloud', 'Design']
 
-const positionConfig: Record<string, { color: string; description: string; techs: string[] }> = {
+const positionConfig: Record<string, { color: string; description: string }> = {
     'Server': {
         color: '#8B5CF6',
         description: '서비스의 핵심 비즈니스 로직과 API를 설계하고 구현합니다. MSA 구조 위에서 각 도메인 서비스를 담당합니다.',
-        techs: ['Kotlin', 'Spring Boot', 'Spring Cloud Gateway', 'Eureka', 'OpenFeign', 'Vert.x', 'Apache Kafka', 'MySQL', 'MongoDB', 'Redis', 'Flyway'],
     },
     'Web Client': {
         color: '#EAB308',
         description: '웹 브라우저 환경의 사용자 인터페이스를 개발합니다. MFE 아키텍처로 확장 가능한 프론트엔드를 구성합니다.',
-        techs: ['TypeScript', 'React', 'Rsbuild'],
     },
     'Desktop App Client': {
         color: '#0EA5E9',
         description: '데스크탑 환경에 최적화된 협업 클라이언트를 개발합니다. 네이티브에 가까운 성능과 경험을 제공합니다.',
-        techs: ['Kotlin', 'Kotlin Multiplatform'],
     },
     'Mobile App Client': {
         color: '#F43F5E',
         description: '모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.',
-        techs: ['Dart', 'Flutter'],
     },
     'Cloud': {
         color: '#F97316',
         description: '서비스 인프라를 설계하고 운영합니다. 안정적인 배포 파이프라인과 모니터링 체계를 구축합니다.',
-        techs: ['Docker', 'Grafana', 'Prometheus', 'Vault'],
     },
     'Design': {
         color: '#14B8A6',
         description: 'cowork의 시각적 아이덴티티를 정의합니다. 사용자 중심의 UI/UX 디자인으로 직관적인 경험을 만듭니다.',
-        techs: ['Figma'],
     },
 }
+
+const positionTechsMap = computed<Record<string, string[]>>(() => {
+    const map: Record<string, string[]> = {}
+    for (const cat of techCategories) {
+        for (const tech of cat.items) {
+            for (const pos of tech.positions) {
+                if (!map[pos]) map[pos] = []
+                map[pos].push(tech.name)
+            }
+        }
+    }
+    return map
+})
 
 interface PositionGroup {
     name: string
@@ -163,7 +182,7 @@ const positionGroups = computed<PositionGroup[]>(() => {
             name,
             color: positionConfig[name].color,
             description: positionConfig[name].description,
-            techs: positionConfig[name].techs,
+            techs: positionTechsMap.value[name] ?? [],
             members: groups.get(name)!,
         }))
         .filter(g => g.members.length > 0)
