@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up",
+          "expr": "up{job=~\"cowork-.*\"}",
           "legendFormat": "{{job}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -40,7 +40,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "sum by (application) (rate(http_server_requests_seconds_count{job=~\"cowork-.*\"}[1m]))",
+          "expr": "sum by (application) (rate(http_server_requests_seconds_count{job=\"cowork-services\"}[1m]))",
           "legendFormat": "{{application}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -53,7 +53,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "sum by (application) (rate(http_server_requests_seconds_count{status=~\"5..\",job=~\"cowork-.*\"}[1m])) / sum by (application) (rate(http_server_requests_seconds_count{job=~\"cowork-.*\"}[1m])) * 100",
+          "expr": "sum by (application) (rate(http_server_requests_seconds_count{status=~\"5..\",job=\"cowork-services\"}[1m])) / sum by (application) (rate(http_server_requests_seconds_count{job=\"cowork-services\"}[1m])) * 100",
           "legendFormat": "{{application}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -67,7 +67,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\",job=~\"cowork-.*\"})",
+          "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\",job=\"cowork-services\"})",
           "legendFormat": "{{application}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -81,7 +81,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "go_memstats_heap_inuse_bytes{job=~\"cowork-authorization|cowork-voice\"}",
+          "expr": "go_memstats_heap_inuse_bytes{service=~\"authorization|voice\"}",
           "legendFormat": "{{job}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
