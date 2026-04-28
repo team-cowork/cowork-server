@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=\"cowork-preference\"}",
+          "expr": "up{service=\"preference\"}",
           "legendFormat": "preference",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -36,7 +36,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "rate(vertx_http_server_requests_total{job=\"cowork-preference\"}[1m])",
+          "expr": "rate(vertx_http_server_requests_total{service=\"preference\"}[1m])",
           "legendFormat": "{{method}} {{route}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -49,7 +49,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, rate(vertx_http_server_response_time_seconds_bucket{job=\"cowork-preference\"}[5m])) * 1000",
+          "expr": "histogram_quantile(0.99, rate(vertx_http_server_response_time_seconds_bucket{service=\"preference\"}[5m])) * 1000",
           "legendFormat": "P99",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
