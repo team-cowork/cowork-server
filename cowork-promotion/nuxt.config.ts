@@ -4,12 +4,12 @@ export default defineNuxtConfig({
   modules: ['@nuxtjs/tailwindcss'],
   app: {
     head: {
-      title: 'Cowork',
+      title: 'cowork',
       meta: [
         { charset: 'utf-8' },
         { name: 'viewport', content: 'width=device-width, initial-scale=1' },
         { name: 'description', content: '광주소프트웨어마이스터고등학교 학생들이 만드는 협업 관리 플랫폼' },
-        { property: 'og:title', content: 'Cowork' },
+        { property: 'og:title', content: 'cowork' },
         { property: 'og:description', content: '광주소프트웨어마이스터고등학교 학생들이 만드는 협업 관리 플랫폼' },
         { property: 'og:type', content: 'website' },
       ],
