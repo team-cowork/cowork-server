@@ -14,8 +14,11 @@ const avatarUrl = computed(
 </script>
 
 <template>
-  <div
-    class="flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm shrink-0 select-none"
+  <a
+    :href="`https://github.com/${member.githubId}`"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm shrink-0 select-none hover:border-gray-200 hover:shadow-md transition-all duration-150"
     style="min-width: 200px"
   >
     <img
@@ -34,5 +37,5 @@ const avatarUrl = computed(
         <span class="text-xs font-medium text-red-500">{{ member.cohort }}</span>
       </div>
     </div>
-  </div>
+  </a>
 </template>
