@@ -111,6 +111,34 @@ services:
       timeout: 5s
       retries: 5
 
+  vault-init:
+    image: hashicorp/vault:2.0.0
+    container_name: cowork-vault-init
+    restart: "no"
+    depends_on:
+      vault:
+        condition: service_healthy
+    environment:
+      VAULT_ADDR: http://cowork-vault:8200
+      VAULT_TOKEN: dev-root-token
+      JWT_SECRET: ${JWT_SECRET}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
+      MINIO_INTERNAL_ENDPOINT: ${MINIO_INTERNAL_ENDPOINT:-http://minio:9000}
+      MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
+    entrypoint: >
+      /bin/sh -c "
+      vault secrets enable -version=2 -path=secret kv 2>/dev/null || true;
+      vault kv put secret/application JWT_SECRET=$${JWT_SECRET} MYSQL_USER=$${MYSQL_USER} MYSQL_PASSWORD=$${MYSQL_PASSWORD} POSTGRES_USER=$${POSTGRES_USER} POSTGRES_PASSWORD=$${POSTGRES_PASSWORD} MINIO_ACCESS_KEY=$${MINIO_ACCESS_KEY} MINIO_SECRET_KEY=$${MINIO_SECRET_KEY} MINIO_PUBLIC_ENDPOINT=$${MINIO_PUBLIC_ENDPOINT} MINIO_INTERNAL_ENDPOINT=$${MINIO_INTERNAL_ENDPOINT} MINIO_PUBLIC_BASE_URL=$${MINIO_PUBLIC_BASE_URL};
+      echo 'Vault secrets initialized.';
+      exit 0;
+      "
+
   minio:
     image: minio/minio:latest
     container_name: cowork-minio
@@ -332,9 +360,12 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      vault-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      VAULT_HOST: cowork-vault
     ports:
       - "8761:8761"
     volumes:
@@ -393,6 +424,7 @@ services:
       EUREKA_SERVER_URL: http://cowork-config:8761/eureka
       EUREKA_INSTANCE_HOST: cowork-authorization
       EUREKA_INSTANCE_PORT: "8081"
+      USER_SERVICE_URL: http://cowork-user:8082
     ports:
       - "8081:8081"
     healthcheck:
