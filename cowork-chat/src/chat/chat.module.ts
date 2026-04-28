@@ -23,6 +23,9 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
             pinoHttp: {
                 level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
                 stream: createLogStream(),
+                autoLogging: {
+                    ignore: (req) => req.url?.split('?')[0] === '/metrics',
+                },
                 timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
                 formatters: {
                     level: (label: string) => ({ level: label }),
