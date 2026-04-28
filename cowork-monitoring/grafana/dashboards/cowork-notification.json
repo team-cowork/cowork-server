@@ -1,7 +1,7 @@
 {
-  "title": "cowork-voice",
-  "uid": "cowork-voice",
-  "tags": ["cowork", "service", "voice"],
+  "title": "cowork-notification",
+  "uid": "cowork-notification",
+  "tags": ["cowork", "service", "notification"],
   "timezone": "browser",
   "schemaVersion": 38,
   "refresh": "30s",
@@ -14,8 +14,8 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{service=\"voice\"}",
-          "legendFormat": "voice",
+          "expr": "up{service=\"notification\"}",
+          "legendFormat": "notification",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -36,7 +36,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "sum by (route) (rate(cowork_voice_http_requests_total{status=~\"2..|3..\"}[1m]))",
+          "expr": "sum by (route) (rate(cowork_notification_http_requests_total{status=~\"2..|3..\"}[1m]))",
           "legendFormat": "{{route}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -49,7 +49,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "sum by (route, status) (rate(cowork_voice_http_requests_total{status=~\"4..|5..\"}[1m]))",
+          "expr": "sum by (route, status) (rate(cowork_notification_http_requests_total{status=~\"4..|5..\"}[1m]))",
           "legendFormat": "{{route}} {{status}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -62,12 +62,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(cowork_voice_http_request_duration_seconds_bucket[5m]))) * 1000",
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(cowork_notification_http_request_duration_seconds_bucket[5m]))) * 1000",
           "legendFormat": "P99 {{route}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(cowork_voice_http_request_duration_seconds_bucket[5m]))) * 1000",
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(cowork_notification_http_request_duration_seconds_bucket[5m]))) * 1000",
           "legendFormat": "P95 {{route}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -81,7 +81,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "cowork_voice_http_requests_in_flight",
+          "expr": "cowork_notification_http_requests_in_flight",
           "legendFormat": "{{method}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -94,12 +94,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
-          "expr": "go_memstats_heap_inuse_bytes{service=\"voice\"}",
+          "expr": "go_memstats_heap_inuse_bytes{service=\"notification\"}",
           "legendFormat": "Heap InUse",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "go_memstats_heap_alloc_bytes{service=\"voice\"}",
+          "expr": "go_memstats_heap_alloc_bytes{service=\"notification\"}",
           "legendFormat": "Heap Alloc",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -113,12 +113,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "go_goroutines{service=\"voice\"}",
+          "expr": "go_goroutines{service=\"notification\"}",
           "legendFormat": "goroutines",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "rate(go_gc_duration_seconds_count{service=\"voice\"}[1m]) * 60",
+          "expr": "rate(go_gc_duration_seconds_count{service=\"notification\"}[1m]) * 60",
           "legendFormat": "GC/min",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
