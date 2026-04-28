@@ -36,10 +36,11 @@ fun main() {
     )
     try {
         eurekaRegistrar.register()
-        eurekaRegistrar.startHeartbeat()
     } catch (e: Exception) {
-        log.warn("Eureka registration failed: {}", e.message)
+        log.error("Critical: Eureka registration failed", e)
+        System.exit(1)
     }
+    eurekaRegistrar.startHeartbeat()
 
     Runtime.getRuntime().addShutdownHook(Thread {
         eurekaRegistrar.deregister()
