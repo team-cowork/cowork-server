@@ -19,7 +19,9 @@ fun buildRouter(
     router.route().handler(BodyHandler.create())
 
     router.get("/health").handler { ctx ->
-        ctx.response().putHeader("Content-Type", "application/json").end("""{"status":"UP"}""")
+        ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end("""{"status":"UP"}""")
     }
 
     router.get("/metrics").handler { ctx ->

@@ -2,6 +2,7 @@ package eureka
 
 import (
 	"log/slog"
+	"strconv"
 	"time"
 
 	eurekaclient "github.com/ArthurHlt/go-eureka-client/eureka"
@@ -31,7 +32,12 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 		false,
 	)
 	instance.Metadata = &eurekaclient.MetaData{
-		Map: map[string]string{"startup": time.Now().String()},
+		Map: map[string]string{
+			"startup":           time.Now().String(),
+			"management.port":   strconv.Itoa(cfg.EurekaInstancePort),
+			"prometheus.scrape": "true",
+			"prometheus.path":   "/metrics",
+		},
 	}
 	return c.inner.RegisterInstance(cfg.EurekaAppName, instance)
 }

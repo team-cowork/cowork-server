@@ -19,8 +19,13 @@ class AccessLogFilter : GlobalFilter, Ordered {
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
         val start = System.currentTimeMillis()
         val request = exchange.request
+        val path = request.path.value()
 
         return chain.filter(exchange).doFinally {
+            if (isMetricsEndpoint(path)) {
+                return@doFinally
+            }
+
             val status = exchange.response.statusCode?.value() ?: 0
             val duration = System.currentTimeMillis() - start
             log.info(
@@ -28,7 +33,7 @@ class AccessLogFilter : GlobalFilter, Ordered {
                 entries(
                     mapOf(
                         "method" to request.method.name(),
-                        "path" to request.path.value(),
+                        "path" to path,
                         "status" to status,
                         "duration" to duration,
                     )
@@ -36,4 +41,7 @@ class AccessLogFilter : GlobalFilter, Ordered {
             )
         }
     }
+
+    private fun isMetricsEndpoint(path: String): Boolean =
+        path == "/actuator/prometheus" || path == "/metrics"
 }
