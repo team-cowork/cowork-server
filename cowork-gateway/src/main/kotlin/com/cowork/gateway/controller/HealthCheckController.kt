@@ -62,8 +62,8 @@ class HealthCheckController(
     fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> {
         return routeLocator.routes
             .map { route -> route.uri }
-            .filter { it.scheme == "lb" && it.host != null }
-            .map { it.host!!.lowercase() }
+            .filter { it.scheme == "lb" }
+            .flatMap { uri -> Mono.justOrEmpty(uri.host?.lowercase()) }
             .distinct()
             .collectList()
             .flatMap { serviceIds ->
