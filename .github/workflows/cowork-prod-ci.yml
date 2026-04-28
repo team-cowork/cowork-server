@@ -29,8 +29,8 @@ jobs:
             const prNumber = context.payload.pull_request.number;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'chat', 'voice',
-              'config', 'notification', 'preference', 'monitoring', 'ci/cd'
+              'team', 'project', 'channel', 'chat', 'voice', 'promotion',
+              'config', 'notification', 'preference', 'ci/cd'
             ];
 
             const versionPattern = /^v\d{8}\.\d+$/;
@@ -104,6 +104,8 @@ jobs:
               - 'cowork-voice/**'
             cowork-chat:
               - 'cowork-chat/**'
+            cowork-promotion:
+              - 'cowork-promotion/**'
             cowork-notification:
               - 'cowork-notification/**'
             cowork-preference:
@@ -123,9 +125,10 @@ jobs:
               {"service":"cowork-team","lang":"kotlin","gradle-task":":cowork-team:build"},
               {"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."},
               {"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"},
-              {"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}
+              {"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"},
+              {"service":"cowork-promotion","lang":"node","working-directory":"cowork-promotion","node-version":"22"}
             ]}'
-            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-authorization, cowork-voice, cowork-chat"
+            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
           else
             MATRIX='{"include":[]}'
             SERVICES=""
@@ -156,6 +159,9 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
+            [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","lang":"node","working-directory":"cowork-promotion","node-version":"22"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-promotion"
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
               MATRIX='{"include":[{"service":"변경 없음","lang":"skip"}]}'
               SERVICES="없음"
