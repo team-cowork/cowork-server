@@ -28,6 +28,23 @@ fun main() {
 
     runFlyway(appConfig)
 
+    val eurekaRegistrar = EurekaRegistrar(
+        eurekaUrl = appConfig.eurekaUrl,
+        appName = appConfig.eurekaAppName,
+        instanceHost = appConfig.eurekaInstanceHost,
+        port = appConfig.serverPort,
+    )
+    try {
+        eurekaRegistrar.register()
+        eurekaRegistrar.startHeartbeat()
+    } catch (e: Exception) {
+        log.warn("Eureka registration failed: {}", e.message)
+    }
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        eurekaRegistrar.deregister()
+    })
+
     val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
     MetricsRegistry.registry = prometheusRegistry
 
