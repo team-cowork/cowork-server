@@ -104,6 +104,94 @@ const repos = [
     },
 ]
 
+const positionOrder = ['Server', 'Web Client', 'Desktop App Client', 'Mobile App Client', 'Cloud', 'Design']
+
+const positionConfig: Record<string, { color: string; description: string; techs: string[] }> = {
+    'Server': {
+        color: '#8B5CF6',
+        description: '서비스의 핵심 비즈니스 로직과 API를 설계하고 구현합니다. MSA 구조 위에서 각 도메인 서비스를 담당합니다.',
+        techs: ['Kotlin', 'Spring Boot', 'Spring Cloud Gateway', 'Eureka', 'OpenFeign', 'Vert.x', 'Apache Kafka', 'MySQL', 'MongoDB', 'Redis', 'Flyway'],
+    },
+    'Web Client': {
+        color: '#EAB308',
+        description: '웹 브라우저 환경의 사용자 인터페이스를 개발합니다. MFE 아키텍처로 확장 가능한 프론트엔드를 구성합니다.',
+        techs: ['TypeScript', 'React', 'Rsbuild'],
+    },
+    'Desktop App Client': {
+        color: '#0EA5E9',
+        description: '데스크탑 환경에 최적화된 협업 클라이언트를 개발합니다. 네이티브에 가까운 성능과 경험을 제공합니다.',
+        techs: ['Kotlin', 'Kotlin Multiplatform'],
+    },
+    'Mobile App Client': {
+        color: '#EA580C',
+        description: '모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.',
+        techs: ['Dart', 'Flutter'],
+    },
+    'Cloud': {
+        color: '#F97316',
+        description: '서비스 인프라를 설계하고 운영합니다. 안정적인 배포 파이프라인과 모니터링 체계를 구축합니다.',
+        techs: ['Docker', 'Grafana', 'Prometheus', 'Vault'],
+    },
+    'Design': {
+        color: '#14B8A6',
+        description: 'cowork의 시각적 아이덴티티를 정의합니다. 사용자 중심의 UI/UX 디자인으로 직관적인 경험을 만듭니다.',
+        techs: ['Figma'],
+    },
+}
+
+interface PositionGroup {
+    name: string
+    color: string
+    description: string
+    techs: string[]
+    members: Member[]
+}
+
+const positionGroups = computed<PositionGroup[]>(() => {
+    const groups = new Map<string, Member[]>(positionOrder.map(p => [p, []]))
+    for (const member of members) {
+        for (const part of member.position.split(' | ')) {
+            const key = positionOrder.find(p => part.trim() === p)
+            if (key) {
+                const list = groups.get(key)!
+                if (!list.some(m => m.githubId === member.githubId)) list.push(member)
+            }
+        }
+    }
+    return positionOrder
+        .map(name => ({
+            name,
+            color: positionConfig[name].color,
+            description: positionConfig[name].description,
+            techs: positionConfig[name].techs,
+            members: groups.get(name)!,
+        }))
+        .filter(g => g.members.length > 0)
+})
+
+const sectionRef = ref<HTMLElement | null>(null)
+const activeIndex = ref(0)
+
+const scrollToIndex = (i: number) => {
+    if (!sectionRef.value) return
+    const sectionTop = sectionRef.value.getBoundingClientRect().top + window.scrollY
+    const scrollable = sectionRef.value.offsetHeight - window.innerHeight
+    window.scrollTo({top: sectionTop + (i / positionGroups.value.length) * scrollable + 1, behavior: 'smooth'})
+}
+
+onMounted(() => {
+    const handleScroll = () => {
+        if (!sectionRef.value) return
+        const rect = sectionRef.value.getBoundingClientRect()
+        const scrollable = sectionRef.value.offsetHeight - window.innerHeight
+        if (scrollable <= 0) return
+        const progress = Math.max(0, Math.min(1, -rect.top / scrollable))
+        activeIndex.value = Math.min(positionGroups.value.length - 1, Math.floor(progress * positionGroups.value.length))
+    }
+    window.addEventListener('scroll', handleScroll, {passive: true})
+    onUnmounted(() => window.removeEventListener('scroll', handleScroll))
+})
+
 function fillMarquee(list: Member[], min = 20): Member[] {
     if (list.length === 0) return []
     const result: Member[] = []
@@ -312,6 +400,120 @@ const row2 = [...marqueeItems, ...marqueeItems]
                 {{ tech.name }}
               </span>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Divider -->
+        <div class="max-w-6xl mx-auto px-6">
+            <div class="h-px bg-gradient-to-r from-transparent via-gray-200 to-transparent"/>
+        </div>
+
+        <!-- Position Section -->
+        <section
+            ref="sectionRef"
+            :style="{ height: `calc(${positionGroups.length} * 50vh + 100vh)` }"
+            class="relative"
+        >
+            <div class="sticky top-0 h-screen overflow-hidden bg-white flex flex-col justify-center">
+                <!-- Background index number -->
+                <div
+                    class="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden"
+                    aria-hidden="true"
+                >
+                    <span
+                        class="font-black leading-none transition-all duration-700"
+                        style="font-size: clamp(160px, 28vw, 380px); opacity: 0.04; line-height: 1; padding-left: 4vw;"
+                        :style="{ color: positionGroups[activeIndex]?.color }"
+                    >
+                        {{ String(activeIndex + 1).padStart(2, '0') }}
+                    </span>
+                </div>
+
+                <div class="max-w-6xl mx-auto px-6 w-full relative z-10">
+                    <!-- Top bar -->
+                    <div class="flex items-center justify-between mb-8">
+                        <span class="text-xs font-semibold text-gray-400 uppercase tracking-widest">Position</span>
+                        <span class="text-xs text-gray-400 font-medium tabular-nums">
+                            {{ String(activeIndex + 1).padStart(2, '0') }} / {{ String(positionGroups.length).padStart(2, '0') }}
+                        </span>
+                    </div>
+
+                    <!-- Panel content: fixed-height container prevents layout shift -->
+                    <div class="relative" style="height: 46vh; min-height: 300px;">
+                        <Transition name="pos-panel" mode="out-in">
+                            <div :key="activeIndex" class="absolute inset-0 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center">
+                                <!-- Left: text + techs -->
+                                <div>
+                                    <div
+                                        class="w-2 h-2 rounded-full mb-5"
+                                        :style="{ backgroundColor: positionGroups[activeIndex]?.color }"
+                                    />
+                                    <h2
+                                        class="text-5xl lg:text-6xl font-black tracking-tight leading-tight mb-5"
+                                        :style="{ color: positionGroups[activeIndex]?.color }"
+                                    >
+                                        {{ positionGroups[activeIndex]?.name }}
+                                    </h2>
+                                    <p class="text-gray-500 text-base leading-relaxed mb-5">
+                                        {{ positionGroups[activeIndex]?.description }}
+                                    </p>
+                                    <div class="flex flex-wrap gap-2">
+                                        <span
+                                            v-for="tech in positionGroups[activeIndex]?.techs"
+                                            :key="tech"
+                                            class="text-xs font-semibold px-2.5 py-1 rounded-full"
+                                            :style="{
+                                                backgroundColor: `${positionGroups[activeIndex]?.color}15`,
+                                                color: positionGroups[activeIndex]?.color,
+                                            }"
+                                        >{{ tech }}</span>
+                                    </div>
+                                </div>
+
+                                <!-- Right: members -->
+                                <div class="flex flex-wrap gap-3 content-start pb-1">
+                                    <a
+                                        v-for="member in positionGroups[activeIndex]?.members"
+                                        :key="member.githubId"
+                                        :href="`https://github.com/${member.githubId}`"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="flex items-center gap-2.5 px-4 py-2.5 rounded-xl border"
+                                        :style="{
+                                            backgroundColor: `${positionGroups[activeIndex]?.color}12`,
+                                            borderColor: `${positionGroups[activeIndex]?.color}30`,
+                                        }"
+                                    >
+                                        <img
+                                            :src="`https://github.com/${member.githubId}.png?size=64`"
+                                            :alt="member.name"
+                                            class="w-8 h-8 rounded-full object-cover"
+                                            loading="lazy"
+                                        />
+                                        <div>
+                                            <p class="text-sm font-semibold text-gray-900 leading-tight">{{ member.name }}</p>
+                                            <p class="text-xs text-gray-400">{{ member.cohort }}</p>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </Transition>
+                    </div>
+
+                    <!-- Progress dots -->
+                    <div class="flex items-center gap-2 mt-8">
+                        <button
+                            v-for="(group, i) in positionGroups"
+                            :key="group.name"
+                            class="h-1 rounded-full transition-all duration-500 cursor-pointer"
+                            :style="{
+                                width: activeIndex === i ? '32px' : '8px',
+                                backgroundColor: activeIndex === i ? positionGroups[activeIndex]?.color : '#E5E7EB',
+                            }"
+                            @click="scrollToIndex(i)"
+                        />
                     </div>
                 </div>
             </div>
