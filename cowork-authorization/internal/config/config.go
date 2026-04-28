@@ -66,7 +66,7 @@ func Load() (*AppConfig, error) {
 		EurekaInstanceHost: getEnvOrDefault("EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort: eurekaPort,
 
-		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8080"),
+		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8082"),
 	}
 
 	return cfg, nil
