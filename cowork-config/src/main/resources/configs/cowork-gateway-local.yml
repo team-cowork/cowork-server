@@ -25,8 +25,8 @@ cowork:
 spring:
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   cloud:
     gateway:
@@ -129,7 +129,7 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: preference-service
-          uri: http://localhost:9001
+          uri: lb://cowork-preference
           predicates:
             - Path=/api/preferences/**
           filters:
@@ -164,7 +164,7 @@ spring:
             - RewritePath=/v3/api-docs/chat, /api-json
 
         - id: preference-service-docs
-          uri: http://localhost:9001
+          uri: lb://cowork-preference
           predicates:
             - Path=/v3/api-docs/preference
           filters:
