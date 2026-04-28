@@ -18,7 +18,7 @@ const avatarUrl = computed(
     :href="`https://github.com/${member.githubId}`"
     target="_blank"
     rel="noopener noreferrer"
-    class="flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm shrink-0 select-none hover:border-gray-200 hover:shadow-md transition-all duration-150"
+    class="flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm shrink-0 select-none"
     style="min-width: 200px"
   >
     <img
