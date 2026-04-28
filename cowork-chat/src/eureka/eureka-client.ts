@@ -59,6 +59,8 @@ export class EurekaClient {
                     },
                     metadata: {
                         'management.port': String(this.config.port),
+                        'prometheus.scrape': 'true',
+                        'prometheus.path': '/metrics',
                     },
                 },
             }),

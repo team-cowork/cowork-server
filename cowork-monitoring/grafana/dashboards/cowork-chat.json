@@ -14,7 +14,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=\"cowork-chat\"}",
+          "expr": "up{service=\"chat\"}",
           "legendFormat": "chat",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -36,7 +36,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "nodejs_eventloop_lag_seconds{job=\"cowork-chat\"} * 1000",
+          "expr": "nodejs_eventloop_lag_seconds{service=\"chat\"} * 1000",
           "legendFormat": "EventLoop Lag",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -50,12 +50,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "nodejs_heap_size_used_bytes{job=\"cowork-chat\"}",
+          "expr": "nodejs_heap_size_used_bytes{service=\"chat\"}",
           "legendFormat": "Heap Used",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "nodejs_heap_size_total_bytes{job=\"cowork-chat\"}",
+          "expr": "nodejs_heap_size_total_bytes{service=\"chat\"}",
           "legendFormat": "Heap Total",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -69,7 +69,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "nodejs_active_handles_total{job=\"cowork-chat\"}",
+          "expr": "nodejs_active_handles_total{service=\"chat\"}",
           "legendFormat": "Active Handles",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -83,7 +83,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
-          "expr": "rate(nodejs_gc_duration_seconds_sum{job=\"cowork-chat\"}[1m]) * 1000",
+          "expr": "rate(nodejs_gc_duration_seconds_sum{service=\"chat\"}[1m]) * 1000",
           "legendFormat": "GC {{kind}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
