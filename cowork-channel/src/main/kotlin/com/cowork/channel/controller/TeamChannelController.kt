@@ -1,6 +1,7 @@
-package com.cowork.channel.api
+package com.cowork.channel.controller
 
-import com.cowork.channel.channel.ListTeamChannelsService
+import com.cowork.channel.dto.ChannelResponse
+import com.cowork.channel.service.ListTeamChannelsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 
-@Tag(name = "채널", description = "팀 채널 조회 API")
+@Tag(name = "팀 채널", description = "팀 채널 조회 API")
 @RestController
 @RequestMapping("/teams")
 class TeamChannelController(
@@ -30,5 +31,5 @@ class TeamChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
     ): List<ChannelResponse> =
-        listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::from)
+        listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::of)
 }
