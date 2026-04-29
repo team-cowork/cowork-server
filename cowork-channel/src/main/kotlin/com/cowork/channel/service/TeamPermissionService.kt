@@ -1,20 +1,17 @@
 package com.cowork.channel.service
 
-import com.cowork.channel.client.TeamClient
+import com.cowork.channel.repository.TeamMembershipRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class TeamPermissionService(
-    private val teamClient: TeamClient,
+    private val teamMembershipRepository: TeamMembershipRepository,
 ) {
 
-    fun teamRoleOf(teamId: Long, userId: Long): String? = try {
-        teamClient.getMembership(teamId, userId).role
-    } catch (e: ExpectedException) {
-        if (e.statusCode == HttpStatus.NOT_FOUND) null else throw e
-    }
+    fun teamRoleOf(teamId: Long, userId: Long): String? =
+        teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
 
     fun isTeamMember(teamId: Long, userId: Long): Boolean = teamRoleOf(teamId, userId) != null
 
