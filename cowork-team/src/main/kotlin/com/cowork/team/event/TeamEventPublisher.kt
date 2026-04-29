@@ -10,15 +10,24 @@ class TeamEventPublisher(
     private val kafkaTemplate: KafkaTemplate<String, TeamEventPayload>,
 ) {
     private val log = LoggerFactory.getLogger(TeamEventPublisher::class.java)
-    private val topic = "notification.trigger"
 
-    fun publish(payload: TeamEventPayload) {
+    fun publishNotification(payload: TeamEventPayload) = send(Topics.NOTIFICATION_TRIGGER, payload)
+
+    fun publishLifecycle(payload: TeamEventPayload) = send(Topics.TEAM_LIFECYCLE, payload)
+
+    private fun send(topic: String, payload: TeamEventPayload) {
         kafkaTemplate.send(topic, payload.teamId.toString(), payload)
             .whenComplete { result, ex ->
                 if (ex != null) {
-                    log.error("Kafka 이벤트 발행 실패 [eventType=${payload.eventType}, teamId=${payload.teamId}]", ex)
+                    log.error(
+                        "Kafka 이벤트 발행 실패 [topic={}, eventType={}, teamId={}]",
+                        topic, payload.eventType, payload.teamId, ex,
+                    )
                 } else {
-                    log.info("Kafka 이벤트 발행 성공 [eventType=${payload.eventType}, offset=${result.recordMetadata.offset()}]")
+                    log.info(
+                        "Kafka 이벤트 발행 성공 [topic={}, eventType={}, offset={}]",
+                        topic, payload.eventType, result.recordMetadata.offset(),
+                    )
                 }
             }
     }
