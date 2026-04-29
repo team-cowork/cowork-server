@@ -70,7 +70,7 @@ func (r *cachedSessionRepository) getFromCache(ctx context.Context, key string) 
 func (r *cachedSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
 	s, err := r.getFromCache(ctx, channelKey(channelID))
 	if err != nil {
-		slog.Warn("redis: FindActiveSession cache miss, falling back to mongo", "err", err, "channel_id", channelID)
+		slog.Warn("redis: FindActiveSession cache error, falling back to mongo", "err", err, "channel_id", channelID)
 	} else if s != nil {
 		return s, nil
 	}
@@ -88,7 +88,7 @@ func (r *cachedSessionRepository) FindActiveSession(ctx context.Context, channel
 func (r *cachedSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*room.VoiceSession, error) {
 	s, err := r.getFromCache(ctx, roomKey(roomName))
 	if err != nil {
-		slog.Warn("redis: FindSessionByRoomName cache miss, falling back to mongo", "err", err, "room_name", roomName)
+		slog.Warn("redis: FindSessionByRoomName cache error, falling back to mongo", "err", err, "room_name", roomName)
 	} else if s != nil {
 		return s, nil
 	}
@@ -122,6 +122,12 @@ func (r *cachedSessionRepository) EndSession(ctx context.Context, sessionID stri
 	s, err := r.getFromCache(ctx, sessionKey(sessionID))
 	if err != nil {
 		slog.Warn("redis: EndSession cache lookup failed", "err", err, "session_id", sessionID)
+	}
+
+	if s == nil {
+		if ms, err := r.mongo.GetSession(ctx, sessionID); err == nil && ms != nil {
+			s = ms
+		}
 	}
 
 	if err := r.mongo.EndSession(ctx, sessionID, endedAt); err != nil {
