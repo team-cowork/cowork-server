@@ -35,6 +35,7 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 	lkinfra "github.com/cowork/cowork-voice/internal/infra/livekit"
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
+	redisinfra "github.com/cowork/cowork-voice/internal/infra/redis"
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
 	"github.com/cowork/cowork-voice/pkg/eureka"
@@ -83,8 +84,17 @@ func main() {
 		cfg.LiveKitAPISecret,
 	)
 
+	redisClient := redisinfra.NewClient(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
+	redisCtx, redisCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer redisCancel()
+	if err := redisinfra.Ping(redisCtx, redisClient); err != nil {
+		slog.Error("redis ping failed", "err", err)
+		os.Exit(1)
+	}
+
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
-	sessionRepo := mongoinfra.NewMongoSessionRepository(db)
+	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
+	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
 	livekitRoom := lkinfra.NewLiveKitRoom(
 		livekitClient,
 		cfg.LiveKitAPIKey,
@@ -165,6 +175,9 @@ func main() {
 	}
 	if err := mongoClient.Disconnect(shutdownCtx); err != nil {
 		slog.Error("mongodb disconnect error", "err", err)
+	}
+	if err := redisClient.Close(); err != nil {
+		slog.Error("redis close error", "err", err)
 	}
 
 	slog.Info("shutdown complete")
