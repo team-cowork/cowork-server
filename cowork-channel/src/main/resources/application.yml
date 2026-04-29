@@ -6,6 +6,10 @@ spring:
     name: cowork-channel
   config:
     import: "optional:configserver:http://localhost:8761"
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      auto-offset-reset: earliest
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -38,6 +42,15 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      cowork-team:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+
 sdk:
   logging:
     enabled: true
@@ -46,11 +59,7 @@ sdk:
       - "/v3/api-docs/**"
       - "/swagger-ui/**"
   response:
-    not-wrapping-urls:
-      - "/actuator/**"
-      - "/v3/api-docs/**"
-      - "/v3/api-docs"
-      - "/swagger-ui/**"
+    enabled: false
   swagger:
     enabled: true
     title: "cowork-channel API"
@@ -59,4 +68,7 @@ sdk:
     group: "channel"
     paths-to-match:
       - "/teams/**"
+      - "/channels/**"
+  exception:
+    enabled: false
 
