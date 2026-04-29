@@ -1,0 +1,47 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: cowork-project
+  datasource:
+    url: jdbc:mysql://localhost:3306/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USER:cowork}
+    password: ${MYSQL_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+sdk:
+  logging:
+    enabled: true
+    not-logging-urls:
+      - "/v3/api-docs/**"
+      - "/swagger-ui/**"
+  response:
+    enabled: false
+  swagger:
+    enabled: true
+    title: "cowork-project API"
+    description: "cowork-project 프로젝트 관리 서비스 API"
+    version: "v1"
+    group: "project"
+    paths-to-match:
+      - "/projects/**"
+  exception:
+    enabled: false
