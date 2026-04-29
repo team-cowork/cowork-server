@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param
 
 interface ProjectRepository : JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
 
+    fun findAllByTeamId(teamId: Long): List<Project>
+
     fun findByTeamId(teamId: Long, pageable: Pageable): Page<Project>
 
     @Query(
