@@ -48,6 +48,7 @@ class SecurityConfig(
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/voice/webhook").permitAll()
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
