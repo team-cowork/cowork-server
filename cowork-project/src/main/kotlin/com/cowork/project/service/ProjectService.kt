@@ -1,5 +1,6 @@
 package com.cowork.project.service
 
+import com.cowork.project.client.TeamClient
 import com.cowork.project.domain.Project
 import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
@@ -19,6 +20,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ProjectService(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
+    private val teamClient: TeamClient,
 ) {
 
     private fun findProjectOrThrow(projectId: Long): Project =
@@ -31,18 +33,32 @@ class ProjectService(
             ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
         }
 
-    private fun requireOwner(projectId: Long, userId: Long) {
-        if (!projectMemberRepository.existsByProjectIdAndUserIdAndRole(projectId, userId, ProjectMemberRole.OWNER)) {
-            throw ExpectedException("해당 작업은 프로젝트 OWNER만 수행할 수 있습니다.", HttpStatus.FORBIDDEN)
-        }
+    private fun teamRoleOf(teamId: Long, userId: Long): String? = try {
+        teamClient.getMembership(teamId, userId).role
+    } catch (e: ExpectedException) {
+        if (e.statusCode == HttpStatus.NOT_FOUND) null else throw e
     }
 
-    private fun requireOwnerOrEditor(projectId: Long, userId: Long) {
-        val member = projectMemberRepository.findByProjectIdAndUserId(projectId, userId)
-            ?: throw ExpectedException("프로젝트 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
-        if (member.role != ProjectMemberRole.OWNER && member.role != ProjectMemberRole.EDITOR) {
-            throw ExpectedException("해당 작업은 프로젝트 OWNER 또는 EDITOR만 수행할 수 있습니다.", HttpStatus.FORBIDDEN)
-        }
+    private fun requireTeamMember(teamId: Long, userId: Long) {
+        teamRoleOf(teamId, userId)
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+    }
+
+    private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
+        teamRoleOf(teamId, userId) in setOf("OWNER", "ADMIN")
+
+    private fun requireProjectModifier(project: Project, userId: Long) {
+        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
+        if (role == ProjectMemberRole.OWNER || role == ProjectMemberRole.EDITOR) return
+        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
+        throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+    }
+
+    private fun requireProjectOwner(project: Project, userId: Long) {
+        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
+        if (role == ProjectMemberRole.OWNER) return
+        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
+        throw ExpectedException("해당 작업은 프로젝트 OWNER만 수행할 수 있습니다.", HttpStatus.FORBIDDEN)
     }
 
     private fun parseRole(role: String): ProjectMemberRole =
@@ -61,6 +77,8 @@ class ProjectService(
 
     @Transactional
     fun createProject(userId: Long, request: CreateProjectRequest): ProjectResponse {
+        requireTeamMember(request.teamId, userId)
+
         val project = projectRepository.save(
             Project(
                 teamId = request.teamId,
@@ -81,16 +99,17 @@ class ProjectService(
         return ProjectResponse.of(project)
     }
 
-    fun getProject(projectId: Long): ProjectDetailResponse {
+    fun getProject(userId: Long, projectId: Long): ProjectDetailResponse {
         val project = findProjectOrThrow(projectId)
+        requireTeamMember(project.teamId, userId)
         val memberCount = projectMemberRepository.countByProjectId(projectId)
         return ProjectDetailResponse.of(project, memberCount)
     }
 
     @Transactional
     fun updateProject(userId: Long, projectId: Long, request: UpdateProjectRequest): ProjectResponse {
-        requireOwnerOrEditor(projectId, userId)
         val project = findProjectOrThrow(projectId)
+        requireProjectModifier(project, userId)
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }
@@ -101,13 +120,15 @@ class ProjectService(
 
     @Transactional
     fun deleteProject(userId: Long, projectId: Long) {
-        requireOwner(projectId, userId)
         val project = findProjectOrThrow(projectId)
+        requireProjectOwner(project, userId)
         projectRepository.delete(project)
     }
 
-    fun getProjectsByTeamId(teamId: Long, pageable: Pageable): Page<ProjectResponse> =
-        projectRepository.findByTeamId(teamId, pageable).map { ProjectResponse.of(it) }
+    fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
+        requireTeamMember(teamId, userId)
+        return projectRepository.findByTeamId(teamId, pageable).map { ProjectResponse.of(it) }
+    }
 
     fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResponse> =
         projectRepository.findProjectsByMemberUserId(userId, pageable)
@@ -115,7 +136,11 @@ class ProjectService(
 
     @Transactional
     fun addMember(userId: Long, projectId: Long, request: AddProjectMemberRequest): ProjectMemberResponse {
-        requireOwner(projectId, userId)
+        val project = findProjectOrThrow(projectId)
+        requireProjectOwner(project, userId)
+
+        teamRoleOf(project.teamId, request.userId)
+            ?: throw ExpectedException("추가 대상이 팀 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
 
         val role = parseRole(request.role)
         if (role == ProjectMemberRole.OWNER) {
@@ -138,14 +163,16 @@ class ProjectService(
         return ProjectMemberResponse.of(member)
     }
 
-    fun getMembers(projectId: Long): List<ProjectMemberResponse> {
-        findProjectOrThrow(projectId)
+    fun getMembers(userId: Long, projectId: Long): List<ProjectMemberResponse> {
+        val project = findProjectOrThrow(projectId)
+        requireTeamMember(project.teamId, userId)
         return projectMemberRepository.findByProjectId(projectId).map { ProjectMemberResponse.of(it) }
     }
 
     @Transactional
     fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleRequest): ProjectMemberResponse {
-        requireOwner(projectId, userId)
+        val project = findProjectOrThrow(projectId)
+        requireProjectOwner(project, userId)
         val member = findMemberOrThrow(memberId)
 
         if (member.projectId != projectId) {
@@ -167,7 +194,8 @@ class ProjectService(
 
     @Transactional
     fun removeMember(userId: Long, projectId: Long, memberId: Long) {
-        requireOwner(projectId, userId)
+        val project = findProjectOrThrow(projectId)
+        requireProjectOwner(project, userId)
         val member = findMemberOrThrow(memberId)
 
         if (member.projectId != projectId) {
