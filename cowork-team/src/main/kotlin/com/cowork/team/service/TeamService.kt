@@ -128,8 +128,7 @@ class TeamService(
 
     @Transactional
     fun deleteTeam(userId: Long, teamId: Long) {
-        requireRole(teamId, userId, TeamRole.OWNER)
-        val team = findTeamOrThrow(teamId)
+        val team = requireRole(teamId, userId, TeamRole.OWNER).team
         val payload = TeamEventPayload(
             eventType = "TEAM_DELETED",
             teamId = team.id,
