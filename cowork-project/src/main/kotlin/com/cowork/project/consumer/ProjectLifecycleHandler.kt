@@ -1,0 +1,67 @@
+package com.cowork.project.consumer
+
+import com.cowork.project.domain.ProjectMemberRole
+import com.cowork.project.repository.ProjectMemberRepository
+import com.cowork.project.repository.ProjectRepository
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+@Service
+class ProjectLifecycleHandler(
+    private val projectRepository: ProjectRepository,
+    private val projectMemberRepository: ProjectMemberRepository,
+) {
+    private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
+
+    @Transactional
+    fun onTeamDeleted(teamId: Long) {
+        val projects = projectRepository.findAllByTeamId(teamId)
+        if (projects.isEmpty()) {
+            log.info("TEAM_DELETED 처리: 대상 프로젝트 없음 [teamId={}]", teamId)
+            return
+        }
+        projectRepository.deleteAll(projects)
+        log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)
+    }
+
+    @Transactional
+    fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long) {
+        val teamProjectIds = projectRepository.findAllByTeamId(teamId).map { it.id }
+        if (teamProjectIds.isEmpty()) return
+
+        val ownerProjects = projectMemberRepository
+            .findAllByUserIdAndRoleAndProjectIdIn(targetUserId, ProjectMemberRole.OWNER, teamProjectIds)
+            .map { it.projectId }
+
+        if (ownerProjects.isNotEmpty()) {
+            projectRepository.deleteAllById(ownerProjects)
+        }
+
+        val remaining = teamProjectIds - ownerProjects.toSet()
+        if (remaining.isNotEmpty()) {
+            projectMemberRepository.deleteAllByUserIdAndProjectIdIn(targetUserId, remaining)
+        }
+        log.info(
+            "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}, membershipsRemoved={}]",
+            teamId, targetUserId, ownerProjects.size, remaining.size,
+        )
+    }
+
+    @Transactional
+    fun onUserDeleted(userId: Long) {
+        val ownerProjectIds = projectMemberRepository
+            .findAllByUserIdAndRole(userId, ProjectMemberRole.OWNER)
+            .map { it.projectId }
+
+        if (ownerProjectIds.isNotEmpty()) {
+            projectRepository.deleteAllById(ownerProjectIds)
+        }
+        projectMemberRepository.deleteAllByUserId(userId)
+
+        log.info(
+            "USER_DELETED 처리 [userId={}, ownerProjectsDeleted={}]",
+            userId, ownerProjectIds.size,
+        )
+    }
+}
