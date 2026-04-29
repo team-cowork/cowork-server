@@ -23,9 +23,10 @@ class ProjectController(
 
     @GetMapping("/{projectId}")
     fun getProject(
+        @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<ProjectDetailResponse> =
-        ResponseEntity.ok(projectService.getProject(projectId))
+        ResponseEntity.ok(projectService.getProject(userId, projectId))
 
     @PatchMapping("/{projectId}")
     fun updateProject(
@@ -46,10 +47,11 @@ class ProjectController(
 
     @GetMapping
     fun getProjectsByTeamId(
+        @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
         @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResponse>> =
-        ResponseEntity.ok(projectService.getProjectsByTeamId(teamId, pageable))
+        ResponseEntity.ok(projectService.getProjectsByTeamId(userId, teamId, pageable))
 
     @GetMapping("/me")
     fun getMyProjects(
@@ -68,9 +70,10 @@ class ProjectController(
 
     @GetMapping("/{projectId}/members")
     fun getMembers(
+        @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<List<ProjectMemberResponse>> =
-        ResponseEntity.ok(projectService.getMembers(projectId))
+        ResponseEntity.ok(projectService.getMembers(userId, projectId))
 
     @PatchMapping("/{projectId}/members/{memberId}")
     fun updateMemberRole(
