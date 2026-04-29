@@ -17,10 +17,13 @@ class TeamLifecycleConsumer(
     )
     fun consume(payload: TeamLifecyclePayload) {
         when (payload.eventType) {
-            "TEAM_DELETED" -> handler.onTeamDeleted(payload.teamId)
+            "MEMBER_INVITED" -> handler.onMemberInvited(payload.teamId, payload.targetUserIds, "MEMBER")
+            "ROLE_CHANGED" -> payload.targetUserIds.forEach {
+                val newRole = payload.newRole ?: return@forEach
+                handler.onRoleChanged(payload.teamId, it, newRole)
+            }
             "MEMBER_REMOVED" -> payload.targetUserIds.forEach { handler.onMemberRemovedFromTeam(payload.teamId, it) }
-            "MEMBER_INVITED", "ROLE_CHANGED" ->
-                log.info("team.lifecycle 수신 [eventType={}, teamId={}]", payload.eventType, payload.teamId)
+            "TEAM_DELETED" -> handler.onTeamDeleted(payload.teamId)
             else -> log.warn("알 수 없는 team.lifecycle 이벤트 [eventType={}]", payload.eventType)
         }
     }
