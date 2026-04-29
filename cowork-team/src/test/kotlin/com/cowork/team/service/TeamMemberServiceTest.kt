@@ -91,15 +91,4 @@ class TeamMemberServiceTest {
         verify(exactly = 0) { teamEventPublisher.publishLifecycle(any()) }
     }
 
-    @Test
-    fun `getMembership은 멤버 아닐 때 NOT_FOUND`() {
-        val teamId = 5L
-        val userId = 9L
-        every { teamMemberRepository.findByTeamIdAndUserId(teamId, userId) } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.getMembership(teamId, userId)
-        }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
-    }
 }

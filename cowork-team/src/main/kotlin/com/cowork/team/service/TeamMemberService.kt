@@ -6,7 +6,6 @@ import com.cowork.team.dto.ChangeRoleRequest
 import com.cowork.team.dto.InviteMembersRequest
 import com.cowork.team.dto.TeamEventPayload
 import com.cowork.team.dto.TeamMemberResponse
-import com.cowork.team.dto.TeamMembershipResponse
 import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
@@ -67,12 +66,6 @@ class TeamMemberService(
 
     fun isMember(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
-
-    fun getMembership(teamId: Long, userId: Long): TeamMembershipResponse {
-        val member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
-            ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.NOT_FOUND)
-        return TeamMembershipResponse.of(member)
-    }
 
     @Transactional
     fun changeRole(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
