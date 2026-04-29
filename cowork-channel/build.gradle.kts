@@ -33,6 +33,8 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
     implementation("org.springframework.cloud:spring-cloud-starter-config")
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+    implementation("org.springframework.kafka:spring-kafka")
 
     implementation("com.mysql:mysql-connector-j")
     implementation("org.flywaydb:flyway-core")
@@ -48,6 +50,7 @@ dependencies {
     implementation(libs.logstash.logback.encoder)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation(libs.mockk)
 }
 
 kotlin {
