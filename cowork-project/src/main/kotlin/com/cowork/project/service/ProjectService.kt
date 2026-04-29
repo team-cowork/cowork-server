@@ -1,6 +1,5 @@
 package com.cowork.project.service
 
-import com.cowork.project.client.TeamClient
 import com.cowork.project.domain.Project
 import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
@@ -8,6 +7,7 @@ import com.cowork.project.domain.ProjectStatus
 import com.cowork.project.dto.*
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
+import com.cowork.project.repository.TeamMembershipRepository
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -20,7 +20,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ProjectService(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
-    private val teamClient: TeamClient,
+    private val teamMembershipRepository: TeamMembershipRepository,
 ) {
 
     private fun findProjectOrThrow(projectId: Long): Project =
@@ -33,11 +33,8 @@ class ProjectService(
             ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
         }
 
-    private fun teamRoleOf(teamId: Long, userId: Long): String? = try {
-        teamClient.getMembership(teamId, userId).role
-    } catch (e: ExpectedException) {
-        if (e.statusCode == HttpStatus.NOT_FOUND) null else throw e
-    }
+    private fun teamRoleOf(teamId: Long, userId: Long): String? =
+        teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
 
     private fun requireTeamMember(teamId: Long, userId: Long) {
         teamRoleOf(teamId, userId)
