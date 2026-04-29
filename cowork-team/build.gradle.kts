@@ -48,6 +48,7 @@ dependencies {
     implementation(libs.awspring.cloud.s3)
     implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation(libs.mockk)
 }
 
 kotlin {
