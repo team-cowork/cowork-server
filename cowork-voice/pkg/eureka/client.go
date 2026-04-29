@@ -90,8 +90,8 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 		return
 	}
 
-	const heartbeatInterval = 30 * time.Second
-	ticker := time.NewTicker(heartbeatInterval)
+	interval := time.Duration(cfg.EurekaHeartbeatIntervalSecs) * time.Second
+	ticker := time.NewTicker(interval)
 	go func() {
 		defer ticker.Stop()
 		for {

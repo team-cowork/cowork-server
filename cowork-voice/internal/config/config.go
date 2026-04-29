@@ -10,6 +10,9 @@ type AppConfig struct {
 	Port                  string
 	MongoDBURI            string
 	MongoDBDB             string
+	RedisAddr             string
+	RedisPassword         string
+	RedisDB               int
 	LiveKitURL            string
 	LiveKitWsURL          string
 	LiveKitAPIKey         string
@@ -19,11 +22,12 @@ type AppConfig struct {
 	KafkaTopicVoiceEvent  string
 	KafkaMessageTimeoutMs int
 	ChannelServiceURL     string
-	EurekaEnabled         bool
-	EurekaServerURL       string
-	EurekaAppName         string
-	EurekaInstanceHost    string
-	EurekaInstancePort    int
+	EurekaEnabled               bool
+	EurekaServerURL             string
+	EurekaAppName               string
+	EurekaInstanceHost          string
+	EurekaInstancePort          int
+	EurekaHeartbeatIntervalSecs int
 }
 
 func Load() (*AppConfig, error) {
@@ -35,6 +39,11 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	redisDB, err := strconv.Atoi(getEnv("REDIS_DB", "0"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid REDIS_DB: %w", err)
+	}
+
 	liveKitURL, err := requireEnv("LIVEKIT_URL")
 	if err != nil {
 		return nil, err
@@ -79,10 +88,18 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
 	}
 
+	heartbeatIntervalSecs, err := strconv.Atoi(getEnv("EUREKA_HEARTBEAT_INTERVAL_SECS", "10"))
+	if err != nil {
+		return nil, fmt.Errorf("invalid EUREKA_HEARTBEAT_INTERVAL_SECS: %w", err)
+	}
+
 	return &AppConfig{
 		Port:                  getEnv("PORT", "8084"),
 		MongoDBURI:            mongoURI,
 		MongoDBDB:             mongoDB,
+		RedisAddr:             getEnv("REDIS_ADDR", "localhost:6379"),
+		RedisPassword:         getEnv("REDIS_PASSWORD", ""),
+		RedisDB:               redisDB,
 		LiveKitURL:            liveKitURL,
 		LiveKitWsURL:          liveKitWsURL,
 		LiveKitAPIKey:         liveKitAPIKey,
@@ -92,11 +109,12 @@ func Load() (*AppConfig, error) {
 		KafkaTopicVoiceEvent:  kafkaTopic,
 		KafkaMessageTimeoutMs: timeoutMs,
 		ChannelServiceURL:     channelServiceURL,
-		EurekaEnabled:         getEnv("EUREKA_ENABLED", "true") != "false",
-		EurekaServerURL:       getEnv("EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
-		EurekaAppName:         getEnv("EUREKA_APP_NAME", "cowork-voice"),
-		EurekaInstanceHost:    getEnv("EUREKA_INSTANCE_HOST", "localhost"),
-		EurekaInstancePort:    eurekaPort,
+		EurekaEnabled:               getEnv("EUREKA_ENABLED", "true") != "false",
+		EurekaServerURL:             getEnv("EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
+		EurekaAppName:               getEnv("EUREKA_APP_NAME", "cowork-voice"),
+		EurekaInstanceHost:          getEnv("EUREKA_INSTANCE_HOST", "localhost"),
+		EurekaInstancePort:          eurekaPort,
+		EurekaHeartbeatIntervalSecs: heartbeatIntervalSecs,
 	}, nil
 }
 
