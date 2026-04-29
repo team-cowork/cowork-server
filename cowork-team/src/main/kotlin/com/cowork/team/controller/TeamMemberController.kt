@@ -3,6 +3,7 @@ package com.cowork.team.controller
 import com.cowork.team.dto.ChangeRoleRequest
 import com.cowork.team.dto.InviteMembersRequest
 import com.cowork.team.dto.TeamMemberResponse
+import com.cowork.team.dto.TeamMembershipResponse
 import com.cowork.team.service.TeamMemberService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -54,6 +55,18 @@ class TeamMemberController(
         @PathVariable userId: Long,
     ): ResponseEntity<Map<String, Boolean>> =
         ResponseEntity.ok(mapOf("isMember" to teamMemberService.isMember(teamId, userId)))
+
+    @Operation(summary = "단일 멤버 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "404", description = "팀 멤버 아님 또는 팀 없음"),
+    )
+    @GetMapping("/{userId}")
+    fun getMembership(
+        @PathVariable teamId: Long,
+        @PathVariable userId: Long,
+    ): ResponseEntity<TeamMembershipResponse> =
+        ResponseEntity.ok(teamMemberService.getMembership(teamId, userId))
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
