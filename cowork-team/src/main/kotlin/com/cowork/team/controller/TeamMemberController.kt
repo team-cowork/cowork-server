@@ -45,7 +45,7 @@ class TeamMemberController(
     ): ResponseEntity<List<TeamMemberResponse>> =
         ResponseEntity.ok(teamMemberService.getMembers(teamId))
 
-    @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "멤버 여부 확인 (내부용)", description = "다른 서비스가 OpenFeign으로 호출합니다. 사용자가 해당 팀의 멤버인지 여부를 반환합니다.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "멤버 여부 반환"),
     )
@@ -56,7 +56,7 @@ class TeamMemberController(
     ): ResponseEntity<Map<String, Boolean>> =
         ResponseEntity.ok(mapOf("isMember" to teamMemberService.isMember(teamId, userId)))
 
-    @Operation(summary = "단일 멤버 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "단일 멤버 조회 (내부용)", description = "다른 서비스가 OpenFeign으로 호출합니다. 특정 사용자의 팀 내 역할(role) 정보를 반환합니다.")
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(responseCode = "404", description = "팀 멤버 아님 또는 팀 없음"),
