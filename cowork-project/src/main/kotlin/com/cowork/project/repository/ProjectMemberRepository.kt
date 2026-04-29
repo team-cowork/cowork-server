@@ -14,4 +14,12 @@ interface ProjectMemberRepository : JpaRepository<ProjectMember, Long>, JpaSpeci
     fun countByProjectId(projectId: Long): Long
 
     fun existsByProjectIdAndUserIdAndRole(projectId: Long, userId: Long, role: ProjectMemberRole): Boolean
+
+    fun findAllByUserIdAndRole(userId: Long, role: ProjectMemberRole): List<ProjectMember>
+
+    fun findAllByUserIdAndRoleAndProjectIdIn(userId: Long, role: ProjectMemberRole, projectIds: List<Long>): List<ProjectMember>
+
+    fun deleteAllByUserId(userId: Long)
+
+    fun deleteAllByUserIdAndProjectIdIn(userId: Long, projectIds: List<Long>)
 }
