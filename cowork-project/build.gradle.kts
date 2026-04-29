@@ -3,11 +3,11 @@ plugins {
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
-    id("org.jetbrains.kotlin.plugin.jpa") version "2.1.20"
+    alias(libs.plugins.kotlin.jpa)
 }
 
 group = "com.cowork"
-version = "0.0.1-SNAPSHOT"
+version = "20260420.0"
 
 java {
     toolchain {
@@ -27,16 +27,31 @@ dependencyManagement {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.micrometer.registry.prometheus)
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
     implementation("org.springframework.cloud:spring-cloud-starter-config")
+    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-resilience4j")
+    implementation("org.springframework.kafka:spring-kafka")
+
     implementation("com.mysql:mysql-connector-j")
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.github.themoment-team:the-sdk:1.5")
+
+    implementation(libs.the.sdk) {
+        exclude(group = "org.springframework.boot")
+        exclude(group = "org.springframework.cloud")
+        exclude(group = "org.springdoc")
+    }
+    implementation(libs.springdoc.openapi.webmvc.ui)
+    implementation(libs.logstash.logback.encoder)
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
+    testImplementation(libs.mockk)
 }
 
 kotlin {
