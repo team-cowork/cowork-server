@@ -19,7 +19,7 @@ data class TeamMemberResponse(
             id = member.id,
             userId = member.userId,
             role = member.role.name,
-            joinedAt = member.joinedAt,
+            joinedAt = requireNotNull(member.joinedAt),
         )
     }
 }
