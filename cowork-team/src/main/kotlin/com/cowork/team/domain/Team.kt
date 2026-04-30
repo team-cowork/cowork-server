@@ -1,9 +1,7 @@
 package com.cowork.team.domain
 
+import com.cowork.team.audit.BaseEntity
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.UpdateTimestamp
-import java.time.LocalDateTime
 
 @Entity
 @Table(name = "tb_teams")
@@ -24,15 +22,7 @@ class Team(
 
     @Column(name = "owner_id", nullable = false)
     val ownerId: Long,
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now(),
-) {
+) : BaseEntity() {
     fun update(name: String?, description: String?, iconUrl: String?) {
         name?.let { this.name = it }
         description?.let { this.description = it }
