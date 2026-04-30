@@ -31,7 +31,7 @@ class TeamMember(
 ) {
     @CreatedDate
     @Column(name = "joined_at", nullable = false, updatable = false)
-    lateinit var joinedAt: LocalDateTime
+    var joinedAt: LocalDateTime? = null
 
     @CreatedBy
     @Column(name = "created_by", updatable = false)
