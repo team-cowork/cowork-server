@@ -17,9 +17,14 @@ import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { GetMessagesDto } from './dto/get-messages.dto';
+import {
+    CreateFileUploadUrlRequestDto,
+    CreateFileUploadUrlResponseDto,
+} from './dto/create-file-upload-url.dto';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { MessageDocument } from './schema/message.schema';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
+import { MinioService } from '../storage/minio.service';
 
 @ApiTags('Chat')
 @Controller('channels/:channelId')
@@ -28,7 +33,35 @@ export class ChatController {
         private readonly chatService: ChatService,
         private readonly chatGateway: ChatGateway,
         private readonly producer: ChatMessageProducer,
+        private readonly minioService: MinioService,
     ) {}
+
+    @Post('files/presigned-url')
+    @HttpCode(HttpStatus.CREATED)
+    @ApiOperation({ summary: '채팅 첨부파일 업로드용 MinIO presigned URL 발급' })
+    @ApiResponse({ status: 201, type: CreateFileUploadUrlResponseDto })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async createFileUploadUrl(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Body() dto: CreateFileUploadUrlRequestDto,
+        @UserId() userId: number,
+    ): Promise<CreateFileUploadUrlResponseDto> {
+        await this.chatService.checkMembership(channelId, userId);
+        const upload = await this.minioService.createPresignedUpload({
+            channelId,
+            userId,
+            filename: dto.filename,
+            contentType: dto.contentType,
+            size: dto.size,
+        });
+
+        return {
+            ...upload,
+            headers: {
+                'Content-Type': dto.contentType,
+            },
+        };
+    }
 
     @Post('messages')
     @HttpCode(HttpStatus.CREATED)
