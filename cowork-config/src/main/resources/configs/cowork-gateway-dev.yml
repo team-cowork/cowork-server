@@ -127,6 +127,25 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: voice-service-webhook
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/webhook
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        - id: voice-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: authorization-service-docs
           uri: lb://cowork-authorization
           predicates:
