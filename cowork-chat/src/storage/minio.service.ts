@@ -4,10 +4,12 @@ import {
     HttpStatus,
     Inject,
     Injectable,
+    InternalServerErrorException,
     PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
+import * as mime from 'mime-types';
 import { randomUUID } from 'crypto';
 import { MINIO_CLIENT } from './minio.constants';
 import { buildMinioConfig, MinioConfig } from './minio.config';
@@ -29,6 +31,7 @@ export class MinioService {
         configService: ConfigService,
     ) {
         this.config = buildMinioConfig(configService);
+        this.validateCredentials();
     }
 
     async createPresignedUpload(params: {
@@ -38,7 +41,6 @@ export class MinioService {
         contentType: string;
         size: number;
     }): Promise<PresignedUpload> {
-        this.validateCredentials();
         this.checkUploadRateLimit(params.userId);
         this.validateContentType(params.contentType);
         this.validateFileSize(params.size);
@@ -62,8 +64,12 @@ export class MinioService {
         try {
             await this.minioClient.statObject(this.config.bucket, objectKey);
             return true;
-        } catch {
-            return false;
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            if (code === 'NoSuchKey' || code === 'NotFound') {
+                return false;
+            }
+            throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
         }
     }
 
@@ -73,7 +79,7 @@ export class MinioService {
 
     private validateCredentials(): void {
         if (!this.config.accessKey || !this.config.secretKey) {
-            throw new BadRequestException('MinIO 접근 키 설정이 필요합니다');
+            throw new Error('MinIO 접근 키 설정이 필요합니다 (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)');
         }
     }
 
@@ -89,6 +95,10 @@ export class MinioService {
         const recentRequests = (this.uploadRateLimitBuckets.get(userId) ?? []).filter(
             (requestedAt) => requestedAt > windowStart,
         );
+
+        if (recentRequests.length === 0) {
+            this.uploadRateLimitBuckets.delete(userId);
+        }
 
         if (recentRequests.length >= this.config.uploadRateLimitMaxRequests) {
             this.uploadRateLimitBuckets.set(userId, recentRequests);
@@ -114,19 +124,13 @@ export class MinioService {
     }
 
     private resolveExtension(filename: string, contentType: string): string {
-        const extensionFromName = filename.split('.').pop()?.toLowerCase();
+        const parts = filename.split('.');
+        const extensionFromName = parts.length > 1 ? parts.pop()?.toLowerCase() : undefined;
         if (extensionFromName && /^[a-z0-9]+$/.test(extensionFromName)) {
             return extensionFromName;
         }
 
-        const extensionByContentType: Record<string, string> = {
-            'image/jpeg': 'jpg',
-            'image/png': 'png',
-            'image/webp': 'webp',
-            'application/pdf': 'pdf',
-            'text/plain': 'txt',
-        };
-        return extensionByContentType[contentType] ?? 'bin';
+        return mime.extension(contentType) || 'bin';
     }
 
     private buildPublicUrl(objectKey: string): string {
