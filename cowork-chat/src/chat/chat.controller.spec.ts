@@ -5,6 +5,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
+import { MinioService } from '../storage/minio.service';
 
 const mockMessageId = new Types.ObjectId().toString();
 const userId = 42;
@@ -19,6 +20,10 @@ const mockChatService = {
 
 const mockProducer = {
     sendMessage: jest.fn(),
+};
+
+const mockMinioService = {
+    createPresignedUpload: jest.fn(),
 };
 
 const mockEmit = jest.fn();
@@ -37,11 +42,40 @@ describe('ChatController', () => {
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatGateway, useValue: mockChatGateway },
                 { provide: ChatMessageProducer, useValue: mockProducer },
+                { provide: MinioService, useValue: mockMinioService },
             ],
         }).compile();
 
         controller = module.get<ChatController>(ChatController);
         jest.clearAllMocks();
+    });
+
+    describe('createFileUploadUrl', () => {
+        it('멤버십 검증 후 MinIO presigned URL을 발급한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockMinioService.createPresignedUpload.mockResolvedValue({
+                objectKey: 'chat-files/1/42/file.png',
+                uploadUrl: 'http://localhost:9000/upload',
+                fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/file.png',
+                expiresInSeconds: 600,
+            });
+
+            const result = await controller.createFileUploadUrl(
+                1,
+                { filename: 'file.png', contentType: 'image/png', size: 1024 },
+                userId,
+            );
+
+            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
+            expect(mockMinioService.createPresignedUpload).toHaveBeenCalledWith({
+                channelId: 1,
+                userId: 42,
+                filename: 'file.png',
+                contentType: 'image/png',
+                size: 1024,
+            });
+            expect(result.headers).toEqual({ 'Content-Type': 'image/png' });
+        });
     });
 
     describe('sendMessage', () => {
