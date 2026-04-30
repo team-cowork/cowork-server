@@ -1,5 +1,10 @@
 import { ConfigService } from '@nestjs/config';
 
+const DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS = 600;
+const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+const DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 1000;
+const DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS = 20;
+
 export interface MinioConfig {
     endPoint: string;
     port?: number;
@@ -52,12 +57,12 @@ export function buildMinioConfig(configService: ConfigService): MinioConfig {
             configService,
             'minio.presignedPutExpirySeconds',
             'MINIO_PRESIGNED_PUT_EXPIRY_SECONDS',
-        ) ?? 600),
+        ) ?? DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS),
         maxFileSizeBytes: Number(getConfigValue(
             configService,
             'minio.chatMaxFileSizeBytes',
             'MINIO_CHAT_MAX_FILE_SIZE_BYTES',
-        ) ?? 104857600),
+        ) ?? DEFAULT_MAX_FILE_SIZE_BYTES),
         allowedContentTypes: (
             getConfigValue(configService, 'minio.chatAllowedContentTypes', 'MINIO_CHAT_ALLOWED_CONTENT_TYPES')
             ?? [
@@ -83,11 +88,11 @@ export function buildMinioConfig(configService: ConfigService): MinioConfig {
             configService,
             'minio.chatUploadRateLimitWindowMs',
             'MINIO_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS',
-        ) ?? 60000),
+        ) ?? DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS),
         uploadRateLimitMaxRequests: Number(getConfigValue(
             configService,
             'minio.chatUploadRateLimitMaxRequests',
             'MINIO_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS',
-        ) ?? 20),
+        ) ?? DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS),
     };
 }
