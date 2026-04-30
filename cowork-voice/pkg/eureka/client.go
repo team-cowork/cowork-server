@@ -58,6 +58,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 				"management.port":   fmt.Sprintf("%d", cfg.EurekaInstancePort),
 				"prometheus.scrape": "true",
 				"prometheus.path":   "/metrics",
+				"status":            "UP",
 			},
 		},
 	}
