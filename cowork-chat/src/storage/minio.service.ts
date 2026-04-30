@@ -5,6 +5,7 @@ import {
     Inject,
     Injectable,
     InternalServerErrorException,
+    Logger,
     PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -23,6 +24,7 @@ export interface PresignedUpload {
 
 @Injectable()
 export class MinioService {
+    private readonly logger = new Logger(MinioService.name);
     private readonly config: MinioConfig;
     private readonly uploadRateLimitBuckets = new Map<number, number[]>();
 
@@ -32,6 +34,10 @@ export class MinioService {
     ) {
         this.config = buildMinioConfig(configService);
         this.validateCredentials();
+        setInterval(
+            () => this.cleanupStaleRateLimitEntries(),
+            this.config.uploadRateLimitWindowMs,
+        );
     }
 
     async createPresignedUpload(params: {
@@ -69,6 +75,7 @@ export class MinioService {
             if (code === 'NoSuchKey' || code === 'NotFound') {
                 return false;
             }
+            this.logger.error(`MinIO statObject 실패 [bucket=${this.config.bucket}, key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
         }
     }
@@ -96,10 +103,6 @@ export class MinioService {
             (requestedAt) => requestedAt > windowStart,
         );
 
-        if (recentRequests.length === 0) {
-            this.uploadRateLimitBuckets.delete(userId);
-        }
-
         if (recentRequests.length >= this.config.uploadRateLimitMaxRequests) {
             this.uploadRateLimitBuckets.set(userId, recentRequests);
             throw new HttpException(
@@ -110,6 +113,15 @@ export class MinioService {
 
         recentRequests.push(now);
         this.uploadRateLimitBuckets.set(userId, recentRequests);
+    }
+
+    private cleanupStaleRateLimitEntries(): void {
+        const windowStart = Date.now() - this.config.uploadRateLimitWindowMs;
+        for (const [userId, timestamps] of this.uploadRateLimitBuckets) {
+            if (timestamps.every(t => t <= windowStart)) {
+                this.uploadRateLimitBuckets.delete(userId);
+            }
+        }
     }
 
     private validateFileSize(size: number): void {
