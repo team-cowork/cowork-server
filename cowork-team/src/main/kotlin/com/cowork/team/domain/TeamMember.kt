@@ -1,10 +1,13 @@
 package com.cowork.team.domain
 
 import jakarta.persistence.*
-import org.hibernate.annotations.CreationTimestamp
+import org.springframework.data.annotation.CreatedBy
+import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.LocalDateTime
 
 @Entity
+@EntityListeners(AuditingEntityListener::class)
 @Table(
     name = "tb_team_members",
     uniqueConstraints = [UniqueConstraint(name = "uq_tb_team_members", columnNames = ["team_id", "user_id"])]
@@ -25,11 +28,15 @@ class TeamMember(
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     var role: TeamRole = TeamRole.MEMBER,
-
-    @CreationTimestamp
-    @Column(name = "joined_at", nullable = false, updatable = false)
-    val joinedAt: LocalDateTime = LocalDateTime.now(),
 ) {
+    @CreatedDate
+    @Column(name = "joined_at", nullable = false, updatable = false)
+    lateinit var joinedAt: LocalDateTime
+
+    @CreatedBy
+    @Column(name = "created_by", updatable = false)
+    var createdBy: Long? = null
+
     fun changeRole(newRole: TeamRole) {
         role = newRole
     }
