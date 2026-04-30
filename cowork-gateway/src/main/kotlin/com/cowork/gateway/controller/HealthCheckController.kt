@@ -101,7 +101,6 @@ class HealthCheckController(
         if (metaStatus != null) {
             return metaStatus.equals("UP", ignoreCase = true)
         }
-        // Eureka는 lease 만료된 인스턴스를 레지스트리에서 제거하므로 조회된 인스턴스는 살아있다고 간주
-        return true
+        return false
     }
 }
