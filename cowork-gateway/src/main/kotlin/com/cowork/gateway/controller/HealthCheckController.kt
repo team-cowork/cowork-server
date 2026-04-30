@@ -97,6 +97,10 @@ class HealthCheckController(
         if (this is EurekaServiceInstance) {
             return instanceInfo.status == InstanceInfo.InstanceStatus.UP
         }
+        val metaStatus = metadata["status"]
+        if (metaStatus != null) {
+            return metaStatus.equals("UP", ignoreCase = true)
+        }
         return false
     }
 }
