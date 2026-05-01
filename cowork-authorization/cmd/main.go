@@ -73,7 +73,7 @@ func main() {
 
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/health", "/metrics"},
+		SkipPaths: []string{"/health", "/health/", "/metrics", "/metrics/"},
 	}))
 	router.Use(gin.Recovery())
 	router.Use(monitoring.HTTPMetricsMiddleware())

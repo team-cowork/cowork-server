@@ -9,6 +9,11 @@ import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 
+private const val ACTUATOR_PATH = "/actuator"
+private const val METRICS_PATH = "/metrics"
+private const val HEALTH_PATH = "/health"
+private const val API_HEALTH_PATH = "/api/health"
+
 @Component
 class AccessLogFilter : GlobalFilter, Ordered {
 
@@ -42,6 +47,12 @@ class AccessLogFilter : GlobalFilter, Ordered {
         }
     }
 
-    private fun isExcludedLogEndpoint(path: String): Boolean =
-        path.startsWith("/actuator/") || path == "/metrics" || path == "/health" || path == "/api/health"
+    private fun isExcludedLogEndpoint(path: String): Boolean {
+        val normalizedPath = path.removeSuffix("/")
+        return normalizedPath == ACTUATOR_PATH ||
+            normalizedPath.startsWith("$ACTUATOR_PATH/") ||
+            normalizedPath == METRICS_PATH ||
+            normalizedPath == HEALTH_PATH ||
+            normalizedPath == API_HEALTH_PATH
+    }
 }
