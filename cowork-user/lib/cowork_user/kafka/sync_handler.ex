@@ -34,12 +34,19 @@ defmodule CoworkUser.Kafka.SyncHandler do
 
             {:ok, :commit, state}
 
-          {:error, reason} ->
+          {:retry, reason} ->
             Logger.error(
               "Kafka user sync processing failed topic=#{state.topic} partition=#{state.partition} offset=#{offset} reason=#{inspect(reason)}"
             )
 
-            raise "kafka user sync processing failed"
+            raise "kafka user sync transient failure"
+
+          {:error, reason} ->
+            Logger.warning(
+              "Skipping invalid Kafka user sync payload topic=#{state.topic} partition=#{state.partition} offset=#{offset} reason=#{inspect(reason)}"
+            )
+
+            {:ok, :commit, state}
         end
 
       {:error, reason} ->
@@ -67,10 +74,12 @@ defmodule CoworkUser.Kafka.SyncHandler do
     else
       case Accounts.upsert_user_from_sync_event(payload) do
         {:ok, _result} -> :ok
-        {:error, reason} -> {:error, reason}
+        {:error, {:validation, reason}} -> {:error, reason}
+        {:error, {:transient, reason}} -> {:retry, reason}
+        {:error, reason} -> {:retry, reason}
       end
     end
   rescue
-    exception -> {:error, Exception.message(exception)}
+    exception -> {:retry, Exception.message(exception)}
   end
 end
