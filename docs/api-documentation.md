@@ -11,7 +11,7 @@ cowork-server는 Spring Cloud Gateway에서 전 서비스의 OpenAPI 스펙을 *
   └─ http://localhost:8080/swagger-ui.html
           │
           ├─ /v3/api-docs/authorization  →  cowork-authorization  /swagger/doc.json  (swaggo)
-          ├─ /v3/api-docs/user           →  cowork-user           /v3/api-docs       (springdoc)
+          ├─ /v3/api-docs/user           →  cowork-user           /v3/api-docs       (Elixir)
           ├─ /v3/api-docs/voice          →  cowork-voice          /swagger/doc.json  (swaggo)
           └─ /v3/api-docs/chat           →  cowork-chat           /api-json          (@nestjs/swagger)
 ```
@@ -61,7 +61,7 @@ cd cowork-chat && npm install
 ```
 [1] docker-compose up -d          # MySQL, Redis, Kafka, Vault, MongoDB
 [2] cowork-config  (포트 8761)    # Config Server + Eureka (가장 먼저)
-[3] cowork-user    (포트 8082)    # Spring Boot
+[3] cowork-user    (포트 8082)    # Elixir
 [4] cowork-authorization          # Go / Gin
 [5] cowork-voice                  # Go / Chi
 [6] cowork-chat    (포트 3000)    # NestJS
@@ -95,7 +95,7 @@ http://localhost:8080/swagger-ui.html
 
 게이트웨이 없이 각 서비스 Swagger UI에 직접 접근할 수 있습니다.
 
-### cowork-user (Spring Boot)
+### cowork-user (Elixir)
 
 ```
 http://localhost:8082/swagger-ui.html    # UI
@@ -180,9 +180,9 @@ Swagger UI 우측 상단 **Authorize** 버튼 → `BearerAuth` → `Bearer <acce
 
 ## 8. API 어노테이션 수정 방법
 
-### Spring Boot (cowork-user)
+### Elixir (cowork-user)
 
-`UserController.kt`의 `@Operation`, DTO의 `@Schema` 수정 후 서비스를 재기동하면 자동 반영됩니다.
+`CoworkUser.OpenAPI` 모듈을 수정한 뒤 서비스를 재기동하면 자동 반영됩니다.
 
 ### Go 서비스 (cowork-authorization, cowork-voice)
 
