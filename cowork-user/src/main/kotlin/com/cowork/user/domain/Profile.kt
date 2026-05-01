@@ -1,5 +1,6 @@
 package com.cowork.user.domain
 
+import com.cowork.user.audit.BaseEntity
 import jakarta.persistence.CollectionTable
 import jakarta.persistence.Column
 import jakarta.persistence.ElementCollection
@@ -11,9 +12,6 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
-import org.hibernate.annotations.CreationTimestamp
-import org.hibernate.annotations.UpdateTimestamp
-import java.time.LocalDateTime
 
 @Entity
 @Table(name = "tb_profiles")
@@ -36,14 +34,6 @@ class Profile(
     @Column(length = 500)
     var description: String?,
 
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    val createdAt: LocalDateTime = LocalDateTime.now(),
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    var updatedAt: LocalDateTime = LocalDateTime.now(),
-
     @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(
         name = "tb_profile_roles",
@@ -51,7 +41,7 @@ class Profile(
     )
     @Column(name = "role", nullable = false, length = 50)
     var roles: MutableSet<String> = mutableSetOf(),
-) {
+) : BaseEntity() {
     fun updateProfile(
         nickname: String?,
         description: String?,
