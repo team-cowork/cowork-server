@@ -479,13 +479,16 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
-      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      APP_CONFIG_URL: http://cowork-config:8761
+      APP_PROFILE: ${APP_PROFILE:-local}
+      DATABASE_URL: "ecto://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      DB_JDBC_URL: "jdbc:mysql://mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      DB_USERNAME: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      EUREKA_SERVER_URL: http://cowork-config:8761/eureka/
+      EUREKA_INSTANCE_HOST: cowork-user
+      EUREKA_INSTANCE_PORT: "8082"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
       MINIO_INTERNAL_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
