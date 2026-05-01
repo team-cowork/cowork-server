@@ -35,6 +35,13 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	healthPath          = "/health"
+	healthTrailingPath  = "/health/"
+	metricsPath         = "/metrics"
+	metricsTrailingPath = "/metrics/"
+)
+
 func main() {
 	logger.Init("cowork-authorization")
 
@@ -73,13 +80,13 @@ func main() {
 
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/health", "/health/", "/metrics", "/metrics/"},
+		SkipPaths: []string{healthPath, healthTrailingPath, metricsPath, metricsTrailingPath},
 	}))
 	router.Use(gin.Recovery())
 	router.Use(monitoring.HTTPMetricsMiddleware())
 
-	router.GET("/health", handler.Health)
-	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
+	router.GET(healthPath, handler.Health)
+	router.GET(metricsPath, gin.WrapH(promhttp.Handler()))
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	auth := router.Group("/auth")
