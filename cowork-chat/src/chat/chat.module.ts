@@ -27,7 +27,7 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
                 stream: createLogStream(),
                 autoLogging: {
                     ignore: (req) => {
-                        const path = req.url?.split('?')[0];
+                        const path = req.url?.split('?')[0]?.replace(/\/$/, '');
                         return path === '/metrics' || path === '/health';
                     },
                 },
