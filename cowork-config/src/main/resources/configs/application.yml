@@ -39,3 +39,4 @@ sdk:
       - "/actuator/**"
       - "/metrics"
       - "/health"
+      - "/api/health"
