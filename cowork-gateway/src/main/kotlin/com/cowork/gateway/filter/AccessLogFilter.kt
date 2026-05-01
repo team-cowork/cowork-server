@@ -22,7 +22,7 @@ class AccessLogFilter : GlobalFilter, Ordered {
         val path = request.path.value()
 
         return chain.filter(exchange).doFinally {
-            if (isMetricsEndpoint(path)) {
+            if (isExcludedLogEndpoint(path)) {
                 return@doFinally
             }
 
@@ -42,6 +42,6 @@ class AccessLogFilter : GlobalFilter, Ordered {
         }
     }
 
-    private fun isMetricsEndpoint(path: String): Boolean =
-        path == "/actuator/prometheus" || path == "/metrics"
+    private fun isExcludedLogEndpoint(path: String): Boolean =
+        path.startsWith("/actuator/") || path == "/metrics" || path == "/health" || path == "/api/health"
 }
