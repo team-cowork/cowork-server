@@ -14,6 +14,8 @@ private const val METRICS_PATH = "/metrics"
 private const val HEALTH_PATH = "/health"
 private const val API_HEALTH_PATH = "/api/health"
 
+private val excludedExactPaths = setOf(ACTUATOR_PATH, METRICS_PATH, HEALTH_PATH, API_HEALTH_PATH)
+
 @Component
 class AccessLogFilter : GlobalFilter, Ordered {
 
@@ -49,10 +51,6 @@ class AccessLogFilter : GlobalFilter, Ordered {
 
     private fun isExcludedLogEndpoint(path: String): Boolean {
         val normalizedPath = path.removeSuffix("/")
-        return normalizedPath == ACTUATOR_PATH ||
-            normalizedPath.startsWith("$ACTUATOR_PATH/") ||
-            normalizedPath == METRICS_PATH ||
-            normalizedPath == HEALTH_PATH ||
-            normalizedPath == API_HEALTH_PATH
+        return normalizedPath in excludedExactPaths || normalizedPath.startsWith("$ACTUATOR_PATH/")
     }
 }
