@@ -1,5 +1,6 @@
 import {
     BadRequestException,
+    ConflictException,
     HttpException,
     HttpStatus,
     Inject,
@@ -64,6 +65,32 @@ export class MinioService {
             fileUrl: this.buildPublicUrl(objectKey),
             expiresInSeconds: this.config.presignedPutExpirySeconds,
         };
+    }
+
+    async confirmUpload(channelId: number, userId: number, objectKey: string): Promise<string> {
+        const expectedPrefix = `chat-files/${channelId}/${userId}/`;
+        if (!objectKey.startsWith(expectedPrefix)) {
+            throw new BadRequestException('유효하지 않은 objectKey입니다');
+        }
+
+        let stat: Awaited<ReturnType<Minio.Client['statObject']>>;
+        try {
+            stat = await this.minioClient.statObject(this.config.bucket, objectKey);
+        } catch (error) {
+            const code = (error as { code?: string }).code;
+            if (code === 'NoSuchKey' || code === 'NotFound') {
+                throw new ConflictException('S3에 파일이 없습니다. 업로드를 먼저 완료하세요');
+            }
+            this.logger.error(`MinIO statObject 실패 [key=${objectKey}]`, error);
+            throw new InternalServerErrorException('파일 확인 중 오류가 발생했습니다');
+        }
+
+        if (stat.size > this.config.maxFileSizeBytes) {
+            await this.minioClient.removeObject(this.config.bucket, objectKey);
+            throw new PayloadTooLargeException('파일 크기가 허용 한도를 초과했습니다');
+        }
+
+        return this.buildPublicUrl(objectKey);
     }
 
     async objectExists(objectKey: string): Promise<boolean> {
