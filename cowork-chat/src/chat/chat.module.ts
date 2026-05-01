@@ -15,6 +15,7 @@ import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
+import { MinioModule } from '../storage/minio.module';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
 const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
@@ -64,6 +65,7 @@ function createLogStream() {
             { name: ChannelMember.name, schema: ChannelMemberSchema },
         ]),
         MembershipModule,
+        MinioModule,
     ],
     controllers: [ChatController, HealthController],
     providers: [
