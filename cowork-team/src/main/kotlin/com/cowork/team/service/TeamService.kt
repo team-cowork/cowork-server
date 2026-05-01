@@ -72,7 +72,7 @@ class TeamService(
             targetUserIds = listOf(ownerId),
         )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publish(payload)
+            override fun afterCommit() = teamEventPublisher.publishNotification(payload)
         })
 
         return TeamResponse.of(team)
@@ -128,7 +128,18 @@ class TeamService(
 
     @Transactional
     fun deleteTeam(userId: Long, teamId: Long) {
-        requireRole(teamId, userId, TeamRole.OWNER)
-        teamRepository.deleteById(teamId)
+        val team = requireRole(teamId, userId, TeamRole.OWNER).team
+        val payload = TeamEventPayload(
+            eventType = "TEAM_DELETED",
+            teamId = team.id,
+            teamName = team.name,
+            actorUserId = userId,
+            targetUserIds = emptyList(),
+        )
+        teamRepository.delete(team)
+
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
+        })
     }
 }
