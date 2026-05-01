@@ -27,8 +27,8 @@ data class TeamResponse(
             description = team.description,
             iconUrl = team.iconUrl,
             ownerId = team.ownerId,
-            createdAt = team.createdAt,
-            updatedAt = team.updatedAt,
+            createdAt = requireNotNull(team.createdAt),
+            updatedAt = requireNotNull(team.updatedAt),
         )
     }
 }
