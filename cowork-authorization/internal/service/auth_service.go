@@ -90,15 +90,15 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	number := st.Number
 
 	upsertReq := client.UpsertUserRequest{
-		Name:     st.Name,
-		Email:    userInfo.Email,
-		Sex:      st.Sex,
-		Grade:    &grade,
-		Class:    &classNum,
-		ClassNum: &number,
-		Major:    st.Major,
-		Role:     st.Role,
-		GithubID: st.GithubID,
+		Name:                 st.Name,
+		Email:                userInfo.Email,
+		Sex:                  st.Sex,
+		Grade:                &grade,
+		ClassNumber:          &classNum,
+		StudentNumberInClass: &number,
+		Major:                st.Major,
+		Role:                 st.Role,
+		GithubID:             st.GithubID,
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
