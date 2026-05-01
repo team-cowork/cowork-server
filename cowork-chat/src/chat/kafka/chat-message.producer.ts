@@ -25,12 +25,12 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
         await this.producer.disconnect();
     }
 
-    async sendMessage(dto: SendMessageDto, authorId: number, authorRole: string): Promise<void> {
+    async sendMessage(channelId: number, dto: SendMessageDto, authorId: number, authorRole: string): Promise<void> {
         const event: ChatMessageEvent = {
             eventType: 'MESSAGE_SENT',
             teamId: dto.teamId,
             projectId: dto.projectId ?? null,
-            channelId: dto.channelId,
+            channelId,
             authorId,
             authorRole,
             content: dto.content,
@@ -45,7 +45,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             topic: 'chat.message',
             messages: [
                 {
-                    key: dto.channelId.toString(),
+                    key: channelId.toString(),
                     value: JSON.stringify(event),
                 },
             ],
