@@ -26,7 +26,10 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
                 level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
                 stream: createLogStream(),
                 autoLogging: {
-                    ignore: (req) => req.url?.split('?')[0] === '/metrics',
+                    ignore: (req) => {
+                        const path = req.url?.split('?')[0];
+                        return path === '/metrics' || path === '/health';
+                    },
                 },
                 timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
                 formatters: {
