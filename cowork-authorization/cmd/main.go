@@ -71,7 +71,11 @@ func main() {
 
 	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
 
-	router := gin.Default()
+	router := gin.New()
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/health", "/metrics"},
+	}))
+	router.Use(gin.Recovery())
 	router.Use(monitoring.HTTPMetricsMiddleware())
 
 	router.GET("/health", handler.Health)
