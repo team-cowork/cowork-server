@@ -32,3 +32,11 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+sdk:
+  logging:
+    not-logging-urls:
+      - "/actuator/**"
+      - "/metrics"
+      - "/health"
+      - "/api/health"
