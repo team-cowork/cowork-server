@@ -7,6 +7,7 @@ import net.logstash.logback.argument.StructuredArguments.entries
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
+import java.util.concurrent.TimeUnit
 
 private const val ACTUATOR_PATH = "/actuator"
 private const val METRICS_PATH = "/metrics"
@@ -23,7 +24,7 @@ class AccessLogFilter : OncePerRequestFilter() {
         filterChain: FilterChain,
     ) {
         val path = request.requestURI
-        val start = System.currentTimeMillis()
+        val start = System.nanoTime()
 
         try {
             filterChain.doFilter(request, response)
@@ -36,7 +37,7 @@ class AccessLogFilter : OncePerRequestFilter() {
                             "method" to request.method,
                             "path" to path,
                             "status" to response.status,
-                            "duration" to System.currentTimeMillis() - start,
+                            "duration" to TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
                         )
                     )
                 )
