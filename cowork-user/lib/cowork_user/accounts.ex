@@ -37,13 +37,15 @@ defmodule CoworkUser.Accounts do
   end
 
   def generate_presigned_url(user_id, %{"content_type" => content_type}) do
+    object_key = Minio.build_object_key(user_id, content_type)
+
     with %Profile{} <- load_profile(user_id),
-         :ok <- Minio.validate_content_type(content_type) do
-      object_key = Minio.build_object_key(user_id, content_type)
+         :ok <- Minio.validate_content_type(content_type),
+         {:ok, upload_url} <- Minio.presigned_put_url(object_key, content_type) do
 
       {:ok,
        %{
-         upload_url: Minio.presigned_put_url(object_key, content_type),
+         upload_url: upload_url,
          object_key: object_key
        }}
     else
@@ -158,6 +160,15 @@ defmodule CoworkUser.Accounts do
       Repo.get_by(Profile, account_id: account.id) ||
         Repo.insert!(Profile.changeset(%Profile{}, %{account_id: account.id}))
     end)
+  rescue
+    exception in [Ecto.InvalidChangesetError] ->
+      {:error, {:validation, format_changeset_errors(exception.changeset)}}
+
+    exception in [Ecto.ConstraintError] ->
+      {:error, {:validation, Exception.message(exception)}}
+
+    exception ->
+      {:error, {:transient, Exception.message(exception)}}
   end
 
   def search_users(params) do
@@ -330,7 +341,11 @@ defmodule CoworkUser.Accounts do
     image_url =
       case profile.profile_image_key do
         nil -> nil
-        key -> Minio.presigned_get_url(key)
+        key ->
+          case Minio.presigned_get_url(key) do
+            {:ok, url} -> url
+            {:error, _reason} -> nil
+          end
       end
 
     %{
