@@ -1,21 +1,41 @@
-FROM eclipse-temurin:21-jdk-alpine AS builder
-WORKDIR /workspace
-COPY gradlew gradlew
-COPY gradle gradle
-COPY settings.gradle.kts build.gradle.kts ./
-COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
-COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
-COPY cowork-user/build.gradle.kts cowork-user/build.gradle.kts
-COPY cowork-user/src cowork-user/src
-COPY cowork-channel/build.gradle.kts cowork-channel/build.gradle.kts
-COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
-COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
-RUN chmod +x gradlew && ./gradlew :cowork-user:bootJar -x test --no-daemon
+ARG ELIXIR_IMAGE=hexpm/elixir:1.17.3-erlang-27.1.1-debian-bookworm-20240926-slim
 
-FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S app && adduser -S app -G app
-USER app
+FROM flyway/flyway:11.8.1 AS flyway
+
+FROM ${ELIXIR_IMAGE} AS builder
 WORKDIR /app
-COPY --from=builder /workspace/cowork-user/build/libs/*.jar app.jar
+ENV MIX_ENV=prod
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mix local.hex --force && mix local.rebar --force
+
+COPY cowork-user/mix.exs ./
+COPY cowork-user/config config
+RUN mix deps.get
+RUN mix deps.compile
+
+COPY cowork-user/lib lib
+COPY cowork-user/priv priv
+RUN mix compile
+RUN mix release
+
+FROM debian:bookworm-20240926-slim
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl curl wget ca-certificates default-mysql-client default-jre-headless libstdc++6 libncurses5 locales \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=flyway /flyway /flyway
+COPY cowork-user/src/main/resources/db/migration /flyway/sql
+COPY --from=builder /app/_build/prod/rel/cowork_user ./
+COPY cowork-user/docker-entrypoint.sh /app/docker-entrypoint.sh
+
+ENV PATH="/flyway:${PATH}"
+ENV ELIXIR_ERL_OPTIONS="+fnu"
+RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /var/log/cowork/user
 EXPOSE 8082
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
