@@ -1,12 +1,15 @@
-spring.cloud.aws:
-  region:
-    static: us-east-1
-  credentials:
-    access-key: ${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:minioadmin}}
-    secret-key: ${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:minioadmin}}
-  s3:
-    endpoint: ${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}
-    path-style-access-enabled: true
+server_port: 8082
 
-minio:
-  public-endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
+eureka_app_name: cowork-user
+eureka_server_url: ${EUREKA_SERVER_URL:http://localhost:8761/eureka/}
+eureka_instance_port: 8082
+
+kafka_bootstrap_servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+kafka_group_id: cowork-user
+
+minio_region: us-east-1
+minio_internal_endpoint: ${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}
+minio_public_endpoint: ${MINIO_PUBLIC_ENDPOINT:${MINIO_INTERNAL_ENDPOINT:http://localhost:9000}}
+minio_access_key: ${MINIO_ACCESS_KEY:${MINIO_ROOT_USER:minioadmin}}
+minio_secret_key: ${MINIO_SECRET_KEY:${MINIO_ROOT_PASSWORD:minioadmin}}
+minio_path_style_access_enabled: true
