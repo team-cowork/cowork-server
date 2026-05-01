@@ -18,6 +18,10 @@ import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
+const METRICS_PATH = '/metrics';
+const HEALTH_PATH = '/health';
+const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH]);
+
 const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
     ? []
     : [
@@ -28,7 +32,7 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
                 autoLogging: {
                     ignore: (req) => {
                         const path = req.url?.split('?')[0]?.replace(/\/$/, '');
-                        return path === '/metrics' || path === '/health';
+                        return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
                     },
                 },
                 timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
