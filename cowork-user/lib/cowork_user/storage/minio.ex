@@ -25,7 +25,7 @@ defmodule CoworkUser.Storage.Minio do
       expires_in: AppConfig.load().presigned_put_expiry_minutes * 60,
       headers: [{"content-type", content_type}]
     )
-    |> unwrap!()
+    |> unwrap()
   end
 
   def presigned_get_url(object_key) do
@@ -38,7 +38,7 @@ defmodule CoworkUser.Storage.Minio do
       object_key,
       expires_in: AppConfig.load().presigned_get_expiry_minutes * 60
     )
-    |> unwrap!()
+    |> unwrap()
   end
 
   def verify_upload(user_id, object_key) do
@@ -95,6 +95,6 @@ defmodule CoworkUser.Storage.Minio do
     ]
   end
 
-  defp unwrap!({:ok, value}), do: value
-  defp unwrap!({:error, reason}), do: raise("presigned url generation failed: #{inspect(reason)}")
+  defp unwrap({:ok, value}), do: {:ok, value}
+  defp unwrap({:error, reason}), do: {:error, {:presigned_url_generation_failed, inspect(reason)}}
 end
