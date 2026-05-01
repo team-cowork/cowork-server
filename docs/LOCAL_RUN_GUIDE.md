@@ -6,6 +6,7 @@
 - 2026-04-27 (초안)
 - 2026-04-27 (Docker 통합 실행으로 전면 개정)
 - 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
+- 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
 
 검증 기준:
 - `docker-compose.yml`
@@ -22,7 +23,7 @@
 | `cowork-gateway` | `8080` | Spring Boot (Cloud Gateway) | 정상 |
 | `cowork-authorization` | `8081` | Go | 정상 |
 | `cowork-preference` | `9001` | Kotlin Vert.x | 정상 |
-| `cowork-user` | `8082` | Spring Boot | 정상 |
+| `cowork-user` | `8082` | Elixir | 정상 |
 | `cowork-team` | `8085` | Spring Boot | 정상 |
 | `cowork-channel` | `8083` | Spring Boot | 정상 |
 | `cowork-notification` | `8086` | Go | 정상 |
@@ -140,12 +141,12 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
 
 ## 7. 빌드 구조
 
-### Spring Boot 서비스 (config, gateway, user, channel, team, preference)
+### JVM/Elixir 서비스 (config, gateway, channel, team, preference, user)
 
 - 빌드 컨텍스트: 프로젝트 루트 (`.`)
-- 각 서비스 디렉터리에 `Dockerfile` 위치
-- `./gradlew :<서비스>:bootJar` (preference는 `installDist`) 으로 빌드
-- 베이스 이미지: `eclipse-temurin:21-jdk-alpine` (빌드) → `eclipse-temurin:21-jre-alpine` (런타임)
+- `cowork-user`는 Mix release로 빌드
+- `cowork-user`는 컨테이너 시작 시 `docker-entrypoint.sh`에서 `flyway migrate`를 먼저 실행한 뒤 Elixir release를 기동
+- 나머지 JVM 서비스는 각 서비스별 Gradle 빌드 사용
 
 ### Go 서비스 (authorization, notification, voice)
 
@@ -228,6 +229,15 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 `cowork-authorization`:
 - `USER_SERVICE_URL` 기본값이 `http://cowork-user:8082`임. docker-compose에 명시돼 있으므로 별도 설정 불필요.
+
+`cowork-user`:
+- Docker healthcheck는 `GET /actuator/health`를 사용하며, 현재 로컬 Compose 기준 `healthy` 확인됨.
+- Config Server 연동은 `APP_CONFIG_URL`, `APP_PROFILE` 기반이며 `SPRING_CONFIG_IMPORT`에 의존하지 않는다.
+- DB 연결은 `DATABASE_URL`과 Flyway용 `DB_JDBC_URL`/`DB_USERNAME`/`DB_PASSWORD`를 사용한다.
+- Eureka 주소는 `EUREKA_SERVER_URL` 또는 config-server의 `eureka_server_url` 설정으로 내려간다.
+- Eureka 인스턴스 호스트는 compose에서 `cowork-user:8082`로 고정해 Gateway와 다른 서비스가 service discovery 결과를 그대로 사용할 수 있다.
+- 시작 시 Flyway가 기존 `V1`~`V4`를 검사하고, 스키마가 비어 있으면 자동 적용한 뒤 앱이 올라온다.
+- Kafka consumer는 `brod` 기반으로 `user.data.sync`를 소비하며, 로컬에서는 해당 토픽 생성 후 실제 upsert까지 검증했다.
 
 `cowork-voice`:
 - `.env`의 `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`가 채워져야 기동된다.
