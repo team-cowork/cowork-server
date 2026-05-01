@@ -37,3 +37,15 @@ export class CreateFileUploadUrlResponseDto {
     headers!: Record<string, string>;
 }
 
+export class ConfirmFileUploadRequestDto {
+    @ApiProperty({ description: '업로드한 파일의 object key' })
+    @IsString()
+    @IsNotEmpty()
+    objectKey!: string;
+}
+
+export class ConfirmFileUploadResponseDto {
+    @ApiProperty({ description: '메시지 attachments.url에 사용할 파일 URL' })
+    fileUrl!: string;
+}
+

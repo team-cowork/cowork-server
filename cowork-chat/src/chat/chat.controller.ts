@@ -18,6 +18,8 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { GetMessagesDto } from './dto/get-messages.dto';
 import {
+    ConfirmFileUploadRequestDto,
+    ConfirmFileUploadResponseDto,
     CreateFileUploadUrlRequestDto,
     CreateFileUploadUrlResponseDto,
 } from './dto/create-file-upload-url.dto';
@@ -61,6 +63,24 @@ export class ChatController {
                 'Content-Type': dto.contentType,
             },
         };
+    }
+
+    @Post('files/confirm')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: '채팅 첨부파일 업로드 완료 확인 및 검증' })
+    @ApiResponse({ status: 200, type: ConfirmFileUploadResponseDto })
+    @ApiResponse({ status: 400, description: '유효하지 않은 objectKey' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    @ApiResponse({ status: 409, description: '파일이 아직 업로드되지 않음' })
+    @ApiResponse({ status: 413, description: '파일 크기 초과' })
+    async confirmFileUpload(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Body() dto: ConfirmFileUploadRequestDto,
+        @UserId() userId: number,
+    ): Promise<ConfirmFileUploadResponseDto> {
+        await this.chatService.checkMembership(channelId, userId);
+        const fileUrl = await this.minioService.confirmUpload(channelId, userId, dto.objectKey);
+        return { fileUrl };
     }
 
     @Post('messages')
