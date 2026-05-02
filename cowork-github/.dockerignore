@@ -15,5 +15,7 @@ coverage
 test
 docs
 README.md
+CLAUDE.md
+docker-compose.dev.yml
 *.log
 .DS_Store
