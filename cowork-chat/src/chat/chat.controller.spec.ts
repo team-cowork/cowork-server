@@ -5,6 +5,7 @@ import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
+import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { MinioService } from '../storage/minio.service';
 
 const mockMessageId = new Types.ObjectId().toString();
@@ -20,6 +21,10 @@ const mockChatService = {
 
 const mockProducer = {
     sendMessage: jest.fn(),
+};
+
+const mockGithubIssueProducer = {
+    send: jest.fn(),
 };
 
 const mockMinioService = {
@@ -43,6 +48,7 @@ describe('ChatController', () => {
                 { provide: ChatGateway, useValue: mockChatGateway },
                 { provide: ChatMessageProducer, useValue: mockProducer },
                 { provide: MinioService, useValue: mockMinioService },
+                { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
             ],
         }).compile();
 
@@ -79,7 +85,7 @@ describe('ChatController', () => {
     });
 
     describe('sendMessage', () => {
-        const dto = { teamId: 10, channelId: 1, content: '안녕하세요' };
+        const dto = { teamId: 10, content: '안녕하세요' };
 
         it('멤버십 검증 후 Kafka로 메시지를 발행한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
@@ -88,11 +94,7 @@ describe('ChatController', () => {
             const result = await controller.sendMessage(1, dto as any, userId, userRole);
 
             expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
-            expect(mockProducer.sendMessage).toHaveBeenCalledWith(
-                expect.objectContaining({ channelId: 1, content: '안녕하세요' }),
-                42,
-                'ROLE_USER',
-            );
+            expect(mockProducer.sendMessage).toHaveBeenCalledWith(1, dto, 42, 'ROLE_USER');
             expect(result).toEqual({ queued: true });
         });
 
@@ -104,6 +106,65 @@ describe('ChatController', () => {
             ).rejects.toThrow(ForbiddenException);
 
             expect(mockProducer.sendMessage).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('createGithubIssue', () => {
+        const dto = {
+            teamId: 10,
+            owner: 'my-org',
+            repo: 'backend',
+            title: '로그인 버그',
+            body: '특정 브라우저에서 재현됨',
+        };
+
+        it('멤버십 검증 후 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+
+            const result = await controller.createGithubIssue(1, dto as any, userId);
+
+            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
+            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
+                channelId: 1,
+                teamId: 10,
+                owner: 'my-org',
+                repo: 'backend',
+                title: '로그인 버그',
+                body: '특정 브라우저에서 재현됨',
+                requesterId: 42,
+            });
+            expect(result).toEqual({ queued: true });
+        });
+
+        it('body 없이도 이슈 생성 이벤트를 발행한다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+
+            await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
+
+            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith(
+                expect.objectContaining({ body: undefined }),
+            );
+        });
+
+        it('채널 멤버가 아니면 ForbiddenException이 전파되고 이벤트를 발행하지 않는다', async () => {
+            mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
+
+            await expect(
+                controller.createGithubIssue(1, dto as any, userId),
+            ).rejects.toThrow(ForbiddenException);
+
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+        });
+
+        it('producer 오류가 전파된다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
+
+            await expect(
+                controller.createGithubIssue(1, dto as any, userId),
+            ).rejects.toThrow('Kafka 연결 오류');
         });
     });
 
