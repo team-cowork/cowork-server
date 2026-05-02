@@ -7,6 +7,8 @@ import {
     Injectable,
     InternalServerErrorException,
     Logger,
+    OnModuleDestroy,
+    OnModuleInit,
     PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -24,10 +26,12 @@ export interface PresignedUpload {
 }
 
 @Injectable()
-export class MinioService {
+export class MinioService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MinioService.name);
     private readonly config: MinioConfig;
     private readonly uploadRateLimitBuckets = new Map<number, number[]>();
+    private cleanupTimer?: ReturnType<typeof setInterval>;
+    private isCleaningUpRateLimitEntries = false;
 
     constructor(
         @Inject(MINIO_CLIENT) private readonly minioClient: Minio.Client,
@@ -35,10 +39,28 @@ export class MinioService {
     ) {
         this.config = buildMinioConfig(configService);
         this.validateCredentials();
-        setInterval(
-            () => this.cleanupStaleRateLimitEntries(),
-            this.config.uploadRateLimitWindowMs,
-        );
+    }
+
+    onModuleInit(): void {
+        this.cleanupTimer = setInterval(async () => {
+            if (this.isCleaningUpRateLimitEntries) {
+                return;
+            }
+
+            this.isCleaningUpRateLimitEntries = true;
+            try {
+                this.cleanupStaleRateLimitEntries();
+            } finally {
+                this.isCleaningUpRateLimitEntries = false;
+            }
+        }, this.config.uploadRateLimitWindowMs);
+    }
+
+    onModuleDestroy(): void {
+        if (this.cleanupTimer) {
+            clearInterval(this.cleanupTimer);
+            this.cleanupTimer = undefined;
+        }
     }
 
     async createPresignedUpload(params: {
