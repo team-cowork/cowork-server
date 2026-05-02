@@ -23,15 +23,15 @@ func NewUserClient(baseURL string) *UserClient {
 }
 
 type UpsertUserRequest struct {
-	Name     string  `json:"name"`
-	Email    string  `json:"email"`
-	Sex      string  `json:"sex"`
-	Grade    *int8   `json:"grade"`
-	Class    *int8   `json:"class"`
-	ClassNum *int8   `json:"classNum"`
-	Major    string  `json:"major"`
-	Role     string  `json:"role"`
-	GithubID *string `json:"githubId"`
+	Name                 string  `json:"name"`
+	Email                string  `json:"email"`
+	Sex                  string  `json:"sex"`
+	Grade                *int8   `json:"grade"`
+	ClassNumber          *int8   `json:"class_number"`
+	StudentNumberInClass *int8   `json:"student_number_in_class"`
+	Major                string  `json:"major"`
+	Role                 string  `json:"role"`
+	GithubID             *string `json:"github_id"`
 }
 
 type upsertUserResponse struct {
