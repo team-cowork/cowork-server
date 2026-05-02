@@ -28,7 +28,9 @@ import {
     MessageResponseDto,
     SendMessageResponseDto,
 } from './dto/message-response.dto';
+import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
+import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { MessageDocument } from './schema/message.schema';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
 import { MinioService } from '../storage/minio.service';
@@ -43,6 +45,7 @@ export class ChatController {
         private readonly chatGateway: ChatGateway,
         private readonly producer: ChatMessageProducer,
         private readonly minioService: MinioService,
+        private readonly githubIssueProducer: GithubIssueProducer,
     ) {}
 
     @Post('files/presigned-url')
@@ -103,7 +106,29 @@ export class ChatController {
     ): Promise<SendMessageResponseDto> {
         await this.chatService.checkMembership(channelId, userId);
         await this.producer.sendMessage(channelId, dto, userId, userRole);
+        return { queued: true };
+    }
 
+    @Post('github/issues')
+    @HttpCode(HttpStatus.CREATED)
+    @ApiOperation({ summary: 'GitHub 이슈 생성 (클라이언트 슬래시 커맨드 → Kafka 비동기)' })
+    @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async createGithubIssue(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Body() dto: CreateGithubIssueDto,
+        @UserId() userId: number,
+    ): Promise<CreateGithubIssueResponseDto> {
+        await this.chatService.checkMembership(channelId, userId);
+        await this.githubIssueProducer.send({
+            channelId,
+            teamId: dto.teamId,
+            owner: dto.owner,
+            repo: dto.repo,
+            title: dto.title,
+            body: dto.body,
+            requesterId: userId,
+        });
         return { queued: true };
     }
 

@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
+import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { JoinChannelDto } from './dto/join-channel.dto';
 
@@ -33,11 +34,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     constructor(
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
+        private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
         private readonly configService: ConfigService,
     ) {}
 
     afterInit(server: Server) {
         this.consumer.setSocketServer(server);
+        this.githubIssueResultConsumer.setSocketServer(server);
     }
 
     async handleConnection(client: Socket) {
