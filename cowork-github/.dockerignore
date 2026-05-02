@@ -5,3 +5,17 @@ coverage
 *.pem
 .git
 .gitignore
+.github
+.idea
+.vscode
+.agents
+.codex
+.gemini
+.claude
+test
+docs
+README.md
+CLAUDE.md
+docker-compose.dev.yml
+*.log
+.DS_Store
