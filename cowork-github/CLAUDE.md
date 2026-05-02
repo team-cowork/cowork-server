@@ -1,78 +1,81 @@
 # cowork-github
 
-## Current State
+## Overview
 
-이 저장소는 현재 기본 NestJS 단일 애플리케이션입니다.
-GitHub App 인증, Kafka 연동, GitHub Issue 생성 기능은 아직 구현되지 않았습니다.
+A GitHub App backend service that listens to Kafka messages and automatically creates GitHub Issues when a user runs the `/이슈생성` command in the chat service.
 
 ## Runtime
 
-- Framework: NestJS
+- Framework: NestJS 11 (Kafka microservice + Express HTTP server)
 - Language: TypeScript
-- HTTP server: Express 기반 Nest 기본 서버
 - Default port: `3000`
+- Dependencies: Kafka, Redis, GitHub App (JWT auth)
 
-## Current Structure
+## Kafka Message Spec
 
-```text
-src/
-├── app.controller.ts
-├── app.controller.spec.ts
-├── app.module.ts
-├── app.service.ts
-└── main.ts
+**Topic**: `github.issue.create`
 
-test/
-├── app.e2e-spec.ts
-└── jest-e2e.json
-```
+**Payload** (`CreateIssueDto`):
 
-## Current Behavior
+| Field       | Type       | Required | Description          |
+|-------------|------------|----------|----------------------|
+| `owner`     | `string`   | ✓        | GitHub org or user   |
+| `repo`      | `string`   | ✓        | repository name      |
+| `title`     | `string`   | ✓        | issue title          |
+| `body`      | `string`   |          | issue body           |
+| `labels`    | `string[]` |          | label list           |
+| `assignees` | `string[]` |          | assignee list        |
 
-- `GET /` 요청에 `Hello World!` 문자열을 반환합니다.
-- `main.ts`에서 `process.env.PORT ?? 3000` 값을 사용해 서버를 실행합니다.
-- 단위 테스트와 e2e 테스트가 기본 예제로 포함되어 있습니다.
+## Error Handling
+
+- **Invalid payload**: log and commit offset (skip)
+- **GithubClientError (4xx)**: log and commit offset (skip)
+- **Server error (5xx etc.)**: `process.exit(1)` — let the container restart for retry
 
 ## Environment Variables
 
-현재 코드에서 실제로 참조하는 환경 변수:
-
 ```env
 PORT=3000
+
+KAFKA_BROKERS=localhost:9092
+KAFKA_GROUP_ID=cowork-github-group
+
+GITHUB_APP_ID=                          # GitHub App ID
+GITHUB_PRIVATE_KEY=                     # PEM key encoded as base64
+
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# optional (defaults apply)
+GITHUB_TOKEN_CACHE_TTL_SECONDS=3300
+GITHUB_INSTALLATION_CACHE_TTL_SECONDS=86400
+GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE=1000
+GITHUB_ISSUE_MAX_RETRIES=3
 ```
 
 ## Development Rules
 
 ### Security
 
-- `.env`, `.pem`, 토큰 등 비밀값은 저장소에 커밋하지 않습니다.
-- 테스트용 키라도 실키 형태의 개인키 파일은 장기 보관하지 않습니다.
+- Never commit `.env`, `.pem`, tokens, or any secrets.
+- Supply `GITHUB_PRIVATE_KEY` as a base64-encoded string, not as a raw PEM file.
+- Do not keep `private-key.pem` around after local testing.
 
 ### Code
 
-- 현재는 `app.*` 중심의 기본 구조만 존재하므로, 새 기능은 목적별 모듈로 분리해 추가합니다.
-- 환경 변수 사용이 늘어나면 `@nestjs/config`를 도입한 뒤 직접 `process.env` 접근을 줄입니다.
-- 예제 코드를 실제 기능 코드로 교체할 때는 테스트도 함께 갱신합니다.
+- Access all env vars through `AppConfigService` — no direct `process.env` reads.
+- Add new features as separate modules registered in `GithubModule`.
+- Update related unit tests whenever code changes.
 
 ### Testing
 
-- `npm test`는 단위 테스트를 실행합니다.
-- `npm run test:e2e`는 HTTP 레벨 e2e 테스트를 실행합니다.
-- `npm run build`가 항상 통과하도록 유지합니다.
+- `npm test`: unit tests (`src/**/*.spec.ts`)
+- `npm run test:e2e`: e2e tests
+- `npm run build`: must always pass
 
 ## GitHub Actions
 
-현재 워크플로는 단일 서비스 저장소 기준입니다.
-
-- `cowork-stage-ci.yml`
-  - `develop` 대상 PR/Push에서 설치, 린트, 빌드, 테스트를 수행합니다.
-- `cowork-prod-ci.yml`
-  - `main` 대상 PR/Push에서 설치, 린트, 빌드, 테스트를 수행합니다.
-- `cowork-prod-cd.yml`
-  - `main` 푸시 후 검증이 끝나면 날짜 기반 태그와 GitHub Release를 생성합니다.
-- `cowork-pr-cleanup.yml`
-  - 머지된 PR에서 대기 라벨을 제거합니다.
-
-## Planned Work
-
-향후 이 저장소를 GitHub 연동 서비스로 확장할 수 있지만, 현재 문서와 워크플로는 구현된 코드만 기준으로 유지합니다.
+- `cowork-stage-ci.yml`: install, lint, build, test on PR/push targeting `develop`
+- `cowork-prod-ci.yml`: install, lint, build, test on PR/push targeting `main`
+- `cowork-prod-cd.yml`: creates a date-based tag, GitHub Release, and triggers Cloudtype deployment after `main` push
+- `cowork-pr-cleanup.yml`: removes waiting labels from merged PRs
