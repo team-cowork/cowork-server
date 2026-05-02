@@ -130,7 +130,7 @@ export class ChatController {
 
         await this.githubIssueProducer.send({
             channelId,
-            teamId: dto.teamId,
+            teamId: repoInfo.teamId,
             projectId: dto.projectId,
             owner: repoInfo.owner,
             repo: repoInfo.repo,
