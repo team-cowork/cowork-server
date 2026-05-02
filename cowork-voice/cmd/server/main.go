@@ -21,24 +21,29 @@ import (
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
-	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 	lkinfra "github.com/cowork/cowork-voice/internal/infra/livekit"
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
+	redisinfra "github.com/cowork/cowork-voice/internal/infra/redis"
 	"github.com/cowork/cowork-voice/internal/middleware"
+	"github.com/cowork/cowork-voice/internal/monitoring"
+	"github.com/cowork/cowork-voice/pkg/eureka"
+	"github.com/cowork/cowork-voice/pkg/logger"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	logger.Init("cowork-voice")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -79,8 +84,17 @@ func main() {
 		cfg.LiveKitAPISecret,
 	)
 
+	redisClient := redisinfra.NewClient(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
+	redisCtx, redisCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer redisCancel()
+	if err := redisinfra.Ping(redisCtx, redisClient); err != nil {
+		slog.Error("redis ping failed", "err", err)
+		os.Exit(1)
+	}
+
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
-	sessionRepo := mongoinfra.NewMongoSessionRepository(db)
+	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
+	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
 	livekitRoom := lkinfra.NewLiveKitRoom(
 		livekitClient,
 		cfg.LiveKitAPIKey,
@@ -98,8 +112,11 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(chimiddleware.RequestID)
 	r.Use(chimiddleware.Recoverer)
+	r.Use(monitoring.HTTPInFlightMiddleware)
+	r.Use(monitoring.HTTPMetricsMiddleware)
 
 	r.Get("/health", health.Handler)
+	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
 	))
@@ -117,6 +134,13 @@ func main() {
 		Addr:    ":" + cfg.Port,
 		Handler: r,
 	}
+
+	eurekaClient := eureka.New(cfg)
+	if err := eurekaClient.Register(cfg); err != nil {
+		slog.Error("critical: eureka registration failed", "err", err)
+		os.Exit(1)
+	}
+	eurekaClient.StartHeartbeat(cfg)
 
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
@@ -138,6 +162,8 @@ func main() {
 		exitCode = 1
 	}
 
+	eurekaClient.Deregister(cfg)
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
@@ -149,6 +175,9 @@ func main() {
 	}
 	if err := mongoClient.Disconnect(shutdownCtx); err != nil {
 		slog.Error("mongodb disconnect error", "err", err)
+	}
+	if err := redisClient.Close(); err != nil {
+		slog.Error("redis close error", "err", err)
 	}
 
 	slog.Info("shutdown complete")

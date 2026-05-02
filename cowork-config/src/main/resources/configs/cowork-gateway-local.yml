@@ -1,11 +1,32 @@
 jwt:
-  secret: local-dev-secret-key-minimum-32-characters-long
+  secret: ${JWT_SECRET}
+
+cowork:
+  swagger-ui:
+    primary-name: user
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: team
+        url: /v3/api-docs/team
+      - name: channel
+        url: /v3/api-docs/channel
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: chat
+        url: /v3/api-docs/chat
+      - name: notification
+        url: /v3/api-docs/notification
+      - name: preference
+        url: /v3/api-docs/preference
 
 spring:
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   cloud:
     gateway:
@@ -20,6 +41,19 @@ spring:
             maxAge: 3600
 
       routes:
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**, /api/teams/*/channels/**, /api/teams/*/channels
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
@@ -55,6 +89,73 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: team-service
+          uri: lb://cowork-team
+          predicates:
+            - Path=/api/teams/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: project-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/projects/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - StripPrefix=1
+
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/chat-ws/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+
+        - id: voice-service-webhook
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/webhook
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        - id: voice-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/**
+          filters:
+            - StripPrefix=1
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: authorization-service-docs
           uri: lb://cowork-authorization
           predicates:
@@ -82,6 +183,50 @@ spring:
             - Path=/v3/api-docs/chat
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: channel-service-docs
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/v3/api-docs/channel
+          filters:
+            - RewritePath=/v3/api-docs/channel, /v3/api-docs
+
+        - id: notification-service-sse
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: -1  # SSE는 타임아웃 없음
+
+        - id: notification-service
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
 
 resilience4j:
   circuitbreaker:

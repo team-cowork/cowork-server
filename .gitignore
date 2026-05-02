@@ -27,6 +27,7 @@ out/
 
 ### Gradle ###
 .gradle/
+.gradle-local/
 build/
 !gradle/wrapper/gradle-wrapper.jar
 !gradle/wrapper/gradle-wrapper.properties
@@ -57,18 +58,21 @@ ehthumbs.db
 ### Logs ###
 *.log
 logs/
+.run/
+screenlog.*
 
 ### LLM Outputs ###
 PR_BODY.md
 SPEC.md
 .pr-tmp/
+.pr-tmp-comments.json
 /.claude/command.log
-.codex
 
-### Docs ###
-docs/
-!cowork-authorization/docs/
-!cowork-voice/docs/
+### Crash Dumps ###
+*.stackdump
 
 ### Worktrees ###
 .worktrees/
+
+### Secrets ###
+docker/secrets/

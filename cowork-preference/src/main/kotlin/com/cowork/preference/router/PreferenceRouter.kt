@@ -1,5 +1,6 @@
 package com.cowork.preference.router
 
+import com.cowork.preference.MetricsRegistry
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
@@ -16,6 +17,18 @@ fun buildRouter(
 ): Router {
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
+
+    router.get("/health").handler { ctx ->
+        ctx.response()
+            .putHeader("Content-Type", "application/json")
+            .end("""{"status":"UP"}""")
+    }
+
+    router.get("/metrics").handler { ctx ->
+        ctx.response()
+            .putHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+            .end(MetricsRegistry.registry.scrape())
+    }
 
     val openapiSpec = object {}.javaClass.getResourceAsStream("/openapi.json")?.use { it.bufferedReader().readText() }
     router.get("/swagger/doc.json").handler { ctx ->

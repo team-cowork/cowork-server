@@ -1,0 +1,131 @@
+basePath: /
+definitions:
+  token.registerTokenRequest:
+    properties:
+      platform:
+        type: string
+      token:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
+  title: cowork-notification API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      description: 서비스 생존 여부 확인
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: ok
+          schema:
+            type: string
+      summary: 헬스 체크
+      tags:
+      - system
+  /notifications/stream:
+    get:
+      description: 인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive
+        ping을 전송합니다.
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: 'data: {type, title, body, channelId, teamId}'
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "500":
+          description: SSE not supported
+          schema:
+            type: string
+      summary: SSE 알림 스트림 구독
+      tags:
+      - notifications
+  /notifications/tokens:
+    post:
+      consumes:
+      - application/json
+      description: 사용자의 디바이스 FCM 토큰을 등록합니다
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      - description: 토큰 등록 요청
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/token.registerTokenRequest'
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: 잘못된 요청
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "500":
+          description: 내부 서버 오류
+          schema:
+            type: string
+      summary: FCM 토큰 등록
+      tags:
+      - tokens
+  /notifications/tokens/{token}:
+    delete:
+      description: 사용자의 디바이스 FCM 토큰을 삭제합니다
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      - description: FCM 토큰
+        in: path
+        name: token
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: 잘못된 요청
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "404":
+          description: 토큰 없음
+          schema:
+            type: string
+        "500":
+          description: 내부 서버 오류
+          schema:
+            type: string
+      summary: FCM 토큰 삭제
+      tags:
+      - tokens
+swagger: "2.0"

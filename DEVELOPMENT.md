@@ -26,7 +26,7 @@ cowork-server MSA 모노레포 개발 지침서입니다.
 cowork-server/
 ├── cowork-gateway/       Spring Cloud Gateway (JWT 검증, 라우팅)
 ├── cowork-config/        Spring Cloud Config Server + Eureka Server
-├── cowork-authorization/ 인증 서비스 (JWT 발급, OAuth2)
+├── cowork-authorization/ 인증 서비스 (JWT 발급, DataGSM OAuth2)
 ├── cowork-user/          사용자 프로필 관리
 ├── cowork-team/          팀 관리
 ├── cowork-project/       프로젝트 관리
@@ -128,6 +128,7 @@ Flyway를 사용하지 않습니다. 스키마 정의는 각 서비스의 `schem
 |---|---|---|---|
 | `chat.message` | cowork-chat | cowork-chat | 메시지 저장 |
 | `notification.trigger` | 모든 서비스 | notification 서비스 | 알림 발송 |
+| `preference.team.setting.changed` | cowork-preference | 관련 서비스 | 팀 설정 변경 |
 | `voice.session.event` | cowork-voice | cowork-voice | 음성 세션 상태 |
 | `user.data.sync` | cowork-user | 관련 서비스 | 유저 데이터 동기화 |
 
@@ -253,3 +254,19 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 2. cowork-gateway  (Config Server에 등록 후 기동)
 3. 비즈니스 서비스  (authorization, user, team, project, channel — 순서 무관)
 ```
+
+---
+
+## Swagger / 모니터링
+
+### Swagger (Gateway 경유)
+
+Gateway는 서비스별 OpenAPI 문서를 아래 경로로 프록시합니다.
+
+- `/v3/api-docs/{service}` (예: `/v3/api-docs/channel`)
+
+로컬에서 Swagger UI는 `cowork-gateway`에서 확인합니다.
+
+### Prometheus / Grafana
+
+`docker-compose.yml`에서 Prometheus/Grafana가 함께 기동되며, Prometheus는 `cowork-monitoring/prometheus/prometheus.yml`에 정의된 타겟을 스크랩합니다.

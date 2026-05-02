@@ -1,0 +1,142 @@
+{
+  "title": "cowork-channel",
+  "uid": "cowork-channel",
+  "tags": ["cowork", "service", "channel"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "서비스 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "up{service=\"channel\"}",
+          "legendFormat": "channel",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP 요청 Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{application=\"cowork-channel\"}[1m]))",
+          "legendFormat": "{{uri}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP 응답 시간 P99 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"cowork-channel\"}[5m]))) * 1000",
+          "legendFormat": "P99 {{uri}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"cowork-channel\"}[5m]))) * 1000",
+          "legendFormat": "P95 {{uri}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 4,
+      "title": "HTTP 5xx 에러율 (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_server_requests_seconds_count{application=\"cowork-channel\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"cowork-channel\"}[1m])) * 100",
+          "legendFormat": "5xx 에러율",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" } }
+    },
+    {
+      "id": 5,
+      "title": "JVM 힙 메모리",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "jvm_memory_used_bytes{application=\"cowork-channel\", area=\"heap\"}",
+          "legendFormat": "Used {{id}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "jvm_memory_max_bytes{application=\"cowork-channel\", area=\"heap\"}",
+          "legendFormat": "Max {{id}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 6,
+      "title": "JVM GC Pause (ms/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "rate(jvm_gc_pause_seconds_sum{application=\"cowork-channel\"}[1m]) * 1000",
+          "legendFormat": "{{action}} {{cause}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 7,
+      "title": "JVM 스레드",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "jvm_threads_live_threads{application=\"cowork-channel\"}",
+          "legendFormat": "Live",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "jvm_threads_daemon_threads{application=\"cowork-channel\"}",
+          "legendFormat": "Daemon",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "Datasource"
+      }
+    ]
+  }
+}
+

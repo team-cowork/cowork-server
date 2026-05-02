@@ -9,4 +9,5 @@ data class TeamEventPayload(
     val actorUserId: Long,
     val targetUserIds: List<Long>,
     val occurredAt: LocalDateTime = LocalDateTime.now(),
+    val newRole: String? = null,
 )

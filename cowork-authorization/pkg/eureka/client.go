@@ -3,6 +3,7 @@ package eureka
 import (
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	eureka "github.com/ArthurHlt/go-eureka-client/eureka"
@@ -10,15 +11,16 @@ import (
 )
 
 type Client struct {
-	client *eureka.Client
-	appID  string
+	client   *eureka.Client
+	stopCh   chan struct{}
+	stopOnce sync.Once
 }
 
 func NewClient(cfg *config.AppConfig) *Client {
 	client := eureka.NewClient([]string{cfg.EurekaServerURL})
 	return &Client{
 		client: client,
-		appID:  cfg.EurekaAppName,
+		stopCh: make(chan struct{}),
 	}
 }
 
@@ -31,9 +33,13 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 		30,
 		false,
 	)
+	instance.VipAddress = cfg.EurekaAppName
+	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
-			"management.port": fmt.Sprintf("%d", cfg.EurekaInstancePort),
+			"management.port":   fmt.Sprintf("%d", cfg.EurekaInstancePort),
+			"prometheus.scrape": "true",
+			"prometheus.path":   "/metrics",
 		},
 	}
 
@@ -49,15 +55,27 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {
-		for range ticker.C {
-			if err := c.client.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
-				log.Printf("eureka heartbeat failed: %v", err)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.stopCh:
+				return
+			case <-ticker.C:
+				if err := c.client.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
+					log.Printf("eureka heartbeat failed: %v", err)
+					if registerErr := c.Register(cfg); registerErr != nil {
+						log.Printf("eureka re-registration failed: %v", registerErr)
+					}
+				}
 			}
 		}
 	}()
 }
 
 func (c *Client) Deregister(cfg *config.AppConfig) {
+	c.stopOnce.Do(func() {
+		close(c.stopCh)
+	})
 	if err := c.client.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
 		log.Printf("failed to deregister from eureka: %v", err)
 	}

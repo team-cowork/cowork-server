@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "0.0.1-SNAPSHOT"
+version = "20260420.0"
 
 java {
     toolchain {
@@ -29,6 +29,7 @@ dependencies {
     implementation("org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j")
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.micrometer.registry.prometheus)
     implementation("org.springframework.boot:spring-boot-starter-data-redis-reactive")
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
@@ -36,6 +37,7 @@ dependencies {
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation(libs.springdoc.openapi.webflux.ui)
 
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 

@@ -7,17 +7,19 @@ import (
 	"time"
 )
 
+const (
+	defaultJWTAccessExpire  = "30m"
+	defaultJWTRefreshExpire = "2160h"
+)
+
 type AppConfig struct {
 	Port string
 
 	DBDSN string
 
-	DataGSMClientID     string
-	DataGSMClientSecret string
-	DataGSMAuthURL      string
-	DataGSMTokenURL     string
-	DataGSMUserInfoURL  string
-	DataGSMRedirectURL  string
+	DataGSMClientID    string
+	DataGSMTokenURL    string
+	DataGSMUserInfoURL string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -32,12 +34,12 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", "15m"))
+	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRE: %w", err)
 	}
 
-	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", "168h"))
+	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
@@ -51,12 +53,9 @@ func Load() (*AppConfig, error) {
 		Port:  getEnvOrDefault("PORT", "8081"),
 		DBDSN: mustGetEnv("DB_DSN"),
 
-		DataGSMClientID:     mustGetEnv("DATAGSM_CLIENT_ID"),
-		DataGSMClientSecret: mustGetEnv("DATAGSM_CLIENT_SECRET"),
-		DataGSMAuthURL:      mustGetEnv("DATAGSM_AUTH_URL"),
-		DataGSMTokenURL:     mustGetEnv("DATAGSM_TOKEN_URL"),
-		DataGSMUserInfoURL:  mustGetEnv("DATAGSM_USERINFO_URL"),
-		DataGSMRedirectURL:  mustGetEnv("DATAGSM_REDIRECT_URL"),
+		DataGSMClientID:    mustGetEnv("DATAGSM_CLIENT_ID"),
+		DataGSMTokenURL:    mustGetEnv("DATAGSM_TOKEN_URL"),
+		DataGSMUserInfoURL: mustGetEnv("DATAGSM_USERINFO_URL"),
 
 		JWTSecret:        mustGetEnv("JWT_SECRET"),
 		JWTAccessExpire:  accessExpire,
@@ -67,7 +66,7 @@ func Load() (*AppConfig, error) {
 		EurekaInstanceHost: getEnvOrDefault("EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort: eurekaPort,
 
-		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8080"),
+		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8082"),
 	}
 
 	return cfg, nil

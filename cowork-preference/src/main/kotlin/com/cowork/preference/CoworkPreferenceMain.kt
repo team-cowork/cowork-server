@@ -1,10 +1,15 @@
 package com.cowork.preference
 
 import com.cowork.preference.config.AppConfig
+import io.micrometer.prometheus.PrometheusConfig
+import io.micrometer.prometheus.PrometheusMeterRegistry
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
+import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.micrometer.MicrometerMetricsOptions
+import io.vertx.micrometer.VertxPrometheusOptions
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
 import java.net.URI
@@ -17,12 +22,40 @@ private val log = LoggerFactory.getLogger("CoworkPreferenceMain")
 private val PLACEHOLDER_REGEX = Regex("""\$\{([^:}]+)(?::([^}]*))?\}""")
 
 fun main() {
+    System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory")
     val config = loadConfig()
     val appConfig = AppConfig.from(config)
 
     runFlyway(appConfig)
 
-    val vertx = Vertx.vertx()
+    val eurekaRegistrar = EurekaRegistrar(
+        eurekaUrl = appConfig.eurekaUrl,
+        appName = appConfig.eurekaAppName,
+        instanceHost = appConfig.eurekaInstanceHost,
+        port = appConfig.serverPort,
+    )
+    try {
+        eurekaRegistrar.register()
+    } catch (e: Exception) {
+        log.error("Critical: Eureka registration failed", e)
+        System.exit(1)
+    }
+    eurekaRegistrar.startHeartbeat()
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        eurekaRegistrar.deregister()
+    })
+
+    val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
+    MetricsRegistry.registry = prometheusRegistry
+
+    val vertxOptions = VertxOptions().setMetricsOptions(
+        MicrometerMetricsOptions()
+            .setPrometheusOptions(VertxPrometheusOptions().setEnabled(true))
+            .setMicrometerRegistry(prometheusRegistry)
+            .setEnabled(true)
+    )
+    val vertx = Vertx.vertx(vertxOptions)
     val options = DeploymentOptions().setConfig(config)
     vertx.deployVerticle(MainVerticle(), options) { result ->
         if (result.succeeded()) {

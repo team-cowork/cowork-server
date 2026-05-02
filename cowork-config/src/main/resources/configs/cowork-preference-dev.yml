@@ -1,3 +1,6 @@
+server:
+  port: 9001
+
 preference:
   db:
     host: ${POSTGRES_HOST:cowork-postgres}
@@ -12,3 +15,6 @@ preference:
 
 eureka:
   url: http://cowork-config:8761/eureka/
+  app-name: cowork-preference
+  instance:
+    host: cowork-preference

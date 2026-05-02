@@ -30,14 +30,21 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	if err != nil {
 		return nil, err
 	}
+	sessionCreatedByUs := false
 	if voiceSession == nil {
 		voiceSession, err = s.repo.CreateSession(ctx, channelID, teamID)
 		if err != nil {
 			return nil, err
 		}
+		sessionCreatedByUs = true
 	}
 
 	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName); err != nil {
+		if sessionCreatedByUs {
+			if err := s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC()); err != nil {
+				slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
+			}
+		}
 		return nil, err
 	}
 
@@ -81,13 +88,8 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 		return err
 	}
 
-	participants, err := s.livekit.ListParticipants(ctx, voiceSession.RoomName)
-	if err != nil {
-		slog.Warn("failed to list participants after leave", "err", err)
-	} else if len(participants) == 0 {
-		if err := s.livekit.DeleteRoom(ctx, voiceSession.RoomName); err != nil {
-			slog.Warn("failed to delete empty room", "err", err, "room", voiceSession.RoomName)
-		}
+	if _, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, time.Now().UTC()); err != nil {
+		slog.Warn("failed to mark participant left", "err", err, "session_id", voiceSession.SessionID)
 	}
 
 	return nil
@@ -119,6 +121,7 @@ func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int
 	for _, p := range lkParticipants {
 		uid, err := strconv.ParseInt(p.Identity, 10, 64)
 		if err != nil {
+			slog.Warn("skipping participant with non-numeric identity", "identity", p.Identity)
 			continue
 		}
 		participants = append(participants, ParticipantResponse{

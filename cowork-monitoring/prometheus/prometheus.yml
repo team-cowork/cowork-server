@@ -1,0 +1,83 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: cowork
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+
+scrape_configs:
+  # ── 애플리케이션 서비스 (Eureka 자동 감지) ──
+  # eureka.instance.metadata-map에 prometheus.scrape=true가 있는 인스턴스만 스크랩
+  - job_name: cowork-services
+    eureka_sd_configs:
+      - server: http://host.docker.internal:8761/eureka
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__meta_eureka_app_instance_metadata_prometheus_scrape]
+        regex: "true"
+        action: keep
+      - source_labels: [__meta_eureka_app_instance_metadata_prometheus_path]
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__meta_eureka_app_name]
+        target_label: service
+        regex: 'COWORK-(.*)'
+        replacement: '${1}'
+        action: replace
+      - source_labels: [service]
+        target_label: service
+        action: lowercase
+
+  # ── Eureka에 등록되지 않는 고정 대상 ──
+  # 대상 파일: cowork-monitoring/prometheus/sd/external-services.json
+  - job_name: cowork-external-services
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/sd/*.json
+        refresh_interval: 30s
+
+  # ── Blackbox Exporter (HTTP 엔드포인트 가용성 probe) ──
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://host.docker.internal:8080/actuator/health
+          - http://host.docker.internal:8081/health
+          - http://host.docker.internal:8082/actuator/health
+          - http://host.docker.internal:8083/actuator/health
+          - http://host.docker.internal:8084/health
+          - http://host.docker.internal:8085/actuator/health
+          - http://host.docker.internal:8086/health
+          - http://host.docker.internal:8087/health
+          - http://host.docker.internal:9001/health
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
+  # ── 인프라 Exporter (Docker 내부 고정 서비스) ──
+  - job_name: infrastructure
+    static_configs:
+      - targets: ['mysqld_exporter:9104']
+        labels:
+          service: mysql
+      - targets: ['redis_exporter:9121']
+        labels:
+          service: redis
+      - targets: ['kafka_exporter:9308']
+        labels:
+          service: kafka
+      - targets: ['postgres_exporter:9187']
+        labels:
+          service: postgres
+      - targets: ['mongodb_exporter:9216']
+        labels:
+          service: mongodb

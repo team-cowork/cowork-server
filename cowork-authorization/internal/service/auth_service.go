@@ -14,8 +14,6 @@ import (
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/repository"
-	"github.com/google/uuid"
-	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
@@ -50,7 +48,6 @@ type DataGSMStudent struct {
 
 type AuthService struct {
 	cfg              *config.AppConfig
-	oauth2Config     *oauth2.Config
 	httpClient       *http.Client
 	userClient       *client.UserClient
 	refreshTokenRepo *repository.RefreshTokenRepository
@@ -63,20 +60,8 @@ func NewAuthService(
 	refreshTokenRepo *repository.RefreshTokenRepository,
 	tokenSvc *TokenService,
 ) *AuthService {
-	oauth2Cfg := &oauth2.Config{
-		ClientID:     cfg.DataGSMClientID,
-		ClientSecret: cfg.DataGSMClientSecret,
-		RedirectURL:  cfg.DataGSMRedirectURL,
-		Scopes:       []string{"openid", "profile", "email"},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  cfg.DataGSMAuthURL,
-			TokenURL: cfg.DataGSMTokenURL,
-		},
-	}
-
 	return &AuthService{
 		cfg:              cfg,
-		oauth2Config:     oauth2Cfg,
 		httpClient:       &http.Client{Timeout: 5 * time.Second},
 		userClient:       userClient,
 		refreshTokenRepo: refreshTokenRepo,
@@ -84,18 +69,8 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) GetLoginURL() (authURL, state string) {
-	state = uuid.NewString()
-	authURL = s.oauth2Config.AuthCodeURL(state, oauth2.AccessTypeOnline)
-	return authURL, state
-}
-
-func (s *AuthService) HandleCallback(ctx context.Context, code, state, cookieState string) (*TokenPair, error) {
-	if state != cookieState {
-		return nil, fmt.Errorf("invalid oauth state")
-	}
-
-	accessToken, err := s.exchangeCode(ctx, code)
+func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (*TokenPair, error) {
+	accessToken, err := s.exchangeCode(ctx, code, codeVerifier, redirectURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exchange code: %w", err)
 	}
@@ -115,15 +90,15 @@ func (s *AuthService) HandleCallback(ctx context.Context, code, state, cookieSta
 	number := st.Number
 
 	upsertReq := client.UpsertUserRequest{
-		Name:     st.Name,
-		Email:    userInfo.Email,
-		Sex:      st.Sex,
-		Grade:    &grade,
-		Class:    &classNum,
-		ClassNum: &number,
-		Major:    st.Major,
-		Role:     st.Role,
-		GithubID: st.GithubID,
+		Name:                 st.Name,
+		Email:                userInfo.Email,
+		Sex:                  st.Sex,
+		Grade:                &grade,
+		ClassNumber:          &classNum,
+		StudentNumberInClass: &number,
+		Major:                st.Major,
+		Role:                 st.Role,
+		GithubID:             st.GithubID,
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
@@ -209,13 +184,13 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 	}, nil
 }
 
-func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, error) {
+func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (string, error) {
 	body, err := json.Marshal(map[string]string{
 		"grant_type":    "authorization_code",
 		"code":          code,
 		"client_id":     s.cfg.DataGSMClientID,
-		"client_secret": s.cfg.DataGSMClientSecret,
-		"redirect_uri":  s.cfg.DataGSMRedirectURL,
+		"redirect_uri":  redirectURI,
+		"code_verifier": codeVerifier,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal token request: %w", err)
@@ -223,19 +198,19 @@ func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, er
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.DataGSMTokenURL, bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to create token request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to call token endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, respBody)
@@ -256,13 +231,13 @@ func (s *AuthService) exchangeCode(ctx context.Context, code string) (string, er
 func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*DataGSMUserInfo, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.DataGSMUserInfoURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -272,7 +247,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read userinfo response: %w", err)
 	}
 
 	var info DataGSMUserInfo

@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "0.0.1-SNAPSHOT"
+version = "20260420.0"
 
 java {
     toolchain {
@@ -22,11 +22,14 @@ repositories {
 dependencyManagement {
     imports {
         mavenBom(libs.spring.cloud.dependencies.get().toString())
+        mavenBom(libs.awspring.cloud.bom.get().toString())
     }
 }
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.micrometer.registry.prometheus)
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
     implementation("org.springframework.cloud:spring-cloud-starter-config")
@@ -35,10 +38,17 @@ dependencies {
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
-    implementation("com.github.themoment-team:the-sdk:1.5")
+    implementation(libs.the.sdk) {
+        exclude(group = "org.springframework.boot")
+        exclude(group = "org.springframework.cloud")
+        exclude(group = "org.springdoc")
+    }
     implementation(libs.springdoc.openapi.webmvc.ui)
 
+    implementation(libs.awspring.cloud.s3)
+    implementation(libs.logstash.logback.encoder)
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation(libs.mockk)
 }
 
 kotlin {

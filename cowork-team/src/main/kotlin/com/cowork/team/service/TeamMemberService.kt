@@ -54,7 +54,7 @@ class TeamMemberService(
                 targetUserIds = savedMembers.map { it.userId },
             )
             TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-                override fun afterCommit() = teamEventPublisher.publish(payload)
+                override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
             })
         }
 
@@ -64,6 +64,9 @@ class TeamMemberService(
     fun getMembers(teamId: Long): List<TeamMemberResponse> =
         teamMemberRepository.findAllByTeamId(teamId).map { TeamMemberResponse.of(it) }
 
+    fun isMember(teamId: Long, userId: Long): Boolean =
+        teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
+
     @Transactional
     fun changeRole(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
         requireRole(teamId, actorId, TeamRole.OWNER)
@@ -72,6 +75,7 @@ class TeamMemberService(
             throw ExpectedException("OWNER 역할은 직접 지정할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
+        val team = findTeamOrThrow(teamId)
         val targetMember = teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
             ?: throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
@@ -80,6 +84,18 @@ class TeamMemberService(
         }
 
         targetMember.changeRole(request.role)
+
+        val payload = TeamEventPayload(
+            eventType = "ROLE_CHANGED",
+            teamId = teamId,
+            teamName = team.name,
+            actorUserId = actorId,
+            targetUserIds = listOf(targetUserId),
+            newRole = request.role.name,
+        )
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
+        })
     }
 
     @Transactional
@@ -112,7 +128,7 @@ class TeamMemberService(
             targetUserIds = listOf(targetUserId),
         )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publish(payload)
+            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
         })
     }
 }

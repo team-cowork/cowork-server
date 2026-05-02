@@ -104,10 +104,41 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/chat-ws/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: preference-service
           uri: lb://cowork-preference
           predicates:
             - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: voice-service-webhook
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/webhook
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        - id: voice-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/**
           filters:
             - StripPrefix=1
             - name: CircuitBreaker
@@ -149,6 +180,33 @@ spring:
             - Path=/v3/api-docs/preference
           filters:
             - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: notification-service-sse
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: -1  # SSE는 타임아웃 없음
+
+        - id: notification-service
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
 
         - id: team-service-docs
           uri: lb://cowork-team

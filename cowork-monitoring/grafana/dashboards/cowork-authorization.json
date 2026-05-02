@@ -1,0 +1,139 @@
+{
+  "title": "cowork-authorization",
+  "uid": "cowork-authorization",
+  "tags": ["cowork", "service", "authorization"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "서비스 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "up{service=\"authorization\"}",
+          "legendFormat": "authorization",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "API 요청 Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by (route) (rate(cowork_authorization_http_requests_total{status=~\"2..|3..\"}[1m]))",
+          "legendFormat": "{{route}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "API 4xx/5xx 응답 수 (req/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum by (route, status) (rate(cowork_authorization_http_requests_total{status=~\"4..|5..\"}[1m]))",
+          "legendFormat": "{{route}} {{status}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "API 응답 시간 P99 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, route) (rate(cowork_authorization_http_request_duration_seconds_bucket[5m]))) * 1000",
+          "legendFormat": "P99 {{route}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(cowork_authorization_http_request_duration_seconds_bucket[5m]))) * 1000",
+          "legendFormat": "P95 {{route}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 5,
+      "title": "진행 중 요청 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "cowork_authorization_http_requests_in_flight",
+          "legendFormat": "{{method}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Go 힙 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "go_memstats_heap_inuse_bytes{service=\"authorization\"}",
+          "legendFormat": "Heap InUse",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "go_memstats_heap_alloc_bytes{service=\"authorization\"}",
+          "legendFormat": "Heap Alloc",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "id": 7,
+      "title": "Go Goroutine 수 / GC 빈도",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "go_goroutines{service=\"authorization\"}",
+          "legendFormat": "goroutines",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "rate(go_gc_duration_seconds_count{service=\"authorization\"}[1m]) * 60",
+          "legendFormat": "GC/min",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "Datasource"
+      }
+    ]
+  }
+}
