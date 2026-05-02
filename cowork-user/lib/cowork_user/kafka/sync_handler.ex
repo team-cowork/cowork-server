@@ -4,6 +4,7 @@ defmodule CoworkUser.Kafka.SyncHandler do
   require Logger
 
   alias CoworkUser.Accounts
+  alias CoworkUser.Kafka.TransientSyncError
 
   @impl :brod_group_subscriber_v2
   def init(init_info, cb_config) do
@@ -39,7 +40,7 @@ defmodule CoworkUser.Kafka.SyncHandler do
               "Kafka user sync processing failed topic=#{state.topic} partition=#{state.partition} offset=#{offset} reason=#{inspect(reason)}"
             )
 
-            raise "kafka user sync transient failure"
+            raise TransientSyncError, message: "kafka user sync transient failure: #{inspect(reason)}"
 
           {:error, reason} ->
             Logger.warning(
