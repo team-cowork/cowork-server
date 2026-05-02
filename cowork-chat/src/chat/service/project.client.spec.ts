@@ -78,6 +78,7 @@ describe('ProjectClient', () => {
             (global.fetch as jest.Mock).mockResolvedValue({
                 ok: true,
                 json: jest.fn().mockResolvedValue({
+                    teamId: 10,
                     githubRepoUrl: 'https://github.com/my-org/backend',
                 }),
             });
@@ -85,13 +86,22 @@ describe('ProjectClient', () => {
             const result = await client.getGithubRepoInfo(1);
 
             expect(global.fetch).toHaveBeenCalledWith('http://localhost:8084/projects/1');
-            expect(result).toEqual({ owner: 'my-org', repo: 'backend' });
+            expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
         });
 
         it('githubRepoUrl이 null이면 null을 반환한다', async () => {
             (global.fetch as jest.Mock).mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ githubRepoUrl: null }),
+                json: jest.fn().mockResolvedValue({ teamId: 10, githubRepoUrl: null }),
+            });
+
+            expect(await client.getGithubRepoInfo(1)).toBeNull();
+        });
+
+        it('teamId가 없으면 null을 반환한다', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ githubRepoUrl: 'https://github.com/my-org/backend' }),
             });
 
             expect(await client.getGithubRepoInfo(1)).toBeNull();
