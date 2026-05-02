@@ -44,22 +44,17 @@
     },
     {
       "id": 3,
-      "title": "HTTP 응답 시간 P99 (ms)",
+      "title": "HTTP 누적 응답 시간 합계 (s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"cowork-user\"}[5m]))) * 1000",
-          "legendFormat": "P99 {{uri}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        },
-        {
-          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{application=\"cowork-user\"}[5m]))) * 1000",
-          "legendFormat": "P95 {{uri}}",
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_sum{application=\"cowork-user\"}[5m]))",
+          "legendFormat": "{{uri}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "ms" } }
+      "fieldConfig": { "defaults": { "unit": "s" } }
     },
     {
       "id": 4,
@@ -77,18 +72,13 @@
     },
     {
       "id": 5,
-      "title": "JVM 힙 메모리",
+      "title": "BEAM 메모리",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "jvm_memory_used_bytes{application=\"cowork-user\", area=\"heap\"}",
-          "legendFormat": "Used {{id}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        },
-        {
-          "expr": "jvm_memory_max_bytes{application=\"cowork-user\", area=\"heap\"}",
-          "legendFormat": "Max {{id}}",
+          "expr": "beam_memory_used_bytes{application=\"cowork-user\"}",
+          "legendFormat": "Total",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -96,32 +86,27 @@
     },
     {
       "id": 6,
-      "title": "JVM GC Pause (ms/s)",
+      "title": "BEAM Run Queue",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
-          "expr": "rate(jvm_gc_pause_seconds_sum{application=\"cowork-user\"}[1m]) * 1000",
-          "legendFormat": "{{action}} {{cause}}",
+          "expr": "beam_run_queue{application=\"cowork-user\"}",
+          "legendFormat": "Run Queue",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "ms" } }
+      "fieldConfig": { "defaults": { "unit": "short" } }
     },
     {
       "id": 7,
-      "title": "JVM 스레드",
+      "title": "BEAM 프로세스 수",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "jvm_threads_live_threads{application=\"cowork-user\"}",
-          "legendFormat": "Live",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        },
-        {
-          "expr": "jvm_threads_daemon_threads{application=\"cowork-user\"}",
-          "legendFormat": "Daemon",
+          "expr": "beam_process_count{application=\"cowork-user\"}",
+          "legendFormat": "Processes",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
