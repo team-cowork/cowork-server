@@ -1,28 +1,13 @@
-### Gradle ###
-.gradle/
-build/
-out/
-
-### Spring Boot ###
-*.jar
-*.war
-*.ear
+/_build/
+/deps/
+/cover/
+/doc/
+/.elixir_ls/
+/erl_crash.dump
+/*.ez
+/tmp/
+/priv/static/swagger-ui/
+/build/
 application-local.yml
-application-local.properties
-
-### IntelliJ IDEA ###
-.idea/
-*.iml
-*.iws
-*.ipr
-
-### VS Code ###
-.vscode/
-
-### OS ###
-.DS_Store
-Thumbs.db
-
-### Logs ###
 *.log
-logs/
+.DS_Store

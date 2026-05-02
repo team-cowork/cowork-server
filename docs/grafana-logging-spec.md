@@ -29,28 +29,28 @@ Loki + Promtail 스택으로 수집하고 Grafana에서 시각화한다.
 
 ### 서비스별 로그 수집 방식
 
-| 서비스 | 언어 | 로그 방식 | 수집 경로 |
-|---|---|---|---|
-| cowork-gateway | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/gateway/ |
-| cowork-config | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/config/ |
-| cowork-user | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/user/ |
-| cowork-team | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/team/ |
-| cowork-notification | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/notification/ |
-| cowork-channel | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/channel/ |
-| cowork-project | Kotlin/Spring Boot | logstash-logback-encoder → 파일 | /var/log/cowork/project/ |
-| cowork-authorization | Go | slog (JSONHandler) → 파일 | /var/log/cowork/authorization/ |
-| cowork-voice | Go | slog (JSONHandler) → 파일 | /var/log/cowork/voice/ |
-| cowork-chat | NestJS | pino + nestjs-pino → 파일 | /var/log/cowork/chat/ |
-| cowork-preference | Vert.x | Log4j2 + JsonTemplateLayout → 파일 | /var/log/cowork/preference/ |
+| 서비스                  | 언어                 | 로그 방식                            | 수집 경로                          |
+|----------------------|--------------------|----------------------------------|--------------------------------|
+| cowork-gateway       | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/gateway/       |
+| cowork-config        | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/config/        |
+| cowork-user          | Elixir             | Logger + file backend            | /var/log/cowork/user/          |
+| cowork-team          | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/team/          |
+| cowork-notification  | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/notification/  |
+| cowork-channel       | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/channel/       |
+| cowork-project       | Kotlin/Spring Boot | logstash-logback-encoder → 파일    | /var/log/cowork/project/       |
+| cowork-authorization | Go                 | slog (JSONHandler) → 파일          | /var/log/cowork/authorization/ |
+| cowork-voice         | Go                 | slog (JSONHandler) → 파일          | /var/log/cowork/voice/         |
+| cowork-chat          | NestJS             | pino + nestjs-pino → 파일          | /var/log/cowork/chat/          |
+| cowork-preference    | Vert.x             | Log4j2 + JsonTemplateLayout → 파일 | /var/log/cowork/preference/    |
 
 ### Access Log 제외 대상
 
 Prometheus가 주기적으로 호출하는 메트릭 수집 엔드포인트는 access log에서 제외한다.
 
-| 런타임 | 메트릭 경로 | 제외 방식 |
-|---|---|---|
+| 런타임                   | 메트릭 경로                 | 제외 방식                                                            |
+|-----------------------|------------------------|------------------------------------------------------------------|
 | Spring Boot / Gateway | `/actuator/prometheus` | `sdk.logging.not-logging-urls` 또는 Gateway `AccessLogFilter`에서 제외 |
-| Go / NestJS / Vert.x | `/metrics` | HTTP logging middleware 또는 router logger에서 제외 |
+| Go / NestJS / Vert.x  | `/metrics`             | HTTP logging middleware 또는 router logger에서 제외                    |
 
 ---
 
@@ -235,11 +235,11 @@ datasources:
 
 #### 패널 구성
 
-| 패널 | 타입 | LogQL 쿼리 | 설명 |
-|---|---|---|---|
-| Error Rate (서비스별) | Time series | `sum by (service) (rate({env="local"} \| json \| level="ERROR" [5m]))` | 5분 롤링 ERROR 발생률 |
-| Log Level 분포 | Bar chart | `sum by (level, service) (count_over_time({env="local"} \| json [5m]))` | 서비스별 INFO/WARN/ERROR 비율 |
-| Live Tail | Logs panel | `{env="local", service=~".+"} \| json` | 최신 로그 실시간 표시, service 변수 필터 지원 |
+| 패널                | 타입          | LogQL 쿼리                                                                | 설명                             |
+|-------------------|-------------|-------------------------------------------------------------------------|--------------------------------|
+| Error Rate (서비스별) | Time series | `sum by (service) (rate({env="local"} \| json \| level="ERROR" [5m]))`  | 5분 롤링 ERROR 발생률                |
+| Log Level 분포      | Bar chart   | `sum by (level, service) (count_over_time({env="local"} \| json [5m]))` | 서비스별 INFO/WARN/ERROR 비율        |
+| Live Tail         | Logs panel  | `{env="local", service=~".+"} \| json`                                  | 최신 로그 실시간 표시, service 변수 필터 지원 |
 
 #### 대시보드 변수
 
