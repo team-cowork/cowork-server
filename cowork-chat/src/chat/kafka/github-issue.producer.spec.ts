@@ -43,6 +43,7 @@ describe('GithubIssueProducer', () => {
         const event: GithubIssueCreateEvent = {
             channelId: 5,
             teamId: 1,
+            projectId: 100,
             owner: 'my-org',
             repo: 'backend',
             title: '로그인 버그',
@@ -69,6 +70,7 @@ describe('GithubIssueProducer', () => {
         await producer.send({
             channelId: 99,
             teamId: 1,
+            projectId: 100,
             owner: 'org',
             repo: 'repo',
             title: '제목',

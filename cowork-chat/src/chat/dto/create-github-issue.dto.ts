@@ -6,15 +6,9 @@ export class CreateGithubIssueDto {
     @IsNumber()
     teamId!: number;
 
-    @ApiProperty({ description: 'GitHub 레포 소유자 (org 또는 user)', example: 'my-org' })
-    @IsString()
-    @IsNotEmpty()
-    owner!: string;
-
-    @ApiProperty({ description: 'GitHub 레포 이름', example: 'backend' })
-    @IsString()
-    @IsNotEmpty()
-    repo!: string;
+    @ApiProperty({ description: '프로젝트 ID', example: 100 })
+    @IsNumber()
+    projectId!: number;
 
     @ApiProperty({ description: '이슈 제목', example: '로그인 버그' })
     @IsString()
