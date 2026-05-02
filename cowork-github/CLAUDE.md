@@ -111,5 +111,5 @@ GITHUB_ISSUE_MAX_RETRIES=3
 
 - `cowork-stage-ci.yml`: install, lint, build, test on PR/push targeting `develop`
 - `cowork-prod-ci.yml`: install, lint, build, test on PR/push targeting `main`
-- `cowork-prod-cd.yml`: creates a date-based tag and GitHub Release after `main` push
+- `cowork-prod-cd.yml`: creates a date-based tag, GitHub Release, and triggers Cloudtype deployment after `main` push
 - `cowork-pr-cleanup.yml`: removes waiting labels from merged PRs
