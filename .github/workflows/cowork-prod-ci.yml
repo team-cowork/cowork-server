@@ -119,7 +119,7 @@ jobs:
             MATRIX='{"include":[
               {"service":"cowork-gateway","lang":"kotlin","gradle-task":":cowork-gateway:build"},
               {"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"},
-              {"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"},
+              {"service":"cowork-user","lang":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"},
               {"service":"cowork-notification","lang":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","go-build":"go build ./cmd/server"},
               {"service":"cowork-preference","lang":"kotlin","gradle-task":":cowork-preference:build"},
               {"service":"cowork-team","lang":"kotlin","gradle-task":":cowork-team:build"},
@@ -139,7 +139,7 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","lang":"kotlin","gradle-task":":cowork-config:build"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-config"
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","lang":"kotlin","gradle-task":":cowork-user:build"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","lang":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-user"
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","lang":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","go-build":"go build ./cmd/server"}]') && \
@@ -208,6 +208,22 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
+      - name: Setup Elixir
+        if: matrix.lang == 'elixir'
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ matrix.elixir-version }}
+          otp-version: ${{ matrix.otp-version }}
+      - name: Cache Elixir Dependencies
+        if: matrix.lang == 'elixir'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ matrix.working-directory }}/deps
+            ${{ matrix.working-directory }}/_build
+          key: ${{ runner.os }}-elixir-${{ matrix.service }}-${{ hashFiles(format('{0}/mix.lock', matrix.working-directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-elixir-${{ matrix.service }}-
       - name: Vet (Go)
         if: matrix.lang == 'go'
         working-directory: ${{ matrix.working-directory }}
@@ -235,6 +251,13 @@ jobs:
         if: matrix.lang == 'node'
         working-directory: ${{ matrix.working-directory }}
         run: npm run build
+      - name: Build & Test (Elixir)
+        if: matrix.lang == 'elixir'
+        working-directory: ${{ matrix.working-directory }}
+        run: |
+          mix deps.get
+          mix deps.compile
+          mix compile
 
   notify:
     runs-on: ubuntu-latest
