@@ -11,40 +11,6 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 - Default port: `3000`
 - Dependencies: Kafka, Redis, GitHub App (JWT auth)
 
-## Current Structure
-
-```text
-src/
-├── config/
-│   ├── app-config.service.ts   # type-safe env access
-│   └── env.validation.ts       # Joi schema validation
-├── github/
-│   ├── auth/
-│   │   └── github-auth.service.ts   # JWT issuance and installation token caching
-│   ├── client/
-│   │   └── github-api.client.ts     # GitHub REST API calls (axios)
-│   ├── issue/
-│   │   ├── issue.service.ts         # issue creation orchestration
-│   │   ├── label.service.ts         # label inference and auto-creation
-│   │   └── label.constants.ts       # default labels and keyword mapping
-│   ├── dto/
-│   │   └── create-issue.dto.ts      # Kafka payload DTO
-│   ├── github.cache.ts              # Redis cache key helpers
-│   ├── github.controller.ts         # Kafka consumer controller
-│   ├── github.errors.ts             # custom error classes
-│   └── github.module.ts
-├── app.controller.ts
-├── app.module.ts
-└── main.ts
-
-test/
-├── support/
-│   ├── jest-setup-e2e.ts
-│   └── test-env.ts
-├── app.e2e-spec.ts
-└── jest-e2e.json
-```
-
 ## Kafka Message Spec
 
 **Topic**: `github.issue.create`
