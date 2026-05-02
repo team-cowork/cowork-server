@@ -50,7 +50,7 @@ defmodule CoworkUser.Storage.Minio do
             |> Enum.find_value("0", fn {name, value} ->
               if String.downcase(to_string(name)) == "content-length", do: to_string(value), else: nil
             end)
-            |> String.to_integer()
+            |> parse_content_length()
 
           if content_length > AppConfig.load().max_file_size_bytes do
             delete_object(object_key)
@@ -97,4 +97,11 @@ defmodule CoworkUser.Storage.Minio do
 
   defp unwrap({:ok, value}), do: {:ok, value}
   defp unwrap({:error, reason}), do: {:error, {:presigned_url_generation_failed, inspect(reason)}}
+
+  defp parse_content_length(value) do
+    case Integer.parse(value) do
+      {parsed, ""} when parsed >= 0 -> parsed
+      _ -> 0
+    end
+  end
 end
