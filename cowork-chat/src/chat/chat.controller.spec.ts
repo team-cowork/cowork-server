@@ -6,6 +6,7 @@ import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
+import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
 
 const mockMessageId = new Types.ObjectId().toString();
@@ -25,6 +26,10 @@ const mockProducer = {
 
 const mockGithubIssueProducer = {
     send: jest.fn(),
+};
+
+const mockProjectClient = {
+    getGithubRepoInfo: jest.fn(),
 };
 
 const mockMinioService = {
@@ -49,6 +54,7 @@ describe('ChatController', () => {
                 { provide: ChatMessageProducer, useValue: mockProducer },
                 { provide: MinioService, useValue: mockMinioService },
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
+                { provide: ProjectClient, useValue: mockProjectClient },
             ],
         }).compile();
 
@@ -112,22 +118,24 @@ describe('ChatController', () => {
     describe('createGithubIssue', () => {
         const dto = {
             teamId: 10,
-            owner: 'my-org',
-            repo: 'backend',
+            projectId: 100,
             title: '로그인 버그',
             body: '특정 브라우저에서 재현됨',
         };
 
-        it('멤버십 검증 후 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
+        it('프로젝트 레포 정보를 조회한 뒤 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockResolvedValue(undefined);
 
             const result = await controller.createGithubIssue(1, dto as any, userId);
 
             expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
+            expect(mockProjectClient.getGithubRepoInfo).toHaveBeenCalledWith(100);
             expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
                 channelId: 1,
                 teamId: 10,
+                projectId: 100,
                 owner: 'my-org',
                 repo: 'backend',
                 title: '로그인 버그',
@@ -139,6 +147,7 @@ describe('ChatController', () => {
 
         it('body 없이도 이슈 생성 이벤트를 발행한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockResolvedValue(undefined);
 
             await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
@@ -158,8 +167,20 @@ describe('ChatController', () => {
             expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
+        it('프로젝트에 GitHub 레포 정보가 없으면 BadRequestException을 던진다', async () => {
+            mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue(null);
+
+            await expect(
+                controller.createGithubIssue(1, dto as any, userId),
+            ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
+
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+        });
+
         it('producer 오류가 전파된다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
 
             await expect(
