@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 export interface GithubRepoInfo {
+    teamId: number;
     owner: string;
     repo: string;
 }
@@ -22,15 +23,17 @@ export class ProjectClient {
                 this.logger.warn(`프로젝트 조회 실패 projectId=${projectId} status=${res.status}`);
                 return null;
             }
-            const body = await res.json() as { githubRepoUrl?: string | null };
-            return this.parseRepoUrl(body.githubRepoUrl);
+            const body = await res.json() as { teamId?: number | null; githubRepoUrl?: string | null };
+            const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
+            if (!repoInfo || typeof body.teamId !== 'number') return null;
+            return { teamId: body.teamId, ...repoInfo };
         } catch (err) {
             this.logger.error(`프로젝트 서비스 호출 오류 projectId=${projectId}`, err);
             return null;
         }
     }
 
-    private parseRepoUrl(url: string | null | undefined): GithubRepoInfo | null {
+    private parseRepoUrl(url: string | null | undefined): Omit<GithubRepoInfo, 'teamId'> | null {
         if (!url) return null;
         // https://github.com/{owner}/{repo} 또는 https://github.com/{owner}/{repo}.git
         const match = url.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/);

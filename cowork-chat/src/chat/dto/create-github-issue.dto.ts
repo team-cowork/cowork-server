@@ -2,10 +2,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateGithubIssueDto {
-    @ApiProperty({ description: '팀 ID', example: 1 })
-    @IsNumber()
-    teamId!: number;
-
     @ApiProperty({ description: '프로젝트 ID', example: 100 })
     @IsNumber()
     projectId!: number;
