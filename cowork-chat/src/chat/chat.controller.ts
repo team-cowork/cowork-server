@@ -10,6 +10,7 @@ import {
     HttpCode,
     HttpStatus,
     ParseIntPipe,
+    BadRequestException,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
@@ -31,6 +32,7 @@ import {
 import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
+import { ProjectClient } from './service/project.client';
 import { MessageDocument } from './schema/message.schema';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
 import { MinioService } from '../storage/minio.service';
@@ -46,6 +48,7 @@ export class ChatController {
         private readonly producer: ChatMessageProducer,
         private readonly minioService: MinioService,
         private readonly githubIssueProducer: GithubIssueProducer,
+        private readonly projectClient: ProjectClient,
     ) {}
 
     @Post('files/presigned-url')
@@ -120,11 +123,17 @@ export class ChatController {
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
         await this.chatService.checkMembership(channelId, userId);
+        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
+        if (!repoInfo) {
+            throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
+        }
+
         await this.githubIssueProducer.send({
             channelId,
             teamId: dto.teamId,
-            owner: dto.owner,
-            repo: dto.repo,
+            projectId: dto.projectId,
+            owner: repoInfo.owner,
+            repo: repoInfo.repo,
             title: dto.title,
             body: dto.body,
             requesterId: userId,
