@@ -117,7 +117,6 @@ describe('ChatController', () => {
 
     describe('createGithubIssue', () => {
         const dto = {
-            teamId: 10,
             projectId: 100,
             title: '로그인 버그',
             body: '특정 브라우저에서 재현됨',
@@ -125,7 +124,7 @@ describe('ChatController', () => {
 
         it('프로젝트 레포 정보를 조회한 뒤 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockResolvedValue(undefined);
 
             const result = await controller.createGithubIssue(1, dto as any, userId);
@@ -147,7 +146,7 @@ describe('ChatController', () => {
 
         it('body 없이도 이슈 생성 이벤트를 발행한다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockResolvedValue(undefined);
 
             await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
@@ -180,7 +179,7 @@ describe('ChatController', () => {
 
         it('producer 오류가 전파된다', async () => {
             mockChatService.checkMembership.mockResolvedValue(undefined);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ owner: 'my-org', repo: 'backend' });
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
             mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
 
             await expect(
