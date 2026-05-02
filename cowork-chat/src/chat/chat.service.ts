@@ -86,6 +86,25 @@ export class ChatService {
         return { channelId: message.channelId, messageId };
     }
 
+    async saveSystemMessage(
+        teamId: number,
+        channelId: number,
+        content: string,
+        projectId: number | null = null,
+    ) {
+        return this.messageModel.create({
+            teamId,
+            projectId,
+            channelId,
+            authorId: 0,
+            content,
+            type: 'SYSTEM',
+            attachments: [],
+            mentions: [],
+            notificationStatus: 'SENT',
+        });
+    }
+
     private isAdmin(role: string): boolean {
         return role === UserRole.ADMIN;
     }

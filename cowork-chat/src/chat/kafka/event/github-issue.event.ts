@@ -1,6 +1,7 @@
 export interface GithubIssueCreateEvent {
     channelId: number;
     teamId: number;
+    projectId: number;
     owner: string;
     repo: string;
     title: string;
@@ -11,6 +12,7 @@ export interface GithubIssueCreateEvent {
 export interface GithubIssueResultEvent {
     channelId: number;
     teamId: number;
+    projectId?: number;
     success: boolean;
     issueUrl?: string;
     issueNumber?: number;
