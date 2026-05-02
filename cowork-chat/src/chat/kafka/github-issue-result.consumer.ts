@@ -1,10 +1,8 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InjectModel } from '@nestjs/mongoose';
 import { Kafka, Consumer } from 'kafkajs';
-import { Model } from 'mongoose';
 import { Server } from 'socket.io';
-import { Message } from '../schema/message.schema';
+import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
 
 @Injectable()
@@ -14,7 +12,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     private io?: Server;
 
     constructor(
-        @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+        private readonly chatService: ChatService,
         private readonly configService: ConfigService,
     ) {}
 
@@ -39,6 +37,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
                     await this.handleResultEvent(event);
                 } catch (err) {
                     this.logger.error('이슈 결과 처리 중 오류 발생', err);
+                    if (!(err instanceof SyntaxError)) throw err;
                 }
             },
         });
@@ -51,22 +50,25 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     }
 
     private async handleResultEvent(event: GithubIssueResultEvent): Promise<void> {
-        const content = event.success
-            ? `✅ 이슈가 생성됐어요: ${event.issueUrl}`
-            : `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
+        const content = this.formatIssueResultMessage(event);
 
-        const saved = await this.messageModel.create({
-            teamId: event.teamId,
-            projectId: null,
-            channelId: event.channelId,
-            authorId: 0,
+        const saved = await this.chatService.saveSystemMessage(
+            event.teamId,
+            event.channelId,
             content,
-            type: 'SYSTEM',
-            attachments: [],
-            mentions: [],
-            notificationStatus: 'SENT',
-        });
+        );
 
-        this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+        this.notifyClient(event.channelId, saved.toObject());
+    }
+
+    private formatIssueResultMessage(event: GithubIssueResultEvent): string {
+        if (event.success) {
+            return `✅ 이슈가 생성됐어요: ${event.issueUrl}`;
+        }
+        return `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
+    }
+
+    private notifyClient(channelId: number, message: any): void {
+        this.io?.to(`chat:${channelId}`).emit('message', message);
     }
 }
