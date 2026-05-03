@@ -13,7 +13,7 @@ export class ProjectClient {
     private readonly projectServiceUrl: string;
 
     constructor(private readonly configService: ConfigService) {
-        this.projectServiceUrl = this.configService.get<string>('PROJECT_SERVICE_URL', 'http://localhost:8084');
+        this.projectServiceUrl = this.configService.get<string>('PROJECT_SERVICE_URL', 'http://localhost:8084').replace(/\/$/, '');
     }
 
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
