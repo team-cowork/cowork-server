@@ -63,7 +63,10 @@ describe('LabelService', () => {
       });
 
       it('이상 표현은 bug:버그로 분류한다', () => {
-        const result = service.resolveLabels({ ...dto, title: '로그인 쪽이 이상해요' });
+        const result = service.resolveLabels({
+          ...dto,
+          title: '로그인 쪽이 이상해요',
+        });
         expect(result).toContain('bug:버그');
       });
 
@@ -117,7 +120,9 @@ describe('LabelService', () => {
           title: '기능 추가',
           labels: ['enhancement:개선작업'],
         });
-        expect(result.filter((l) => l === 'enhancement:개선작업')).toHaveLength(1);
+        expect(result.filter((l) => l === 'enhancement:개선작업')).toHaveLength(
+          1,
+        );
       });
 
       it('빈 문자열 명시 라벨은 무시한다', () => {
@@ -189,7 +194,10 @@ describe('LabelService', () => {
     it('여러 라벨 중 일부만 없으면 없는 것만 생성한다', async () => {
       apiClient.listLabels.mockResolvedValue(['bug:버그']);
 
-      await service.ensureLabelsExist('token', dto, ['bug:버그', 'help wanted:도움 필요']);
+      await service.ensureLabelsExist('token', dto, [
+        'bug:버그',
+        'help wanted:도움 필요',
+      ]);
 
       expect(apiClient.createLabel).toHaveBeenCalledTimes(1);
       expect(apiClient.createLabel).toHaveBeenCalledWith(

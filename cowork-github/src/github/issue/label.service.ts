@@ -16,7 +16,9 @@ import {
   QUESTION_LABEL,
 } from './label.constants';
 
-const COWORK_LABEL_NAMES = new Set(COWORK_LABELS.map((l) => l.name.toLowerCase()));
+const COWORK_LABEL_NAMES = new Set(
+  COWORK_LABELS.map((l) => l.name.toLowerCase()),
+);
 
 @Injectable()
 export class LabelService {
@@ -37,7 +39,9 @@ export class LabelService {
       ...(keywordLabel ? [keywordLabel] : []),
     ]);
 
-    const hasCowork = merged.some((l) => COWORK_LABEL_NAMES.has(l.toLowerCase()));
+    const hasCowork = merged.some((l) =>
+      COWORK_LABEL_NAMES.has(l.toLowerCase()),
+    );
     if (!hasCowork) {
       merged.push(COWORK_FALLBACK_LABEL);
     }
