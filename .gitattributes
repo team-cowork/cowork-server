@@ -5,7 +5,3 @@
 *.bat text eol=crlf
 
 *.jar binary
-
-*.json linguist-detectable
-*.yml linguist-detectable
-*.md linguist-detectable
