@@ -6,6 +6,8 @@ import { ChannelMember } from './schema/channel-member.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 
+const SYSTEM_AUTHOR_ID = 0;
+
 @Injectable()
 export class ChatService {
     constructor(
@@ -21,6 +23,12 @@ export class ChatService {
     async checkMembership(channelId: number, userId: number): Promise<void> {
         const member = await this.memberModel.exists({ channelId, userId });
         if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
+    }
+
+    async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
+        const member = await this.memberModel.findOne({ channelId, userId }, { teamId: 1 });
+        if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        return member.teamId;
     }
 
     async getChannelTeamId(channelId: number): Promise<number> {
@@ -102,7 +110,7 @@ export class ChatService {
             teamId,
             projectId,
             channelId,
-            authorId: 0,
+            authorId: SYSTEM_AUTHOR_ID,
             content,
             type: 'SYSTEM',
             attachments: [],
