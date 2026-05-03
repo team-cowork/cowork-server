@@ -11,6 +11,7 @@ import {
     HttpStatus,
     ParseIntPipe,
     BadRequestException,
+    ForbiddenException,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
@@ -123,9 +124,15 @@ export class ChatController {
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
         await this.chatService.checkMembership(channelId, userId);
-        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
+        const [channelTeamId, repoInfo] = await Promise.all([
+            this.chatService.getChannelTeamId(channelId),
+            this.projectClient.getGithubRepoInfo(dto.projectId),
+        ]);
         if (!repoInfo) {
             throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
+        }
+        if (channelTeamId !== repoInfo.teamId) {
+            throw new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
         }
 
         await this.githubIssueProducer.send({
