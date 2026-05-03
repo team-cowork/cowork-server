@@ -15,7 +15,7 @@ describe('IssueService', () => {
     searchOpenIssuesByTitle: jest.Mock;
     addLabelsToIssue: jest.Mock;
   };
-  let labelService: { ensureUsableLabels: jest.Mock; resolveLabels: jest.Mock };
+  let labelService: { resolveLabels: jest.Mock; ensureLabelsExist: jest.Mock };
 
   const dto: CreateIssueDto = {
     owner: 'team-cowork',
@@ -28,8 +28,14 @@ describe('IssueService', () => {
     html_url: 'https://github.com/team-cowork/cowork-github/issues/1',
   };
 
-  const REPO_LABELS = ['bug:버그', 'help wanted:도움 필요'];
-  const RESOLVED_LABELS = ['help wanted:도움 필요'];
+  const existingIssue = {
+    number: 7,
+    html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
+    title: 'Issue title',
+    labels: [],
+  };
+
+  const RESOLVED_LABELS = ['default:기본'];
 
   beforeEach(async () => {
     authService = {
@@ -41,8 +47,8 @@ describe('IssueService', () => {
       addLabelsToIssue: jest.fn().mockResolvedValue(undefined),
     };
     labelService = {
-      ensureUsableLabels: jest.fn().mockResolvedValue(REPO_LABELS),
       resolveLabels: jest.fn().mockReturnValue(RESOLVED_LABELS),
+      ensureLabelsExist: jest.fn().mockResolvedValue(undefined),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -59,33 +65,38 @@ describe('IssueService', () => {
     jest.spyOn(service as any, 'sleep').mockResolvedValue(undefined);
   });
 
-  it('정상 처리 시 라벨을 해석하고 이슈를 생성한다', async () => {
-    await service.createIssue(dto);
+  it('정상 처리 시 라벨을 해석하고 이슈를 생성한 뒤 issueUrl과 issueNumber를 반환한다', async () => {
+    const result = await service.createIssue(dto);
 
     expect(authService.getInstallationToken).toHaveBeenCalledWith(dto.owner);
-    expect(labelService.ensureUsableLabels).toHaveBeenCalledWith('token', dto);
-    expect(labelService.resolveLabels).toHaveBeenCalledWith(dto, REPO_LABELS);
-    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith(
-      'token',
-      dto,
-    );
+    expect(labelService.resolveLabels).toHaveBeenCalledWith(dto);
+    expect(labelService.ensureLabelsExist).toHaveBeenCalledWith('token', dto, RESOLVED_LABELS);
+    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith('token', dto);
     expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
       ...dto,
       labels: RESOLVED_LABELS,
     });
+    expect(result).toEqual({
+      issueUrl: 'https://github.com/team-cowork/cowork-github/issues/1',
+      issueNumber: 1,
+    });
   });
 
-  it('기존 이슈가 있으면 새 이슈를 만들지 않고 라벨만 추가한다', async () => {
-    apiClient.searchOpenIssuesByTitle.mockResolvedValue([
-      {
-        number: 7,
-        html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
-        title: 'Issue title',
-        labels: [],
-      },
-    ]);
+  it('resolveLabels가 default:기본을 반환해도 이슈 API에 labels가 전달된다', async () => {
+    labelService.resolveLabels.mockReturnValue(['default:기본']);
 
     await service.createIssue(dto);
+
+    expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
+      ...dto,
+      labels: ['default:기본'],
+    });
+  });
+
+  it('기존 이슈가 있으면 새 이슈를 만들지 않고 라벨만 추가한 뒤 기존 이슈 정보를 반환한다', async () => {
+    apiClient.searchOpenIssuesByTitle.mockResolvedValue([existingIssue]);
+
+    const result = await service.createIssue(dto);
 
     expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith(
       'token',
@@ -94,40 +105,29 @@ describe('IssueService', () => {
       RESOLVED_LABELS,
     );
     expect(apiClient.createIssue).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      issueUrl: 'https://github.com/team-cowork/cowork-github/issues/7',
+      issueNumber: 7,
+    });
   });
 
   it('기존 이슈가 이미 라벨을 가지고 있으면 중복 라벨 추가를 건너뛴다', async () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
-      {
-        number: 7,
-        html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
-        title: 'Issue title',
-        labels: [{ name: 'help wanted:도움 필요' }],
-      },
+      { ...existingIssue, labels: [{ name: 'default:기본' }] },
     ]);
-    labelService.resolveLabels.mockReturnValue([
-      'help wanted:도움 필요',
-      'bug:버그',
-    ]);
+    labelService.resolveLabels.mockReturnValue(['default:기본', 'bug:버그']);
 
     await service.createIssue(dto);
 
-    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, [
-      'bug:버그',
-    ]);
+    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, ['bug:버그']);
     expect(apiClient.createIssue).not.toHaveBeenCalled();
   });
 
-  it('기존 이슈가 있고 라벨이 없으면 addLabelsToIssue를 호출하지 않는다', async () => {
+  it('기존 이슈의 라벨이 모두 이미 있으면 addLabelsToIssue를 호출하지 않는다', async () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
-      {
-        number: 7,
-        html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
-        title: 'Issue title',
-        labels: [{ name: 'help wanted:도움 필요' }],
-      },
+      { ...existingIssue, labels: [{ name: 'default:기본' }] },
     ]);
-    labelService.resolveLabels.mockReturnValue([]);
+    labelService.resolveLabels.mockReturnValue(['default:기본']);
 
     await service.createIssue(dto);
 
@@ -135,16 +135,17 @@ describe('IssueService', () => {
     expect(apiClient.createIssue).not.toHaveBeenCalled();
   });
 
-  it('일시적 오류 발생 시 성공할 때까지 재시도한다', async () => {
+  it('일시적 오류 발생 시 성공할 때까지 재시도하고 결과를 반환한다', async () => {
     apiClient.searchOpenIssuesByTitle
       .mockRejectedValueOnce(new Error('temporary error'))
       .mockRejectedValueOnce(new Error('temporary error'))
       .mockResolvedValueOnce([]);
 
-    await service.createIssue(dto);
+    const result = await service.createIssue(dto);
 
     expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledTimes(3);
     expect(apiClient.createIssue).toHaveBeenCalledTimes(1);
+    expect(result.issueNumber).toBe(1);
   });
 
   it('GithubClientError는 재시도 없이 즉시 던진다', async () => {

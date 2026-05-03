@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { GithubApiClient } from '../client/github-api.client';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
-import { COWORK_DEFAULT_LABELS } from './label.constants';
+import { COWORK_LABELS } from './label.constants';
 import { LabelService } from './label.service';
 
 describe('LabelService', () => {
@@ -15,14 +15,11 @@ describe('LabelService', () => {
     title: 'Issue title',
   };
 
-  const fullDefaultRepoLabels = COWORK_DEFAULT_LABELS.map(
-    (label) => label.name,
-  );
-  const partialDefaultRepoLabels = ['bug:버그'];
+  const allCoworkLabelNames = COWORK_LABELS.map((l) => l.name);
 
   beforeEach(async () => {
     apiClient = {
-      listLabels: jest.fn().mockResolvedValue(fullDefaultRepoLabels),
+      listLabels: jest.fn().mockResolvedValue(allCoworkLabelNames),
       createLabel: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -36,151 +33,170 @@ describe('LabelService', () => {
     service = module.get<LabelService>(LabelService);
   });
 
-  describe('ensureUsableLabels', () => {
-    it('repo 라벨이 있으면 새 라벨을 생성하지 않는다', async () => {
-      await service.ensureUsableLabels('token', dto);
-      expect(apiClient.createLabel).not.toHaveBeenCalled();
-    });
+  // ─── resolveLabels ────────────────────────────────────────────────────────
 
-    it('요청 labels가 repo에 없으면 생성하고 반환 목록에 포함한다', async () => {
-      const result = await service.ensureUsableLabels('token', {
-        ...dto,
-        labels: ['unknown-label'],
+  describe('resolveLabels', () => {
+    describe('키워드 기반 cowork: 라벨', () => {
+      it('bug 키워드 포함 시 bug:버그를 반환한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '로그인 500 에러',
+          body: '카카오 로그인 실패',
+        });
+        expect(result).toContain('bug:버그');
       });
 
-      expect(apiClient.createLabel).toHaveBeenCalledWith(
-        'token',
-        expect.any(Object),
-        expect.objectContaining({ name: 'unknown-label', color: 'ededed' }),
-      );
-      expect(result).toContain('unknown-label');
-    });
-
-    it('요청 labels가 repo에 이미 있으면 생성하지 않는다', async () => {
-      await service.ensureUsableLabels('token', {
-        ...dto,
-        labels: ['bug:버그'],
+      it('enhancement 키워드 포함 시 enhancement:개선작업을 반환한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '기능 추가 요청',
+        });
+        expect(result).toContain('enhancement:개선작업');
       });
+
+      it('question 키워드 포함 시 question:질문을 반환한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '어떻게 사용하나요?',
+        });
+        expect(result).toContain('question:질문');
+      });
+
+      it('이상 표현은 bug:버그로 분류한다', () => {
+        const result = service.resolveLabels({ ...dto, title: '로그인 쪽이 이상해요' });
+        expect(result).toContain('bug:버그');
+      });
+
+      it('bug 키워드가 enhancement보다 우선한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '기능 추가 요청인데 오류가 있음',
+        });
+        expect(result).toContain('bug:버그');
+        expect(result).not.toContain('enhancement:개선작업');
+      });
+    });
+
+    describe('cowork:default fallback', () => {
+      it('키워드가 없으면 default:기본을 반환한다', () => {
+        const result = service.resolveLabels(dto);
+        expect(result).toEqual(['default:기본']);
+      });
+
+      it('명시 라벨만 있고 cowork 라벨이 없으면 default:기본을 추가한다', () => {
+        const result = service.resolveLabels({ ...dto, labels: ['urgent'] });
+        expect(result).toContain('urgent');
+        expect(result).toContain('default:기본');
+      });
+    });
+
+    describe('명시 라벨 처리', () => {
+      it('cowork 명시 라벨은 default:기본을 추가하지 않는다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          labels: ['blocked:차단됨'],
+        });
+        expect(result).toContain('blocked:차단됨');
+        expect(result).not.toContain('default:기본');
+      });
+
+      it('명시 라벨과 키워드 결과를 병합한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '로그인 에러',
+          labels: ['urgent'],
+        });
+        expect(result).toContain('urgent');
+        expect(result).toContain('bug:버그');
+        expect(result).not.toContain('default:기본');
+      });
+
+      it('명시 라벨과 키워드가 동일한 cowork 라벨이면 중복 없이 1개만 반환한다', () => {
+        const result = service.resolveLabels({
+          ...dto,
+          title: '기능 추가',
+          labels: ['enhancement:개선작업'],
+        });
+        expect(result.filter((l) => l === 'enhancement:개선작업')).toHaveLength(1);
+      });
+
+      it('빈 문자열 명시 라벨은 무시한다', () => {
+        const result = service.resolveLabels({ ...dto, labels: ['', '  '] });
+        expect(result).toEqual(['default:기본']);
+      });
+    });
+  });
+
+  // ─── ensureLabelsExist ────────────────────────────────────────────────────
+
+  describe('ensureLabelsExist', () => {
+    it('모든 라벨이 레포에 있으면 createLabel을 호출하지 않는다', async () => {
+      await service.ensureLabelsExist('token', dto, ['bug:버그']);
       expect(apiClient.createLabel).not.toHaveBeenCalled();
     });
 
-    it('repo에 일부 기본 라벨만 있어도 누락된 기본 라벨을 생성한다', async () => {
-      apiClient.listLabels.mockResolvedValue(partialDefaultRepoLabels);
+    it('레포에 없는 cowork 라벨은 정의된 color/description으로 생성한다', async () => {
+      apiClient.listLabels.mockResolvedValue([]);
 
-      await service.ensureUsableLabels('token', dto);
+      await service.ensureLabelsExist('token', dto, ['bug:버그']);
 
       expect(apiClient.createLabel).toHaveBeenCalledWith(
         'token',
         expect.any(Object),
-        expect.objectContaining({ name: 'blocked:차단됨' }),
+        expect.objectContaining({ name: 'bug:버그', color: 'd73a4a' }),
       );
+    });
+
+    it('레포에 없는 커스텀 라벨은 color=ededed로 생성한다', async () => {
+      apiClient.listLabels.mockResolvedValue([]);
+
+      await service.ensureLabelsExist('token', dto, ['urgent']);
+
       expect(apiClient.createLabel).toHaveBeenCalledWith(
         'token',
         expect.any(Object),
-        expect.objectContaining({ name: 'enhancement:개선작업' }),
+        expect.objectContaining({ name: 'urgent', color: 'ededed' }),
       );
     });
 
-    it('모든 기본 라벨이 이미 있으면 기본 라벨을 추가 생성하지 않는다', async () => {
-      apiClient.listLabels.mockResolvedValue(fullDefaultRepoLabels);
-
-      await service.ensureUsableLabels('token', dto);
-
-      expect(apiClient.createLabel).not.toHaveBeenCalled();
+    it('라벨 목록이 비어 있으면 listLabels를 호출하지 않는다', async () => {
+      await service.ensureLabelsExist('token', dto, []);
+      expect(apiClient.listLabels).not.toHaveBeenCalled();
     });
 
-    it('라벨 생성 시 422 에러는 이미 존재하는 것으로 간주하고 스킵한다', async () => {
+    it('422 에러는 스킵하고 계속 진행한다', async () => {
       apiClient.listLabels.mockResolvedValue([]);
       apiClient.createLabel.mockRejectedValue(
         new GithubClientError('already exists', 422),
       );
 
       await expect(
-        service.ensureUsableLabels('token', dto),
+        service.ensureLabelsExist('token', dto, ['bug:버그']),
       ).resolves.not.toThrow();
     });
 
-    it('라벨 생성 시 403 에러는 권한 없음으로 간주하고 스킵한다', async () => {
+    it('403 에러는 스킵하고 계속 진행한다', async () => {
       apiClient.listLabels.mockResolvedValue([]);
       apiClient.createLabel.mockRejectedValue(
         new GithubClientError('forbidden', 403),
       );
 
       await expect(
-        service.ensureUsableLabels('token', dto),
+        service.ensureLabelsExist('token', dto, ['bug:버그']),
       ).resolves.not.toThrow();
     });
 
-    it('요청 labels 생성 시 403 에러로 스킵되면 반환 목록에 포함하지 않는다', async () => {
-      apiClient.createLabel.mockRejectedValue(
-        new GithubClientError('forbidden', 403),
+    it('여러 라벨 중 일부만 없으면 없는 것만 생성한다', async () => {
+      apiClient.listLabels.mockResolvedValue(['bug:버그']);
+
+      await service.ensureLabelsExist('token', dto, ['bug:버그', 'default:기본']);
+
+      expect(apiClient.createLabel).toHaveBeenCalledTimes(1);
+      expect(apiClient.createLabel).toHaveBeenCalledWith(
+        'token',
+        expect.any(Object),
+        expect.objectContaining({ name: 'default:기본' }),
       );
-
-      const result = await service.ensureUsableLabels('token', {
-        ...dto,
-        labels: ['unknown-label'],
-      });
-
-      expect(result).not.toContain('unknown-label');
-    });
-  });
-
-  describe('resolveLabels', () => {
-    it('요청 labels가 있고 repo에 존재하면 해당 labels를 반환한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, labels: ['bug:버그'] },
-        fullDefaultRepoLabels,
-      );
-      expect(result).toEqual(['bug:버그']);
-    });
-
-    it('요청 labels가 repo에 없으면 키워드 기반으로 추론한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, title: '로그인 500 에러', labels: ['nonexistent'] },
-        fullDefaultRepoLabels,
-      );
-      expect(result).toEqual(['bug:버그']);
-    });
-
-    it('bug 키워드 포함 시 bug 라벨을 반환한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, title: '로그인 500 에러', body: '카카오 로그인 실패' },
-        fullDefaultRepoLabels,
-      );
-      expect(result).toEqual(['bug:버그']);
-    });
-
-    it('애매한 이상 표현은 bug 라벨로 분류한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, title: '로그인 쪽이 이상해요' },
-        fullDefaultRepoLabels,
-      );
-      expect(result).toEqual(['bug:버그']);
-    });
-
-    it('enhancement 키워드 포함 시 enhancement 라벨을 반환한다', () => {
-      const result = service.resolveLabels(
-        { ...dto, title: '기능 추가 요청' },
-        fullDefaultRepoLabels,
-      );
-      expect(result).toEqual(['enhancement:개선작업']);
-    });
-
-    it('repo 라벨명이 prefix 형태면 해당 라벨명으로 매칭한다', () => {
-      const result = service.resolveLabels({ ...dto, title: '기능 개선' }, [
-        'enhancement:개선작업',
-      ]);
-      expect(result).toEqual(['enhancement:개선작업']);
-    });
-
-    it('키워드가 없으면 fallback 라벨을 반환한다', () => {
-      const result = service.resolveLabels(dto, fullDefaultRepoLabels);
-      expect(result).toEqual(['help wanted:도움 필요']);
-    });
-
-    it('repo에 매칭 라벨이 없으면 빈 배열을 반환한다', () => {
-      const result = service.resolveLabels(dto, ['release:릴리즈']);
-      expect(result).toEqual([]);
     });
   });
 });
