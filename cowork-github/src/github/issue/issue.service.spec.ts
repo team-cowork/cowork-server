@@ -35,7 +35,7 @@ describe('IssueService', () => {
     labels: [],
   };
 
-  const RESOLVED_LABELS = ['default:기본'];
+  const RESOLVED_LABELS = ['help wanted:도움 필요'];
 
   beforeEach(async () => {
     authService = {
@@ -82,14 +82,14 @@ describe('IssueService', () => {
     });
   });
 
-  it('resolveLabels가 default:기본을 반환해도 이슈 API에 labels가 전달된다', async () => {
-    labelService.resolveLabels.mockReturnValue(['default:기본']);
+  it('resolveLabels가 help wanted:도움 필요을 반환해도 이슈 API에 labels가 전달된다', async () => {
+    labelService.resolveLabels.mockReturnValue(['help wanted:도움 필요']);
 
     await service.createIssue(dto);
 
     expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
       ...dto,
-      labels: ['default:기본'],
+      labels: ['help wanted:도움 필요'],
     });
   });
 
@@ -113,9 +113,9 @@ describe('IssueService', () => {
 
   it('기존 이슈가 이미 라벨을 가지고 있으면 중복 라벨 추가를 건너뛴다', async () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
-      { ...existingIssue, labels: [{ name: 'default:기본' }] },
+      { ...existingIssue, labels: [{ name: 'help wanted:도움 필요' }] },
     ]);
-    labelService.resolveLabels.mockReturnValue(['default:기본', 'bug:버그']);
+    labelService.resolveLabels.mockReturnValue(['help wanted:도움 필요', 'bug:버그']);
 
     await service.createIssue(dto);
 
@@ -125,9 +125,9 @@ describe('IssueService', () => {
 
   it('기존 이슈의 라벨이 모두 이미 있으면 addLabelsToIssue를 호출하지 않는다', async () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
-      { ...existingIssue, labels: [{ name: 'default:기본' }] },
+      { ...existingIssue, labels: [{ name: 'help wanted:도움 필요' }] },
     ]);
-    labelService.resolveLabels.mockReturnValue(['default:기본']);
+    labelService.resolveLabels.mockReturnValue(['help wanted:도움 필요']);
 
     await service.createIssue(dto);
 
