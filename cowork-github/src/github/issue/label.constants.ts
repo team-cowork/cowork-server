@@ -1,45 +1,63 @@
 import type { CreateLabelPayload } from '../client/github-api.client';
 
-export const COWORK_DEFAULT_LABELS: CreateLabelPayload[] = [
+export const COWORK_LABELS: CreateLabelPayload[] = [
   {
-    name: 'blocked:차단됨',
-    color: 'b60205',
-    description: '진행이 차단된 이슈',
+    name: 'bug:버그',
+    color: 'd73a4a',
+    description: '무언가 작동하지 않습니다',
   },
-  { name: 'bug:버그', color: 'd73a4a', description: '버그 또는 오작동' },
-  {
-    name: 'documentation:문서화',
-    color: '0075ca',
-    description: '문서 작성 또는 수정',
-  },
-  { name: 'duplicate:중복', color: 'cfd3d7', description: '중복 이슈' },
   {
     name: 'enhancement:개선작업',
     color: 'a2eeef',
-    description: '기능 추가 또는 개선',
+    description: '새 기능 또는 기존 코드 개선에 관한 내용입니다',
   },
   {
-    name: 'GFI:첫 기여 추천',
-    color: '7057ff',
-    description: '첫 기여자에게 추천할 만한 작업',
+    name: 'question:질문',
+    color: 'd876e3',
+    description: '질문 또는 문의사항이 있습니다',
   },
   {
     name: 'help wanted:도움 필요',
     color: '008672',
-    description: '도움이나 추가 논의가 필요한 이슈',
+    description: '추가적인 지원이 필요합니다',
   },
   {
-    name: 'invalid:무효한',
-    color: 'e4e669',
-    description: '유효하지 않은 이슈',
+    name: 'blocked:차단됨',
+    color: 'b60205',
+    description: '해당 작업은 다른 작업에 의해 차단되었습니다',
   },
-  { name: 'release:릴리즈', color: '5319e7', description: '릴리즈 관련 작업' },
+  {
+    name: 'duplicate:중복',
+    color: 'cfd3d7',
+    description: '이 Issue 또는 Pull Request가 이미 존재합니다',
+  },
+  {
+    name: 'documentation:문서화',
+    color: '0075ca',
+    description: '문서에 대한 개선 또는 추가사항이 있습니다',
+  },
+  {
+    name: 'release:릴리즈',
+    color: '5319e7',
+    description: '프로젝트를 배포합니다',
+  },
   {
     name: 'waiting for review:검토 대기',
     color: 'fbca04',
-    description: '검토 대기 상태',
+    description: '확인을 대기하고 있습니다',
+  },
+  {
+    name: 'GFI:첫 기여 추천',
+    color: '7057ff',
+    description: '첫 기여로 훌륭한 Issue입니다',
   },
 ];
+
+export const COWORK_FALLBACK_LABEL = 'help wanted:도움 필요' as const;
+
+export const BUG_LABEL = 'bug:버그' as const;
+export const ENHANCEMENT_LABEL = 'enhancement:개선작업' as const;
+export const QUESTION_LABEL = 'question:질문' as const;
 
 export const BUG_KEYWORDS = [
   'error',
@@ -77,21 +95,4 @@ export const QUESTION_KEYWORDS = [
   '질문',
   '어떻게',
   '가능',
-] as const;
-
-export const BUG_LABEL_CANDIDATES = ['bug:버그', 'bug'] as const;
-export const ENHANCEMENT_LABEL_CANDIDATES = [
-  'enhancement',
-  'enhancement:개선작업',
-] as const;
-export const QUESTION_LABEL_CANDIDATES = [
-  'question',
-  'help wanted:도움 필요',
-] as const;
-export const FALLBACK_LABEL_CANDIDATES = [
-  'help wanted:도움 필요',
-  'waiting for review:검토 대기',
-  'question',
-  'enhancement:개선작업',
-  'bug:버그',
 ] as const;
