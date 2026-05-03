@@ -6,6 +6,7 @@ export type ChannelMemberDocument = HydratedDocument<ChannelMember>;
 @Schema({ timestamps: true, versionKey: false })
 export class ChannelMember {
     @Prop({ required: true }) channelId!: number;
+    @Prop({ required: true }) teamId!: number;
     @Prop({ required: true }) userId!: number;
     @Prop({ default: 'MEMBER' }) role!: string;
 }
