@@ -7,14 +7,18 @@ import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
 import {
   BUG_KEYWORDS,
-  BUG_LABEL_CANDIDATES,
-  COWORK_DEFAULT_LABELS,
+  BUG_LABEL,
+  COWORK_FALLBACK_LABEL,
+  COWORK_LABELS,
   ENHANCEMENT_KEYWORDS,
-  ENHANCEMENT_LABEL_CANDIDATES,
-  FALLBACK_LABEL_CANDIDATES,
+  ENHANCEMENT_LABEL,
   QUESTION_KEYWORDS,
-  QUESTION_LABEL_CANDIDATES,
+  QUESTION_LABEL,
 } from './label.constants';
+
+const COWORK_LABEL_NAMES = new Set(
+  COWORK_LABELS.map((l) => l.name.toLowerCase()),
+);
 
 @Injectable()
 export class LabelService {
@@ -22,96 +26,53 @@ export class LabelService {
 
   constructor(private readonly apiClient: GithubApiClient) {}
 
-  async ensureUsableLabels(
-    token: string,
-    dto: CreateIssueDto,
-  ): Promise<string[]> {
-    const repoLabels = await this.apiClient.listLabels(token, dto);
-    const requestedLabels = dto.labels ?? [];
-
-    const createdDefaults = await this.createMissingLabels(
-      token,
-      dto,
-      COWORK_DEFAULT_LABELS,
-      repoLabels,
-    );
-
-    const handledRequested = await this.createRequestedLabels(
-      token,
-      dto,
-      requestedLabels,
-      [...repoLabels, ...createdDefaults],
-    );
-    return this.uniqueLabels([
-      ...repoLabels,
-      ...createdDefaults,
-      ...handledRequested,
-    ]);
-  }
-
-  resolveLabels(dto: CreateIssueDto, repoLabels: string[]): string[] {
-    if (dto.labels && dto.labels.length > 0) {
-      const matched = dto.labels.filter((label) =>
-        this.hasRepoLabel(repoLabels, label),
-      );
-      if (matched.length > 0) return matched;
-    }
+  resolveLabels(dto: CreateIssueDto): string[] {
+    const explicit = dto.labels
+      ? this.uniqueLabels(dto.labels.filter((l) => l.trim().length > 0))
+      : [];
 
     const text = `${dto.title} ${dto.body ?? ''}`.toLowerCase();
-    if (this.includesAny(text, BUG_KEYWORDS)) {
-      return this.matchRepoLabels(repoLabels, BUG_LABEL_CANDIDATES);
+    const keywordLabel = this.detectCoworkLabelName(text);
+
+    const merged = this.uniqueLabels([
+      ...explicit,
+      ...(keywordLabel ? [keywordLabel] : []),
+    ]);
+
+    const hasCowork = merged.some((l) =>
+      COWORK_LABEL_NAMES.has(l.toLowerCase()),
+    );
+    if (!hasCowork) {
+      merged.push(COWORK_FALLBACK_LABEL);
     }
-    if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) {
-      return this.matchRepoLabels(repoLabels, ENHANCEMENT_LABEL_CANDIDATES);
-    }
-    if (this.includesAny(text, QUESTION_KEYWORDS)) {
-      return this.matchRepoLabels(repoLabels, QUESTION_LABEL_CANDIDATES);
-    }
-    return this.matchRepoLabels(repoLabels, FALLBACK_LABEL_CANDIDATES);
+
+    return merged;
   }
 
-  private async createRequestedLabels(
+  async ensureLabelsExist(
     token: string,
     dto: CreateIssueDto,
-    requestedLabels: string[],
-    existingLabels: string[],
-  ): Promise<string[]> {
-    const alreadyExisting = this.uniqueLabels(requestedLabels).filter((label) =>
-      this.hasRepoLabel(existingLabels, label),
-    );
+    labels: string[],
+  ): Promise<void> {
+    if (labels.length === 0) return;
 
-    const labelsToCreate = this.uniqueLabels(requestedLabels)
-      .filter((label) => label.trim().length > 0)
-      .filter((label) => !this.hasRepoLabel(existingLabels, label))
-      .map((label) => this.createCustomLabel(label));
+    const repoLabels = await this.apiClient.listLabels(token, dto);
 
-    const newlyCreated = await this.createMissingLabels(
-      token,
-      dto,
-      labelsToCreate,
-      existingLabels,
-    );
-    return this.uniqueLabels([...alreadyExisting, ...newlyCreated]);
-  }
+    for (const name of labels) {
+      if (this.hasRepoLabel(repoLabels, name)) continue;
 
-  private async createMissingLabels(
-    token: string,
-    dto: CreateIssueDto,
-    labels: CreateLabelPayload[],
-    existingLabels: string[],
-  ): Promise<string[]> {
-    const created: string[] = [];
-    for (const label of labels) {
-      if (this.hasRepoLabel(existingLabels, label.name)) continue;
+      const coworkDef = COWORK_LABELS.find(
+        (l) => l.name.toLowerCase() === name.toLowerCase(),
+      );
+      const payload = coworkDef ?? this.createCustomLabel(name);
 
       try {
-        await this.apiClient.createLabel(token, dto, label);
+        await this.apiClient.createLabel(token, dto, payload);
         this.logger.log('Repository label created', {
           owner: dto.owner,
           repo: dto.repo,
-          label: label.name,
+          label: name,
         });
-        created.push(label.name);
       } catch (error) {
         if (
           error instanceof GithubClientError &&
@@ -119,45 +80,24 @@ export class LabelService {
         ) {
           this.logger.log(
             `Repository label creation skipped (status: ${error.statusCode})`,
-            {
-              owner: dto.owner,
-              repo: dto.repo,
-              label: label.name,
-            },
+            { owner: dto.owner, repo: dto.repo, label: name },
           );
           continue;
         }
         throw error;
       }
     }
-    return created;
+  }
+
+  private detectCoworkLabelName(text: string): string | null {
+    if (this.includesAny(text, BUG_KEYWORDS)) return BUG_LABEL;
+    if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) return ENHANCEMENT_LABEL;
+    if (this.includesAny(text, QUESTION_KEYWORDS)) return QUESTION_LABEL;
+    return null;
   }
 
   private includesAny(text: string, keywords: readonly string[]): boolean {
     return keywords.some((keyword) => text.includes(keyword));
-  }
-
-  private matchRepoLabels(
-    repoLabels: string[],
-    candidates: readonly string[],
-  ): string[] {
-    const normalized = repoLabels.map((label) => ({
-      label,
-      lower: label.toLowerCase(),
-    }));
-
-    for (const candidate of candidates) {
-      const lowerCandidate = candidate.toLowerCase();
-      const exact = normalized.find(({ lower }) => lower === lowerCandidate);
-      if (exact) return [exact.label];
-
-      const prefix = normalized.find(({ lower }) =>
-        lower.startsWith(`${lowerCandidate}:`),
-      );
-      if (prefix) return [prefix.label];
-    }
-
-    return [];
   }
 
   private hasRepoLabel(repoLabels: string[], label: string): boolean {
