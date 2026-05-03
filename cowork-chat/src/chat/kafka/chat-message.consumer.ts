@@ -75,7 +75,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 parentMessageId: (event.parentMessageId && Types.ObjectId.isValid(event.parentMessageId))
                     ? new Types.ObjectId(event.parentMessageId)
                     : null,
-                clientMessageId: event.clientMessageId ?? null,
+                clientMessageId: event.clientMessageId,
                 mentions,
                 notificationStatus: 'PENDING',
             });
