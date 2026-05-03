@@ -25,6 +25,7 @@ const mockMessageModel = {
     aggregate: mockAggregate,
     findById: jest.fn(),
     deleteOne: jest.fn(),
+    create: jest.fn(),
     collection: { name: 'messages' },
 };
 
@@ -182,6 +183,27 @@ describe('ChatService', () => {
             await expect(
                 service.deleteMessage(mockMessageId, 42, 'ROLE_ADMIN'),
             ).resolves.toBeDefined();
+        });
+    });
+
+    describe('saveSystemMessage', () => {
+        it('시스템 메시지는 clientMessageId 없이 저장한다', async () => {
+            mockMessageModel.create.mockResolvedValue({ toObject: jest.fn() });
+
+            await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 100);
+
+            expect(mockMessageModel.create).toHaveBeenCalledWith({
+                teamId: 10,
+                projectId: 100,
+                channelId: 1,
+                authorId: 0,
+                content: '이슈가 생성됐어요',
+                type: 'SYSTEM',
+                attachments: [],
+                mentions: [],
+                clientMessageId: undefined,
+                notificationStatus: 'SENT',
+            });
         });
     });
 });
