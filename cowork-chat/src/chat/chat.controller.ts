@@ -123,10 +123,8 @@ export class ChatController {
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
-        const [channelTeamId, repoInfo] = await Promise.all([
-            this.chatService.checkMembershipAndGetTeamId(channelId, userId),
-            this.projectClient.getGithubRepoInfo(dto.projectId),
-        ]);
+        const channelTeamId = await this.chatService.checkMembershipAndGetTeamId(channelId, userId);
+        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
         if (!repoInfo) {
             throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
         }
