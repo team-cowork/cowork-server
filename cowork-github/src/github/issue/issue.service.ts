@@ -17,17 +17,16 @@ export class IssueService {
     private readonly labelService: LabelService,
   ) {}
 
-  async createIssue(dto: CreateIssueDto): Promise<void> {
+  async createIssue(
+    dto: CreateIssueDto,
+  ): Promise<{ issueUrl: string; issueNumber: number }> {
     const maxRetries = this.config.githubIssueMaxRetries;
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const token = await this.authService.getInstallationToken(dto.owner);
-        const repoLabels = await this.labelService.ensureUsableLabels(
-          token,
-          dto,
-        );
-        const labels = this.labelService.resolveLabels(dto, repoLabels);
+        const labels = this.labelService.resolveLabels(dto);
+        await this.labelService.ensureLabelsExist(token, dto, labels);
 
         const existingIssues = await this.apiClient.searchOpenIssuesByTitle(
           token,
@@ -66,12 +65,15 @@ export class IssueService {
             issueNumber: existingIssue.number,
             issueUrl: existingIssue.html_url,
           });
-          return;
+          return {
+            issueUrl: existingIssue.html_url,
+            issueNumber: existingIssue.number,
+          };
         }
 
         const result = await this.apiClient.createIssue(token, {
           ...dto,
-          labels: labels.length > 0 ? labels : undefined,
+          labels,
         });
         this.logger.log('Issue created', {
           owner: dto.owner,
@@ -80,7 +82,7 @@ export class IssueService {
           issueUrl: result.html_url,
           labels,
         });
-        return;
+        return { issueUrl: result.html_url, issueNumber: result.number };
       } catch (error) {
         if (error instanceof GithubClientError) throw error;
 
@@ -96,6 +98,7 @@ export class IssueService {
         await this.sleep(Math.pow(2, attempt - 1) * 1000);
       }
     }
+    throw new Error('createIssue: max retries exceeded without result');
   }
 
   private sleep(ms: number): Promise<void> {
