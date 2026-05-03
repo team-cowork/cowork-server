@@ -70,8 +70,15 @@ describe('IssueService', () => {
 
     expect(authService.getInstallationToken).toHaveBeenCalledWith(dto.owner);
     expect(labelService.resolveLabels).toHaveBeenCalledWith(dto);
-    expect(labelService.ensureLabelsExist).toHaveBeenCalledWith('token', dto, RESOLVED_LABELS);
-    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith('token', dto);
+    expect(labelService.ensureLabelsExist).toHaveBeenCalledWith(
+      'token',
+      dto,
+      RESOLVED_LABELS,
+    );
+    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith(
+      'token',
+      dto,
+    );
     expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
       ...dto,
       labels: RESOLVED_LABELS,
@@ -115,11 +122,16 @@ describe('IssueService', () => {
     apiClient.searchOpenIssuesByTitle.mockResolvedValue([
       { ...existingIssue, labels: [{ name: 'help wanted:도움 필요' }] },
     ]);
-    labelService.resolveLabels.mockReturnValue(['help wanted:도움 필요', 'bug:버그']);
+    labelService.resolveLabels.mockReturnValue([
+      'help wanted:도움 필요',
+      'bug:버그',
+    ]);
 
     await service.createIssue(dto);
 
-    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, ['bug:버그']);
+    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, [
+      'bug:버그',
+    ]);
     expect(apiClient.createIssue).not.toHaveBeenCalled();
   });
 

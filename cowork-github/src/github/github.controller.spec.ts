@@ -32,7 +32,8 @@ describe('GithubController', () => {
     }).compile();
 
     controller = module.get<GithubController>(GithubController);
-    (controller as unknown as { exitProcess: jest.Mock }).exitProcess = jest.fn();
+    (controller as unknown as { exitProcess: jest.Mock }).exitProcess =
+      jest.fn();
   });
 
   const validPayload = { owner: 'my-org', repo: 'my-repo', title: 'Bug fix' };
@@ -98,7 +99,11 @@ describe('GithubController', () => {
     });
 
     it('channelId와 teamId가 있으면 검증 실패 시 실패 결과 이벤트를 발행한다', async () => {
-      const invalidPayloadWithContext = { owner: 'my-org', channelId: 5, teamId: 1 };
+      const invalidPayloadWithContext = {
+        owner: 'my-org',
+        channelId: 5,
+        teamId: 1,
+      };
 
       await controller.handleIssueCreate(invalidPayloadWithContext, ctx);
 
