@@ -85,7 +85,10 @@ describe('ProjectClient', () => {
 
             const result = await client.getGithubRepoInfo(1);
 
-            expect(global.fetch).toHaveBeenCalledWith('http://localhost:8084/projects/1');
+            expect(global.fetch).toHaveBeenCalledWith(
+                'http://localhost:8084/projects/1',
+                expect.objectContaining({ signal: expect.any(AbortSignal) }),
+            );
             expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
         });
 
@@ -107,16 +110,22 @@ describe('ProjectClient', () => {
             expect(await client.getGithubRepoInfo(1)).toBeNull();
         });
 
-        it('HTTP 오류 응답이면 null을 반환한다', async () => {
+        it('404 응답이면 null을 반환한다', async () => {
             (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 404 });
 
             expect(await client.getGithubRepoInfo(99)).toBeNull();
         });
 
-        it('네트워크 오류가 발생하면 null을 반환한다', async () => {
+        it('5xx 응답이면 예외를 던진다', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
+
+            await expect(client.getGithubRepoInfo(1)).rejects.toThrow('프로젝트 서비스 응답 오류: 500');
+        });
+
+        it('네트워크 오류가 발생하면 예외를 던진다', async () => {
             (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
 
-            expect(await client.getGithubRepoInfo(1)).toBeNull();
+            await expect(client.getGithubRepoInfo(1)).rejects.toThrow('ECONNREFUSED');
         });
     });
 });

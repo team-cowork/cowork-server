@@ -18,10 +18,12 @@ export class ProjectClient {
 
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
         try {
-            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}`);
+            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}`, {
+                signal: AbortSignal.timeout(5000),
+            });
+            if (res.status === 404) return null;
             if (!res.ok) {
-                this.logger.warn(`프로젝트 조회 실패 projectId=${projectId} status=${res.status}`);
-                return null;
+                throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
             }
             const body = await res.json() as { teamId?: number | null; githubRepoUrl?: string | null };
             const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
@@ -29,7 +31,7 @@ export class ProjectClient {
             return { teamId: body.teamId, ...repoInfo };
         } catch (err) {
             this.logger.error(`프로젝트 서비스 호출 오류 projectId=${projectId}`, err);
-            return null;
+            throw err;
         }
     }
 
