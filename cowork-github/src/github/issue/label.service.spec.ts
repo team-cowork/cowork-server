@@ -78,26 +78,26 @@ describe('LabelService', () => {
     });
 
     describe('cowork:default fallback', () => {
-      it('키워드가 없으면 default:기본을 반환한다', () => {
+      it('키워드가 없으면 help wanted:도움 필요을 반환한다', () => {
         const result = service.resolveLabels(dto);
-        expect(result).toEqual(['default:기본']);
+        expect(result).toEqual(['help wanted:도움 필요']);
       });
 
-      it('명시 라벨만 있고 cowork 라벨이 없으면 default:기본을 추가한다', () => {
+      it('명시 라벨만 있고 cowork 라벨이 없으면 help wanted:도움 필요을 추가한다', () => {
         const result = service.resolveLabels({ ...dto, labels: ['urgent'] });
         expect(result).toContain('urgent');
-        expect(result).toContain('default:기본');
+        expect(result).toContain('help wanted:도움 필요');
       });
     });
 
     describe('명시 라벨 처리', () => {
-      it('cowork 명시 라벨은 default:기본을 추가하지 않는다', () => {
+      it('cowork 명시 라벨은 help wanted:도움 필요을 추가하지 않는다', () => {
         const result = service.resolveLabels({
           ...dto,
           labels: ['blocked:차단됨'],
         });
         expect(result).toContain('blocked:차단됨');
-        expect(result).not.toContain('default:기본');
+        expect(result).not.toContain('help wanted:도움 필요');
       });
 
       it('명시 라벨과 키워드 결과를 병합한다', () => {
@@ -108,7 +108,7 @@ describe('LabelService', () => {
         });
         expect(result).toContain('urgent');
         expect(result).toContain('bug:버그');
-        expect(result).not.toContain('default:기본');
+        expect(result).not.toContain('help wanted:도움 필요');
       });
 
       it('명시 라벨과 키워드가 동일한 cowork 라벨이면 중복 없이 1개만 반환한다', () => {
@@ -122,7 +122,7 @@ describe('LabelService', () => {
 
       it('빈 문자열 명시 라벨은 무시한다', () => {
         const result = service.resolveLabels({ ...dto, labels: ['', '  '] });
-        expect(result).toEqual(['default:기본']);
+        expect(result).toEqual(['help wanted:도움 필요']);
       });
     });
   });
@@ -189,13 +189,13 @@ describe('LabelService', () => {
     it('여러 라벨 중 일부만 없으면 없는 것만 생성한다', async () => {
       apiClient.listLabels.mockResolvedValue(['bug:버그']);
 
-      await service.ensureLabelsExist('token', dto, ['bug:버그', 'default:기본']);
+      await service.ensureLabelsExist('token', dto, ['bug:버그', 'help wanted:도움 필요']);
 
       expect(apiClient.createLabel).toHaveBeenCalledTimes(1);
       expect(apiClient.createLabel).toHaveBeenCalledWith(
         'token',
         expect.any(Object),
-        expect.objectContaining({ name: 'default:기본' }),
+        expect.objectContaining({ name: 'help wanted:도움 필요' }),
       );
     });
   });
