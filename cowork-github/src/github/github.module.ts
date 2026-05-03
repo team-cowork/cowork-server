@@ -8,6 +8,7 @@ import { REDIS_CLIENT } from './constants';
 import { IssueService } from './issue/issue.service';
 import { LabelService } from './issue/label.service';
 import { GithubController } from './github.controller';
+import { IssueResultProducer } from './kafka/issue-result.producer';
 
 @Module({
   imports: [HttpModule],
@@ -27,6 +28,7 @@ import { GithubController } from './github.controller';
     GithubApiClient,
     LabelService,
     IssueService,
+    IssueResultProducer,
   ],
   controllers: [GithubController],
 })
