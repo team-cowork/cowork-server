@@ -123,9 +123,8 @@ export class ChatController {
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
-        await this.chatService.checkMembership(channelId, userId);
         const [channelTeamId, repoInfo] = await Promise.all([
-            this.chatService.getChannelTeamId(channelId),
+            this.chatService.checkMembershipAndGetTeamId(channelId, userId),
             this.projectClient.getGithubRepoInfo(dto.projectId),
         ]);
         if (!repoInfo) {
