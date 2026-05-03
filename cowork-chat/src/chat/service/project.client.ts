@@ -37,9 +37,14 @@ export class ProjectClient {
 
     private parseRepoUrl(url: string | null | undefined): Omit<GithubRepoInfo, 'teamId'> | null {
         if (!url) return null;
-        // https://github.com/{owner}/{repo} 또는 https://github.com/{owner}/{repo}.git
-        const match = url.match(/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?(?:\/.*)?$/);
-        if (!match) return null;
-        return { owner: match[1], repo: match[2] };
+        try {
+            const parsed = new URL(url);
+            if (parsed.hostname !== 'github.com') return null;
+            const parts = parsed.pathname.split('/').filter(Boolean);
+            if (parts.length < 2) return null;
+            return { owner: parts[0], repo: parts[1].replace(/\.git$/, '') };
+        } catch {
+            return null;
+        }
     }
 }

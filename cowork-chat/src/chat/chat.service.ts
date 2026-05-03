@@ -31,12 +31,6 @@ export class ChatService {
         return member.teamId;
     }
 
-    async getChannelTeamId(channelId: number): Promise<number> {
-        const member = await this.memberModel.findOne({ channelId });
-        if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
-        return member.teamId;
-    }
-
     async getMessages(channelId: number, before?: string) {
         const query: Record<string, unknown> = { channelId };
         if (before) {
