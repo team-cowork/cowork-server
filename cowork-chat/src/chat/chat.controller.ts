@@ -31,6 +31,11 @@ import {
     SendMessageResponseDto,
 } from './dto/message-response.dto';
 import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
+import {
+    GithubIssueSlashCommandPayloadDto,
+    SlashCommand,
+    SlashCommandDto,
+} from './dto/slash-command.dto';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
@@ -115,13 +120,46 @@ export class ChatController {
 
     @Post('github/issues')
     @HttpCode(HttpStatus.CREATED)
-    @ApiOperation({ summary: 'GitHub 이슈 생성 (클라이언트 슬래시 커맨드 → Kafka 비동기)' })
+    @ApiOperation({
+        summary: '[Deprecated] GitHub 이슈 생성 (클라이언트 슬래시 커맨드 → Kafka 비동기)',
+        description: 'Deprecated: 신규 클라이언트는 POST /chat/channels/{channelId}/slash-commands 사용을 권장합니다.',
+        deprecated: true,
+    })
     @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createGithubIssue(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
+    ): Promise<CreateGithubIssueResponseDto> {
+        return this.publishGithubIssueCreateCommand(channelId, dto, userId);
+    }
+
+    @Post('slash-commands')
+    @HttpCode(HttpStatus.CREATED)
+    @ApiOperation({
+        summary: '슬래시 커맨드 발행',
+        description: '현재 지원 커맨드: github.issue.create',
+    })
+    @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
+    @ApiResponse({ status: 400, description: '지원하지 않는 커맨드 또는 유효하지 않은 payload' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async createSlashCommand(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Body() dto: SlashCommandDto,
+        @UserId() userId: number,
+    ): Promise<CreateGithubIssueResponseDto> {
+        if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
+            throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
+        }
+
+        return this.publishGithubIssueCreateCommand(channelId, dto.payload, userId);
+    }
+
+    private async publishGithubIssueCreateCommand(
+        channelId: number,
+        dto: CreateGithubIssueDto | GithubIssueSlashCommandPayloadDto,
+        userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
         const channelTeamId = await this.chatService.checkMembershipAndGetTeamId(channelId, userId);
         const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
