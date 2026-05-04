@@ -11,6 +11,9 @@ import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
 import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
+import { GithubIssueProducer } from './kafka/github-issue.producer';
+import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ProjectClient } from './service/project.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
 import { MembershipModule } from '../membership/membership.module';
@@ -82,6 +85,9 @@ function createLogStream() {
         ChatMessageConsumer,
         NotificationTriggerProducer,
         NotificationOutboxPoller,
+        GithubIssueProducer,
+        GithubIssueResultConsumer,
+        ProjectClient,
     ],
 })
 export class ChatModule {}
