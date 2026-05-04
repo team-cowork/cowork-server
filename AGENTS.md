@@ -1,4 +1,4 @@
-# Cowork Server
+# cowork Server
 
 ## Overview
 
