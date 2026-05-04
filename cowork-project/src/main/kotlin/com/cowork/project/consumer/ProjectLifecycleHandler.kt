@@ -19,12 +19,12 @@ class ProjectLifecycleHandler(
 
     @Transactional
     fun onMemberInvited(teamId: Long, userIds: List<Long>, role: String) {
-        userIds.forEach { userId ->
-            if (teamMembershipRepository.findByTeamIdAndUserId(teamId, userId) == null) {
-                teamMembershipRepository.save(TeamMembership(teamId = teamId, userId = userId, role = role))
-            }
-        }
-        log.info("MEMBER_INVITED 처리 완료 [teamId={}, userIds={}]", teamId, userIds)
+        val existing = teamMembershipRepository.findAllByTeamIdAndUserIdIn(teamId, userIds)
+            .map { it.userId }.toSet()
+        val toSave = userIds.filterNot { it in existing }
+            .map { TeamMembership(teamId = teamId, userId = it, role = role) }
+        if (toSave.isNotEmpty()) teamMembershipRepository.saveAll(toSave)
+        log.info("MEMBER_INVITED 처리 완료 [teamId={}, newMembers={}]", teamId, toSave.size)
     }
 
     @Transactional
