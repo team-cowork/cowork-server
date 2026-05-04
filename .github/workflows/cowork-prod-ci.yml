@@ -291,7 +291,7 @@ jobs:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ steps.status.outputs.status }}
           color: ${{ steps.status.outputs.color }}
-          title: "Cowork Server Prod CI"
+          title: "cowork Server Prod CI"
           description: |
             `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Changed:** ${{ needs.detect-changes.outputs.services-list }}

@@ -168,7 +168,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Cowork Logs",
+  "title": "cowork Logs",
   "uid": "cowork-logs",
   "version": 1
 }
