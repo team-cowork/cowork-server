@@ -12,6 +12,9 @@ interface ProjectRepository : JpaRepository<Project, Long>, JpaSpecificationExec
 
     fun findAllByTeamId(teamId: Long): List<Project>
 
+    @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
+    fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
+
     fun findByTeamId(teamId: Long, pageable: Pageable): Page<Project>
 
     @Query(

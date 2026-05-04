@@ -51,7 +51,7 @@ class ProjectLifecycleHandler(
     fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long) {
         teamMembershipRepository.deleteByTeamIdAndUserId(teamId, targetUserId)
 
-        val teamProjectIds = projectRepository.findAllByTeamId(teamId).map { it.id }
+        val teamProjectIds = projectRepository.findIdsByTeamId(teamId)
         if (teamProjectIds.isEmpty()) return
 
         val ownerProjects = projectMemberRepository
