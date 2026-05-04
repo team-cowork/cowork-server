@@ -15,6 +15,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
+private const val TEAM_ROLE_OWNER = "OWNER"
+private const val TEAM_ROLE_ADMIN = "ADMIN"
+
 @Service
 @Transactional(readOnly = true)
 class ProjectService(
@@ -42,7 +45,7 @@ class ProjectService(
     }
 
     private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
-        teamRoleOf(teamId, userId) in setOf("OWNER", "ADMIN")
+        teamRoleOf(teamId, userId) in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
     private fun requireProjectModifier(project: Project, userId: Long) {
         val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
