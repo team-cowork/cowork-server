@@ -2,7 +2,7 @@
 
 ## 개요
 
-Cowork Server의 모든 마이크로서비스(Spring Boot, Go, NestJS, Vert.x)에서 발생하는 로그를 
+cowork Server의 모든 마이크로서비스(Spring Boot, Go, NestJS, Vert.x)에서 발생하는 로그를 
 Loki + Promtail 스택으로 수집하고 Grafana에서 시각화한다.  
 기존 Prometheus + Grafana 모니터링 인프라에 로그 레이어를 추가하는 작업이다.
 

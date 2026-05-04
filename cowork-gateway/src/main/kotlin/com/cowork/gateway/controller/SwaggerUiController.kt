@@ -28,7 +28,7 @@ class SwaggerUiController(
             <head>
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
-              <title>Cowork API Docs</title>
+              <title>cowork API Docs</title>
               <link rel="stylesheet" href="/webjars/swagger-ui/swagger-ui.css">
               <link rel="icon" href="/webjars/swagger-ui/favicon-32x32.png">
             </head>

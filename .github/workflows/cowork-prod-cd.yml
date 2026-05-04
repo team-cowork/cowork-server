@@ -49,6 +49,6 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ job.status }}
-          title: "Cowork Server Prod CD"
+          title: "cowork Server Prod CD"
           description: |
             Released `${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
