@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Cowork Preference API",
+    "title": "cowork Preference API",
     "description": "환경 설정 서비스 — 계정/팀/프로젝트/채널 설정 및 프로젝트 역할 관리",
     "version": "1.0"
   },
