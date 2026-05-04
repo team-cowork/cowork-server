@@ -5,6 +5,7 @@ import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
+import com.cowork.project.repository.TeamMembershipRepository
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -16,8 +17,9 @@ class ProjectLifecycleHandlerTest {
 
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
+    private val teamMembershipRepository = mockk<TeamMembershipRepository>(relaxed = true)
 
-    private val handler = ProjectLifecycleHandler(projectRepository, projectMemberRepository)
+    private val handler = ProjectLifecycleHandler(projectRepository, projectMemberRepository, teamMembershipRepository)
 
     private fun project(id: Long, teamId: Long) =
         Project(id = id, teamId = teamId, name = "p$id", description = null, createdBy = 1L)
