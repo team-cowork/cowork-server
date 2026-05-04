@@ -26,3 +26,8 @@ export class SlashCommandDto {
     @Type(() => GithubIssueSlashCommandPayloadDto)
     payload!: GithubIssueSlashCommandPayloadDto;
 }
+
+export class SlashCommandResponseDto {
+    @ApiProperty({ description: '큐 등록 여부' })
+    queued!: boolean;
+}
