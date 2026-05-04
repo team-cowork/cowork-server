@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
@@ -8,6 +8,7 @@ import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
+import { SlashCommand } from './dto/slash-command.dto';
 
 const mockMessageId = new Types.ObjectId().toString();
 const userId = 42;
@@ -197,6 +198,127 @@ describe('ChatController', () => {
             await expect(
                 controller.createGithubIssue(1, dto as any, userId),
             ).rejects.toThrow('Kafka 연결 오류');
+        });
+    });
+
+    describe('createSlashCommand', () => {
+        const payload = {
+            projectId: 100,
+            title: '로그인 버그',
+            body: '특정 브라우저에서 재현됨',
+        };
+
+        it('github.issue.create 슬래시 커맨드가 기존과 동일한 Kafka 이벤트를 발행한다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
+            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+
+            const result = await controller.createSlashCommand(
+                1,
+                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                userId,
+            );
+
+            expect(mockChatService.checkMembershipAndGetTeamId).toHaveBeenCalledWith(1, 42);
+            expect(mockProjectClient.getGithubRepoInfo).toHaveBeenCalledWith(100);
+            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
+                channelId: 1,
+                teamId: 10,
+                projectId: 100,
+                owner: 'my-org',
+                repo: 'backend',
+                title: '로그인 버그',
+                body: '특정 브라우저에서 재현됨',
+                requesterId: 42,
+            });
+            expect(result).toEqual({ queued: true });
+        });
+
+        it('body 없이도 github.issue.create 이벤트를 발행한다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
+            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+
+            await controller.createSlashCommand(
+                1,
+                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload: { ...payload, body: undefined } } as any,
+                userId,
+            );
+
+            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith(
+                expect.objectContaining({ body: undefined }),
+            );
+        });
+
+        it('채널 멤버가 아니면 ForbiddenException이 전파되고 이벤트를 발행하지 않는다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockRejectedValue(new ForbiddenException());
+
+            await expect(
+                controller.createSlashCommand(
+                    1,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    userId,
+                ),
+            ).rejects.toThrow(ForbiddenException);
+
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+        });
+
+        it('프로젝트에 GitHub 레포 정보가 없으면 BadRequestException을 던진다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue(null);
+
+            await expect(
+                controller.createSlashCommand(
+                    1,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    userId,
+                ),
+            ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
+
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+        });
+
+        it('프로젝트의 teamId가 채널 teamId와 다르면 ForbiddenException을 던진다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 99, owner: 'other-org', repo: 'backend' });
+
+            await expect(
+                controller.createSlashCommand(
+                    1,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    userId,
+                ),
+            ).rejects.toThrow('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
+
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+        });
+
+        it('producer 오류가 전파된다', async () => {
+            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
+            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
+            mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
+
+            await expect(
+                controller.createSlashCommand(
+                    1,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    userId,
+                ),
+            ).rejects.toThrow('Kafka 연결 오류');
+        });
+
+        it('지원하지 않는 command는 BadRequestException을 던지고 이벤트를 발행하지 않는다', async () => {
+            await expect(
+                controller.createSlashCommand(
+                    1,
+                    { command: 'unknown.command', payload } as any,
+                    userId,
+                ),
+            ).rejects.toThrow(BadRequestException);
+
+            expect(mockChatService.checkMembershipAndGetTeamId).not.toHaveBeenCalled();
+            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
     });
 
