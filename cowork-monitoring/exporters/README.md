@@ -2,7 +2,7 @@
 
 This directory documents optional infrastructure exporters that can be added to the monitoring stack.
 
-Typical exporters for the Cowork platform:
+Typical exporters for the cowork platform:
 
 - `node-exporter` for host CPU, memory, disk, and filesystem metrics
 - `cAdvisor` for container metrics

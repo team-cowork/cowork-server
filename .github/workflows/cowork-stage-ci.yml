@@ -282,7 +282,7 @@ jobs:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ steps.status.outputs.status }}
           color: ${{ steps.status.outputs.color }}
-          title: "Cowork Server Stage CI"
+          title: "cowork Server Stage CI"
           description: |
             `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Changed:** ${{ needs.detect-changes.outputs.services-list }}
