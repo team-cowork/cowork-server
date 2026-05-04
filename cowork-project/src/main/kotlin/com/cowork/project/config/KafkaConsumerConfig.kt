@@ -25,6 +25,11 @@ class KafkaConsumerConfig(
     private val kafkaTemplate: KafkaTemplate<String, Any>,
 ) {
 
+    companion object {
+        private const val RETRY_INTERVAL_MS = 1_000L
+        private const val RETRY_MAX_ATTEMPTS = 3L
+    }
+
     private fun <T> consumerFactory(targetType: Class<T>): ConsumerFactory<String, T> {
         val props = kafkaProperties.buildConsumerProperties(null).toMutableMap<String, Any>()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
@@ -45,7 +50,7 @@ class KafkaConsumerConfig(
         factory.setCommonErrorHandler(
             DefaultErrorHandler(
                 DeadLetterPublishingRecoverer(kafkaTemplate),
-                FixedBackOff(1_000L, 3L),
+                FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS),
             )
         )
         return factory
