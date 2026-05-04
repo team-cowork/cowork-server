@@ -32,7 +32,6 @@ import {
 } from './dto/message-response.dto';
 import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
 import {
-    GithubIssueSlashCommandPayloadDto,
     SlashCommand,
     SlashCommandDto,
     SlashCommandResponseDto,
@@ -133,7 +132,8 @@ export class ChatController {
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
-        return this.publishGithubIssueCreateCommand(channelId, dto, userId);
+        await this.publishGithubIssueCreateCommand(channelId, dto, userId);
+        return { queued: true };
     }
 
     @Post('slash-commands')
@@ -154,14 +154,15 @@ export class ChatController {
             throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
         }
 
-        return this.publishGithubIssueCreateCommand(channelId, dto.payload, userId);
+        await this.publishGithubIssueCreateCommand(channelId, dto.payload, userId);
+        return { queued: true };
     }
 
     private async publishGithubIssueCreateCommand(
         channelId: number,
-        dto: CreateGithubIssueDto | GithubIssueSlashCommandPayloadDto,
+        dto: CreateGithubIssueDto,
         userId: number,
-    ): Promise<CreateGithubIssueResponseDto> {
+    ): Promise<void> {
         const channelTeamId = await this.chatService.checkMembershipAndGetTeamId(channelId, userId);
         const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
         if (!repoInfo) {
@@ -181,7 +182,6 @@ export class ChatController {
             body: dto.body,
             requesterId: userId,
         });
-        return { queued: true };
     }
 
     @Get('messages')
