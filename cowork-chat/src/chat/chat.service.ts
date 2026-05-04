@@ -6,6 +6,8 @@ import { ChannelMember } from './schema/channel-member.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 
+const SYSTEM_AUTHOR_ID = 0;
+
 @Injectable()
 export class ChatService {
     constructor(
@@ -21,6 +23,12 @@ export class ChatService {
     async checkMembership(channelId: number, userId: number): Promise<void> {
         const member = await this.memberModel.exists({ channelId, userId });
         if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
+    }
+
+    async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
+        const member = await this.memberModel.findOne({ channelId, userId }, { teamId: 1 });
+        if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        return member.teamId;
     }
 
     async getMessages(channelId: number, before?: string) {
@@ -84,6 +92,26 @@ export class ChatService {
 
         await this.messageModel.deleteOne({ _id: messageId });
         return { channelId: message.channelId, messageId };
+    }
+
+    async saveSystemMessage(
+        teamId: number,
+        channelId: number,
+        content: string,
+        projectId: number | null = null,
+    ) {
+        return this.messageModel.create({
+            teamId,
+            projectId,
+            channelId,
+            authorId: SYSTEM_AUTHOR_ID,
+            content,
+            type: 'SYSTEM',
+            attachments: [],
+            mentions: [],
+            clientMessageId: undefined,
+            notificationStatus: 'SENT',
+        });
     }
 
     private isAdmin(role: string): boolean {
