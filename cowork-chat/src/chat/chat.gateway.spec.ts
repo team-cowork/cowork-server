@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
+import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
@@ -26,6 +27,10 @@ const mockConsumer = {
     setSocketServer: jest.fn(),
 };
 
+const mockGithubIssueResultConsumer = {
+    setSocketServer: jest.fn(),
+};
+
 describe('ChatGateway', () => {
     let gateway: ChatGateway;
 
@@ -35,6 +40,7 @@ describe('ChatGateway', () => {
                 ChatGateway,
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatMessageConsumer, useValue: mockConsumer },
+                { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
                 { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
