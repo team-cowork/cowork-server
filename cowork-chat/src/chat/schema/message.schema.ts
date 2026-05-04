@@ -41,7 +41,7 @@ export class Message {
 
     @Prop({ default: false }) isPinned!: boolean;
 
-    @Prop({ type: String, default: null }) clientMessageId!: string | null;
+    @Prop({ type: String }) clientMessageId?: string | null;
 
     @Prop({ type: [Number], default: [] }) mentions!: number[];
 
