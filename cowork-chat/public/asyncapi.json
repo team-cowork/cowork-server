@@ -1,7 +1,7 @@
 {
   "asyncapi": "2.6.0",
   "info": {
-    "title": "Cowork Chat WebSocket API",
+    "title": "cowork Chat WebSocket API",
     "version": "1.0.0",
     "description": "Socket.io 기반 실시간 채팅 서비스 이벤트 명세"
   },

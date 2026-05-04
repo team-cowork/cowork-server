@@ -1,5 +1,5 @@
 {
-  "title": "Cowork 인프라 (MySQL + Redis + Kafka + PostgreSQL)",
+  "title": "cowork 인프라 (MySQL + Redis + Kafka + PostgreSQL)",
   "uid": "cowork-infrastructure",
   "tags": ["cowork", "infrastructure"],
   "timezone": "browser",
