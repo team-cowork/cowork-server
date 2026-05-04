@@ -35,6 +35,7 @@ import {
     GithubIssueSlashCommandPayloadDto,
     SlashCommand,
     SlashCommandDto,
+    SlashCommandResponseDto,
 } from './dto/slash-command.dto';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
@@ -141,14 +142,14 @@ export class ChatController {
         summary: '슬래시 커맨드 발행',
         description: '현재 지원 커맨드: github.issue.create',
     })
-    @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
+    @ApiResponse({ status: 201, type: SlashCommandResponseDto })
     @ApiResponse({ status: 400, description: '지원하지 않는 커맨드 또는 유효하지 않은 payload' })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createSlashCommand(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SlashCommandDto,
         @UserId() userId: number,
-    ): Promise<CreateGithubIssueResponseDto> {
+    ): Promise<SlashCommandResponseDto> {
         if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
             throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
         }
