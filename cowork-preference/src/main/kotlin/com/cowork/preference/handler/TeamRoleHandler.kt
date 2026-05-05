@@ -114,7 +114,7 @@ class TeamRoleHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             service.assignRole(accountId, teamId, roleId)
-                .onSuccess { ctx.response().setStatusCode(204).end() }
+                .onSuccess { ctx.json(roleBody(it), 200) }
                 .onFailure { e -> ctx.response().setStatusCode(statusOf(e)).end(errorBody(e.message)) }
         }
     }
@@ -126,7 +126,7 @@ class TeamRoleHandler(
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.removeRole(accountId, teamId, roleId) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }
     }
 
@@ -136,7 +136,7 @@ class TeamRoleHandler(
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.removeMemberRoles(accountId, teamId) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }
     }
 
