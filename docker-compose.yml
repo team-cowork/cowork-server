@@ -560,6 +560,34 @@ services:
       retries: 10
       start_period: 90s
 
+  cowork-project:
+    image: cowork-project:local
+    container_name: cowork-project
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+    ports:
+      - "8084:8084"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
   cowork-notification:
     image: cowork-notification:local
     container_name: cowork-notification
