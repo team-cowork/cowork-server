@@ -71,11 +71,10 @@ class TeamRoleService(private val repository: TeamRoleRepository) {
         return Result.success(Unit)
     }
 
-    suspend fun assignRole(accountId: Long, teamId: Long, roleId: Long): Result<Unit> {
+    suspend fun assignRole(accountId: Long, teamId: Long, roleId: Long): Result<TeamRoleDefinition> {
         repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
-        repository.assignRole(accountId, teamId, roleId)
-        return Result.success(Unit)
+        return Result.success(repository.assignRole(accountId, teamId, roleId))
     }
 
     suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {
