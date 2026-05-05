@@ -112,6 +112,8 @@ jobs:
               - 'cowork-preference/**'
             cowork-team:
               - 'cowork-team/**'
+            cowork-project:
+              - 'cowork-project/**'
       - name: Build Service Matrix
         id: build-matrix
         run: |
@@ -123,12 +125,13 @@ jobs:
               {"service":"cowork-notification","lang":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","go-build":"go build ./cmd/server"},
               {"service":"cowork-preference","lang":"kotlin","gradle-task":":cowork-preference:build"},
               {"service":"cowork-team","lang":"kotlin","gradle-task":":cowork-team:build"},
+              {"service":"cowork-project","lang":"kotlin","gradle-task":":cowork-project:build"},
               {"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."},
               {"service":"cowork-voice","lang":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","go-build":"go build ./cmd/server"},
               {"service":"cowork-chat","lang":"node","working-directory":"cowork-chat","node-version":"22"},
               {"service":"cowork-promotion","lang":"node","working-directory":"cowork-promotion","node-version":"22"}
             ]}'
-            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
+            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-project, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
           else
             MATRIX='{"include":[]}'
             SERVICES=""
@@ -150,6 +153,9 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-team }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","lang":"kotlin","gradle-task":":cowork-team:build"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-team"
+            [ "${{ steps.filter.outputs.cowork-project }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","lang":"kotlin","gradle-task":":cowork-project:build"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-project"
             [ "${{ steps.filter.outputs.cowork-authorization }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","lang":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","go-build":"go build ./..."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-authorization"

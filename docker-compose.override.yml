@@ -36,6 +36,11 @@ services:
       context: .
       dockerfile: cowork-channel/local.dockerfile
 
+  cowork-project:
+    build:
+      context: .
+      dockerfile: cowork-project/local.dockerfile
+
   cowork-notification:
     build:
       context: cowork-notification
