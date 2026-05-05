@@ -1,5 +1,6 @@
 package com.cowork.team.service
 
+import com.cowork.team.client.PreferenceTeamRoleClient
 import com.cowork.team.domain.Team
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamRole
@@ -28,11 +29,13 @@ class TeamMemberServiceTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
+    private val preferenceTeamRoleClient = mockk<PreferenceTeamRoleClient>(relaxed = true)
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
 
     private val service = TeamMemberService(
         teamRepository = teamRepository,
         teamMemberRepository = teamMemberRepository,
+        preferenceTeamRoleClient = preferenceTeamRoleClient,
         teamEventPublisher = teamEventPublisher,
     )
 
