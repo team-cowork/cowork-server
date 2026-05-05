@@ -28,12 +28,11 @@ class ChannelLifecycleHandlerTest {
 
     @Test
     fun `onMemberInvited는 신규 멤버 로컬 멤버십 저장`() {
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 5L) } returns null
-        every { teamMembershipRepository.save(any<TeamMembership>()) } answers { firstArg() }
+        every { teamMembershipRepository.findAllByTeamIdAndUserIdIn(100L, listOf(5L)) } returns emptyList()
 
         handler.onMemberInvited(100L, listOf(5L), "MEMBER")
 
-        verify(exactly = 1) { teamMembershipRepository.save(match { it.teamId == 100L && it.userId == 5L && it.role == "MEMBER" }) }
+        verify(exactly = 1) { teamMembershipRepository.saveAll(match<List<TeamMembership>> { it.size == 1 && it[0].teamId == 100L && it[0].userId == 5L && it[0].role == "MEMBER" }) }
     }
 
     @Test
@@ -60,8 +59,8 @@ class ChannelLifecycleHandlerTest {
     @Test
     fun `onMemberRemovedFromTeam은 로컬 멤버십 삭제, 생성자 채널 삭제, 나머지는 멤버십만 제거`() {
         val ownedByTarget = channel(1L, 100L, 7L)
-        val ownedByOther = channel(2L, 100L, 9L)
-        every { channelRepository.findAllByTeamIdOrderByIdAsc(100L) } returns listOf(ownedByTarget, ownedByOther)
+        every { channelRepository.findAllByTeamIdAndCreatedByOrderByIdAsc(100L, 7L) } returns listOf(ownedByTarget)
+        every { channelRepository.findIdsByTeamIdAndCreatedByNot(100L, 7L) } returns listOf(2L)
 
         handler.onMemberRemovedFromTeam(100L, 7L)
 
