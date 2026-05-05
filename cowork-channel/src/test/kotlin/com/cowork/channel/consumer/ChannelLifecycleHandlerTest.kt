@@ -29,6 +29,7 @@ class ChannelLifecycleHandlerTest {
     @Test
     fun `onMemberInvited는 신규 멤버 로컬 멤버십 저장`() {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 5L) } returns null
+        every { teamMembershipRepository.save(any<TeamMembership>()) } answers { firstArg() }
 
         handler.onMemberInvited(100L, listOf(5L), "MEMBER")
 
