@@ -26,21 +26,38 @@ jobs:
         run: |
           DATE=$(date -u +"%Y%m%d")
           EXISTING=$(git tag -l "v${DATE}.*" | wc -l | tr -d ' ')
-          VERSION="v${DATE}.${EXISTING}"
+          VERSION="${DATE}.${EXISTING}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
+      - name: Bump Version Files
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          printf '%s' "${VERSION}" > VERSION
+          for FILE in cowork-*/build.gradle.kts; do
+            perl -i -pe "s/^version = \".*\"/version = \"${VERSION}\"/" "$FILE"
+          done
+          perl -i -pe "s/\"version\": \".*\"/\"version\": \"${VERSION}\"/" cowork-chat/package.json
+
+      - name: Commit Version Bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add VERSION cowork-*/build.gradle.kts cowork-chat/package.json
+          git diff --staged --quiet || git commit -m "chore: release v${{ steps.version.outputs.version }} [skip ci]"
+          git push origin main
+
       - name: Create Tag
-        run: git tag ${{ steps.version.outputs.version }}
+        run: git tag v${{ steps.version.outputs.version }}
 
       - name: Push Tag
-        run: git push origin ${{ steps.version.outputs.version }}
+        run: git push origin v${{ steps.version.outputs.version }}
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.version.outputs.version }}" \
-            --title "${{ steps.version.outputs.version }}" \
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "v${{ steps.version.outputs.version }}" \
             --notes $'## 수정내역\n\n- '
 
       - name: Notify Discord
@@ -51,4 +68,4 @@ jobs:
           status: ${{ job.status }}
           title: "cowork Server Prod CD"
           description: |
-            Released `${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
+            Released `v${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
