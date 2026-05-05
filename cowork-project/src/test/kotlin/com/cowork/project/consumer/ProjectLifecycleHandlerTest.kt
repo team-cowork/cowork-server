@@ -46,8 +46,7 @@ class ProjectLifecycleHandlerTest {
 
     @Test
     fun `onMemberRemovedFromTeam은 OWNER인 프로젝트는 삭제, 나머지는 멤버십만 제거`() {
-        val projects = listOf(project(1L, 100L), project(2L, 100L), project(3L, 100L))
-        every { projectRepository.findAllByTeamId(100L) } returns projects
+        every { projectRepository.findIdsByTeamId(100L) } returns listOf(1L, 2L, 3L)
         every {
             projectMemberRepository.findAllByUserIdAndRoleAndProjectIdIn(
                 7L, ProjectMemberRole.OWNER, listOf(1L, 2L, 3L),
