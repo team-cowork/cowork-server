@@ -93,10 +93,14 @@ class TeamRoleRepository(private val pool: Pool) {
     }
 
     suspend fun deleteRole(teamId: Long, roleId: Long) {
-        pool.preparedQuery("DELETE FROM tb_account_team_roles WHERE team_id = \$1 AND role_id = \$2")
-            .execute(Tuple.of(teamId, roleId)).coAwait()
-        pool.preparedQuery("DELETE FROM tb_team_role_definitions WHERE team_id = \$1 AND id = \$2")
-            .execute(Tuple.of(teamId, roleId)).coAwait()
+        pool.withTransaction { client ->
+            client.preparedQuery("DELETE FROM tb_account_team_roles WHERE team_id = \$1 AND role_id = \$2")
+                .execute(Tuple.of(teamId, roleId))
+                .compose {
+                    client.preparedQuery("DELETE FROM tb_team_role_definitions WHERE team_id = \$1 AND id = \$2")
+                        .execute(Tuple.of(teamId, roleId))
+                }
+        }.coAwait()
     }
 
     suspend fun findMemberRoles(teamId: Long): List<AccountTeamRole> {
@@ -125,7 +129,7 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.map { it.toTeamRoleDefinition() }
     }
 
-    suspend fun assignRole(accountId: Long, teamId: Long, roleId: Long) {
+    suspend fun assignRole(accountId: Long, teamId: Long, roleId: Long): TeamRoleDefinition {
         pool.preparedQuery(
             """
             INSERT INTO tb_account_team_roles (account_id, team_id, role_id)
@@ -133,6 +137,8 @@ class TeamRoleRepository(private val pool: Pool) {
             ON CONFLICT DO NOTHING
             """
         ).execute(Tuple.of(accountId, teamId, roleId)).coAwait()
+
+        return requireNotNull(findRole(teamId, roleId))
     }
 
     suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {

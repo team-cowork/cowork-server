@@ -21,6 +21,13 @@ class TeamRoleService(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
 ) {
 
+    private data class ManageRoleContext(
+        val member: TeamMember,
+        val roles: List<TeamRoleResponse>,
+    ) {
+        val maxPriority: Int = roles.maxOfOrNull { it.priority } ?: 0
+    }
+
     private fun requireTeam(teamId: Long) {
         if (!teamRepository.existsById(teamId)) {
             throw ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
@@ -31,28 +38,26 @@ class TeamRoleService(
         teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
-    private fun requireManageRoles(teamId: Long, userId: Long): TeamMember {
+    private fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext {
         val member = findMemberOrThrow(teamId, userId)
         if (member.role == TeamRole.OWNER || member.role == TeamRole.ADMIN) {
-            return member
+            return ManageRoleContext(member, emptyList())
         }
 
         val roles = preferenceTeamRoleClient.getMemberRoles(teamId, userId)
         if (roles.any { "MANAGE_ROLES" in it.permissions }) {
-            return member
+            return ManageRoleContext(member, roles)
         }
 
         throw ExpectedException("역할 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 
-    private fun requireManageablePriority(teamId: Long, actor: TeamMember, role: TeamRoleResponse) {
-        if (actor.role == TeamRole.OWNER || actor.role == TeamRole.ADMIN) {
+    private fun requireManageablePriority(actor: ManageRoleContext, role: TeamRoleResponse) {
+        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) {
             return
         }
 
-        val actorMaxPriority = preferenceTeamRoleClient.getMemberRoles(teamId, actor.userId)
-            .maxOfOrNull { it.priority } ?: 0
-        if (role.priority >= actorMaxPriority) {
+        if (role.priority >= actor.maxPriority) {
             throw ExpectedException("자신의 최상위 역할보다 높거나 같은 역할은 관리할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
     }
@@ -75,10 +80,8 @@ class TeamRoleService(
 
     fun createRole(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse {
         val actor = requireManageRoles(teamId, actorId)
-        if (actor.role != TeamRole.OWNER && actor.role != TeamRole.ADMIN) {
-            val actorMaxPriority = preferenceTeamRoleClient.getMemberRoles(teamId, actorId)
-                .maxOfOrNull { it.priority } ?: 0
-            if (request.priority >= actorMaxPriority) {
+        if (actor.member.role != TeamRole.OWNER && actor.member.role != TeamRole.ADMIN) {
+            if (request.priority >= actor.maxPriority) {
                 throw ExpectedException("자신의 최상위 역할보다 높거나 같은 역할은 만들 수 없습니다.", HttpStatus.FORBIDDEN)
             }
         }
@@ -87,11 +90,12 @@ class TeamRoleService(
 
     fun updateRole(actorId: Long, teamId: Long, roleId: Long, request: UpdateTeamRoleRequest): TeamRoleResponse {
         val actor = requireManageRoles(teamId, actorId)
-        val currentRole = getRoles(teamId).firstOrNull { it.id == roleId }
+        val allRoles = getRoles(teamId)
+        val currentRole = allRoles.firstOrNull { it.id == roleId }
             ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
-        requireManageablePriority(teamId, actor, currentRole)
+        requireManageablePriority(actor, currentRole)
         request.priority?.let {
-            requireManageablePriority(teamId, actor, currentRole.copy(priority = it))
+            requireManageablePriority(actor, currentRole.copy(priority = it))
         }
         return preferenceTeamRoleClient.updateRole(teamId, roleId, request)
     }
@@ -100,7 +104,7 @@ class TeamRoleService(
         val actor = requireManageRoles(teamId, actorId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
             ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
-        requireManageablePriority(teamId, actor, role)
+        requireManageablePriority(actor, role)
         preferenceTeamRoleClient.deleteRole(teamId, roleId)
     }
 
@@ -109,7 +113,7 @@ class TeamRoleService(
         requireMember(teamId, targetUserId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
             ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
-        requireManageablePriority(teamId, actor, role)
+        requireManageablePriority(actor, role)
         return preferenceTeamRoleClient.assignRole(teamId, targetUserId, roleId)
     }
 
@@ -118,7 +122,7 @@ class TeamRoleService(
         requireMember(teamId, targetUserId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
             ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
-        requireManageablePriority(teamId, actor, role)
+        requireManageablePriority(actor, role)
         preferenceTeamRoleClient.revokeRole(teamId, targetUserId, roleId)
     }
 }

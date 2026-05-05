@@ -63,13 +63,21 @@ class TeamMemberService(
         return savedMembers.map { TeamMemberResponse.of(it) }
     }
 
-    fun getMembers(teamId: Long): List<TeamMemberResponse> =
-        teamMemberRepository.findAllByTeamId(teamId).map { member ->
+    fun getMembers(teamId: Long): List<TeamMemberResponse> {
+        val members = teamMemberRepository.findAllByTeamId(teamId)
+        val rolesById = preferenceTeamRoleClient.getRoles(teamId).associateBy { it.id }
+        val roleIdsByUserId = preferenceTeamRoleClient.getMemberRoleAssignments(teamId)
+            .groupBy({ it.accountId }, { it.roleId })
+
+        return members.map { member ->
             TeamMemberResponse.of(
                 member,
-                preferenceTeamRoleClient.getMemberRoles(teamId, member.userId),
+                roleIdsByUserId[member.userId]
+                    ?.mapNotNull { rolesById[it] }
+                    ?: emptyList(),
             )
         }
+    }
 
     fun isMember(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
@@ -126,7 +134,9 @@ class TeamMemberService(
         }
 
         teamMemberRepository.delete(targetMember)
-        preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId)
+        })
 
         val payload = TeamEventPayload(
             eventType = "MEMBER_REMOVED",
