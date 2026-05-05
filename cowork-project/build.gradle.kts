@@ -1,0 +1,63 @@
+plugins {
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.spring)
+    alias(libs.plugins.kotlin.jpa)
+}
+
+group = "com.cowork"
+version = "20260420.0"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    maven { url = uri("https://jitpack.io") }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom(libs.spring.cloud.dependencies.get().toString())
+    }
+}
+
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.micrometer.registry.prometheus)
+    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
+    implementation("org.springframework.cloud:spring-cloud-starter-config")
+    implementation("org.springframework.kafka:spring-kafka")
+
+    implementation("com.mysql:mysql-connector-j")
+    implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-mysql")
+    implementation("org.jetbrains.kotlin:kotlin-reflect")
+
+    implementation(libs.the.sdk) {
+        exclude(group = "org.springframework.boot")
+        exclude(group = "org.springframework.cloud")
+        exclude(group = "org.springdoc")
+    }
+    implementation(libs.springdoc.openapi.webmvc.ui)
+    implementation(libs.logstash.logback.encoder)
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation("org.springframework.kafka:spring-kafka-test")
+    testImplementation(libs.mockk)
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.addAll("-Xjsr305=strict")
+    }
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
