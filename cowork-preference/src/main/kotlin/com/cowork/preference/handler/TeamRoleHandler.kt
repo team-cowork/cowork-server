@@ -19,14 +19,14 @@ class TeamRoleHandler(
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.getRoles(teamId) }
                 .onSuccess { ctx.json(rolesBody(it), 200) }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }
     }
 
     fun createRole(ctx: RoutingContext) {
         val teamId = parseLong(ctx, "teamId") ?: return
         val body = body(ctx) ?: return
-        val name = body.getString("name") ?: body.getString("roleName") ?: run {
+        val name = body.getString("name") ?: run {
             ctx.response().setStatusCode(400).end(errorBody("name is required"))
             return
         }
@@ -54,7 +54,7 @@ class TeamRoleHandler(
             service.updateRole(
                 teamId = teamId,
                 roleId = roleId,
-                name = body.getString("name") ?: body.getString("roleName"),
+                name = body.getString("name"),
                 colorHex = body.getString("colorHex"),
                 priority = body.getInteger("priority"),
                 mentionable = body.getBoolean("mentionable"),
@@ -90,7 +90,7 @@ class TeamRoleHandler(
                     })
                     ctx.json(arr, 200)
                 }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }
     }
 
@@ -100,7 +100,7 @@ class TeamRoleHandler(
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.getMemberRoleDefinitions(teamId, accountId) }
                 .onSuccess { ctx.json(rolesBody(it), 200) }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }
     }
 
@@ -160,7 +160,6 @@ class TeamRoleHandler(
             .put("id", role.id)
             .put("teamId", role.teamId)
             .put("name", role.name)
-            .put("roleName", role.name)
             .put("colorHex", role.colorHex)
             .put("priority", role.priority)
             .put("mentionable", role.mentionable)
