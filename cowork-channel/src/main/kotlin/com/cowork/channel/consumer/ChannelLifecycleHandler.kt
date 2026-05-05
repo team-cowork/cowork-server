@@ -18,10 +18,12 @@ class ChannelLifecycleHandler(
 
     @Transactional
     fun onMemberInvited(teamId: Long, userIds: List<Long>, role: String) {
-        userIds.forEach { userId ->
-            if (teamMembershipRepository.findByTeamIdAndUserId(teamId, userId) == null) {
-                teamMembershipRepository.save(TeamMembership(teamId = teamId, userId = userId, role = role))
-            }
+        val existing = teamMembershipRepository.findAllByTeamIdAndUserIdIn(teamId, userIds).map { it.userId }.toSet()
+        val newMemberships = userIds
+            .filter { it !in existing }
+            .map { TeamMembership(teamId = teamId, userId = it, role = role) }
+        if (newMemberships.isNotEmpty()) {
+            teamMembershipRepository.saveAll(newMemberships)
         }
         log.info("MEMBER_INVITED 처리 완료 [teamId={}, userIds={}]", teamId, userIds)
     }
@@ -50,26 +52,24 @@ class ChannelLifecycleHandler(
     fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long) {
         teamMembershipRepository.deleteByTeamIdAndUserId(teamId, targetUserId)
 
-        val teamChannels = channelRepository.findAllByTeamIdOrderByIdAsc(teamId)
-        if (teamChannels.isEmpty()) return
-
-        val (creatorOf, others) = teamChannels.partition { it.createdBy == targetUserId }
+        val creatorOf = channelRepository.findAllByTeamIdAndCreatedByOrderByIdAsc(teamId, targetUserId)
+        val otherIds = channelRepository.findIdsByTeamIdAndCreatedByNot(teamId, targetUserId)
 
         if (creatorOf.isNotEmpty()) {
             channelRepository.deleteAll(creatorOf)
         }
-        if (others.isNotEmpty()) {
-            channelMemberRepository.deleteAllByUserIdAndChannelIdIn(targetUserId, others.map { it.id })
+        if (otherIds.isNotEmpty()) {
+            channelMemberRepository.deleteAllByUserIdAndChannelIdIn(targetUserId, otherIds)
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}, membershipsRemoved={}]",
-            teamId, targetUserId, creatorOf.size, others.size,
+            teamId, targetUserId, creatorOf.size, otherIds.size,
         )
     }
 
     @Transactional
     fun onUserDeleted(userId: Long) {
-        val ownedChannels = channelRepository.findAll().filter { it.createdBy == userId }
+        val ownedChannels = channelRepository.findAllByCreatedBy(userId)
         if (ownedChannels.isNotEmpty()) {
             channelRepository.deleteAll(ownedChannels)
         }
