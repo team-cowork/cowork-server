@@ -1,6 +1,7 @@
 package com.cowork.team.client
 
 import com.cowork.team.dto.CreateTeamRoleRequest
+import com.cowork.team.dto.TeamMemberRoleAssignmentResponse
 import com.cowork.team.dto.TeamRoleResponse
 import com.cowork.team.dto.UpdateTeamRoleRequest
 import org.springframework.core.ParameterizedTypeReference
@@ -24,6 +25,13 @@ class PreferenceTeamRoleClient(
             .uri("/preferences/team/{teamId}/roles/members/{accountId}", teamId, accountId)
             .retrieve()
             .body(object : ParameterizedTypeReference<List<TeamRoleResponse>>() {})
+            ?: emptyList()
+
+    fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> =
+        preferenceRestClient.get()
+            .uri("/preferences/team/{teamId}/roles/members", teamId)
+            .retrieve()
+            .body(object : ParameterizedTypeReference<List<TeamMemberRoleAssignmentResponse>>() {})
             ?: emptyList()
 
     fun createRole(teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse =
@@ -51,15 +59,14 @@ class PreferenceTeamRoleClient(
             .toBodilessEntity()
     }
 
-    fun assignRole(teamId: Long, accountId: Long, roleId: Long): TeamRoleResponse {
-        preferenceRestClient.post()
+    fun assignRole(teamId: Long, accountId: Long, roleId: Long): TeamRoleResponse =
+        requireNotNull(
+            preferenceRestClient.post()
             .uri("/preferences/team/{teamId}/roles/{roleId}/members", teamId, roleId)
             .body(mapOf("accountId" to accountId))
             .retrieve()
-            .toBodilessEntity()
-
-        return getRoles(teamId).first { it.id == roleId }
-    }
+            .body(TeamRoleResponse::class.java)
+        )
 
     fun revokeRole(teamId: Long, accountId: Long, roleId: Long) {
         preferenceRestClient.delete()
