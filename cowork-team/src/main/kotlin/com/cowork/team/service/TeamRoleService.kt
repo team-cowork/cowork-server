@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
+private const val MANAGE_ROLES_PERMISSION = "MANAGE_ROLES"
+
 @Service
 @Transactional(readOnly = true)
 class TeamRoleService(
@@ -45,7 +47,7 @@ class TeamRoleService(
         }
 
         val roles = preferenceTeamRoleClient.getMemberRoles(teamId, userId)
-        if (roles.any { "MANAGE_ROLES" in it.permissions }) {
+        if (roles.any { MANAGE_ROLES_PERMISSION in it.permissions }) {
             return ManageRoleContext(member, roles)
         }
 
