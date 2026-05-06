@@ -15,3 +15,10 @@
 
 ## 의존성
 - Eureka Client
+
+## 환경변수
+| 변수 | 설명 |
+|---|---|
+| `DB_DSN` | MySQL DSN |
+| `DATAGSM_CLIENT_ID` | DataGSM 클라이언트 ID |
+| `JWT_SECRET` | JWT 시크릿 키 |

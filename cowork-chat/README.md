@@ -14,7 +14,7 @@
 - MinIO
 
 ## 포트
-`3000`
+`8087`
 
 ## 의존성
 - Kafka produce: `chat.message`, `notification.trigger`
@@ -23,7 +23,9 @@
 ## 환경변수
 | 변수 | 설명 |
 |---|---|
-| `MINIO_ENDPOINT` | MinIO 엔드포인트 |
+| `MONGODB_URI` | MongoDB 연결 URI |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka 브로커 주소 |
+| `MINIO_INTERNAL_ENDPOINT` | MinIO 내부 엔드포인트 |
 | `MINIO_ACCESS_KEY` | MinIO 액세스 키 |
 | `MINIO_SECRET_KEY` | MinIO 시크릿 키 |
 | `MINIO_BUCKET` | MinIO 버킷명 |
