@@ -24,8 +24,8 @@
 ## 환경변수
 | 변수 | 설명 |
 |---|---|
-| `preference.db.host` | PostgreSQL 호스트 |
-| `preference.db.username` | DB 계정 |
-| `preference.db.password` | DB 비밀번호 |
-| `preference.redis.host` | Redis 호스트 |
-| `preference.kafka.bootstrap-servers` | Kafka 브로커 주소 |
+| `POSTGRES_HOST` | PostgreSQL 호스트 |
+| `POSTGRES_USER` | DB 계정 |
+| `POSTGRES_PASSWORD` | DB 비밀번호 |
+| `REDIS_HOST` | Redis 호스트 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka 브로커 주소 |
