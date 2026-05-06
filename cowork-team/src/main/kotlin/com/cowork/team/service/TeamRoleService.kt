@@ -116,7 +116,7 @@ class TeamRoleService(
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
             ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
         requireManageablePriority(actor, role)
-        return preferenceTeamRoleClient.assignRole(teamId, targetUserId, roleId)
+        return preferenceTeamRoleClient.assignRole(teamId, roleId, mapOf("accountId" to targetUserId))
     }
 
     fun revokeRole(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long) {
