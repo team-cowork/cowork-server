@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.spring)
-    id("org.jetbrains.kotlin.plugin.jpa") version "2.1.20"
+    alias(libs.plugins.kotlin.jpa)
 }
 
 group = "com.cowork"
@@ -33,7 +33,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
     implementation("org.springframework.cloud:spring-cloud-starter-config")
-    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation(libs.spring.cloud.starter.openfeign)
     implementation("org.springframework.kafka:spring-kafka")
     implementation("com.mysql:mysql-connector-j")
     implementation("org.flywaydb:flyway-core")
