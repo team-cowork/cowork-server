@@ -4,81 +4,53 @@ import com.cowork.team.dto.CreateTeamRoleRequest
 import com.cowork.team.dto.TeamMemberRoleAssignmentResponse
 import com.cowork.team.dto.TeamRoleResponse
 import com.cowork.team.dto.UpdateTeamRoleRequest
-import org.springframework.core.ParameterizedTypeReference
-import org.springframework.stereotype.Component
-import org.springframework.web.client.RestClient
+import org.springframework.cloud.openfeign.FeignClient
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 
-@Component
-class PreferenceTeamRoleClient(
-    private val preferenceRestClient: RestClient,
-) {
+@FeignClient(name = "cowork-preference")
+interface PreferenceTeamRoleClient {
 
-    fun getRoles(teamId: Long): List<TeamRoleResponse> =
-        preferenceRestClient.get()
-            .uri("/preferences/team/{teamId}/roles", teamId)
-            .retrieve()
-            .body(object : ParameterizedTypeReference<List<TeamRoleResponse>>() {})
-            ?: emptyList()
+    @GetMapping("/preferences/team/{teamId}/roles")
+    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse>
 
-    fun getMemberRoles(teamId: Long, accountId: Long): List<TeamRoleResponse> =
-        preferenceRestClient.get()
-            .uri("/preferences/team/{teamId}/roles/members/{accountId}", teamId, accountId)
-            .retrieve()
-            .body(object : ParameterizedTypeReference<List<TeamRoleResponse>>() {})
-            ?: emptyList()
+    @GetMapping("/preferences/team/{teamId}/roles/members/{accountId}")
+    fun getMemberRoles(@PathVariable teamId: Long, @PathVariable accountId: Long): List<TeamRoleResponse>
 
-    fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> =
-        preferenceRestClient.get()
-            .uri("/preferences/team/{teamId}/roles/members", teamId)
-            .retrieve()
-            .body(object : ParameterizedTypeReference<List<TeamMemberRoleAssignmentResponse>>() {})
-            ?: emptyList()
+    @GetMapping("/preferences/team/{teamId}/roles/members")
+    fun getMemberRoleAssignments(@PathVariable teamId: Long): List<TeamMemberRoleAssignmentResponse>
 
-    fun createRole(teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse =
-        requireNotNull(
-            preferenceRestClient.post()
-                .uri("/preferences/team/{teamId}/roles", teamId)
-                .body(request)
-                .retrieve()
-                .body(TeamRoleResponse::class.java)
-        )
+    @PostMapping("/preferences/team/{teamId}/roles")
+    fun createRole(@PathVariable teamId: Long, @RequestBody request: CreateTeamRoleRequest): TeamRoleResponse
 
-    fun updateRole(teamId: Long, roleId: Long, request: UpdateTeamRoleRequest): TeamRoleResponse =
-        requireNotNull(
-            preferenceRestClient.patch()
-                .uri("/preferences/team/{teamId}/roles/{roleId}", teamId, roleId)
-                .body(request)
-                .retrieve()
-                .body(TeamRoleResponse::class.java)
-        )
+    @PatchMapping("/preferences/team/{teamId}/roles/{roleId}")
+    fun updateRole(
+        @PathVariable teamId: Long,
+        @PathVariable roleId: Long,
+        @RequestBody request: UpdateTeamRoleRequest,
+    ): TeamRoleResponse
 
-    fun deleteRole(teamId: Long, roleId: Long) {
-        preferenceRestClient.delete()
-            .uri("/preferences/team/{teamId}/roles/{roleId}", teamId, roleId)
-            .retrieve()
-            .toBodilessEntity()
-    }
+    @DeleteMapping("/preferences/team/{teamId}/roles/{roleId}")
+    fun deleteRole(@PathVariable teamId: Long, @PathVariable roleId: Long)
 
-    fun assignRole(teamId: Long, accountId: Long, roleId: Long): TeamRoleResponse =
-        requireNotNull(
-            preferenceRestClient.post()
-            .uri("/preferences/team/{teamId}/roles/{roleId}/members", teamId, roleId)
-            .body(mapOf("accountId" to accountId))
-            .retrieve()
-            .body(TeamRoleResponse::class.java)
-        )
+    @PostMapping("/preferences/team/{teamId}/roles/{roleId}/members")
+    fun assignRole(
+        @PathVariable teamId: Long,
+        @PathVariable roleId: Long,
+        @RequestBody body: Map<String, Long>,
+    ): TeamRoleResponse
 
-    fun revokeRole(teamId: Long, accountId: Long, roleId: Long) {
-        preferenceRestClient.delete()
-            .uri("/preferences/team/{teamId}/roles/{roleId}/members/{accountId}", teamId, roleId, accountId)
-            .retrieve()
-            .toBodilessEntity()
-    }
+    @DeleteMapping("/preferences/team/{teamId}/roles/{roleId}/members/{accountId}")
+    fun revokeRole(
+        @PathVariable teamId: Long,
+        @PathVariable accountId: Long,
+        @PathVariable roleId: Long,
+    )
 
-    fun deleteMemberRoles(teamId: Long, accountId: Long) {
-        preferenceRestClient.delete()
-            .uri("/preferences/team/{teamId}/roles/members/{accountId}", teamId, accountId)
-            .retrieve()
-            .toBodilessEntity()
-    }
+    @DeleteMapping("/preferences/team/{teamId}/roles/members/{accountId}")
+    fun deleteMemberRoles(@PathVariable teamId: Long, @PathVariable accountId: Long)
 }
