@@ -89,6 +89,3 @@ minio:
     - image/jpeg
     - image/png
     - image/webp
-
-preference:
-  base-url: ${PREFERENCE_BASE_URL}
