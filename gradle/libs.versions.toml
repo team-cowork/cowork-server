@@ -19,6 +19,7 @@ mockk = "1.13.13"
 [libraries]
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
+spring-cloud-starter-openfeign = { module = "org.springframework.cloud:spring-cloud-starter-openfeign" }
 awspring-cloud-bom = { module = "io.awspring.cloud:spring-cloud-aws-dependencies", version.ref = "awspring-cloud" }
 awspring-cloud-s3 = { module = "io.awspring.cloud:spring-cloud-aws-starter-s3" }
 jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
