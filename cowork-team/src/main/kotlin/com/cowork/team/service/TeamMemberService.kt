@@ -1,5 +1,6 @@
 package com.cowork.team.service
 
+import com.cowork.team.client.PreferenceTeamRoleClient
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamRole
 import com.cowork.team.dto.ChangeRoleRequest
@@ -21,6 +22,7 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamMemberService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamEventPublisher: TeamEventPublisher,
 ) {
 
@@ -61,8 +63,21 @@ class TeamMemberService(
         return savedMembers.map { TeamMemberResponse.of(it) }
     }
 
-    fun getMembers(teamId: Long): List<TeamMemberResponse> =
-        teamMemberRepository.findAllByTeamId(teamId).map { TeamMemberResponse.of(it) }
+    fun getMembers(teamId: Long): List<TeamMemberResponse> {
+        val members = teamMemberRepository.findAllByTeamId(teamId)
+        val rolesById = preferenceTeamRoleClient.getRoles(teamId).associateBy { it.id }
+        val roleIdsByUserId = preferenceTeamRoleClient.getMemberRoleAssignments(teamId)
+            .groupBy({ it.accountId }, { it.roleId })
+
+        return members.map { member ->
+            TeamMemberResponse.of(
+                member,
+                roleIdsByUserId[member.userId]
+                    ?.mapNotNull { rolesById[it] }
+                    ?: emptyList(),
+            )
+        }
+    }
 
     fun isMember(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
@@ -119,6 +134,9 @@ class TeamMemberService(
         }
 
         teamMemberRepository.delete(targetMember)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId)
+        })
 
         val payload = TeamEventPayload(
             eventType = "MEMBER_REMOVED",
