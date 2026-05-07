@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
+import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 export interface NotificationTriggerEvent {
     type: string;
@@ -25,7 +26,7 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-notification',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer();
         await this.producer.connect();
