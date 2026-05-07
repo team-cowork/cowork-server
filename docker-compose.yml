@@ -641,6 +641,7 @@ services:
       MONGODB_URI: "mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin"
       MONGODB_DIRECT_CONNECTION: "false"
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      PROJECT_SERVICE_URL: http://cowork-project:8084
       EUREKA_SERVER_URL: http://cowork-config:8761/eureka
       EUREKA_INSTANCE_HOST: cowork-chat
       MINIO_INTERNAL_ENDPOINT: http://minio:9000

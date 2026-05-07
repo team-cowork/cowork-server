@@ -15,6 +15,15 @@ function debugStartup(message: string) {
     }
 }
 
+function requireEnv(key: string): string {
+    const value = process.env[key];
+    if (value !== undefined && value !== '') {
+        return value;
+    }
+
+    throw new Error(`Required environment variable is missing: ${key}`);
+}
+
 async function bootstrap() {
     debugStartup('creating Nest application');
     const app = await NestFactory.create<NestExpressApplication>(ChatModule, { bufferLogs: true });
@@ -47,7 +56,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api', app, document, { jsonDocumentUrl: 'api-json' });
 
-    const port = Number(process.env.PORT ?? 3000);
+    const port = Number(requireEnv('PORT'));
     debugStartup(`listening on ${port}`);
     await app.listen(port);
     debugStartup('HTTP server listening');
@@ -70,7 +79,7 @@ async function bootstrap() {
     process.once('SIGTERM', shutdown);
 
     new Logger('Bootstrap').log(`Chat server running on port ${port}`);
-    new Logger('Bootstrap').log(`Swagger UI: http://localhost:${port}/api`);
+    new Logger('Bootstrap').log(`Swagger UI path: /api`);
 }
 
 bootstrap().catch((err) => {
