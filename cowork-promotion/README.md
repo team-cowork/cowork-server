@@ -1,14 +1,14 @@
 # cowork-promotion
 
 ## 역할
-cowork 프로모션 웹 사이트
-
+cowork 프로모션 웹사이트.
 
 ## 스택
-Nuxt.js + Vue.js, Tailwind CSS
+- Nuxt 3
+- Tailwind CSS
 
 ## 포트
 `3000`
 
-## DB
-`None`
+## 의존성
+없음
