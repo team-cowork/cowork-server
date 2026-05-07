@@ -28,8 +28,8 @@ export function buildMinioConfig(configService: ConfigService): MinioConfig {
         'MINIO_INTERNAL_ENDPOINT',
     ]);
     const endpointUrl = new URL(internalEndpoint);
-    const accessKey = getOptionalConfig(configService, ['minio.accessKey', 'MINIO_ACCESS_KEY']) ?? '';
-    const secretKey = getOptionalConfig(configService, ['minio.secretKey', 'MINIO_SECRET_KEY']) ?? '';
+    const accessKey = getRequiredConfig(configService, ['minio.accessKey', 'MINIO_ACCESS_KEY']);
+    const secretKey = getRequiredConfig(configService, ['minio.secretKey', 'MINIO_SECRET_KEY']);
     const bucket = getRequiredConfig(configService, ['minio.bucket', 'MINIO_BUCKET']);
 
     return {
