@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { SendMessageDto } from '../dto/send-message.dto';
 import { ChatMessageEvent } from './event/chat-message.event';
+import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 @Injectable()
 export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
@@ -14,7 +15,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer();
         await this.producer.connect();
