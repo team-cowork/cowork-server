@@ -19,7 +19,7 @@ import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.sche
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
-import { getRequiredConfig } from '../common/config/config.util';
+import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
 const METRICS_PATH = '/metrics';
@@ -71,9 +71,9 @@ function createLogStream() {
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
                 uri: getRequiredConfig(configService, 'MONGODB_URI'),
-                serverSelectionTimeoutMS: Number(configService.get<string>('MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
-                connectTimeoutMS: Number(configService.get<string>('MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
-                directConnection: (configService.get<string>('MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
+                serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
+                connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
+                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
             }),
         }),
         MongooseModule.forFeature([
