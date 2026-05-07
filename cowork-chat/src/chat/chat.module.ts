@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
@@ -19,6 +19,7 @@ import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.sche
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
+import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
 const METRICS_PATH = '/metrics';
@@ -65,10 +66,15 @@ function createLogStream() {
             defaultMetrics: { enabled: true },
             path: '/metrics',
         }),
-        MongooseModule.forRoot(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/cowork_chat', {
-            serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS ?? 5000),
-            connectTimeoutMS: Number(process.env.MONGODB_CONNECT_TIMEOUT_MS ?? 5000),
-            directConnection: process.env.MONGODB_DIRECT_CONNECTION !== 'false',
+        MongooseModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                uri: getRequiredConfig(configService, 'MONGODB_URI'),
+                serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
+                connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
+                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
+            }),
         }),
         MongooseModule.forFeature([
             { name: Message.name, schema: MessageSchema },
