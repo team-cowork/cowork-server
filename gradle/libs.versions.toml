@@ -6,6 +6,8 @@ awspring-cloud = "3.4.0"
 vertx = "4.5.10"
 coroutines = "1.8.1"
 jjwt = "0.12.6"
+scram = "2.1"
+log4j = "2.24.3"
 springdoc-webflux = "2.8.8"
 springdoc-webmvc = "2.8.17"
 the-sdk = "1.5"
@@ -18,10 +20,47 @@ mockk = "1.13.13"
 
 [libraries]
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
+micrometer-registry-prometheus-simpleclient = { module = "io.micrometer:micrometer-registry-prometheus-simpleclient", version.ref = "micrometer" }
+spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
+spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
+spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
+spring-boot-starter-data-redis-reactive = { module = "org.springframework.boot:spring-boot-starter-data-redis-reactive" }
+spring-boot-starter-security = { module = "org.springframework.boot:spring-boot-starter-security" }
+spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
+spring-cloud-config-server = { module = "org.springframework.cloud:spring-cloud-config-server" }
+spring-cloud-starter-netflix-eureka-client = { module = "org.springframework.cloud:spring-cloud-starter-netflix-eureka-client" }
+spring-cloud-starter-netflix-eureka-server = { module = "org.springframework.cloud:spring-cloud-starter-netflix-eureka-server" }
+spring-cloud-starter-config = { module = "org.springframework.cloud:spring-cloud-starter-config" }
+spring-cloud-starter-gateway = { module = "org.springframework.cloud:spring-cloud-starter-gateway" }
+spring-cloud-starter-bus-kafka = { module = "org.springframework.cloud:spring-cloud-starter-bus-kafka" }
+spring-cloud-starter-circuitbreaker-reactor-resilience4j = { module = "org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j" }
 spring-cloud-starter-openfeign = { module = "org.springframework.cloud:spring-cloud-starter-openfeign" }
+spring-retry = { module = "org.springframework.retry:spring-retry" }
+spring-kafka = { module = "org.springframework.kafka:spring-kafka" }
+spring-kafka-test = { module = "org.springframework.kafka:spring-kafka-test" }
+spring-vault-core = { module = "org.springframework.vault:spring-vault-core" }
+mysql-connector-j = { module = "com.mysql:mysql-connector-j" }
 awspring-cloud-bom = { module = "io.awspring.cloud:spring-cloud-aws-dependencies", version.ref = "awspring-cloud" }
 awspring-cloud-s3 = { module = "io.awspring.cloud:spring-cloud-aws-starter-s3" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+vertx-stack-depchain = { module = "io.vertx:vertx-stack-depchain", version.ref = "vertx" }
+vertx-core = { module = "io.vertx:vertx-core" }
+vertx-web = { module = "io.vertx:vertx-web" }
+vertx-lang-kotlin = { module = "io.vertx:vertx-lang-kotlin" }
+vertx-lang-kotlin-coroutines = { module = "io.vertx:vertx-lang-kotlin-coroutines" }
+vertx-config = { module = "io.vertx:vertx-config" }
+vertx-pg-client = { module = "io.vertx:vertx-pg-client" }
+vertx-redis-client = { module = "io.vertx:vertx-redis-client" }
+vertx-kafka-client = { module = "io.vertx:vertx-kafka-client" }
+vertx-service-discovery = { module = "io.vertx:vertx-service-discovery" }
+vertx-micrometer-metrics = { module = "io.vertx:vertx-micrometer-metrics" }
+vertx-junit5 = { module = "io.vertx:vertx-junit5", version.ref = "vertx" }
+scram-client = { module = "com.ongres.scram:client", version.ref = "scram" }
+log4j-core = { module = "org.apache.logging.log4j:log4j-core", version.ref = "log4j" }
+log4j-layout-template-json = { module = "org.apache.logging.log4j:log4j-layout-template-json", version.ref = "log4j" }
+log4j-slf4j2-impl = { module = "org.apache.logging.log4j:log4j-slf4j2-impl", version.ref = "log4j" }
 jjwt-api = { module = "io.jsonwebtoken:jjwt-api", version.ref = "jjwt" }
 jjwt-impl = { module = "io.jsonwebtoken:jjwt-impl", version.ref = "jjwt" }
 jjwt-jackson = { module = "io.jsonwebtoken:jjwt-jackson", version.ref = "jjwt" }
@@ -30,6 +69,7 @@ springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starte
 the-sdk = { module = "com.github.themoment-team:the-sdk", version.ref = "the-sdk" }
 eureka-client = { module = "com.netflix.eureka:eureka-client", version.ref = "eureka-client" }
 flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
+flyway-mysql = { module = "org.flywaydb:flyway-mysql", version.ref = "flyway" }
 flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
