@@ -12,10 +12,21 @@ COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
 COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
 RUN chmod +x gradlew && ./gradlew :cowork-gateway:bootJar -x test --no-daemon
 
-FROM eclipse-temurin:21-jre-alpine
-RUN addgroup -S app && adduser -S app -G app
-USER app
+FROM eclipse-temurin:21-jre-alpine AS extractor
 WORKDIR /app
 COPY --from=builder /workspace/cowork-gateway/build/libs/*.jar app.jar
+RUN java -Djarmode=layertools -jar app.jar extract --destination extracted
+
+FROM eclipse-temurin:21-jre-alpine
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+COPY --from=extractor /app/extracted/dependencies ./
+COPY --from=extractor /app/extracted/spring-boot-loader ./
+COPY --from=extractor /app/extracted/snapshot-dependencies ./
+COPY --from=extractor /app/extracted/application ./
+USER app
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java", \
+  "-XX:+UseContainerSupport", \
+  "-XX:MaxRAMPercentage=75.0", \
+  "org.springframework.boot.loader.launch.JarLauncher"]
