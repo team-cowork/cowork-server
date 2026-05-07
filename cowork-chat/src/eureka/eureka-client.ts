@@ -1,4 +1,5 @@
 import os from 'os';
+import { requireEnv } from '../common/config/config.util';
 
 type EurekaConfig = {
     enabled: boolean;
@@ -9,15 +10,6 @@ type EurekaConfig = {
     instanceId: string;
     leaseRenewalIntervalSeconds: number;
 };
-
-function requireEnv(key: string): string {
-    const value = process.env[key];
-    if (value !== undefined && value !== '') {
-        return value;
-    }
-
-    throw new Error(`Required environment variable is missing: ${key}`);
-}
 
 export class EurekaClient {
     private heartbeatTimer?: NodeJS.Timeout;

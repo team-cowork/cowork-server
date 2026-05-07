@@ -30,6 +30,15 @@ export function getRequiredCsvConfig(configService: ConfigService, keys: ConfigK
     return values;
 }
 
+export function requireEnv(key: string): string {
+    const value = process.env[key];
+    if (value !== undefined && value !== '') {
+        return value;
+    }
+
+    throw new Error(`Required environment variable is missing: ${key}`);
+}
+
 function getConfigValue(configService: ConfigService, keys: ConfigKey): string | undefined {
     for (const key of normalizeKeys(keys)) {
         const value = configService.get<string>(key) ?? process.env[key];

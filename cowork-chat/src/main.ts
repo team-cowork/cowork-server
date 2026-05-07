@@ -8,20 +8,12 @@ import { join } from 'path';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { ChatModule } from './chat/chat.module';
 import { EurekaClient } from './eureka/eureka-client';
+import { requireEnv } from './common/config/config.util';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
         console.log(`[startup] ${message}`);
     }
-}
-
-function requireEnv(key: string): string {
-    const value = process.env[key];
-    if (value !== undefined && value !== '') {
-        return value;
-    }
-
-    throw new Error(`Required environment variable is missing: ${key}`);
 }
 
 async function bootstrap() {
@@ -79,7 +71,7 @@ async function bootstrap() {
     process.once('SIGTERM', shutdown);
 
     new Logger('Bootstrap').log(`Chat server running on port ${port}`);
-    new Logger('Bootstrap').log(`Swagger UI path: /api`);
+    new Logger('Bootstrap').log(`Swagger UI: ${await app.getUrl()}/api`);
 }
 
 bootstrap().catch((err) => {
