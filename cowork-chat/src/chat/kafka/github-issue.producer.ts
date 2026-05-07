@@ -2,6 +2,7 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { GithubIssueCreateEvent } from './event/github-issue.event';
+import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 @Injectable()
 export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
@@ -13,7 +14,7 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-github',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer();
         await this.producer.connect();

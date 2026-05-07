@@ -5,6 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ChannelMember } from '../chat/schema/channel-member.schema';
 import { ChannelMemberEvent } from './event/membership.event';
+import { getRequiredCsvConfig } from '../common/config/config.util';
 
 @Injectable()
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
@@ -19,7 +20,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-membership',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.consumer = kafka.consumer({ groupId: 'cowork-chat-membership' });
         await this.consumer.connect();
