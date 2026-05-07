@@ -6,8 +6,8 @@ COPY settings.gradle.kts build.gradle.kts ./
 COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
 COPY cowork-config/src cowork-config/src
 COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
-COPY cowork-user/build.gradle.kts cowork-user/build.gradle.kts
 COPY cowork-channel/build.gradle.kts cowork-channel/build.gradle.kts
+COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
 COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
 COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
 RUN chmod +x gradlew && ./gradlew :cowork-config:bootJar -x test --no-daemon
