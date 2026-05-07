@@ -7,12 +7,15 @@
   },
   "servers": {
     "development": {
-      "url": "localhost:{port}",
+      "url": "{host}:{port}",
       "protocol": "ws",
       "description": "개발 서버",
       "variables": {
+        "host": {
+          "default": "localhost"
+        },
         "port": {
-          "default": "3000"
+          "default": "8087"
         }
       }
     }
