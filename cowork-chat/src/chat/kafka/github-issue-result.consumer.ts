@@ -4,6 +4,7 @@ import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
+import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 @Injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
@@ -23,7 +24,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-github-result',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.consumer = kafka.consumer({ groupId: 'cowork-chat-github-result' });
         await this.consumer.connect();
