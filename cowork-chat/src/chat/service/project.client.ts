@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { getRequiredConfig } from '../../common/config/config.util';
 
 export interface GithubRepoInfo {
     teamId: number;
@@ -13,7 +14,7 @@ export class ProjectClient {
     private readonly projectServiceUrl: string;
 
     constructor(private readonly configService: ConfigService) {
-        this.projectServiceUrl = this.configService.get<string>('PROJECT_SERVICE_URL', 'http://localhost:8084').replace(/\/$/, '');
+        this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
     }
 
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
