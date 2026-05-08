@@ -6,9 +6,9 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import { Logger as PinoLogger } from 'nestjs-pino';
-import { ChatModule } from './chat/chat.module';
 import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
+import { loadConfigServerEnv } from './common/config/config-server';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -17,7 +17,12 @@ function debugStartup(message: string) {
 }
 
 async function bootstrap() {
+    debugStartup('loading config server properties');
+    await loadConfigServerEnv();
+    debugStartup('config server properties loaded');
+
     debugStartup('creating Nest application');
+    const { ChatModule } = await import('./chat/chat.module');
     const app = await NestFactory.create<NestExpressApplication>(ChatModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
