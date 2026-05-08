@@ -165,11 +165,13 @@ func lookup(flatMap map[string]string, key, fallback string) string {
 }
 
 func requireConfig(flatMap map[string]string, key string) (string, error) {
-	v := lookup(flatMap, key, "")
-	if v == "" {
-		return "", fmt.Errorf("required configuration %q is not set", key)
+	if v := lookup(flatMap, key, ""); v != "" {
+		return v, nil
 	}
-	return v, nil
+	if v := os.Getenv(key); v != "" {
+		return v, nil
+	}
+	return "", fmt.Errorf("required configuration %q is not set", key)
 }
 
 func overrideFromEnv(cfg *AppConfig) {
