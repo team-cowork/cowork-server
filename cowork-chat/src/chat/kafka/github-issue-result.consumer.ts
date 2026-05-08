@@ -30,19 +30,20 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'github.issue.result', fromBeginning: false });
 
-        await this.consumer.run({
-            eachMessage: async ({ message }) => {
-                if (!message.value) return;
-                try {
-                    const event: GithubIssueResultEvent = JSON.parse(message.value.toString());
-                    await this.handleResultEvent(event);
-                } catch (err) {
-                    this.logger.error('이슈 결과 처리 중 오류 발생', err);
-                    if (!(err instanceof SyntaxError)) throw err;
-                }
-            },
-        });
-
+        void this.consumer
+            .run({
+                eachMessage: async ({ message }) => {
+                    if (!message.value) return;
+                    try {
+                        const event: GithubIssueResultEvent = JSON.parse(message.value.toString());
+                        await this.handleResultEvent(event);
+                    } catch (err) {
+                        this.logger.error('이슈 결과 처리 중 오류 발생', err);
+                        if (!(err instanceof SyntaxError)) throw err;
+                    }
+                },
+            })
+            .catch((err) => this.logger.error('github.issue.result Kafka consumer 실행 실패', err));
         this.logger.log('Kafka consumer started: github.issue.result');
     }
 
