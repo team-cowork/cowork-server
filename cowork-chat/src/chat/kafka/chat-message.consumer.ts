@@ -42,11 +42,14 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                         await this.handleMessageEvent(event);
                     } catch (err) {
                         this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
-                        // Critical logic error or serialization error - might need manual intervention or dead-letter queue
+                        if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
-            .catch((err) => this.logger.error('chat.message Kafka consumer 실행 실패', err));
+            .catch((err) => {
+                this.logger.error('chat.message Kafka consumer 실행 실패', err);
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: chat.message');
     }
 
