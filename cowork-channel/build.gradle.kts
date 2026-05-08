@@ -60,3 +60,7 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.processResources {
+    exclude("db/migration/V2__align_with_entity.sql")
+}
