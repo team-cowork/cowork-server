@@ -76,11 +76,12 @@ Firebase 관련:
 ### 로컬 개발
 
 ```bash
-# 전체 기동 (소스 빌드 포함 — 처음 또는 코드 변경 후)
-docker compose up -d --build
+# 전체 기동
+# __LOCAL_IP__가 들어간 MinIO 공개 주소를 현재 LAN IP로 자동 치환한다.
+./scripts/run/local/infra.sh start
 
-# 빌드 없이 기동 (이미지가 이미 있을 때)
-docker compose up -d
+# 앱 서비스는 필요할 때 개별 재기동
+./scripts/run/local/user.sh restart
 
 # 특정 서비스만 재빌드
 docker compose up -d --build cowork-user
@@ -265,7 +266,8 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
 
 `MINIO_PUBLIC_ENDPOINT`:
-- 모바일 앱·외부 기기에서 presigned URL로 파일에 접근하려면 `.env`의 `__LOCAL_IP__`를 실제 로컬 IP로 교체해야 한다.
+- `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
+- `docker compose up`를 직접 치면 이 치환이 적용되지 않으므로, 모바일 앱·외부 기기 업로드 테스트는 스크립트 경로를 사용해야 한다.
 - 같은 머신에서만 테스트한다면 `http://localhost:9000`으로 충분하다.
 
 Flyway 경고:
