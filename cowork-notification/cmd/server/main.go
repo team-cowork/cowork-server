@@ -53,6 +53,7 @@ func main() {
 		slog.Error("mysql schema init failed", "err", err)
 		os.Exit(1)
 	}
+
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
 	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)
