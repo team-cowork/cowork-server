@@ -35,6 +35,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                         await this.handleEvent(event);
                     } catch (err) {
                         this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);
+                        if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
