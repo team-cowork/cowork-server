@@ -38,7 +38,10 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	flatMap := fetchFromConfigServer()
+	flatMap, err := fetchFromConfigServer()
+	if err != nil {
+		return nil, err
+	}
 
 	accessExpire, err := time.ParseDuration(lookup(flatMap, "JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
 	if err != nil {
@@ -76,13 +79,16 @@ func Load() (*AppConfig, error) {
 	}
 
 	overrideFromEnv(cfg)
+	if cfg.DBDSN == "" || cfg.JWTSecret == "" || cfg.DataGSMClientID == "" {
+		return nil, fmt.Errorf("required configuration (DB_DSN, JWT_SECRET, DATAGSM_CLIENT_ID) is missing")
+	}
 	return cfg, nil
 }
 
-func fetchFromConfigServer() map[string]string {
+func fetchFromConfigServer() (map[string]string, error) {
 	configURL := os.Getenv("APP_CONFIG_URL")
 	if configURL == "" {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 
 	profile := getEnvOrDefault("APP_PROFILE", "local")
@@ -93,12 +99,15 @@ func fetchFromConfigServer() map[string]string {
 
 	flatMap, err := client.Fetch(ctx)
 	if err != nil {
+		if profile == "prod" {
+			return nil, fmt.Errorf("config server unreachable in prod profile: %w", err)
+		}
 		slog.Warn("config server unavailable, falling back to env vars only", "err", err)
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 
 	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))
-	return flatMap
+	return flatMap, nil
 }
 
 func overrideFromEnv(cfg *AppConfig) {
