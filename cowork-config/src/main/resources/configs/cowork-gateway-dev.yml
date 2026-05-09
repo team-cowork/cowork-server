@@ -82,12 +82,12 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
-        - id: channel-service
-          uri: lb://cowork-channel
+        - id: chat-service-legacy
+          uri: lb://cowork-chat
           predicates:
-            - Path=/api/channels/**
+            - Path=/api/chats/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/api/chats/?(?<segment>.*), /chat/$\{segment}
             - name: CircuitBreaker
               args:
                 name: defaultCB
@@ -96,7 +96,19 @@ spring:
         - id: chat-service
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/chats/**
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**
           filters:
             - StripPrefix=1
             - name: CircuitBreaker
