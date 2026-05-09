@@ -9,6 +9,9 @@ interface TeamMemberRepository : JpaRepository<TeamMember, Long> {
 
     fun findAllByTeamId(teamId: Long): List<TeamMember>
 
+    @Query("SELECT tm FROM TeamMember tm JOIN FETCH tm.team")
+    fun findAllWithTeam(): List<TeamMember>
+
     @Query("SELECT tm FROM TeamMember tm JOIN FETCH tm.team WHERE tm.userId = :userId")
     fun findAllByUserIdWithTeam(userId: Long): List<TeamMember>
 
