@@ -15,10 +15,13 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -31,6 +34,16 @@ class ChannelServiceTest {
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
 
     private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher)
+
+    @BeforeEach
+    fun setUp() {
+        TransactionSynchronizationManager.initSynchronization()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        TransactionSynchronizationManager.clear()
+    }
 
     private fun channel(
         id: Long = 1L,
