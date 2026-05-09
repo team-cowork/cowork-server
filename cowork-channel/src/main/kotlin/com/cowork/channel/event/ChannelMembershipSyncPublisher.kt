@@ -31,17 +31,21 @@ class ChannelMembershipSyncPublisher(
     @EventListener(ApplicationReadyEvent::class)
     @Transactional(readOnly = true)
     fun publishAllSnapshots() {
-        val membersByChannel = channelMemberRepository.findAll().groupBy { it.channelId }
-        channelRepository.findAll().forEach { channel ->
-            val members = membersByChannel[channel.id] ?: emptyList()
-            publishChannelSnapshot(channel, members)
-        }
+        doPublishAll()
     }
 
     @Scheduled(initialDelay = 30_000, fixedDelay = 300_000)
     @SchedulerLock(name = "republishAllChannelSnapshots", lockAtMostFor = "PT10M")
     @Transactional(readOnly = true)
     fun republishAllSnapshots() {
-        publishAllSnapshots()
+        doPublishAll()
+    }
+
+    private fun doPublishAll() {
+        val membersByChannel = channelMemberRepository.findAll().groupBy { it.channelId }
+        channelRepository.findAll().forEach { channel ->
+            val members = membersByChannel[channel.id] ?: emptyList()
+            publishChannelSnapshot(channel, members)
+        }
     }
 }
