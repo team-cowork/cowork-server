@@ -49,10 +49,11 @@ func main() {
 		slog.Error("mysql connect failed", "err", err)
 		os.Exit(1)
 	}
-	if err := mysqlinfra.EnsureSchema(context.Background(), db); err != nil {
-		slog.Error("mysql schema init failed", "err", err)
+	if err := mysqlinfra.Migrate(context.Background(), db, cfg.DBDSN); err != nil {
+		slog.Error("mysql migration failed", "err", err)
 		os.Exit(1)
 	}
+
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
 	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)
