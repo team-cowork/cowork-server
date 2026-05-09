@@ -7,16 +7,21 @@ import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.AddMemberRequest
 import com.cowork.channel.dto.CreateChannelRequest
 import com.cowork.channel.dto.UpdateChannelRequest
+import com.cowork.channel.event.ChannelMemberEventPublisher
+import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -25,8 +30,20 @@ class ChannelServiceTest {
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
+    private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
+    private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
 
-    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission)
+    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher)
+
+    @BeforeEach
+    fun setUp() {
+        TransactionSynchronizationManager.initSynchronization()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        TransactionSynchronizationManager.clear()
+    }
 
     private fun channel(
         id: Long = 1L,
