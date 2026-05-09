@@ -48,19 +48,19 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleEvent(event: ChannelMemberEvent): Promise<void> {
-        const { eventType, channelId, userId, role } = event;
+        const { eventType, channelId, teamId, userId, role } = event;
 
         try {
             if (eventType === 'JOIN') {
                 await this.memberModel.updateOne(
                     { channelId, userId },
-                    { $set: { role } },
+                    { $set: { teamId, role } },
                     { upsert: true },
                 );
             } else if (eventType === 'LEAVE') {
                 await this.memberModel.deleteOne({ channelId, userId });
             } else if (eventType === 'ROLE_CHANGE') {
-                await this.memberModel.updateOne({ channelId, userId }, { $set: { role } });
+                await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId, role } });
             }
         } catch (err) {
             this.logger.error(`멤버십 이벤트 처리 실패 [${eventType}]`, err);
