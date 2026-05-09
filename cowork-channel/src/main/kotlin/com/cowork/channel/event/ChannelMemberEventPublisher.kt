@@ -4,6 +4,8 @@ import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 
+private const val TOPIC = "channel.member.event"
+
 @Component
 class ChannelMemberEventPublisher(
     private val kafkaTemplate: KafkaTemplate<String, Any>,
@@ -17,7 +19,7 @@ class ChannelMemberEventPublisher(
         publish(ChannelMemberEvent("LEAVE", channelId, teamId, userId, role))
 
     private fun publish(event: ChannelMemberEvent) {
-        kafkaTemplate.send("channel.member.event", event.channelId.toString(), event)
+        kafkaTemplate.send(TOPIC, event.channelId.toString(), event)
             .whenComplete { result, ex ->
                 if (ex != null) {
                     log.error(
