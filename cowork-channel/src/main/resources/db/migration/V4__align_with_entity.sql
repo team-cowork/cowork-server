@@ -6,7 +6,7 @@ ALTER TABLE tb_channels
         COMMENT 'TEXT, VOICE, WEBHOOK, ACCOUNT_SHARE, FILE_SHARE, MEETING_NOTE' AFTER type,
     ADD COLUMN description VARCHAR(500) NULL AFTER view_type,
     ADD COLUMN is_private  TINYINT(1)  NOT NULL DEFAULT 0 AFTER description,
-    ADD COLUMN created_by  BIGINT      NOT NULL DEFAULT 0 COMMENT 'cowork-user의 tb_users.id' AFTER is_private,
+    MODIFY COLUMN created_by BIGINT NOT NULL DEFAULT 0 COMMENT 'cowork-user의 tb_users.id',
     ADD INDEX idx_tb_channels_created_by (created_by);
 
 CREATE TABLE tb_channel_members
