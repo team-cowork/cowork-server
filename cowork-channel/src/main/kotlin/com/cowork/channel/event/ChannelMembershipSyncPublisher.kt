@@ -4,6 +4,7 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.scheduling.annotation.Scheduled
@@ -38,6 +39,7 @@ class ChannelMembershipSyncPublisher(
     }
 
     @Scheduled(initialDelay = 30_000, fixedDelay = 300_000)
+    @SchedulerLock(name = "republishAllChannelSnapshots", lockAtMostFor = "PT10M")
     @Transactional(readOnly = true)
     fun republishAllSnapshots() {
         publishAllSnapshots()
