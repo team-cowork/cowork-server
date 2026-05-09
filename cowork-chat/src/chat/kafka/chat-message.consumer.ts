@@ -33,19 +33,23 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'chat.message', fromBeginning: false });
 
-        await this.consumer.run({
-            eachMessage: async ({ message }) => {
-                if (!message.value) return;
-                try {
-                    const event: ChatMessageEvent = JSON.parse(message.value.toString());
-                    await this.handleMessageEvent(event);
-                } catch (err) {
-                    this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
-                    // Critical logic error or serialization error - might need manual intervention or dead-letter queue
-                }
-            },
-        });
-
+        void this.consumer
+            .run({
+                eachMessage: async ({ message }) => {
+                    if (!message.value) return;
+                    try {
+                        const event: ChatMessageEvent = JSON.parse(message.value.toString());
+                        await this.handleMessageEvent(event);
+                    } catch (err) {
+                        this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
+                        if (!(err instanceof SyntaxError)) throw err;
+                    }
+                },
+            })
+            .catch((err) => {
+                this.logger.error('chat.message Kafka consumer 실행 실패', err);
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: chat.message');
     }
 

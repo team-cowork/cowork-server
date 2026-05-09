@@ -26,18 +26,20 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'channel.member.event', fromBeginning: false });
 
-        await this.consumer.run({
-            eachMessage: async ({ message }) => {
-                if (!message.value) return;
-                try {
-                    const event: ChannelMemberEvent = JSON.parse(message.value.toString());
-                    await this.handleEvent(event);
-                } catch (err) {
-                    this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);
-                }
-            },
-        });
-
+        void this.consumer
+            .run({
+                eachMessage: async ({ message }) => {
+                    if (!message.value) return;
+                    try {
+                        const event: ChannelMemberEvent = JSON.parse(message.value.toString());
+                        await this.handleEvent(event);
+                    } catch (err) {
+                        this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);
+                        if (!(err instanceof SyntaxError)) throw err;
+                    }
+                },
+            })
+            .catch((err) => this.logger.error('멤버십 Kafka consumer 실행 실패', err));
         this.logger.log('Kafka consumer started: channel.member.event');
     }
 

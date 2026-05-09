@@ -21,6 +21,7 @@ import (
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
+	mysqlinfra "github.com/cowork/authorization/internal/infra/mysql"
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
@@ -68,6 +69,9 @@ func main() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("database is not reachable: %v", err)
+	}
+	if err := mysqlinfra.Migrate(context.Background(), db, cfg.DBDSN); err != nil {
+		log.Fatalf("failed to migrate schema: %v", err)
 	}
 
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
