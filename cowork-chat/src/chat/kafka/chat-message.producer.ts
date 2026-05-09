@@ -9,6 +9,8 @@ import { getRequiredCsvConfig } from '../../common/config/config.util';
 export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ChatMessageProducer.name);
     private producer!: Producer;
+    private isConnected = false;
+    private connectPromise?: Promise<void>;
 
     constructor(private readonly configService: ConfigService) {}
 
@@ -18,15 +20,19 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer();
-        await this.producer.connect();
-        this.logger.log('Kafka producer connected');
+        void this.ensureConnected().catch((error: unknown) => {
+            this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
+        });
     }
 
     async onModuleDestroy() {
-        await this.producer.disconnect();
+        if (this.isConnected) {
+            await this.producer.disconnect();
+        }
     }
 
     async sendMessage(channelId: number, dto: SendMessageDto, authorId: number, authorRole: string): Promise<void> {
+        await this.ensureConnected();
         const event: ChatMessageEvent = {
             eventType: 'MESSAGE_SENT',
             teamId: dto.teamId,
@@ -51,5 +57,30 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
                 },
             ],
         });
+    }
+
+    private ensureConnected(): Promise<void> {
+        if (this.isConnected) {
+            return Promise.resolve();
+        }
+
+        if (!this.connectPromise) {
+            this.connectPromise = this.producer
+                .connect()
+                .then(() => {
+                    this.isConnected = true;
+                    this.logger.log('Kafka producer connected');
+                })
+                .catch((error: unknown) => {
+                    this.connectPromise = undefined;
+                    throw error;
+                });
+        }
+
+        return this.connectPromise;
+    }
+
+    private formatError(error: unknown): string {
+        return error instanceof Error ? error.message : String(error);
     }
 }
