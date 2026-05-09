@@ -5,11 +5,15 @@ import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.*
+import com.cowork.channel.event.ChannelMemberEventPublisher
+import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -18,6 +22,8 @@ class ChannelService(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
     private val teamPermissionService: TeamPermissionService,
+    private val channelMemberEventPublisher: ChannelMemberEventPublisher,
+    private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
 ) {
 
     fun findChannelOrThrow(channelId: Long): Channel =
@@ -58,7 +64,12 @@ class ChannelService(
                 createdBy = userId,
             )
         )
-        channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
+        val member = channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+            }
+        })
         return ChannelResponse.of(channel)
     }
 
@@ -80,7 +91,15 @@ class ChannelService(
     fun deleteChannel(userId: Long, channelId: Long) {
         val channel = findChannelOrThrow(channelId)
         requireChannelManager(channel, userId)
+        val members = channelMemberRepository.findByChannelId(channelId)
         channelRepository.delete(channel)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                members.forEach { member ->
+                    channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId)
+                }
+            }
+        })
     }
 
     @Transactional
@@ -104,6 +123,11 @@ class ChannelService(
         val member = channelMemberRepository.save(
             ChannelMember(channelId = channelId, userId = request.userId)
         )
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId)
+            }
+        })
         return ChannelMemberResponse.of(member)
     }
 
@@ -137,5 +161,10 @@ class ChannelService(
         }
 
         channelMemberRepository.delete(member)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId)
+            }
+        })
     }
 }
