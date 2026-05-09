@@ -30,8 +30,9 @@ class ChannelMembershipSyncPublisher(
     @EventListener(ApplicationReadyEvent::class)
     @Transactional(readOnly = true)
     fun publishAllSnapshots() {
+        val membersByChannel = channelMemberRepository.findAll().groupBy { it.channelId }
         channelRepository.findAll().forEach { channel ->
-            val members = channelMemberRepository.findByChannelId(channel.id)
+            val members = membersByChannel[channel.id] ?: emptyList()
             publishChannelSnapshot(channel, members)
         }
     }
