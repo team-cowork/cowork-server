@@ -1,10 +1,14 @@
 package config
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/cowork/authorization/internal/config/springconfig"
 )
 
 const (
@@ -34,50 +38,114 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
+	flatMap, err := fetchFromConfigServer()
+	if err != nil {
+		return nil, err
+	}
+
+	accessExpire, err := time.ParseDuration(lookup(flatMap, "JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRE: %w", err)
 	}
 
-	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire))
+	refreshExpire, err := time.ParseDuration(lookup(flatMap, "JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
 
-	eurekaPort, err := strconv.Atoi(getEnvOrDefault("EUREKA_INSTANCE_PORT", "8081"))
+	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", "8081"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
 	}
 
 	cfg := &AppConfig{
-		Port:  getEnvOrDefault("PORT", "8081"),
-		DBDSN: mustGetEnv("DB_DSN"),
+		Port:  lookup(flatMap, "PORT", "8081"),
+		DBDSN: lookup(flatMap, "DB_DSN", ""),
 
-		DataGSMClientID:    mustGetEnv("DATAGSM_CLIENT_ID"),
-		DataGSMTokenURL:    mustGetEnv("DATAGSM_TOKEN_URL"),
-		DataGSMUserInfoURL: mustGetEnv("DATAGSM_USERINFO_URL"),
+		DataGSMClientID:    lookup(flatMap, "DATAGSM_CLIENT_ID", ""),
+		DataGSMTokenURL:    lookup(flatMap, "DATAGSM_TOKEN_URL", ""),
+		DataGSMUserInfoURL: lookup(flatMap, "DATAGSM_USERINFO_URL", ""),
 
-		JWTSecret:        mustGetEnv("JWT_SECRET"),
+		JWTSecret:        lookup(flatMap, "JWT_SECRET", ""),
 		JWTAccessExpire:  accessExpire,
 		JWTRefreshExpire: refreshExpire,
 
-		EurekaServerURL:    getEnvOrDefault("EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
-		EurekaAppName:      getEnvOrDefault("EUREKA_APP_NAME", "cowork-authorization"),
-		EurekaInstanceHost: getEnvOrDefault("EUREKA_INSTANCE_HOST", "localhost"),
+		EurekaServerURL:    lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
+		EurekaAppName:      lookup(flatMap, "EUREKA_APP_NAME", "cowork-authorization"),
+		EurekaInstanceHost: lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort: eurekaPort,
 
-		UserServiceURL: getEnvOrDefault("USER_SERVICE_URL", "http://cowork-user:8082"),
+		UserServiceURL: lookup(flatMap, "USER_SERVICE_URL", "http://cowork-user:8082"),
 	}
 
+	overrideFromEnv(cfg)
+	if cfg.DBDSN == "" || cfg.JWTSecret == "" || cfg.DataGSMClientID == "" {
+		return nil, fmt.Errorf("required configuration (DB_DSN, JWT_SECRET, DATAGSM_CLIENT_ID) is missing")
+	}
 	return cfg, nil
 }
 
-func mustGetEnv(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		panic(fmt.Sprintf("required environment variable %q is not set", key))
+func fetchFromConfigServer() (map[string]string, error) {
+	configURL := os.Getenv("APP_CONFIG_URL")
+	if configURL == "" {
+		return map[string]string{}, nil
 	}
-	return v
+
+	profile := getEnvOrDefault("APP_PROFILE", "local")
+	client := springconfig.NewClient(configURL, "cowork-authorization", profile)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	flatMap, err := client.Fetch(ctx)
+	if err != nil {
+		if profile == "prod" {
+			return nil, fmt.Errorf("config server unreachable in prod profile: %w", err)
+		}
+		slog.Warn("config server unavailable, falling back to env vars only", "err", err)
+		return map[string]string{}, nil
+	}
+
+	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))
+	return flatMap, nil
+}
+
+func overrideFromEnv(cfg *AppConfig) {
+	if v := os.Getenv("PORT"); v != "" {
+		cfg.Port = v
+	}
+	if v := os.Getenv("DB_DSN"); v != "" {
+		cfg.DBDSN = v
+	}
+	if v := os.Getenv("DATAGSM_CLIENT_ID"); v != "" {
+		cfg.DataGSMClientID = v
+	}
+	if v := os.Getenv("DATAGSM_TOKEN_URL"); v != "" {
+		cfg.DataGSMTokenURL = v
+	}
+	if v := os.Getenv("DATAGSM_USERINFO_URL"); v != "" {
+		cfg.DataGSMUserInfoURL = v
+	}
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		cfg.JWTSecret = v
+	}
+	if v := os.Getenv("EUREKA_SERVER_URL"); v != "" {
+		cfg.EurekaServerURL = v
+	}
+	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
+		cfg.EurekaAppName = v
+	}
+	if v := os.Getenv("EUREKA_INSTANCE_HOST"); v != "" {
+		cfg.EurekaInstanceHost = v
+	}
+	if v := os.Getenv("EUREKA_INSTANCE_PORT"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			cfg.EurekaInstancePort = parsed
+		}
+	}
+	if v := os.Getenv("USER_SERVICE_URL"); v != "" {
+		cfg.UserServiceURL = v
+	}
 }
 
 func getEnvOrDefault(key, defaultVal string) string {
@@ -85,4 +153,11 @@ func getEnvOrDefault(key, defaultVal string) string {
 		return v
 	}
 	return defaultVal
+}
+
+func lookup(flatMap map[string]string, key, fallback string) string {
+	if v, ok := flatMap[key]; ok && v != "" {
+		return v
+	}
+	return fallback
 }
