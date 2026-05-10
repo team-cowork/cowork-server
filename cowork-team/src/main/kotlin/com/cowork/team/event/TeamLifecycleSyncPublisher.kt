@@ -3,16 +3,21 @@ package com.cowork.team.event
 import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamRole
 import com.cowork.team.repository.TeamMemberRepository
+import net.javacrumbs.shedlock.core.LockConfiguration
+import net.javacrumbs.shedlock.core.LockingTaskExecutor
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import java.time.Duration
+import java.time.Instant
 
 @Component
 class TeamLifecycleSyncPublisher(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
+    private val lockingTaskExecutor: LockingTaskExecutor,
 ) {
 
     fun publishTeamSnapshot(actorUserId: Long, members: List<TeamMember>) {
@@ -42,6 +47,16 @@ class TeamLifecycleSyncPublisher(
     @EventListener(ApplicationReadyEvent::class)
     @Transactional(readOnly = true)
     fun publishAllSnapshots() {
+        val lockConfig = LockConfiguration(
+            Instant.now(),
+            "publishAllTeamSnapshots",
+            Duration.ofMinutes(10),
+            Duration.ZERO,
+        )
+        lockingTaskExecutor.executeWithLock(Runnable { doPublishAll() }, lockConfig)
+    }
+
+    private fun doPublishAll() {
         var page = 0
         do {
             val idSlice = teamMemberRepository.findAllIds(PageRequest.of(page++, 500))
