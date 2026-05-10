@@ -41,7 +41,10 @@ const positionColor = computed(() => {
       :src="avatarUrl"
       :alt="member.name"
       class="w-11 h-11 rounded-full object-cover bg-gray-100 ring-2 ring-gray-100"
+      width="44"
+      height="44"
       loading="lazy"
+      decoding="async"
     />
     <div class="min-w-0">
       <p class="font-semibold text-gray-900 text-sm leading-tight truncate">
