@@ -61,6 +61,7 @@ const techCategories: { label: string; items: TechItem[] }[] = [
             {name: 'PostgreSQL', color: '#336791', positions: []},
             {name: 'MongoDB', color: '#47A248', positions: ['Server']},
             {name: 'Redis', color: '#DC382D', positions: ['Server']},
+            {name: 'Elasticsearch', color: '#005571', positions: ['Server']},
             {name: 'Flyway', color: '#CC0200', positions: ['Server']},
         ],
     },
