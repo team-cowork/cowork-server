@@ -90,9 +90,9 @@ def generate_commits(repo: str, count: int, interval: float) -> None:
         sys.exit(1)
 
     base_env = os.environ.copy()
-    # 테스트 저장소의 전역 설정을 오염시키지 않도록 GIT_CONFIG_NOSYSTEM 사용
     base_env["GIT_CONFIG_NOSYSTEM"] = "1"
-    base_env["HOME"] = repo  # 로컬 config만 읽도록
+    base_env["GIT_CONFIG_GLOBAL"] = os.devnull
+    base_env["GIT_TERMINAL_PROMPT"] = "0"
 
     base_time = datetime.now() - timedelta(days=30)
 
@@ -116,7 +116,7 @@ def generate_commits(repo: str, count: int, interval: float) -> None:
         env["GIT_COMMITTER_DATE"]  = git_date
 
         run(
-            ["git", "commit", "--allow-empty", "-m", message],
+            ["git", "commit", "--allow-empty", "--no-verify", "-m", message],
             cwd=repo,
             env=env,
         )
