@@ -10,12 +10,13 @@ import {
 } from '@nestjs/websockets';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
-import { RequestContextUtil } from '../common/util/request-context.util';
 import { JoinChannelDto } from './dto/join-channel.dto';
+import { UserRole } from '../common/enum/user-role.enum';
 
 @WebSocketGateway({
     namespace: '/chat',
@@ -36,6 +37,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly consumer: ChatMessageConsumer,
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
         private readonly configService: ConfigService,
+        private readonly jwtService: JwtService,
     ) {}
 
     afterInit(server: Server) {
@@ -45,12 +47,24 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     async handleConnection(client: Socket) {
         try {
-            const userId = RequestContextUtil.getUserId(client.handshake.headers as any);
+            const token = client.handshake.auth?.token as string | undefined;
+            if (!token) {
+                throw new Error('토큰이 전달되지 않았습니다');
+            }
+
+            const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
+            const userId = Number(payload.sub);
+            if (isNaN(userId) || userId <= 0) {
+                throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
+            }
+
             client.data.userId = userId;
-            client.data.userRole = RequestContextUtil.getUserRole(client.handshake.headers as any);
+            client.data.userRole = payload.role ?? UserRole.USER;
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
-        } catch {
-            this.logger.warn(`인증 실패로 연결 거부: ${client.id}`);
+        } catch (err) {
+            const message = err instanceof Error ? err.message : '인증 실패';
+            this.logger.warn(`인증 실패로 연결 거부: ${client.id} - ${message}`);
+            client.emit('exception', { message: '인증 실패: ' + message });
             client.disconnect();
         }
     }
