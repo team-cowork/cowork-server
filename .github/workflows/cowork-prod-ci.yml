@@ -26,7 +26,6 @@ jobs:
         with:
           script: |
             const title = context.payload.pull_request.title;
-            const prNumber = context.payload.pull_request.number;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
               'team', 'project', 'channel', 'chat', 'voice', 'promotion',
@@ -57,6 +56,34 @@ jobs:
             if (invalidScopes.length > 0) {
               core.setFailed(`Invalid scope(s): ${invalidScopes.join(', ')}`);
               return;
+            }
+
+  validate-version:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate Version
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+            const versionPattern = /^v\d{8}\.\d+$/;
+            if (!versionPattern.test(title)) {
+              return;
+            }
+            const { data: file } = await github.rest.repos.getContent({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              path: 'VERSION',
+              ref: context.payload.pull_request.head.sha
+            });
+            const versionInFile = Buffer.from(file.content, 'base64').toString().trim();
+            const versionInTitle = title.slice(1);
+            if (versionInFile !== versionInTitle) {
+              core.setFailed(`VERSION 파일(${versionInFile})이 PR 제목의 버전(${versionInTitle})과 다릅니다`);
             }
 
   setup-pr-metadata:
@@ -188,8 +215,11 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
-    needs: [validate-title, detect-changes]
-    if: always() && (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped')
+    needs: [validate-title, validate-version, detect-changes]
+    if: >
+      always() &&
+      (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped') &&
+      (needs.validate-version.result == 'success' || needs.validate-version.result == 'skipped')
     name: build (${{ matrix.service }})
 
     strategy:
@@ -277,7 +307,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test]
+    needs: [validate-title, validate-version, setup-pr-metadata, detect-changes, build-and-test]
     if: always()
 
     steps:
@@ -289,6 +319,7 @@ jobs:
         id: status
         run: |
           if [[ "${{ needs.validate-title.result }}" == "failure" ]] || \
+             [[ "${{ needs.validate-version.result }}" == "failure" ]] || \
              [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
             echo "status=failure" >> $GITHUB_OUTPUT
             echo "color=0xFF4C4C" >> $GITHUB_OUTPUT
@@ -313,5 +344,6 @@ jobs:
             **Changed:** ${{ needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
             **Validate Title:** ${{ needs.validate-title.result }}
+            **Validate Version:** ${{ needs.validate-version.result }}
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
