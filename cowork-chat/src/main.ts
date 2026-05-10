@@ -44,8 +44,12 @@ async function bootstrap() {
             '| `message:edited` | S→C | 메시지 수정됨 |\n' +
             '| `message:deleted` | S→C | 메시지 삭제됨 |\n\n' +
             '## 인증\n' +
-            'Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
-            'WebSocket은 handshake 헤더로 인증.',
+            'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
+            'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +
+            '```js\n' +
+            'io(url, { auth: { token: "<JWT>" } })\n' +
+            '```\n' +
+            '인증 실패 시 서버는 `exception` 이벤트를 emit한 후 연결을 끊습니다.',
         )
         .setVersion('1.0')
         .build();
