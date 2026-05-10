@@ -11,9 +11,6 @@ interface TeamMemberRepository : JpaRepository<TeamMember, Long> {
 
     fun findAllByTeamId(teamId: Long): List<TeamMember>
 
-    @Query("SELECT tm FROM TeamMember tm JOIN FETCH tm.team")
-    fun findAllWithTeam(): List<TeamMember>
-
     @Query("SELECT tm.id FROM TeamMember tm")
     fun findAllIds(pageable: Pageable): Slice<Long>
 
