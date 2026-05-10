@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
-# Usage: bash scripts/create-pr.sh "<title>" "<body-file>" "<label1>,<label2>"
+# Usage: bash scripts/create-pr.sh "<title>" "<body-file>" "<label1>,<label2>" [base-branch]
 set -euo pipefail
 
 TITLE="${1:?title required}"
 BODY_FILE="${2:?body file required}"
 LABELS="${3:-}"
 
+if [[ ! -f "$BODY_FILE" ]]; then
+  echo "[ERROR] PR 본문 파일($BODY_FILE)을 찾을 수 없습니다." >&2
+  exit 1
+fi
+
 if ! command -v gh &>/dev/null; then
   echo "[ERROR] gh CLI가 설치되어 있지 않습니다." >&2
   exit 1
 fi
 
-BASE_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo "develop")
+BASE_BRANCH="${4:-$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo "develop")}"
 CURRENT_BRANCH=$(git branch --show-current)
 
 if [[ "$CURRENT_BRANCH" == "$BASE_BRANCH" ]]; then
@@ -19,17 +24,15 @@ if [[ "$CURRENT_BRANCH" == "$BASE_BRANCH" ]]; then
   exit 1
 fi
 
-# 원격에 브랜치가 없으면 push
-if ! git ls-remote --exit-code origin "$CURRENT_BRANCH" &>/dev/null; then
-  echo "[INFO] 원격에 브랜치가 없어 push합니다: $CURRENT_BRANCH"
-  git push -u origin "$CURRENT_BRANCH"
-fi
+echo "[INFO] 원격 브랜치를 업데이트합니다: $CURRENT_BRANCH"
+git push -u origin "$CURRENT_BRANCH"
 
 LABEL_ARGS=()
 if [[ -n "$LABELS" ]]; then
   IFS=',' read -ra LABEL_ARRAY <<< "$LABELS"
   for label in "${LABEL_ARRAY[@]}"; do
-    LABEL_ARGS+=(--label "$label")
+    label=$(echo "$label" | xargs)
+    [[ -n "$label" ]] && LABEL_ARGS+=(--label "$label")
   done
 fi
 
