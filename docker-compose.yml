@@ -188,6 +188,27 @@ services:
       exit 0;
       "
 
+  elasticsearch:
+    build:
+      context: ./docker
+      dockerfile: elasticsearch.dockerfile
+    container_name: cowork-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
   redis:
     image: redis:8.6.2-alpine
     container_name: cowork-redis
@@ -628,12 +649,15 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       cowork-config:
         condition: service_healthy
     environment:
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
       NODE_ENV: production
+      ELASTICSEARCH_URL: http://elasticsearch:9200
     ports:
       - "8087:8087"
     volumes:
@@ -681,6 +705,7 @@ volumes:
   kafka_data:
   redis_data:
   minio_data:
+  es_data:
   prometheus_data:
   grafana_data:
   loki_data:
