@@ -16,6 +16,7 @@ import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
+import { UserRole } from '../common/enum/user-role.enum';
 
 @WebSocketGateway({
     namespace: '/chat',
@@ -53,12 +54,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             const payload = this.jwtService.verify<{ sub: string; role?: string }>(token);
             const userId = Number(payload.sub);
-            if (isNaN(userId)) {
+            if (isNaN(userId) || userId <= 0) {
                 throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
             }
 
             client.data.userId = userId;
-            client.data.userRole = payload.role ?? 'ROLE_USER';
+            client.data.userRole = payload.role ?? UserRole.USER;
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
