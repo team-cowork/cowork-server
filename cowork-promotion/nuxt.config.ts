@@ -2,6 +2,9 @@ export default defineNuxtConfig({
   compatibilityDate: '2026-04-27',
   devtools: { enabled: false },
   modules: ['@nuxtjs/tailwindcss'],
+  routeRules: {
+    '/': { prerender: true },
+  },
   app: {
     head: {
       title: 'cowork',
@@ -21,6 +24,8 @@ export default defineNuxtConfig({
           href: 'https://fonts.gstatic.com',
           crossorigin: '',
         },
+        { rel: 'preconnect', href: 'https://avatars.githubusercontent.com' },
+        { rel: 'preconnect', href: 'https://github-repository-language-graph-wi.vercel.app' },
         {
           rel: 'stylesheet',
           href: 'https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;0,14..32,800;0,14..32,900&display=swap',
