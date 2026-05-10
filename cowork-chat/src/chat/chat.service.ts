@@ -1,18 +1,22 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message } from './schema/message.schema';
 import { ChannelMember } from './schema/channel-member.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
+import { ElasticsearchService } from '../search/elasticsearch.service';
 
 const SYSTEM_AUTHOR_ID = 0;
 
 @Injectable()
 export class ChatService {
+    private readonly logger = new Logger(ChatService.name);
+
     constructor(
         @InjectModel(Message.name) private readonly messageModel: Model<Message>,
         @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
+        private readonly elasticsearchService: ElasticsearchService,
     ) {}
 
     async isMember(channelId: number, userId: number): Promise<boolean> {
@@ -80,7 +84,11 @@ export class ChatService {
         message.editHistory.push({ content: message.content, editedAt: new Date() });
         message.content = dto.content;
         message.isEdited = true;
-        return message.save();
+        const saved = await message.save();
+        this.elasticsearchService.updateMessage(messageId, dto.content).catch((err) =>
+            this.logger.error(`ES 메시지 수정 동기화 실패 id=${messageId}`, err),
+        );
+        return saved;
     }
 
     async deleteMessage(messageId: string, userId: number, userRole: string) {
@@ -91,6 +99,9 @@ export class ChatService {
         }
 
         await this.messageModel.deleteOne({ _id: messageId });
+        this.elasticsearchService.deleteMessage(messageId).catch((err) =>
+            this.logger.error(`ES 메시지 삭제 동기화 실패 id=${messageId}`, err),
+        );
         return { channelId: message.channelId, messageId };
     }
 
