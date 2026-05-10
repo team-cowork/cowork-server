@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260420.0"
+version = "20260511.0"
 
 java {
     toolchain {
@@ -47,6 +47,8 @@ dependencies {
     implementation(libs.springdoc.openapi.webmvc.ui)
 
     implementation(libs.awspring.cloud.s3)
+    implementation(libs.shedlock.spring)
+    implementation(libs.shedlock.provider.jdbc.template)
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
