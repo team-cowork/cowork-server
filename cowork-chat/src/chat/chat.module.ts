@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
@@ -61,6 +62,14 @@ function createLogStream() {
 @Module({
     imports: [
         ConfigModule,
+        JwtModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                secret: getRequiredConfig(configService, 'JWT_SECRET'),
+                signOptions: { algorithm: 'HS256' },
+            }),
+        }),
         ...loggerImports,
         PrometheusModule.register({
             defaultMetrics: { enabled: true },
