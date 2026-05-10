@@ -5,6 +5,7 @@ import com.cowork.team.domain.TeamMember
 import com.cowork.team.domain.TeamRole
 import com.cowork.team.dto.TeamEventPayload
 import com.cowork.team.event.TeamEventPublisher
+import com.cowork.team.event.TeamLifecycleSyncPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
 import io.mockk.Runs
@@ -25,12 +26,14 @@ class TeamServiceTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
+    private val teamLifecycleSyncPublisher = mockk<TeamLifecycleSyncPublisher>(relaxed = true)
     private val s3Service = mockk<S3Service>()
 
     private val service = TeamService(
         teamRepository = teamRepository,
         teamMemberRepository = teamMemberRepository,
         teamEventPublisher = teamEventPublisher,
+        teamLifecycleSyncPublisher = teamLifecycleSyncPublisher,
         s3Service = s3Service,
     )
 
