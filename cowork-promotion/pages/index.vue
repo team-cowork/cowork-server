@@ -355,7 +355,7 @@ const row2 = [...marqueeItems, ...marqueeItems]
                             <img
                                 :alt="`${repo.name} language stats`"
                                 :src="`https://github-repository-language-graph-wi.vercel.app/api?username=team-cowork&repo=${repo.name}&theme=white&langs_count=100`"
-                                class="w-full h-auto block"
+                                class="w-full block aspect-[4/1] object-contain"
                                 loading="lazy"
                                 decoding="async"
                             />
