@@ -52,7 +52,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 throw new Error('토큰이 전달되지 않았습니다');
             }
 
-            const payload = this.jwtService.verify<{ sub: string; role?: string }>(token);
+            const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
             const userId = Number(payload.sub);
             if (isNaN(userId) || userId <= 0) {
                 throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
