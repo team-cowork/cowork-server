@@ -1,5 +1,6 @@
-# MONGODB_URI는 Vault secret/cowork-chat 에서 주입됨
+# MONGODB_URI, JWT_SECRET은 Vault secret/cowork-chat 에서 주입됨
 PORT: 8087
+JWT_SECRET: ${JWT_SECRET}
 MONGODB_DIRECT_CONNECTION: false
 MONGODB_SERVER_SELECTION_TIMEOUT_MS: 5000
 MONGODB_CONNECT_TIMEOUT_MS: 5000
