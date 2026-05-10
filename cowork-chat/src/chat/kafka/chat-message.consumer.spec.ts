@@ -8,11 +8,15 @@ const mockConfigService = {
     get: jest.fn().mockReturnValue('localhost:9092'),
 };
 
+const mockElasticsearchService = {
+    indexMessage: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ChatMessageConsumer', () => {
     let consumer: ChatMessageConsumer;
 
     beforeEach(() => {
-        consumer = new ChatMessageConsumer(mockMessageModel as any, mockConfigService as any);
+        consumer = new ChatMessageConsumer(mockMessageModel as any, mockConfigService as any, mockElasticsearchService as any);
         jest.clearAllMocks();
     });
 
