@@ -357,6 +357,7 @@ const row2 = [...marqueeItems, ...marqueeItems]
                                 :src="`https://github-repository-language-graph-wi.vercel.app/api?username=team-cowork&repo=${repo.name}&theme=white&langs_count=100`"
                                 class="w-full h-auto block"
                                 loading="lazy"
+                                decoding="async"
                             />
                         </div>
 
@@ -512,7 +513,10 @@ const row2 = [...marqueeItems, ...marqueeItems]
                                             :src="`https://github.com/${member.githubId}.png?size=64`"
                                             :alt="member.name"
                                             class="w-8 h-8 rounded-full object-cover"
+                                            width="32"
+                                            height="32"
                                             loading="lazy"
+                                            decoding="async"
                                         />
                                         <div>
                                             <p class="text-sm font-semibold text-gray-900 leading-tight">{{ member.name }}</p>
