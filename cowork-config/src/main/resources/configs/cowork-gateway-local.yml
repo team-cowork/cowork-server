@@ -41,6 +41,21 @@ spring:
             maxAge: 3600
 
       routes:
+        - id: chat-service-legacy
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - RewritePath=/api/chats/?(?<segment>.*), /chat/$\{segment}
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
         - id: channel-service
           uri: lb://cowork-channel
           predicates:
@@ -106,13 +121,6 @@ spring:
           uri: lb://cowork-project
           predicates:
             - Path=/api/projects/**
-          filters:
-            - StripPrefix=1
-
-        - id: chat-service
-          uri: lb://cowork-chat
-          predicates:
-            - Path=/api/chats/**
           filters:
             - StripPrefix=1
 

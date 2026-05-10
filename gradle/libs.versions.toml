@@ -17,6 +17,7 @@ postgresql = "42.7.3"
 micrometer = "1.14.5"
 logstash-logback = "8.0"
 mockk = "1.13.13"
+shedlock = "5.16.0"
 
 [libraries]
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus", version.ref = "micrometer" }
@@ -74,6 +75,8 @@ flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
+shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
