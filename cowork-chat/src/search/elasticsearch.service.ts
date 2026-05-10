@@ -143,7 +143,14 @@ export class ElasticsearchService implements OnModuleInit {
             filter.push({ term: { hasAttachments: true } });
         }
 
-        const searchAfter = before ? [before] : undefined;
+        let searchAfter: any[] | undefined;
+        if (before) {
+            try {
+                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
+            } catch {
+                searchAfter = undefined;
+            }
+        }
 
         const response = await this.client.search({
             index: INDEX,
@@ -197,8 +204,8 @@ export class ElasticsearchService implements OnModuleInit {
         }));
 
         const lastHit = rawHits.at(-1);
-        const nextCursor = hits.length === limit && lastHit
-            ? (lastHit._source as MessageIndexDoc).messageId
+        const nextCursor = hits.length === limit && lastHit?.sort
+            ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64')
             : null;
 
         return { hits, nextCursor };
