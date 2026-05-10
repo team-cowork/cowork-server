@@ -18,7 +18,7 @@ export class SearchMessagesDto {
     @ApiPropertyOptional({ description: '첨부파일 포함 메시지만 조회' })
     @IsBoolean() @IsOptional() @Transform(({ value }) => value === 'true' || value === true) hasFile?: boolean;
 
-    @ApiPropertyOptional({ description: '커서: 이 messageId 이후 결과 조회 (이전 응답의 nextCursor 값)' })
+    @ApiPropertyOptional({ description: '커서: 이전 응답의 nextCursor 값' })
     @IsString() @IsOptional() before?: string;
 
     @ApiPropertyOptional({ description: '페이지 크기 (기본 50, 최대 100)', default: 50 })
