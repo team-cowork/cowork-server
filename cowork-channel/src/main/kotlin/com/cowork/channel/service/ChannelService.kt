@@ -80,11 +80,20 @@ class ChannelService(
     }
 
     @Transactional
-    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest): ChannelResponse {
+    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean = false): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
+        if (updateProjectId) channel.assignProject(request.projectId)
         return ChannelResponse.of(channel)
+    }
+
+    fun listProjectChannels(userId: Long, projectId: Long): List<ChannelResponse> {
+        val channels = channelRepository.findAllByProjectIdOrderByIdAsc(projectId)
+        if (channels.isNotEmpty()) {
+            teamPermissionService.requireTeamMember(channels.first().teamId, userId)
+        }
+        return channels.map { ChannelResponse.of(it) }
     }
 
     @Transactional
