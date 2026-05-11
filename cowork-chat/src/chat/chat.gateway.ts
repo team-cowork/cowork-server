@@ -1,3 +1,4 @@
+import { forwardRef, Inject, Logger } from '@nestjs/common';
 import {
     WebSocketGateway,
     WebSocketServer,
@@ -8,7 +9,6 @@ import {
     OnGatewayDisconnect,
     OnGatewayInit,
 } from '@nestjs/websockets';
-import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket } from 'socket.io';
@@ -33,6 +33,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @WebSocketServer() server!: Server;
 
     constructor(
+        @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
