@@ -52,9 +52,10 @@ class ChannelServiceTest {
         view: ChannelViewType = ChannelViewType.TEXT,
         createdBy: Long = 1L,
         isPrivate: Boolean = false,
+        projectId: Long? = null,
     ) = Channel(
         id = id, teamId = teamId, name = "ch", type = type, viewType = view,
-        description = null, isPrivate = isPrivate, createdBy = createdBy,
+        description = null, isPrivate = isPrivate, createdBy = createdBy, projectId = projectId,
     )
 
     @Test
@@ -103,6 +104,66 @@ class ChannelServiceTest {
             service.updateChannel(1L, 1L, UpdateChannelRequest(name = "x"))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
+    @Test
+    fun `updateChannel은 updateProjectId=true이면 projectId를 할당함`() {
+        val ch = channel(createdBy = 1L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+
+        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(projectId = 5L), updateProjectId = true)
+        assertEquals(5L, res.projectId)
+    }
+
+    @Test
+    fun `updateChannel은 updateProjectId=false이면 기존 projectId를 유지함`() {
+        val ch = channel(createdBy = 1L, projectId = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+
+        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(), updateProjectId = false)
+        assertEquals(99L, res.projectId)
+    }
+
+    @Test
+    fun `updateChannel은 updateProjectId=true에 projectId=null이면 프로젝트 귀속 해제`() {
+        val ch = channel(createdBy = 1L, projectId = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+
+        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(projectId = null), updateProjectId = true)
+        assertEquals(null, res.projectId)
+    }
+
+    @Test
+    fun `listProjectChannels는 채널이 있으면 팀 멤버 검증 후 반환함`() {
+        val ch = channel(id = 1L, teamId = 100L)
+        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
+        every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
+
+        val result = service.listProjectChannels(1L, 5L)
+        assertEquals(1, result.size)
+        verify { teamPermission.requireTeamMember(100L, 1L) }
+    }
+
+    @Test
+    fun `listProjectChannels는 팀 비멤버이면 FORBIDDEN`() {
+        val ch = channel(id = 1L, teamId = 100L)
+        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
+        every { teamPermission.requireTeamMember(100L, 1L) } throws
+            ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.listProjectChannels(1L, 5L)
+        }
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
+    @Test
+    fun `listProjectChannels는 채널이 없으면 빈 리스트를 반환하고 팀 멤버 검증을 하지 않음`() {
+        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns emptyList()
+
+        val result = service.listProjectChannels(1L, 5L)
+        assertEquals(0, result.size)
+        verify(exactly = 0) { teamPermission.requireTeamMember(any(), any()) }
     }
 
     @Test
