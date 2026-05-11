@@ -85,9 +85,9 @@ export class ChatService {
         message.content = dto.content;
         message.isEdited = true;
         const saved = await message.save();
-        this.elasticsearchService.updateMessage(messageId, dto.content).catch((err) =>
-            this.logger.error(`ES 메시지 수정 동기화 실패 id=${messageId}`, err),
-        );
+        if (message.projectId) {
+            void this.elasticsearchService.updateMessage(messageId, dto.content);
+        }
         return saved;
     }
 
@@ -99,9 +99,9 @@ export class ChatService {
         }
 
         await this.messageModel.deleteOne({ _id: messageId });
-        this.elasticsearchService.deleteMessage(messageId).catch((err) =>
-            this.logger.error(`ES 메시지 삭제 동기화 실패 id=${messageId}`, err),
-        );
+        if (message.projectId) {
+            void this.elasticsearchService.deleteMessage(messageId);
+        }
         return { channelId: message.channelId, messageId };
     }
 
