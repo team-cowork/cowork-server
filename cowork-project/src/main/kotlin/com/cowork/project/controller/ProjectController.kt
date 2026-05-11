@@ -138,6 +138,23 @@ class ProjectController(
     ): ResponseEntity<ProjectMemberResponse> =
         ResponseEntity.ok(projectService.updateMemberRole(userId, projectId, memberId, request))
 
+    @Operation(
+        summary = "내 멤버십 확인 (내부 서비스용)",
+        description = "요청자가 해당 프로젝트 멤버이면 200, 아니면 404. 다른 서비스의 권한 검증에 사용됩니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "멤버임"),
+        ApiResponse(responseCode = "404", description = "멤버 아님 또는 프로젝트 없음"),
+    )
+    @GetMapping("/{projectId}/members/me")
+    fun getMyMembership(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+    ): ResponseEntity<Void> =
+        if (projectService.isMember(projectId, userId)) ResponseEntity.ok().build()
+        else ResponseEntity.notFound().build()
+
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "204", description = "제거 성공"),

@@ -128,4 +128,47 @@ describe('ProjectClient', () => {
             await expect(client.getGithubRepoInfo(1)).rejects.toThrow('ECONNREFUSED');
         });
     });
+
+    describe('isMember', () => {
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
+
+        afterEach(() => {
+            jest.restoreAllMocks();
+        });
+
+        it('200 응답이면 true를 반환한다', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 });
+
+            const result = await client.isMember(5, 42);
+
+            expect(global.fetch).toHaveBeenCalledWith(
+                'http://localhost:8084/projects/5/members/me',
+                expect.objectContaining({
+                    headers: { 'X-User-Id': '42' },
+                    signal: expect.any(AbortSignal),
+                }),
+            );
+            expect(result).toBe(true);
+        });
+
+        it('404 응답이면 false를 반환한다', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 404 });
+
+            expect(await client.isMember(5, 99)).toBe(false);
+        });
+
+        it('5xx 응답이면 예외를 던진다', async () => {
+            (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
+
+            await expect(client.isMember(5, 42)).rejects.toThrow('project-service 오류: 500');
+        });
+
+        it('네트워크 오류가 발생하면 예외를 던진다', async () => {
+            (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
+
+            await expect(client.isMember(5, 42)).rejects.toThrow('ECONNREFUSED');
+        });
+    });
 });
