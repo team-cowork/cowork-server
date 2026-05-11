@@ -117,6 +117,15 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: chat-service-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/projects/*/messages/search
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
