@@ -51,14 +51,15 @@ cp .env.example .env
 기본값으로 채워진 항목이 많으니 대부분 수정 없이 쓸 수 있다.
 아래 항목만 운영/외부 서비스 연동 시 채운다.
 
-| 키                       | 기본값                        | 필요한 경우                                |
-|-------------------------|----------------------------|---------------------------------------|
-| `LIVEKIT_API_KEY`       | `devkey`                   | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_API_SECRET`    | `devsecret`                | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`             | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
-| `OAUTH2_GOOGLE_*`       | 비어 있음                      | Google OAuth2 사용 시                    |
-| `OAUTH2_GITHUB_*`       | 비어 있음                      | GitHub OAuth2 사용 시                    |
-| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000` | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| 키                       | 기본값                              | 필요한 경우                                |
+|-------------------------|----------------------------------|---------------------------------------|
+| `LIVEKIT_API_KEY`       | `devkey`                         | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_API_SECRET`    | `devsecret`                      | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`                   | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
+| `OAUTH2_GOOGLE_*`       | 비어 있음                            | Google OAuth2 사용 시                    |
+| `OAUTH2_GITHUB_*`       | 비어 있음                            | GitHub OAuth2 사용 시                    |
+| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000`       | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| `ELASTICSEARCH_URL`     | `http://elasticsearch:9200`      | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
 
 Firebase 관련:
 - `docker/secrets/firebase-credentials.json` 파일이 실제로 있어야 `cowork-notification`이 기동된다.
@@ -180,13 +181,14 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 ## 9. 클라우드 / 운영 환경 전환
 
-| 항목             | 로컬 값                                      | 운영 변경 사항                                              |
-|----------------|-------------------------------------------|-------------------------------------------------------|
-| LiveKit config | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
-| LiveKit 키      | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
-| DB 비밀번호        | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
-| Spring profile | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
-| MinIO          | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
+| 항목                  | 로컬 값                                      | 운영 변경 사항                                              |
+|---------------------|-------------------------------------------|-------------------------------------------------------|
+| LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
+| LiveKit 키           | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
+| DB 비밀번호             | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
+| Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
+| MinIO               | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
+| `ELASTICSEARCH_URL` | `http://elasticsearch:9200`               | `.env`에서 관리형 ES 클러스터 주소로 교체 (Vault 경유 주입)             |
 
 ### Vault 시크릿 배포 구조
 
@@ -217,7 +219,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | `secret/cowork-authorization` | `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET` |
 | `secret/cowork-notification` | `db.dsn` |
 | `secret/cowork-voice` | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
-| `secret/cowork-chat` | `MONGODB_URI` |
+| `secret/cowork-chat` | `MONGODB_URI`, `ELASTICSEARCH_URL` |
 
 `.env`에서 `SPRING_PROFILES_ACTIVE=dev`로 변경하면 config server가 Vault composite 모드로 전환된다. `VAULT_HOST`는 `cowork-vault`로 자동 설정된다.
 
@@ -277,7 +279,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 `cowork-chat` (Elasticsearch 관련):
 - Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
 - `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
-- `ELASTICSEARCH_URL`은 Vault/Config Server가 아닌 docker-compose 환경변수로 직접 주입된다 (`http://elasticsearch:9200`). `.env`에 별도 설정 불필요.
+- `ELASTICSEARCH_URL`은 Vault `secret/cowork-chat`을 통해 Config Server → 앱 순서로 주입된다. 로컬 기본값은 `http://elasticsearch:9200`이며, 운영 환경에서는 `.env`의 `ELASTICSEARCH_URL`을 실제 클러스터 주소로 교체하면 vault-init이 해당 값을 시드한다.
 - **인덱싱 대상**: `projectId`가 있는 메시지만 ES에 인덱싱된다. DM·비프로젝트 채널 메시지는 인덱싱되지 않는다.
 - **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
 - **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
