@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { Client } from '@elastic/elasticsearch';
+import { Client, estypes } from '@elastic/elasticsearch';
 import { ELASTICSEARCH_CLIENT } from './elasticsearch.module';
 
 const INDEX = 'chat_messages';
@@ -56,7 +56,7 @@ export class ElasticsearchService implements OnModuleInit {
             const exists = await this.client.indices.exists({ index: INDEX });
             if (exists) return;
 
-            await this.client.indices.create({
+            const params: estypes.IndicesCreateRequest = {
                 index: INDEX,
                 settings: {
                     analysis: {
@@ -83,7 +83,8 @@ export class ElasticsearchService implements OnModuleInit {
                         createdAt:      { type: 'date' },
                     },
                 },
-            } as any);
+            };
+            await this.client.indices.create(params);
 
             this.logger.log(`인덱스 생성 완료: ${INDEX}`);
         } catch (err) {
@@ -100,7 +101,6 @@ export class ElasticsearchService implements OnModuleInit {
             });
         } catch (err) {
             this.logger.error(`ES 메시지 인덱싱 실패 id=${doc.messageId}`, err);
-            throw err;
         }
     }
 
