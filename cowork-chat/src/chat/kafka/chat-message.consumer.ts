@@ -90,7 +90,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
 
             if (event.projectId) {
-                this.elasticsearchService.indexMessage({
+                void this.elasticsearchService.indexMessage({
                     messageId: saved._id.toString(),
                     teamId: event.teamId,
                     projectId: event.projectId,
@@ -101,7 +101,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                     hasAttachments: (event.attachments?.length ?? 0) > 0,
                     isPinned: false,
                     createdAt: event.occurredAt,
-                }).catch((err) => this.logger.error(`ES 인덱싱 실패 id=${saved._id}`, err));
+                });
             }
         } catch (err: any) {
             if (err?.code === 11000) {
