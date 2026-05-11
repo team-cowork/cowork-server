@@ -43,6 +43,9 @@ async function bootstrap() {
             '| `message` | S→C | 새 메시지 수신 |\n' +
             '| `message:edited` | S→C | 메시지 수정됨 |\n' +
             '| `message:deleted` | S→C | 메시지 삭제됨 |\n\n' +
+            '## 메시지 검색\n' +
+            '`GET /projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n' +
+            '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
             'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +
