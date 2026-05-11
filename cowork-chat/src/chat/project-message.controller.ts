@@ -1,17 +1,12 @@
 import {
     Controller,
-    ForbiddenException,
     Get,
     Param,
     ParseIntPipe,
     Query,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { ChannelMember } from './schema/channel-member.schema';
-import { ElasticsearchService } from '../search/elasticsearch.service';
-import { ProjectClient } from './service/project.client';
+import { ChatService } from './chat.service';
 import { SearchMessagesDto } from './dto/search-messages.dto';
 import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { UserId } from '../common/decorator/user.decorator';
@@ -20,11 +15,7 @@ import { UserId } from '../common/decorator/user.decorator';
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
 @Controller('projects/:projectId')
 export class ProjectMessageController {
-    constructor(
-        @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
-        private readonly elasticsearchService: ElasticsearchService,
-        private readonly projectClient: ProjectClient,
-    ) {}
+    constructor(private readonly chatService: ChatService) {}
 
     @Get('messages/search')
     @ApiOperation({
@@ -51,31 +42,6 @@ export class ProjectMessageController {
         @Query() dto: SearchMessagesDto,
         @UserId() userId: number,
     ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.projectClient.isMember(projectId, userId);
-        if (!isMember) throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
-
-        const memberships = await this.memberModel.find({ userId }, { channelId: 1 }).lean();
-        const accessibleChannelIds = memberships.map((m) => m.channelId);
-
-        let filteredChannelIds = accessibleChannelIds;
-        if (dto.channelId !== undefined) {
-            if (!accessibleChannelIds.includes(dto.channelId)) {
-                throw new ForbiddenException('채널 접근 권한이 없습니다');
-            }
-            filteredChannelIds = [dto.channelId];
-        }
-
-        const { hits, nextCursor } = await this.elasticsearchService.searchMessages({
-            projectId,
-            accessibleChannelIds: filteredChannelIds,
-            q: dto.q,
-            authorId: dto.authorId,
-            type: dto.type,
-            hasFile: dto.hasFile,
-            before: dto.before,
-            limit: dto.limit ?? 50,
-        });
-
-        return { messages: hits, nextCursor };
+        return this.chatService.searchProjectMessages(projectId, dto, userId);
     }
 }
