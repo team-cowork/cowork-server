@@ -136,6 +136,7 @@ services:
       MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
     entrypoint: >
       /bin/sh -c "
       vault secrets enable -version=2 -path=secret kv 2>/dev/null || true;
@@ -143,7 +144,7 @@ services:
       vault kv put secret/cowork-authorization DB_DSN=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local\" DATAGSM_CLIENT_ID=\"$${DATAGSM_CLIENT_ID}\" JWT_SECRET=\"$${JWT_SECRET}\";
       vault kv put secret/cowork-notification db.dsn=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local\";
       vault kv put secret/cowork-voice MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin\" LIVEKIT_API_KEY=\"$${LIVEKIT_API_KEY}\" LIVEKIT_API_SECRET=\"$${LIVEKIT_API_SECRET}\";
-      vault kv put secret/cowork-chat MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin\";
+      vault kv put secret/cowork-chat MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin\" ELASTICSEARCH_URL=\"$${ELASTICSEARCH_URL}\";
       echo 'Vault secrets initialized.';
       exit 0;
       "
@@ -657,7 +658,6 @@ services:
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
       NODE_ENV: production
-      ELASTICSEARCH_URL: http://elasticsearch:9200
     ports:
       - "8087:8087"
     volumes:
