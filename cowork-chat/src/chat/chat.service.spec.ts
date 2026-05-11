@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { Message } from './schema/message.schema';
 import { ChannelMember } from './schema/channel-member.schema';
+import { ElasticsearchService } from '../search/elasticsearch.service';
 
 const mockMessageId = new Types.ObjectId().toString();
 
@@ -34,6 +35,11 @@ const mockMemberModel = {
     exists: jest.fn(),
 };
 
+const mockElasticsearchService = {
+    updateMessage: jest.fn().mockResolvedValue(undefined),
+    deleteMessage: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -43,6 +49,7 @@ describe('ChatService', () => {
                 ChatService,
                 { provide: getModelToken(Message.name), useValue: mockMessageModel },
                 { provide: getModelToken(ChannelMember.name), useValue: mockMemberModel },
+                { provide: ElasticsearchService, useValue: mockElasticsearchService },
             ],
         }).compile();
 
@@ -149,6 +156,27 @@ describe('ChatService', () => {
 
             expect(msg.save).toHaveBeenCalled();
         });
+
+        it('수정 후 ES updateMessage를 fire-and-forget으로 호출한다', async () => {
+            const msg = makeMockMessage();
+            mockMessageModel.findById.mockResolvedValue(msg);
+            mockElasticsearchService.updateMessage.mockResolvedValue(undefined);
+
+            await service.editMessage(mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER');
+
+            await new Promise((r) => setImmediate(r));
+            expect(mockElasticsearchService.updateMessage).toHaveBeenCalledWith(mockMessageId, '수정됨');
+        });
+
+        it('ES 오류가 발생해도 editMessage 결과에 영향을 주지 않는다', async () => {
+            const msg = makeMockMessage();
+            mockMessageModel.findById.mockResolvedValue(msg);
+            mockElasticsearchService.updateMessage.mockRejectedValue(new Error('ES down'));
+
+            await expect(
+                service.editMessage(mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER'),
+            ).resolves.toBeDefined();
+        });
     });
 
     describe('deleteMessage', () => {
@@ -182,6 +210,27 @@ describe('ChatService', () => {
 
             await expect(
                 service.deleteMessage(mockMessageId, 42, 'ROLE_ADMIN'),
+            ).resolves.toBeDefined();
+        });
+
+        it('삭제 후 ES deleteMessage를 fire-and-forget으로 호출한다', async () => {
+            mockMessageModel.findById.mockResolvedValue(makeMockMessage());
+            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockElasticsearchService.deleteMessage.mockResolvedValue(undefined);
+
+            await service.deleteMessage(mockMessageId, 42, 'ROLE_USER');
+
+            await new Promise((r) => setImmediate(r));
+            expect(mockElasticsearchService.deleteMessage).toHaveBeenCalledWith(mockMessageId);
+        });
+
+        it('ES 오류가 발생해도 deleteMessage 결과에 영향을 주지 않는다', async () => {
+            mockMessageModel.findById.mockResolvedValue(makeMockMessage());
+            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockElasticsearchService.deleteMessage.mockRejectedValue(new Error('ES down'));
+
+            await expect(
+                service.deleteMessage(mockMessageId, 42, 'ROLE_USER'),
             ).resolves.toBeDefined();
         });
     });
