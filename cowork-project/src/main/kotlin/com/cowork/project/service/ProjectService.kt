@@ -134,6 +134,9 @@ class ProjectService(
         projectRepository.findProjectsByMemberUserId(userId, pageable)
             .map { ProjectResponse.of(it) }
 
+    fun isMember(projectId: Long, userId: Long): Boolean =
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
+
     @Transactional
     fun addMember(userId: Long, projectId: Long, request: AddProjectMemberRequest): ProjectMemberResponse {
         val project = findProjectOrThrow(projectId)
