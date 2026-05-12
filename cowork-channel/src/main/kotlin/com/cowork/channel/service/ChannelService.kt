@@ -1,5 +1,6 @@
 package com.cowork.channel.service
 
+import com.cowork.channel.client.ProjectClient
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
@@ -24,6 +25,7 @@ class ChannelService(
     private val teamPermissionService: TeamPermissionService,
     private val channelMemberEventPublisher: ChannelMemberEventPublisher,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
+    private val projectClient: ProjectClient,
 ) {
 
     fun findChannelOrThrow(channelId: Long): Channel =
@@ -89,11 +91,9 @@ class ChannelService(
     }
 
     fun listProjectChannels(userId: Long, projectId: Long): List<ChannelResponse> {
-        val channels = channelRepository.findAllByProjectIdOrderByIdAsc(projectId)
-        if (channels.isNotEmpty()) {
-            teamPermissionService.requireTeamMember(channels.first().teamId, userId)
-        }
-        return channels.map { ChannelResponse.of(it) }
+        val teamId = projectClient.getTeamId(projectId)
+        teamPermissionService.requireTeamMember(teamId, userId)
+        return channelRepository.findAllByProjectIdOrderByIdAsc(projectId).map { ChannelResponse.of(it) }
     }
 
     @Transactional
