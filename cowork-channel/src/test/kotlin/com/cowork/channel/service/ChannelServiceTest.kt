@@ -1,5 +1,6 @@
 package com.cowork.channel.service
 
+import com.cowork.channel.client.ProjectClient
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
@@ -32,8 +33,9 @@ class ChannelServiceTest {
     private val teamPermission = mockk<TeamPermissionService>()
     private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
+    private val projectClient = mockk<ProjectClient>()
 
-    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher)
+    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, projectClient)
 
     @BeforeEach
     fun setUp() {
@@ -136,8 +138,9 @@ class ChannelServiceTest {
     @Test
     fun `listProjectChannels는 채널이 있으면 팀 멤버 검증 후 반환함`() {
         val ch = channel(id = 1L, teamId = 100L)
-        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
+        every { projectClient.getTeamId(5L) } returns 100L
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
+        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
 
         val result = service.listProjectChannels(1L, 5L)
         assertEquals(1, result.size)
@@ -146,8 +149,7 @@ class ChannelServiceTest {
 
     @Test
     fun `listProjectChannels는 팀 비멤버이면 FORBIDDEN`() {
-        val ch = channel(id = 1L, teamId = 100L)
-        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
+        every { projectClient.getTeamId(5L) } returns 100L
         every { teamPermission.requireTeamMember(100L, 1L) } throws
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
@@ -158,12 +160,14 @@ class ChannelServiceTest {
     }
 
     @Test
-    fun `listProjectChannels는 채널이 없으면 빈 리스트를 반환하고 팀 멤버 검증을 하지 않음`() {
+    fun `listProjectChannels는 채널이 없으면 빈 리스트를 반환함`() {
+        every { projectClient.getTeamId(5L) } returns 100L
+        every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
         every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns emptyList()
 
         val result = service.listProjectChannels(1L, 5L)
         assertEquals(0, result.size)
-        verify(exactly = 0) { teamPermission.requireTeamMember(any(), any()) }
+        verify { teamPermission.requireTeamMember(100L, 1L) }
     }
 
     @Test
