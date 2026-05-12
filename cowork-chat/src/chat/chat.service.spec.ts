@@ -11,6 +11,8 @@ import { MinioService } from '../storage/minio.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
+import { ChannelClient } from './service/channel.client';
+import { UserClient } from './service/user.client';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -73,6 +75,14 @@ const mockProjectClient = {
     isMember: jest.fn(),
 };
 
+const mockChannelClient = {
+    getChannel: jest.fn(),
+};
+
+const mockUserClient = {
+    getDisplayName: jest.fn(),
+};
+
 const mockChatGateway = {
     server: {
         to: mockTo,
@@ -93,6 +103,8 @@ describe('ChatService', () => {
                 { provide: ChatMessageProducer, useValue: mockChatMessageProducer },
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
                 { provide: ProjectClient, useValue: mockProjectClient },
+                { provide: ChannelClient, useValue: mockChannelClient },
+                { provide: UserClient, useValue: mockUserClient },
                 { provide: ChatGateway, useValue: mockChatGateway },
             ],
         }).compile();
@@ -161,6 +173,91 @@ describe('ChatService', () => {
             expect(result[0].mentionedMessage).toBeDefined();
             expect(result[0].mentionedMessage?.content).toBe('원본');
             expect(result[1].mentionedMessage).toBeNull();
+        });
+    });
+
+    describe('getFileList', () => {
+        it('FILE_SHARE 채널의 첨부파일을 파일 단위로 반환한다', async () => {
+            const createdAt = new Date('2026-05-12T02:03:04.000Z');
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'FILE_SHARE' });
+            mockAggregate.mockResolvedValue([
+                {
+                    _id: new Types.ObjectId('665f00000000000000000001'),
+                    authorId: 42,
+                    createdAt,
+                    attachmentIndex: 0,
+                    attachment: {
+                        name: 'report.pdf',
+                        url: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                        size: 2048,
+                        mimeType: 'application/pdf',
+                    },
+                },
+            ]);
+            mockUserClient.getDisplayName.mockResolvedValue('홍길동');
+
+            const result = await service.getFileList(1, 42);
+
+            expect(mockChannelClient.getChannel).toHaveBeenCalledWith(1, 42);
+            expect(mockAggregate).toHaveBeenCalled();
+            expect(mockUserClient.getDisplayName).toHaveBeenCalledWith(42);
+            expect(result.files).toEqual([
+                {
+                    messageId: '665f00000000000000000001',
+                    fileName: 'report.pdf',
+                    fileSize: 2048,
+                    fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                    mimeType: 'application/pdf',
+                    uploaderId: 42,
+                    uploaderName: '홍길동',
+                    uploadedAt: createdAt.toISOString(),
+                },
+            ]);
+            expect(result.nextCursor).toBeNull();
+        });
+
+        it('FILE_SHARE가 아니면 BadRequestException을 던진다', async () => {
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'TEXT' });
+
+            await expect(service.getFileList(1, 42)).rejects.toThrow('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
+            expect(mockAggregate).not.toHaveBeenCalled();
+        });
+
+        it('before 커서를 사용해 다음 페이지를 조회한다', async () => {
+            const cursorRow = {
+                _id: new Types.ObjectId('665f00000000000000000002'),
+                createdAt: new Date('2026-05-12T03:00:00.000Z'),
+                attachmentIndex: 1,
+            };
+            const before = Buffer.from(JSON.stringify({
+                uploadedAt: cursorRow.createdAt.toISOString(),
+                messageId: cursorRow._id.toString(),
+                attachmentIndex: cursorRow.attachmentIndex,
+            })).toString('base64');
+
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'FILE_SHARE' });
+            mockAggregate.mockResolvedValue([]);
+
+            await service.getFileList(1, 42, before, 20);
+
+            const pipeline = mockAggregate.mock.calls[0][0];
+            expect(pipeline[2].$match).toEqual({
+                $or: [
+                    { createdAt: { $lt: new Date(cursorRow.createdAt) } },
+                    {
+                        createdAt: new Date(cursorRow.createdAt),
+                        _id: { $lt: new Types.ObjectId(cursorRow._id.toString()) },
+                    },
+                    {
+                        createdAt: new Date(cursorRow.createdAt),
+                        _id: new Types.ObjectId(cursorRow._id.toString()),
+                        attachmentIndex: { $lt: 1 },
+                    },
+                ],
+            });
         });
     });
 
