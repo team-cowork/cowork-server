@@ -32,6 +32,7 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
+    implementation(libs.spring.cloud.starter.openfeign)
     implementation(libs.spring.kafka)
 
     implementation(libs.mysql.connector.j)
