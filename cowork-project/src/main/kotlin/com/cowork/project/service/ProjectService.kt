@@ -134,6 +134,9 @@ class ProjectService(
         projectRepository.findProjectsByMemberUserId(userId, pageable)
             .map { ProjectResponse.of(it) }
 
+    fun getTeamId(projectId: Long): Long =
+        findProjectOrThrow(projectId).teamId
+
     fun isMember(projectId: Long, userId: Long): Boolean =
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 
