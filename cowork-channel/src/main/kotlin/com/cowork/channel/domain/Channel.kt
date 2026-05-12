@@ -16,6 +16,9 @@ class Channel(
     @Column(name = "team_id", nullable = false)
     val teamId: Long,
 
+    @Column(name = "project_id", nullable = true)
+    var projectId: Long? = null,
+
     @Column(nullable = false, length = 100)
     var name: String,
 
@@ -48,5 +51,9 @@ class Channel(
         name?.let { this.name = it }
         description?.let { this.description = it }
         isPrivate?.let { this.isPrivate = it }
+    }
+
+    fun assignProject(projectId: Long?) {
+        this.projectId = projectId
     }
 }
