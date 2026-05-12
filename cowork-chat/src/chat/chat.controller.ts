@@ -10,12 +10,9 @@ import {
     HttpCode,
     HttpStatus,
     ParseIntPipe,
-    BadRequestException,
-    ForbiddenException,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { GetMessagesDto } from './dto/get-messages.dto';
@@ -32,30 +29,17 @@ import {
 } from './dto/message-response.dto';
 import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
 import {
-    SlashCommand,
     SlashCommandDto,
     SlashCommandResponseDto,
 } from './dto/slash-command.dto';
-import { ChatMessageProducer } from './kafka/chat-message.producer';
-import { GithubIssueProducer } from './kafka/github-issue.producer';
-import { ProjectClient } from './service/project.client';
-import { MessageDocument } from './schema/message.schema';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
-import { MinioService } from '../storage/minio.service';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
 @ApiHeader({ name: 'X-User-Role', description: 'Gateway 주입 유저 역할 (ADMIN | MEMBER)', required: true })
 @Controller('channels/:channelId')
 export class ChatController {
-    constructor(
-        private readonly chatService: ChatService,
-        private readonly chatGateway: ChatGateway,
-        private readonly producer: ChatMessageProducer,
-        private readonly minioService: MinioService,
-        private readonly githubIssueProducer: GithubIssueProducer,
-        private readonly projectClient: ProjectClient,
-    ) {}
+    constructor(private readonly chatService: ChatService) {}
 
     @Post('files/presigned-url')
     @HttpCode(HttpStatus.CREATED)
@@ -67,21 +51,7 @@ export class ChatController {
         @Body() dto: CreateFileUploadUrlRequestDto,
         @UserId() userId: number,
     ): Promise<CreateFileUploadUrlResponseDto> {
-        await this.chatService.checkMembership(channelId, userId);
-        const upload = await this.minioService.createPresignedUpload({
-            channelId,
-            userId,
-            filename: dto.filename,
-            contentType: dto.contentType,
-            size: dto.size,
-        });
-
-        return {
-            ...upload,
-            headers: {
-                'Content-Type': dto.contentType,
-            },
-        };
+        return this.chatService.createFileUploadUrl(channelId, dto, userId);
     }
 
     @Post('files/confirm')
@@ -97,8 +67,7 @@ export class ChatController {
         @Body() dto: ConfirmFileUploadRequestDto,
         @UserId() userId: number,
     ): Promise<ConfirmFileUploadResponseDto> {
-        await this.chatService.checkMembership(channelId, userId);
-        const fileUrl = await this.minioService.confirmUpload(channelId, userId, dto.objectKey);
+        const fileUrl = await this.chatService.confirmFileUpload(channelId, dto.objectKey, userId);
         return { fileUrl };
     }
 
@@ -113,8 +82,7 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ): Promise<SendMessageResponseDto> {
-        await this.chatService.checkMembership(channelId, userId);
-        await this.producer.sendMessage(channelId, dto, userId, userRole);
+        await this.chatService.sendMessage(channelId, dto, userId, userRole);
         return { queued: true };
     }
 
@@ -132,7 +100,7 @@ export class ChatController {
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
-        await this.publishGithubIssueCreateCommand(channelId, dto, userId);
+        await this.chatService.publishGithubIssueCreateCommand(channelId, dto, userId);
         return { queued: true };
     }
 
@@ -150,38 +118,8 @@ export class ChatController {
         @Body() dto: SlashCommandDto,
         @UserId() userId: number,
     ): Promise<SlashCommandResponseDto> {
-        if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
-            throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
-        }
-
-        await this.publishGithubIssueCreateCommand(channelId, dto.payload, userId);
+        await this.chatService.handleSlashCommand(channelId, dto, userId);
         return { queued: true };
-    }
-
-    private async publishGithubIssueCreateCommand(
-        channelId: number,
-        dto: CreateGithubIssueDto,
-        userId: number,
-    ): Promise<void> {
-        const channelTeamId = await this.chatService.checkMembershipAndGetTeamId(channelId, userId);
-        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
-        if (!repoInfo) {
-            throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
-        }
-        if (channelTeamId !== repoInfo.teamId) {
-            throw new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
-        }
-
-        await this.githubIssueProducer.send({
-            channelId,
-            teamId: repoInfo.teamId,
-            projectId: dto.projectId,
-            owner: repoInfo.owner,
-            repo: repoInfo.repo,
-            title: dto.title,
-            body: dto.body,
-            requesterId: userId,
-        });
     }
 
     @Get('messages')
@@ -209,18 +147,7 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        await this.chatService.checkMembership(channelId, userId);
-        const updated = await this.chatService.editMessage(messageId, userId, dto, userRole);
-
-        this.chatGateway.server
-            ?.to(`chat:${channelId}`)
-            .emit('message:edited', {
-                messageId,
-                content: updated.content,
-                editedAt: (updated as MessageDocument).updatedAt?.toISOString() ?? new Date().toISOString(),
-            });
-
-        return updated;
+        return this.chatService.editMessage(channelId, messageId, userId, dto, userRole);
     }
 
     @Delete('messages/:messageId')
@@ -234,13 +161,6 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        await this.chatService.checkMembership(channelId, userId);
-        const result = await this.chatService.deleteMessage(messageId, userId, userRole);
-
-        this.chatGateway.server
-            ?.to(`chat:${channelId}`)
-            .emit('message:deleted', { messageId });
-
-        return result;
+        return this.chatService.deleteMessage(channelId, messageId, userId, userRole);
     }
 }
