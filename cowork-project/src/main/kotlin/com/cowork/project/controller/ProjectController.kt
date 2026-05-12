@@ -155,6 +155,20 @@ class ProjectController(
         if (projectService.isMember(projectId, userId)) ResponseEntity.ok().build()
         else ResponseEntity.notFound().build()
 
+    @Operation(
+        summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
+        description = "프로젝트가 속한 팀 ID를 반환합니다. 서비스 간 권한 위임에 사용됩니다.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @GetMapping("/{projectId}/team-id")
+    fun getTeamId(
+        @PathVariable projectId: Long,
+    ): ResponseEntity<Long> =
+        ResponseEntity.ok(projectService.getTeamId(projectId))
+
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "204", description = "제거 성공"),
