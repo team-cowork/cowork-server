@@ -13,6 +13,10 @@ import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
 
 const mockMessageId = new Types.ObjectId().toString();
+const mockEmit = jest.fn();
+const mockTo = jest.fn(() => ({
+    emit: mockEmit,
+}));
 
 const makeMockMessage = (overrides = {}) => ({
     _id: new Types.ObjectId(mockMessageId),
@@ -21,7 +25,12 @@ const makeMockMessage = (overrides = {}) => ({
     content: '안녕하세요',
     isEdited: false,
     editHistory: [] as { content: string; editedAt: Date }[],
-    save: jest.fn().mockResolvedValue({ content: '수정됨', isEdited: true }),
+    updatedAt: new Date('2026-05-12T00:00:00.000Z'),
+    save: jest.fn().mockResolvedValue({
+        content: '수정됨',
+        isEdited: true,
+        updatedAt: new Date('2026-05-12T00:00:00.000Z'),
+    }),
     ...overrides,
 });
 
@@ -66,9 +75,7 @@ const mockProjectClient = {
 
 const mockChatGateway = {
     server: {
-        to: jest.fn(() => ({
-            emit: jest.fn(),
-        })),
+        to: mockTo,
     },
 };
 
@@ -193,13 +200,21 @@ describe('ChatService', () => {
             mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
             mockMessageModel.findById.mockResolvedValue(msg);
 
-            await service.editMessage(1, mockMessageId, 42, { content: '관리자 수정' }, 'ADMIN');
+            await service.editMessage(1, mockMessageId, 42, { content: '관리자 수정' }, 'ROLE_ADMIN');
 
             expect(msg.save).toHaveBeenCalled();
         });
 
         it('수정 후 ES updateMessage를 fire-and-forget으로 호출한다', async () => {
-            const msg = makeMockMessage();
+            const msg = makeMockMessage({
+                projectId: 10,
+                save: jest.fn().mockResolvedValue({
+                    content: '수정됨',
+                    isEdited: true,
+                    projectId: 10,
+                    updatedAt: new Date('2026-05-12T00:00:00.000Z'),
+                }),
+            });
             mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
             mockMessageModel.findById.mockResolvedValue(msg);
             mockElasticsearchService.updateMessage.mockResolvedValue(undefined);
@@ -208,6 +223,50 @@ describe('ChatService', () => {
 
             await new Promise((r) => setImmediate(r));
             expect(mockElasticsearchService.updateMessage).toHaveBeenCalledWith(mockMessageId, '수정됨');
+        });
+
+        it('다른 채널의 메시지를 수정하려 하면 ForbiddenException을 던진다', async () => {
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ channelId: 2 }));
+
+            await expect(
+                service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER'),
+            ).rejects.toThrow(ForbiddenException);
+        });
+
+        it('내용이 동일하면 저장과 이벤트 발행을 생략한다', async () => {
+            const msg = makeMockMessage();
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockMessageModel.findById.mockResolvedValue(msg);
+
+            const result = await service.editMessage(1, mockMessageId, 42, { content: '안녕하세요' }, 'MEMBER');
+
+            expect(msg.save).not.toHaveBeenCalled();
+            expect(mockElasticsearchService.updateMessage).not.toHaveBeenCalled();
+            expect(mockTo).not.toHaveBeenCalled();
+            expect(result).toBe(msg);
+        });
+
+        it('수정 이벤트에는 저장된 updatedAt 값을 사용한다', async () => {
+            const savedAt = new Date('2026-05-12T01:02:03.000Z');
+            const msg = makeMockMessage({
+                save: jest.fn().mockResolvedValue({
+                    content: '수정됨',
+                    isEdited: true,
+                    updatedAt: savedAt,
+                }),
+            });
+            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockMessageModel.findById.mockResolvedValue(msg);
+
+            await service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER');
+
+            expect(mockTo).toHaveBeenCalledWith('chat:1');
+            expect(mockEmit).toHaveBeenCalledWith('message:edited', {
+                messageId: mockMessageId,
+                content: '수정됨',
+                editedAt: savedAt.toISOString(),
+            });
         });
 
         it('ES 오류가 발생해도 editMessage 결과에 영향을 주지 않는다', async () => {
@@ -256,13 +315,13 @@ describe('ChatService', () => {
             mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
 
             await expect(
-                service.deleteMessage(1, mockMessageId, 42, 'ADMIN'),
+                service.deleteMessage(1, mockMessageId, 42, 'ROLE_ADMIN'),
             ).resolves.toBeDefined();
         });
 
         it('삭제 후 ES deleteMessage를 fire-and-forget으로 호출한다', async () => {
             mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage());
+            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ projectId: 10 }));
             mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
             mockElasticsearchService.deleteMessage.mockResolvedValue(undefined);
 

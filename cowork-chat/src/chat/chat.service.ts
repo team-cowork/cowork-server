@@ -211,29 +211,34 @@ export class ChatService {
         await this.checkMembership(channelId, userId);
         const message = await this.messageModel.findById(messageId);
         if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (message.channelId !== channelId) {
+            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
+        }
         if (message.authorId !== userId && !this.isAdmin(userRole)) {
             throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
         }
 
-        if (message.content !== dto.content) {
-            message.editHistory.push({ content: message.content, editedAt: new Date() });
-            message.content = dto.content;
-            message.isEdited = true;
-            await message.save();
-            if (message.projectId) {
-                void this.elasticsearchService.updateMessage(messageId, dto.content);
-            }
+        if (message.content === dto.content) {
+            return message;
+        }
+
+        message.editHistory.push({ content: message.content, editedAt: new Date() });
+        message.content = dto.content;
+        message.isEdited = true;
+        const updated = await message.save();
+        if (updated.projectId) {
+            void this.elasticsearchService.updateMessage(messageId, dto.content);
         }
 
         this.chatGateway.server
             ?.to(`chat:${channelId}`)
             .emit('message:edited', {
                 messageId,
-                content: message.content,
-                editedAt: (message as MessageDocument).updatedAt?.toISOString() ?? new Date().toISOString(),
+                content: updated.content,
+                editedAt: (updated as MessageDocument).updatedAt?.toISOString(),
             });
 
-        return message;
+        return updated;
     }
 
     async deleteMessage(channelId: number, messageId: string, userId: number, userRole: string) {
