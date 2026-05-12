@@ -26,6 +26,9 @@ class Project(
     @Column(nullable = false, length = 20)
     var status: ProjectStatus = ProjectStatus.ACTIVE,
 
+    @Column(nullable = false)
+    var position: Int = 0,
+
     @Column(name = "created_by", nullable = false)
     val createdBy: Long,
 
@@ -47,5 +50,9 @@ class Project(
 
     fun updateStatus(newStatus: ProjectStatus) {
         status = newStatus
+    }
+
+    fun updatePosition(position: Int) {
+        this.position = position
     }
 }
