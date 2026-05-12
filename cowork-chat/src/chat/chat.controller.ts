@@ -11,7 +11,7 @@ import {
     HttpStatus,
     ParseIntPipe,
 } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { EditMessageDto } from './dto/edit-message.dto';
@@ -32,6 +32,8 @@ import {
     SlashCommandDto,
     SlashCommandResponseDto,
 } from './dto/slash-command.dto';
+import { FileListQueryDto } from './dto/file-list.dto';
+import { FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
 
 @ApiTags('Chat')
@@ -69,6 +71,21 @@ export class ChatController {
     ): Promise<ConfirmFileUploadResponseDto> {
         const fileUrl = await this.chatService.confirmFileUpload(channelId, dto.objectKey, userId);
         return { fileUrl };
+    }
+
+    @Get('files')
+    @ApiOperation({ summary: 'FILE_SHARE 채널 파일 목록 조회' })
+    @ApiQuery({ name: 'before', required: false, description: '커서: 이전 응답의 nextCursor 값' })
+    @ApiQuery({ name: 'limit', required: false, description: '페이지 크기 (기본 20, 최대 100)' })
+    @ApiResponse({ status: 200, type: FileListResponseDto })
+    @ApiResponse({ status: 400, description: 'FILE_SHARE 채널이 아님 또는 잘못된 커서/파라미터' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async getFiles(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Query() query: FileListQueryDto,
+        @UserId() userId: number,
+    ): Promise<FileListResponseDto> {
+        return this.chatService.getFileList(channelId, userId, query.before, query.limit);
     }
 
     @Post('messages')
