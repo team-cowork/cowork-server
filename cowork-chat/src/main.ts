@@ -46,6 +46,9 @@ async function bootstrap() {
             '## 메시지 검색\n' +
             '`GET /projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n' +
             '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n' +
+            '## 파일 목록\n' +
+            '`GET /channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
+            '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
             'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +

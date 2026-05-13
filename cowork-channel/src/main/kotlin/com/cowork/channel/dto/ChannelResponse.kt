@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 data class ChannelResponse(
     val id: Long,
     val teamId: Long,
+    val projectId: Long?,
     val name: String,
     val type: String,
     val viewType: String,
@@ -20,6 +21,7 @@ data class ChannelResponse(
         fun of(channel: Channel) = ChannelResponse(
             id = channel.id,
             teamId = channel.teamId,
+            projectId = channel.projectId,
             name = channel.name,
             type = channel.type.name,
             viewType = channel.viewType.name,

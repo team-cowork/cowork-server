@@ -5,6 +5,7 @@
 - Socket.io 기반 실시간 메시지 송수신
 - 채팅 메시지 저장/조회
 - MinIO presigned URL 기반 첨부파일 업로드
+- `FILE_SHARE` 채널 파일 목록 조회
 
 ## 스택
 - NestJS 11 + TypeScript
@@ -25,6 +26,8 @@
 |---|---|
 | `MONGODB_URI` | MongoDB 연결 URI |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka 브로커 주소 |
+| `CHANNEL_SERVICE_URL` | cowork-channel URL |
+| `USER_SERVICE_URL` | cowork-user URL |
 | `MINIO_INTERNAL_ENDPOINT` | MinIO 내부 엔드포인트 |
 | `MINIO_ACCESS_KEY` | MinIO 액세스 키 |
 | `MINIO_SECRET_KEY` | MinIO 시크릿 키 |
