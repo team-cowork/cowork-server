@@ -39,7 +39,7 @@ class ChannelLifecycleHandler(
     fun onTeamDeleted(teamId: Long) {
         teamMembershipRepository.deleteAllByTeamId(teamId)
 
-        val channels = channelRepository.findAllByTeamIdOrderByIdAsc(teamId)
+        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
         if (channels.isEmpty()) {
             log.info("TEAM_DELETED 처리: 대상 채널 없음 [teamId={}]", teamId)
             return

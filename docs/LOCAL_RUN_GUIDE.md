@@ -7,6 +7,7 @@
 - 2026-04-27 (Docker 통합 실행으로 전면 개정)
 - 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
 - 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
+- 2026-05-11 (Elasticsearch 검색 인덱싱 추가, 로컬 배포 고려 사항 보완)
 
 검증 기준:
 - `docker-compose.yml`
@@ -50,14 +51,15 @@ cp .env.example .env
 기본값으로 채워진 항목이 많으니 대부분 수정 없이 쓸 수 있다.
 아래 항목만 운영/외부 서비스 연동 시 채운다.
 
-| 키                       | 기본값                        | 필요한 경우                                |
-|-------------------------|----------------------------|---------------------------------------|
-| `LIVEKIT_API_KEY`       | `devkey`                   | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_API_SECRET`    | `devsecret`                | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`             | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
-| `OAUTH2_GOOGLE_*`       | 비어 있음                      | Google OAuth2 사용 시                    |
-| `OAUTH2_GITHUB_*`       | 비어 있음                      | GitHub OAuth2 사용 시                    |
-| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000` | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| 키                       | 기본값                              | 필요한 경우                                |
+|-------------------------|----------------------------------|---------------------------------------|
+| `LIVEKIT_API_KEY`       | `devkey`                         | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_API_SECRET`    | `devsecret`                      | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`                   | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
+| `OAUTH2_GOOGLE_*`       | 비어 있음                            | Google OAuth2 사용 시                    |
+| `OAUTH2_GITHUB_*`       | 비어 있음                            | GitHub OAuth2 사용 시                    |
+| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000`       | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| `ELASTICSEARCH_URL`     | `http://elasticsearch:9200`      | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
 
 Firebase 관련:
 - `docker/secrets/firebase-credentials.json` 파일이 실제로 있어야 `cowork-notification`이 기동된다.
@@ -172,19 +174,21 @@ Docker Compose 내부에서 서비스는 컨테이너 이름으로 통신한다.
 | `localhost:9094` (Kafka 외부) | `kafka:9092` (Kafka 내부) |
 | `localhost:6379`            | `redis:6379`            |
 | `localhost:9000`            | `minio:9000`            |
+| `localhost:9200`            | `elasticsearch:9200`    |
 | `localhost:8761`            | `cowork-config:8761`    |
 
 Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가 분리돼 있다.
 
 ## 9. 클라우드 / 운영 환경 전환
 
-| 항목             | 로컬 값                                      | 운영 변경 사항                                              |
-|----------------|-------------------------------------------|-------------------------------------------------------|
-| LiveKit config | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
-| LiveKit 키      | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
-| DB 비밀번호        | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
-| Spring profile | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
-| MinIO          | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
+| 항목                  | 로컬 값                                      | 운영 변경 사항                                              |
+|---------------------|-------------------------------------------|-------------------------------------------------------|
+| LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
+| LiveKit 키           | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
+| DB 비밀번호             | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
+| Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
+| MinIO               | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
+| `ELASTICSEARCH_URL` | `http://elasticsearch:9200`               | `.env`에서 관리형 ES 클러스터 주소로 교체 (Vault 경유 주입)             |
 
 ### Vault 시크릿 배포 구조
 
@@ -215,21 +219,24 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | `secret/cowork-authorization` | `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET` |
 | `secret/cowork-notification` | `db.dsn` |
 | `secret/cowork-voice` | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
-| `secret/cowork-chat` | `MONGODB_URI` |
+| `secret/cowork-chat` | `MONGODB_URI`, `ELASTICSEARCH_URL` |
 
 `.env`에서 `SPRING_PROFILES_ACTIVE=dev`로 변경하면 config server가 Vault composite 모드로 전환된다. `VAULT_HOST`는 `cowork-vault`로 자동 설정된다.
 
 ## 10. 자주 쓰는 확인 포인트
 
-| 서비스              | URL                                     |
-|------------------|-----------------------------------------|
-| Eureka Dashboard | `http://localhost:8761`                 |
-| Gateway Swagger  | `http://localhost:8080/swagger-ui.html` |
-| Kafka UI         | `http://localhost:8090`                 |
-| Prometheus       | `http://localhost:9090`                 |
-| Grafana          | `http://localhost:3001`                 |
-| MinIO Console    | `http://localhost:9002`                 |
-| Vault            | `http://localhost:8200`                 |
+| 서비스                  | URL                                                          |
+|----------------------|--------------------------------------------------------------|
+| Eureka Dashboard     | `http://localhost:8761`                                      |
+| Gateway Swagger      | `http://localhost:8080/swagger-ui.html`                      |
+| Kafka UI             | `http://localhost:8090`                                      |
+| Prometheus           | `http://localhost:9090`                                      |
+| Grafana              | `http://localhost:3001`                                      |
+| MinIO Console        | `http://localhost:9002`                                      |
+| Vault                | `http://localhost:8200`                                      |
+| Elasticsearch 클러스터 상태 | `http://localhost:9200/_cluster/health`                      |
+| chat_messages 인덱스 확인 | `http://localhost:9200/chat_messages/_count`                 |
+| 인덱스 목록              | `http://localhost:9200/_cat/indices?v`                       |
 
 ## 11. 알려진 주의사항
 
@@ -261,9 +268,22 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 `cowork-notification`:
 - `docker/secrets/firebase-credentials.json`이 없으면 기동 자체가 실패한다.
 
-`cowork-chat`:
+`elasticsearch`:
+- 이미지: `docker.elastic.co/elasticsearch/elasticsearch:8.13.4` + nori 형태소 분석기 플러그인 (빌드 시 설치)
+- `discovery.type=single-node`, `xpack.security.enabled=false` (로컬 전용, 인증 없음)
+- 힙 메모리: `ES_JAVA_OPTS=-Xms512m -Xmx512m` → 컨테이너에 **최소 1 GB RAM** 여유 필요
+- 포트: `9200` (호스트에서 `localhost:9200`으로 직접 접근 가능)
+- 데이터 볼륨: `es_data` — `docker compose down -v` 실행 시 인덱스가 삭제되며, 다음 기동 시 `cowork-chat`이 자동으로 `chat_messages` 인덱스를 재생성함
+- `cowork-chat`이 healthy 상태가 될 때까지 `depends_on`으로 보장; ES healthcheck는 최대 150초(interval 15s × retries 10) 대기
+
+`cowork-chat` (Elasticsearch 관련):
 - Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
 - `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
+- `ELASTICSEARCH_URL`은 Vault `secret/cowork-chat`을 통해 Config Server → 앱 순서로 주입된다. 로컬 기본값은 `http://elasticsearch:9200`이며, 운영 환경에서는 `.env`의 `ELASTICSEARCH_URL`을 실제 클러스터 주소로 교체하면 vault-init이 해당 값을 시드한다.
+- **인덱싱 대상**: `projectId`가 있는 메시지만 ES에 인덱싱된다. DM·비프로젝트 채널 메시지는 인덱싱되지 않는다.
+- **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
+- **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
+- ES 기동이 느릴 경우(`start_period: 60s`): `docker compose logs -f elasticsearch`로 상태 확인 후 `cowork-chat` 재시작
 
 `MINIO_PUBLIC_ENDPOINT`:
 - `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.

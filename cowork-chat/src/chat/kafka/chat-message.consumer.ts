@@ -6,6 +6,7 @@ import { Model, Types } from 'mongoose';
 import { Server } from 'socket.io';
 import { Message } from '../schema/message.schema';
 import { ChatMessageEvent } from './event/chat-message.event';
+import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         @InjectModel(Message.name) private readonly messageModel: Model<Message>,
         private readonly configService: ConfigService,
+        private readonly elasticsearchService: ElasticsearchService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -86,6 +88,21 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             });
 
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+
+            if (event.projectId) {
+                void this.elasticsearchService.indexMessage({
+                    messageId: saved._id.toString(),
+                    teamId: event.teamId,
+                    projectId: event.projectId,
+                    channelId: event.channelId,
+                    authorId: event.authorId,
+                    content: event.content,
+                    type: event.type,
+                    hasAttachments: (event.attachments?.length ?? 0) > 0,
+                    isPinned: false,
+                    createdAt: event.occurredAt,
+                });
+            }
         } catch (err: any) {
             if (err?.code === 11000) {
                 this.logger.warn(`중복 메시지 감지, 스킵합니다 (clientMessageId: ${event.clientMessageId})`);

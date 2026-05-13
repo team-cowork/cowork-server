@@ -15,6 +15,8 @@ data class ProjectResponse(
     val description: String?,
     @Schema(description = "프로젝트 상태", example = "ACTIVE", allowableValues = ["ACTIVE", "ARCHIVED"])
     val status: String,
+    @Schema(description = "팀 내 프로젝트 정렬 순서", example = "0")
+    val position: Int,
     @Schema(description = "생성자 사용자 ID", example = "1")
     val createdBy: Long,
     @Schema(description = "생성 일시")
@@ -30,6 +32,7 @@ data class ProjectResponse(
                 name = project.name,
                 description = project.description,
                 status = project.status.name,
+                position = project.position,
                 createdBy = project.createdBy,
                 createdAt = project.createdAt,
                 updatedAt = project.updatedAt,
