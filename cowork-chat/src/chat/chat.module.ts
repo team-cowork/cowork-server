@@ -8,6 +8,7 @@ import { createWriteStream, mkdirSync } from 'fs';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
+import { ProjectMessageController } from './project-message.controller';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
@@ -15,11 +16,14 @@ import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 import { ProjectClient } from './service/project.client';
+import { ChannelClient } from './service/channel.client';
+import { UserClient } from './service/user.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
+import { SearchModule } from '../search/search.module';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
@@ -91,8 +95,9 @@ function createLogStream() {
         ]),
         MembershipModule,
         MinioModule,
+        SearchModule,
     ],
-    controllers: [ChatController, HealthController],
+    controllers: [ChatController, ProjectMessageController, HealthController],
     providers: [
         ChatGateway,
         ChatService,
@@ -103,6 +108,8 @@ function createLogStream() {
         GithubIssueProducer,
         GithubIssueResultConsumer,
         ProjectClient,
+        ChannelClient,
+        UserClient,
     ],
 })
 export class ChatModule {}

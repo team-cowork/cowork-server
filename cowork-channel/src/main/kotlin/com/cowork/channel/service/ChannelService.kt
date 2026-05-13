@@ -1,5 +1,6 @@
 package com.cowork.channel.service
 
+import com.cowork.channel.client.ProjectClient
 import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
@@ -24,6 +25,7 @@ class ChannelService(
     private val teamPermissionService: TeamPermissionService,
     private val channelMemberEventPublisher: ChannelMemberEventPublisher,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
+    private val projectClient: ProjectClient,
 ) {
 
     fun findChannelOrThrow(channelId: Long): Channel =
@@ -61,6 +63,7 @@ class ChannelService(
                 viewType = parseViewType(request.viewType),
                 description = request.description,
                 isPrivate = request.isPrivate,
+                position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
             )
         )
@@ -80,11 +83,44 @@ class ChannelService(
     }
 
     @Transactional
-    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest): ChannelResponse {
+    fun reorderTeamChannels(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
+        teamPermissionService.requireTeamMember(teamId, userId)
+
+        if (orderedChannelIds.isEmpty()) {
+            throw ExpectedException("채널 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+        val inputIds = orderedChannelIds.toSet()
+        if (inputIds.size != orderedChannelIds.size) {
+            throw ExpectedException("채널 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val teamChannelIds = channels.map { it.id }.toSet()
+        if (inputIds != teamChannelIds) {
+            throw ExpectedException("팀의 모든 채널 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val channelById = channels.associateBy { it.id }
+        orderedChannelIds.forEachIndexed { index, channelId ->
+            channelById[channelId]?.updatePosition(index)
+        }
+
+        return orderedChannelIds.mapNotNull { channelById[it] }.map(ChannelResponse::of)
+    }
+
+    @Transactional
+    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean = false): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
+        if (updateProjectId) channel.assignProject(request.projectId)
         return ChannelResponse.of(channel)
+    }
+
+    fun listProjectChannels(userId: Long, projectId: Long): List<ChannelResponse> {
+        val teamId = projectClient.getTeamId(projectId)
+        teamPermissionService.requireTeamMember(teamId, userId)
+        return channelRepository.findAllByProjectIdOrderByIdAsc(projectId).map { ChannelResponse.of(it) }
     }
 
     @Transactional

@@ -7,11 +7,19 @@ import org.springframework.data.repository.query.Param
 
 interface ChannelRepository : JpaRepository<Channel, Long> {
 
-    fun findAllByTeamIdOrderByIdAsc(teamId: Long): List<Channel>
+    fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
+
+    fun findAllByProjectIdOrderByIdAsc(projectId: Long): List<Channel>
 
     fun findAllByTeamIdAndCreatedByOrderByIdAsc(teamId: Long, createdBy: Long): List<Channel>
 
     fun findAllByCreatedBy(createdBy: Long): List<Channel>
+
+    @Query("SELECT COALESCE(MAX(c.position), -1) FROM Channel c WHERE c.teamId = :teamId")
+    fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
+
+    @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId")
+    fun findAllIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
     @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId AND c.createdBy <> :createdBy ORDER BY c.id ASC")
     fun findIdsByTeamIdAndCreatedByNot(@Param("teamId") teamId: Long, @Param("createdBy") createdBy: Long): List<Long>
