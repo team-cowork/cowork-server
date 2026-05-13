@@ -82,7 +82,7 @@ class ProjectController(
     fun getProjectsByTeamId(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
-        @PageableDefault(size = 20, sort = ["position"]) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["position", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResponse>> =
         ResponseEntity.ok(projectService.getProjectsByTeamId(userId, teamId, pageable))
 
