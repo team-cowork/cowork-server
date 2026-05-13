@@ -1,5 +1,5 @@
 // @title           Cowork Voice API
-// @version         20260513.1
+// @version         20260513.3
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
