@@ -2,8 +2,13 @@ package com.cowork.channel.controller
 
 import com.cowork.channel.dto.*
 import com.cowork.channel.service.ChannelService
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -16,6 +21,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/channels")
 class ChannelController(
     private val channelService: ChannelService,
+    private val objectMapper: ObjectMapper,
 ) {
 
     @Operation(summary = "채널 생성", security = [SecurityRequirement(name = "BearerAuth")])
@@ -51,9 +57,13 @@ class ChannelController(
     fun updateChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-        @RequestBody request: UpdateChannelRequest,
-    ): ResponseEntity<ChannelResponse> =
-        ResponseEntity.ok(channelService.updateChannel(userId, channelId, request))
+        @SwaggerRequestBody(content = [Content(schema = Schema(implementation = UpdateChannelRequest::class))])
+        @RequestBody body: JsonNode,
+    ): ResponseEntity<ChannelResponse> {
+        val request = objectMapper.convertValue(body, UpdateChannelRequest::class.java)
+        val updateProjectId = body.has("projectId")
+        return ResponseEntity.ok(channelService.updateChannel(userId, channelId, request, updateProjectId))
+    }
 
     @Operation(summary = "채널 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
