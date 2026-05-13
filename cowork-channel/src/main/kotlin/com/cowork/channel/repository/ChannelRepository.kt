@@ -9,6 +9,8 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
 
     fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
 
+    fun findAllByProjectIdOrderByIdAsc(projectId: Long): List<Channel>
+
     fun findAllByTeamIdAndCreatedByOrderByIdAsc(teamId: Long, createdBy: Long): List<Channel>
 
     fun findAllByCreatedBy(createdBy: Long): List<Channel>
