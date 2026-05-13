@@ -84,6 +84,7 @@ class ProjectService(
                 teamId = request.teamId,
                 name = request.name,
                 description = request.description,
+                position = projectRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
             )
         )
@@ -130,9 +131,41 @@ class ProjectService(
         return projectRepository.findByTeamId(teamId, pageable).map { ProjectResponse.of(it) }
     }
 
+    @Transactional
+    fun reorderTeamProjects(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResponse> {
+        requireTeamMember(teamId, userId)
+
+        if (orderedProjectIds.isEmpty()) {
+            throw ExpectedException("프로젝트 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+        val inputIds = orderedProjectIds.toSet()
+        if (inputIds.size != orderedProjectIds.size) {
+            throw ExpectedException("프로젝트 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val projects = projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val teamProjectIds = projects.map { it.id }.toSet()
+        if (inputIds != teamProjectIds) {
+            throw ExpectedException("팀의 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val projectById = projects.associateBy { it.id }
+        orderedProjectIds.forEachIndexed { index, projectId ->
+            projectById[projectId]?.updatePosition(index)
+        }
+
+        return orderedProjectIds.mapNotNull { projectById[it] }.map(ProjectResponse::of)
+    }
+
     fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResponse> =
         projectRepository.findProjectsByMemberUserId(userId, pageable)
             .map { ProjectResponse.of(it) }
+
+    fun getTeamId(projectId: Long): Long =
+        findProjectOrThrow(projectId).teamId
+
+    fun isMember(projectId: Long, userId: Long): Boolean =
+        projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 
     @Transactional
     fun addMember(userId: Long, projectId: Long, request: AddProjectMemberRequest): ProjectMemberResponse {

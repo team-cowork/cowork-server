@@ -36,6 +36,21 @@ export class ProjectClient {
         }
     }
 
+    async isMember(projectId: number, userId: number): Promise<boolean> {
+        try {
+            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}/members/me`, {
+                headers: { 'X-User-Id': String(userId) },
+                signal: AbortSignal.timeout(3000),
+            });
+            if (res.status === 404) return false;
+            if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
+            return true;
+        } catch (err) {
+            this.logger.error(`project-service 멤버 확인 오류 projectId=${projectId} userId=${userId}`, err);
+            throw err;
+        }
+    }
+
     private parseRepoUrl(url: string | null | undefined): Omit<GithubRepoInfo, 'teamId'> | null {
         if (!url) return null;
         try {

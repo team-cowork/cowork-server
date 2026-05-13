@@ -48,7 +48,7 @@ class ChannelLifecycleHandlerTest {
     @Test
     fun `onTeamDeleted는 로컬 멤버십 및 팀의 모든 채널 삭제`() {
         val list = listOf(channel(1L, 100L, 1L), channel(2L, 100L, 2L))
-        every { channelRepository.findAllByTeamIdOrderByIdAsc(100L) } returns list
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns list
 
         handler.onTeamDeleted(100L)
 

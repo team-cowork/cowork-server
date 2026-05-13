@@ -16,6 +16,9 @@ class Channel(
     @Column(name = "team_id", nullable = false)
     val teamId: Long,
 
+    @Column(name = "project_id", nullable = true)
+    var projectId: Long? = null,
+
     @Column(nullable = false, length = 100)
     var name: String,
 
@@ -33,6 +36,9 @@ class Channel(
     @Column(name = "is_private", nullable = false)
     var isPrivate: Boolean = false,
 
+    @Column(nullable = false)
+    var position: Int = 0,
+
     @Column(name = "created_by", nullable = false)
     val createdBy: Long,
 
@@ -48,5 +54,13 @@ class Channel(
         name?.let { this.name = it }
         description?.let { this.description = it }
         isPrivate?.let { this.isPrivate = it }
+    }
+
+    fun updatePosition(position: Int) {
+        this.position = position
+    }
+
+    fun assignProject(projectId: Long?) {
+        this.projectId = projectId
     }
 }
