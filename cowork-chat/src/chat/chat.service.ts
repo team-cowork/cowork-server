@@ -294,6 +294,9 @@ export class ChatService {
         await this.checkMembership(channelId, userId);
         const message = await this.messageModel.findById(messageId);
         if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (message.channelId !== channelId) {
+            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
+        }
         if (message.authorId !== userId && !this.isAdmin(userRole)) {
             throw new ForbiddenException('본인 메시지만 삭제할 수 있습니다');
         }
@@ -463,7 +466,11 @@ export class ChatService {
     private async loadUploaderNames(items: Array<{ uploaderId: number }>): Promise<Map<number, string>> {
         const uniqueUploaderIds = [...new Set(items.map((item) => item.uploaderId))];
         const entries = await Promise.all(
-            uniqueUploaderIds.map(async (uploaderId) => [uploaderId, await this.userClient.getDisplayName(uploaderId)] as const),
+            uniqueUploaderIds.map(async (uploaderId) => {
+                if (uploaderId <= 0) return [uploaderId, 'System'] as const;
+                const name = await this.userClient.getDisplayName(uploaderId);
+                return [uploaderId, name] as const;
+            }),
         );
 
         return new Map(entries);
