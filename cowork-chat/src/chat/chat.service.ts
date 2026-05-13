@@ -30,6 +30,7 @@ import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { FileListResponseDto } from './dto/file-list.dto';
 
 const SYSTEM_AUTHOR_ID = 0;
+const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const FILE_ATTACHMENT_LIMIT = 100;
 
@@ -467,7 +468,7 @@ export class ChatService {
         const uniqueUploaderIds = [...new Set(items.map((item) => item.uploaderId))];
         const entries = await Promise.all(
             uniqueUploaderIds.map(async (uploaderId) => {
-                if (uploaderId <= 0) return [uploaderId, 'System'] as const;
+                if (uploaderId <= SYSTEM_AUTHOR_ID) return [uploaderId, SYSTEM_AUTHOR_NAME] as const;
                 const name = await this.userClient.getDisplayName(uploaderId);
                 return [uploaderId, name] as const;
             }),
