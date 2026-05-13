@@ -14,6 +14,6 @@ class ListTeamChannelsService(
     @Transactional(readOnly = true)
     fun execute(userId: Long, teamId: Long): List<Channel> {
         teamPermissionService.requireTeamMember(teamId, userId)
-        return channelRepository.findAllByTeamIdOrderByIdAsc(teamId)
+        return channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
     }
 }

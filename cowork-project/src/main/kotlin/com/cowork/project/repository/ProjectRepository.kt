@@ -12,10 +12,15 @@ interface ProjectRepository : JpaRepository<Project, Long>, JpaSpecificationExec
 
     fun findAllByTeamId(teamId: Long): List<Project>
 
+    fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Project>
+
     @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
     fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
     fun findByTeamId(teamId: Long, pageable: Pageable): Page<Project>
+
+    @Query("SELECT COALESCE(MAX(p.position), -1) FROM Project p WHERE p.teamId = :teamId")
+    fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
     @Query(
         value = "SELECT DISTINCT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id WHERE m.userId = :userId",

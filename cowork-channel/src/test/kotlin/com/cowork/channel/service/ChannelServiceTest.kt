@@ -54,10 +54,11 @@ class ChannelServiceTest {
         view: ChannelViewType = ChannelViewType.TEXT,
         createdBy: Long = 1L,
         isPrivate: Boolean = false,
+        position: Int = 0,
         projectId: Long? = null,
     ) = Channel(
         id = id, teamId = teamId, name = "ch", type = type, viewType = view,
-        description = null, isPrivate = isPrivate, createdBy = createdBy, projectId = projectId,
+        description = null, isPrivate = isPrivate, position = position, createdBy = createdBy, projectId = projectId,
     )
 
     @Test
@@ -74,6 +75,7 @@ class ChannelServiceTest {
     @Test
     fun `createChannel은 type+viewType 모두 저장`() {
         every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+        every { channelRepository.findMaxPositionByTeamId(100L) } returns 4
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
         every { channelMemberRepository.save(any()) } answers { firstArg() }
@@ -84,6 +86,32 @@ class ChannelServiceTest {
 
         assertEquals(ChannelType.TEXT, saved.captured.type)
         assertEquals(ChannelViewType.MEETING_NOTE, saved.captured.viewType)
+        assertEquals(5, saved.captured.position)
+    }
+
+    @Test
+    fun `reorderTeamChannels는 요청 순서대로 position을 갱신함`() {
+        val first = channel(id = 1L, position = 0)
+        val second = channel(id = 2L, position = 1)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
+
+        val result = service.reorderTeamChannels(7L, 100L, listOf(2L, 1L))
+
+        assertEquals(listOf(2L, 1L), result.map { it.id })
+        assertEquals(1, first.position)
+        assertEquals(0, second.position)
+    }
+
+    @Test
+    fun `reorderTeamChannels는 팀 채널 ID 누락 시 BAD_REQUEST`() {
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(channel(id = 1L), channel(id = 2L))
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.reorderTeamChannels(7L, 100L, listOf(1L))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
 
     @Test
