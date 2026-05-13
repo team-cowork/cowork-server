@@ -28,8 +28,8 @@ class ProjectServiceTest {
 
     private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private fun project(id: Long = 1L, teamId: Long = 100L) =
-        Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L)
+    private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
+        Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
 
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
@@ -43,6 +43,43 @@ class ProjectServiceTest {
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
         verify(exactly = 0) { projectRepository.save(any()) }
+    }
+
+    @Test
+    fun `createProject은 마지막 position 다음 값으로 저장`() {
+        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+        every { projectRepository.findMaxPositionByTeamId(100L) } returns 3
+        every { projectRepository.save(any()) } answers { firstArg() }
+        every { projectMemberRepository.save(any()) } answers { firstArg() }
+
+        val response = service.createProject(7L, CreateProjectRequest(teamId = 100L, name = "p", description = null))
+
+        assertEquals(4, response.position)
+    }
+
+    @Test
+    fun `reorderTeamProjects는 요청 순서대로 position을 갱신함`() {
+        val first = project(id = 1L, position = 0)
+        val second = project(id = 2L, position = 1)
+        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
+
+        val result = service.reorderTeamProjects(7L, 100L, listOf(2L, 1L))
+
+        assertEquals(listOf(2L, 1L), result.map { it.id })
+        assertEquals(1, first.position)
+        assertEquals(0, second.position)
+    }
+
+    @Test
+    fun `reorderTeamProjects는 팀 프로젝트 ID 누락 시 BAD_REQUEST`() {
+        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(project(id = 1L), project(id = 2L))
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.reorderTeamProjects(7L, 100L, listOf(1L))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
 
     @Test
