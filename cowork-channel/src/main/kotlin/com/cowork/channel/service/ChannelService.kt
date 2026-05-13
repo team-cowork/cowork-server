@@ -63,6 +63,7 @@ class ChannelService(
                 viewType = parseViewType(request.viewType),
                 description = request.description,
                 isPrivate = request.isPrivate,
+                position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
             )
         )
@@ -79,6 +80,32 @@ class ChannelService(
         val channel = findChannelOrThrow(channelId)
         teamPermissionService.requireTeamMember(channel.teamId, userId)
         return ChannelResponse.of(channel)
+    }
+
+    @Transactional
+    fun reorderTeamChannels(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
+        teamPermissionService.requireTeamMember(teamId, userId)
+
+        if (orderedChannelIds.isEmpty()) {
+            throw ExpectedException("채널 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+        val inputIds = orderedChannelIds.toSet()
+        if (inputIds.size != orderedChannelIds.size) {
+            throw ExpectedException("채널 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val teamChannelIds = channels.map { it.id }.toSet()
+        if (inputIds != teamChannelIds) {
+            throw ExpectedException("팀의 모든 채널 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
+        }
+
+        val channelById = channels.associateBy { it.id }
+        orderedChannelIds.forEachIndexed { index, channelId ->
+            channelById[channelId]?.updatePosition(index)
+        }
+
+        return orderedChannelIds.mapNotNull { channelById[it] }.map(ChannelResponse::of)
     }
 
     @Transactional
