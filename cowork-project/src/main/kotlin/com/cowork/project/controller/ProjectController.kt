@@ -82,7 +82,7 @@ class ProjectController(
     fun getProjectsByTeamId(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
-        @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["position", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResponse>> =
         ResponseEntity.ok(projectService.getProjectsByTeamId(userId, teamId, pageable))
 
@@ -137,6 +137,37 @@ class ProjectController(
         @RequestBody request: UpdateProjectMemberRoleRequest,
     ): ResponseEntity<ProjectMemberResponse> =
         ResponseEntity.ok(projectService.updateMemberRole(userId, projectId, memberId, request))
+
+    @Operation(
+        summary = "내 멤버십 확인 (내부 서비스용)",
+        description = "요청자가 해당 프로젝트 멤버이면 200, 아니면 404. 다른 서비스의 권한 검증에 사용됩니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "멤버임"),
+        ApiResponse(responseCode = "404", description = "멤버 아님 또는 프로젝트 없음"),
+    )
+    @GetMapping("/{projectId}/members/me")
+    fun getMyMembership(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+    ): ResponseEntity<Void> =
+        if (projectService.isMember(projectId, userId)) ResponseEntity.ok().build()
+        else ResponseEntity.notFound().build()
+
+    @Operation(
+        summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
+        description = "프로젝트가 속한 팀 ID를 반환합니다. 서비스 간 권한 위임에 사용됩니다.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @GetMapping("/{projectId}/team-id")
+    fun getTeamId(
+        @PathVariable projectId: Long,
+    ): ResponseEntity<Long> =
+        ResponseEntity.ok(projectService.getTeamId(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

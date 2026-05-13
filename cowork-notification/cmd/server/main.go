@@ -1,5 +1,5 @@
 // @title          cowork-notification API
-// @version        1.0
+// @version        20260513.3
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
 // @BasePath       /
 package main

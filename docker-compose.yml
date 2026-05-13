@@ -136,6 +136,7 @@ services:
       MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://elasticsearch:9200}
     entrypoint: >
       /bin/sh -c "
       vault secrets enable -version=2 -path=secret kv 2>/dev/null || true;
@@ -143,7 +144,7 @@ services:
       vault kv put secret/cowork-authorization DB_DSN=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local\" DATAGSM_CLIENT_ID=\"$${DATAGSM_CLIENT_ID}\" JWT_SECRET=\"$${JWT_SECRET}\";
       vault kv put secret/cowork-notification db.dsn=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local\";
       vault kv put secret/cowork-voice MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin\" LIVEKIT_API_KEY=\"$${LIVEKIT_API_KEY}\" LIVEKIT_API_SECRET=\"$${LIVEKIT_API_SECRET}\";
-      vault kv put secret/cowork-chat MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin\";
+      vault kv put secret/cowork-chat MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin\" ELASTICSEARCH_URL=\"$${ELASTICSEARCH_URL}\";
       echo 'Vault secrets initialized.';
       exit 0;
       "
@@ -187,6 +188,27 @@ services:
       mc cors set local/$${MINIO_BUCKET} /cors.json;
       exit 0;
       "
+
+  elasticsearch:
+    build:
+      context: ./docker
+      dockerfile: elasticsearch.dockerfile
+    container_name: cowork-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
 
   redis:
     image: redis:8.6.2-alpine
@@ -628,6 +650,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
       cowork-config:
         condition: service_healthy
     environment:
@@ -681,6 +705,7 @@ volumes:
   kafka_data:
   redis_data:
   minio_data:
+  es_data:
   prometheus_data:
   grafana_data:
   loki_data:
