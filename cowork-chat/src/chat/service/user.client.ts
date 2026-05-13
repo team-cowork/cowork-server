@@ -21,7 +21,7 @@ export class UserClient {
             throw new Error(`user-service 오류: ${res.status}${message ? ` - ${message}` : ''}`);
         }
 
-        const body = await res.json() as { name?: string; nickname?: string | null };
+        const body = await this.readJsonBody(res);
         if (typeof body.name !== 'string' || body.name.length === 0) {
             throw new Error('user-service 응답 형식이 올바르지 않습니다');
         }
@@ -39,6 +39,15 @@ export class UserClient {
         } catch (err) {
             this.logger.warn(`user-service 오류 응답 본문 읽기 실패: ${String(err)}`);
             return null;
+        }
+    }
+
+    private async readJsonBody(res: Response): Promise<{ name?: string; nickname?: string | null }> {
+        try {
+            return await res.json() as { name?: string; nickname?: string | null };
+        } catch (err) {
+            this.logger.warn(`user-service JSON 응답 파싱 실패: ${String(err)}`);
+            throw new Error('user-service 응답 본문 파싱에 실패했습니다');
         }
     }
 }
