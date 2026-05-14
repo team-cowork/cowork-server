@@ -69,12 +69,12 @@ class ChannelService(
             )
         )
         val member = channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
+        if (channel.viewType == ChannelViewType.MEETING_NOTE) {
+            meetingNoteTemplateService.createDefaultTemplate(channel)
+        }
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
                 channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
-                if (channel.viewType == ChannelViewType.MEETING_NOTE) {
-                    meetingNoteTemplateService.createDefaultTemplate(channel)
-                }
             }
         })
         return ChannelResponse.of(channel)

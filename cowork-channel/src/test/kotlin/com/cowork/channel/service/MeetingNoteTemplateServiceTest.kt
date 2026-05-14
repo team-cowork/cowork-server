@@ -49,10 +49,10 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `listTemplates는 채널 멤버이면 목록 반환`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { channelRepository.existsById(1L) } returns true
         every { templateRepository.findAllByChannelIdOrderByIdAsc(1L) } returns listOf(template())
-        every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
+        every { sectionRepository.findAllByTemplateIdInOrderByIdAsc(listOf(10L)) } returns emptyList()
 
         val result = service.listTemplates(7L, 1L)
         assertEquals(1, result.size)
@@ -155,17 +155,15 @@ class MeetingNoteTemplateServiceTest {
     }
 
     @Test
-    fun `deleteTemplate은 비활성 템플릿은 섹션과 함께 삭제`() {
+    fun `deleteTemplate은 비활성 템플릿을 삭제`() {
         val tmpl = template(isActive = false)
-        val sec = section()
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { channelRepository.existsById(1L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
-        every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns listOf(sec)
 
         service.deleteTemplate(7L, 1L, 10L)
 
-        verify { sectionRepository.deleteAll(listOf(sec)) }
+        verify(exactly = 0) { sectionRepository.deleteAll(any<List<TemplateSection>>()) }
         verify { templateRepository.delete(tmpl) }
     }
 
@@ -290,14 +288,16 @@ class MeetingNoteTemplateServiceTest {
         val ch = channel(id = 1L, name = "기획 회의", createdBy = 5L)
         val savedTemplate = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(savedTemplate)) } answers { savedTemplate.captured.also { it.javaClass.getDeclaredField("id").also { f -> f.isAccessible = true }.set(it, 10L) } }
-        every { sectionRepository.save(any<TemplateSection>()) } answers { firstArg() }
+        every { sectionRepository.saveAll(any<List<TemplateSection>>()) } answers { firstArg() }
 
         service.createDefaultTemplate(ch)
 
         assertEquals("기획 회의 - 회의록 템플릿", savedTemplate.captured.name)
         assertTrue(savedTemplate.captured.isActive)
         assertEquals(5L, savedTemplate.captured.createdBy)
-        verify(exactly = 6) { sectionRepository.save(any<TemplateSection>()) }
+        val savedSectionsSlot = slot<List<TemplateSection>>()
+        verify { sectionRepository.saveAll(capture(savedSectionsSlot)) }
+        assertEquals(6, savedSectionsSlot.captured.size)
     }
 
     @Test
@@ -305,14 +305,12 @@ class MeetingNoteTemplateServiceTest {
         val ch = channel()
         val savedTemplate = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(savedTemplate)) } answers { savedTemplate.captured.also { it.javaClass.getDeclaredField("id").also { f -> f.isAccessible = true }.set(it, 10L) } }
-        val savedSections = mutableListOf<TemplateSection>()
-        every { sectionRepository.save(any<TemplateSection>()) } answers {
-            (firstArg<TemplateSection>()).also { savedSections.add(it) }
-        }
+        val savedSectionsSlot = slot<List<TemplateSection>>()
+        every { sectionRepository.saveAll(capture(savedSectionsSlot)) } answers { firstArg() }
 
         service.createDefaultTemplate(ch)
 
-        val types = savedSections.map { it.type }
+        val types = savedSectionsSlot.captured.map { it.type }
         assertEquals(SectionType.TEXT, types[0])
         assertEquals(SectionType.DATETIME, types[1])
         assertEquals(SectionType.USER_LIST, types[2])
@@ -326,14 +324,12 @@ class MeetingNoteTemplateServiceTest {
         val ch = channel()
         val savedTemplate = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(savedTemplate)) } answers { savedTemplate.captured.also { it.javaClass.getDeclaredField("id").also { f -> f.isAccessible = true }.set(it, 10L) } }
-        val savedSections = mutableListOf<TemplateSection>()
-        every { sectionRepository.save(any<TemplateSection>()) } answers {
-            (firstArg<TemplateSection>()).also { savedSections.add(it) }
-        }
+        val savedSectionsSlot = slot<List<TemplateSection>>()
+        every { sectionRepository.saveAll(capture(savedSectionsSlot)) } answers { firstArg() }
 
         service.createDefaultTemplate(ch)
 
-        assertEquals(4, savedSections.count { it.isRequired })
-        assertEquals(2, savedSections.count { !it.isRequired })
+        assertEquals(4, savedSectionsSlot.captured.count { it.isRequired })
+        assertEquals(2, savedSectionsSlot.captured.count { !it.isRequired })
     }
 }
