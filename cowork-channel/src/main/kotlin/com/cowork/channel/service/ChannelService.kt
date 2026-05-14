@@ -26,6 +26,7 @@ class ChannelService(
     private val channelMemberEventPublisher: ChannelMemberEventPublisher,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
     private val projectClient: ProjectClient,
+    private val meetingNoteTemplateService: MeetingNoteTemplateService,
 ) {
 
     fun findChannelOrThrow(channelId: Long): Channel =
@@ -71,6 +72,9 @@ class ChannelService(
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
                 channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+                if (channel.viewType == ChannelViewType.MEETING_NOTE) {
+                    meetingNoteTemplateService.createDefaultTemplate(channel)
+                }
             }
         })
         return ChannelResponse.of(channel)
