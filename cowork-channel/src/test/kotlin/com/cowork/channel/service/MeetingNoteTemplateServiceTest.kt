@@ -3,7 +3,6 @@ package com.cowork.channel.service
 import com.cowork.channel.domain.*
 import com.cowork.channel.dto.*
 import com.cowork.channel.repository.ChannelMemberRepository
-import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.repository.TemplateSectionRepository
 import io.mockk.*
@@ -17,11 +16,10 @@ class MeetingNoteTemplateServiceTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelRepository = mockk<ChannelRepository>()
     private val channelMemberRepository = mockk<ChannelMemberRepository>()
 
     private val service = MeetingNoteTemplateService(
-        templateRepository, sectionRepository, channelRepository, channelMemberRepository
+        templateRepository, sectionRepository, channelMemberRepository
     )
 
     private fun channel(id: Long = 1L, name: String = "ch", createdBy: Long = 1L) = Channel(
@@ -50,7 +48,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `listTemplates는 채널 멤버이면 목록 반환`() {
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
-        every { channelRepository.existsById(1L) } returns true
         every { templateRepository.findAllByChannelIdOrderByIdAsc(1L) } returns listOf(template())
         every { sectionRepository.findAllByTemplateIdInOrderByIdAsc(listOf(10L)) } returns emptyList()
 
@@ -61,7 +58,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `listTemplates는 채널 비멤버이면 FORBIDDEN`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -74,7 +70,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `getTemplate은 섹션을 포함해서 반환`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns listOf(section())
@@ -86,7 +81,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `getTemplate은 다른 채널 템플릿이면 NOT_FOUND`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template(channelId = 999L))
 
@@ -98,7 +92,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `getTemplate은 존재하지 않는 id이면 NOT_FOUND`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(999L) } returns Optional.empty()
 
@@ -112,7 +105,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `createTemplate은 isActive=false로 저장되고 sections는 빈 리스트`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         val saved = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(saved)) } answers { saved.captured }
@@ -129,7 +121,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `updateTemplate은 이름을 수정함`() {
         val tmpl = template(name = "old")
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
@@ -143,7 +134,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `deleteTemplate은 활성 템플릿이면 BAD_REQUEST`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template(isActive = true))
 
@@ -158,7 +148,6 @@ class MeetingNoteTemplateServiceTest {
     fun `deleteTemplate은 비활성 템플릿을 삭제`() {
         val tmpl = template(isActive = false)
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
-        every { channelRepository.existsById(1L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
 
         service.deleteTemplate(7L, 1L, 10L)
@@ -173,7 +162,6 @@ class MeetingNoteTemplateServiceTest {
     fun `activateTemplate은 기존 활성 템플릿을 비활성화하고 대상을 활성화`() {
         val current = template(id = 5L, isActive = true)
         val next = template(id = 10L, isActive = false)
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(next)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns current
@@ -188,7 +176,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `activateTemplate은 이미 활성 상태인 템플릿을 다시 활성화해도 오류 없음`() {
         val tmpl = template(id = 10L, isActive = true)
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns tmpl
@@ -201,7 +188,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `activateTemplate은 기존 활성 템플릿이 없어도 정상 동작`() {
         val next = template(id = 10L, isActive = false)
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(next)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns null
@@ -215,7 +201,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `addSection은 섹션 타입을 파싱해서 저장`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template())
         val saved = slot<TemplateSection>()
@@ -229,7 +214,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `addSection은 유효하지 않은 타입이면 BAD_REQUEST`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template())
 
@@ -244,7 +228,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `updateSection은 전달된 필드만 수정`() {
         val sec = section(type = SectionType.TEXT)
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findById(20L) } returns Optional.of(sec)
@@ -256,7 +239,6 @@ class MeetingNoteTemplateServiceTest {
 
     @Test
     fun `updateSection은 다른 템플릿의 섹션이면 NOT_FOUND`() {
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template(id = 10L))
         every { sectionRepository.findById(20L) } returns Optional.of(section(templateId = 999L))
@@ -272,7 +254,6 @@ class MeetingNoteTemplateServiceTest {
     @Test
     fun `deleteSection은 정상적으로 섹션을 삭제`() {
         val sec = section()
-        every { channelRepository.existsById(1L) } returns true
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findById(20L) } returns Optional.of(sec)
