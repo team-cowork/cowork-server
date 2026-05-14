@@ -6,7 +6,6 @@ import com.cowork.channel.domain.SectionType
 import com.cowork.channel.domain.TemplateSection
 import com.cowork.channel.dto.*
 import com.cowork.channel.repository.ChannelMemberRepository
-import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.repository.TemplateSectionRepository
 import org.springframework.http.HttpStatus
@@ -19,7 +18,6 @@ import team.themoment.sdk.exception.ExpectedException
 class MeetingNoteTemplateService(
     private val templateRepository: MeetingNoteTemplateRepository,
     private val sectionRepository: TemplateSectionRepository,
-    private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
 ) {
 
@@ -38,12 +36,6 @@ class MeetingNoteTemplateService(
         DefaultSectionDef("결정사항", SectionType.MARKDOWN, "합의된 내용을 입력하세요", false),
         DefaultSectionDef("다음 회의 일정", SectionType.DATETIME, "다음 회의 일정을 입력하세요", false),
     )
-
-    private fun requireChannelExists(channelId: Long) {
-        if (!channelRepository.existsById(channelId)) {
-            throw ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
-        }
-    }
 
     private fun findTemplateOrThrow(templateId: Long): MeetingNoteTemplate =
         templateRepository.findById(templateId).orElseThrow {
@@ -82,7 +74,6 @@ class MeetingNoteTemplateService(
     @Transactional(readOnly = true)
     fun listTemplates(userId: Long, channelId: Long): List<MeetingNoteTemplateResponse> {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val templates = templateRepository.findAllByChannelIdOrderByIdAsc(channelId)
         if (templates.isEmpty()) return emptyList()
         val sectionsByTemplateId = sectionRepository
@@ -99,7 +90,6 @@ class MeetingNoteTemplateService(
     @Transactional(readOnly = true)
     fun getTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
@@ -110,7 +100,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun createTemplate(userId: Long, channelId: Long, request: CreateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = templateRepository.save(
             MeetingNoteTemplate(
                 channelId = channelId,
@@ -125,7 +114,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun updateTemplate(userId: Long, channelId: Long, templateId: Long, request: UpdateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         template.updateName(request.name)
@@ -137,7 +125,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun deleteTemplate(userId: Long, channelId: Long, templateId: Long) {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         if (template.isActive) {
@@ -149,7 +136,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun activateTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         templateRepository.findByChannelIdAndIsActiveTrue(channelId)
@@ -164,7 +150,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun addSection(userId: Long, channelId: Long, templateId: Long, request: CreateTemplateSectionRequest): TemplateSectionResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         val section = sectionRepository.save(
@@ -182,7 +167,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun updateSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long, request: UpdateTemplateSectionRequest): TemplateSectionResponse {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         val section = findSectionOrThrow(sectionId)
@@ -199,7 +183,6 @@ class MeetingNoteTemplateService(
     @Transactional
     fun deleteSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long) {
         requireChannelMember(channelId, userId)
-        requireChannelExists(channelId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
         val section = findSectionOrThrow(sectionId)
