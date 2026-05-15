@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
@@ -7,6 +8,7 @@ import { createWriteStream, mkdirSync } from 'fs';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
+import { ProjectMessageController } from './project-message.controller';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
@@ -14,11 +16,15 @@ import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 import { ProjectClient } from './service/project.client';
+import { ChannelClient } from './service/channel.client';
+import { UserClient } from './service/user.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
+import { SearchModule } from '../search/search.module';
+import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
 const METRICS_PATH = '/metrics';
@@ -60,15 +66,28 @@ function createLogStream() {
 @Module({
     imports: [
         ConfigModule,
+        JwtModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                secret: getRequiredConfig(configService, 'JWT_SECRET'),
+                signOptions: { algorithm: 'HS256' },
+            }),
+        }),
         ...loggerImports,
         PrometheusModule.register({
             defaultMetrics: { enabled: true },
             path: '/metrics',
         }),
-        MongooseModule.forRoot(process.env.MONGODB_URI ?? 'mongodb://127.0.0.1:27017/cowork_chat', {
-            serverSelectionTimeoutMS: Number(process.env.MONGODB_SERVER_SELECTION_TIMEOUT_MS ?? 5000),
-            connectTimeoutMS: Number(process.env.MONGODB_CONNECT_TIMEOUT_MS ?? 5000),
-            directConnection: process.env.MONGODB_DIRECT_CONNECTION !== 'false',
+        MongooseModule.forRootAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => ({
+                uri: getRequiredConfig(configService, 'MONGODB_URI'),
+                serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
+                connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
+                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
+            }),
         }),
         MongooseModule.forFeature([
             { name: Message.name, schema: MessageSchema },
@@ -76,8 +95,9 @@ function createLogStream() {
         ]),
         MembershipModule,
         MinioModule,
+        SearchModule,
     ],
-    controllers: [ChatController, HealthController],
+    controllers: [ChatController, ProjectMessageController, HealthController],
     providers: [
         ChatGateway,
         ChatService,
@@ -88,6 +108,8 @@ function createLogStream() {
         GithubIssueProducer,
         GithubIssueResultConsumer,
         ProjectClient,
+        ChannelClient,
+        UserClient,
     ],
 })
 export class ChatModule {}

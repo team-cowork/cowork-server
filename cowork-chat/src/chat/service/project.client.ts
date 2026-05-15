@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { getRequiredConfig } from '../../common/config/config.util';
 
 export interface GithubRepoInfo {
     teamId: number;
@@ -13,7 +14,7 @@ export class ProjectClient {
     private readonly projectServiceUrl: string;
 
     constructor(private readonly configService: ConfigService) {
-        this.projectServiceUrl = this.configService.get<string>('PROJECT_SERVICE_URL', 'http://localhost:8084').replace(/\/$/, '');
+        this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
     }
 
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
@@ -31,6 +32,21 @@ export class ProjectClient {
             return { teamId: body.teamId, ...repoInfo };
         } catch (err) {
             this.logger.error(`프로젝트 서비스 호출 오류 projectId=${projectId}`, err);
+            throw err;
+        }
+    }
+
+    async isMember(projectId: number, userId: number): Promise<boolean> {
+        try {
+            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}/members/me`, {
+                headers: { 'X-User-Id': String(userId) },
+                signal: AbortSignal.timeout(3000),
+            });
+            if (res.status === 404) return false;
+            if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
+            return true;
+        } catch (err) {
+            this.logger.error(`project-service 멤버 확인 오류 projectId=${projectId} userId=${userId}`, err);
             throw err;
         }
     }

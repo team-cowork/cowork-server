@@ -2,16 +2,26 @@
 
 ## 역할
 프로젝트 관리 서비스.
-
-- 프로젝트 생성/수정/삭제
-- 프로젝트 멤버 관리
-- Kafka: 프로젝트 이벤트 발행 (`notification.trigger`)
+- 팀 내 프로젝트 생성/수정/삭제
+- 멤버 역할 관리 (OWNER / EDITOR / VIEWER)
 
 ## 스택
-TBD (Spring Boot + Java/Kotlin, .NET 등 팀 결정)
+- Spring Boot 3 / Kotlin / Java 21
+- Spring Data JPA + MySQL + Flyway
+- Spring Cloud (Eureka, Config)
+- Spring Kafka
 
 ## 포트
 `8084`
 
-## DB
-MySQL — Flyway로 스키마 관리 (`db/migration/V1__init.sql`)
+## 의존성
+- Eureka, Config Server
+- Kafka consume: `team.lifecycle` (TEAM_DELETED, MEMBER_REMOVED), `user.lifecycle` (USER_DELETED)
+
+## 환경변수
+| 변수 | 설명 |
+|---|---|
+| `SPRING_DATASOURCE_URL` | MySQL JDBC URL |
+| `MYSQL_USER` | MySQL 계정 |
+| `MYSQL_PASSWORD` | MySQL 비밀번호 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka 브로커 주소 |
