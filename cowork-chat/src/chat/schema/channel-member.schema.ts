@@ -14,3 +14,4 @@ export class ChannelMember {
 export const ChannelMemberSchema = SchemaFactory.createForClass(ChannelMember);
 
 ChannelMemberSchema.index({ channelId: 1, userId: 1 }, { unique: true });
+ChannelMemberSchema.index({ userId: 1 });

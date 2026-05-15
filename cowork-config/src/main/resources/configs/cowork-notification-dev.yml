@@ -9,7 +9,7 @@ fcm:
   credentials-file: /etc/secrets/firebase-credentials.json
 
 preference:
-  service-url: http://cowork-preference:8084
+  service-url: http://cowork-preference:9001
 
 eureka:
   server-url: http://cowork-config:8761/eureka

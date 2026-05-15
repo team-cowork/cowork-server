@@ -1,4 +1,5 @@
 import os from 'os';
+import { requireEnv } from '../common/config/config.util';
 
 type EurekaConfig = {
     enabled: boolean;
@@ -18,12 +19,12 @@ export class EurekaClient {
 
     static fromEnv(port: number): EurekaClient {
         const appName = process.env.EUREKA_APP_NAME ?? 'cowork-chat';
-        const host = process.env.EUREKA_INSTANCE_HOST ?? 'localhost';
+        const host = requireEnv('EUREKA_INSTANCE_HOST');
         const instanceId = process.env.EUREKA_INSTANCE_ID ?? `${host}:${appName}:${port}`;
 
         return new EurekaClient({
             enabled: process.env.EUREKA_ENABLED !== 'false',
-            serverUrl: (process.env.EUREKA_SERVER_URL ?? 'http://localhost:8761/eureka').replace(/\/$/, ''),
+            serverUrl: requireEnv('EUREKA_SERVER_URL').replace(/\/$/, ''),
             appName,
             host,
             port,

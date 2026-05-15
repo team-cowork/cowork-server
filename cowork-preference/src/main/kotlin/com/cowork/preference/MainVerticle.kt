@@ -6,14 +6,17 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
+import com.cowork.preference.handler.TeamRoleHandler
 import com.cowork.preference.messaging.PreferenceProducer
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectRoleRepository
+import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectRoleService
+import com.cowork.preference.service.TeamRoleService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Future
 import io.vertx.core.Promise
@@ -63,16 +66,19 @@ class MainVerticle : AbstractVerticle() {
         val prefRepo = PreferenceRepository(pool)
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
+        val teamRoleRepo = TeamRoleRepository(pool)
 
         val prefService = PreferenceService(prefRepo, preferenceCache, preferenceProducer)
         val notifService = NotificationService(notifRepo, preferenceCache)
         val roleService = ProjectRoleService(roleRepo)
+        val teamRoleService = TeamRoleService(teamRoleRepo)
 
         val prefHandler = PreferenceHandler(prefService, scope)
         val notifHandler = NotificationHandler(notifService, scope)
         val roleHandler = ProjectRoleHandler(roleService, scope)
+        val teamRoleHandler = TeamRoleHandler(teamRoleService, scope)
 
-        val router = buildRouter(vertx, prefHandler, notifHandler, roleHandler)
+        val router = buildRouter(vertx, prefHandler, notifHandler, roleHandler, teamRoleHandler)
 
         scheduleStatusExpiryCheck(prefRepo, preferenceProducer, preferenceCache)
 

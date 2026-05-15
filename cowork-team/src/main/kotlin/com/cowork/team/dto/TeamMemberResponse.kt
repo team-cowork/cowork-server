@@ -11,14 +11,17 @@ data class TeamMemberResponse(
     val userId: Long,
     @Schema(description = "역할", example = "MEMBER", allowableValues = ["OWNER", "ADMIN", "MEMBER"])
     val role: String,
+    @Schema(description = "커스텀 역할 목록")
+    val roles: List<TeamRoleResponse> = emptyList(),
     @Schema(description = "가입 일시")
     val joinedAt: LocalDateTime,
 ) {
     companion object {
-        fun of(member: TeamMember): TeamMemberResponse = TeamMemberResponse(
+        fun of(member: TeamMember, roles: List<TeamRoleResponse> = emptyList()): TeamMemberResponse = TeamMemberResponse(
             id = member.id,
             userId = member.userId,
             role = member.role.name,
+            roles = roles,
             joinedAt = requireNotNull(member.joinedAt),
         )
     }
