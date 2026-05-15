@@ -138,6 +138,7 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 			return nil, fmt.Errorf("required config %q is not set", name)
 		}
 	}
+
 	if _, err := os.Stat(cfg.FCMCredentialsFile); err != nil {
 		return nil, fmt.Errorf("fcm credentials file %q is not accessible: %w", cfg.FCMCredentialsFile, err)
 	}

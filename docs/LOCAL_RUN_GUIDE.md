@@ -7,6 +7,7 @@
 - 2026-04-27 (Docker 통합 실행으로 전면 개정)
 - 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
 - 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
+- 2026-05-11 (Elasticsearch 검색 인덱싱 추가, 로컬 배포 고려 사항 보완)
 
 검증 기준:
 - `docker-compose.yml`
@@ -17,19 +18,19 @@
 
 **모든 서비스가 `docker compose up -d`로 올라간다.** 인프라와 애플리케이션을 분리할 필요 없다.
 
-| 서비스 | 포트 | 기술 | 상태 |
-|---|---:|---|---|
-| `cowork-config` | `8761` | Spring Boot (Config Server + Eureka) | 정상 |
-| `cowork-gateway` | `8080` | Spring Boot (Cloud Gateway) | 정상 |
-| `cowork-authorization` | `8081` | Go | 정상 |
-| `cowork-preference` | `9001` | Kotlin Vert.x | 정상 |
-| `cowork-user` | `8082` | Elixir | 정상 |
-| `cowork-team` | `8085` | Spring Boot | 정상 |
-| `cowork-channel` | `8083` | Spring Boot | 정상 |
-| `cowork-notification` | `8086` | Go | 정상 |
-| `cowork-chat` | `8087` | NestJS | 정상 |
-| `cowork-voice` | `8084` | Go | LiveKit 키 필요 |
-| `cowork-project` | 미정 | Spring Boot | 미구성 |
+| 서비스                    |     포트 | 기술                                   | 상태 |
+|------------------------|-------:|--------------------------------------|----|
+| `cowork-config`        | `8761` | Spring Boot (Config Server + Eureka) | 정상 |
+| `cowork-gateway`       | `8080` | Spring Boot (Cloud Gateway)          | 정상 |
+| `cowork-authorization` | `8081` | Go                                   | 정상 |
+| `cowork-preference`    | `9001` | Kotlin Vert.x                        | 정상 |
+| `cowork-user`          | `8082` | Elixir                               | 정상 |
+| `cowork-team`          | `8085` | Spring Boot                          | 정상 |
+| `cowork-channel`       | `8083` | Spring Boot                          | 정상 |
+| `cowork-notification`  | `8086` | Go                                   | 정상 |
+| `cowork-chat`          | `8087` | NestJS                               | 정상 |
+| `cowork-voice`         | `8084` | Go                                   | 정상 |
+| `cowork-project`       | `8089` | Spring Boot                          | 정상 |
 
 인프라 (DB, 브로커, 모니터링 등) 17개 컨테이너도 동일하게 올라간다.
 
@@ -50,37 +51,39 @@ cp .env.example .env
 기본값으로 채워진 항목이 많으니 대부분 수정 없이 쓸 수 있다.
 아래 항목만 운영/외부 서비스 연동 시 채운다.
 
-| 키 | 기본값 | 필요한 경우 |
-|---|---|---|
-| `LIVEKIT_API_KEY` | `devkey` | voice 서비스 사용 시 |
-| `LIVEKIT_API_SECRET` | `devsecret` | voice 서비스 사용 시 |
-| `LIVEKIT_CONFIG_FILE` | `livekit.yaml` | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
-| `OAUTH2_GOOGLE_*` | 비어 있음 | Google OAuth2 사용 시 |
-| `OAUTH2_GITHUB_*` | 비어 있음 | GitHub OAuth2 사용 시 |
-| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000` | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정 |
+| 키                       | 기본값                              | 필요한 경우                                |
+|-------------------------|----------------------------------|---------------------------------------|
+| `LIVEKIT_API_KEY`       | `devkey`                         | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_API_SECRET`    | `devsecret`                      | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`                   | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
+| `OAUTH2_GOOGLE_*`       | 비어 있음                            | Google OAuth2 사용 시                    |
+| `OAUTH2_GITHUB_*`       | 비어 있음                            | GitHub OAuth2 사용 시                    |
+| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000`       | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| `ELASTICSEARCH_URL`     | `http://elasticsearch:9200`      | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
 
 Firebase 관련:
-- `docker/secrets/firebase-credentials.json` 파일이 실제로 있어야 `cowork-notification`이 FCM을 전송할 수 있다.
-- 파일이 없어도 서버는 기동되나, FCM 발송 시 런타임 오류가 발생한다.
+- `docker/secrets/firebase-credentials.json` 파일이 실제로 있어야 `cowork-notification`이 기동된다.
+- 파일이 없으면 `cowork-notification` 컨테이너는 시작 단계에서 실패한다.
 
 ## 4. Compose 파일 구성
 
-| 파일 | 역할 | 적용 방식 |
-|---|---|---|
-| `docker-compose.yml` | 인프라 + 앱 서비스 공통 정의 | 항상 적용 |
-| `docker-compose.override.yml` | 로컬 개발용 `build:` 설정 | `docker compose` 명령 시 **자동 병합** |
-| `docker-compose.prod.yml` | 운영 레지스트리 이미지 + prod 설정 | `-f` 플래그로 명시 |
+| 파일                            | 역할                     | 적용 방식                           |
+|-------------------------------|------------------------|---------------------------------|
+| `docker-compose.yml`          | 인프라 + 앱 서비스 공통 정의      | 항상 적용                           |
+| `docker-compose.override.yml` | 로컬 개발용 `build:` 설정     | `docker compose` 명령 시 **자동 병합** |
+| `docker-compose.prod.yml`     | 운영 레지스트리 이미지 + prod 설정 | `-f` 플래그로 명시                    |
 
 ## 5. 실행
 
 ### 로컬 개발
 
 ```bash
-# 전체 기동 (소스 빌드 포함 — 처음 또는 코드 변경 후)
-docker compose up -d --build
+# 전체 기동
+# __LOCAL_IP__가 들어간 MinIO 공개 주소를 현재 LAN IP로 자동 치환한다.
+./scripts/run/local/infra.sh start
 
-# 빌드 없이 기동 (이미지가 이미 있을 때)
-docker compose up -d
+# 앱 서비스는 필요할 때 개별 재기동
+./scripts/run/local/user.sh restart
 
 # 특정 서비스만 재빌드
 docker compose up -d --build cowork-user
@@ -121,7 +124,7 @@ docker compose down -v && docker compose up -d
 ## 6. 서비스 기동 순서
 
 `depends_on`이 설정돼 있어서 수동으로 순서를 맞출 필요 없다.
-Docker Compose가 아래 의존 관계를 따라 자동으로 기동한다.
+Docker Compose가 아래 의존 관계를 따라 자동으로 기동한다. Spring Boot 이외 서비스도 로컬에서는 `Config Server -> Vault` 경로로 같은 기준의 설정을 받는다.
 
 ```
 infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
@@ -134,7 +137,7 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
        ├─ cowork-user
        ├─ cowork-team
        ├─ cowork-channel
-       │    └─ cowork-voice (+ livekit, mongodb, kafka)
+       │    └─ cowork-voice (+ redis, livekit, mongodb, kafka)
        ├─ cowork-notification (+ preference, user, team)
        └─ cowork-chat (+ mongodb, kafka)
 ```
@@ -163,60 +166,77 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
 
 Docker Compose 내부에서 서비스는 컨테이너 이름으로 통신한다.
 
-| 호스트에서 접근 | 컨테이너 내부 주소 |
-|---|---|
-| `localhost:3306` | `mysql:3306` |
-| `localhost:5432` | `postgres:5432` |
-| `localhost:27017` | `mongodb:27017` |
+| 호스트에서 접근                    | 컨테이너 내부 주소              |
+|-----------------------------|-------------------------|
+| `localhost:3306`            | `mysql:3306`            |
+| `localhost:5432`            | `postgres:5432`         |
+| `localhost:27017`           | `mongodb:27017`         |
 | `localhost:9094` (Kafka 외부) | `kafka:9092` (Kafka 내부) |
-| `localhost:6379` | `redis:6379` |
-| `localhost:9000` | `minio:9000` |
-| `localhost:8761` | `cowork-config:8761` |
+| `localhost:6379`            | `redis:6379`            |
+| `localhost:9000`            | `minio:9000`            |
+| `localhost:9200`            | `elasticsearch:9200`    |
+| `localhost:8761`            | `cowork-config:8761`    |
 
 Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가 분리돼 있다.
 
 ## 9. 클라우드 / 운영 환경 전환
 
-| 항목 | 로컬 값 | 운영 변경 사항 |
-|---|---|---|
-| LiveKit config | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
-| LiveKit 키 | `devkey` / `devsecret` | 실제 키/시크릿으로 교체 |
-| DB 비밀번호 | `1234` | 강도 높은 비밀번호로 교체 |
-| Spring profile | `local` | `dev` 또는 `prod` (Vault 연동) |
-| MinIO | 로컬 컨테이너 | S3 호환 엔드포인트로 변경 |
+| 항목                  | 로컬 값                                      | 운영 변경 사항                                              |
+|---------------------|-------------------------------------------|-------------------------------------------------------|
+| LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
+| LiveKit 키           | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
+| DB 비밀번호             | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
+| Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
+| MinIO               | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
+| `ELASTICSEARCH_URL` | `http://elasticsearch:9200`               | `.env`에서 관리형 ES 클러스터 주소로 교체 (Vault 경유 주입)             |
 
 ### Vault 시크릿 배포 구조
 
-`dev`/`prod` 프로파일에서 config server(Spring Boot 서비스용)와 환경변수(Go 서비스용)로 시크릿이 각각 주입된다.
+`local`/`dev`/`prod` 프로파일 모두에서 Config Server가 Vault와 native 설정을 합쳐 내려준다. Spring Boot 이외 애플리케이션도 같은 기준으로 이 값을 읽는다.
 
-| 서비스 유형 | 시크릿 경로 |
-|---|---|
-| Spring Boot (gateway 등) | Vault → config server → 서비스 |
-| Go (authorization, notification, voice) | 컨테이너 환경변수 직접 주입 |
+| 서비스 유형                                  | 시크릿 경로                      |
+|-----------------------------------------|-----------------------------|
+| Spring Boot | Vault → Config Server → 서비스 |
+| Go (`authorization`, `notification`, `voice`) | Vault → Config Server → 서비스 |
+| Elixir (`user`) | Vault → Config Server → 서비스 |
+| Kotlin (`preference`) | Vault → Config Server → 서비스 |
+| NestJS (`chat`) | Vault → Config Server → 서비스 |
 
 `vault-init` 컨테이너가 Vault 기동 직후 `secret/application` 경로에 아래 시크릿을 자동으로 기록한다.
 
-| Vault 키 | 참조하는 서비스 |
-|---|---|
-| `JWT_SECRET` | gateway (jwt.secret) |
-| `MYSQL_USER`, `MYSQL_PASSWORD` | notification (DB DSN) |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD` | preference (DB) |
-| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | user, preference (MinIO) |
+| Vault 키                                            | 참조하는 서비스                 |
+|----------------------------------------------------|--------------------------|
+| `JWT_SECRET`                                       | gateway (jwt.secret)     |
+| `MYSQL_USER`, `MYSQL_PASSWORD`                     | notification (DB DSN)    |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`               | preference (DB)          |
+| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`             | user, preference (MinIO) |
 | `MINIO_PUBLIC_ENDPOINT`, `MINIO_INTERNAL_ENDPOINT` | user, preference (MinIO) |
+
+추가로 서비스별 Vault 경로도 같이 시드된다.
+
+| Vault 경로 | 주요 키 |
+|---|---|
+| `secret/cowork-authorization` | `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET` |
+| `secret/cowork-notification` | `db.dsn` |
+| `secret/cowork-voice` | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
+| `secret/cowork-chat` | `MONGODB_URI`, `ELASTICSEARCH_URL` |
 
 `.env`에서 `SPRING_PROFILES_ACTIVE=dev`로 변경하면 config server가 Vault composite 모드로 전환된다. `VAULT_HOST`는 `cowork-vault`로 자동 설정된다.
 
 ## 10. 자주 쓰는 확인 포인트
 
-| 서비스              | URL                                     |
-|------------------|-----------------------------------------|
-| Eureka Dashboard | `http://localhost:8761`                 |
-| Gateway Swagger  | `http://localhost:8080/swagger-ui.html` |
-| Kafka UI         | `http://localhost:8090`                 |
-| Prometheus       | `http://localhost:9090`                 |
-| Grafana          | `http://localhost:3001`                 |
-| MinIO Console    | `http://localhost:9002`                 |
-| Vault            | `http://localhost:8200`                 |
+| 서비스                  | URL                                                          |
+|----------------------|--------------------------------------------------------------|
+| Eureka Dashboard     | `http://localhost:8761`                                      |
+| Gateway Swagger      | `http://localhost:8080/swagger-ui.html`                      |
+| Kafka UI             | `http://localhost:8090`                                      |
+| Prometheus           | `http://localhost:9090`                                      |
+| Grafana              | `http://localhost:3001`                                      |
+| MinIO Console        | `http://localhost:9002`                                      |
+| Vault                | `http://localhost:8200`                                      |
+| Elasticsearch 클러스터 상태 | `http://localhost:9200/_cluster/health`                      |
+| chat_messages 인덱스 확인 | `http://localhost:9200/chat_messages/_count`                 |
+| 인덱스 목록              | `http://localhost:9200/_cat/indices?v`                       |
 
 ## 11. 알려진 주의사항
 
@@ -228,7 +248,8 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - `jwt.secret`은 모든 프로파일에서 Vault → config server 경로로 주입된다.
 
 `cowork-authorization`:
-- `USER_SERVICE_URL` 기본값이 `http://cowork-user:8082`임. docker-compose에 명시돼 있으므로 별도 설정 불필요.
+- Docker Compose 로컬 실행 시 `APP_CONFIG_URL`/`APP_PROFILE`로 Config Server 설정을 읽는다.
+- `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET`는 Vault `secret/cowork-authorization`에서 내려온다.
 
 `cowork-user`:
 - Docker healthcheck는 `GET /actuator/health`를 사용하며, 현재 로컬 Compose 기준 `healthy` 확인됨.
@@ -240,14 +261,33 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - Kafka consumer는 `brod` 기반으로 `user.data.sync`를 소비하며, 로컬에서는 해당 토픽 생성 후 실제 upsert까지 검증했다.
 
 `cowork-voice`:
-- `.env`의 `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`가 채워져야 기동된다.
-- LiveKit 컨테이너와 동일한 키/시크릿을 써야 한다.
+- 로컬 기본 키는 `.env`의 `devkey` / `devsecret`이며 LiveKit 컨테이너와 `cowork-voice`가 동일 값을 공유한다.
+- `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `MONGODB_URI`는 Vault `secret/cowork-voice`에서 내려온다.
+- Redis 연결은 Config Server 기준 `redis:6379`를 사용한다.
 
 `cowork-notification`:
-- `docker/secrets/firebase-credentials.json`이 없으면 기동은 되지만 FCM 발송 시 오류가 발생한다.
+- `docker/secrets/firebase-credentials.json`이 없으면 기동 자체가 실패한다.
+
+`elasticsearch`:
+- 이미지: `docker.elastic.co/elasticsearch/elasticsearch:8.13.4` + nori 형태소 분석기 플러그인 (빌드 시 설치)
+- `discovery.type=single-node`, `xpack.security.enabled=false` (로컬 전용, 인증 없음)
+- 힙 메모리: `ES_JAVA_OPTS=-Xms512m -Xmx512m` → 컨테이너에 **최소 1 GB RAM** 여유 필요
+- 포트: `9200` (호스트에서 `localhost:9200`으로 직접 접근 가능)
+- 데이터 볼륨: `es_data` — `docker compose down -v` 실행 시 인덱스가 삭제되며, 다음 기동 시 `cowork-chat`이 자동으로 `chat_messages` 인덱스를 재생성함
+- `cowork-chat`이 healthy 상태가 될 때까지 `depends_on`으로 보장; ES healthcheck는 최대 150초(interval 15s × retries 10) 대기
+
+`cowork-chat` (Elasticsearch 관련):
+- Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
+- `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
+- `ELASTICSEARCH_URL`은 Vault `secret/cowork-chat`을 통해 Config Server → 앱 순서로 주입된다. 로컬 기본값은 `http://elasticsearch:9200`이며, 운영 환경에서는 `.env`의 `ELASTICSEARCH_URL`을 실제 클러스터 주소로 교체하면 vault-init이 해당 값을 시드한다.
+- **인덱싱 대상**: `projectId`가 있는 메시지만 ES에 인덱싱된다. DM·비프로젝트 채널 메시지는 인덱싱되지 않는다.
+- **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
+- **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
+- ES 기동이 느릴 경우(`start_period: 60s`): `docker compose logs -f elasticsearch`로 상태 확인 후 `cowork-chat` 재시작
 
 `MINIO_PUBLIC_ENDPOINT`:
-- 모바일 앱·외부 기기에서 presigned URL로 파일에 접근하려면 `.env`의 `__LOCAL_IP__`를 실제 로컬 IP로 교체해야 한다.
+- `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
+- `docker compose up`를 직접 치면 이 치환이 적용되지 않으므로, 모바일 앱·외부 기기 업로드 테스트는 스크립트 경로를 사용해야 한다.
 - 같은 머신에서만 테스트한다면 `http://localhost:9000`으로 충분하다.
 
 Flyway 경고:
@@ -258,7 +298,6 @@ Spring Boot 초기 기동 시간:
 - `cowork-config`가 healthy 상태가 될 때까지 최대 90초 대기가 설정돼 있다.
 - 첫 `docker compose up` 시 Gradle 빌드가 포함되므로 이미지 생성에 수 분이 소요될 수 있다.
 
-## 12. 다음 정리 대상
+## 12. 남은 확인 항목
 
-- `cowork-project`: `settings.gradle.kts` include 및 `Dockerfile` 추가 필요
-- `cowork-voice`: LiveKit 키 기본값(`devkey`/`devsecret`) 사용 시 실제 WebRTC 세션이 작동하는지 검증 필요
+- `cowork-voice`: LiveKit 기본 키(`devkey` / `devsecret`)로 실제 WebRTC 세션 생성까지 앱 연동 관점에서 한 번 더 검증하면 된다.
