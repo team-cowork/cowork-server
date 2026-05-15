@@ -1,9 +1,9 @@
 account-share:
-  encryption-key: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+  encryption-key: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}
   oauth:
     callback-base-url: http://localhost:8080
     client-redirect-url: http://localhost:3000
-    state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET:local-dev-state-secret-change-in-prod}
+    state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
     github:
       client-id: ${GITHUB_ACCOUNT_SHARE_CLIENT_ID:}
       client-secret: ${GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:}
