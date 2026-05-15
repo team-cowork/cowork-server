@@ -5,6 +5,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
+import com.cowork.preference.handler.TeamRoleHandler
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
@@ -14,6 +15,7 @@ fun buildRouter(
     preferenceHandler: PreferenceHandler,
     notificationHandler: NotificationHandler,
     projectRoleHandler: ProjectRoleHandler,
+    teamRoleHandler: TeamRoleHandler,
 ): Router {
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
@@ -46,6 +48,15 @@ fun buildRouter(
     // TEAM
     router.get("/preferences/team/:id").handler(preferenceHandler.getSettings(ResourceType.TEAM))
     router.put("/preferences/team/:id").handler(preferenceHandler.updateSettings(ResourceType.TEAM))
+    router.get("/preferences/team/:teamId/roles").handler(teamRoleHandler::getRoles)
+    router.post("/preferences/team/:teamId/roles").handler(teamRoleHandler::createRole)
+    router.patch("/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::updateRole)
+    router.delete("/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::deleteRole)
+    router.get("/preferences/team/:teamId/roles/members").handler(teamRoleHandler::getMemberRoles)
+    router.get("/preferences/team/:teamId/roles/members/:accountId").handler(teamRoleHandler::getMemberRoleDefinitions)
+    router.delete("/preferences/team/:teamId/roles/members/:accountId").handler(teamRoleHandler::removeMemberRoles)
+    router.post("/preferences/team/:teamId/roles/:roleId/members").handler(teamRoleHandler::assignRole)
+    router.delete("/preferences/team/:teamId/roles/:roleId/members/:accountId").handler(teamRoleHandler::removeRole)
 
     // PROJECT
     router.get("/preferences/project/:id").handler(preferenceHandler.getSettings(ResourceType.PROJECT))
