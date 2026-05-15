@@ -21,26 +21,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Calculate Version
+      - name: Read Version
         id: version
         run: |
-          DATE=$(date -u +"%Y%m%d")
-          EXISTING=$(git tag -l "v${DATE}.*" | wc -l | tr -d ' ')
-          VERSION="v${DATE}.${EXISTING}"
+          VERSION=$(cat VERSION)
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          if git tag -l "v${VERSION}" | grep -q .; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Tag
-        run: git tag ${{ steps.version.outputs.version }}
+        if: steps.version.outputs.skip == 'false'
+        run: git tag v${{ steps.version.outputs.version }}
 
       - name: Push Tag
-        run: git push origin ${{ steps.version.outputs.version }}
+        if: steps.version.outputs.skip == 'false'
+        run: git push origin v${{ steps.version.outputs.version }}
 
       - name: Create GitHub Release
+        if: steps.version.outputs.skip == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ steps.version.outputs.version }}" \
-            --title "${{ steps.version.outputs.version }}" \
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "v${{ steps.version.outputs.version }}" \
             --notes $'## 수정내역\n\n- '
 
       - name: Notify Discord
@@ -51,4 +57,4 @@ jobs:
           status: ${{ job.status }}
           title: "cowork Server Prod CD"
           description: |
-            Released `${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
+            Released `v${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
