@@ -1,0 +1,36 @@
+account-share:
+  encryption-key: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=}
+  oauth:
+    callback-base-url: http://localhost:8080
+    client-redirect-url: http://localhost:3000
+    state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET:local-dev-state-secret-change-in-prod}
+    github:
+      client-id: ${GITHUB_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:}
+      token-url: https://github.com/login/oauth/access_token
+      userinfo-url: https://api.github.com/user
+      scope: read:user,user:email
+    notion:
+      client-id: ${NOTION_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${NOTION_ACCOUNT_SHARE_CLIENT_SECRET:}
+      token-url: https://api.notion.com/v1/oauth/token
+      userinfo-url: https://api.notion.com/v1/users/me
+      scope: ""
+    jira:
+      client-id: ${JIRA_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${JIRA_ACCOUNT_SHARE_CLIENT_SECRET:}
+      token-url: https://auth.atlassian.com/oauth/token
+      userinfo-url: https://api.atlassian.com/me
+      scope: read:me
+    google:
+      client-id: ${GOOGLE_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:}
+      token-url: https://oauth2.googleapis.com/token
+      userinfo-url: https://www.googleapis.com/oauth2/v3/userinfo
+      scope: openid email profile
+    facebook:
+      client-id: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:}
+      token-url: https://graph.facebook.com/v18.0/oauth/access_token
+      userinfo-url: https://graph.facebook.com/me?fields=id,email
+      scope: email
