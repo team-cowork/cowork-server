@@ -15,6 +15,39 @@ class TeamEventPublisher(
 
     fun publishLifecycle(payload: TeamEventPayload) = send(Topics.TEAM_LIFECYCLE, payload)
 
+    fun publishMemberInvited(teamId: Long, teamName: String, actorUserId: Long, targetUserIds: List<Long>) {
+        if (targetUserIds.isEmpty()) return
+        publishLifecycle(
+            TeamEventPayload(
+                eventType = "MEMBER_INVITED",
+                teamId = teamId,
+                teamName = teamName,
+                actorUserId = actorUserId,
+                targetUserIds = targetUserIds.distinct(),
+            )
+        )
+    }
+
+    fun publishRoleChanged(
+        teamId: Long,
+        teamName: String,
+        actorUserId: Long,
+        targetUserIds: List<Long>,
+        newRole: String,
+    ) {
+        if (targetUserIds.isEmpty()) return
+        publishLifecycle(
+            TeamEventPayload(
+                eventType = "ROLE_CHANGED",
+                teamId = teamId,
+                teamName = teamName,
+                actorUserId = actorUserId,
+                targetUserIds = targetUserIds.distinct(),
+                newRole = newRole,
+            )
+        )
+    }
+
     private fun send(topic: String, payload: TeamEventPayload) {
         kafkaTemplate.send(topic, payload.teamId.toString(), payload)
             .whenComplete { result, ex ->

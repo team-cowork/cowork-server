@@ -84,15 +84,15 @@ defmodule CoworkUser.Storage.Minio do
     endpoint = if mode == :public, do: config.minio_public_endpoint, else: config.minio_internal_endpoint
     uri = URI.parse(endpoint)
 
-    [
+    %{
       region: config.minio_region,
       access_key_id: config.minio_access_key,
       secret_access_key: config.minio_secret_key,
-      scheme: uri.scheme,
+      scheme: "#{uri.scheme}://",
       host: uri.host,
       port: uri.port,
-      s3: [path_style: config.minio_path_style]
-    ]
+      s3: %{path_style: config.minio_path_style}
+    }
   end
 
   defp unwrap({:ok, value}), do: {:ok, value}
