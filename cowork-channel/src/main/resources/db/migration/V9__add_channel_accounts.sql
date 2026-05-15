@@ -11,7 +11,7 @@ CREATE TABLE tb_channel_accounts
     created_at          DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at          DATETIME(6)   NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
-    INDEX idx_tb_channel_accounts_channel_id (channel_id),
+    INDEX idx_tb_channel_accounts_channel_id_created_at (channel_id, created_at),
     CONSTRAINT fk_tb_channel_accounts_channel FOREIGN KEY (channel_id) REFERENCES tb_channels (id) ON DELETE CASCADE
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
