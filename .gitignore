@@ -76,3 +76,4 @@ SPEC.md
 
 ### Secrets ###
 docker/secrets/
+!docker/secrets/.gitkeep

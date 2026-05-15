@@ -11,6 +11,7 @@ import com.cowork.team.dto.TeamResponse
 import com.cowork.team.dto.TeamSummaryResponse
 import com.cowork.team.dto.UpdateTeamRequest
 import com.cowork.team.event.TeamEventPublisher
+import com.cowork.team.event.TeamLifecycleSyncPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
 import org.springframework.http.HttpStatus
@@ -26,6 +27,7 @@ class TeamService(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
+    private val teamLifecycleSyncPublisher: TeamLifecycleSyncPublisher,
     private val s3Service: S3Service,
 ) {
 
@@ -72,7 +74,13 @@ class TeamService(
             targetUserIds = listOf(ownerId),
         )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishNotification(payload)
+            override fun afterCommit() {
+                teamEventPublisher.publishNotification(payload)
+                teamLifecycleSyncPublisher.publishTeamSnapshot(
+                    actorUserId = ownerId,
+                    members = listOf(TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)),
+                )
+            }
         })
 
         return TeamResponse.of(team)

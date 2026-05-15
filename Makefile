@@ -1,6 +1,6 @@
 VERSION := $(shell cat VERSION)
 
-.PHONY: version bump tag release init-logs
+.PHONY: version bump tag release init-logs setup
 
 version:
 	@cat VERSION
@@ -9,7 +9,11 @@ bump:
 	@./scripts/bump.sh
 
 tag:
-	git add VERSION cowork-*/build.gradle.kts cowork-chat/package.json
+	git add VERSION cowork-*/build.gradle.kts cowork-chat/package.json \
+	        cowork-user/mix.exs \
+	        cowork-authorization/cmd/main.go \
+	        cowork-notification/cmd/server/main.go \
+	        cowork-voice/cmd/server/main.go
 	git commit -m "chore: release v$(shell cat VERSION)"
 	git tag v$(shell cat VERSION)
 
@@ -18,3 +22,8 @@ release: tag
 
 init-logs:
 	@bash scripts/init-log-dirs.sh
+
+setup:
+	$(MAKE) -C cowork-authorization setup
+	$(MAKE) -C cowork-notification setup
+	$(MAKE) -C cowork-voice setup

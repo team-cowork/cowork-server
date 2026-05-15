@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260420.0"
+version = "20260513.3"
 
 java {
     toolchain {
@@ -21,16 +21,16 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation("org.springframework.cloud:spring-cloud-config-server")
-    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-server")
-    implementation("org.springframework.cloud:spring-cloud-starter-bus-kafka")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.spring.cloud.config.server)
+    implementation(libs.spring.cloud.starter.netflix.eureka.server)
+    implementation(libs.spring.cloud.starter.bus.kafka)
+    implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
-    implementation("org.springframework.vault:spring-vault-core")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation(libs.spring.vault.core)
+    implementation(libs.kotlin.reflect)
 
     implementation(libs.logstash.logback.encoder)
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation(libs.spring.boot.starter.test)
 }
 
 kotlin {

@@ -17,7 +17,13 @@ const userRole = 'ROLE_USER';
 const mockChatService = {
     checkMembership: jest.fn(),
     checkMembershipAndGetTeamId: jest.fn(),
+    createFileUploadUrl: jest.fn(),
+    confirmFileUpload: jest.fn(),
+    getFileList: jest.fn(),
     getMessages: jest.fn(),
+    publishGithubIssueCreateCommand: jest.fn(),
+    handleSlashCommand: jest.fn(),
+    sendMessage: jest.fn(),
     editMessage: jest.fn(),
     deleteMessage: jest.fn(),
 };
@@ -66,12 +72,12 @@ describe('ChatController', () => {
 
     describe('createFileUploadUrl', () => {
         it('멤버십 검증 후 MinIO presigned URL을 발급한다', async () => {
-            mockChatService.checkMembership.mockResolvedValue(undefined);
-            mockMinioService.createPresignedUpload.mockResolvedValue({
+            mockChatService.createFileUploadUrl.mockResolvedValue({
                 objectKey: 'chat-files/1/42/file.png',
                 uploadUrl: 'http://localhost:9000/upload',
                 fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/file.png',
                 expiresInSeconds: 600,
+                headers: { 'Content-Type': 'image/png' },
             });
 
             const result = await controller.createFileUploadUrl(
@@ -80,15 +86,38 @@ describe('ChatController', () => {
                 userId,
             );
 
-            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
-            expect(mockMinioService.createPresignedUpload).toHaveBeenCalledWith({
-                channelId: 1,
-                userId: 42,
+            expect(mockChatService.createFileUploadUrl).toHaveBeenCalledWith(1, {
                 filename: 'file.png',
                 contentType: 'image/png',
                 size: 1024,
-            });
+            }, 42);
             expect(result.headers).toEqual({ 'Content-Type': 'image/png' });
+        });
+    });
+
+    describe('getFiles', () => {
+        it('FILE_SHARE 채널 파일 목록 조회를 서비스에 위임한다', async () => {
+            mockChatService.getFileList.mockResolvedValue({
+                files: [
+                    {
+                        messageId: mockMessageId,
+                        fileName: 'report.pdf',
+                        fileSize: 1024,
+                        fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                        mimeType: 'application/pdf',
+                        uploaderId: 42,
+                        uploaderName: '홍길동',
+                        uploadedAt: '2026-05-12T00:00:00.000Z',
+                    },
+                ],
+                nextCursor: null,
+            });
+
+            const result = await controller.getFiles(1, { limit: 20, before: undefined } as any, userId);
+
+            expect(mockChatService.getFileList).toHaveBeenCalledWith(1, 42, undefined, 20);
+            expect(result.files).toHaveLength(1);
+            expect(result.files[0].uploaderName).toBe('홍길동');
         });
     });
 
@@ -96,24 +125,20 @@ describe('ChatController', () => {
         const dto = { teamId: 10, content: '안녕하세요' };
 
         it('멤버십 검증 후 Kafka로 메시지를 발행한다', async () => {
-            mockChatService.checkMembership.mockResolvedValue(undefined);
-            mockProducer.sendMessage.mockResolvedValue(undefined);
+            mockChatService.sendMessage.mockResolvedValue(undefined);
 
             const result = await controller.sendMessage(1, dto as any, userId, userRole);
 
-            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
-            expect(mockProducer.sendMessage).toHaveBeenCalledWith(1, dto, 42, 'ROLE_USER');
+            expect(mockChatService.sendMessage).toHaveBeenCalledWith(1, dto, 42, 'ROLE_USER');
             expect(result).toEqual({ queued: true });
         });
 
         it('채널 멤버가 아니면 ForbiddenException이 전파된다', async () => {
-            mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
+            mockChatService.sendMessage.mockRejectedValue(new ForbiddenException());
 
             await expect(
                 controller.sendMessage(1, dto as any, userId, userRole),
             ).rejects.toThrow(ForbiddenException);
-
-            expect(mockProducer.sendMessage).not.toHaveBeenCalled();
         });
     });
 
@@ -125,75 +150,52 @@ describe('ChatController', () => {
         };
 
         it('프로젝트 레포 정보를 조회한 뒤 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+            mockChatService.publishGithubIssueCreateCommand.mockResolvedValue(undefined);
 
             const result = await controller.createGithubIssue(1, dto as any, userId);
 
-            expect(mockChatService.checkMembershipAndGetTeamId).toHaveBeenCalledWith(1, 42);
-            expect(mockProjectClient.getGithubRepoInfo).toHaveBeenCalledWith(100);
-            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
-                channelId: 1,
-                teamId: 10,
-                projectId: 100,
-                owner: 'my-org',
-                repo: 'backend',
-                title: '로그인 버그',
-                body: '특정 브라우저에서 재현됨',
-                requesterId: 42,
-            });
+            expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(1, dto, 42);
             expect(result).toEqual({ queued: true });
         });
 
         it('body 없이도 이슈 생성 이벤트를 발행한다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+            mockChatService.publishGithubIssueCreateCommand.mockResolvedValue(undefined);
 
             await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
 
-            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith(
+            expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(
+                1,
                 expect.objectContaining({ body: undefined }),
+                42,
             );
         });
 
         it('채널 멤버가 아니면 ForbiddenException이 전파되고 이벤트를 발행하지 않는다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockRejectedValue(new ForbiddenException());
+            mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new ForbiddenException());
 
             await expect(
                 controller.createGithubIssue(1, dto as any, userId),
             ).rejects.toThrow(ForbiddenException);
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('프로젝트에 GitHub 레포 정보가 없으면 BadRequestException을 던진다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue(null);
+            mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다'));
 
             await expect(
                 controller.createGithubIssue(1, dto as any, userId),
             ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('프로젝트의 teamId가 채널 teamId와 다르면 ForbiddenException을 던진다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 99, owner: 'other-org', repo: 'backend' });
+            mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다'));
 
             await expect(
                 controller.createGithubIssue(1, dto as any, userId),
             ).rejects.toThrow('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('producer 오류가 전파된다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
+            mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new Error('Kafka 연결 오류'));
 
             await expect(
                 controller.createGithubIssue(1, dto as any, userId),
@@ -209,9 +211,7 @@ describe('ChatController', () => {
         };
 
         it('github.issue.create 슬래시 커맨드가 기존과 동일한 Kafka 이벤트를 발행한다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+            mockChatService.handleSlashCommand.mockResolvedValue(undefined);
 
             const result = await controller.createSlashCommand(
                 1,
@@ -219,25 +219,15 @@ describe('ChatController', () => {
                 userId,
             );
 
-            expect(mockChatService.checkMembershipAndGetTeamId).toHaveBeenCalledWith(1, 42);
-            expect(mockProjectClient.getGithubRepoInfo).toHaveBeenCalledWith(100);
-            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
-                channelId: 1,
-                teamId: 10,
-                projectId: 100,
-                owner: 'my-org',
-                repo: 'backend',
-                title: '로그인 버그',
-                body: '특정 브라우저에서 재현됨',
-                requesterId: 42,
-            });
+            expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(1, {
+                command: SlashCommand.GITHUB_ISSUE_CREATE,
+                payload,
+            }, 42);
             expect(result).toEqual({ queued: true });
         });
 
         it('body 없이도 github.issue.create 이벤트를 발행한다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockResolvedValue(undefined);
+            mockChatService.handleSlashCommand.mockResolvedValue(undefined);
 
             await controller.createSlashCommand(
                 1,
@@ -245,13 +235,15 @@ describe('ChatController', () => {
                 userId,
             );
 
-            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith(
-                expect.objectContaining({ body: undefined }),
+            expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ payload: expect.objectContaining({ body: undefined }) }),
+                42,
             );
         });
 
         it('채널 멤버가 아니면 ForbiddenException이 전파되고 이벤트를 발행하지 않는다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockRejectedValue(new ForbiddenException());
+            mockChatService.handleSlashCommand.mockRejectedValue(new ForbiddenException());
 
             await expect(
                 controller.createSlashCommand(
@@ -260,13 +252,10 @@ describe('ChatController', () => {
                     userId,
                 ),
             ).rejects.toThrow(ForbiddenException);
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('프로젝트에 GitHub 레포 정보가 없으면 BadRequestException을 던진다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue(null);
+            mockChatService.handleSlashCommand.mockRejectedValue(new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다'));
 
             await expect(
                 controller.createSlashCommand(
@@ -275,13 +264,10 @@ describe('ChatController', () => {
                     userId,
                 ),
             ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('프로젝트의 teamId가 채널 teamId와 다르면 ForbiddenException을 던진다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 99, owner: 'other-org', repo: 'backend' });
+            mockChatService.handleSlashCommand.mockRejectedValue(new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다'));
 
             await expect(
                 controller.createSlashCommand(
@@ -290,14 +276,10 @@ describe('ChatController', () => {
                     userId,
                 ),
             ).rejects.toThrow('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
-
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
 
         it('producer 오류가 전파된다', async () => {
-            mockChatService.checkMembershipAndGetTeamId.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            mockGithubIssueProducer.send.mockRejectedValue(new Error('Kafka 연결 오류'));
+            mockChatService.handleSlashCommand.mockRejectedValue(new Error('Kafka 연결 오류'));
 
             await expect(
                 controller.createSlashCommand(
@@ -309,6 +291,8 @@ describe('ChatController', () => {
         });
 
         it('지원하지 않는 command는 BadRequestException을 던지고 이벤트를 발행하지 않는다', async () => {
+            mockChatService.handleSlashCommand.mockRejectedValue(new BadRequestException('지원하지 않는 슬래시 커맨드입니다'));
+
             await expect(
                 controller.createSlashCommand(
                     1,
@@ -316,9 +300,6 @@ describe('ChatController', () => {
                     userId,
                 ),
             ).rejects.toThrow(BadRequestException);
-
-            expect(mockChatService.checkMembershipAndGetTeamId).not.toHaveBeenCalled();
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
         });
     });
 
@@ -350,19 +331,13 @@ describe('ChatController', () => {
     describe('editMessage', () => {
         it('메시지를 수정하고 Socket.io로 브로드캐스트한다', async () => {
             const updated = { content: '수정됨' };
-            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.editMessage.mockResolvedValue(updated);
 
             const result = await controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole);
 
             expect(mockChatService.editMessage).toHaveBeenCalledWith(
-                mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER',
+                1, mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER',
             );
-            expect(mockTo).toHaveBeenCalledWith('chat:1');
-            expect(mockEmit).toHaveBeenCalledWith('message:edited', expect.objectContaining({
-                messageId: mockMessageId,
-                content: '수정됨',
-            }));
             expect(result).toBe(updated);
         });
 
@@ -383,16 +358,14 @@ describe('ChatController', () => {
 
     describe('deleteMessage', () => {
         it('메시지를 삭제하고 Socket.io로 브로드캐스트한다', async () => {
-            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.deleteMessage.mockResolvedValue({ channelId: 1, messageId: mockMessageId });
 
-            await controller.deleteMessage(1, mockMessageId, userId, userRole);
+            const result = await controller.deleteMessage(1, mockMessageId, userId, userRole);
 
             expect(mockChatService.deleteMessage).toHaveBeenCalledWith(
-                mockMessageId, 42, 'ROLE_USER',
+                1, mockMessageId, 42, 'ROLE_USER',
             );
-            expect(mockTo).toHaveBeenCalledWith('chat:1');
-            expect(mockEmit).toHaveBeenCalledWith('message:deleted', { messageId: mockMessageId });
+            expect(result).toEqual({ channelId: 1, messageId: mockMessageId });
         });
 
         it('본인 메시지가 아니면 ForbiddenException이 전파된다', async () => {
