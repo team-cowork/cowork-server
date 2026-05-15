@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260420.0"
+version = "20260513.3"
 
 java {
     toolchain {
@@ -26,18 +26,19 @@ dependencyManagement {
 }
 
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-    implementation("org.springframework.cloud:spring-cloud-starter-netflix-eureka-client")
-    implementation("org.springframework.cloud:spring-cloud-starter-config")
-    implementation("org.springframework.cloud:spring-cloud-starter-openfeign")
+    implementation(libs.spring.boot.starter.data.jpa)
+    implementation(libs.spring.cloud.starter.netflix.eureka.client)
+    implementation(libs.spring.cloud.starter.config)
+    implementation(libs.spring.cloud.starter.openfeign)
+    implementation(libs.spring.kafka)
 
-    implementation("com.mysql:mysql-connector-j")
-    implementation("org.flywaydb:flyway-core")
-    implementation("org.flywaydb:flyway-mysql")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation(libs.mysql.connector.j)
+    implementation(libs.flyway.core)
+    implementation(libs.flyway.mysql)
+    implementation(libs.kotlin.reflect)
 
     implementation(libs.the.sdk) {
         exclude(group = "org.springframework.boot")
@@ -46,8 +47,11 @@ dependencies {
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation(libs.logstash.logback.encoder)
+    implementation(libs.shedlock.spring)
+    implementation(libs.shedlock.provider.jdbc.template)
 
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.mockk)
 }
 
 kotlin {
@@ -59,4 +63,3 @@ kotlin {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
-

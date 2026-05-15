@@ -4,6 +4,7 @@ import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
+import { getRequiredCsvConfig } from '../../common/config/config.util';
 
 @Injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
@@ -23,25 +24,26 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-github-result',
-            brokers: [this.configService.get<string>('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')],
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.consumer = kafka.consumer({ groupId: 'cowork-chat-github-result' });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: 'github.issue.result', fromBeginning: false });
 
-        await this.consumer.run({
-            eachMessage: async ({ message }) => {
-                if (!message.value) return;
-                try {
-                    const event: GithubIssueResultEvent = JSON.parse(message.value.toString());
-                    await this.handleResultEvent(event);
-                } catch (err) {
-                    this.logger.error('이슈 결과 처리 중 오류 발생', err);
-                    if (!(err instanceof SyntaxError)) throw err;
-                }
-            },
-        });
-
+        void this.consumer
+            .run({
+                eachMessage: async ({ message }) => {
+                    if (!message.value) return;
+                    try {
+                        const event: GithubIssueResultEvent = JSON.parse(message.value.toString());
+                        await this.handleResultEvent(event);
+                    } catch (err) {
+                        this.logger.error('이슈 결과 처리 중 오류 발생', err);
+                        if (!(err instanceof SyntaxError)) throw err;
+                    }
+                },
+            })
+            .catch((err) => this.logger.error('github.issue.result Kafka consumer 실행 실패', err));
         this.logger.log('Kafka consumer started: github.issue.result');
     }
 
