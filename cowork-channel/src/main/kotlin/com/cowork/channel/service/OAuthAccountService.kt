@@ -25,9 +25,10 @@ class OAuthAccountService(
     private val oAuthProperties: OAuthProperties,
     private val sharedAccountRepository: SharedAccountRepository,
     private val credentialEncryptionService: CredentialEncryptionService,
+    private val objectMapper: ObjectMapper,
+    restClientBuilder: RestClient.Builder,
 ) {
-    private val restClient = RestClient.create()
-    private val objectMapper = ObjectMapper()
+    private val restClient = restClientBuilder.build()
 
     fun buildAuthorizeUrl(channelId: Long, userId: Long, provider: AccountProvider): String {
         val config = providerConfigOf(provider)
