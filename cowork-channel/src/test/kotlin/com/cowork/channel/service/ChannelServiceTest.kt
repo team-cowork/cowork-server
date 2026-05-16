@@ -34,8 +34,9 @@ class ChannelServiceTest {
     private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
     private val projectClient = mockk<ProjectClient>()
+    private val meetingNoteTemplateService = mockk<MeetingNoteTemplateService>(relaxed = true)
 
-    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, projectClient)
+    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, projectClient, meetingNoteTemplateService)
 
     @BeforeEach
     fun setUp() {
