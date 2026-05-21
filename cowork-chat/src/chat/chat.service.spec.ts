@@ -1,11 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
-import { Message } from './schema/message.schema';
-import { ChannelMember } from './schema/channel-member.schema';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { MinioService } from '../storage/minio.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
@@ -13,6 +10,8 @@ import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
 import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
+import { MessageRepository } from './repository/message.repository';
+import { ChannelMemberRepository } from './repository/channel-member.repository';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -36,19 +35,19 @@ const makeMockMessage = (overrides = {}) => ({
     ...overrides,
 });
 
-const mockAggregate = jest.fn();
-
-const mockMessageModel = {
-    aggregate: mockAggregate,
+const mockMessageRepository = {
+    findMessages: jest.fn(),
+    findFileAttachments: jest.fn(),
     findById: jest.fn(),
-    deleteOne: jest.fn(),
-    create: jest.fn(),
-    collection: { name: 'messages' },
+    deleteById: jest.fn(),
+    createSystemMessage: jest.fn(),
 };
 
 
-const mockMemberModel = {
+const mockChannelMemberRepository = {
     exists: jest.fn(),
+    findTeamIdByChannelAndUser: jest.fn(),
+    findChannelIdsByUser: jest.fn(),
 };
 
 const mockElasticsearchService = {
@@ -96,8 +95,8 @@ describe('ChatService', () => {
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ChatService,
-                { provide: getModelToken(Message.name), useValue: mockMessageModel },
-                { provide: getModelToken(ChannelMember.name), useValue: mockMemberModel },
+                { provide: MessageRepository, useValue: mockMessageRepository },
+                { provide: ChannelMemberRepository, useValue: mockChannelMemberRepository },
                 { provide: ElasticsearchService, useValue: mockElasticsearchService },
                 { provide: MinioService, useValue: mockMinioService },
                 { provide: ChatMessageProducer, useValue: mockChatMessageProducer },
@@ -115,55 +114,48 @@ describe('ChatService', () => {
 
     describe('isMember', () => {
         it('채널 멤버이면 true를 반환한다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
             await expect(service.isMember(1, 42)).resolves.toBe(true);
         });
 
         it('채널 멤버가 아니면 false를 반환한다', async () => {
-            mockMemberModel.exists.mockResolvedValue(null);
+            mockChannelMemberRepository.exists.mockResolvedValue(false);
             await expect(service.isMember(1, 99)).resolves.toBe(false);
         });
     });
 
     describe('checkMembership', () => {
         it('멤버이면 예외 없이 통과한다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
             await expect(service.checkMembership(1, 42)).resolves.toBeUndefined();
         });
 
         it('멤버가 아니면 ForbiddenException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue(null);
+            mockChannelMemberRepository.exists.mockResolvedValue(false);
             await expect(service.checkMembership(1, 99)).rejects.toThrow(ForbiddenException);
         });
     });
 
     describe('getMessages', () => {
-        it('cursor 없이 aggregate를 실행하고 channelId 조건만 포함한다', async () => {
-            mockAggregate.mockResolvedValue([]);
+        it('메시지 조회를 레포지토리에 위임한다', async () => {
+            mockMessageRepository.findMessages.mockResolvedValue([]);
 
             await service.getMessages(1);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
-            expect(pipeline[0].$match).toEqual({ channelId: 1 });
-            expect(pipeline[1].$sort).toEqual({ _id: -1 });
-            expect(pipeline[2].$limit).toBe(100);
+            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined);
         });
 
-        it('before cursor가 있으면 _id 조건이 추가된다', async () => {
-            mockAggregate.mockResolvedValue([]);
+        it('before cursor를 레포지토리에 전달한다', async () => {
+            mockMessageRepository.findMessages.mockResolvedValue([]);
 
             await service.getMessages(1, mockMessageId);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
-            expect(pipeline[0].$match).toEqual({
-                channelId: 1,
-                _id: { $lt: new Types.ObjectId(mockMessageId) },
-            });
+            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, mockMessageId);
         });
 
-        it('답글에는 $lookup으로 원본 메시지(mentionedMessage)가 embed된다', async () => {
+        it('레포지토리 조회 결과를 그대로 반환한다', async () => {
             const parentId = new Types.ObjectId();
-            mockAggregate.mockResolvedValue([
+            mockMessageRepository.findMessages.mockResolvedValue([
                 { _id: new Types.ObjectId(), content: '답글', parentMessageId: parentId, mentionedMessage: { _id: parentId, content: '원본', authorId: 1 } },
                 { _id: new Types.ObjectId(), content: '일반 메시지', parentMessageId: null, mentionedMessage: null },
             ]);
@@ -179,28 +171,29 @@ describe('ChatService', () => {
     describe('getFileList', () => {
         it('FILE_SHARE 채널의 첨부파일을 파일 단위로 반환한다', async () => {
             const createdAt = new Date('2026-05-12T02:03:04.000Z');
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'FILE_SHARE' });
-            mockAggregate.mockResolvedValue([
-                {
-                    _id: new Types.ObjectId('665f00000000000000000001'),
-                    authorId: 42,
-                    createdAt,
-                    attachmentIndex: 0,
-                    attachment: {
-                        name: 'report.pdf',
-                        url: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
-                        size: 2048,
+            mockMessageRepository.findFileAttachments.mockResolvedValue({
+                items: [
+                    {
+                        messageId: '665f00000000000000000001',
+                        uploaderId: 42,
+                        uploadedAt: createdAt.toISOString(),
+                        fileName: 'report.pdf',
+                        fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                        fileSize: 2048,
                         mimeType: 'application/pdf',
+                        attachmentIndex: 0,
                     },
-                },
-            ]);
+                ],
+                nextCursor: null,
+            });
             mockUserClient.getDisplayName.mockResolvedValue('홍길동');
 
             const result = await service.getFileList(1, 42);
 
             expect(mockChannelClient.getChannel).toHaveBeenCalledWith(1, 42);
-            expect(mockAggregate).toHaveBeenCalled();
+            expect(mockMessageRepository.findFileAttachments).toHaveBeenCalledWith(1, undefined, 20);
             expect(mockUserClient.getDisplayName).toHaveBeenCalledWith(42);
             expect(result.files).toEqual([
                 {
@@ -218,54 +211,30 @@ describe('ChatService', () => {
         });
 
         it('FILE_SHARE가 아니면 BadRequestException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'TEXT' });
 
             await expect(service.getFileList(1, 42)).rejects.toThrow('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
-            expect(mockAggregate).not.toHaveBeenCalled();
+            expect(mockMessageRepository.findFileAttachments).not.toHaveBeenCalled();
         });
 
-        it('before 커서를 사용해 다음 페이지를 조회한다', async () => {
-            const cursorRow = {
-                _id: new Types.ObjectId('665f00000000000000000002'),
-                createdAt: new Date('2026-05-12T03:00:00.000Z'),
-                attachmentIndex: 1,
-            };
-            const before = Buffer.from(JSON.stringify({
-                uploadedAt: cursorRow.createdAt.toISOString(),
-                messageId: cursorRow._id.toString(),
-                attachmentIndex: cursorRow.attachmentIndex,
-            })).toString('base64');
-
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
+        it('before 커서를 레포지토리에 전달한다', async () => {
+            const before = 'cursor';
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockChannelClient.getChannel.mockResolvedValue({ id: 1, viewType: 'FILE_SHARE' });
-            mockAggregate.mockResolvedValue([]);
+            mockMessageRepository.findFileAttachments.mockResolvedValue({ items: [], nextCursor: null });
 
             await service.getFileList(1, 42, before, 20);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
-            expect(pipeline[2].$match).toEqual({
-                $or: [
-                    { createdAt: { $lt: new Date(cursorRow.createdAt) } },
-                    {
-                        createdAt: new Date(cursorRow.createdAt),
-                        _id: { $lt: new Types.ObjectId(cursorRow._id.toString()) },
-                    },
-                    {
-                        createdAt: new Date(cursorRow.createdAt),
-                        _id: new Types.ObjectId(cursorRow._id.toString()),
-                        attachmentIndex: { $lt: 1 },
-                    },
-                ],
-            });
+            expect(mockMessageRepository.findFileAttachments).toHaveBeenCalledWith(1, before, 20);
         });
     });
 
     describe('editMessage', () => {
         it('본인 메시지를 수정하면 editHistory에 이전 내용이 저장된다', async () => {
             const msg = makeMockMessage();
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
 
             await service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER');
 
@@ -277,16 +246,16 @@ describe('ChatService', () => {
         });
 
         it('메시지가 없으면 NotFoundException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(null);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(null);
             await expect(
                 service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER'),
             ).rejects.toThrow(NotFoundException);
         });
 
         it('다른 사람의 메시지를 수정하면 ForbiddenException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
             await expect(
                 service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER'),
             ).rejects.toThrow(ForbiddenException);
@@ -294,8 +263,8 @@ describe('ChatService', () => {
 
         it('ADMIN은 다른 사람의 메시지도 수정할 수 있다', async () => {
             const msg = makeMockMessage({ authorId: 100 });
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
 
             await service.editMessage(1, mockMessageId, 42, { content: '관리자 수정' }, 'ROLE_ADMIN');
 
@@ -312,8 +281,8 @@ describe('ChatService', () => {
                     updatedAt: new Date('2026-05-12T00:00:00.000Z'),
                 }),
             });
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
             mockElasticsearchService.updateMessage.mockResolvedValue(undefined);
 
             await service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER');
@@ -323,8 +292,8 @@ describe('ChatService', () => {
         });
 
         it('다른 채널의 메시지를 수정하려 하면 ForbiddenException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ channelId: 2 }));
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ channelId: 2 }));
 
             await expect(
                 service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER'),
@@ -333,8 +302,8 @@ describe('ChatService', () => {
 
         it('내용이 동일하면 저장과 이벤트 발행을 생략한다', async () => {
             const msg = makeMockMessage();
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
 
             const result = await service.editMessage(1, mockMessageId, 42, { content: '안녕하세요' }, 'MEMBER');
 
@@ -353,8 +322,8 @@ describe('ChatService', () => {
                     updatedAt: savedAt,
                 }),
             });
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
 
             await service.editMessage(1, mockMessageId, 42, { content: '수정됨' }, 'MEMBER');
 
@@ -368,8 +337,8 @@ describe('ChatService', () => {
 
         it('ES 오류가 발생해도 editMessage 결과에 영향을 주지 않는다', async () => {
             const msg = makeMockMessage();
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(msg);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(msg);
             mockElasticsearchService.updateMessage.mockRejectedValue(new Error('ES down'));
 
             await expect(
@@ -380,36 +349,36 @@ describe('ChatService', () => {
 
     describe('deleteMessage', () => {
         it('본인 메시지를 삭제한다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage());
-            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
+            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             const result = await service.deleteMessage(1, mockMessageId, 42, 'MEMBER');
 
-            expect(mockMessageModel.deleteOne).toHaveBeenCalledWith({ _id: mockMessageId });
+            expect(mockMessageRepository.deleteById).toHaveBeenCalledWith(mockMessageId);
             expect(result.messageId).toBe(mockMessageId);
         });
 
         it('메시지가 없으면 NotFoundException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(null);
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(null);
             await expect(
                 service.deleteMessage(1, mockMessageId, 42, 'MEMBER'),
             ).rejects.toThrow(NotFoundException);
         });
 
         it('다른 사람의 메시지를 삭제하면 ForbiddenException을 던진다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
             await expect(
                 service.deleteMessage(1, mockMessageId, 42, 'MEMBER'),
             ).rejects.toThrow(ForbiddenException);
         });
 
         it('ADMIN은 다른 사람의 메시지도 삭제할 수 있다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
-            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
+            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             await expect(
                 service.deleteMessage(1, mockMessageId, 42, 'ROLE_ADMIN'),
@@ -417,9 +386,9 @@ describe('ChatService', () => {
         });
 
         it('삭제 후 ES deleteMessage를 fire-and-forget으로 호출한다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage({ projectId: 10 }));
-            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ projectId: 10 }));
+            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
             mockElasticsearchService.deleteMessage.mockResolvedValue(undefined);
 
             await service.deleteMessage(1, mockMessageId, 42, 'MEMBER');
@@ -429,9 +398,9 @@ describe('ChatService', () => {
         });
 
         it('ES 오류가 발생해도 deleteMessage 결과에 영향을 주지 않는다', async () => {
-            mockMemberModel.exists.mockResolvedValue({ _id: 'some-id' });
-            mockMessageModel.findById.mockResolvedValue(makeMockMessage());
-            mockMessageModel.deleteOne.mockResolvedValue({ deletedCount: 1 });
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
+            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
             mockElasticsearchService.deleteMessage.mockRejectedValue(new Error('ES down'));
 
             await expect(
@@ -442,22 +411,11 @@ describe('ChatService', () => {
 
     describe('saveSystemMessage', () => {
         it('시스템 메시지는 clientMessageId 없이 저장한다', async () => {
-            mockMessageModel.create.mockResolvedValue({ toObject: jest.fn() });
+            mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
 
             await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 100);
 
-            expect(mockMessageModel.create).toHaveBeenCalledWith({
-                teamId: 10,
-                projectId: 100,
-                channelId: 1,
-                authorId: 0,
-                content: '이슈가 생성됐어요',
-                type: 'SYSTEM',
-                attachments: [],
-                mentions: [],
-                clientMessageId: undefined,
-                notificationStatus: 'SENT',
-            });
+            expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith(10, 1, '이슈가 생성됐어요', 100, 0);
         });
     });
 });
