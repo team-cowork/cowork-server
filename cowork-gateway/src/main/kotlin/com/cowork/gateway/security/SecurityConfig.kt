@@ -52,6 +52,8 @@ class SecurityConfig(
                     // Socket.io auth는 HTTP 헤더가 아닌 프로토콜 레벨에서 전달되므로
                     // Gateway JWT 검증을 우회하고 chat 서비스에서 직접 검증한다
                     .pathMatchers("/chat-ws/**").permitAll()
+                    // OAuth provider가 사용자 브라우저를 리다이렉트하는 콜백이므로 Cowork JWT 없음
+                    .pathMatchers(HttpMethod.GET, "/api/channels/oauth/callback/**").permitAll()
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
