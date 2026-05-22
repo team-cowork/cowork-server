@@ -114,6 +114,7 @@ class SharedAccountService(
     @Transactional
     fun copyCredential(userId: Long, channelId: Long, accountId: Long): String {
         val channel = channelService.findChannelOrThrow(channelId)
+        requireAccountShareChannel(channel)
         teamPermissionService.requireTeamMember(channel.teamId, userId)
         val account = findAccountOrThrow(accountId, channelId)
 
