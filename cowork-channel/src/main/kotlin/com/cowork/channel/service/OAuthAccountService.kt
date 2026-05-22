@@ -3,6 +3,8 @@ package com.cowork.channel.service
 import com.cowork.channel.config.OAuthProperties
 import com.cowork.channel.config.OAuthProviderConfig
 import com.cowork.channel.domain.AccountProvider
+import com.cowork.channel.domain.Channel
+import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.SharedAccount
 import com.cowork.channel.repository.SharedAccountRepository
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -25,6 +27,8 @@ class OAuthAccountService(
     private val oAuthProperties: OAuthProperties,
     private val sharedAccountRepository: SharedAccountRepository,
     private val credentialEncryptionService: CredentialEncryptionService,
+    private val channelService: ChannelService,
+    private val teamPermissionService: TeamPermissionService,
     private val objectMapper: ObjectMapper,
     restClientBuilder: RestClient.Builder,
 ) {
@@ -34,7 +38,16 @@ class OAuthAccountService(
         require(oAuthProperties.stateSecret.isNotBlank()) { "account-share.oauth.state-secret must not be empty" }
     }
 
+    private fun requireAccountShareChannel(channel: Channel) {
+        if (channel.viewType != ChannelViewType.ACCOUNT_SHARE) {
+            throw ExpectedException("ACCOUNT_SHARE 채널에서만 계정 공유 기능을 사용할 수 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+    }
+
     fun buildAuthorizeUrl(channelId: Long, userId: Long, provider: AccountProvider): String {
+        val channel = channelService.findChannelOrThrow(channelId)
+        requireAccountShareChannel(channel)
+        teamPermissionService.requireTeamMember(channel.teamId, userId)
         val config = providerConfigOf(provider)
         val state = buildState(channelId, userId, provider)
         val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
@@ -96,6 +109,8 @@ class OAuthAccountService(
         }
 
         val (channelId, userId) = verifyState(state, provider)
+        val channel = channelService.findChannelOrThrow(channelId)
+        teamPermissionService.requireTeamMember(channel.teamId, userId)
         val config = providerConfigOf(provider)
         val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
 
@@ -158,7 +173,25 @@ class OAuthAccountService(
                     ?: throw ExpectedException("Notion access_token 없음", HttpStatus.BAD_GATEWAY)
             }
 
-            AccountProvider.JIRA, AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
+            AccountProvider.JIRA -> {
+                val requestBody = mapOf(
+                    "grant_type" to "authorization_code",
+                    "client_id" to config.clientId,
+                    "client_secret" to config.clientSecret,
+                    "code" to code,
+                    "redirect_uri" to callbackUrl,
+                )
+                val response = restClient.post()
+                    .uri(config.tokenUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(requestBody)
+                    .retrieve()
+                    .body(Map::class.java) ?: throw ExpectedException("Jira 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+                response["access_token"] as? String
+                    ?: throw ExpectedException("Jira access_token 없음", HttpStatus.BAD_GATEWAY)
+            }
+
+            AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
                 val body = LinkedMultiValueMap<String, String>().apply {
                     add("grant_type", "authorization_code")
                     add("client_id", config.clientId)
@@ -193,15 +226,10 @@ class OAuthAccountService(
 
         return when (provider) {
             AccountProvider.GITHUB -> response["login"] as? String
-                ?: (response["email"] as? String)
-            AccountProvider.NOTION -> {
-                @Suppress("UNCHECKED_CAST")
-                val person = (response["person"] as? Map<String, Any>)
-                person?.get("email") as? String
-            }
-            AccountProvider.JIRA -> response["email"] as? String
-            AccountProvider.GOOGLE -> response["email"] as? String
-            AccountProvider.FACEBOOK -> response["email"] as? String
+            AccountProvider.NOTION -> response["id"] as? String
+            AccountProvider.JIRA -> response["account_id"] as? String
+            AccountProvider.GOOGLE -> response["sub"] as? String
+            AccountProvider.FACEBOOK -> response["id"] as? String
             else -> null
         }
     }
