@@ -1,13 +1,12 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Types } from 'mongoose';
 import { Server } from 'socket.io';
-import { Message } from '../schema/message.schema';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { MessageRepository } from '../repository/message.repository';
 
 @Injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
@@ -17,7 +16,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     private io?: Server;
 
     constructor(
-        @InjectModel(Message.name) private readonly messageModel: Model<Message>,
+        private readonly messageRepository: MessageRepository,
         private readonly configService: ConfigService,
         private readonly elasticsearchService: ElasticsearchService,
     ) {}
@@ -71,7 +70,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         const mentions = this.parseMentions(event.content);
 
         try {
-            const saved = await this.messageModel.create({
+            const saved = await this.messageRepository.createMessage({
                 teamId: event.teamId,
                 projectId: event.projectId ?? null,
                 channelId: event.channelId,
