@@ -48,7 +48,7 @@ class SharedAccountService(
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
         teamPermissionService.requireTeamMember(channel.teamId, userId)
-        return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAsc(channelId)
+        return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId)
             .map { toResponse(it) }
     }
 
