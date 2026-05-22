@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message, MessageDocument } from '../schema/message.schema';
 
+const MESSAGE_FETCH_LIMIT = 100;
 const FILE_ATTACHMENT_LIMIT = 100;
 
 export type FileAttachmentRow = {
@@ -52,7 +53,7 @@ export class MessageRepository {
         return this.messageModel.aggregate([
             { $match: query },
             { $sort: { _id: -1 } },
-            { $limit: 100 },
+            { $limit: MESSAGE_FETCH_LIMIT },
             {
                 $lookup: {
                     from: this.messageModel.collection.name,
