@@ -6,7 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface SharedAccountRepository : JpaRepository<SharedAccount, Long> {
 
-    fun findAllByChannelIdOrderByCreatedAtAsc(channelId: Long): List<SharedAccount>
+    fun findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId: Long): List<SharedAccount>
 
     fun findByIdAndChannelId(id: Long, channelId: Long): SharedAccount?
 
