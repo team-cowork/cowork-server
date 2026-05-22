@@ -1,9 +1,10 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { Message, MessageDocument } from '../schema/message.schema';
+import { Types } from 'mongoose';
+import { Message } from '../schema/message.schema';
 import { ChannelMember } from '../schema/channel-member.schema';
 import { NotificationTriggerProducer } from './notification-trigger.producer';
+import { MessageRepository, NotificationMessage } from '../repository/message.repository';
+import { ChannelMemberRepository } from '../repository/channel-member.repository';
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
@@ -16,8 +17,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private isPolling = false;
 
     constructor(
-        @InjectModel(Message.name) private readonly messageModel: Model<Message>,
-        @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
+        private readonly messageRepository: MessageRepository,
+        private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly triggerProducer: NotificationTriggerProducer,
     ) {}
 
@@ -40,14 +41,9 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
     private async poll(): Promise<void> {
         // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
-        type MsgDoc = Message & { _id: Types.ObjectId; createdAt: Date };
-        const msgs: MsgDoc[] = [];
+        const msgs: NotificationMessage[] = [];
         for (let i = 0; i < BATCH_SIZE; i++) {
-            const msg = await this.messageModel.findOneAndUpdate(
-                { notificationStatus: 'PENDING' },
-                { $set: { notificationStatus: 'PROCESSING' } },
-                { new: true },
-            ).lean() as MsgDoc | null;
+            const msg = await this.messageRepository.findOnePendingAndMarkProcessing();
             if (!msg) break;
             msgs.push(msg);
         }
@@ -60,11 +56,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             msgs.filter((m) => m.parentMessageId != null).map((m) => m.parentMessageId!),
         )];
         if (parentIds.length > 0) {
-            const parents = await this.messageModel
-                .find({ _id: { $in: parentIds } })
-                .select('authorId')
-                .lean() as { _id: Types.ObjectId; authorId: number }[];
-            const parentMap = new Map(parents.map((p) => [p._id.toString(), p]));
+            const parentMap = await this.messageRepository.findParentAuthorsByIds(parentIds);
             for (const id of parentIds) {
                 parentCache.set(id.toString(), parentMap.get(id.toString()) ?? null);
             }
@@ -74,18 +66,12 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         for (const msg of msgs) {
             try {
                 await this.processMessage(msg, memberCache, parentCache);
-                await this.messageModel.updateOne(
-                    { _id: msg._id },
-                    { $set: { notificationStatus: 'SENT' } },
-                );
+                await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
             } catch (err) {
                 const retryCount = (msg.notificationRetryCount ?? 0) + 1;
                 const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
                 this.logger.error(`outbox 처리 실패 (messageId: ${msg._id}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
-                await this.messageModel.updateOne(
-                    { _id: msg._id },
-                    { $set: { notificationStatus: nextStatus, notificationRetryCount: retryCount } },
-                );
+                await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
             }
         }
     }
@@ -98,7 +84,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         const cacheKey = String(msg.channelId);
         let members = memberCache.get(cacheKey);
         if (!members) {
-            members = await this.memberModel.find({ channelId: msg.channelId }).lean() as ChannelMember[];
+            members = await this.channelMemberRepository.findByChannelId(msg.channelId);
             memberCache.set(cacheKey, members);
         }
         const memberIdSet = new Set(members.map((m) => m.userId));
