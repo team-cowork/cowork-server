@@ -30,6 +30,10 @@ class OAuthAccountService(
 ) {
     private val restClient = restClientBuilder.build()
 
+    init {
+        require(oAuthProperties.stateSecret.isNotBlank()) { "account-share.oauth.state-secret must not be empty" }
+    }
+
     fun buildAuthorizeUrl(channelId: Long, userId: Long, provider: AccountProvider): String {
         val config = providerConfigOf(provider)
         val state = buildState(channelId, userId, provider)
@@ -98,6 +102,9 @@ class OAuthAccountService(
         val accessToken = exchangeCode(provider, config, code, callbackUrl)
         val identifier = fetchIdentifier(provider, config, accessToken)
 
+        sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(channelId, provider, identifier)
+            ?.let { return it }
+
         return sharedAccountRepository.save(
             SharedAccount(
                 channelId = channelId,
@@ -152,17 +159,17 @@ class OAuthAccountService(
             }
 
             AccountProvider.JIRA, AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
-                val requestBody = mapOf(
-                    "grant_type" to "authorization_code",
-                    "client_id" to config.clientId,
-                    "client_secret" to config.clientSecret,
-                    "code" to code,
-                    "redirect_uri" to callbackUrl,
-                )
+                val body = LinkedMultiValueMap<String, String>().apply {
+                    add("grant_type", "authorization_code")
+                    add("client_id", config.clientId)
+                    add("client_secret", config.clientSecret)
+                    add("code", code)
+                    add("redirect_uri", callbackUrl)
+                }
                 val response = restClient.post()
                     .uri(config.tokenUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(body)
                     .retrieve()
                     .body(Map::class.java) ?: throw ExpectedException("${provider.displayName} 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
                 response["access_token"] as? String
