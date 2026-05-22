@@ -29,5 +29,8 @@ class ChannelEntity(
 
     @Column(name = "notice", length = 500)
     val notice: String? = null,
+
+    @Column(name = "position", nullable = false)
+    val position: Int = 0,
 ) : BaseEntity()
 

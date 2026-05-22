@@ -14,6 +14,7 @@ class CredentialEncryptionService(
     @Value("\${account-share.encryption-key}") base64Key: String,
 ) {
     private val secretKey: SecretKey
+    private val secureRandom = SecureRandom()
 
     init {
         val keyBytes = Base64.getDecoder().decode(base64Key)
@@ -23,7 +24,7 @@ class CredentialEncryptionService(
 
     // 저장 형식: base64(12-byte IV):base64(ciphertext + 16-byte GCM auth tag)
     fun encrypt(plaintext: String): String {
-        val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
+        val iv = ByteArray(12).also { secureRandom.nextBytes(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(128, iv))
         val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
