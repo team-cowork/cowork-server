@@ -16,6 +16,6 @@ class ListTeamChannelsService(
     fun execute(userId: Long, teamId: Long): List<ChannelEntity> {
         val isMember = teamClient.isMember(teamId, userId)["isMember"] == true
         if (!isMember) throw ExpectedException("해당 팀의 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
-        return channelRepository.findAllByTeamIdOrderByIdAsc(teamId)
+        return channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
     }
 }
