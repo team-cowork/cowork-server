@@ -29,7 +29,7 @@ import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { SearchMessagesDto } from './dto/search-messages.dto';
 import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
-import { MessageRepository } from './repository/message.repository';
+import { MessageRepository, MessageRow } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import {
     ChannelUserContext,
@@ -162,7 +162,7 @@ export class ChatService {
         });
     }
 
-    async getMessages(ctx: ChannelUserContext, before?: string) {
+    async getMessages(ctx: ChannelUserContext, before?: string): Promise<MessageRow[]> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         return this.messageRepository.findMessages(ctx.channelId, before);
     }
