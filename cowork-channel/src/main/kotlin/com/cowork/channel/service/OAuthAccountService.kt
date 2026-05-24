@@ -116,6 +116,7 @@ class OAuthAccountService(
 
         val accessToken = exchangeCode(provider, config, code, callbackUrl)
         val identifier = fetchIdentifier(provider, config, accessToken)
+            ?: throw ExpectedException("사용자 식별자를 가져오지 못했습니다.", HttpStatus.BAD_GATEWAY)
 
         sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(channelId, provider, identifier)
             ?.let { return it }
