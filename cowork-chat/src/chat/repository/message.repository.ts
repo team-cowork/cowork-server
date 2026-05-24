@@ -38,13 +38,40 @@ export type CreateMessageInput = {
 
 export type NotificationMessage = Message & { _id: Types.ObjectId; createdAt: Date };
 
+export type MentionedMessageRow = {
+    _id: Types.ObjectId;
+    authorId: number;
+    content: string;
+    type: string;
+    createdAt: Date;
+};
+
+export type MessageRow = {
+    _id: Types.ObjectId;
+    teamId: number;
+    projectId: number | null;
+    channelId: number;
+    authorId: number;
+    content: string;
+    type: string;
+    attachments: Array<{ name: string; url: string; size: number; mimeType: string }>;
+    parentMessageId: Types.ObjectId | null;
+    isEdited: boolean;
+    isPinned: boolean;
+    clientMessageId?: string | null;
+    mentions: number[];
+    createdAt: Date;
+    updatedAt: Date;
+    mentionedMessage: MentionedMessageRow | null;
+};
+
 @Injectable()
 export class MessageRepository {
     constructor(
         @InjectModel(Message.name) private readonly messageModel: Model<Message>,
     ) {}
 
-    findMessages(channelId: number, before?: string) {
+    findMessages(channelId: number, before?: string): Promise<MessageRow[]> {
         const query: Record<string, unknown> = { channelId };
         if (before) {
             query['_id'] = { $lt: new Types.ObjectId(before) };
