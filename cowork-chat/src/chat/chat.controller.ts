@@ -31,6 +31,7 @@ import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create
 import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
+import { MessageRow } from './repository/message.repository';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
@@ -143,8 +144,8 @@ export class ChatController {
         @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
-    ): Promise<MessageResponseDto[]> {
-        return this.chatService.getMessages({ channelId, userId }, query.before) as unknown as MessageResponseDto[];
+    ): Promise<MessageRow[]> {
+        return this.chatService.getMessages({ channelId, userId }, query.before);
     }
 
     @Patch('messages/:messageId')
