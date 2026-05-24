@@ -42,6 +42,6 @@ export class ProjectMessageController {
         @Query() dto: SearchMessagesDto,
         @UserId() userId: number,
     ): Promise<SearchMessagesResponseDto> {
-        return this.chatService.searchProjectMessages(projectId, dto, userId);
+        return this.chatService.searchProjectMessages(projectId, dto, { userId });
     }
 }
