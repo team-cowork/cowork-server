@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
+import { BaseHttpClient } from './base-http-client';
 
 export interface ChannelInfo {
     id: number;
@@ -8,11 +9,13 @@ export interface ChannelInfo {
 }
 
 @Injectable()
-export class ChannelClient {
-    private readonly logger = new Logger(ChannelClient.name);
+export class ChannelClient extends BaseHttpClient {
+    protected readonly logger = new Logger(ChannelClient.name);
+    protected readonly serviceName = 'channel-service';
     private readonly channelServiceUrl: string;
 
     constructor(private readonly configService: ConfigService) {
+        super();
         this.channelServiceUrl = getRequiredConfig(this.configService, 'CHANNEL_SERVICE_URL').replace(/\/$/, '');
     }
 
@@ -27,7 +30,7 @@ export class ChannelClient {
             throw new Error(`channel-service 오류: ${res.status}${message ? ` - ${message}` : ''}`);
         }
 
-        const body = await this.readJsonBody(res);
+        const body = await this.readJsonBody<{ id?: number; viewType?: string }>(res);
         if (typeof body.id !== 'number' || typeof body.viewType !== 'string') {
             throw new Error('channel-service 응답 형식이 올바르지 않습니다');
         }
@@ -36,23 +39,5 @@ export class ChannelClient {
             id: body.id,
             viewType: body.viewType,
         };
-    }
-
-    private async readErrorMessage(res: Response): Promise<string | null> {
-        try {
-            return await res.text();
-        } catch (err) {
-            this.logger.warn(`channel-service 오류 응답 본문 읽기 실패: ${String(err)}`);
-            return null;
-        }
-    }
-
-    private async readJsonBody(res: Response): Promise<{ id?: number; viewType?: string }> {
-        try {
-            return await res.json() as { id?: number; viewType?: string };
-        } catch (err) {
-            this.logger.warn(`channel-service JSON 응답 파싱 실패: ${String(err)}`);
-            throw new Error('channel-service 응답 본문 파싱에 실패했습니다');
-        }
     }
 }
