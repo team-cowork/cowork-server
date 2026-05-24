@@ -43,10 +43,10 @@ class CredentialEncryptionService(
         return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
     }
 
-    // "••••1234" 형식
+    // 마스킹 처리 (길이에 따라 마지막 2~4자리 노출, 4자 이하면 전체 마스킹)
     fun mask(plaintext: String): String {
         if (plaintext.length <= 4) return "••••"
         val show = minOf(4, plaintext.length / 2)
-        return "••••" + plaintext.takeLast(show)
+        return "••••${plaintext.takeLast(show)}"
     }
 }
