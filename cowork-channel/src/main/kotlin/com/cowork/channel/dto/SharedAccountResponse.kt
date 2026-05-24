@@ -26,7 +26,7 @@ data class SharedAccountResponse(
     @Schema(description = "로그인 식별자 (이메일 또는 username)", example = "team@company.com")
     val accountIdentifier: String?,
 
-    @Schema(description = "마스킹된 credential (마지막 4자리만 노출)", example = "••••w0rd!")
+    @Schema(description = "마스킹된 credential (길이에 따라 마지막 2~4자리 노출)", example = "••••w0rd!")
     val maskedCredential: String?,
 
     @Schema(description = "OAuth 연동으로 등록된 계정 여부")
