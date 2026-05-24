@@ -49,7 +49,7 @@ class SharedAccountService(
         requireAccountShareChannel(channel)
         teamPermissionService.requireTeamMember(channel.teamId, userId)
         return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId)
-            .map { toResponse(it) }
+            .map { toResponse(it, listOnly = true) }
     }
 
     fun getAccount(userId: Long, channelId: Long, accountId: Long): SharedAccountResponse {
@@ -129,11 +129,14 @@ class SharedAccountService(
         return credentialEncryptionService.decrypt(account.credential!!)
     }
 
-    private fun toResponse(account: SharedAccount): SharedAccountResponse {
-        val maskedCredential = account.credential
-            ?.let { runCatching { credentialEncryptionService.decrypt(it) }.getOrNull() }
-            ?.let { credentialEncryptionService.mask(it) }
-
+    private fun toResponse(account: SharedAccount, listOnly: Boolean = false): SharedAccountResponse {
+        val maskedCredential = when {
+            account.credential == null -> null
+            listOnly -> "••••"
+            else -> runCatching { credentialEncryptionService.decrypt(account.credential!!) }
+                .getOrNull()
+                ?.let { credentialEncryptionService.mask(it) }
+        }
         return SharedAccountResponse.of(account, maskedCredential)
     }
 }
