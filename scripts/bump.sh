@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION_FILE="$ROOT_DIR/VERSION"
 
 DATE=$(date +"%Y%m%d")
+git -C "$ROOT_DIR" fetch --tags --quiet 2>/dev/null || true
 EXISTING=$(git -C "$ROOT_DIR" tag -l "v${DATE}.*" 2>/dev/null | wc -l | tr -d ' ')
 NEW_VERSION="${DATE}.${EXISTING}"
 
