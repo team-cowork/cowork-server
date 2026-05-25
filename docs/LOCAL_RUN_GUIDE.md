@@ -8,6 +8,7 @@
 - 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
 - 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
 - 2026-05-11 (Elasticsearch 검색 인덱싱 추가, 로컬 배포 고려 사항 보완)
+- 2026-05-26 (ACCOUNT_CREDENTIAL_ENCRYPTION_KEY·ACCOUNT_SHARE_OAUTH_STATE_SECRET 누락 보완, cowork-chat cold-start 경쟁 조건 주의사항 추가)
 
 검증 기준:
 - `docker-compose.yml`
@@ -53,13 +54,15 @@ cp .env.example .env
 
 | 키                       | 기본값                              | 필요한 경우                                |
 |-------------------------|----------------------------------|---------------------------------------|
-| `LIVEKIT_API_KEY`       | `devkey`                         | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_API_SECRET`    | `devsecret`                      | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_CONFIG_FILE`   | `livekit.yaml`                   | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
-| `OAUTH2_GOOGLE_*`       | 비어 있음                            | Google OAuth2 사용 시                    |
-| `OAUTH2_GITHUB_*`       | 비어 있음                            | GitHub OAuth2 사용 시                    |
-| `MINIO_PUBLIC_ENDPOINT` | `http://__LOCAL_IP__:9000`       | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
-| `ELASTICSEARCH_URL`     | `http://elasticsearch:9200`      | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
+| `LIVEKIT_API_KEY`                    | `devkey`                    | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_API_SECRET`                 | `devsecret`                 | 로컬 LiveKit / voice 기본값                |
+| `LIVEKIT_CONFIG_FILE`                | `livekit.yaml`              | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
+| `OAUTH2_GOOGLE_*`                    | 비어 있음                       | Google OAuth2 사용 시                    |
+| `OAUTH2_GITHUB_*`                    | 비어 있음                       | GitHub OAuth2 사용 시                    |
+| `MINIO_PUBLIC_ENDPOINT`              | `http://__LOCAL_IP__:9000`  | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
+| `ELASTICSEARCH_URL`                  | `http://elasticsearch:9200` | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
+| `ACCOUNT_CREDENTIAL_ENCRYPTION_KEY`  | 비어 있음                       | **필수** — `openssl rand -base64 32`로 생성, 없으면 vault-init이 빈 값으로 시드 |
+| `ACCOUNT_SHARE_OAUTH_STATE_SECRET`   | 비어 있음                       | **필수** — `openssl rand -base64 32`로 생성, 없으면 vault-init이 빈 값으로 시드 |
 
 Firebase 관련:
 - `docker/secrets/firebase-credentials.json` 파일이 실제로 있어야 `cowork-notification`이 기동된다.
@@ -284,6 +287,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
 - **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
 - ES 기동이 느릴 경우(`start_period: 60s`): `docker compose logs -f elasticsearch`로 상태 확인 후 `cowork-chat` 재시작
+- **cold-start Kafka 경쟁 조건**: `cowork-chat`의 Kafka consumer는 모듈 초기화 시 `subscribe()`를 호출한다. 최초 `docker compose up` 시 다른 서비스가 Kafka 토픽을 아직 생성하지 않은 상태라면 `UNKNOWN_TOPIC_OR_PARTITION` 오류로 NestJS 초기화가 실패하고 HTTP 서버가 열리지 않는다. `process.exit(1)` 처리로 컨테이너가 자동 재시작되며, 1~2회 재시작 후 토픽이 모두 생성되면 정상 기동된다. 수동으로 해결하려면 `docker compose restart cowork-chat`을 실행하면 된다.
 
 `MINIO_PUBLIC_ENDPOINT`:
 - `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
