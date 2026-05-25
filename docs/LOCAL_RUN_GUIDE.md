@@ -197,13 +197,13 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 `local`/`dev`/`prod` 프로파일 모두에서 Config Server가 Vault와 native 설정을 합쳐 내려준다. Spring Boot 이외 애플리케이션도 같은 기준으로 이 값을 읽는다.
 
-| 서비스 유형                                  | 시크릿 경로                      |
-|-----------------------------------------|-----------------------------|
-| Spring Boot | Vault → Config Server → 서비스 |
+| 서비스 유형                                        | 시크릿 경로                      |
+|-----------------------------------------------|-----------------------------|
+| Spring Boot                                   | Vault → Config Server → 서비스 |
 | Go (`authorization`, `notification`, `voice`) | Vault → Config Server → 서비스 |
-| Elixir (`user`) | Vault → Config Server → 서비스 |
-| Kotlin (`preference`) | Vault → Config Server → 서비스 |
-| NestJS (`chat`) | Vault → Config Server → 서비스 |
+| Elixir (`user`)                               | Vault → Config Server → 서비스 |
+| Kotlin (`preference`)                         | Vault → Config Server → 서비스 |
+| NestJS (`chat`)                               | Vault → Config Server → 서비스 |
 
 `vault-init` 컨테이너가 Vault 기동 직후 `secret/application` 경로에 아래 시크릿을 자동으로 기록한다.
 
@@ -217,29 +217,29 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 추가로 서비스별 Vault 경로도 같이 시드된다.
 
-| Vault 경로 | 주요 키 |
-|---|---|
-| `secret/cowork-authorization` | `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET` |
-| `secret/cowork-notification` | `db.dsn` |
-| `secret/cowork-voice` | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
-| `secret/cowork-chat` | `MONGODB_URI`, `ELASTICSEARCH_URL` |
+| Vault 경로                      | 주요 키                                                   |
+|-------------------------------|--------------------------------------------------------|
+| `secret/cowork-authorization` | `DB_DSN`, `DATAGSM_CLIENT_ID`, `JWT_SECRET`            |
+| `secret/cowork-notification`  | `db.dsn`                                               |
+| `secret/cowork-voice`         | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
+| `secret/cowork-chat`          | `MONGODB_URI`, `ELASTICSEARCH_URL`                     |
 
 `.env`에서 `SPRING_PROFILES_ACTIVE=dev`로 변경하면 config server가 Vault composite 모드로 전환된다. `VAULT_HOST`는 `cowork-vault`로 자동 설정된다.
 
 ## 10. 자주 쓰는 확인 포인트
 
-| 서비스                  | URL                                                          |
-|----------------------|--------------------------------------------------------------|
-| Eureka Dashboard     | `http://localhost:8761`                                      |
-| Gateway Swagger      | `http://localhost:8080/swagger-ui.html`                      |
-| Kafka UI             | `http://localhost:8090`                                      |
-| Prometheus           | `http://localhost:9090`                                      |
-| Grafana              | `http://localhost:3001`                                      |
-| MinIO Console        | `http://localhost:9002`                                      |
-| Vault                | `http://localhost:8200`                                      |
-| Elasticsearch 클러스터 상태 | `http://localhost:9200/_cluster/health`                      |
-| chat_messages 인덱스 확인 | `http://localhost:9200/chat_messages/_count`                 |
-| 인덱스 목록              | `http://localhost:9200/_cat/indices?v`                       |
+| 서비스                   | URL                                          |
+|-----------------------|----------------------------------------------|
+| Eureka Dashboard      | `http://localhost:8761`                      |
+| Gateway Swagger       | `http://localhost:8080/swagger-ui.html`      |
+| Kafka UI              | `http://localhost:8090`                      |
+| Prometheus            | `http://localhost:9090`                      |
+| Grafana               | `http://localhost:3001`                      |
+| MinIO Console         | `http://localhost:9002`                      |
+| Vault                 | `http://localhost:8200`                      |
+| Elasticsearch 클러스터 상태 | `http://localhost:9200/_cluster/health`      |
+| chat_messages 인덱스 확인  | `http://localhost:9200/chat_messages/_count` |
+| 인덱스 목록                | `http://localhost:9200/_cat/indices?v`       |
 
 ## 11. 알려진 주의사항
 
