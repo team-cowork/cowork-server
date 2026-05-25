@@ -28,13 +28,10 @@ import {
     SendMessageResponseDto,
 } from './dto/message-response.dto';
 import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
-import {
-    SlashCommandDto,
-    SlashCommandResponseDto,
-} from './dto/slash-command.dto';
-import { FileListQueryDto } from './dto/file-list.dto';
-import { FileListResponseDto } from './dto/file-list.dto';
+import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
+import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
+import { MessageRow } from './repository/message.repository';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
@@ -53,7 +50,7 @@ export class ChatController {
         @Body() dto: CreateFileUploadUrlRequestDto,
         @UserId() userId: number,
     ): Promise<CreateFileUploadUrlResponseDto> {
-        return this.chatService.createFileUploadUrl(channelId, dto, userId);
+        return this.chatService.createFileUploadUrl({ channelId, userId }, dto);
     }
 
     @Post('files/confirm')
@@ -69,7 +66,7 @@ export class ChatController {
         @Body() dto: ConfirmFileUploadRequestDto,
         @UserId() userId: number,
     ): Promise<ConfirmFileUploadResponseDto> {
-        const fileUrl = await this.chatService.confirmFileUpload(channelId, dto.objectKey, userId);
+        const fileUrl = await this.chatService.confirmFileUpload({ channelId, userId }, dto);
         return { fileUrl };
     }
 
@@ -85,7 +82,7 @@ export class ChatController {
         @Query() query: FileListQueryDto,
         @UserId() userId: number,
     ): Promise<FileListResponseDto> {
-        return this.chatService.getFileList(channelId, userId, query.before, query.limit);
+        return this.chatService.getFileList({ channelId, userId }, query);
     }
 
     @Post('messages')
@@ -99,7 +96,7 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ): Promise<SendMessageResponseDto> {
-        await this.chatService.sendMessage(channelId, dto, userId, userRole);
+        await this.chatService.sendMessage({ channelId, userId, userRole }, dto);
         return { queued: true };
     }
 
@@ -117,7 +114,7 @@ export class ChatController {
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
-        await this.chatService.publishGithubIssueCreateCommand(channelId, dto, userId);
+        await this.chatService.publishGithubIssueCreateCommand({ channelId, userId }, dto);
         return { queued: true };
     }
 
@@ -135,7 +132,7 @@ export class ChatController {
         @Body() dto: SlashCommandDto,
         @UserId() userId: number,
     ): Promise<SlashCommandResponseDto> {
-        await this.chatService.handleSlashCommand(channelId, dto, userId);
+        await this.chatService.handleSlashCommand({ channelId, userId }, dto);
         return { queued: true };
     }
 
@@ -147,9 +144,8 @@ export class ChatController {
         @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
-    ): Promise<MessageResponseDto[]> {
-        await this.chatService.checkMembership(channelId, userId);
-        return this.chatService.getMessages(channelId, query.before) as any;
+    ): Promise<MessageRow[]> {
+        return this.chatService.getMessages({ channelId, userId }, query.before);
     }
 
     @Patch('messages/:messageId')
@@ -164,7 +160,7 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        return this.chatService.editMessage(channelId, messageId, userId, dto, userRole);
+        return this.chatService.editMessage({ channelId, messageId, userId, userRole }, dto);
     }
 
     @Delete('messages/:messageId')
@@ -178,6 +174,6 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        return this.chatService.deleteMessage(channelId, messageId, userId, userRole);
+        return this.chatService.deleteMessage({ channelId, messageId, userId, userRole });
     }
 }
