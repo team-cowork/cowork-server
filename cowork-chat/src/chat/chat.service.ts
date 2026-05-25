@@ -7,10 +7,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { Message, MessageDocument } from './schema/message.schema';
-import { ChannelMember } from './schema/channel-member.schema';
+import { MessageDocument } from './schema/message.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
@@ -22,36 +19,36 @@ import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
 import { ChatGateway } from './chat.gateway';
 import { SendMessageDto } from './dto/send-message.dto';
-import { CreateFileUploadUrlRequestDto, CreateFileUploadUrlResponseDto } from './dto/create-file-upload-url.dto';
+import {
+    ConfirmFileUploadRequestDto,
+    CreateFileUploadUrlRequestDto,
+    CreateFileUploadUrlResponseDto,
+} from './dto/create-file-upload-url.dto';
 import { CreateGithubIssueDto } from './dto/create-github-issue.dto';
 import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { SearchMessagesDto } from './dto/search-messages.dto';
 import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
-import { FileListResponseDto } from './dto/file-list.dto';
+import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
+import { MessageRepository, MessageRow } from './repository/message.repository';
+import { ChannelMemberRepository } from './repository/channel-member.repository';
+import {
+    ChannelUserContext,
+    ChannelUserRoleContext,
+    MessageUserRoleContext,
+    UserContext,
+} from './dto/context';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
-const FILE_ATTACHMENT_LIMIT = 100;
-
-type FileAttachmentRow = {
-    messageId: string;
-    fileName: string;
-    fileSize: number;
-    fileUrl: string;
-    mimeType: string;
-    uploaderId: number;
-    uploadedAt: string;
-    attachmentIndex: number;
-};
 
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
 
     constructor(
-        @InjectModel(Message.name) private readonly messageModel: Model<Message>,
-        @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
+        private readonly messageRepository: MessageRepository,
+        private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly elasticsearchService: ElasticsearchService,
         private readonly minioService: MinioService,
         private readonly chatMessageProducer: ChatMessageProducer,
@@ -64,30 +61,28 @@ export class ChatService {
     ) {}
 
     async isMember(channelId: number, userId: number): Promise<boolean> {
-        const member = await this.memberModel.exists({ channelId, userId });
-        return member !== null;
+        return this.channelMemberRepository.exists(channelId, userId);
     }
 
     async checkMembership(channelId: number, userId: number): Promise<void> {
-        const member = await this.memberModel.exists({ channelId, userId });
-        if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        const isMember = await this.channelMemberRepository.exists(channelId, userId);
+        if (!isMember) throw new ForbiddenException('채널 접근 권한이 없습니다');
     }
 
     async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
-        const member = await this.memberModel.findOne({ channelId, userId }, { teamId: 1 });
-        if (!member) throw new ForbiddenException('채널 접근 권한이 없습니다');
-        return member.teamId;
+        const teamId = await this.channelMemberRepository.findTeamIdByChannelAndUser(channelId, userId);
+        if (teamId === null) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        return teamId;
     }
 
     async createFileUploadUrl(
-        channelId: number,
+        ctx: ChannelUserContext,
         dto: CreateFileUploadUrlRequestDto,
-        userId: number,
     ): Promise<CreateFileUploadUrlResponseDto> {
-        await this.checkMembership(channelId, userId);
+        await this.checkMembership(ctx.channelId, ctx.userId);
         const upload = await this.minioService.createPresignedUpload({
-            channelId,
-            userId,
+            channelId: ctx.channelId,
+            userId: ctx.userId,
             filename: dto.filename,
             contentType: dto.contentType,
             size: dto.size,
@@ -101,25 +96,21 @@ export class ChatService {
         };
     }
 
-    async confirmFileUpload(channelId: number, objectKey: string, userId: number): Promise<string> {
-        await this.checkMembership(channelId, userId);
-        return this.minioService.confirmUpload(channelId, userId, objectKey);
+    async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<string> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        return this.minioService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
     }
 
-    async getFileList(
-        channelId: number,
-        userId: number,
-        before?: string,
-        limit = 20,
-    ): Promise<FileListResponseDto> {
-        await this.checkMembership(channelId, userId);
+    async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
 
-        const channel = await this.channelClient.getChannel(channelId, userId);
+        const channel = await this.channelClient.getChannel(ctx.channelId, ctx.userId);
         if (channel.viewType !== FILE_SHARE_VIEW_TYPE) {
             throw new BadRequestException('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
         }
 
-        const { items, nextCursor } = await this.queryFileAttachments(channelId, before, limit);
+        const limit = query.limit ?? 20;
+        const { items, nextCursor } = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
         const uploaderNames = await this.loadUploaderNames(items);
 
         return {
@@ -137,33 +128,20 @@ export class ChatService {
         };
     }
 
-    async sendMessage(
-        channelId: number,
-        dto: SendMessageDto,
-        userId: number,
-        userRole: string,
-    ): Promise<void> {
-        await this.checkMembership(channelId, userId);
-        await this.chatMessageProducer.sendMessage(channelId, dto, userId, userRole);
+    async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.chatMessageProducer.sendMessage(ctx.channelId, dto, ctx.userId, ctx.userRole);
     }
 
-    async handleSlashCommand(
-        channelId: number,
-        dto: SlashCommandDto,
-        userId: number,
-    ): Promise<void> {
+    async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto): Promise<void> {
         if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
             throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
         }
-        await this.publishGithubIssueCreateCommand(channelId, dto.payload, userId);
+        await this.publishGithubIssueCreateCommand(ctx, dto.payload);
     }
 
-    async publishGithubIssueCreateCommand(
-        channelId: number,
-        dto: CreateGithubIssueDto,
-        userId: number,
-    ): Promise<void> {
-        const channelTeamId = await this.checkMembershipAndGetTeamId(channelId, userId);
+    async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
+        const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
         const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
         if (!repoInfo) {
             throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
@@ -173,67 +151,33 @@ export class ChatService {
         }
 
         await this.githubIssueProducer.send({
-            channelId,
+            channelId: ctx.channelId,
             teamId: repoInfo.teamId,
             projectId: dto.projectId,
             owner: repoInfo.owner,
             repo: repoInfo.repo,
             title: dto.title,
             body: dto.body,
-            requesterId: userId,
+            requesterId: ctx.userId,
         });
     }
 
-    async getMessages(channelId: number, before?: string) {
-        const query: Record<string, unknown> = { channelId };
-        if (before) {
-            query['_id'] = { $lt: new Types.ObjectId(before) };
-        }
-
-        return this.messageModel
-            .aggregate([
-                { $match: query },
-                { $sort: { _id: -1 } },
-                { $limit: 100 },
-                {
-                    $lookup: {
-                        from: this.messageModel.collection.name,
-                        localField: 'parentMessageId',
-                        foreignField: '_id',
-                        as: 'mentionedMessage',
-                        pipeline: [
-                            {
-                                $project: {
-                                    _id: 1,
-                                    authorId: 1,
-                                    content: 1,
-                                    type: 1,
-                                    createdAt: 1,
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    $addFields: {
-                        mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
-                    },
-                },
-            ]);
+    async getMessages(ctx: ChannelUserContext, before?: string): Promise<MessageRow[]> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        return this.messageRepository.findMessages(ctx.channelId, before);
     }
 
     async searchProjectMessages(
         projectId: number,
         dto: SearchMessagesDto,
-        userId: number,
+        ctx: UserContext,
     ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.projectClient.isMember(projectId, userId);
+        const isMember = await this.projectClient.isMember(projectId, ctx.userId);
         if (!isMember) {
             throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
         }
 
-        const memberships = await this.memberModel.find({ userId }, { channelId: 1 }).lean();
-        const accessibleChannelIds = memberships.map((membership) => membership.channelId);
+        const accessibleChannelIds = await this.channelMemberRepository.findChannelIdsByUser(ctx.userId);
 
         let filteredChannelIds = accessibleChannelIds;
         if (dto.channelId !== undefined) {
@@ -257,16 +201,8 @@ export class ChatService {
         return { messages: hits, nextCursor };
     }
 
-    async editMessage(channelId: number, messageId: string, userId: number, dto: EditMessageDto, userRole: string) {
-        await this.checkMembership(channelId, userId);
-        const message = await this.messageModel.findById(messageId);
-        if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
-        if (message.channelId !== channelId) {
-            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
-        }
-        if (message.authorId !== userId && !this.isAdmin(userRole)) {
-            throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
-        }
+    async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
+        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 수정할 수 있습니다');
 
         if (message.content === dto.content) {
             return message;
@@ -277,13 +213,13 @@ export class ChatService {
         message.isEdited = true;
         const updated = await message.save();
         if (updated.projectId) {
-            void this.elasticsearchService.updateMessage(messageId, dto.content);
+            void this.elasticsearchService.updateMessage(ctx.messageId, dto.content);
         }
 
         this.chatGateway.server
-            ?.to(`chat:${channelId}`)
+            ?.to(`chat:${ctx.channelId}`)
             .emit('message:edited', {
-                messageId,
+                messageId: ctx.messageId,
                 content: updated.content,
                 editedAt: (updated as MessageDocument).updatedAt?.toISOString(),
             });
@@ -291,27 +227,19 @@ export class ChatService {
         return updated;
     }
 
-    async deleteMessage(channelId: number, messageId: string, userId: number, userRole: string) {
-        await this.checkMembership(channelId, userId);
-        const message = await this.messageModel.findById(messageId);
-        if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
-        if (message.channelId !== channelId) {
-            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
-        }
-        if (message.authorId !== userId && !this.isAdmin(userRole)) {
-            throw new ForbiddenException('본인 메시지만 삭제할 수 있습니다');
-        }
+    async deleteMessage(ctx: MessageUserRoleContext) {
+        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 삭제할 수 있습니다');
 
-        await this.messageModel.deleteOne({ _id: messageId });
+        await this.messageRepository.deleteById(ctx.messageId);
         if (message.projectId) {
-            void this.elasticsearchService.deleteMessage(messageId);
+            void this.elasticsearchService.deleteMessage(ctx.messageId);
         }
 
         this.chatGateway.server
-            ?.to(`chat:${channelId}`)
-            .emit('message:deleted', { messageId });
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:deleted', { messageId: ctx.messageId });
 
-        return { channelId: message.channelId, messageId };
+        return { channelId: message.channelId, messageId: ctx.messageId };
     }
 
     async saveSystemMessage(
@@ -320,148 +248,23 @@ export class ChatService {
         content: string,
         projectId: number | null = null,
     ) {
-        return this.messageModel.create({
-            teamId,
-            projectId,
-            channelId,
-            authorId: SYSTEM_AUTHOR_ID,
-            content,
-            type: 'SYSTEM',
-            attachments: [],
-            mentions: [],
-            clientMessageId: undefined,
-            notificationStatus: 'SENT',
-        });
+        return this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
     }
 
     private isAdmin(role: string): boolean {
         return role === UserRole.ADMIN;
     }
 
-    private async queryFileAttachments(
-        channelId: number,
-        before: string | undefined,
-        limit: number,
-    ): Promise<{ items: FileAttachmentRow[]; nextCursor: string | null }> {
-        const safeLimit = Math.min(Math.max(limit, 1), FILE_ATTACHMENT_LIMIT);
-        const cursorMatch = before ? this.buildFileCursorMatch(before) : null;
-
-        const pipeline: any[] = [
-            {
-                $match: {
-                    channelId,
-                    type: 'FILE',
-                    'attachments.0': { $exists: true },
-                },
-            },
-            {
-                $unwind: {
-                    path: '$attachments',
-                    includeArrayIndex: 'attachmentIndex',
-                },
-            },
-            ...(cursorMatch ? [{ $match: cursorMatch }] : []),
-            {
-                $sort: {
-                    createdAt: -1,
-                    _id: -1,
-                    attachmentIndex: -1,
-                },
-            },
-            { $limit: safeLimit + 1 },
-            {
-                $project: {
-                    _id: 1,
-                    authorId: 1,
-                    createdAt: 1,
-                    attachmentIndex: 1,
-                    attachment: '$attachments',
-                },
-            },
-        ];
-
-        const rows = await this.messageModel.aggregate(pipeline);
-        const hasNext = rows.length > safeLimit;
-        const pageRows = rows.slice(0, safeLimit);
-        const items: FileAttachmentRow[] = pageRows.map((row: any) => ({
-            messageId: row._id.toString(),
-            fileName: row.attachment.name,
-            fileSize: row.attachment.size,
-            fileUrl: row.attachment.url,
-            mimeType: row.attachment.mimeType,
-            uploaderId: row.authorId,
-            uploadedAt: row.createdAt.toISOString(),
-            attachmentIndex: row.attachmentIndex ?? 0,
-        }));
-
-        return {
-            items,
-            nextCursor: hasNext && pageRows.length > 0
-                ? this.encodeFileCursor(pageRows.at(-1))
-                : null,
-        };
-    }
-
-    private buildFileCursorMatch(before: string): Record<string, unknown> | null {
-        const cursor = this.decodeFileCursor(before);
-        if (!cursor) {
-            return null;
-        }
-
-        return {
-            $or: [
-                { createdAt: { $lt: new Date(cursor.uploadedAt) } },
-                {
-                    createdAt: new Date(cursor.uploadedAt),
-                    _id: { $lt: new Types.ObjectId(cursor.messageId) },
-                },
-                {
-                    createdAt: new Date(cursor.uploadedAt),
-                    _id: new Types.ObjectId(cursor.messageId),
-                    attachmentIndex: { $lt: cursor.attachmentIndex },
-                },
-            ],
-        };
-    }
-
-    private encodeFileCursor(row: any): string | null {
-        if (!row) {
-            return null;
-        }
-
-        return Buffer.from(JSON.stringify({
-            uploadedAt: row.createdAt.toISOString(),
-            messageId: row._id.toString(),
-            attachmentIndex: row.attachmentIndex ?? 0,
-        })).toString('base64');
-    }
-
-    private decodeFileCursor(before: string): { uploadedAt: string; messageId: string; attachmentIndex: number } | null {
-        try {
-            const parsed = JSON.parse(Buffer.from(before, 'base64').toString('utf8')) as {
-                uploadedAt?: unknown;
-                messageId?: unknown;
-                attachmentIndex?: unknown;
-            };
-
-            if (
-                typeof parsed.uploadedAt !== 'string' ||
-                typeof parsed.messageId !== 'string' ||
-                typeof parsed.attachmentIndex !== 'number' ||
-                Number.isNaN(Date.parse(parsed.uploadedAt)) ||
-                !Types.ObjectId.isValid(parsed.messageId)
-            ) {
-                return null;
-            }
-
-            return {
-                uploadedAt: parsed.uploadedAt,
-                messageId: parsed.messageId,
-                attachmentIndex: parsed.attachmentIndex,
-            };
-        } catch {
-            return null;
-        }
+    private async findAndVerifyMessage(
+        ctx: MessageUserRoleContext,
+        forbiddenMessage: string,
+    ): Promise<MessageDocument> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        const message = await this.messageRepository.findById(ctx.messageId);
+        if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (message.channelId !== ctx.channelId) throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
+        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) throw new ForbiddenException(forbiddenMessage);
+        return message;
     }
 
     private async loadUploaderNames(items: Array<{ uploaderId: number }>): Promise<Map<number, string>> {

@@ -20,6 +20,8 @@ import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
+import { MessageRepository } from './repository/message.repository';
+import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { MembershipModule } from '../membership/membership.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
@@ -101,6 +103,8 @@ function createLogStream() {
     providers: [
         ChatGateway,
         ChatService,
+        MessageRepository,
+        ChannelMemberRepository,
         ChatMessageProducer,
         ChatMessageConsumer,
         NotificationTriggerProducer,
