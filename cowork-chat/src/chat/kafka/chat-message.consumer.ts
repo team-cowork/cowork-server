@@ -69,6 +69,8 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     private async handleMessageEvent(event: ChatMessageEvent): Promise<void> {
         const mentions = this.parseMentions(event.content);
 
+        this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${event.content?.length ?? 0}`);
+
         try {
             const saved = await this.messageRepository.createMessage({
                 teamId: event.teamId,
@@ -86,6 +88,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 notificationStatus: 'PENDING',
             });
 
+            this.logger.log(`message saved messageId=${saved._id} channelId=${event.channelId}`);
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
 
             if (event.projectId) {
