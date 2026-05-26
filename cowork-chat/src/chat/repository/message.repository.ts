@@ -213,6 +213,37 @@ export class MessageRepository {
         ).lean() as Promise<NotificationMessage | null>;
     }
 
+    findPinnedMessages(channelId: number): Promise<MessageRow[]> {
+        return this.messageModel.aggregate([
+            { $match: { channelId, isPinned: true } },
+            { $sort: { _id: -1 } },
+            {
+                $lookup: {
+                    from: this.messageModel.collection.name,
+                    localField: 'parentMessageId',
+                    foreignField: '_id',
+                    as: 'mentionedMessage',
+                    pipeline: [
+                        {
+                            $project: {
+                                _id: 1,
+                                authorId: 1,
+                                content: 1,
+                                type: 1,
+                                createdAt: 1,
+                            },
+                        },
+                    ],
+                },
+            },
+            {
+                $addFields: {
+                    mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
+                },
+            },
+        ]);
+    }
+
     async findParentAuthorsByIds(parentIds: Types.ObjectId[]): Promise<Map<string, { authorId: number }>> {
         const parents = await this.messageModel
             .find({ _id: { $in: parentIds } })
