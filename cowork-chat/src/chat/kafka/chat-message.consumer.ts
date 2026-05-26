@@ -67,7 +67,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleMessageEvent(event: ChatMessageEvent): Promise<void> {
-        const mentions = this.parseMentions(event.content);
+        const mentions = this.parseMentions(event.content ?? '');
 
         this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${event.content?.length ?? 0}`);
 
