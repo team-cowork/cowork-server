@@ -249,6 +249,10 @@ export class ChatService {
         message.isPinned = true;
         const updated = await message.save();
 
+        if (updated.projectId) {
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, true);
+        }
+
         this.chatGateway.server
             ?.to(`chat:${ctx.channelId}`)
             .emit('message:pinned', { messageId: ctx.messageId, channelId: ctx.channelId });
@@ -261,7 +265,11 @@ export class ChatService {
         if (!message.isPinned) throw new BadRequestException('고정되지 않은 메시지입니다');
 
         message.isPinned = false;
-        await message.save();
+        const updated = await message.save();
+
+        if (updated.projectId) {
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, false);
+        }
 
         this.chatGateway.server
             ?.to(`chat:${ctx.channelId}`)
