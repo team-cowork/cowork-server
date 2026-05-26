@@ -8,7 +8,7 @@
 - 2026-04-28 (vault-init 추가, gateway JWT_SECRET 주입 수정, authorization USER_SERVICE_URL 수정)
 - 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
 - 2026-05-11 (Elasticsearch 검색 인덱싱 추가, 로컬 배포 고려 사항 보완)
-- 2026-05-26 (ACCOUNT_CREDENTIAL_ENCRYPTION_KEY·ACCOUNT_SHARE_OAUTH_STATE_SECRET 누락 보완, cowork-chat cold-start 경쟁 조건 주의사항 추가)
+- 2026-05-26 (ACCOUNT_CREDENTIAL_ENCRYPTION_KEY·ACCOUNT_SHARE_OAUTH_STATE_SECRET 누락 보완, cowork-chat cold-start 경쟁 조건 주의사항 추가, Docker Desktop 재시작 후 Vault 복구 절차 및 gateway 401 원인 추가)
 
 검증 기준:
 - `docker-compose.yml`
@@ -301,6 +301,20 @@ Flyway 경고:
 Spring Boot 초기 기동 시간:
 - `cowork-config`가 healthy 상태가 될 때까지 최대 90초 대기가 설정돼 있다.
 - 첫 `docker compose up` 시 Gradle 빌드가 포함되므로 이미지 생성에 수 분이 소요될 수 있다.
+
+Docker Desktop 재시작 후 서비스 복구:
+- Vault는 dev 모드(인메모리)로 동작해 **Docker Desktop 재시작 시 모든 시크릿이 초기화**된다.
+- `vault-init`은 `restart: "no"`이므로 자동 재실행되지 않는다. 아래 순서로 수동 복구한다.
+
+```bash
+# 1. Vault 시크릿 재시드
+docker compose up vault-init
+
+# 2. Vault에서 시크릿을 읽는 서비스 재시작
+docker compose restart cowork-gateway cowork-authorization cowork-notification cowork-voice cowork-chat
+```
+
+- `cowork-gateway`를 반드시 포함해야 한다. `jwt.secret`이 Vault → Config Server 경로로 주입되는데, Vault가 비어있는 상태로 기동하면 빈 시크릿으로 `signingKey`가 초기화되어 **모든 API 요청에서 401이 반환**된다. (`JwtProperties`에 `@RefreshScope`가 없어 자동 갱신 불가)
 
 ## 12. 남은 확인 항목
 
