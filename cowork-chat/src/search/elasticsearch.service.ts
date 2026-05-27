@@ -117,6 +117,19 @@ export class ElasticsearchService implements OnModuleInit {
         }
     }
 
+    async updatePinStatus(messageId: string, isPinned: boolean): Promise<void> {
+        try {
+            await this.client.update({
+                index: INDEX,
+                id: messageId,
+                doc: { isPinned },
+            });
+        } catch (err: any) {
+            if (err?.statusCode === 404) return;
+            this.logger.error(`ES 메시지 핀 상태 업데이트 실패 id=${messageId}`, err);
+        }
+    }
+
     async deleteMessage(messageId: string): Promise<void> {
         try {
             await this.client.delete({ index: INDEX, id: messageId });

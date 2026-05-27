@@ -16,7 +16,7 @@ if ! command -v gh &>/dev/null; then
   exit 1
 fi
 
-BASE_BRANCH="${4:-$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||' || echo "develop")}"
+BASE_BRANCH="${4:-develop}"
 CURRENT_BRANCH=$(git branch --show-current)
 
 if [[ "$CURRENT_BRANCH" == "$BASE_BRANCH" ]]; then
