@@ -242,6 +242,45 @@ export class ChatService {
         return { channelId: message.channelId, messageId: ctx.messageId };
     }
 
+    async pinMessage(ctx: MessageUserRoleContext) {
+        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정할 수 있습니다');
+        if (message.isPinned) throw new BadRequestException('이미 고정된 메시지입니다');
+
+        message.isPinned = true;
+        const updated = await message.save();
+
+        if (updated.projectId) {
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, true);
+        }
+
+        this.chatGateway.server
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:pinned', { messageId: ctx.messageId, channelId: ctx.channelId });
+
+        return updated;
+    }
+
+    async unpinMessage(ctx: MessageUserRoleContext) {
+        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정 해제할 수 있습니다');
+        if (!message.isPinned) throw new BadRequestException('고정되지 않은 메시지입니다');
+
+        message.isPinned = false;
+        const updated = await message.save();
+
+        if (updated.projectId) {
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, false);
+        }
+
+        this.chatGateway.server
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:unpinned', { messageId: ctx.messageId, channelId: ctx.channelId });
+    }
+
+    async getPinnedMessages(ctx: ChannelUserContext): Promise<MessageRow[]> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        return this.messageRepository.findPinnedMessages(ctx.channelId);
+    }
+
     async saveSystemMessage(
         teamId: number,
         channelId: number,
