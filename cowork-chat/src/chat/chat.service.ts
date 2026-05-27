@@ -162,9 +162,10 @@ export class ChatService {
         });
     }
 
-    async getMessages(ctx: ChannelUserContext, before?: string): Promise<MessageRow[]> {
+    async getMessages(ctx: ChannelUserContext, before?: string) {
         await this.checkMembership(ctx.channelId, ctx.userId);
-        return this.messageRepository.findMessages(ctx.channelId, before);
+        const rows = await this.messageRepository.findMessages(ctx.channelId, before);
+        return rows.map(row => this.toMessageResponse(row, ctx.userId));
     }
 
     async searchProjectMessages(
@@ -310,9 +311,10 @@ export class ChatService {
             });
     }
 
-    async getPinnedMessages(ctx: ChannelUserContext): Promise<MessageRow[]> {
+    async getPinnedMessages(ctx: ChannelUserContext) {
         await this.checkMembership(ctx.channelId, ctx.userId);
-        return this.messageRepository.findPinnedMessages(ctx.channelId);
+        const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
+        return rows.map(row => this.toMessageResponse(row, ctx.userId));
     }
 
     async saveSystemMessage(
@@ -322,6 +324,17 @@ export class ChatService {
         projectId: number | null = null,
     ) {
         return this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
+    }
+
+    private toMessageResponse(row: MessageRow, userId: number) {
+        return {
+            ...row,
+            reactions: row.reactions.map(r => ({
+                emoji: r.emoji,
+                count: r.userIds.length,
+                myReaction: r.userIds.includes(userId),
+            })),
+        };
     }
 
     private isAdmin(role: string): boolean {
