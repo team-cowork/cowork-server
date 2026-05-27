@@ -32,8 +32,8 @@ import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create
 import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
-import { MessageRow } from './repository/message.repository';
 import { AddReactionDto } from './dto/add-reaction.dto';
+import { EMOJI_REGEX } from './util/emoji';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
@@ -146,7 +146,7 @@ export class ChatController {
         @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
-    ): Promise<MessageRow[]> {
+    ) {
         return this.chatService.getMessages({ channelId, userId }, query.before);
     }
 
@@ -240,7 +240,7 @@ export class ChatController {
         @Param('emoji') emoji: string,
         @UserId() userId: number,
     ): Promise<void> {
-        if (!/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})+$/u.test(emoji)) {
+        if (!EMOJI_REGEX.test(emoji)) {
             throw new BadRequestException('Invalid emoji format');
         }
         await this.chatService.removeReaction({ channelId, userId }, messageId, emoji);
@@ -253,7 +253,7 @@ export class ChatController {
     async getPinnedMessages(
         @Param('channelId', ParseIntPipe) channelId: number,
         @UserId() userId: number,
-    ): Promise<MessageRow[]> {
+    ) {
         return this.chatService.getPinnedMessages({ channelId, userId });
     }
 }
