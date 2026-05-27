@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Controller,
     Get,
     Post,
@@ -230,6 +231,7 @@ export class ChatController {
     @HttpCode(HttpStatus.OK)
     @ApiOperation({ summary: '메시지 이모지 반응 제거' })
     @ApiResponse({ status: 200 })
+    @ApiResponse({ status: 400, description: '유효하지 않은 이모지' })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async removeReaction(
@@ -238,6 +240,9 @@ export class ChatController {
         @Param('emoji') emoji: string,
         @UserId() userId: number,
     ): Promise<void> {
+        if (!/^(\p{Emoji_Presentation}|\p{Extended_Pictographic})+$/u.test(emoji)) {
+            throw new BadRequestException('Invalid emoji format');
+        }
         await this.chatService.removeReaction({ channelId, userId }, messageId, emoji);
     }
 
