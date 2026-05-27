@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+class ReactionResponseDto {
+    @ApiProperty() emoji!: string;
+    @ApiProperty() count!: number;
+    @ApiProperty() myReaction!: boolean;
+}
+
 class AttachmentResponseDto {
     @ApiProperty() name!: string;
     @ApiProperty() url!: string;
@@ -31,6 +37,7 @@ export class MessageResponseDto {
     @ApiProperty({ type: [Number] }) mentions!: number[];
     @ApiProperty() createdAt!: string;
     @ApiProperty() updatedAt!: string;
+    @ApiProperty({ type: [ReactionResponseDto] }) reactions!: ReactionResponseDto[];
     @ApiPropertyOptional({ type: MentionedMessageDto, nullable: true }) mentionedMessage?: MentionedMessageDto | null;
 }
 
