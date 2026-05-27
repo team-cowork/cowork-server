@@ -276,6 +276,38 @@ export class ChatService {
             .emit('message:unpinned', { messageId: ctx.messageId, channelId: ctx.channelId });
     }
 
+    async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
+        if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
+
+        this.chatGateway.server
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:reaction:added', {
+                messageId,
+                channelId: ctx.channelId,
+                emoji,
+                userId: ctx.userId,
+                count,
+            });
+    }
+
+    async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
+        if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
+
+        this.chatGateway.server
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:reaction:removed', {
+                messageId,
+                channelId: ctx.channelId,
+                emoji,
+                userId: ctx.userId,
+                count,
+            });
+    }
+
     async getPinnedMessages(ctx: ChannelUserContext): Promise<MessageRow[]> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         return this.messageRepository.findPinnedMessages(ctx.channelId);
