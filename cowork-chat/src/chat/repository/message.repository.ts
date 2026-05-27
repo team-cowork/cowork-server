@@ -60,10 +60,13 @@ export type MessageRow = {
     isPinned: boolean;
     clientMessageId?: string | null;
     mentions: number[];
+    reactions: Array<{ emoji: string; userIds: number[] }>;
     createdAt: Date;
     updatedAt: Date;
     mentionedMessage: MentionedMessageRow | null;
 };
+
+type ReactionDoc = { reactions: Array<{ emoji: string; userIds: number[] }> };
 
 @Injectable()
 export class MessageRepository {
@@ -252,6 +255,48 @@ export class MessageRepository {
             .lean() as { _id: Types.ObjectId; authorId: number }[];
 
         return new Map(parents.map((parent) => [parent._id.toString(), { authorId: parent.authorId }]));
+    }
+
+    async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
+        const updated = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId, 'reactions.emoji': emoji },
+            { $addToSet: { 'reactions.$[elem].userIds': userId } },
+            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (updated) {
+            return updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+        }
+
+        const newDoc = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId },
+            { $push: { reactions: { emoji, userIds: [userId] } } },
+            { new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (!newDoc) return null;
+        return newDoc.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 1;
+    }
+
+    async removeReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
+        const updated = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId, 'reactions.emoji': emoji },
+            { $pull: { 'reactions.$[elem].userIds': userId } },
+            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (!updated) return null;
+
+        const count = updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+
+        if (count === 0) {
+            await this.messageModel.updateOne(
+                { _id: messageId },
+                { $pull: { reactions: { emoji } } },
+            );
+        }
+
+        return count;
     }
 
     updateNotificationStatus(
