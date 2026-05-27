@@ -176,4 +176,47 @@ export class ChatController {
     ) {
         return this.chatService.deleteMessage({ channelId, messageId, userId, userRole });
     }
+
+    @Post('pins/:messageId')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: '메시지 고정' })
+    @ApiResponse({ status: 200, type: MessageResponseDto })
+    @ApiResponse({ status: 400, description: '이미 고정된 메시지' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
+    @ApiResponse({ status: 404, description: '메시지 없음' })
+    async pinMessage(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('messageId') messageId: string,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
+    ) {
+        return this.chatService.pinMessage({ channelId, messageId, userId, userRole });
+    }
+
+    @Delete('pins/:messageId')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ summary: '메시지 고정 해제' })
+    @ApiResponse({ status: 204 })
+    @ApiResponse({ status: 400, description: '고정되지 않은 메시지' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
+    @ApiResponse({ status: 404, description: '메시지 없음' })
+    async unpinMessage(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('messageId') messageId: string,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
+    ) {
+        await this.chatService.unpinMessage({ channelId, messageId, userId, userRole });
+    }
+
+    @Get('pins')
+    @ApiOperation({ summary: '채널 고정 메시지 목록 조회' })
+    @ApiResponse({ status: 200, type: [MessageResponseDto] })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async getPinnedMessages(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @UserId() userId: number,
+    ): Promise<MessageRow[]> {
+        return this.chatService.getPinnedMessages({ channelId, userId });
+    }
 }
