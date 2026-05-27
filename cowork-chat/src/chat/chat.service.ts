@@ -280,6 +280,7 @@ export class ChatService {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
         if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (count === -1) return;
 
         this.chatGateway.server
             ?.to(`chat:${ctx.channelId}`)
@@ -296,6 +297,7 @@ export class ChatService {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
         if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (count === -1) return;
 
         this.chatGateway.server
             ?.to(`chat:${ctx.channelId}`)
