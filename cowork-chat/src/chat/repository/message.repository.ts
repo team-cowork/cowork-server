@@ -217,6 +217,7 @@ export class MessageRepository {
         return this.messageModel.aggregate([
             { $match: { channelId, isPinned: true } },
             { $sort: { _id: -1 } },
+            { $limit: MESSAGE_FETCH_LIMIT },
             {
                 $lookup: {
                     from: this.messageModel.collection.name,
