@@ -60,7 +60,7 @@ export type MessageRow = {
     isPinned: boolean;
     clientMessageId?: string | null;
     mentions: number[];
-    reactions: Array<{ emoji: string; userIds: number[] }>;
+    reactions?: Array<{ emoji: string; userIds: number[] }>;
     createdAt: Date;
     updatedAt: Date;
     mentionedMessage: MentionedMessageRow | null;
@@ -328,7 +328,7 @@ export class MessageRepository {
 
         if (count === 0) {
             await this.messageModel.updateOne(
-                { _id: messageId },
+                { _id: messageId, channelId },
                 { $pull: { reactions: { emoji, userIds: { $size: 0 } } } },
             );
         }
