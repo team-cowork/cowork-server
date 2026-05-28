@@ -133,6 +133,14 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
         await this.minioClient.removeObject(this.config.bucket, objectKey);
     }
 
+    extractObjectKey(fileUrl: string): string {
+        const prefix = this.config.publicBaseUrl + '/';
+        if (!fileUrl.startsWith(prefix)) {
+            throw new BadRequestException('유효하지 않은 파일 URL입니다');
+        }
+        return fileUrl.slice(prefix.length);
+    }
+
     private validateCredentials(): void {
         if (!this.config.accessKey || !this.config.secretKey) {
             throw new Error('MinIO 접근 키 설정이 필요합니다 (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)');
