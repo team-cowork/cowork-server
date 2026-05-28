@@ -17,6 +17,12 @@ class EditHistory {
     @Prop({ required: true }) editedAt!: Date;
 }
 
+@Schema({ _id: false })
+class Reaction {
+    @Prop({ required: true }) emoji!: string;
+    @Prop({ type: [Number], default: [] }) userIds!: number[];
+}
+
 @Schema({ timestamps: true, versionKey: false })
 export class Message {
     createdAt!: Date;
@@ -40,6 +46,8 @@ export class Message {
     @Prop({ type: [EditHistory], default: [] }) editHistory!: EditHistory[];
 
     @Prop({ default: false }) isPinned!: boolean;
+
+    @Prop({ type: [Reaction], default: [] }) reactions!: Array<{ emoji: string; userIds: number[] }>;
 
     @Prop({ type: String }) clientMessageId?: string | null;
 
