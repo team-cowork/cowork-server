@@ -165,6 +165,21 @@ export class ChatController {
         return this.chatService.editMessage({ channelId, messageId, userId, userRole }, dto);
     }
 
+    @Delete('files/:fileId')
+    @ApiOperation({ summary: '채팅 첨부파일 삭제 (파일이 포함된 메시지 전체 삭제)' })
+    @ApiResponse({ status: 200, type: DeleteMessageResponseDto })
+    @ApiResponse({ status: 400, description: '유효하지 않은 fileId' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
+    @ApiResponse({ status: 404, description: '파일(메시지)을 찾을 수 없음' })
+    async deleteFile(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('fileId') fileId: string,
+        @UserId() userId: number,
+        @UserRole() userRole: string,
+    ): Promise<DeleteMessageResponseDto> {
+        return this.chatService.deleteFile({ channelId, userId, userRole }, fileId);
+    }
+
     @Delete('messages/:messageId')
     @ApiOperation({ summary: '메시지 삭제' })
     @ApiResponse({ status: 200, type: DeleteMessageResponseDto })
