@@ -7,6 +7,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { Types } from 'mongoose';
 import { MessageDocument } from './schema/message.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
@@ -380,7 +381,7 @@ export class ChatService {
             const parsed = JSON.parse(Buffer.from(fileId, 'base64').toString('utf8')) as {
                 messageId?: unknown;
             };
-            if (typeof parsed.messageId !== 'string') {
+            if (typeof parsed.messageId !== 'string' || !Types.ObjectId.isValid(parsed.messageId)) {
                 throw new BadRequestException('유효하지 않은 fileId입니다');
             }
             return parsed.messageId;
