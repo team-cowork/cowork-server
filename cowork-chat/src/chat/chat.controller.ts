@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     Controller,
     Get,
     Post,
@@ -31,7 +32,8 @@ import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create
 import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
-import { MessageRow } from './repository/message.repository';
+import { AddReactionDto } from './dto/add-reaction.dto';
+import { EMOJI_REGEX } from './util/emoji';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
@@ -144,7 +146,7 @@ export class ChatController {
         @Param('channelId', ParseIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
-    ): Promise<MessageRow[]> {
+    ) {
         return this.chatService.getMessages({ channelId, userId }, query.before);
     }
 
@@ -209,6 +211,41 @@ export class ChatController {
         await this.chatService.unpinMessage({ channelId, messageId, userId, userRole });
     }
 
+    @Post('messages/:messageId/reactions')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: '메시지 이모지 반응 추가' })
+    @ApiResponse({ status: 200 })
+    @ApiResponse({ status: 400, description: '유효하지 않은 이모지' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    @ApiResponse({ status: 404, description: '메시지 없음' })
+    async addReaction(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('messageId') messageId: string,
+        @Body() dto: AddReactionDto,
+        @UserId() userId: number,
+    ): Promise<void> {
+        await this.chatService.addReaction({ channelId, userId }, messageId, dto.emoji);
+    }
+
+    @Delete('messages/:messageId/reactions/:emoji')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: '메시지 이모지 반응 제거' })
+    @ApiResponse({ status: 200 })
+    @ApiResponse({ status: 400, description: '유효하지 않은 이모지' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    @ApiResponse({ status: 404, description: '메시지 없음' })
+    async removeReaction(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('messageId') messageId: string,
+        @Param('emoji') emoji: string,
+        @UserId() userId: number,
+    ): Promise<void> {
+        if (!EMOJI_REGEX.test(emoji)) {
+            throw new BadRequestException('Invalid emoji format');
+        }
+        await this.chatService.removeReaction({ channelId, userId }, messageId, emoji);
+    }
+
     @Get('pins')
     @ApiOperation({ summary: '채널 고정 메시지 목록 조회' })
     @ApiResponse({ status: 200, type: [MessageResponseDto] })
@@ -216,7 +253,7 @@ export class ChatController {
     async getPinnedMessages(
         @Param('channelId', ParseIntPipe) channelId: number,
         @UserId() userId: number,
-    ): Promise<MessageRow[]> {
+    ) {
         return this.chatService.getPinnedMessages({ channelId, userId });
     }
 }
