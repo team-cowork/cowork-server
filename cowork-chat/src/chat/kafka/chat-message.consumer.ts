@@ -67,9 +67,10 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleMessageEvent(event: ChatMessageEvent): Promise<void> {
-        const mentions = this.parseMentions(event.content);
+        const content = event.content ?? '';
+        const mentions = this.parseMentions(content);
 
-        this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${event.content?.length ?? 0}`);
+        this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${content.length}`);
 
         try {
             const saved = await this.messageRepository.createMessage({
@@ -77,7 +78,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 projectId: event.projectId ?? null,
                 channelId: event.channelId,
                 authorId: event.authorId,
-                content: event.content,
+                content,
                 type: event.type,
                 attachments: event.attachments ?? [],
                 parentMessageId: (event.parentMessageId && Types.ObjectId.isValid(event.parentMessageId))
@@ -98,7 +99,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                     projectId: event.projectId,
                     channelId: event.channelId,
                     authorId: event.authorId,
-                    content: event.content,
+                    content,
                     type: event.type,
                     hasAttachments: (event.attachments?.length ?? 0) > 0,
                     isPinned: false,
