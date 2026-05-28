@@ -189,6 +189,8 @@ defmodule CoworkUser.Accounts do
       |> maybe_equals(:student_role, Map.get(params, "student_role"), :account)
       |> maybe_equals(:status, Map.get(params, "status"), :account)
       |> maybe_role(Map.get(params, "role"))
+      |> maybe_query(Map.get(params, "query"))
+      |> maybe_user_ids(Map.get(params, "user_ids"))
 
     total_count =
       filtered_query
@@ -316,6 +318,29 @@ defmodule CoworkUser.Accounts do
 
   defp maybe_equals(query, field, value, :account) do
     from [p, a] in query, where: field(a, ^field) == ^value
+  end
+
+  defp maybe_query(query, value) when value in [nil, ""], do: query
+
+  defp maybe_query(query, q) do
+    pattern = "%#{q}%"
+    from [p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern)
+  end
+
+  defp maybe_user_ids(query, nil), do: query
+
+  defp maybe_user_ids(query, ids_str) when is_binary(ids_str) do
+    ids =
+      ids_str
+      |> String.split(",")
+      |> Enum.flat_map(fn s ->
+        case Integer.parse(String.trim(s)) do
+          {n, ""} when n > 0 -> [n]
+          _ -> []
+        end
+      end)
+
+    from [_p, a] in query, where: a.id in ^ids
   end
 
   defp maybe_role(query, nil), do: query
