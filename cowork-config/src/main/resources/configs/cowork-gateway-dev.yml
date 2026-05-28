@@ -60,6 +60,17 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: project-team-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/teams/*/projects/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: team-service
           uri: lb://cowork-team
           predicates:
