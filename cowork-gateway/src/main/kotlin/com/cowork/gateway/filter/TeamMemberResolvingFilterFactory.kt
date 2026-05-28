@@ -8,7 +8,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.util.UriComponentsBuilder
+import java.time.Duration
 
 @Component
 class TeamMemberResolvingFilterFactory(
@@ -22,12 +24,16 @@ class TeamMemberResolvingFilterFactory(
         val teamId = exchange.request.queryParams.getFirst("teamId")
             ?: return@GatewayFilter chain.filter(exchange)
 
+        val userId = exchange.request.headers.getFirst("X-User-Id")
+
         client.get()
             .uri("lb://cowork-team/teams/{teamId}/members", teamId)
+            .headers { headers -> userId?.let { headers.set("X-User-Id", it) } }
             .retrieve()
             .bodyToFlux(TeamMemberDto::class.java)
             .map { it.userId.toString() }
             .collectList()
+            .timeout(Duration.ofSeconds(3))
             .flatMap { userIds ->
                 val newParams = LinkedMultiValueMap<String, String>()
                 exchange.request.queryParams.forEach { key, values ->
@@ -37,6 +43,7 @@ class TeamMemberResolvingFilterFactory(
 
                 val newUri = UriComponentsBuilder.fromUri(exchange.request.uri)
                     .replaceQueryParams(newParams)
+                    .encode()
                     .build()
                     .toUri()
 
@@ -45,7 +52,8 @@ class TeamMemberResolvingFilterFactory(
             }
             .onErrorResume { ex ->
                 log.error("팀 멤버 조회 실패 teamId={}", teamId, ex)
-                exchange.response.statusCode = HttpStatus.SERVICE_UNAVAILABLE
+                val status = if (ex is WebClientResponseException) ex.statusCode else HttpStatus.SERVICE_UNAVAILABLE
+                exchange.response.statusCode = status
                 exchange.response.setComplete()
             }
     }
