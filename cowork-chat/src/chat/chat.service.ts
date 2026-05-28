@@ -329,7 +329,7 @@ export class ChatService {
     private toMessageResponse(row: MessageRow, userId: number) {
         return {
             ...row,
-            reactions: row.reactions.map(r => ({
+            reactions: (row.reactions ?? []).map(r => ({
                 emoji: r.emoji,
                 count: r.userIds.length,
                 myReaction: r.userIds.includes(userId),
