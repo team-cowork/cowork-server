@@ -7,6 +7,7 @@ const MESSAGE_FETCH_LIMIT = 100;
 const FILE_ATTACHMENT_LIMIT = 100;
 
 export type FileAttachmentRow = {
+    fileId: string;
     messageId: string;
     fileName: string;
     fileSize: number;
@@ -115,6 +116,10 @@ export class MessageRepository {
         return this.messageModel.findById(messageId);
     }
 
+    findByIdAndChannelId(messageId: string, channelId: number): Promise<MessageDocument | null> {
+        return this.messageModel.findOne({ _id: messageId, channelId });
+    }
+
     deleteById(messageId: string) {
         return this.messageModel.deleteOne({ _id: messageId });
     }
@@ -189,16 +194,20 @@ export class MessageRepository {
         const rows = await this.messageModel.aggregate(pipeline);
         const hasNext = rows.length > safeLimit;
         const pageRows = rows.slice(0, safeLimit);
-        const items: FileAttachmentRow[] = pageRows.map((row: any) => ({
-            messageId: row._id.toString(),
-            fileName: row.attachment.name,
-            fileSize: row.attachment.size,
-            fileUrl: row.attachment.url,
-            mimeType: row.attachment.mimeType,
-            uploaderId: row.authorId,
-            uploadedAt: row.createdAt.toISOString(),
-            attachmentIndex: row.attachmentIndex ?? 0,
-        }));
+        const items: FileAttachmentRow[] = pageRows.map((row: any) => {
+            const attachmentIndex = row.attachmentIndex ?? 0;
+            return {
+                fileId: this.encodeFileCursor(row)!,
+                messageId: row._id.toString(),
+                fileName: row.attachment.name,
+                fileSize: row.attachment.size,
+                fileUrl: row.attachment.url,
+                mimeType: row.attachment.mimeType,
+                uploaderId: row.authorId,
+                uploadedAt: row.createdAt.toISOString(),
+                attachmentIndex,
+            };
+        });
 
         return {
             items,

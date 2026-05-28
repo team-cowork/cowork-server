@@ -115,6 +115,7 @@ export class ChatService {
 
         return {
             files: items.map((item) => ({
+                fileId: item.fileId,
                 messageId: item.messageId,
                 fileName: item.fileName,
                 fileSize: item.fileSize,
@@ -126,6 +127,39 @@ export class ChatService {
             })),
             nextCursor,
         };
+    }
+
+    async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{ channelId: number; messageId: string }> {
+        const messageId = this.decodeFileId(fileId);
+        await this.checkMembership(ctx.channelId, ctx.userId);
+
+        const message = await this.messageRepository.findByIdAndChannelId(messageId, ctx.channelId);
+        if (!message) throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
+        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) {
+            throw new ForbiddenException('본인이 업로드한 파일만 삭제할 수 있습니다');
+        }
+
+        await Promise.all(
+            message.attachments.map(async (attachment) => {
+                try {
+                    const objectKey = this.minioService.extractObjectKey(attachment.url);
+                    await this.minioService.removeObject(objectKey);
+                } catch (error) {
+                    this.logger.warn(`MinIO 파일 삭제 실패 [url=${attachment.url}]`, error);
+                }
+            }),
+        );
+
+        await this.messageRepository.deleteById(messageId);
+        if (message.projectId) {
+            void this.elasticsearchService.deleteMessage(messageId);
+        }
+
+        this.chatGateway.server
+            ?.to(`chat:${ctx.channelId}`)
+            .emit('message:deleted', { messageId });
+
+        return { channelId: ctx.channelId, messageId };
     }
 
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
@@ -339,6 +373,20 @@ export class ChatService {
 
     private isAdmin(role: string): boolean {
         return role === UserRole.ADMIN;
+    }
+
+    private decodeFileId(fileId: string): string {
+        try {
+            const parsed = JSON.parse(Buffer.from(fileId, 'base64').toString('utf8')) as {
+                messageId?: unknown;
+            };
+            if (typeof parsed.messageId !== 'string') {
+                throw new BadRequestException('유효하지 않은 fileId입니다');
+            }
+            return parsed.messageId;
+        } catch {
+            throw new BadRequestException('유효하지 않은 fileId입니다');
+        }
     }
 
     private async findAndVerifyMessage(
