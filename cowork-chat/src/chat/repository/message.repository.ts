@@ -60,10 +60,13 @@ export type MessageRow = {
     isPinned: boolean;
     clientMessageId?: string | null;
     mentions: number[];
+    reactions?: Array<{ emoji: string; userIds: number[] }>;
     createdAt: Date;
     updatedAt: Date;
     mentionedMessage: MentionedMessageRow | null;
 };
+
+type ReactionDoc = { reactions: Array<{ emoji: string; userIds: number[] }> };
 
 @Injectable()
 export class MessageRepository {
@@ -252,6 +255,85 @@ export class MessageRepository {
             .lean() as { _id: Types.ObjectId; authorId: number }[];
 
         return new Map(parents.map((parent) => [parent._id.toString(), { authorId: parent.authorId }]));
+    }
+
+    async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
+        const updated = await this.messageModel.findOneAndUpdate(
+            {
+                _id: messageId,
+                channelId,
+                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
+            },
+            { $addToSet: { 'reactions.$[elem].userIds': userId } },
+            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (updated) {
+            return updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+        }
+
+        const alreadyReacted = await this.messageModel.exists({
+            _id: messageId,
+            channelId,
+            reactions: { $elemMatch: { emoji, userIds: userId } },
+        });
+        if (alreadyReacted) return -1;
+
+        const newDoc = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId, 'reactions.emoji': { $ne: emoji } },
+            { $push: { reactions: { emoji, userIds: [userId] } } },
+            { new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (newDoc) {
+            return newDoc.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 1;
+        }
+
+        // 동시 요청으로 emoji 항목이 생성된 경우 재시도
+        const retryUpdated = await this.messageModel.findOneAndUpdate(
+            {
+                _id: messageId,
+                channelId,
+                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
+            },
+            { $addToSet: { 'reactions.$[elem].userIds': userId } },
+            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (retryUpdated) {
+            return retryUpdated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+        }
+
+        const messageExists = await this.messageModel.exists({ _id: messageId, channelId });
+        return messageExists ? -1 : null;
+    }
+
+    async removeReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
+        const updated = await this.messageModel.findOneAndUpdate(
+            {
+                _id: messageId,
+                channelId,
+                reactions: { $elemMatch: { emoji, userIds: userId } },
+            },
+            { $pull: { 'reactions.$[elem].userIds': userId } },
+            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        ).lean() as ReactionDoc | null;
+
+        if (!updated) {
+            const messageExists = await this.messageModel.exists({ _id: messageId, channelId });
+            return messageExists ? -1 : null;
+        }
+
+        const count = updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+
+        if (count === 0) {
+            await this.messageModel.updateOne(
+                { _id: messageId, channelId },
+                { $pull: { reactions: { emoji, userIds: { $size: 0 } } } },
+            );
+        }
+
+        return count;
     }
 
     updateNotificationStatus(
