@@ -21,8 +21,23 @@ class TeamMemberResolvingFilterFactory(
     private val client: WebClient = webClientBuilder.build()
 
     override fun apply(config: Config): GatewayFilter = GatewayFilter { exchange, chain ->
-        val teamId = exchange.request.queryParams.getFirst("teamId")
-            ?: return@GatewayFilter chain.filter(exchange)
+        val queryParams = exchange.request.queryParams
+        val teamId = queryParams.getFirst("teamId")
+
+        // user_ids는 게이트웨이 내부 파라미터 — teamId 없이 클라이언트가 직접 지정하는 경우 제거
+        if (teamId == null) {
+            if (!queryParams.containsKey("user_ids")) return@GatewayFilter chain.filter(exchange)
+
+            val stripped = LinkedMultiValueMap<String, String>()
+            queryParams.forEach { key, values -> if (key != "user_ids") stripped[key] = values }
+            val strippedUri = UriComponentsBuilder.fromUri(exchange.request.uri)
+                .replaceQueryParams(stripped)
+                .build()
+                .toUri()
+            return@GatewayFilter chain.filter(
+                exchange.mutate().request(exchange.request.mutate().uri(strippedUri).build()).build()
+            )
+        }
 
         val userId = exchange.request.headers.getFirst("X-User-Id")
 
@@ -33,17 +48,16 @@ class TeamMemberResolvingFilterFactory(
             .bodyToFlux(TeamMemberDto::class.java)
             .map { it.userId.toString() }
             .collectList()
-            .timeout(Duration.ofSeconds(3))
+            .timeout(TEAM_SERVICE_TIMEOUT)
             .flatMap { userIds ->
                 val newParams = LinkedMultiValueMap<String, String>()
-                exchange.request.queryParams.forEach { key, values ->
-                    if (key != "teamId") newParams[key] = values
+                queryParams.forEach { key, values ->
+                    if (key != "teamId" && key != "user_ids") newParams[key] = values
                 }
                 newParams["user_ids"] = listOf(userIds.joinToString(","))
 
                 val newUri = UriComponentsBuilder.fromUri(exchange.request.uri)
                     .replaceQueryParams(newParams)
-                    .encode()
                     .build()
                     .toUri()
 
@@ -61,4 +75,8 @@ class TeamMemberResolvingFilterFactory(
     private data class TeamMemberDto(val userId: Long)
 
     class Config
+
+    companion object {
+        private val TEAM_SERVICE_TIMEOUT = Duration.ofSeconds(3)
+    }
 }
