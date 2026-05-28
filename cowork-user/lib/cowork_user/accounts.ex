@@ -340,7 +340,10 @@ defmodule CoworkUser.Accounts do
         end
       end)
 
-    from [_p, a] in query, where: a.id in ^ids
+    case ids do
+      [] -> from [_p, a] in query, where: false
+      _ -> from [_p, a] in query, where: a.id in ^ids
+    end
   end
 
   defp maybe_role(query, nil), do: query
