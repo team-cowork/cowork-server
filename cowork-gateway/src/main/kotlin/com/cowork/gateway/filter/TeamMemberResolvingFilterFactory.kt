@@ -49,6 +49,7 @@ class TeamMemberResolvingFilterFactory(
             .map { it.userId.toString() }
             .collectList()
             .timeout(TEAM_SERVICE_TIMEOUT)
+            .retry(2)
             .flatMap { userIds ->
                 val newParams = LinkedMultiValueMap<String, String>()
                 queryParams.forEach { key, values ->
