@@ -18,6 +18,7 @@ export class FileListQueryDto {
 }
 
 export class FileListItemDto {
+    @ApiProperty({ description: 'DELETE /files/{fileId}에 사용할 파일 식별자' }) fileId!: string;
     @ApiProperty() messageId!: string;
     @ApiProperty() fileName!: string;
     @ApiProperty() fileSize!: number;
