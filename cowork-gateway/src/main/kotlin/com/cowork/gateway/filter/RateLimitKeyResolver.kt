@@ -1,10 +1,8 @@
 package com.cowork.gateway.filter
 
-import org.springframework.cloud.client.loadbalancer.LoadBalanced
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 
@@ -16,10 +14,6 @@ class RateLimitConfig {
      * 인증된 요청 → X-User-Id 기준
      * 미인증 요청  → 클라이언트 IP 기준 (fallback)
      */
-    @Bean("lbWebClientBuilder")
-    @LoadBalanced
-    fun lbWebClientBuilder(): WebClient.Builder = WebClient.builder()
-
     @Bean
     fun userKeyResolver(): KeyResolver = KeyResolver { exchange: ServerWebExchange ->
         val userId = exchange.request.headers.getFirst("X-User-Id")
