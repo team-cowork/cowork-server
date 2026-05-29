@@ -18,6 +18,14 @@ import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer'
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 
+/**
+ * `/chat` 네임스페이스의 WebSocket 게이트웨이.
+ *
+ * 연결 시 `auth.token`(JWT)을 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
+ * 인증 실패 시 `exception` 이벤트를 emit하고 소켓을 즉시 끊는다.
+ * `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
+ * Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
+ */
 @WebSocketGateway({
     namespace: '/chat',
     path: '/chat-ws',
@@ -41,11 +49,23 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly jwtService: JwtService,
     ) {}
 
+    /**
+     * Socket.IO 서버 초기화 후 호출된다.
+     * Kafka 컨슈머에 Socket.IO `Server` 인스턴스를 주입해 룸 브로드캐스트를 활성화한다.
+     *
+     * @param server - 초기화된 Socket.IO 서버 인스턴스
+     */
     afterInit(server: Server) {
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
     }
 
+    /**
+     * 클라이언트 연결 시 JWT를 검증하고 `client.data`에 인증 정보를 설정한다.
+     * `auth.token`이 없거나 유효하지 않으면 `exception` 이벤트 후 소켓을 끊는다.
+     *
+     * @param client - 연결된 Socket.IO 소켓
+     */
     async handleConnection(client: Socket) {
         try {
             const token = client.handshake.auth?.token as string | undefined;
@@ -70,10 +90,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         }
     }
 
+    /**
+     * 클라이언트 연결 해제 시 호출된다.
+     *
+     * @param client - 연결 해제된 Socket.IO 소켓
+     */
     handleDisconnect(client: Socket) {
         this.logger.log(`연결 해제: ${client.id}`);
     }
 
+    /**
+     * `join` 이벤트 핸들러. 채널 멤버십을 확인한 뒤 `chat:{channelId}` 룸에 참여한다.
+     * 멤버가 아니면 `error` 이벤트를 emit하고 룸에 참여하지 않는다.
+     *
+     * @param client - 요청한 소켓 (data.userId가 설정되어 있어야 함)
+     * @param payload - 참여할 채널 ID
+     */
     @SubscribeMessage('join')
     async handleJoin(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
         const { userId } = client.data;
@@ -86,6 +118,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.logger.log(`userId=${userId} joined chat:${payload.channelId}`);
     }
 
+    /**
+     * `leave` 이벤트 핸들러. `chat:{channelId}` 룸에서 나간다.
+     *
+     * @param client - 요청한 소켓
+     * @param payload - 나갈 채널 ID
+     */
     @SubscribeMessage('leave')
     handleLeave(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
         client.leave(`chat:${payload.channelId}`);
