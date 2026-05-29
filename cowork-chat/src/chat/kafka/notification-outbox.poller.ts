@@ -10,6 +10,14 @@ const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
 const MAX_RETRY = 3;
 
+/**
+ * 알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
+ *
+ * **Outbox 패턴** 구현체로, 5초 간격으로 PENDING 상태의 메시지를 최대 10개씩 배치 처리한다.
+ * 처리 실패 시 최대 {@link MAX_RETRY}회까지 재시도하며, 초과 시 FAILED 상태로 전환한다.
+ *
+ * 배치 내 중복 DB 조회를 줄이기 위해 `memberCache`와 `parentCache`를 활용한다.
+ */
 @Injectable()
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(NotificationOutboxPoller.name);
@@ -22,6 +30,11 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         private readonly triggerProducer: NotificationTriggerProducer,
     ) {}
 
+    /**
+     * 모듈 초기화 시 {@link POLL_INTERVAL_MS}(5000ms) 간격으로 폴링 타이머를 시작한다.
+     *
+     * 이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
+     */
     onModuleInit() {
         this.timer = setInterval(async () => {
             if (this.isPolling) return;
@@ -35,10 +48,22 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         this.logger.log('Notification outbox poller started');
     }
 
+    /**
+     * 모듈 종료 시 폴링 타이머를 해제한다.
+     */
     onModuleDestroy() {
         clearInterval(this.timer);
     }
 
+    /**
+     * 한 번의 폴링 사이클을 실행한다.
+     *
+     * 실행 순서:
+     * 1. PENDING 상태 메시지를 최대 {@link BATCH_SIZE}(10)개 조회하며 PROCESSING으로 원자 전환한다.
+     * 2. 배치 내 고유 `parentMessageId`를 한 번에 조회하여 `parentCache`를 사전 채운다.
+     * 3. 각 메시지를 {@link processMessage}로 처리하고 성공 시 SENT로 전환한다.
+     * 4. 처리 실패 시 재시도 횟수에 따라 PENDING 또는 FAILED로 전환한다.
+     */
     private async poll(): Promise<void> {
         // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
         const msgs: NotificationMessage[] = [];
@@ -76,6 +101,23 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
     }
 
+    /**
+     * 단일 메시지에 대한 알림 트리거를 생성하고 발행한다.
+     *
+     * **수신자 분류 전략**:
+     * - `targetUserIds`: 채널 멤버 전체에서 메시지 작성자를 제외한 모든 사용자.
+     * - `forcedUserIds`: 멘션된 사용자 + 부모 메시지 작성자. 알림 수신 설정과 무관하게 항상 알림을 받는다.
+     *   단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
+     *
+     * **캐시 활용**:
+     * - `memberCache`: 같은 채널 ID가 배치 내에서 중복 조회되는 것을 방지한다.
+     * - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
+     *
+     * @param msg - 처리할 알림 대상 메시지
+     * @param memberCache - 채널 ID를 키로 하는 채널 멤버 목록 캐시 (배치 범위 내 공유)
+     * @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
+     * @throws {Error} 채널 멤버 조회 또는 알림 트리거 발행 실패 시
+     */
     private async processMessage(
         msg: Message & { _id: Types.ObjectId; createdAt: Date },
         memberCache: Map<string, ChannelMember[]>,
