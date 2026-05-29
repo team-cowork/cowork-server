@@ -6,6 +6,9 @@ defmodule CoworkUser.TeamClient do
       {:ok, %{status: 200, body: members}} when is_list(members) ->
         {:ok, Enum.map(members, & &1["userId"]) |> Enum.reject(&is_nil/1)}
 
+      {:ok, %{status: 200, body: _other}} ->
+        {:error, :invalid_response_body}
+
       {:ok, %{status: status}} ->
         {:error, {:http_status, status}}
 
