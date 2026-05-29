@@ -226,7 +226,7 @@ defmodule CoworkUser.Accounts do
       nil -> {:ok, params}
       team_id ->
         case TeamClient.get_member_ids(team_id) do
-          {:ok, ids} -> {:ok, Map.put(params, "user_ids", Enum.join(ids, ","))}
+          {:ok, ids} -> {:ok, Map.put(params, "user_ids", ids)}
           {:error, reason} -> {:error, {:team_service, reason}}
         end
     end
@@ -342,6 +342,12 @@ defmodule CoworkUser.Accounts do
   end
 
   defp maybe_user_ids(query, nil), do: query
+
+  defp maybe_user_ids(query, []), do: from [_p, a] in query, where: false
+
+  defp maybe_user_ids(query, ids) when is_list(ids) do
+    from [_p, a] in query, where: a.id in ^ids
+  end
 
   defp maybe_user_ids(query, ids_str) when is_binary(ids_str) do
     ids =
