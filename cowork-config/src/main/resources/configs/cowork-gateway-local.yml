@@ -88,7 +88,6 @@ spring:
             - Path=/api/users/**
           filters:
             - StripPrefix=1
-            - TeamMemberResolving
             - name: Retry
               args:
                 retries: 3
