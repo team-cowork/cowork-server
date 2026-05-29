@@ -56,6 +56,7 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
         }),
     ];
 
+/** /metrics, /health 경로는 자동 로깅에서 제외하고 로그 파일에 기록하는 pino 스트림을 생성한다. */
 function createLogStream() {
     try {
         mkdirSync(LOG_DIR, { recursive: true });
@@ -65,6 +66,13 @@ function createLogStream() {
     }
 }
 
+/**
+ * 채팅 서비스의 루트 모듈.
+ *
+ * WebSocket 게이트웨이, REST 컨트롤러, Kafka 프로듀서/컨슈머,
+ * 알림 outbox 폴러, MongoDB 스키마, MinIO, Elasticsearch를 통합 관리한다.
+ * `CHAT_LOGGER_ENABLED=false` 환경변수로 pino 로거를 비활성화할 수 있다.
+ */
 @Module({
     imports: [
         ConfigModule,
