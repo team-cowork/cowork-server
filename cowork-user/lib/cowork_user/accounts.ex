@@ -5,6 +5,7 @@ defmodule CoworkUser.Accounts do
   alias CoworkUser.Accounts.{Account, Profile, ProfileRole}
   alias CoworkUser.Repo
   alias CoworkUser.Storage.Minio
+  alias CoworkUser.TeamClient
 
   def get_my_profile(user_id), do: get_user_profile(user_id)
 
@@ -172,48 +173,63 @@ defmodule CoworkUser.Accounts do
   end
 
   def search_users(params) do
-    page = parse_positive_int(Map.get(params, "page"), 1)
-    page_size = parse_positive_int(Map.get(params, "page_size"), 20) |> min(100)
-    sort_by = Map.get(params, "sort_by", "id")
-    sort_order = Map.get(params, "sort_order", "asc")
+    with {:ok, params} <- resolve_team(params) do
+      page = parse_positive_int(Map.get(params, "page"), 1)
+      page_size = parse_positive_int(Map.get(params, "page_size"), 20) |> min(100)
+      sort_by = Map.get(params, "sort_by", "id")
+      sort_order = Map.get(params, "sort_order", "asc")
 
-    base_query =
-      from p in Profile,
-        join: a in assoc(p, :account)
+      base_query =
+        from p in Profile,
+          join: a in assoc(p, :account)
 
-    filtered_query =
-      base_query
-      |> maybe_like(:name, Map.get(params, "name"), :account)
-      |> maybe_like(:nickname, Map.get(params, "nickname"), :profile)
-      |> maybe_equals(:major, Map.get(params, "major"), :account)
-      |> maybe_equals(:student_role, Map.get(params, "student_role"), :account)
-      |> maybe_equals(:status, Map.get(params, "status"), :account)
-      |> maybe_role(Map.get(params, "role"))
+      filtered_query =
+        base_query
+        |> maybe_like(:name, Map.get(params, "name"), :account)
+        |> maybe_like(:nickname, Map.get(params, "nickname"), :profile)
+        |> maybe_equals(:major, Map.get(params, "major"), :account)
+        |> maybe_equals(:student_role, Map.get(params, "student_role"), :account)
+        |> maybe_equals(:status, Map.get(params, "status"), :account)
+        |> maybe_role(Map.get(params, "role"))
+        |> maybe_query(Map.get(params, "query"))
+        |> maybe_user_ids(Map.get(params, "user_ids"))
 
-    total_count =
-      filtered_query
-      |> exclude(:preload)
-      |> exclude(:order_by)
-      |> distinct(true)
-      |> Repo.aggregate(:count, :id)
+      total_count =
+        filtered_query
+        |> exclude(:preload)
+        |> exclude(:order_by)
+        |> distinct(true)
+        |> Repo.aggregate(:count, :id)
 
-    items =
-      filtered_query
-      |> order_by(^sort_clause(sort_by, sort_order))
-      |> limit(^ (page_size + 1))
-      |> offset(^ ((page - 1) * page_size))
-      |> Repo.all()
-      |> Repo.preload([:account, :profile_roles])
+      items =
+        filtered_query
+        |> order_by(^sort_clause(sort_by, sort_order))
+        |> limit(^ (page_size + 1))
+        |> offset(^ ((page - 1) * page_size))
+        |> Repo.all()
+        |> Repo.preload([:account, :profile_roles])
 
-    has_next = length(items) > page_size
+      has_next = length(items) > page_size
 
-    %{
-      items: items |> Enum.take(page_size) |> Enum.map(&to_user_response/1),
-      page: page,
-      page_size: page_size,
-      total_count: total_count,
-      has_next: has_next
-    }
+      {:ok, %{
+        items: items |> Enum.take(page_size) |> Enum.map(&to_user_response/1),
+        page: page,
+        page_size: page_size,
+        total_count: total_count,
+        has_next: has_next
+      }}
+    end
+  end
+
+  defp resolve_team(params) do
+    case Map.get(params, "teamId") do
+      nil -> {:ok, params}
+      team_id ->
+        case TeamClient.get_member_ids(team_id) do
+          {:ok, ids} -> {:ok, Map.put(params, "user_ids", ids)}
+          {:error, reason} -> {:error, {:team_service, reason}}
+        end
+    end
   end
 
   defp account_attrs(user_id, attrs) do
@@ -316,6 +332,39 @@ defmodule CoworkUser.Accounts do
 
   defp maybe_equals(query, field, value, :account) do
     from [p, a] in query, where: field(a, ^field) == ^value
+  end
+
+  defp maybe_query(query, value) when value in [nil, ""], do: query
+
+  defp maybe_query(query, q) do
+    escaped = String.replace(q, ~r/[%_\\]/, "\\\\0")
+    pattern = "%#{escaped}%"
+    from [p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern)
+  end
+
+  defp maybe_user_ids(query, nil), do: query
+
+  defp maybe_user_ids(query, []), do: from [_p, a] in query, where: false
+
+  defp maybe_user_ids(query, ids) when is_list(ids) do
+    from [_p, a] in query, where: a.id in ^ids
+  end
+
+  defp maybe_user_ids(query, ids_str) when is_binary(ids_str) do
+    ids =
+      ids_str
+      |> String.split(",")
+      |> Enum.flat_map(fn s ->
+        case Integer.parse(String.trim(s)) do
+          {n, ""} when n > 0 -> [n]
+          _ -> []
+        end
+      end)
+
+    case ids do
+      [] -> from [_p, a] in query, where: false
+      _ -> from [_p, a] in query, where: a.id in ^ids
+    end
   end
 
   defp maybe_role(query, nil), do: query
