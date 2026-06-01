@@ -13,7 +13,7 @@ class AttachmentResponseDto {
     @ApiProperty() mimeType!: string;
 }
 
-class MentionedMessageDto {
+export class MentionedMessageDto {
     @ApiProperty({ description: '부모 메시지 MongoDB ObjectId' }) _id!: string;
     @ApiProperty({ description: '부모 메시지 작성자 ID' }) authorId!: number;
     @ApiProperty({ description: '부모 메시지 내용' }) content!: string;
@@ -30,7 +30,7 @@ export class MessageResponseDto {
     @ApiProperty() content!: string;
     @ApiProperty({ enum: ['TEXT', 'FILE', 'SYSTEM'] }) type!: string;
     @ApiProperty({ type: [AttachmentResponseDto] }) attachments!: AttachmentResponseDto[];
-    @ApiPropertyOptional({ nullable: true, description: '스레드 답글의 부모 메시지 ObjectId (최상위 메시지이면 null)' }) parentMessageId!: string | null;
+    @ApiProperty({ nullable: true, description: '스레드 답글의 부모 메시지 ObjectId (최상위 메시지이면 null)' }) parentMessageId!: string | null;
     @ApiProperty() isEdited!: boolean;
     @ApiProperty() isPinned!: boolean;
     @ApiPropertyOptional({ nullable: true }) clientMessageId!: string | null;
