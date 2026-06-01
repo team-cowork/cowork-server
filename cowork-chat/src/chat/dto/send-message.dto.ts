@@ -22,7 +22,7 @@ export class SendMessageDto {
     @ApiPropertyOptional({ description: '프로젝트 ID (팀 채널이면 null)', nullable: true })
     @IsNumber() @IsOptional() projectId?: number | null;
 
-    @ApiProperty({ description: '메시지 내용 (최대 25000자)', maxLength: 25000, minLength: 1 })
+    @ApiProperty({ description: '메시지 내용 (최대 25000자). 멘션은 `<@userId>` 형식으로 포함 가능 (예: `<@123>`)', maxLength: 25000, minLength: 1 })
     @IsString() @MaxLength(25000) content!: string;
 
     @ApiPropertyOptional({ enum: ['TEXT', 'FILE'], default: 'TEXT' })
