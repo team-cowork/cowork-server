@@ -525,6 +525,14 @@ export class MessageRepository {
      * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
      * @returns Mongoose `updateOne` 결과 객체
      */
+    countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
+        const filter: Record<string, unknown> = { channelId, parentMessageId: null };
+        if (afterId) {
+            filter['_id'] = { $gt: afterId };
+        }
+        return this.messageModel.countDocuments(filter);
+    }
+
     updateNotificationStatus(
         messageId: Types.ObjectId,
         notificationStatus: string,
