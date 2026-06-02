@@ -140,7 +140,9 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
             this.logger.log(`message saved messageId=${saved._id} channelId=${event.channelId}`);
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
-            void this.channelMemberRepository.updateLastRead(event.channelId, event.authorId, saved._id);
+            void this.channelMemberRepository
+                .updateLastRead(event.channelId, event.authorId, saved._id)
+                .catch((err) => this.logger.warn(`lastReadMessageId 업데이트 실패 channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
 
             if (event.projectId) {
                 void this.elasticsearchService.indexMessage({
