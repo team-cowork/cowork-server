@@ -6,6 +6,9 @@ spring:
     name: cowork-channel
   config:
     import: "optional:configserver:http://localhost:8761"
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:

@@ -4,7 +4,7 @@ defmodule CoworkUser.MixProject do
   def project do
     [
       app: :cowork_user,
-      version: "20260524.0.0",
+      version: "20260602.0.0",
       elixir: "~> 1.17",
       start_permanent: Mix.env() == :prod,
       deps: deps()
