@@ -1,0 +1,16 @@
+groups:
+  - claude
+  - codex
+  - gemini
+  - copilot
+
+overrides:
+  claude/hooks/dispatcher: true
+  claude/settings: true
+  claude/hooks/ktlint: true
+  claude/hooks/command-guard: true
+  claude/hooks/logging: true
+
+branch_prefix: harness-sync/
+base_branch: develop
+language: ko
