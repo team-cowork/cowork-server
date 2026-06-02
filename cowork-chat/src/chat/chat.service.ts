@@ -585,7 +585,7 @@ export class ChatService {
      */
     private decodeFileId(fileId: string): string {
         try {
-            const parsed = JSON.parse(Buffer.from(fileId, 'base64').toString('utf8')) as {
+            const parsed = JSON.parse(Buffer.from(fileId, 'base64url').toString('utf8')) as {
                 messageId?: unknown;
             };
             if (typeof parsed.messageId !== 'string' || !Types.ObjectId.isValid(parsed.messageId)) {
