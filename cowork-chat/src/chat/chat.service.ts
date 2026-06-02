@@ -535,13 +535,14 @@ export class ChatService {
 
     async getTeamUnread(teamId: number, userId: number): Promise<Array<{ channelId: number; unreadCount: number }>> {
         const memberships = await this.channelMemberRepository.findMembersByTeam(teamId, userId);
-        const results = await Promise.all(
-            memberships.map(async ({ channelId, lastReadMessageId }) => {
-                const unreadCount = await this.messageRepository.countUnread(channelId, lastReadMessageId);
-                return { channelId, unreadCount };
-            }),
-        );
-        return results;
+        if (memberships.length === 0) {
+            return [];
+        }
+        const unreadCounts = await this.messageRepository.countUnreadForChannels(memberships);
+        return memberships.map(({ channelId }) => ({
+            channelId,
+            unreadCount: unreadCounts.get(channelId) ?? 0,
+        }));
     }
 
     async getPinnedMessages(ctx: ChannelUserContext) {

@@ -533,6 +533,30 @@ export class MessageRepository {
         return this.messageModel.countDocuments(filter);
     }
 
+    async countUnreadForChannels(
+        memberships: Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>,
+    ): Promise<Map<number, number>> {
+        if (memberships.length === 0) {
+            return new Map();
+        }
+        const orConditions = memberships.map(({ channelId, lastReadMessageId }) => {
+            const cond: Record<string, unknown> = { channelId, parentMessageId: null };
+            if (lastReadMessageId) {
+                cond['_id'] = { $gt: lastReadMessageId };
+            }
+            return cond;
+        });
+        const results = await this.messageModel.aggregate<{ _id: number; count: number }>([
+            { $match: { $or: orConditions } },
+            { $group: { _id: '$channelId', count: { $sum: 1 } } },
+        ]);
+        const countMap = new Map<number, number>();
+        for (const row of results) {
+            countMap.set(row._id, row.count);
+        }
+        return countMap;
+    }
+
     updateNotificationStatus(
         messageId: Types.ObjectId,
         notificationStatus: string,
