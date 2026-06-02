@@ -20,6 +20,11 @@ if [ -z "$BASE" ]; then
   esac
 fi
 
+if [ "$CURRENT" = "$BASE" ]; then
+  echo "ERROR: Current branch '$CURRENT' is the same as the base branch '$BASE'." >&2
+  exit 1
+fi
+
 ARGS=(gh pr create --title "$TITLE" --body-file "$BODY_FILE" --base "$BASE")
 
 if [ -n "$LABELS" ]; then
