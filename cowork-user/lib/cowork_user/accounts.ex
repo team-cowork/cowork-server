@@ -337,7 +337,7 @@ defmodule CoworkUser.Accounts do
   defp maybe_query(query, value) when value in [nil, ""], do: query
 
   defp maybe_query(query, q) do
-    escaped = String.replace(q, ~r/[%_\\]/, "\\\\0")
+    escaped = String.replace(q, ~r/[%_\\]/, &("\\" <> &1))
     pattern = "%#{escaped}%"
     from [p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern)
   end
