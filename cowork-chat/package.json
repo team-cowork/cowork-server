@@ -1,6 +1,6 @@
 {
   "name": "cowork-chat",
-  "version": "20260524.0",
+  "version": "20260602.0",
   "description": "채팅 서비스.",
   "main": "index.js",
   "scripts": {
