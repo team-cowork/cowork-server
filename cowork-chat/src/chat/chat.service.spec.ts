@@ -41,6 +41,7 @@ const mockMessageRepository = {
     findById: jest.fn(),
     deleteById: jest.fn(),
     createSystemMessage: jest.fn(),
+    countUnread: jest.fn(),
 };
 
 
@@ -48,6 +49,8 @@ const mockChannelMemberRepository = {
     exists: jest.fn(),
     findTeamIdByChannelAndUser: jest.fn(),
     findChannelIdsByUser: jest.fn(),
+    updateLastRead: jest.fn(),
+    findMembersByTeam: jest.fn(),
 };
 
 const mockElasticsearchService = {
@@ -419,6 +422,87 @@ describe('ChatService', () => {
             await expect(
                 service.deleteMessage(ctx()),
             ).resolves.toBeDefined();
+        });
+    });
+
+    describe('readChannel', () => {
+        const msgId = new Types.ObjectId();
+
+        it('멤버가 아니면 ForbiddenException을 던진다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(false);
+
+            await expect(
+                service.readChannel({ channelId: 1, userId: 42 }, msgId.toString()),
+            ).rejects.toThrow(ForbiddenException);
+        });
+
+        it('lastReadMessageId를 업데이트하고 unreadCount를 계산한다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockChannelMemberRepository.updateLastRead.mockResolvedValue(undefined);
+            mockMessageRepository.countUnread.mockResolvedValue(3);
+
+            await service.readChannel({ channelId: 1, userId: 42 }, msgId.toString());
+
+            expect(mockChannelMemberRepository.updateLastRead).toHaveBeenCalledWith(
+                1,
+                42,
+                expect.any(Types.ObjectId),
+            );
+            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, expect.any(Types.ObjectId));
+        });
+
+        it('user:{userId} 룸으로 channel:unread:updated 이벤트를 emit한다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockChannelMemberRepository.updateLastRead.mockResolvedValue(undefined);
+            mockMessageRepository.countUnread.mockResolvedValue(0);
+
+            await service.readChannel({ channelId: 1, userId: 42 }, msgId.toString());
+
+            expect(mockTo).toHaveBeenCalledWith('user:42');
+            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', { channelId: 1, unreadCount: 0 });
+        });
+    });
+
+    describe('getTeamUnread', () => {
+        it('가입한 채널별 미읽 카운트를 반환한다', async () => {
+            const oid1 = new Types.ObjectId();
+            const oid2 = new Types.ObjectId();
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([
+                { channelId: 1, lastReadMessageId: oid1 },
+                { channelId: 2, lastReadMessageId: oid2 },
+            ]);
+            mockMessageRepository.countUnread
+                .mockResolvedValueOnce(5)
+                .mockResolvedValueOnce(0);
+
+            const result = await service.getTeamUnread(10, 42);
+
+            expect(mockChannelMemberRepository.findMembersByTeam).toHaveBeenCalledWith(10, 42);
+            expect(mockMessageRepository.countUnread).toHaveBeenCalledTimes(2);
+            expect(result).toEqual([
+                { channelId: 1, unreadCount: 5 },
+                { channelId: 2, unreadCount: 0 },
+            ]);
+        });
+
+        it('가입한 채널이 없으면 빈 배열을 반환한다', async () => {
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([]);
+
+            const result = await service.getTeamUnread(10, 42);
+
+            expect(result).toEqual([]);
+            expect(mockMessageRepository.countUnread).not.toHaveBeenCalled();
+        });
+
+        it('lastReadMessageId가 null이면 채널 전체 메시지를 카운트한다', async () => {
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([
+                { channelId: 3, lastReadMessageId: null },
+            ]);
+            mockMessageRepository.countUnread.mockResolvedValue(10);
+
+            await service.getTeamUnread(10, 42);
+
+            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(3, null);
         });
     });
 
