@@ -9,6 +9,7 @@ import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
 import { SlashCommand } from './dto/slash-command.dto';
+import { ReadChannelDto } from './dto/read-channel.dto';
 
 const mockMessageId = new Types.ObjectId().toString();
 const userId = 42;
@@ -26,6 +27,7 @@ const mockChatService = {
     sendMessage: jest.fn(),
     editMessage: jest.fn(),
     deleteMessage: jest.fn(),
+    readChannel: jest.fn(),
 };
 
 const mockProducer = {
@@ -86,11 +88,10 @@ describe('ChatController', () => {
                 userId,
             );
 
-            expect(mockChatService.createFileUploadUrl).toHaveBeenCalledWith(1, {
-                filename: 'file.png',
-                contentType: 'image/png',
-                size: 1024,
-            }, 42);
+            expect(mockChatService.createFileUploadUrl).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                { filename: 'file.png', contentType: 'image/png', size: 1024 },
+            );
             expect(result.headers).toEqual({ 'Content-Type': 'image/png' });
         });
     });
@@ -115,7 +116,10 @@ describe('ChatController', () => {
 
             const result = await controller.getFiles(1, { limit: 20, before: undefined } as any, userId);
 
-            expect(mockChatService.getFileList).toHaveBeenCalledWith(1, 42, undefined, 20);
+            expect(mockChatService.getFileList).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                { limit: 20, before: undefined },
+            );
             expect(result.files).toHaveLength(1);
             expect(result.files[0].uploaderName).toBe('홍길동');
         });
@@ -129,7 +133,10 @@ describe('ChatController', () => {
 
             const result = await controller.sendMessage(1, dto as any, userId, userRole);
 
-            expect(mockChatService.sendMessage).toHaveBeenCalledWith(1, dto, 42, 'ROLE_USER');
+            expect(mockChatService.sendMessage).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42, userRole: 'ROLE_USER' },
+                dto,
+            );
             expect(result).toEqual({ queued: true });
         });
 
@@ -154,7 +161,10 @@ describe('ChatController', () => {
 
             const result = await controller.createGithubIssue(1, dto as any, userId);
 
-            expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(1, dto, 42);
+            expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                dto,
+            );
             expect(result).toEqual({ queued: true });
         });
 
@@ -164,9 +174,8 @@ describe('ChatController', () => {
             await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
 
             expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(
-                1,
+                { channelId: 1, userId: 42 },
                 expect.objectContaining({ body: undefined }),
-                42,
             );
         });
 
@@ -219,10 +228,10 @@ describe('ChatController', () => {
                 userId,
             );
 
-            expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(1, {
-                command: SlashCommand.GITHUB_ISSUE_CREATE,
-                payload,
-            }, 42);
+            expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
+            );
             expect(result).toEqual({ queued: true });
         });
 
@@ -236,9 +245,8 @@ describe('ChatController', () => {
             );
 
             expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(
-                1,
+                { channelId: 1, userId: 42 },
                 expect.objectContaining({ payload: expect.objectContaining({ body: undefined }) }),
-                42,
             );
         });
 
@@ -304,26 +312,29 @@ describe('ChatController', () => {
     });
 
     describe('getMessages', () => {
-        it('멤버십 검증 후 채널 메시지를 조회한다', async () => {
-            mockChatService.checkMembership.mockResolvedValue(undefined);
+        it('채널 메시지를 조회하고 반환한다', async () => {
             mockChatService.getMessages.mockResolvedValue([]);
 
             const result = await controller.getMessages(1, {}, userId);
 
-            expect(mockChatService.checkMembership).toHaveBeenCalledWith(1, 42);
-            expect(mockChatService.getMessages).toHaveBeenCalledWith(1, undefined);
+            expect(mockChatService.getMessages).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                undefined,
+            );
             expect(result).toEqual([]);
         });
 
         it('cursor(before) 파라미터를 서비스로 전달한다', async () => {
-            mockChatService.checkMembership.mockResolvedValue(undefined);
             mockChatService.getMessages.mockResolvedValue([]);
             await controller.getMessages(1, { before: mockMessageId }, userId);
-            expect(mockChatService.getMessages).toHaveBeenCalledWith(1, mockMessageId);
+            expect(mockChatService.getMessages).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                mockMessageId,
+            );
         });
 
         it('채널 멤버가 아니면 ForbiddenException이 발생한다', async () => {
-            mockChatService.checkMembership.mockRejectedValue(new ForbiddenException());
+            mockChatService.getMessages.mockRejectedValue(new ForbiddenException());
             await expect(controller.getMessages(1, {}, userId)).rejects.toThrow(ForbiddenException);
         });
     });
@@ -336,7 +347,8 @@ describe('ChatController', () => {
             const result = await controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole);
 
             expect(mockChatService.editMessage).toHaveBeenCalledWith(
-                1, mockMessageId, 42, { content: '수정됨' }, 'ROLE_USER',
+                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ROLE_USER' },
+                { content: '수정됨' },
             );
             expect(result).toBe(updated);
         });
@@ -356,6 +368,30 @@ describe('ChatController', () => {
         });
     });
 
+    describe('readChannel', () => {
+        const dto: ReadChannelDto = { lastReadMessageId: new Types.ObjectId().toString() };
+
+        it('ReadChannelDto를 서비스에 전달하고 204를 반환한다', async () => {
+            mockChatService.readChannel.mockResolvedValue(undefined);
+
+            const result = await controller.readChannel(1, dto, userId);
+
+            expect(mockChatService.readChannel).toHaveBeenCalledWith(
+                { channelId: 1, userId: 42 },
+                dto.lastReadMessageId,
+            );
+            expect(result).toBeUndefined();
+        });
+
+        it('채널 멤버가 아니면 ForbiddenException이 전파된다', async () => {
+            mockChatService.readChannel.mockRejectedValue(new ForbiddenException());
+
+            await expect(
+                controller.readChannel(1, dto, userId),
+            ).rejects.toThrow(ForbiddenException);
+        });
+    });
+
     describe('deleteMessage', () => {
         it('메시지를 삭제하고 Socket.io로 브로드캐스트한다', async () => {
             mockChatService.deleteMessage.mockResolvedValue({ channelId: 1, messageId: mockMessageId });
@@ -363,7 +399,7 @@ describe('ChatController', () => {
             const result = await controller.deleteMessage(1, mockMessageId, userId, userRole);
 
             expect(mockChatService.deleteMessage).toHaveBeenCalledWith(
-                1, mockMessageId, 42, 'ROLE_USER',
+                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ROLE_USER' },
             );
             expect(result).toEqual({ channelId: 1, messageId: mockMessageId });
         });

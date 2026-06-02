@@ -8,6 +8,10 @@ const mockConfigService = {
     get: jest.fn().mockReturnValue('localhost:9092'),
 };
 
+const mockChannelMemberRepository = {
+    updateLastRead: jest.fn().mockResolvedValue(undefined),
+};
+
 const mockElasticsearchService = {
     indexMessage: jest.fn().mockResolvedValue(undefined),
 };
@@ -16,12 +20,13 @@ describe('ChatMessageConsumer', () => {
     let consumer: ChatMessageConsumer;
 
     beforeEach(() => {
-        consumer = new ChatMessageConsumer(mockMessageRepository as any, mockConfigService as any, mockElasticsearchService as any);
+        consumer = new ChatMessageConsumer(mockMessageRepository as any, mockChannelMemberRepository as any, mockConfigService as any, mockElasticsearchService as any);
         jest.clearAllMocks();
     });
 
     it('clientMessageId가 없으면 null 대신 undefined로 저장한다', async () => {
-        mockMessageRepository.createMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
+        const savedMessage = { _id: 'msg-id-1', toObject: jest.fn().mockReturnValue({}) };
+        mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
 
         await (consumer as any).handleMessageEvent({
             teamId: 10,
@@ -41,5 +46,25 @@ describe('ChatMessageConsumer', () => {
                 clientMessageId: undefined,
             }),
         );
+    });
+
+    it('메시지 저장 후 작성자의 lastReadMessageId를 자동 업데이트한다', async () => {
+        const savedMessage = { _id: 'msg-id-42', toObject: jest.fn().mockReturnValue({}) };
+        mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
+
+        await (consumer as any).handleMessageEvent({
+            teamId: 10,
+            projectId: null,
+            channelId: 5,
+            authorId: 42,
+            authorRole: 'MEMBER',
+            content: '자동 읽음 테스트',
+            type: 'TEXT',
+            attachments: [],
+            occurredAt: new Date().toISOString(),
+        });
+
+        await new Promise((r) => setImmediate(r));
+        expect(mockChannelMemberRepository.updateLastRead).toHaveBeenCalledWith(5, 42, 'msg-id-42');
     });
 });
