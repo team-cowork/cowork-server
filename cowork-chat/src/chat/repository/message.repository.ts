@@ -586,7 +586,7 @@ export class MessageRepository {
             uploadedAt: row.createdAt.toISOString(),
             messageId: row._id.toString(),
             attachmentIndex: row.attachmentIndex ?? 0,
-        })).toString('base64');
+        })).toString('base64url');
     }
 
     /**
@@ -600,7 +600,7 @@ export class MessageRepository {
      */
     private decodeFileCursor(before: string): { uploadedAt: string; messageId: string; attachmentIndex: number } | null {
         try {
-            const parsed = JSON.parse(Buffer.from(before, 'base64').toString('utf8')) as {
+            const parsed = JSON.parse(Buffer.from(before, 'base64url').toString('utf8')) as {
                 uploadedAt?: unknown;
                 messageId?: unknown;
                 attachmentIndex?: unknown;
