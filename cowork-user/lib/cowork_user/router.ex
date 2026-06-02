@@ -91,7 +91,11 @@ defmodule CoworkUser.Router do
   end
 
   get "/users/search" do
-    JSON.send(conn, 200, Accounts.search_users(conn.params))
+    with {:ok, result} <- Accounts.search_users(conn.params) do
+      JSON.send(conn, 200, result)
+    else
+      {:error, {:team_service, _}} -> JSON.error(conn, 503, "팀 서비스에 접근할 수 없습니다.")
+    end
   end
 
   get "/users/:user_id" do
