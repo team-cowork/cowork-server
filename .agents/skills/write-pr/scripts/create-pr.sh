@@ -11,11 +11,14 @@ if [ ! -f "$BODY_FILE" ]; then
 fi
 
 CURRENT=$(git branch --show-current)
-case "$CURRENT" in
-  feature/*)  BASE="develop" ;;
-  develop)    BASE="master" ;;
-  *)          BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || echo "develop") ;;
-esac
+BASE="${PR_BASE_BRANCH:-}"
+if [ -z "$BASE" ]; then
+  case "$CURRENT" in
+    feature/*)  BASE="develop" ;;
+    develop)    BASE="master" ;;
+    *)          BASE=$(gh pr view --json baseRefName -q .baseRefName 2>/dev/null || echo "develop") ;;
+  esac
+fi
 
 ARGS=(gh pr create --title "$TITLE" --body-file "$BODY_FILE" --base "$BASE")
 
