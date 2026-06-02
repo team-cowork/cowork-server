@@ -523,6 +523,27 @@ export class ChatService {
      * @param ctx - 채널·사용자 컨텍스트
      * @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
+    async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
+        await this.checkMembership(ctx.channelId, ctx.userId);
+        const oid = new Types.ObjectId(lastReadMessageId);
+        await this.channelMemberRepository.updateLastRead(ctx.channelId, ctx.userId, oid);
+        const unreadCount = await this.messageRepository.countUnread(ctx.channelId, oid);
+        this.chatGateway.server
+            ?.to(`user:${ctx.userId}`)
+            .emit('channel:unread:updated', { channelId: ctx.channelId, unreadCount });
+    }
+
+    async getTeamUnread(teamId: number, userId: number): Promise<Array<{ channelId: number; unreadCount: number }>> {
+        const memberships = await this.channelMemberRepository.findMembersByTeam(teamId, userId);
+        const results = await Promise.all(
+            memberships.map(async ({ channelId, lastReadMessageId }) => {
+                const unreadCount = await this.messageRepository.countUnread(channelId, lastReadMessageId);
+                return { channelId, unreadCount };
+            }),
+        );
+        return results;
+    }
+
     async getPinnedMessages(ctx: ChannelUserContext) {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
