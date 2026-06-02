@@ -42,6 +42,7 @@ const mockMessageRepository = {
     deleteById: jest.fn(),
     createSystemMessage: jest.fn(),
     countUnread: jest.fn(),
+    countUnreadForChannels: jest.fn(),
 };
 
 
@@ -471,14 +472,15 @@ describe('ChatService', () => {
                 { channelId: 1, lastReadMessageId: oid1 },
                 { channelId: 2, lastReadMessageId: oid2 },
             ]);
-            mockMessageRepository.countUnread
-                .mockResolvedValueOnce(5)
-                .mockResolvedValueOnce(0);
+            mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[1, 5], [2, 0]]));
 
             const result = await service.getTeamUnread(10, 42);
 
             expect(mockChannelMemberRepository.findMembersByTeam).toHaveBeenCalledWith(10, 42);
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledTimes(2);
+            expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
+                { channelId: 1, lastReadMessageId: oid1 },
+                { channelId: 2, lastReadMessageId: oid2 },
+            ]);
             expect(result).toEqual([
                 { channelId: 1, unreadCount: 5 },
                 { channelId: 2, unreadCount: 0 },
@@ -491,18 +493,21 @@ describe('ChatService', () => {
             const result = await service.getTeamUnread(10, 42);
 
             expect(result).toEqual([]);
-            expect(mockMessageRepository.countUnread).not.toHaveBeenCalled();
+            expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
         });
 
-        it('lastReadMessageId가 null이면 채널 전체 메시지를 카운트한다', async () => {
+        it('lastReadMessageId가 null이면 해당 채널은 Map에서 0으로 fallback된다', async () => {
             mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([
                 { channelId: 3, lastReadMessageId: null },
             ]);
-            mockMessageRepository.countUnread.mockResolvedValue(10);
+            mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[3, 10]]));
 
-            await service.getTeamUnread(10, 42);
+            const result = await service.getTeamUnread(10, 42);
 
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(3, null);
+            expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
+                { channelId: 3, lastReadMessageId: null },
+            ]);
+            expect(result).toEqual([{ channelId: 3, unreadCount: 10 }]);
         });
     });
 
