@@ -13,14 +13,14 @@ Select **1–2 labels** from the PR-eligible list below. Do NOT use issue-only o
 
 ## Off-limits Labels (do NOT assign)
 
-| Label                      | Reason                                                                     |
-|----------------------------|----------------------------------------------------------------------------|
+| Label | Reason |
+|-------|--------|
 | `waiting for review:검토 대기` | Applied manually by the author after the PR is ready — never auto-assigned |
-| `help wanted:도움 필요`        | Issues only                                                                |
-| `invalid:무효한`              | Issues only                                                                |
-| `duplicate:중복`             | Issues only                                                                |
-| `GFI:첫 기여 추천`              | Issues only                                                                |
-| `blocked:차단됨`              | Applied manually when blocked by another PR/issue                          |
+| `help wanted:도움 필요` | Issues only |
+| `invalid:무효한` | Issues only |
+| `duplicate:중복` | Issues only |
+| `GFI:첫 기여 추천` | Issues only |
+| `blocked:차단됨` | Applied manually when blocked by another PR/issue |
 
 ## Quick Decision
 
