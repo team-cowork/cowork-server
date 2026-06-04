@@ -54,6 +54,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleEvent(event: ChannelMemberEvent): Promise<void> {
+        if (!event || !event.eventType || !event.channelId || !event.userId) {
+            this.logger.warn('유효하지 않은 멤버십 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            return;
+        }
         const { eventType, channelId, teamId, userId, role } = event;
 
         try {
