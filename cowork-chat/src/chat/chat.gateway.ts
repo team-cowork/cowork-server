@@ -145,6 +145,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('join:team')
     async handleJoinTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+        if (!payload || typeof payload.teamId !== 'number') {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
         const { userId } = client.data;
         const isMember = await this.chatService.isTeamMember(payload.teamId, userId);
         if (!isMember) {
@@ -159,6 +163,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave:team')
     handleLeaveTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+        if (!payload || typeof payload.teamId !== 'number') {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
         client.leave(`team:${payload.teamId}`);
     }
 }
