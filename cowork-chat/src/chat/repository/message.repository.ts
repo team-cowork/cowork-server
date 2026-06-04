@@ -126,40 +126,49 @@ export class MessageRepository {
      * @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
      * @returns {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-    findMessages(channelId: number, before?: string): Promise<MessageRow[]> {
+    findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
         const query: Record<string, unknown> = { channelId };
         if (before) {
             query['_id'] = { $lt: new Types.ObjectId(before) };
         }
+        if (parentMessageId) {
+            query['parentMessageId'] = new Types.ObjectId(parentMessageId);
+        }
+
+        const lookupStages = parentMessageId
+            ? [{ $addFields: { mentionedMessage: null } }]
+            : [
+                {
+                    $lookup: {
+                        from: this.messageModel.collection.name,
+                        localField: 'parentMessageId',
+                        foreignField: '_id',
+                        as: 'mentionedMessage',
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    authorId: 1,
+                                    content: 1,
+                                    type: 1,
+                                    createdAt: 1,
+                                },
+                            },
+                        ],
+                    },
+                },
+                {
+                    $addFields: {
+                        mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
+                    },
+                },
+            ];
 
         return this.messageModel.aggregate([
             { $match: query },
             { $sort: { _id: -1 } },
             { $limit: MESSAGE_FETCH_LIMIT },
-            {
-                $lookup: {
-                    from: this.messageModel.collection.name,
-                    localField: 'parentMessageId',
-                    foreignField: '_id',
-                    as: 'mentionedMessage',
-                    pipeline: [
-                        {
-                            $project: {
-                                _id: 1,
-                                authorId: 1,
-                                content: 1,
-                                type: 1,
-                                createdAt: 1,
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $addFields: {
-                    mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
-                },
-            },
+            ...lookupStages,
         ]);
     }
 
