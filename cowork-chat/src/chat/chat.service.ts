@@ -298,9 +298,9 @@ export class ChatService {
      * @param before - 이 MongoDB ObjectId 이전의 메시지 조회 (없으면 최신부터)
      * @returns 최대 100개의 메시지 배열
      */
-    async getMessages(ctx: ChannelUserContext, before?: string) {
+    async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
         await this.checkMembership(ctx.channelId, ctx.userId);
-        const rows = await this.messageRepository.findMessages(ctx.channelId, before);
+        const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId);
         return rows.map(row => this.toMessageResponse(row, ctx.userId));
     }
 
