@@ -235,7 +235,7 @@ export class ChatController {
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
     ) {
-        return this.chatService.getMessages({ channelId, userId }, query.before);
+        return this.chatService.getMessages({ channelId, userId }, query.before, query.parentMessageId);
     }
 
     /**
