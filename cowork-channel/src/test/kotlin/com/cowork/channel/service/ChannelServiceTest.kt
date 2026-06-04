@@ -8,6 +8,7 @@ import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.AddMemberRequest
 import com.cowork.channel.dto.CreateChannelRequest
 import com.cowork.channel.dto.UpdateChannelRequest
+import com.cowork.channel.event.ChannelEventPublisher
 import com.cowork.channel.event.ChannelMemberEventPublisher
 import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
@@ -33,10 +34,11 @@ class ChannelServiceTest {
     private val teamPermission = mockk<TeamPermissionService>()
     private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
+    private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val projectClient = mockk<ProjectClient>()
     private val meetingNoteTemplateService = mockk<MeetingNoteTemplateService>(relaxed = true)
 
-    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, projectClient, meetingNoteTemplateService)
+    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, channelEventPublisher, projectClient, meetingNoteTemplateService)
 
     @BeforeEach
     fun setUp() {
