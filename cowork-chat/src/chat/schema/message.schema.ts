@@ -174,6 +174,9 @@ MessageSchema.index({ authorId: 1 });
 /** 스레드 답글 조회 시 부모 메시지 기준으로 빠르게 필터링하기 위한 인덱스 */
 MessageSchema.index({ parentMessageId: 1 });
 
+/** 채널 내 스레드 답글 목록 조회를 위한 복합 인덱스 (`channelId`, `parentMessageId`, `_id` 내림차순) */
+MessageSchema.index({ channelId: 1, parentMessageId: 1, _id: -1 });
+
 /** 채널별 고정 메시지 목록 조회를 위한 복합 인덱스 */
 MessageSchema.index({ isPinned: 1, channelId: 1 });
 
