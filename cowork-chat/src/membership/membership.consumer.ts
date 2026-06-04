@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { Server } from 'socket.io';
 import { ChannelMember } from '../chat/schema/channel-member.schema';
 import { ChannelMemberEvent } from './event/membership.event';
 import { getRequiredCsvConfig } from '../common/config/config.util';
@@ -11,11 +12,16 @@ import { getRequiredCsvConfig } from '../common/config/config.util';
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MembershipConsumer.name);
     private consumer!: Consumer;
+    private io?: Server;
 
     constructor(
         @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
         private readonly configService: ConfigService,
     ) {}
+
+    setSocketServer(io: Server) {
+        this.io = io;
+    }
 
     async onModuleInit() {
         const kafka = new Kafka({
@@ -48,6 +54,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleEvent(event: ChannelMemberEvent): Promise<void> {
+        if (!event || !event.eventType || !event.channelId || !event.userId) {
+            this.logger.warn('유효하지 않은 멤버십 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            return;
+        }
         const { eventType, channelId, teamId, userId, role } = event;
 
         try {
@@ -57,10 +67,13 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     { $set: { teamId, role } },
                     { upsert: true },
                 );
+                this.io?.to(`chat:${channelId}`).emit('member:joined', { channelId, teamId, userId, role });
             } else if (eventType === 'LEAVE') {
                 await this.memberModel.deleteOne({ channelId, userId });
+                this.io?.to(`chat:${channelId}`).emit('member:left', { channelId, teamId, userId });
             } else if (eventType === 'ROLE_CHANGE') {
                 await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId, role } });
+                this.io?.to(`chat:${channelId}`).emit('member:role:updated', { channelId, teamId, userId, role });
             }
         } catch (err) {
             this.logger.error(`멤버십 이벤트 처리 실패 [${eventType}]`, err);
