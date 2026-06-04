@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 /** Mongoose 문서 타입. HydratedDocument로 래핑되어 _id, save() 등 Mongoose 메서드를 포함합니다. */
 export type ChannelMemberDocument = HydratedDocument<ChannelMember>;
@@ -27,6 +27,9 @@ export class ChannelMember {
      * 기본값은 `'MEMBER'`이며, 추후 `'OWNER'`, `'ADMIN'` 등으로 확장 가능합니다.
      */
     @Prop({ default: 'MEMBER' }) role!: string;
+
+    /** 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`. */
+    @Prop({ type: Types.ObjectId, default: null }) lastReadMessageId!: Types.ObjectId | null;
 }
 
 /** {@link ChannelMember} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */
