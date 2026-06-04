@@ -12,12 +12,17 @@ import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
 import io.mockk.every
+import io.mockk.just
 import io.mockk.mockk
+import io.mockk.mockkStatic
+import io.mockk.Runs
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -49,6 +54,9 @@ class ProjectServiceTest {
 
     @Test
     fun `createProject은 마지막 position 다음 값으로 저장`() {
+        mockkStatic(TransactionSynchronizationManager::class)
+        every { TransactionSynchronizationManager.registerSynchronization(any<TransactionSynchronization>()) } just Runs
+
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
         every { projectRepository.findMaxPositionByTeamId(100L) } returns 3
         every { projectRepository.save(any()) } answers { firstArg() }
@@ -86,6 +94,9 @@ class ProjectServiceTest {
 
     @Test
     fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
+        mockkStatic(TransactionSynchronizationManager::class)
+        every { TransactionSynchronizationManager.registerSynchronization(any<TransactionSynchronization>()) } just Runs
+
         val proj = project()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
