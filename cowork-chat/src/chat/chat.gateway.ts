@@ -81,6 +81,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             client.data.userId = userId;
             client.data.userRole = payload.role ?? UserRole.USER;
+            client.join(`user:${userId}`);
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
