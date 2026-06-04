@@ -25,6 +25,17 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 
     setSocketServer(io: Server) {
         this.io = io;
+    }
+
+    async onModuleInit() {
+        const kafka = new Kafka({
+            clientId: 'cowork-chat-channel-event',
+            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+        });
+        this.consumer = kafka.consumer({ groupId: 'cowork-chat-channel-event' });
+        await this.consumer.connect();
+        await this.consumer.subscribe({ topic: 'channel.event', fromBeginning: false });
+
         void this.consumer
             .run({
                 eachMessage: async ({ message }) => {
@@ -43,16 +54,6 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: channel.event');
-    }
-
-    async onModuleInit() {
-        const kafka = new Kafka({
-            clientId: 'cowork-chat-channel-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
-        });
-        this.consumer = kafka.consumer({ groupId: 'cowork-chat-channel-event' });
-        await this.consumer.connect();
-        await this.consumer.subscribe({ topic: 'channel.event', fromBeginning: false });
     }
 
     async onModuleDestroy() {
