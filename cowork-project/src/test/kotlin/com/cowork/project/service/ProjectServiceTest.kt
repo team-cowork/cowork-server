@@ -7,6 +7,7 @@ import com.cowork.project.domain.TeamMembership
 import com.cowork.project.dto.AddProjectMemberRequest
 import com.cowork.project.dto.CreateProjectRequest
 import com.cowork.project.dto.UpdateProjectRequest
+import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
@@ -25,8 +26,9 @@ class ProjectServiceTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
+    private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
 
-    private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository, projectEventPublisher)
 
     private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
