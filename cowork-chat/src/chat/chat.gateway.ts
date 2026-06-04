@@ -144,7 +144,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * 채널/프로젝트 생성·수정·삭제 이벤트 수신에 사용한다.
      */
     @SubscribeMessage('join:team')
-    handleJoinTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+    async handleJoinTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+        const { userId } = client.data;
+        const isMember = await this.chatService.isTeamMember(payload.teamId, userId);
+        if (!isMember) {
+            client.emit('error', { message: '팀 접근 권한이 없습니다' });
+            return;
+        }
         client.join(`team:${payload.teamId}`);
     }
 
