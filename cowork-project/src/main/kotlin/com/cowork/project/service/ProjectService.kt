@@ -5,6 +5,7 @@ import com.cowork.project.domain.ProjectMember
 import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.ProjectStatus
 import com.cowork.project.dto.*
+import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
@@ -13,6 +14,8 @@ import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 private const val TEAM_ROLE_OWNER = "OWNER"
@@ -24,6 +27,7 @@ class ProjectService(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
+    private val projectEventPublisher: ProjectEventPublisher,
 ) {
 
     private fun findProjectOrThrow(projectId: Long): Project =
@@ -97,6 +101,12 @@ class ProjectService(
             )
         )
 
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                projectEventPublisher.publishCreated(project)
+            }
+        })
+
         return ProjectResponse.of(project)
     }
 
@@ -116,6 +126,12 @@ class ProjectService(
         request.description?.let { project.updateDescription(it) }
         request.status?.let { project.updateStatus(parseStatus(it)) }
 
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                projectEventPublisher.publishUpdated(project)
+            }
+        })
+
         return ProjectResponse.of(project)
     }
 
@@ -124,6 +140,11 @@ class ProjectService(
         val project = findProjectOrThrow(projectId)
         requireProjectOwner(project, userId)
         projectRepository.delete(project)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                projectEventPublisher.publishDeleted(project)
+            }
+        })
     }
 
     fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
