@@ -80,6 +80,10 @@ export class ChatService {
         return this.channelMemberRepository.exists(channelId, userId);
     }
 
+    async isTeamMember(teamId: number, userId: number): Promise<boolean> {
+        return this.channelMemberRepository.existsByTeam(teamId, userId);
+    }
+
     /**
      * 채널 멤버십을 검증한다. 멤버가 아니면 `ForbiddenException`을 던진다.
      *

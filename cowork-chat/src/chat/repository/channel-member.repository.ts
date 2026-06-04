@@ -30,6 +30,11 @@ export class ChannelMemberRepository {
         return member !== null;
     }
 
+    async existsByTeam(teamId: number, userId: number): Promise<boolean> {
+        const member = await this.memberModel.exists({ teamId, userId });
+        return member !== null;
+    }
+
     /**
      * 채널과 사용자 ID로 해당 멤버십이 속한 팀 ID를 조회합니다.
      *
