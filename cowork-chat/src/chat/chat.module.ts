@@ -16,6 +16,8 @@ import { NotificationTriggerProducer } from './kafka/notification-trigger.produc
 import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChannelEventConsumer } from './kafka/channel-event.consumer';
+import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectClient } from './service/project.client';
 import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
@@ -120,6 +122,8 @@ function createLogStream() {
         NotificationOutboxPoller,
         GithubIssueProducer,
         GithubIssueResultConsumer,
+        ChannelEventConsumer,
+        ProjectEventConsumer,
         ProjectClient,
         ChannelClient,
         UserClient,
