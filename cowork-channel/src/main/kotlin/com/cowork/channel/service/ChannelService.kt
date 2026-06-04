@@ -6,6 +6,7 @@ import com.cowork.channel.domain.ChannelMember
 import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.dto.*
+import com.cowork.channel.event.ChannelEventPublisher
 import com.cowork.channel.event.ChannelMemberEventPublisher
 import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
@@ -25,6 +26,7 @@ class ChannelService(
     private val teamPermissionService: TeamPermissionService,
     private val channelMemberEventPublisher: ChannelMemberEventPublisher,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
+    private val channelEventPublisher: ChannelEventPublisher,
     private val projectClient: ProjectClient,
     private val meetingNoteTemplateService: MeetingNoteTemplateService,
 ) {
@@ -75,6 +77,7 @@ class ChannelService(
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
                 channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+                channelEventPublisher.publishCreated(channel)
             }
         })
         return ChannelResponse.of(channel)
@@ -118,6 +121,11 @@ class ChannelService(
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() {
+                channelEventPublisher.publishUpdated(channel)
+            }
+        })
         return ChannelResponse.of(channel)
     }
 
@@ -138,6 +146,7 @@ class ChannelService(
                 members.forEach { member ->
                     channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId)
                 }
+                channelEventPublisher.publishDeleted(channel)
             }
         })
     }
