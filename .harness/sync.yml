@@ -10,6 +10,14 @@ overrides:
   claude/hooks/ktlint: true
   claude/hooks/command-guard: true
   claude/hooks/logging: true
+  claude/hooks/secret-guard: true
+
+  codex/hooks/dispatcher: true
+  codex/hooks-json: true
+  codex/hooks/command-guard: true
+  codex/hooks/logging: true
+  codex/hooks/ktlint: true
+  codex/hooks/secret-guard: true
 
 branch_prefix: harness-sync/
 base_branch: develop
