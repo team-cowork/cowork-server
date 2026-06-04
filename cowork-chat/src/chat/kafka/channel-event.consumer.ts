@@ -61,7 +61,13 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private handleEvent(event: ChannelEvent) {
-        if (!this.io) return;
+        if (!this.io) {
+            throw new Error('Socket.IO server is not initialized yet');
+        }
+        if (!event || !event.eventType || !event.teamId) {
+            this.logger.warn('유효하지 않은 채널 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            return;
+        }
         const room = `team:${event.teamId}`;
         const { eventType, ...payload } = event;
 
