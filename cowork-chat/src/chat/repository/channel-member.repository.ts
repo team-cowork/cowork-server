@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ChannelMember } from '../schema/channel-member.schema';
 
 /**
@@ -69,5 +69,25 @@ export class ChannelMemberRepository {
      */
     findByChannelId(channelId: number): Promise<ChannelMember[]> {
         return this.memberModel.find({ channelId }).lean() as Promise<ChannelMember[]>;
+    }
+
+    async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
+        await this.memberModel.updateOne(
+            { channelId, userId },
+            { $set: { lastReadMessageId: messageId } },
+        );
+    }
+
+    async findMembersByTeam(
+        teamId: number,
+        userId: number,
+    ): Promise<Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>> {
+        const memberships = await this.memberModel
+            .find({ teamId, userId }, { channelId: 1, lastReadMessageId: 1 })
+            .lean();
+        return memberships.map((m) => ({
+            channelId: m.channelId,
+            lastReadMessageId: (m.lastReadMessageId as Types.ObjectId | null | undefined) ?? null,
+        }));
     }
 }

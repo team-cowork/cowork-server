@@ -7,6 +7,7 @@ import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { MessageRepository } from '../repository/message.repository';
+import { ChannelMemberRepository } from '../repository/channel-member.repository';
 
 /**
  * Kafka `chat.message` 토픽을 구독하여 채팅 메시지를 처리하는 컨슈머.
@@ -24,6 +25,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
     constructor(
         private readonly messageRepository: MessageRepository,
+        private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly configService: ConfigService,
         private readonly elasticsearchService: ElasticsearchService,
     ) {}
@@ -138,6 +140,9 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
             this.logger.log(`message saved messageId=${saved._id} channelId=${event.channelId}`);
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+            void this.channelMemberRepository
+                .updateLastRead(event.channelId, event.authorId, saved._id)
+                .catch((err) => this.logger.warn(`lastReadMessageId 업데이트 실패 channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
 
             if (event.projectId) {
                 void this.elasticsearchService.indexMessage({
