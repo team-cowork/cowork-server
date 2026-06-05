@@ -25,7 +25,8 @@ export class IssueService {
         const labels = this.labelService.resolveLabels(dto);
         await this.labelService.ensureLabelsExist(dto, labels);
 
-        const existingIssues = await this.apiClient.searchOpenIssuesByTitle(dto);
+        const existingIssues =
+          await this.apiClient.searchOpenIssuesByTitle(dto);
         const existingIssue = existingIssues.find(
           (issue) => issue.title === dto.title,
         );
