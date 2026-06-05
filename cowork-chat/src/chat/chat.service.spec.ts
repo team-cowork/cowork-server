@@ -147,7 +147,7 @@ describe('ChatService', () => {
 
             await service.getMessages({ channelId: 1, userId: 42 });
 
-            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined);
+            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, undefined);
         });
 
         it('before cursor를 레포지토리에 전달한다', async () => {
@@ -156,7 +156,7 @@ describe('ChatService', () => {
 
             await service.getMessages({ channelId: 1, userId: 42 }, mockMessageId);
 
-            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, mockMessageId);
+            expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, mockMessageId, undefined);
         });
 
         it('레포지토리 조회 결과를 그대로 반환한다', async () => {
