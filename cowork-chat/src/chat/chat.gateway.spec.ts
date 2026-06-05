@@ -1,17 +1,25 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChannelEventConsumer } from './kafka/channel-event.consumer';
+import { ProjectEventConsumer } from './kafka/project-event.consumer';
+import { MembershipConsumer } from '../membership/membership.consumer';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
 };
 
-const mockSocket = (headers: Record<string, string> = { 'x-user-id': '42', 'x-user-role': 'ROLE_USER' }) => ({
+const mockJwtService = {
+    verifyAsync: jest.fn(),
+};
+
+const mockSocket = (authToken?: string) => ({
     id: 'socket-1',
-    handshake: { headers },
+    handshake: { auth: { token: authToken } },
     data: {} as Record<string, unknown>,
     join: jest.fn(),
     leave: jest.fn(),
@@ -21,6 +29,7 @@ const mockSocket = (headers: Record<string, string> = { 'x-user-id': '42', 'x-us
 
 const mockChatService = {
     isMember: jest.fn(),
+    isTeamMember: jest.fn(),
 };
 
 const mockConsumer = {
@@ -31,35 +40,53 @@ const mockGithubIssueResultConsumer = {
     setSocketServer: jest.fn(),
 };
 
+const mockChannelEventConsumer = {
+    setSocketServer: jest.fn(),
+};
+
+const mockProjectEventConsumer = {
+    setSocketServer: jest.fn(),
+};
+
+const mockMembershipConsumer = {
+    setSocketServer: jest.fn(),
+};
+
 describe('ChatGateway', () => {
     let gateway: ChatGateway;
 
     beforeEach(async () => {
+        jest.clearAllMocks();
+        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'ROLE_USER' });
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ChatGateway,
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatMessageConsumer, useValue: mockConsumer },
                 { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
+                { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
+                { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
+                { provide: MembershipConsumer, useValue: mockMembershipConsumer },
                 { provide: ConfigService, useValue: mockConfigService },
+                { provide: JwtService, useValue: mockJwtService },
             ],
         }).compile();
 
         gateway = module.get<ChatGateway>(ChatGateway);
-        jest.clearAllMocks();
     });
 
     describe('handleConnection', () => {
-        it('유효한 x-user-id 헤더로 연결 시 client.data에 userId가 저장된다', async () => {
-            const client = mockSocket();
+        it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장된다', async () => {
+            const client = mockSocket('valid-token');
             await gateway.handleConnection(client as any);
             expect(client.data.userId).toBe(42);
             expect(client.data.userRole).toBe('ROLE_USER');
             expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('x-user-id 헤더 없이 연결하면 disconnect된다', async () => {
-            const client = mockSocket({});
+        it('토큰 없이 연결하면 disconnect된다', async () => {
+            const client = mockSocket(undefined);
             await gateway.handleConnection(client as any);
             expect(client.disconnect).toHaveBeenCalled();
         });
@@ -68,7 +95,7 @@ describe('ChatGateway', () => {
     describe('handleJoin', () => {
         it('채널 멤버이면 room에 참가한다', async () => {
             mockChatService.isMember.mockResolvedValue(true);
-            const client = mockSocket();
+            const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as any, { channelId: 1 });
@@ -79,7 +106,7 @@ describe('ChatGateway', () => {
 
         it('채널 멤버가 아니면 error 이벤트를 emit하고 join하지 않는다', async () => {
             mockChatService.isMember.mockResolvedValue(false);
-            const client = mockSocket();
+            const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as any, { channelId: 1 });
@@ -91,7 +118,7 @@ describe('ChatGateway', () => {
 
     describe('handleLeave', () => {
         it('채널 room에서 퇴장한다', () => {
-            const client = mockSocket();
+            const client = mockSocket('valid-token');
             gateway.handleLeave(client as any, { channelId: 1 });
             expect(client.leave).toHaveBeenCalledWith('chat:1');
         });
