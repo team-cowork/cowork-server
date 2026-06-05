@@ -118,7 +118,10 @@ export class GithubApiClient {
     }
   }
 
-  async createLabel(dto: CreateIssueDto, label: CreateLabelPayload): Promise<void> {
+  async createLabel(
+    dto: CreateIssueDto,
+    label: CreateLabelPayload,
+  ): Promise<void> {
     const token = await this.authService.getInstallationToken(dto.owner);
     try {
       await firstValueFrom(
