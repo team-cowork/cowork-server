@@ -75,7 +75,7 @@ describe('ElasticsearchService', () => {
             });
         });
 
-        it('ES 오류가 발생하면 예외를 전파한다', async () => {
+        it('ES 오류가 발생하면 예외를 삼키고 정상 종료한다', async () => {
             mockClient.index.mockRejectedValue(new Error('ES connection error'));
 
             await expect(service.indexMessage({
@@ -89,7 +89,7 @@ describe('ElasticsearchService', () => {
                 hasAttachments: false,
                 isPinned: false,
                 createdAt: '2026-05-11T10:00:00.000Z',
-            })).rejects.toThrow('ES connection error');
+            })).resolves.toBeUndefined();
         });
     });
 
@@ -146,6 +146,7 @@ describe('ElasticsearchService', () => {
                 ...overrides,
             },
             highlight: { content: ['<em>안녕</em>하세요'] },
+            sort: ['2026-05-11T10:00:00.000Z', messageId],
         });
 
         const baseParams = {
@@ -180,22 +181,25 @@ describe('ElasticsearchService', () => {
             expect(nextCursor).toBeNull();
         });
 
-        it('결과가 limit과 같으면 마지막 messageId를 nextCursor로 반환한다', async () => {
+        it('결과가 limit과 같으면 마지막 sort 값을 base64 인코딩한 nextCursor를 반환한다', async () => {
             const hits = Array.from({ length: 50 }, (_, i) => makeHit(`msg-${i}`));
             mockClient.search.mockResolvedValue({ hits: { hits } });
 
             const { nextCursor } = await service.searchMessages({ ...baseParams, limit: 50 });
 
-            expect(nextCursor).toBe('msg-49');
+            const lastSort = ['2026-05-11T10:00:00.000Z', 'msg-49'];
+            expect(nextCursor).toBe(Buffer.from(JSON.stringify(lastSort)).toString('base64'));
         });
 
         it('before가 있으면 search_after에 포함된다', async () => {
             mockClient.search.mockResolvedValue({ hits: { hits: [] } });
+            const sortValues = ['cursor-id'];
+            const before = Buffer.from(JSON.stringify(sortValues)).toString('base64');
 
-            await service.searchMessages({ ...baseParams, before: 'cursor-id' });
+            await service.searchMessages({ ...baseParams, before });
 
             const body = mockClient.search.mock.calls[0][0].body;
-            expect(body.search_after).toEqual(['cursor-id']);
+            expect(body.search_after).toEqual(sortValues);
         });
 
         it('before가 없으면 search_after가 포함되지 않는다', async () => {
