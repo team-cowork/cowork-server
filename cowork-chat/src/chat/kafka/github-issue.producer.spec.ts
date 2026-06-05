@@ -21,6 +21,7 @@ describe('GithubIssueProducer', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
+        mockConnect.mockResolvedValue(undefined);
         const configService = {
             get: jest.fn().mockReturnValue('localhost:9092'),
         } as unknown as ConfigService;

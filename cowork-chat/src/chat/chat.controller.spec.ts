@@ -320,6 +320,7 @@ describe('ChatController', () => {
             expect(mockChatService.getMessages).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
                 undefined,
+                undefined,
             );
             expect(result).toEqual([]);
         });
@@ -330,6 +331,7 @@ describe('ChatController', () => {
             expect(mockChatService.getMessages).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
                 mockMessageId,
+                undefined,
             );
         });
 
