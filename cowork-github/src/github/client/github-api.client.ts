@@ -2,6 +2,7 @@ import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { AxiosError } from 'axios';
 import { firstValueFrom } from 'rxjs';
+import { GithubAuthService } from '../auth/github-auth.service';
 import { GITHUB_API, GITHUB_HEADERS } from '../constants';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
@@ -30,9 +31,13 @@ export interface CreateLabelPayload {
 
 @Injectable()
 export class GithubApiClient {
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly authService: GithubAuthService,
+  ) {}
 
-  async createIssue(token: string, dto: CreateIssueDto): Promise<CreatedIssue> {
+  async createIssue(dto: CreateIssueDto): Promise<CreatedIssue> {
+    const token = await this.authService.getInstallationToken(dto.owner);
     try {
       const { data } = await firstValueFrom(
         this.httpService.post<CreatedIssue>(
@@ -52,10 +57,8 @@ export class GithubApiClient {
     }
   }
 
-  async searchOpenIssuesByTitle(
-    token: string,
-    dto: CreateIssueDto,
-  ): Promise<SearchedIssue[]> {
+  async searchOpenIssuesByTitle(dto: CreateIssueDto): Promise<SearchedIssue[]> {
+    const token = await this.authService.getInstallationToken(dto.owner);
     try {
       const escapedTitle = dto.title
         .replace(/\\/g, '\\\\')
@@ -82,11 +85,11 @@ export class GithubApiClient {
   }
 
   async addLabelsToIssue(
-    token: string,
     dto: CreateIssueDto,
     issueNumber: number,
     labels: string[],
   ): Promise<void> {
+    const token = await this.authService.getInstallationToken(dto.owner);
     try {
       await firstValueFrom(
         this.httpService.post(
@@ -100,7 +103,8 @@ export class GithubApiClient {
     }
   }
 
-  async listLabels(token: string, dto: CreateIssueDto): Promise<string[]> {
+  async listLabels(dto: CreateIssueDto): Promise<string[]> {
+    const token = await this.authService.getInstallationToken(dto.owner);
     try {
       const { data } = await firstValueFrom(
         this.httpService.get<GithubLabel[]>(
@@ -114,11 +118,8 @@ export class GithubApiClient {
     }
   }
 
-  async createLabel(
-    token: string,
-    dto: CreateIssueDto,
-    label: CreateLabelPayload,
-  ): Promise<void> {
+  async createLabel(dto: CreateIssueDto, label: CreateLabelPayload): Promise<void> {
+    const token = await this.authService.getInstallationToken(dto.owner);
     try {
       await firstValueFrom(
         this.httpService.post(

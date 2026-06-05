@@ -50,13 +50,12 @@ export class LabelService {
   }
 
   async ensureLabelsExist(
-    token: string,
     dto: CreateIssueDto,
     labels: string[],
   ): Promise<void> {
     if (labels.length === 0) return;
 
-    const repoLabels = await this.apiClient.listLabels(token, dto);
+    const repoLabels = await this.apiClient.listLabels(dto);
 
     for (const name of labels) {
       if (this.hasRepoLabel(repoLabels, name)) continue;
@@ -67,7 +66,7 @@ export class LabelService {
       const payload = coworkDef ?? this.createCustomLabel(name);
 
       try {
-        await this.apiClient.createLabel(token, dto, payload);
+        await this.apiClient.createLabel(dto, payload);
         this.logger.log('Repository label created', {
           owner: dto.owner,
           repo: dto.repo,
