@@ -46,7 +46,7 @@ describe('ProjectMessageController', () => {
 
             const result = await controller.searchMessages(5, query, userId);
 
-            expect(mockChatService.searchProjectMessages).toHaveBeenCalledWith(5, query, 42);
+            expect(mockChatService.searchProjectMessages).toHaveBeenCalledWith(5, query, { userId: 42 });
             expect(result).toEqual(expected);
         });
 
