@@ -77,17 +77,27 @@ describe('ChatGateway', () => {
     });
 
     describe('handleConnection', () => {
-        it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장된다', async () => {
+        it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장되고 전용 룸에 join한다', async () => {
             const client = mockSocket('valid-token');
             await gateway.handleConnection(client as any);
             expect(client.data.userId).toBe(42);
             expect(client.data.userRole).toBe('ROLE_USER');
+            expect(client.join).toHaveBeenCalledWith('user:42');
             expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('토큰 없이 연결하면 disconnect된다', async () => {
+        it('토큰 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             const client = mockSocket(undefined);
             await gateway.handleConnection(client as any);
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 토큰이 전달되지 않았습니다' });
+            expect(client.disconnect).toHaveBeenCalled();
+        });
+
+        it('유효하지 않은 토큰으로 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
+            mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
+            const client = mockSocket('invalid-token');
+            await gateway.handleConnection(client as any);
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: Invalid token' });
             expect(client.disconnect).toHaveBeenCalled();
         });
     });
