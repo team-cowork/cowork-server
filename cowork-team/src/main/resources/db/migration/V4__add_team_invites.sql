@@ -8,6 +8,5 @@ CREATE TABLE tb_team_invites
     expires_at  DATETIME(6) NULL,
     deleted_at  DATETIME(6) NULL,
     created_at  DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    INDEX idx_tb_team_invites_team_id (team_id),
-    INDEX idx_tb_team_invites_invite_code (invite_code)
+    INDEX idx_tb_team_invites_team_id (team_id)
 );
