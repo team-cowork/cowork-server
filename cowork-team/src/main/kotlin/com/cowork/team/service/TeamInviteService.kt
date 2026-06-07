@@ -45,7 +45,7 @@ class TeamInviteService(
 
     private fun generateUniqueCode(): String {
         repeat(10) {
-            val code = (1..CODE_LENGTH).map { CODE_CHARS[random.nextInt(CODE_CHARS.length)] }.joinToString("")
+            val code = String(CharArray(CODE_LENGTH) { CODE_CHARS[random.nextInt(CODE_CHARS.length)] })
             if (!teamInviteRepository.existsByInviteCode(code)) return code
         }
         throw ExpectedException("초대 코드 생성에 실패했습니다.", HttpStatus.INTERNAL_SERVER_ERROR)
@@ -76,6 +76,10 @@ class TeamInviteService(
         val actor = requireMember(teamId, userId)
         val invite = teamInviteRepository.findByTeamIdAndInviteCode(teamId, inviteCode)
             ?: throw ExpectedException("초대 링크를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+
+        if (invite.isDeleted()) {
+            throw ExpectedException("초대 링크를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        }
 
         val isOwnerOrAdmin = actor.role == TeamRole.OWNER || actor.role == TeamRole.ADMIN
         if (invite.createdBy != userId && !isOwnerOrAdmin) {
