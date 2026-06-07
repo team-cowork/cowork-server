@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query
 
 interface TeamInviteRepository : JpaRepository<TeamInvite, Long> {
 
+    @Query("SELECT ti FROM TeamInvite ti JOIN FETCH ti.team WHERE ti.team.id = :teamId")
     fun findAllByTeamId(teamId: Long): List<TeamInvite>
 
     fun findByTeamIdAndInviteCode(teamId: Long, inviteCode: String): TeamInvite?
