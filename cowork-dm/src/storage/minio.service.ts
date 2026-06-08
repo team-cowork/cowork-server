@@ -15,8 +15,10 @@ import { ConfigService } from '@nestjs/config';
 import * as Minio from 'minio';
 import * as mime from 'mime-types';
 import { randomUUID } from 'crypto';
+import Redis from 'ioredis';
 import { MINIO_CLIENT } from './minio.constants';
 import { buildMinioConfig, MinioConfig } from './minio.config';
+import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 export interface PresignedUpload {
     objectKey: string;
@@ -29,38 +31,27 @@ export interface PresignedUpload {
 export class MinioService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MinioService.name);
     private readonly config: MinioConfig;
-    private readonly uploadRateLimitBuckets = new Map<number, number[]>();
-    private cleanupTimer?: ReturnType<typeof setInterval>;
-    private isCleaningUpRateLimitEntries = false;
+    private redisClient!: Redis;
 
     constructor(
         @Inject(MINIO_CLIENT) private readonly minioClient: Minio.Client,
-        configService: ConfigService,
+        private readonly configService: ConfigService,
     ) {
         this.config = buildMinioConfig(configService);
         this.validateCredentials();
     }
 
     onModuleInit(): void {
-        this.cleanupTimer = setInterval(async () => {
-            if (this.isCleaningUpRateLimitEntries) {
-                return;
-            }
-
-            this.isCleaningUpRateLimitEntries = true;
-            try {
-                this.cleanupStaleRateLimitEntries();
-            } finally {
-                this.isCleaningUpRateLimitEntries = false;
-            }
-        }, this.config.uploadRateLimitWindowMs);
+        const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
+        const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
+        this.redisClient = new Redis({ host, port, lazyConnect: true });
+        void this.redisClient.connect().catch((err: unknown) => {
+            this.logger.warn(`Redis 초기 연결 실패: ${err instanceof Error ? err.message : String(err)}`);
+        });
     }
 
     onModuleDestroy(): void {
-        if (this.cleanupTimer) {
-            clearInterval(this.cleanupTimer);
-            this.cleanupTimer = undefined;
-        }
+        this.redisClient.disconnect();
     }
 
     async createPresignedUpload(params: {
@@ -70,7 +61,7 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
         contentType: string;
         size: number;
     }): Promise<PresignedUpload> {
-        this.checkUploadRateLimit(params.userId);
+        await this.checkUploadRateLimit(params.userId);
         this.validateContentType(params.contentType);
         this.validateFileSize(params.size);
 
@@ -135,32 +126,23 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    private checkUploadRateLimit(userId: number): void {
+    private async checkUploadRateLimit(userId: number): Promise<void> {
+        const key = `dm:upload-ratelimit:${userId}`;
         const now = Date.now();
         const windowStart = now - this.config.uploadRateLimitWindowMs;
-        const recentRequests = (this.uploadRateLimitBuckets.get(userId) ?? []).filter(
-            (requestedAt) => requestedAt > windowStart,
-        );
 
-        if (recentRequests.length >= this.config.uploadRateLimitMaxRequests) {
-            this.uploadRateLimitBuckets.set(userId, recentRequests);
+        await this.redisClient.zremrangebyscore(key, '-inf', String(windowStart));
+        const count = await this.redisClient.zcard(key);
+
+        if (count >= this.config.uploadRateLimitMaxRequests) {
             throw new HttpException(
                 '짧은 시간에 업로드 요청이 너무 많습니다. 잠시 후 다시 시도하세요',
                 HttpStatus.TOO_MANY_REQUESTS,
             );
         }
 
-        recentRequests.push(now);
-        this.uploadRateLimitBuckets.set(userId, recentRequests);
-    }
-
-    private cleanupStaleRateLimitEntries(): void {
-        const windowStart = Date.now() - this.config.uploadRateLimitWindowMs;
-        for (const [userId, timestamps] of this.uploadRateLimitBuckets) {
-            if (timestamps.every(t => t <= windowStart)) {
-                this.uploadRateLimitBuckets.delete(userId);
-            }
-        }
+        await this.redisClient.zadd(key, now, `${now}-${randomUUID()}`);
+        await this.redisClient.pexpire(key, this.config.uploadRateLimitWindowMs);
     }
 
     private validateFileSize(size: number): void {
