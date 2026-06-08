@@ -136,17 +136,16 @@ describe('LabelService', () => {
 
   describe('ensureLabelsExist', () => {
     it('모든 라벨이 레포에 있으면 createLabel을 호출하지 않는다', async () => {
-      await service.ensureLabelsExist('token', dto, ['bug:버그']);
+      await service.ensureLabelsExist(dto, ['bug:버그']);
       expect(apiClient.createLabel).not.toHaveBeenCalled();
     });
 
     it('레포에 없는 cowork 라벨은 정의된 color/description으로 생성한다', async () => {
       apiClient.listLabels.mockResolvedValue([]);
 
-      await service.ensureLabelsExist('token', dto, ['bug:버그']);
+      await service.ensureLabelsExist(dto, ['bug:버그']);
 
       expect(apiClient.createLabel).toHaveBeenCalledWith(
-        'token',
         expect.any(Object),
         expect.objectContaining({ name: 'bug:버그', color: 'd73a4a' }),
       );
@@ -155,17 +154,16 @@ describe('LabelService', () => {
     it('레포에 없는 커스텀 라벨은 color=ededed로 생성한다', async () => {
       apiClient.listLabels.mockResolvedValue([]);
 
-      await service.ensureLabelsExist('token', dto, ['urgent']);
+      await service.ensureLabelsExist(dto, ['urgent']);
 
       expect(apiClient.createLabel).toHaveBeenCalledWith(
-        'token',
         expect.any(Object),
         expect.objectContaining({ name: 'urgent', color: 'ededed' }),
       );
     });
 
     it('라벨 목록이 비어 있으면 listLabels를 호출하지 않는다', async () => {
-      await service.ensureLabelsExist('token', dto, []);
+      await service.ensureLabelsExist(dto, []);
       expect(apiClient.listLabels).not.toHaveBeenCalled();
     });
 
@@ -176,7 +174,7 @@ describe('LabelService', () => {
       );
 
       await expect(
-        service.ensureLabelsExist('token', dto, ['bug:버그']),
+        service.ensureLabelsExist(dto, ['bug:버그']),
       ).resolves.not.toThrow();
     });
 
@@ -187,21 +185,20 @@ describe('LabelService', () => {
       );
 
       await expect(
-        service.ensureLabelsExist('token', dto, ['bug:버그']),
+        service.ensureLabelsExist(dto, ['bug:버그']),
       ).resolves.not.toThrow();
     });
 
     it('여러 라벨 중 일부만 없으면 없는 것만 생성한다', async () => {
       apiClient.listLabels.mockResolvedValue(['bug:버그']);
 
-      await service.ensureLabelsExist('token', dto, [
+      await service.ensureLabelsExist(dto, [
         'bug:버그',
         'help wanted:도움 필요',
       ]);
 
       expect(apiClient.createLabel).toHaveBeenCalledTimes(1);
       expect(apiClient.createLabel).toHaveBeenCalledWith(
-        'token',
         expect.any(Object),
         expect.objectContaining({ name: 'help wanted:도움 필요' }),
       );
