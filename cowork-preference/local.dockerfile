@@ -21,6 +21,9 @@ FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
+# Write logs to a writable, volume-friendly path owned by the non-root user.
+ENV PREFERENCE_LOG_DIR=/var/log/cowork/preference
+RUN mkdir -p /var/log/cowork/preference && chown -R app:app /var/log/cowork
 USER app
 EXPOSE 9001
 ENTRYPOINT ["java", "-jar", "app.jar"]
