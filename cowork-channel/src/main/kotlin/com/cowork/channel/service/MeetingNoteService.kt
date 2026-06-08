@@ -3,6 +3,7 @@ package com.cowork.channel.service
 import com.cowork.channel.domain.MeetingNote
 import com.cowork.channel.dto.CreateMeetingNoteRequest
 import com.cowork.channel.dto.MeetingNoteResponse
+import com.cowork.channel.dto.UpdateMeetingNoteRequest
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.MeetingNoteRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
@@ -22,6 +23,12 @@ class MeetingNoteService(
     private fun requireChannelMember(channelId: Long, userId: Long) {
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
             throw ExpectedException("채널 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    private fun requireNoteOwner(note: MeetingNote, userId: Long) {
+        if (note.createdBy != userId) {
+            throw ExpectedException("회의록 작성자만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
     }
 
@@ -55,6 +62,32 @@ class MeetingNoteService(
             )
         )
         return MeetingNoteResponse.of(note)
+    }
+
+    @Transactional
+    fun updateNote(userId: Long, channelId: Long, noteId: Long, request: UpdateMeetingNoteRequest): MeetingNoteResponse {
+        requireChannelMember(channelId, userId)
+        request.title?.let {
+            if (it.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
+            if (it.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+        val note = findNoteOrThrow(noteId, channelId)
+        requireNoteOwner(note, userId)
+        val updatedTitle = request.title ?: note.title
+        val updatedContent = request.content ?: note.content
+        if (updatedTitle == note.title && updatedContent == note.content) {
+            return MeetingNoteResponse.of(note)
+        }
+        note.update(request.title, request.content)
+        return MeetingNoteResponse.of(note)
+    }
+
+    @Transactional
+    fun deleteNote(userId: Long, channelId: Long, noteId: Long) {
+        requireChannelMember(channelId, userId)
+        val note = findNoteOrThrow(noteId, channelId)
+        requireNoteOwner(note, userId)
+        meetingNoteRepository.delete(note)
     }
 
     private fun findNoteOrThrow(noteId: Long, channelId: Long): MeetingNote {
