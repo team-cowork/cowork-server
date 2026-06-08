@@ -33,5 +33,5 @@ export class DmConversation {
 
 export const DmConversationSchema = SchemaFactory.createForClass(DmConversation);
 
-DmConversationSchema.index({ 'participants.userId': 1 });
+DmConversationSchema.index({ 'participants.0.userId': 1, 'participants.1.userId': 1 }, { unique: true });
 DmConversationSchema.index({ 'participants.userId': 1, lastMessageAt: -1 });
