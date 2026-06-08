@@ -52,6 +52,7 @@ export class ConversationRepository {
      * @returns 대화방 도큐먼트, 없으면 `null`
      */
     findById(conversationId: string): Promise<DmConversationDocument | null> {
+        if (!Types.ObjectId.isValid(conversationId)) return Promise.resolve(null);
         return this.model.findById(conversationId);
     }
 
