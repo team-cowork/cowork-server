@@ -133,6 +133,23 @@ spring:
             - StripPrefix=1
             - PrefixPath=/chat
 
+        - id: chat-service-team-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/search/messages
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        - id: channel-service-search
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/search/channels
+            - Method=GET
+          filters:
+            - StripPrefix=1
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
