@@ -129,6 +129,11 @@ class ChannelService(
         return ChannelResponse.of(channel)
     }
 
+    fun searchChannels(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
+        teamPermissionService.requireTeamMember(teamId, userId)
+        return channelRepository.searchByTeamIdAndName(teamId, q).map { ChannelResponse.of(it) }
+    }
+
     fun listProjectChannels(userId: Long, projectId: Long): List<ChannelResponse> {
         val teamId = projectClient.getTeamId(projectId)
         teamPermissionService.requireTeamMember(teamId, userId)
