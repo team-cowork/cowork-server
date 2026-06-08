@@ -1,54 +1,42 @@
+// cowork-preference is built by the Kotlin Toolchain (Amper).
+// module.yaml is the single source of truth for dependencies and compilation settings; this Gradle
+// file is only a wrapper that keeps the module in the multi-module build (settings.gradle.kts).
+// Every build action is delegated to the kotlin CLI.
+//
+// The kotlin CLI location can be overridden via the KOTLIN_CLI environment variable; it defaults to
+// the install-script path ~/.local/bin/kotlin.
 plugins {
-    alias(libs.plugins.kotlin.jvm)
-    application
+    base
 }
 
 group = "com.cowork"
 version = "20260602.0"
 
-java {
-    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+val kotlinCli: String = providers.environmentVariable("KOTLIN_CLI")
+    .orElse(providers.systemProperty("user.home").map { "$it/.local/bin/kotlin" })
+    .get()
+
+fun amperTask(name: String, vararg amperArgs: String, taskGroup: String, desc: String) =
+    tasks.register<Exec>(name) {
+        group = taskGroup
+        description = desc
+        workingDir = projectDir
+        commandLine(kotlinCli, *amperArgs)
+    }
+
+val amperBuild = amperTask("amperBuild", "build", taskGroup = "build", desc = "Compile from module.yaml (Amper)")
+val amperPackage = amperTask("amperPackage", "package", taskGroup = "build", desc = "Build the executable JAR (Amper)")
+val amperTest = amperTask("amperTest", "test", taskGroup = "verification", desc = "Run tests (Amper)")
+val amperClean = amperTask("amperClean", "clean", taskGroup = "build", desc = "Clean Amper build output and caches")
+
+
+tasks.named("assemble") { dependsOn(amperBuild, amperPackage) }
+tasks.named("check") { dependsOn(amperTest) }
+tasks.named("clean") { dependsOn(amperClean) }
+
+tasks.register<Exec>("run") {
+    group = "application"
+    description = "Run the application (Amper)"
+    workingDir = projectDir
+    commandLine(kotlinCli, "run")
 }
-
-dependencies {
-    implementation(platform(libs.vertx.stack.depchain))
-    implementation(libs.vertx.core)
-    implementation(libs.vertx.web)
-    implementation(libs.vertx.lang.kotlin)
-    implementation(libs.vertx.lang.kotlin.coroutines)
-    implementation(libs.vertx.config)
-    implementation(libs.vertx.pg.client)
-    implementation(libs.scram.client)
-    implementation(libs.vertx.redis.client)
-    implementation(libs.vertx.kafka.client)
-    implementation(libs.vertx.service.discovery)
-    implementation(libs.vertx.micrometer.metrics)
-    implementation(libs.micrometer.registry.prometheus.simpleclient)
-    implementation(libs.eureka.client)
-
-    // Flyway (JDBC, 시작 시 블로킹 실행)
-    implementation(libs.flyway.core)
-    implementation(libs.flyway.database.postgresql)
-    implementation(libs.postgresql)
-
-    // JSON 로깅
-    implementation(libs.log4j.core)
-    implementation(libs.log4j.layout.template.json)
-    implementation(libs.log4j.slf4j2.impl)
-
-    implementation(libs.kotlin.reflect)
-    implementation(libs.kotlinx.coroutines.core)
-
-    testImplementation(kotlin("test"))
-    testImplementation(libs.vertx.junit5)
-}
-
-application {
-    mainClass.set("com.cowork.preference.CoworkPreferenceMainKt")
-}
-
-kotlin {
-    compilerOptions { freeCompilerArgs.addAll("-Xjsr305=strict") }
-}
-
-tasks.withType<Test> { useJUnitPlatform() }
