@@ -1,0 +1,70 @@
+# Bazel build for cowork-gateway (Spring Cloud Gateway, Kotlin).
+load("@rules_java//java:defs.bzl", "java_import")
+load("@rules_kotlin//kotlin:core.bzl", "kt_compiler_plugin")
+load("@rules_kotlin//kotlin:jvm.bzl", "kt_jvm_library")
+load("@rules_spring//springboot:springboot.bzl", "springboot")
+
+package(default_visibility = ["//visibility:public"])
+
+# rules_kotlin exposes the all-open plugin as a raw jar alias (no JavaInfo), so wrap it
+# in java_import to satisfy kt_compiler_plugin's deps provider requirement.
+java_import(
+    name = "allopen_compiler_plugin_import",
+    jars = ["@com_github_jetbrains_kotlin//:allopen-compiler-plugin"],
+)
+
+# all-open compiler plugin with the Spring preset: makes @Component/@Configuration
+# classes open so Spring AOP/proxying works (equivalent to the kotlin-spring Gradle plugin).
+kt_compiler_plugin(
+    name = "allopen_plugin",
+    id = "org.jetbrains.kotlin.allopen",
+    options = {
+        "preset": "spring",
+    },
+    deps = [
+        ":allopen_compiler_plugin_import",
+    ],
+)
+
+# Compile-time + runtime dependencies (versions resolved in MODULE.bazel).
+GATEWAY_DEPS = [
+    # Spring Boot loader classes (JarLauncher etc.); rules_spring places these at the jar root.
+    # (rules_spring's own springboot_required_deps references its dev-only @maven, so we supply it directly.)
+    "@maven//:org_springframework_boot_spring_boot_loader",
+    "@maven//:org_springframework_cloud_spring_cloud_starter_gateway",
+    "@maven//:org_springframework_cloud_spring_cloud_starter_netflix_eureka_client",
+    "@maven//:org_springframework_cloud_spring_cloud_starter_config",
+    "@maven//:org_springframework_cloud_spring_cloud_starter_bus_kafka",
+    "@maven//:org_springframework_cloud_spring_cloud_starter_circuitbreaker_reactor_resilience4j",
+    "@maven//:org_springframework_boot_spring_boot_starter_security",
+    "@maven//:org_springframework_boot_spring_boot_starter_actuator",
+    "@maven//:org_springframework_boot_spring_boot_starter_data_redis_reactive",
+    "@maven//:org_springframework_retry_spring_retry",
+    "@maven//:io_micrometer_micrometer_registry_prometheus",
+    "@maven//:io_jsonwebtoken_jjwt_api",
+    "@maven//:org_springdoc_springdoc_openapi_starter_webflux_ui",
+    "@maven//:net_logstash_logback_logstash_logback_encoder",
+    "@maven//:org_jetbrains_kotlin_kotlin_reflect",
+]
+
+kt_jvm_library(
+    name = "gateway_lib",
+    srcs = glob(["src/main/kotlin/**/*.kt"]),
+    resources = glob(["src/main/resources/**"]),
+    plugins = [":allopen_plugin"],
+    runtime_deps = [
+        # JWT signing/parsing implementations are runtime-only (jjwt-api is the compile API).
+        "@maven//:io_jsonwebtoken_jjwt_impl",
+        "@maven//:io_jsonwebtoken_jjwt_jackson",
+    ],
+    deps = GATEWAY_DEPS,
+)
+
+# Packages an executable Spring Boot jar (BOOT-INF layout, Boot3 launcher) that merges
+# META-INF/spring.factories and service-loader files correctly.
+springboot(
+    name = "gateway",
+    boot_app_class = "com.cowork.gateway.CoworkGatewayApplicationKt",
+    boot_launcher_class = "org.springframework.boot.loader.launch.JarLauncher",
+    java_library = ":gateway_lib",
+)
