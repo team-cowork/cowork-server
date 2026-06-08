@@ -19,14 +19,25 @@ defmodule CoworkUser.Accounts do
   def update_my_profile(user_id, attrs) do
     with %Profile{} = profile <- load_profile(user_id) do
       roles = attrs["roles"] |> normalize_roles()
+      account_update_attrs = build_profile_account_attrs(attrs, user_id)
 
-      Multi.new()
-      |> Multi.update(:profile, Profile.changeset(profile, %{
-        nickname: Map.get(attrs, "nickname"),
-        description: Map.get(attrs, "description"),
-        last_modified_by: user_id
-      }))
-      |> replace_roles(profile.id, roles)
+      multi =
+        Multi.new()
+        |> Multi.update(:profile, Profile.changeset(profile, %{
+          nickname: Map.get(attrs, "nickname"),
+          description: Map.get(attrs, "description"),
+          last_modified_by: user_id
+        }))
+        |> replace_roles(profile.id, roles)
+
+      multi =
+        if map_size(account_update_attrs) > 1 do
+          Multi.update(multi, :account, Account.profile_update_changeset(profile.account, account_update_attrs))
+        else
+          multi
+        end
+
+      multi
       |> Repo.transaction()
       |> case do
         {:ok, _} -> get_my_profile(user_id)
@@ -34,6 +45,27 @@ defmodule CoworkUser.Accounts do
       end
     else
       nil -> {:error, :not_found}
+    end
+  end
+
+  def update_my_status(user_id, attrs) do
+    case load_profile(user_id) do
+      nil -> {:error, :not_found}
+      profile ->
+        status_attrs = %{
+          status: Map.get(attrs, "status"),
+          status_message: Map.get(attrs, "message"),
+          status_expires_at: Map.get(attrs, "expiresAt"),
+          last_modified_by: user_id
+        }
+
+        profile.account
+        |> Account.status_changeset(status_attrs)
+        |> Repo.update()
+        |> case do
+          {:ok, _} -> get_my_profile(user_id)
+          {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
+        end
     end
   end
 
@@ -232,6 +264,16 @@ defmodule CoworkUser.Accounts do
     end
   end
 
+  defp build_profile_account_attrs(attrs, user_id) do
+    Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key, field}, acc ->
+      if Map.has_key?(attrs, key) do
+        Map.put(acc, field, attrs[key])
+      else
+        acc
+      end
+    end)
+  end
+
   defp account_attrs(user_id, attrs) do
     %{
       id: user_id,
@@ -409,6 +451,8 @@ defmodule CoworkUser.Accounts do
       major: profile.account.major,
       specialty: profile.account.specialty,
       status: profile.account.status,
+      status_message: profile.account.status_message,
+      status_expires_at: profile.account.status_expires_at,
       profile_image_url: image_url,
       nickname: profile.nickname,
       roles: profile.profile_roles |> Enum.map(& &1.role) |> Enum.uniq() |> Enum.sort(),
