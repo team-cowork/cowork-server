@@ -225,8 +225,15 @@ jobs:
       - name: Build & Test (Amper)
         if: matrix.build == 'amper'
         working-directory: ${{ matrix.working-directory }}
+        env:
+          KOTLIN_CLI_VERSION: '0.11.0'
+          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
         run: |
-          curl -fsSL https://kotl.in/install.sh | KOTLIN_CLI_NO_MODIFY_PATH=1 sh
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/kotlin" \
+            "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper"
+          echo "${KOTLIN_CLI_WRAPPER_SHA256}  $HOME/.local/bin/kotlin" | sha256sum -c -
+          chmod +x "$HOME/.local/bin/kotlin"
           export PATH="$HOME/.local/bin:$PATH"
           kotlin build
           kotlin test
