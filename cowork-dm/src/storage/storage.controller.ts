@@ -10,6 +10,7 @@ import {
 } from '@nestjs/swagger';
 import { IsNumber, IsPositive, IsString } from 'class-validator';
 import { MinioService } from './minio.service';
+import { ConversationService } from '../conversation/conversation.service';
 import { UserId } from '../common/decorator/user.decorator';
 
 class PresignedUploadRequestDto {
@@ -38,7 +39,10 @@ class PresignedUploadResponseDto {
 @ApiTags('storage')
 @Controller('conversations/:conversationId/upload')
 export class StorageController {
-    constructor(private readonly minioService: MinioService) {}
+    constructor(
+        private readonly minioService: MinioService,
+        private readonly conversationService: ConversationService,
+    ) {}
 
     @Post()
     @HttpCode(HttpStatus.CREATED)
@@ -47,11 +51,13 @@ export class StorageController {
     @ApiCreatedResponse({ type: PresignedUploadResponseDto, description: 'Presigned URL 및 object key 반환' })
     @ApiNotFoundResponse({ description: '대화방 없음' })
     @ApiForbiddenResponse({ description: '대화방 참여자 아님' })
-    createPresignedUpload(
+    async createPresignedUpload(
         @UserId() userId: number,
         @Param('conversationId') conversationId: string,
         @Body() dto: PresignedUploadRequestDto,
     ) {
+        await this.conversationService.getConversationOrThrow(conversationId, userId);
+
         return this.minioService.createPresignedUpload({
             conversationId,
             userId,
