@@ -55,11 +55,11 @@ export class MessageRepository {
             query['_id'] = { $lt: new Types.ObjectId(before) };
         }
 
-        return this.messageModel.aggregate([
-            { $match: query },
-            { $sort: { _id: -1 } },
-            { $limit: MESSAGE_FETCH_LIMIT },
-        ]);
+        return this.messageModel.find(query)
+            .sort({ _id: -1 })
+            .limit(MESSAGE_FETCH_LIMIT)
+            .lean()
+            .exec() as unknown as Promise<MessageRow[]>;
     }
 
     /**
@@ -247,8 +247,14 @@ export class MessageRepository {
      * @returns `PENDING` 메시지, 없으면 `null`
      */
     findOnePendingAndMarkProcessing(): Promise<NotificationMessage | null> {
+        const timeoutDate = new Date(Date.now() - 5 * 60 * 1000);
         return this.messageModel.findOneAndUpdate(
-            { notificationStatus: 'PENDING' },
+            {
+                $or: [
+                    { notificationStatus: 'PENDING' },
+                    { notificationStatus: 'PROCESSING', updatedAt: { $lt: timeoutDate } },
+                ],
+            },
             { $set: { notificationStatus: 'PROCESSING' } },
             { new: true },
         ).lean() as Promise<NotificationMessage | null>;
