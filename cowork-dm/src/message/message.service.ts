@@ -1,4 +1,5 @@
 import {
+    ConflictException,
     ForbiddenException,
     forwardRef,
     Inject,
@@ -10,6 +11,7 @@ import { MessageRepository } from './message.repository';
 import { ConversationRepository } from '../conversation/conversation.repository';
 import { BlockService } from '../block/block.service';
 import { DmGateway } from '../gateway/dm.gateway';
+import { MinioService } from '../storage/minio.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { MessageResponseDto } from './dto/message-response.dto';
 
@@ -22,6 +24,7 @@ export class MessageService {
         private readonly blockService: BlockService,
         @Inject(forwardRef(() => DmGateway))
         private readonly gateway: DmGateway,
+        private readonly minioService: MinioService,
     ) {}
 
     /**
@@ -72,25 +75,38 @@ export class MessageService {
             if (isBlocked) throw new ForbiddenException('차단된 사용자에게 메시지를 보낼 수 없습니다');
         }
 
-        const message = await this.messageRepository.createMessage({
-            conversationId: conversation._id as Types.ObjectId,
-            authorId: userId,
-            content: dto.content,
-            type: dto.type ?? 'TEXT',
-            attachments: dto.attachments ?? [],
-            clientMessageId: dto.clientMessageId,
-            mentions: dto.mentions ?? [],
-            notificationStatus: 'PENDING',
-        });
+        for (const attachment of dto.attachments ?? []) {
+            const objectKey = this.minioService.extractObjectKey(attachment.url);
+            await this.minioService.confirmUpload(conversationId, userId, objectKey);
+        }
+
+        let message;
+        try {
+            message = await this.messageRepository.createMessage({
+                conversationId: conversation._id as Types.ObjectId,
+                authorId: userId,
+                content: dto.content,
+                type: dto.type ?? 'TEXT',
+                attachments: dto.attachments ?? [],
+                clientMessageId: dto.clientMessageId,
+                mentions: dto.mentions ?? [],
+                notificationStatus: 'PENDING',
+            });
+        } catch (err: unknown) {
+            if ((err as { code?: number }).code === 11000) {
+                throw new ConflictException('이미 전송된 메시지입니다');
+            }
+            throw err;
+        }
 
         const messageId = message._id as Types.ObjectId;
 
-        await Promise.all([
-            this.conversationRepository.onMessageSent(conversation._id as Types.ObjectId, userId, messageId, message.createdAt),
-            receiverId !== null
-                ? this.conversationRepository.onMessageReceived(conversation._id as Types.ObjectId, receiverId, messageId, message.createdAt)
-                : Promise.resolve(),
-        ]);
+        await this.conversationRepository.updateConversationOnMessage(
+            conversation._id as Types.ObjectId,
+            receiverId,
+            messageId,
+            message.createdAt,
+        );
 
         const response = new MessageResponseDto({
             _id: messageId,

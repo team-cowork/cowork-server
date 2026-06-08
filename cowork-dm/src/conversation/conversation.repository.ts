@@ -22,23 +22,27 @@ export class ConversationRepository {
     async findOrCreate(userIdA: number, userIdB: number): Promise<DmConversationDocument> {
         const sorted = [userIdA, userIdB].sort((a, b) => a - b);
 
-        const existing = await this.model.findOne({
-            'participants.userId': { $all: sorted },
-            $expr: { $eq: [{ $size: '$participants' }, 2] },
-        });
+        const doc = await this.model.findOneAndUpdate(
+            {
+                'participants.userId': { $all: sorted },
+                $expr: { $eq: [{ $size: '$participants' }, 2] },
+            },
+            {
+                $setOnInsert: {
+                    participants: sorted.map((userId) => ({
+                        userId,
+                        isHidden: false,
+                        lastReadMessageId: null,
+                        unreadCount: 0,
+                    })),
+                    lastMessageId: null,
+                    lastMessageAt: null,
+                },
+            },
+            { upsert: true, new: true, setDefaultsOnInsert: true },
+        );
 
-        if (existing) return existing;
-
-        return this.model.create({
-            participants: sorted.map((userId) => ({
-                userId,
-                isHidden: false,
-                lastReadMessageId: null,
-                unreadCount: 0,
-            })),
-            lastMessageId: null,
-            lastMessageAt: null,
-        });
+        return doc!;
     }
 
     /**
@@ -79,57 +83,34 @@ export class ConversationRepository {
     }
 
     /**
-     * 메시지 수신 시 수신자의 `isHidden` 을 false 로 복구하고 `unreadCount` 를 증가시킨다.
+     * 메시지 전송 시 대화방 메타데이터를 단일 쿼리로 원자적으로 갱신한다.
+     *
+     * - `lastMessageId`, `lastMessageAt` 을 갱신한다.
+     * - receiverId 가 존재하면 수신자의 `isHidden` 을 false 로 복구하고 `unreadCount` 를 1 증가시킨다.
      *
      * @param conversationId - 대화방 ID
-     * @param receiverId - 수신자 ID
-     * @param messageId - 수신된 메시지 ID
-     * @param sentAt - 메시지 전송 시각
-     */
-    async onMessageReceived(
-        conversationId: Types.ObjectId,
-        receiverId: number,
-        messageId: Types.ObjectId,
-        sentAt: Date,
-    ): Promise<void> {
-        await this.model.updateOne(
-            { _id: conversationId, 'participants.userId': receiverId },
-            {
-                $set: {
-                    'participants.$.isHidden': false,
-                    lastMessageId: messageId,
-                    lastMessageAt: sentAt,
-                },
-                $inc: { 'participants.$.unreadCount': 1 },
-            },
-        );
-    }
-
-    /**
-     * 메시지 전송 시 발신자의 `lastMessageId` 와 `lastMessageAt` 을 갱신한다.
-     *
-     * 발신자의 `unreadCount` 는 변경하지 않는다.
-     *
-     * @param conversationId - 대화방 ID
-     * @param senderId - 발신자 ID
+     * @param receiverId - 수신자 ID (없으면 `null`)
      * @param messageId - 전송된 메시지 ID
      * @param sentAt - 메시지 전송 시각
      */
-    async onMessageSent(
+    async updateConversationOnMessage(
         conversationId: Types.ObjectId,
-        senderId: number,
+        receiverId: number | null,
         messageId: Types.ObjectId,
         sentAt: Date,
     ): Promise<void> {
-        await this.model.updateOne(
-            { _id: conversationId, 'participants.userId': senderId },
-            {
-                $set: {
-                    lastMessageId: messageId,
-                    lastMessageAt: sentAt,
-                },
-            },
-        );
+        const update: Record<string, unknown> = {
+            $set: { lastMessageId: messageId, lastMessageAt: sentAt },
+        };
+        const arrayFilters: Record<string, unknown>[] = [];
+
+        if (receiverId !== null) {
+            (update.$set as Record<string, unknown>)['participants.$[receiver].isHidden'] = false;
+            update.$inc = { 'participants.$[receiver].unreadCount': 1 };
+            arrayFilters.push({ 'receiver.userId': receiverId });
+        }
+
+        await this.model.updateOne({ _id: conversationId }, update, { arrayFilters });
     }
 
     /**
