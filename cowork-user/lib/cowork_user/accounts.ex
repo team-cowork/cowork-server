@@ -233,7 +233,7 @@ defmodule CoworkUser.Accounts do
         |> maybe_equals(:student_role, Map.get(params, "student_role"), :account)
         |> maybe_equals(:status, Map.get(params, "status"), :account)
         |> maybe_role(Map.get(params, "role"))
-        |> maybe_query(Map.get(params, "query"))
+        |> maybe_query(Map.get(params, "q") || Map.get(params, "query"))
         |> maybe_user_ids(Map.get(params, "user_ids"))
 
       total_count =
