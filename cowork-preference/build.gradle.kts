@@ -29,7 +29,13 @@ fun amperTask(name: String, vararg amperArgs: String, taskGroup: String, desc: S
         doFirst {
             // Validate only for explicit paths; PATH-resolved command names are left to the OS.
             if (kotlinCli.contains('/') || kotlinCli.contains('\\')) {
-                val cli = file(kotlinCli)
+                // Gradle's file() does not expand a leading '~', so expand it explicitly.
+                val expanded = if (kotlinCli.startsWith("~")) {
+                    kotlinCli.replaceFirst("~", System.getProperty("user.home"))
+                } else {
+                    kotlinCli
+                }
+                val cli = file(expanded)
                 if (!cli.exists()) {
                     throw GradleException(
                         "Kotlin CLI not found at '${cli.absolutePath}'. Install the Kotlin Toolchain " +
