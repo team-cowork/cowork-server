@@ -26,6 +26,12 @@ class MeetingNoteService(
         }
     }
 
+    private fun requireNoteOwner(note: MeetingNote, userId: Long) {
+        if (note.createdBy != userId) {
+            throw ExpectedException("회의록 작성자만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
     fun listNotes(userId: Long, channelId: Long): List<MeetingNoteResponse> {
         requireChannelMember(channelId, userId)
         return meetingNoteRepository.findAllByChannelIdOrderByIdDesc(channelId)
@@ -66,9 +72,7 @@ class MeetingNoteService(
             if (it.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
         val note = findNoteOrThrow(noteId, channelId)
-        if (note.createdBy != userId) {
-            throw ExpectedException("작성자만 회의록을 수정할 수 있습니다.", HttpStatus.FORBIDDEN)
-        }
+        requireNoteOwner(note, userId)
         val updatedTitle = request.title ?: note.title
         val updatedContent = request.content ?: note.content
         if (updatedTitle == note.title && updatedContent == note.content) {
@@ -82,9 +86,7 @@ class MeetingNoteService(
     fun deleteNote(userId: Long, channelId: Long, noteId: Long) {
         requireChannelMember(channelId, userId)
         val note = findNoteOrThrow(noteId, channelId)
-        if (note.createdBy != userId) {
-            throw ExpectedException("작성자만 회의록을 삭제할 수 있습니다.", HttpStatus.FORBIDDEN)
-        }
+        requireNoteOwner(note, userId)
         meetingNoteRepository.delete(note)
     }
 
