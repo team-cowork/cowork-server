@@ -28,6 +28,7 @@ import {
 import { CreateGithubIssueDto } from './dto/create-github-issue.dto';
 import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { SearchMessagesDto } from './dto/search-messages.dto';
+import { SearchTeamMessagesDto } from './dto/search-team-messages.dto';
 import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { MessageRepository, MessageRow } from './repository/message.repository';
@@ -342,6 +343,42 @@ export class ChatService {
         const { hits, nextCursor } = await this.elasticsearchService.searchMessages({
             projectId,
             accessibleChannelIds: filteredChannelIds,
+            q: dto.q,
+            authorId: dto.authorId,
+            type: dto.type,
+            hasFile: dto.hasFile,
+            before: dto.before,
+            limit: dto.limit ?? 50,
+        });
+
+        return { messages: hits, nextCursor };
+    }
+
+    async searchTeamMessages(
+        teamId: number,
+        dto: SearchTeamMessagesDto,
+        ctx: UserContext,
+    ): Promise<SearchMessagesResponseDto> {
+        const isMember = await this.channelMemberRepository.existsByTeam(teamId, ctx.userId);
+        if (!isMember) throw new ForbiddenException('팀 접근 권한이 없습니다');
+
+        const memberships = await this.channelMemberRepository.findMembersByTeam(teamId, ctx.userId);
+        let accessibleChannelIds = memberships.map((m) => m.channelId);
+
+        if (dto.channelId !== undefined) {
+            if (!accessibleChannelIds.includes(dto.channelId)) {
+                throw new ForbiddenException('채널 접근 권한이 없습니다');
+            }
+            accessibleChannelIds = [dto.channelId];
+        }
+
+        if (accessibleChannelIds.length === 0) {
+            return { messages: [], nextCursor: null };
+        }
+
+        const { hits, nextCursor } = await this.elasticsearchService.searchTeamMessages({
+            teamId,
+            accessibleChannelIds,
             q: dto.q,
             authorId: dto.authorId,
             type: dto.type,
