@@ -49,29 +49,33 @@ defmodule CoworkUser.Accounts do
   end
 
   def update_my_status(user_id, attrs) do
-    case load_profile(user_id) do
-      nil -> {:error, :not_found}
-      profile ->
-        status_attrs =
-          Enum.reduce(
-            [{"status", :status}, {"message", :status_message}, {"expiresAt", :status_expires_at}],
-            %{last_modified_by: user_id},
-            fn {key, field}, acc ->
-              if Map.has_key?(attrs, key) do
-                Map.put(acc, field, attrs[key])
-              else
-                acc
+    if Map.has_key?(attrs, "status") do
+      case load_profile(user_id) do
+        nil -> {:error, :not_found}
+        profile ->
+          status_attrs =
+            Enum.reduce(
+              [{"status", :status}, {"message", :status_message}, {"expiresAt", :status_expires_at}],
+              %{last_modified_by: user_id},
+              fn {key, field}, acc ->
+                if Map.has_key?(attrs, key) do
+                  Map.put(acc, field, attrs[key])
+                else
+                  acc
+                end
               end
-            end
-          )
+            )
 
-        profile.account
-        |> Account.status_changeset(status_attrs)
-        |> Repo.update()
-        |> case do
-          {:ok, _} -> get_my_profile(user_id)
-          {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
-        end
+          profile.account
+          |> Account.status_changeset(status_attrs)
+          |> Repo.update()
+          |> case do
+            {:ok, _} -> get_my_profile(user_id)
+            {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
+          end
+      end
+    else
+      {:error, {:validation, "status 필드는 필수입니다."}}
     end
   end
 
