@@ -66,10 +66,15 @@ export class DmGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @SubscribeMessage('join')
     async handleJoin(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { conversationId: string },
+        @MessageBody() payload?: { conversationId: string },
     ) {
+        const conversationId = payload?.conversationId ?? '';
+        if (!conversationId) {
+            client.emit('error', { message: '대화방 ID가 필요합니다' });
+            return;
+        }
         const { userId } = client.data;
-        const conversation = await this.conversationRepository.findById(payload.conversationId);
+        const conversation = await this.conversationRepository.findById(conversationId);
         if (!conversation) {
             client.emit('error', { message: '대화방을 찾을 수 없습니다' });
             return;
@@ -81,25 +86,32 @@ export class DmGateway implements OnGatewayConnection, OnGatewayDisconnect {
             return;
         }
 
-        client.join(`dm:${payload.conversationId}`);
-        this.logger.log(`userId=${userId} joined dm:${payload.conversationId}`);
+        client.join(`dm:${conversationId}`);
+        this.logger.log(`userId=${userId} joined dm:${conversationId}`);
     }
 
     @SubscribeMessage('leave')
     handleLeave(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { conversationId: string },
+        @MessageBody() payload?: { conversationId: string },
     ) {
-        client.leave(`dm:${payload.conversationId}`);
+        const conversationId = payload?.conversationId ?? '';
+        if (!conversationId) return;
+        client.leave(`dm:${conversationId}`);
     }
 
     @SubscribeMessage('typing:start')
     handleTypingStart(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { conversationId: string },
+        @MessageBody() payload?: { conversationId: string },
     ) {
-        client.to(`dm:${payload.conversationId}`).emit('typing', {
-            conversationId: payload.conversationId,
+        const conversationId = payload?.conversationId ?? '';
+        if (!conversationId) return;
+        const room = `dm:${conversationId}`;
+        if (!client.rooms.has(room)) return;
+
+        client.to(room).emit('typing', {
+            conversationId,
             userId: client.data.userId,
             isTyping: true,
         });
@@ -108,10 +120,15 @@ export class DmGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @SubscribeMessage('typing:stop')
     handleTypingStop(
         @ConnectedSocket() client: Socket,
-        @MessageBody() payload: { conversationId: string },
+        @MessageBody() payload?: { conversationId: string },
     ) {
-        client.to(`dm:${payload.conversationId}`).emit('typing', {
-            conversationId: payload.conversationId,
+        const conversationId = payload?.conversationId ?? '';
+        if (!conversationId) return;
+        const room = `dm:${conversationId}`;
+        if (!client.rooms.has(room)) return;
+
+        client.to(room).emit('typing', {
+            conversationId,
             userId: client.data.userId,
             isTyping: false,
         });
