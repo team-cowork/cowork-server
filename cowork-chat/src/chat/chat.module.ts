@@ -10,6 +10,7 @@ import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
 import { ProjectMessageController } from './project-message.controller';
 import { TeamUnreadController } from './team-unread.controller';
+import { TeamSearchController } from './team-search.controller';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
@@ -110,7 +111,7 @@ function createLogStream() {
         MinioModule,
         SearchModule,
     ],
-    controllers: [ChatController, ProjectMessageController, TeamUnreadController, HealthController],
+    controllers: [ChatController, ProjectMessageController, TeamUnreadController, TeamSearchController, HealthController],
     providers: [
         ChatGateway,
         ChatService,
