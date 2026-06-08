@@ -1,4 +1,5 @@
 import {
+    BadRequestException,
     ConflictException,
     ForbiddenException,
     forwardRef,
@@ -215,6 +216,8 @@ export class MessageService {
         emoji: string,
         action: 'ADD' | 'REMOVE',
     ): Promise<void> {
+        if (!Types.ObjectId.isValid(messageId)) throw new BadRequestException('유효하지 않은 메시지 ID입니다');
+
         const conversation = await this.conversationRepository.findById(conversationId);
         if (!conversation) throw new NotFoundException('대화방을 찾을 수 없습니다');
 
@@ -252,6 +255,8 @@ export class MessageService {
      * @throws ForbiddenException 사용자가 대화방 참여자가 아닌 경우
      */
     async markRead(conversationId: string, userId: number, messageId: string): Promise<void> {
+        if (!Types.ObjectId.isValid(messageId)) throw new BadRequestException('유효하지 않은 메시지 ID입니다');
+
         const conversation = await this.conversationRepository.findById(conversationId);
         if (!conversation) throw new NotFoundException('대화방을 찾을 수 없습니다');
 
