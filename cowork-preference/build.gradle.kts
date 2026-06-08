@@ -12,8 +12,13 @@ plugins {
 group = "com.cowork"
 version = "20260602.0"
 
+// On Windows the Kotlin CLI is installed as kotlin.bat.
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val kotlinCli: String = providers.environmentVariable("KOTLIN_CLI")
-    .orElse(providers.systemProperty("user.home").map { "$it/.local/bin/kotlin" })
+    .orElse(
+        providers.systemProperty("user.home")
+            .map { "$it/.local/bin/kotlin${if (isWindows) ".bat" else ""}" }
+    )
     .get()
 
 fun amperTask(name: String, vararg amperArgs: String, taskGroup: String, desc: String) =
@@ -21,6 +26,18 @@ fun amperTask(name: String, vararg amperArgs: String, taskGroup: String, desc: S
         group = taskGroup
         description = desc
         workingDir = projectDir
+        doFirst {
+            // Validate only for explicit paths; PATH-resolved command names are left to the OS.
+            if (kotlinCli.contains('/') || kotlinCli.contains('\\')) {
+                val cli = file(kotlinCli)
+                if (!cli.exists()) {
+                    throw GradleException(
+                        "Kotlin CLI not found at '${cli.absolutePath}'. Install the Kotlin Toolchain " +
+                            "(Amper) or set the KOTLIN_CLI environment variable to its location."
+                    )
+                }
+            }
+        }
         commandLine(kotlinCli, *amperArgs)
     }
 
