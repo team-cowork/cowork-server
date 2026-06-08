@@ -1,0 +1,10 @@
+# Custom Kotlin toolchain: target JDK 21 and pin the language/api level to 2.1
+# so compilation matches the Gradle build (kotlin-jvm 2.1.20).
+load("@rules_kotlin//kotlin:core.bzl", "define_kt_toolchain")
+
+define_kt_toolchain(
+    name = "kotlin_toolchain",
+    api_version = "2.1",
+    jvm_target = "21",
+    language_version = "2.1",
+)
