@@ -29,6 +29,17 @@ export interface SearchMessagesParams {
     limit: number;
 }
 
+export interface SearchTeamMessagesParams {
+    teamId: number;
+    accessibleChannelIds: number[];
+    q: string;
+    authorId?: number;
+    type?: string;
+    hasFile?: boolean;
+    before?: string;
+    limit: number;
+}
+
 export interface SearchHit {
     messageId: string;
     channelId: number;
@@ -137,6 +148,82 @@ export class ElasticsearchService implements OnModuleInit {
             if (err?.statusCode === 404) return;
             this.logger.error(`ES 메시지 삭제 실패 id=${messageId}`, err);
         }
+    }
+
+    async searchTeamMessages(params: SearchTeamMessagesParams): Promise<{ hits: SearchHit[]; nextCursor: string | null }> {
+        const { teamId, accessibleChannelIds, q, authorId, type, hasFile, before, limit } = params;
+
+        const filter: any[] = [];
+        if (authorId !== undefined) filter.push({ term: { authorId } });
+        if (type !== undefined) filter.push({ term: { type } });
+        if (hasFile === true) filter.push({ term: { hasAttachments: true } });
+
+        let searchAfter: any[] | undefined;
+        if (before) {
+            try {
+                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
+            } catch {
+                searchAfter = undefined;
+            }
+        }
+
+        const response = await this.client.search({
+            index: INDEX,
+            body: {
+                query: {
+                    bool: {
+                        must: [
+                            { term: { teamId } },
+                            { terms: { channelId: accessibleChannelIds } },
+                            {
+                                bool: {
+                                    should: [
+                                        { match: { content: { query: q, fuzziness: 'AUTO' } } },
+                                        { match_phrase: { content: { query: q, boost: 2 } } },
+                                    ],
+                                    minimum_should_match: 1,
+                                },
+                            },
+                        ],
+                        filter,
+                    },
+                },
+                highlight: {
+                    fields: {
+                        content: {
+                            pre_tags: ['<em>'],
+                            post_tags: ['</em>'],
+                            number_of_fragments: 3,
+                            fragment_size: 150,
+                        },
+                    },
+                },
+                sort: [{ createdAt: 'desc' }, { messageId: 'desc' }],
+                size: limit,
+                ...(searchAfter ? { search_after: searchAfter } : {}),
+            },
+        });
+
+        const rawHits = (response as any).hits?.hits ?? [];
+
+        const hits: SearchHit[] = rawHits.map((hit: any) => ({
+            messageId: hit._source.messageId,
+            channelId: hit._source.channelId,
+            authorId: hit._source.authorId,
+            content: hit._source.content,
+            highlight: hit.highlight?.content ?? [],
+            type: hit._source.type,
+            hasAttachments: hit._source.hasAttachments,
+            isPinned: hit._source.isPinned,
+            createdAt: hit._source.createdAt,
+        }));
+
+        const lastHit = rawHits.at(-1);
+        const nextCursor = hits.length === limit && lastHit?.sort
+            ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64')
+            : null;
+
+        return { hits, nextCursor };
     }
 
     async searchMessages(params: SearchMessagesParams): Promise<{ hits: SearchHit[]; nextCursor: string | null }> {

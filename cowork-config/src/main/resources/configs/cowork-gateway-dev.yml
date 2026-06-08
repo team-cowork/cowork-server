@@ -95,6 +95,31 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: chat-service-team-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/search/messages
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service-search
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/search/channels
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
