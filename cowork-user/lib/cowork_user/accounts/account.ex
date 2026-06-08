@@ -14,6 +14,8 @@ defmodule CoworkUser.Accounts.Account do
     field :major, :string
     field :specialty, :string
     field :status, :string
+    field :status_message, :string
+    field :status_expires_at, :utc_datetime
     field :created_by, :integer
     field :last_modified_by, :integer
 
@@ -36,9 +38,23 @@ defmodule CoworkUser.Accounts.Account do
       :major,
       :specialty,
       :status,
+      :status_message,
+      :status_expires_at,
       :created_by,
       :last_modified_by
     ])
     |> validate_required([:id, :name, :email, :sex, :status])
+  end
+
+  def profile_update_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:name, :github, :last_modified_by])
+    |> validate_required([:name])
+  end
+
+  def status_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:status, :status_message, :status_expires_at, :last_modified_by])
+    |> validate_required([:status])
   end
 end
