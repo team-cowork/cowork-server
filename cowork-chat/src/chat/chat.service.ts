@@ -372,6 +372,10 @@ export class ChatService {
             accessibleChannelIds = [dto.channelId];
         }
 
+        if (accessibleChannelIds.length === 0) {
+            return { messages: [], nextCursor: null };
+        }
+
         const { hits, nextCursor } = await this.elasticsearchService.searchTeamMessages({
             teamId,
             accessibleChannelIds,
