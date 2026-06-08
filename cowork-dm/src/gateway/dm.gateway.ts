@@ -117,13 +117,19 @@ export class DmGateway implements OnGatewayConnection, OnGatewayDisconnect {
         });
     }
 
-    broadcastNewMessage(conversationId: string, message: MessageResponseDto) {
+    broadcastNewMessage(conversationId: string, message: MessageResponseDto, receiverId: number | null) {
         this.server.to(`dm:${conversationId}`).emit('message:new', message);
-        // 오프라인 참여자 개인 룸에도 emit (목록 업데이트용)
+        // 송신자·수신자 개인 룸에 emit (오프라인 상태에서 목록 실시간 갱신용)
         this.server.to(`user:${message.authorId}`).emit('conversation:updated', {
             conversationId,
             lastMessageAt: message.createdAt,
         });
+        if (receiverId !== null) {
+            this.server.to(`user:${receiverId}`).emit('conversation:updated', {
+                conversationId,
+                lastMessageAt: message.createdAt,
+            });
+        }
     }
 
     broadcastMessageUpdated(conversationId: string, message: MessageResponseDto) {

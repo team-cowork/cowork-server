@@ -6,6 +6,7 @@ import { ConversationRepository } from '../conversation/conversation.repository'
 import { BlockService } from '../block/block.service';
 import { DmGateway } from '../gateway/dm.gateway';
 import { MinioService } from '../storage/minio.service';
+import { MessageResponseDto } from './dto/message-response.dto';
 
 const makeObjectId = () => new Types.ObjectId();
 
@@ -64,7 +65,7 @@ const mockBlockService = () => ({
 });
 
 const mockGateway = () => ({
-    broadcastNewMessage: jest.fn(),
+    broadcastNewMessage: jest.fn<void, [string, MessageResponseDto, number | null]>(),
     broadcastMessageUpdated: jest.fn(),
     broadcastMessageDeleted: jest.fn(),
     broadcastReactionUpdated: jest.fn(),
@@ -168,7 +169,7 @@ describe('MessageService', () => {
 
             expect(result.authorId).toBe(1);
             expect(result.content).toBe('안녕');
-            expect(gateway.broadcastNewMessage).toHaveBeenCalledWith(conv._id.toString(), result);
+            expect(gateway.broadcastNewMessage).toHaveBeenCalledWith(conv._id.toString(), result, 2);
         });
 
         it('수신자가 없는 경우 receiverId=null 로 updateConversationOnMessage를 호출한다', async () => {
