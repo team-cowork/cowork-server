@@ -114,7 +114,7 @@ defmodule CoworkUser.OpenAPI do
       properties: %{
         status: %{type: "string", example: "DO_NOT_DISTURB"},
         message: %{type: "string", nullable: true, example: "집중 중"},
-        expiresAt: %{type: "string", format: "date-time", nullable: true, example: "2026-05-26T18:00:00"}
+        expiresAt: %{type: "string", format: "date-time", nullable: true, example: "2026-05-26T18:00:00Z"}
       }
     }
   end
