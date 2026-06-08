@@ -77,3 +77,7 @@ SPEC.md
 ### Secrets ###
 docker/secrets/
 !docker/secrets/.gitkeep
+
+### Bazel ###
+# Symlinks created by Bazel in the workspace root (bazel-bin, bazel-out, etc.)
+/bazel-*
