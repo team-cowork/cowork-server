@@ -50,6 +50,9 @@ export class MessageRepository {
      * @returns 메시지 목록 (최신순)
      */
     findMessages(conversationId: string, before?: string): Promise<MessageRow[]> {
+        if (!Types.ObjectId.isValid(conversationId)) return Promise.resolve([]);
+        if (before && !Types.ObjectId.isValid(before)) return Promise.resolve([]);
+
         const query: Record<string, unknown> = { conversationId: new Types.ObjectId(conversationId) };
         if (before) {
             query['_id'] = { $lt: new Types.ObjectId(before) };
@@ -82,6 +85,9 @@ export class MessageRepository {
      * @returns 메시지 도큐먼트, 없으면 `null`
      */
     findByIdAndConversationId(messageId: string, conversationId: string): Promise<DmMessageDocument | null> {
+        if (!Types.ObjectId.isValid(messageId) || !Types.ObjectId.isValid(conversationId)) {
+            return Promise.resolve(null);
+        }
         return this.messageModel.findOne({
             _id: messageId,
             conversationId: new Types.ObjectId(conversationId),
