@@ -64,6 +64,38 @@ class MeetingNoteServiceTest {
     }
 
     @Test
+    fun `updateNote는 title이 공백이면 BAD_REQUEST`() {
+        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "   ", content = null))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `updateNote는 title이 200자 초과이면 BAD_REQUEST`() {
+        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "a".repeat(201), content = null))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `updateNote는 변경 사항이 없으면 note를 그대로 반환`() {
+        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteRepository.findById(1L) } returns Optional.of(note(title = "주간 회의", content = "{}"))
+
+        val request = UpdateMeetingNoteRequest(title = "주간 회의", content = "{}")
+        val result = service.updateNote(7L, 1L, 1L, request)
+
+        assertEquals("주간 회의", result.title)
+        assertEquals("{}", result.content)
+    }
+
+    @Test
     fun `updateNote는 채널 비멤버이면 FORBIDDEN`() {
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns false
 
