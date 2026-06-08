@@ -3,6 +3,7 @@ package com.cowork.channel.service
 import com.cowork.channel.domain.MeetingNote
 import com.cowork.channel.dto.CreateMeetingNoteRequest
 import com.cowork.channel.dto.MeetingNoteResponse
+import com.cowork.channel.dto.UpdateMeetingNoteRequest
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.MeetingNoteRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
@@ -55,6 +56,27 @@ class MeetingNoteService(
             )
         )
         return MeetingNoteResponse.of(note)
+    }
+
+    @Transactional
+    fun updateNote(userId: Long, channelId: Long, noteId: Long, request: UpdateMeetingNoteRequest): MeetingNoteResponse {
+        requireChannelMember(channelId, userId)
+        val note = findNoteOrThrow(noteId, channelId)
+        if (note.createdBy != userId) {
+            throw ExpectedException("작성자만 회의록을 수정할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+        note.update(request.title, request.content)
+        return MeetingNoteResponse.of(note)
+    }
+
+    @Transactional
+    fun deleteNote(userId: Long, channelId: Long, noteId: Long) {
+        requireChannelMember(channelId, userId)
+        val note = findNoteOrThrow(noteId, channelId)
+        if (note.createdBy != userId) {
+            throw ExpectedException("작성자만 회의록을 삭제할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+        meetingNoteRepository.delete(note)
     }
 
     private fun findNoteOrThrow(noteId: Long, channelId: Long): MeetingNote {
