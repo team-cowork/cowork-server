@@ -4,8 +4,13 @@ FROM eclipse-temurin:21-jdk AS builder
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN curl -fsSL https://kotl.in/install.sh | KOTLIN_CLI_NO_MODIFY_PATH=1 sh
-ENV PATH="/root/.local/bin:$PATH"
+# Pinned, checksum-verified Kotlin Toolchain (Amper) CLI wrapper for reproducible builds.
+ARG KOTLIN_CLI_VERSION=0.11.0
+ARG KOTLIN_CLI_WRAPPER_SHA256=f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+RUN curl -fsSL -o /usr/local/bin/kotlin \
+      "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper" \
+    && echo "${KOTLIN_CLI_WRAPPER_SHA256}  /usr/local/bin/kotlin" | sha256sum -c - \
+    && chmod +x /usr/local/bin/kotlin
 WORKDIR /workspace/cowork-preference
 COPY cowork-preference/module.yaml module.yaml
 COPY cowork-preference/src src
@@ -15,7 +20,7 @@ RUN kotlin package
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
+COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 USER app
 EXPOSE 9001
