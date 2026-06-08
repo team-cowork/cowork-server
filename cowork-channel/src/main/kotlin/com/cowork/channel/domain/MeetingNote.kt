@@ -35,4 +35,9 @@ class MeetingNote(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
-)
+) {
+    fun update(title: String?, content: String?) {
+        title?.let { this.title = it }
+        content?.let { this.content = it }
+    }
+}
