@@ -1,6 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AppConfigService } from '../../config/app-config.service';
-import { GithubAuthService } from '../auth/github-auth.service';
 import { GithubApiClient } from '../client/github-api.client';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
@@ -9,7 +8,6 @@ import { LabelService } from './label.service';
 
 describe('IssueService', () => {
   let service: IssueService;
-  let authService: { getInstallationToken: jest.Mock };
   let apiClient: {
     createIssue: jest.Mock;
     searchOpenIssuesByTitle: jest.Mock;
@@ -38,9 +36,6 @@ describe('IssueService', () => {
   const RESOLVED_LABELS = ['help wanted:도움 필요'];
 
   beforeEach(async () => {
-    authService = {
-      getInstallationToken: jest.fn().mockResolvedValue('token'),
-    };
     apiClient = {
       createIssue: jest.fn().mockResolvedValue(createdIssue),
       searchOpenIssuesByTitle: jest.fn().mockResolvedValue([]),
@@ -55,7 +50,6 @@ describe('IssueService', () => {
       providers: [
         IssueService,
         { provide: AppConfigService, useValue: { githubIssueMaxRetries: 3 } },
-        { provide: GithubAuthService, useValue: authService },
         { provide: GithubApiClient, useValue: apiClient },
         { provide: LabelService, useValue: labelService },
       ],
@@ -68,18 +62,13 @@ describe('IssueService', () => {
   it('정상 처리 시 라벨을 해석하고 이슈를 생성한 뒤 issueUrl과 issueNumber를 반환한다', async () => {
     const result = await service.createIssue(dto);
 
-    expect(authService.getInstallationToken).toHaveBeenCalledWith(dto.owner);
     expect(labelService.resolveLabels).toHaveBeenCalledWith(dto);
     expect(labelService.ensureLabelsExist).toHaveBeenCalledWith(
-      'token',
       dto,
       RESOLVED_LABELS,
     );
-    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith(
-      'token',
-      dto,
-    );
-    expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
+    expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith(dto);
+    expect(apiClient.createIssue).toHaveBeenCalledWith({
       ...dto,
       labels: RESOLVED_LABELS,
     });
@@ -94,7 +83,7 @@ describe('IssueService', () => {
 
     await service.createIssue(dto);
 
-    expect(apiClient.createIssue).toHaveBeenCalledWith('token', {
+    expect(apiClient.createIssue).toHaveBeenCalledWith({
       ...dto,
       labels: ['help wanted:도움 필요'],
     });
@@ -106,7 +95,6 @@ describe('IssueService', () => {
     const result = await service.createIssue(dto);
 
     expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith(
-      'token',
       dto,
       7,
       RESOLVED_LABELS,
@@ -129,7 +117,7 @@ describe('IssueService', () => {
 
     await service.createIssue(dto);
 
-    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith('token', dto, 7, [
+    expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith(dto, 7, [
       'bug:버그',
     ]);
     expect(apiClient.createIssue).not.toHaveBeenCalled();

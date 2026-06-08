@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import { GithubApiClient } from '../client/github-api.client';
-import { GithubAuthService } from '../auth/github-auth.service';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 import { GithubClientError } from '../github.errors';
 import { LabelService } from './label.service';
@@ -12,7 +11,6 @@ export class IssueService {
 
   constructor(
     private readonly config: AppConfigService,
-    private readonly authService: GithubAuthService,
     private readonly apiClient: GithubApiClient,
     private readonly labelService: LabelService,
   ) {}
@@ -24,14 +22,11 @@ export class IssueService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const token = await this.authService.getInstallationToken(dto.owner);
         const labels = this.labelService.resolveLabels(dto);
-        await this.labelService.ensureLabelsExist(token, dto, labels);
+        await this.labelService.ensureLabelsExist(dto, labels);
 
-        const existingIssues = await this.apiClient.searchOpenIssuesByTitle(
-          token,
-          dto,
-        );
+        const existingIssues =
+          await this.apiClient.searchOpenIssuesByTitle(dto);
         const existingIssue = existingIssues.find(
           (issue) => issue.title === dto.title,
         );
@@ -47,7 +42,6 @@ export class IssueService {
 
           if (newLabels.length > 0) {
             await this.apiClient.addLabelsToIssue(
-              token,
               dto,
               existingIssue.number,
               newLabels,
@@ -71,7 +65,7 @@ export class IssueService {
           };
         }
 
-        const result = await this.apiClient.createIssue(token, {
+        const result = await this.apiClient.createIssue({
           ...dto,
           labels,
         });
