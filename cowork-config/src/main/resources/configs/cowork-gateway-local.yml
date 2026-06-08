@@ -152,6 +152,25 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: dm-service
+          uri: lb://cowork-dm
+          predicates:
+            - Path=/api/dm/**
+          filters:
+            - StripPrefix=1
+
+        - id: dm-service-ws
+          uri: lb:ws://cowork-dm
+          predicates:
+            - Path=/dm-ws/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: preference-service
           uri: lb://cowork-preference
           predicates:
