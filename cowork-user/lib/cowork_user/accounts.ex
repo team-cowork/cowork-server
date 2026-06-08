@@ -52,12 +52,18 @@ defmodule CoworkUser.Accounts do
     case load_profile(user_id) do
       nil -> {:error, :not_found}
       profile ->
-        status_attrs = %{
-          status: Map.get(attrs, "status"),
-          status_message: Map.get(attrs, "message"),
-          status_expires_at: Map.get(attrs, "expiresAt"),
-          last_modified_by: user_id
-        }
+        status_attrs =
+          Enum.reduce(
+            [{"status", :status}, {"message", :status_message}, {"expiresAt", :status_expires_at}],
+            %{last_modified_by: user_id},
+            fn {key, field}, acc ->
+              if Map.has_key?(attrs, key) do
+                Map.put(acc, field, attrs[key])
+              else
+                acc
+              end
+            end
+          )
 
         profile.account
         |> Account.status_changeset(status_attrs)
