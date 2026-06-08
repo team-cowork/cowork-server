@@ -105,6 +105,7 @@ class OAuthAccountServiceTest {
     // RestClient POST 체인 stubbing 헬퍼
     private fun stubPostReturns(responseBody: Map<*, *>) {
         val postBodySpec = mockk<RestClient.RequestBodySpec>()
+        every { postBodySpec.header(any(), any()) } returns postBodySpec
         every { postBodySpec.contentType(any()) } returns postBodySpec
         every { postBodySpec.accept(any()) } returns postBodySpec
         every { postBodySpec.body(any<Any>()) } returns postBodySpec

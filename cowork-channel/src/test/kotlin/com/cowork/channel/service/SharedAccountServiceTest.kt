@@ -232,10 +232,11 @@ class SharedAccountServiceTest {
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
-        service.updateAccount(
+        val result = service.updateAccount(
             1L, 1L, 10L,
             UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
         )
+        assertEquals(acc.id, result.id)
     }
 
     @Test
@@ -248,10 +249,11 @@ class SharedAccountServiceTest {
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
-        service.updateAccount(
+        val result = service.updateAccount(
             1L, 1L, 10L,
             UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
         )
+        assertEquals(acc.id, result.id)
     }
 
     @Test
