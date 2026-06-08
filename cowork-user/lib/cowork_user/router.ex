@@ -56,6 +56,17 @@ defmodule CoworkUser.Router do
     end
   end
 
+  patch "/users/me/status" do
+    with {:ok, user_id} <- user_id_from_header(conn),
+         {:ok, profile} <- Accounts.update_my_status(user_id, conn.body_params) do
+      JSON.send(conn, 200, profile)
+    else
+      {:error, :not_found} -> JSON.error(conn, 404, "사용자를 찾을 수 없습니다.")
+      {:error, :missing_user_id} -> JSON.error(conn, 400, "X-User-Id 헤더가 누락되었습니다.")
+      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
+    end
+  end
+
   post "/users/me/profile-image/presigned" do
     with {:ok, user_id} <- user_id_from_header(conn),
          {:ok, response} <- Accounts.generate_presigned_url(user_id, conn.body_params) do
