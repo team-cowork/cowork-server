@@ -5,6 +5,7 @@ import { MessageRepository } from './message.repository';
 import { ConversationRepository } from '../conversation/conversation.repository';
 import { BlockService } from '../block/block.service';
 import { DmGateway } from '../gateway/dm.gateway';
+import { MinioService } from '../storage/minio.service';
 
 const makeObjectId = () => new Types.ObjectId();
 
@@ -49,9 +50,13 @@ const mockMessageRepo = () => ({
 const mockConvRepo = () => ({
     findById: jest.fn(),
     getOtherParticipantId: jest.fn(),
-    onMessageSent: jest.fn(),
-    onMessageReceived: jest.fn(),
+    updateConversationOnMessage: jest.fn(),
     markRead: jest.fn(),
+});
+
+const mockMinioService = () => ({
+    extractObjectKey: jest.fn(),
+    confirmUpload: jest.fn(),
 });
 
 const mockBlockService = () => ({
@@ -72,17 +77,20 @@ describe('MessageService', () => {
     let convRepo: ReturnType<typeof mockConvRepo>;
     let blockService: ReturnType<typeof mockBlockService>;
     let gateway: ReturnType<typeof mockGateway>;
+    let minioService: ReturnType<typeof mockMinioService>;
 
     beforeEach(() => {
         messageRepo = mockMessageRepo();
         convRepo = mockConvRepo();
         blockService = mockBlockService();
         gateway = mockGateway();
+        minioService = mockMinioService();
         service = new MessageService(
             messageRepo as unknown as MessageRepository,
             convRepo as unknown as ConversationRepository,
             blockService as unknown as BlockService,
             gateway as unknown as DmGateway,
+            minioService as unknown as MinioService,
         );
     });
 
@@ -154,8 +162,7 @@ describe('MessageService', () => {
             convRepo.getOtherParticipantId.mockReturnValue(2);
             blockService.isBlocked.mockResolvedValue(false);
             messageRepo.createMessage.mockResolvedValue(msg);
-            convRepo.onMessageSent.mockResolvedValue(undefined);
-            convRepo.onMessageReceived.mockResolvedValue(undefined);
+            convRepo.updateConversationOnMessage.mockResolvedValue(undefined);
 
             const result = await service.sendMessage(conv._id.toString(), 1, { content: '안녕', type: 'TEXT' } as any);
 
@@ -164,17 +171,22 @@ describe('MessageService', () => {
             expect(gateway.broadcastNewMessage).toHaveBeenCalledWith(conv._id.toString(), result);
         });
 
-        it('수신자가 없는 경우(그룹) onMessageReceived를 건너뛴다', async () => {
+        it('수신자가 없는 경우 receiverId=null 로 updateConversationOnMessage를 호출한다', async () => {
             const conv = makeConversation(1, 2);
             const msg = makeMessage(conv._id, 1);
             convRepo.findById.mockResolvedValue(conv);
             convRepo.getOtherParticipantId.mockReturnValue(null);
             messageRepo.createMessage.mockResolvedValue(msg);
-            convRepo.onMessageSent.mockResolvedValue(undefined);
+            convRepo.updateConversationOnMessage.mockResolvedValue(undefined);
 
             await service.sendMessage(conv._id.toString(), 1, { content: '안녕' } as any);
 
-            expect(convRepo.onMessageReceived).not.toHaveBeenCalled();
+            expect(convRepo.updateConversationOnMessage).toHaveBeenCalledWith(
+                expect.anything(),
+                null,
+                expect.anything(),
+                expect.anything(),
+            );
         });
     });
 

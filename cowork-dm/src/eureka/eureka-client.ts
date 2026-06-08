@@ -118,6 +118,7 @@ export class EurekaClient {
                 'Content-Type': 'application/json',
                 ...(init.headers ?? {}),
             },
+            signal: AbortSignal.timeout(5000),
         });
 
         if (!response.ok && response.status !== 204) {
