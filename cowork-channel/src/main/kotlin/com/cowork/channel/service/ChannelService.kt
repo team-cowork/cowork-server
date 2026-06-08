@@ -131,6 +131,7 @@ class ChannelService(
 
     fun searchChannels(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
+        if (q.isBlank()) return emptyList()
         return channelRepository.searchByTeamIdAndName(teamId, q).map { ChannelResponse.of(it) }
     }
 
