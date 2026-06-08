@@ -75,9 +75,13 @@ export class MessageService {
             if (isBlocked) throw new ForbiddenException('차단된 사용자에게 메시지를 보낼 수 없습니다');
         }
 
-        for (const attachment of dto.attachments ?? []) {
-            const objectKey = this.minioService.extractObjectKey(attachment.url);
-            await this.minioService.confirmUpload(conversationId, userId, objectKey);
+        if (dto.attachments && dto.attachments.length > 0) {
+            await Promise.all(
+                dto.attachments.map((attachment) => {
+                    const objectKey = this.minioService.extractObjectKey(attachment.url);
+                    return this.minioService.confirmUpload(conversationId, userId, objectKey);
+                }),
+            );
         }
 
         let message;
@@ -123,7 +127,7 @@ export class MessageService {
             updatedAt: message.updatedAt,
         }, userId);
 
-        this.gateway.broadcastNewMessage(conversationId, response);
+        this.gateway.broadcastNewMessage(conversationId, response, receiverId);
 
         return response;
     }
@@ -222,6 +226,7 @@ export class MessageService {
             : await this.messageRepository.removeReaction(conversationId, messageId, emoji, userId);
 
         if (result === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (result === -1) return;
 
         const updatedMessage = await this.messageRepository.findById(messageId);
         if (updatedMessage) {
