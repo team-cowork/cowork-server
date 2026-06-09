@@ -2,7 +2,7 @@
 # Coexists with Gradle: only cowork-gateway has a BUILD.bazel, other modules are ignored by Bazel.
 module(
     name = "cowork_server",
-    version = "0.0.0",
+    version = "20260602.0",
 )
 
 bazel_dep(name = "rules_kotlin", version = "2.3.20")
