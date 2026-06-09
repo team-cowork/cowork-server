@@ -21,7 +21,7 @@
 `8091`
 
 ## 의존성
-- Kafka produce: `dm.block.updated`, DM 알림 이벤트
+- Kafka produce: `dm.block.updated` (사용자 차단 이벤트), `notification.trigger` (DM 알림 이벤트)
 - Redis (차단 상태 저장)
 - MinIO (파일 업로드)
 
@@ -35,6 +35,7 @@
 | `REDIS_HOST` | Redis 호스트 |
 | `REDIS_PORT` | Redis 포트 |
 | `MINIO_INTERNAL_ENDPOINT` | MinIO 내부 엔드포인트 |
+| `MINIO_PUBLIC_BASE_URL` | MinIO 외부 공개 Base URL |
 | `MINIO_ACCESS_KEY` | MinIO 액세스 키 |
 | `MINIO_SECRET_KEY` | MinIO 시크릿 키 |
 | `MINIO_BUCKET` | MinIO 버킷명 |
