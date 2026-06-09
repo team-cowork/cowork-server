@@ -18,7 +18,7 @@ COPY --chown=app:app docker-entrypoint.sh /app/docker-entrypoint.sh
 
 ENV PATH="/flyway:${PATH}"
 ENV ELIXIR_ERL_OPTIONS="+fnu"
-RUN chmod +x /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh && chown app:app /app
 USER app
 EXPOSE 8082
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
