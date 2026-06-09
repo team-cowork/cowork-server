@@ -262,14 +262,14 @@ describe('MessageService', () => {
         it('대화방이 없으면 NotFoundException', async () => {
             convRepo.findById.mockResolvedValue(null);
 
-            await expect(service.reactMessage('conv1', 'msg1', 1, '👍', 'ADD')).rejects.toThrow(NotFoundException);
+            await expect(service.reactMessage('conv1', makeObjectId().toString(), 1, '👍', 'ADD')).rejects.toThrow(NotFoundException);
         });
 
         it('참여자가 아니면 ForbiddenException', async () => {
             const conv = makeConversation(2, 3);
             convRepo.findById.mockResolvedValue(conv);
 
-            await expect(service.reactMessage(conv._id.toString(), 'msg1', 1, '👍', 'ADD')).rejects.toThrow(ForbiddenException);
+            await expect(service.reactMessage(conv._id.toString(), makeObjectId().toString(), 1, '👍', 'ADD')).rejects.toThrow(ForbiddenException);
         });
 
         it('메시지가 없으면 NotFoundException (addReaction null)', async () => {
@@ -277,7 +277,7 @@ describe('MessageService', () => {
             convRepo.findById.mockResolvedValue(conv);
             messageRepo.addReaction.mockResolvedValue(null);
 
-            await expect(service.reactMessage(conv._id.toString(), 'msg1', 1, '👍', 'ADD')).rejects.toThrow(NotFoundException);
+            await expect(service.reactMessage(conv._id.toString(), makeObjectId().toString(), 1, '👍', 'ADD')).rejects.toThrow(NotFoundException);
         });
 
         it('ADD 리액션 후 WebSocket 브로드캐스트', async () => {
@@ -321,14 +321,14 @@ describe('MessageService', () => {
         it('대화방이 없으면 NotFoundException', async () => {
             convRepo.findById.mockResolvedValue(null);
 
-            await expect(service.markRead('conv1', 1, 'msg1')).rejects.toThrow(NotFoundException);
+            await expect(service.markRead('conv1', 1, makeObjectId().toString())).rejects.toThrow(NotFoundException);
         });
 
         it('참여자가 아니면 ForbiddenException', async () => {
             const conv = makeConversation(2, 3);
             convRepo.findById.mockResolvedValue(conv);
 
-            await expect(service.markRead(conv._id.toString(), 1, 'msg1')).rejects.toThrow(ForbiddenException);
+            await expect(service.markRead(conv._id.toString(), 1, makeObjectId().toString())).rejects.toThrow(ForbiddenException);
         });
 
         it('읽음 처리 후 WebSocket 브로드캐스트', async () => {
