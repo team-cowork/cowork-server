@@ -51,6 +51,11 @@ services:
       context: cowork-chat
       dockerfile: local.dockerfile
 
+  cowork-dm:
+    build:
+      context: cowork-dm
+      dockerfile: local.dockerfile
+
   cowork-voice:
     build:
       context: cowork-voice

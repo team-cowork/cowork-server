@@ -33,6 +33,9 @@ services:
   cowork-chat:
     image: ${REGISTRY}/cowork-chat:${IMAGE_TAG}
 
+  cowork-dm:
+    image: ${REGISTRY}/cowork-dm:${IMAGE_TAG}
+
   cowork-voice:
     image: ${REGISTRY}/cowork-voice:${IMAGE_TAG}
     environment:

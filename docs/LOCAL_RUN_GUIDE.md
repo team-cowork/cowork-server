@@ -30,6 +30,7 @@
 | `cowork-channel`       | `8083` | Spring Boot                          | 정상 |
 | `cowork-notification`  | `8086` | Go                                   | 정상 |
 | `cowork-chat`          | `8087` | NestJS                               | 정상 |
+| `cowork-dm`            | `8091` | NestJS                               | 정상 |
 | `cowork-voice`         | `8084` | Go                                   | 정상 |
 | `cowork-project`       | `8089` | Spring Boot                          | 정상 |
 
@@ -159,9 +160,9 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
 - 빌드 컨텍스트: 각 서비스 디렉터리
 - 베이스 이미지: `golang:1.25-alpine` (빌드) → `alpine:3.20` (런타임)
 
-### NestJS 서비스 (chat)
+### NestJS 서비스 (chat, dm)
 
-- 빌드 컨텍스트: `cowork-chat/`
+- 빌드 컨텍스트: 각 서비스 디렉터리 (`cowork-chat/`, `cowork-dm/`)
 - `npm run build` (tsc) → `node dist/main.js`
 - 베이스 이미지: `node:22-alpine`
 

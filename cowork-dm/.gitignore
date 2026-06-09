@@ -1,0 +1,22 @@
+### Node.js ###
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+
+### NestJS ###
+.nest/
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.idea/
+.vscode/
