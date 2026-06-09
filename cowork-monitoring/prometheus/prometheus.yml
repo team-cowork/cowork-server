@@ -54,6 +54,7 @@ scrape_configs:
           - http://host.docker.internal:8085/actuator/health
           - http://host.docker.internal:8086/health
           - http://host.docker.internal:8087/health
+          - http://host.docker.internal:8091/health
           - http://host.docker.internal:9001/health
     relabel_configs:
       - source_labels: [__address__]
