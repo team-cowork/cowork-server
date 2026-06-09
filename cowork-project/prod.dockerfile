@@ -1,8 +1,8 @@
-# 빌드 전 target/cowork-project-*.jar (mvnw package) 산출물이 컨텍스트에 있어야 한다.
+# 빌드 전 target/app.jar (CI가 mvnw package 산출물 boot jar를 app.jar로 전달)이 컨텍스트에 있어야 한다.
 # TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
 FROM eclipse-temurin:21-jre-alpine AS extractor
 WORKDIR /app
-COPY target/cowork-project-*.jar app.jar
+COPY target/app.jar app.jar
 RUN java -Djarmode=layertools -jar app.jar extract --destination extracted
 
 FROM eclipse-temurin:21-jre-alpine
