@@ -3,7 +3,7 @@
 FROM node:22-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY package*.json ./
+COPY --chown=app:app package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 COPY --chown=app:app dist ./dist
 USER app
