@@ -18,11 +18,13 @@ done
 perl -i -pe "s/^(\s*version\s*=\s*\")[^\"]*/\${1}${NEW_VERSION}/" "$ROOT_DIR/MODULE.bazel"
 
 for FILE in "$ROOT_DIR"/cowork-*/pom.xml; do
-  perl -i -0pe "s|(<artifactId>cowork-[^<]+</artifactId>\s*<version>)[^<]+|\${1}${NEW_VERSION}|" "$FILE"
+  if [ -f "$FILE" ]; then
+    perl -i -0pe "s|(<artifactId>cowork-[^<]+</artifactId>\s*<version>)[^<]+|\${1}${NEW_VERSION}|" "$FILE"
+  fi
 done
 
 for FILE in "$ROOT_DIR"/cowork-*/package.json; do
-  if grep -q "^\s*\"version\"\s*:" "$FILE"; then
+  if [ -f "$FILE" ] && grep -q "^\s*\"version\"\s*:" "$FILE"; then
     perl -i -pe "s/^(\s*\"version\"\s*:\s*\")[^\"]*/\${1}${NEW_VERSION}.0/" "$FILE"
   fi
 done
