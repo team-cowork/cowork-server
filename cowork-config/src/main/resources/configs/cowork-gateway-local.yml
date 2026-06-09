@@ -17,6 +17,8 @@ cowork:
         url: /v3/api-docs/voice
       - name: chat
         url: /v3/api-docs/chat
+      - name: dm
+        url: /v3/api-docs/dm
       - name: notification
         url: /v3/api-docs/notification
       - name: preference
@@ -243,6 +245,13 @@ spring:
             - Path=/v3/api-docs/chat
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: dm-service-docs
+          uri: lb://cowork-dm
+          predicates:
+            - Path=/v3/api-docs/dm
+          filters:
+            - RewritePath=/v3/api-docs/dm, /api-json
 
         - id: preference-service-docs
           uri: lb://cowork-preference

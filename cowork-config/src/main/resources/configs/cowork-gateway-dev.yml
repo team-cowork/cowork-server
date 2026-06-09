@@ -254,6 +254,13 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
 
+        - id: dm-service-docs
+          uri: lb://cowork-dm
+          predicates:
+            - Path=/v3/api-docs/dm
+          filters:
+            - RewritePath=/v3/api-docs/dm, /api-json
+
         - id: preference-service-docs
           uri: lb://cowork-preference
           predicates:
