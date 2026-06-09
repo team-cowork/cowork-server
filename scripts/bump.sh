@@ -15,7 +15,13 @@ for FILE in "$ROOT_DIR"/cowork-*/build.gradle.kts; do
   perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$FILE"
 done
 
-perl -i -pe "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$ROOT_DIR/cowork-chat/package.json"
+perl -i -pe "s/^(\s*version\s*=\s*\").*(\",)/\${1}${NEW_VERSION}\${2}/" "$ROOT_DIR/MODULE.bazel"
+
+for FILE in "$ROOT_DIR"/cowork-*/package.json; do
+  if grep -q "\"version\":" "$FILE"; then
+    perl -i -pe "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$FILE"
+  fi
+done
 
 perl -i -pe "s/(\s+version: \").*\"/\${1}${NEW_VERSION}.0\"/" "$ROOT_DIR/cowork-user/mix.exs"
 
@@ -27,4 +33,3 @@ for FILE in \
 done
 
 echo "Version set to v${NEW_VERSION}"
-
