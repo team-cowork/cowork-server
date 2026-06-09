@@ -1,18 +1,8 @@
-# Build stage: compile and package with the bundled Maven wrapper.
-FROM eclipse-temurin:21-jdk-alpine AS builder
-WORKDIR /workspace/cowork-project
-# Resolve dependencies first so this layer is cached when only sources change.
-COPY cowork-project/.mvn .mvn
-COPY cowork-project/mvnw mvnw
-COPY cowork-project/pom.xml pom.xml
-RUN chmod +x mvnw && ./mvnw -B dependency:go-offline || true
-COPY cowork-project/src src
-RUN ./mvnw -B clean package -DskipTests
-
-# Extract Spring Boot layers for better runtime image caching.
+# 빌드 전 target/cowork-project-*.jar (mvnw package) 산출물이 컨텍스트에 있어야 한다.
+# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
 FROM eclipse-temurin:21-jre-alpine AS extractor
 WORKDIR /app
-COPY --from=builder /workspace/cowork-project/target/cowork-project-*.jar app.jar
+COPY target/cowork-project-*.jar app.jar
 RUN java -Djarmode=layertools -jar app.jar extract --destination extracted
 
 FROM eclipse-temurin:21-jre-alpine
