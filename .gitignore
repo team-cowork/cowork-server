@@ -81,3 +81,7 @@ docker/secrets/
 ### Bazel ###
 # Symlinks created by Bazel in the workspace root (bazel-bin, bazel-out, etc.)
 /bazel-*
+
+### Maven ###
+# Maven build output (cowork-project)
+target/
