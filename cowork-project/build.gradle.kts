@@ -1,63 +1,35 @@
+// cowork-project is built by Maven; pom.xml is the single source of truth for the build.
+// This Gradle file is only a wrapper that keeps the module in the multi-module build
+// (settings.gradle.kts) and delegates every build action to the bundled Maven wrapper (mvnw).
 plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
-    alias(libs.plugins.kotlin.jpa)
+    base
 }
 
 group = "com.cowork"
 version = "20260602.0"
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+val isWindows = System.getProperty("os.name").lowercase().contains("win")
+val mvnw = file(if (isWindows) "mvnw.cmd" else "mvnw").absolutePath
+
+fun mvnTask(name: String, vararg mvnArgs: String, taskGroup: String, desc: String) =
+    tasks.register<Exec>(name) {
+        group = taskGroup
+        description = desc
+        workingDir = projectDir
+        commandLine(mvnw, *mvnArgs)
     }
-}
 
-repositories {
-    maven { url = uri("https://jitpack.io") }
-}
+val mvnPackage = mvnTask("mvnPackage", "package", taskGroup = "build", desc = "Compile, test, and package the executable jar (Maven)")
+val mvnClean = mvnTask("mvnClean", "clean", taskGroup = "build", desc = "Clean the Maven build output")
 
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
-}
+// Wire the delegating tasks into the base plugin lifecycle so existing commands
+// like `:cowork-project:build` keep working (they now invoke Maven under the hood).
+tasks.named("assemble") { dependsOn(mvnPackage) }
+tasks.named("clean") { dependsOn(mvnClean) }
 
-dependencies {
-    implementation(libs.spring.boot.starter.web)
-    implementation(libs.spring.boot.starter.actuator)
-    implementation(libs.micrometer.registry.prometheus)
-    implementation(libs.spring.boot.starter.data.jpa)
-    implementation(libs.spring.cloud.starter.netflix.eureka.client)
-    implementation(libs.spring.cloud.starter.config)
-    implementation(libs.spring.kafka)
-
-    implementation(libs.mysql.connector.j)
-    implementation(libs.flyway.core)
-    implementation(libs.flyway.mysql)
-    implementation(libs.kotlin.reflect)
-
-    implementation(libs.the.sdk) {
-        exclude(group = "org.springframework.boot")
-        exclude(group = "org.springframework.cloud")
-        exclude(group = "org.springdoc")
-    }
-    implementation(libs.springdoc.openapi.webmvc.ui)
-    implementation(libs.logstash.logback.encoder)
-
-    testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.spring.kafka.test)
-    testImplementation(libs.mockk)
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
+tasks.register<Exec>("run") {
+    group = "application"
+    description = "Run the application via the Spring Boot Maven plugin"
+    workingDir = projectDir
+    commandLine(mvnw, "spring-boot:run")
 }
