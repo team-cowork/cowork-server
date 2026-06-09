@@ -9,7 +9,7 @@ bump:
 	@./scripts/bump.sh
 
 tag:
-	git add VERSION MODULE.bazel cowork-*/build.gradle.kts cowork-*/package.json \
+	git add VERSION MODULE.bazel cowork-*/build.gradle.kts cowork-*/package.json cowork-*/pom.xml \
 	        cowork-user/mix.exs \
 	        cowork-authorization/cmd/main.go \
 	        cowork-notification/cmd/server/main.go \
