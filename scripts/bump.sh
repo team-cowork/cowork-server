@@ -15,15 +15,15 @@ for FILE in "$ROOT_DIR"/cowork-*/build.gradle.kts; do
   perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$FILE"
 done
 
-perl -i -pe "s/^(\s*version\s*=\s*\").*(\",)/\${1}${NEW_VERSION}\${2}/" "$ROOT_DIR/MODULE.bazel"
+perl -i -pe "s/^(\s*version\s*=\s*\")[^\"]*/\${1}${NEW_VERSION}/" "$ROOT_DIR/MODULE.bazel"
 
 for FILE in "$ROOT_DIR"/cowork-*/pom.xml; do
   perl -i -0pe "s|(<artifactId>cowork-[^<]+</artifactId>\s*<version>)[^<]+|\${1}${NEW_VERSION}|" "$FILE"
 done
 
 for FILE in "$ROOT_DIR"/cowork-*/package.json; do
-  if grep -q "\"version\":" "$FILE"; then
-    perl -i -pe "s/\"version\": \".*\"/\"version\": \"${NEW_VERSION}\"/" "$FILE"
+  if grep -q "^\s*\"version\"\s*:" "$FILE"; then
+    perl -i -pe "s/^(\s*\"version\"\s*:\s*\")[^\"]*/\${1}${NEW_VERSION}.0/" "$FILE"
   fi
 done
 
