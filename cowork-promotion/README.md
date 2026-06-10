@@ -6,6 +6,10 @@ cowork 프로모션 웹사이트.
 ## 스택
 - Nuxt 3
 - Tailwind CSS
+- Maven
+- Gradle
+- Amper
+- Bazel
 
 ## 포트
 `3000`
