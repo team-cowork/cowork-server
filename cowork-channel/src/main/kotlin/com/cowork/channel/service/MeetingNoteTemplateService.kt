@@ -1,11 +1,13 @@
 package com.cowork.channel.service
 
 import com.cowork.channel.domain.Channel
+import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.MeetingNoteTemplate
 import com.cowork.channel.domain.SectionType
 import com.cowork.channel.domain.TemplateSection
 import com.cowork.channel.dto.*
 import com.cowork.channel.repository.ChannelMemberRepository
+import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.repository.TemplateSectionRepository
 import org.springframework.http.HttpStatus
@@ -19,6 +21,7 @@ class MeetingNoteTemplateService(
     private val templateRepository: MeetingNoteTemplateRepository,
     private val sectionRepository: TemplateSectionRepository,
     private val channelMemberRepository: ChannelMemberRepository,
+    private val channelRepository: ChannelRepository,
 ) {
 
     private data class DefaultSectionDef(
@@ -48,6 +51,9 @@ class MeetingNoteTemplateService(
         }
 
     private fun requireChannelMember(channelId: Long, userId: Long) {
+        if (channelRepository.existsByIdAndType(channelId, ChannelType.DM)) {
+            throw ExpectedException("DM 채널에서는 지원하지 않는 기능입니다.", HttpStatus.BAD_REQUEST)
+        }
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
             throw ExpectedException("채널 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
