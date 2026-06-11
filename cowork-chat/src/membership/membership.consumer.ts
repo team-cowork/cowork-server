@@ -59,12 +59,13 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             return;
         }
         const { eventType, channelId, teamId, userId, role } = event;
+        const channelType = event.channelType ?? 'TEXT';
 
         try {
             if (eventType === 'JOIN') {
                 await this.memberModel.updateOne(
                     { channelId, userId },
-                    { $set: { teamId, role } },
+                    { $set: { teamId: teamId ?? null, role, channelType } },
                     { upsert: true },
                 );
                 this.io?.to(`chat:${channelId}`).emit('member:joined', { channelId, teamId, userId, role });
@@ -72,7 +73,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 await this.memberModel.deleteOne({ channelId, userId });
                 this.io?.to(`chat:${channelId}`).emit('member:left', { channelId, teamId, userId });
             } else if (eventType === 'ROLE_CHANGE') {
-                await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId, role } });
+                await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId: teamId ?? null, role, channelType } });
                 this.io?.to(`chat:${channelId}`).emit('member:role:updated', { channelId, teamId, userId, role });
             }
         } catch (err) {
