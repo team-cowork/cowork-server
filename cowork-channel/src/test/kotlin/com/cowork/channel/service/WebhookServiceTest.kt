@@ -16,7 +16,9 @@ import team.themoment.sdk.exception.ExpectedException
 class WebhookServiceTest {
 
     private val webhookRepository = mockk<WebhookRepository>(relaxed = true)
-    private val channelService = mockk<ChannelService>()
+    private val channelService = mockk<ChannelService> {
+        every { requireTeamChannel(any()) } answers { firstArg<Channel>().teamId!! }
+    }
     private val teamPermission = mockk<TeamPermissionService>()
 
     private val service = WebhookService(webhookRepository, channelService, teamPermission)
