@@ -65,7 +65,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
         await this.ensureConnected();
         const event: ChatMessageEvent = {
             eventType: 'MESSAGE_SENT',
-            teamId: dto.teamId,
+            teamId: dto.teamId ?? null,
             projectId: dto.projectId ?? null,
             channelId,
             authorId,
