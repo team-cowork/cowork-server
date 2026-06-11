@@ -116,8 +116,6 @@ jobs:
               - 'cowork-team/**'
             cowork-project:
               - 'cowork-project/**'
-            cowork-dm:
-              - 'cowork-dm/**'
       - name: Build Service Matrix
         id: build-matrix
         run: |
@@ -134,7 +132,6 @@ jobs:
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"22"},
-              {"service":"cowork-dm","build":"node","working-directory":"cowork-dm","node-version":"22"},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-team","build":"gradle","working-directory":"."}
             ]}'
@@ -178,9 +175,6 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-team }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-team"
-            [ "${{ steps.filter.outputs.cowork-dm }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-dm","build":"node","working-directory":"cowork-dm","node-version":"22"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-dm"
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
               MATRIX='{"include":[{"service":"변경 없음","build":"skip"}]}'
               SERVICES="없음"
