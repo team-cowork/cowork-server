@@ -678,34 +678,6 @@ services:
       retries: 10
       start_period: 60s
 
-  cowork-dm:
-    image: cowork-dm:local
-    container_name: cowork-dm
-    restart: unless-stopped
-    depends_on:
-      mongodb:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      cowork-config:
-        condition: service_healthy
-    environment:
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
-      NODE_ENV: production
-    ports:
-      - "8091:8091"
-    volumes:
-      - cowork_logs:/var/log/cowork
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8091/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
-
   cowork-voice:
     image: cowork-voice:local
     container_name: cowork-voice
