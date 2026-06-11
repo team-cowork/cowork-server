@@ -155,7 +155,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     private relayTyping(client: Socket, payload: JoinChannelDto, isTyping: boolean) {
         if (!payload || typeof payload.channelId !== 'number') return;
-        client.to(`chat:${payload.channelId}`).emit('typing', {
+        const room = `chat:${payload.channelId}`;
+        if (!client.rooms.has(room)) return;
+        client.to(room).emit('typing', {
             channelId: payload.channelId,
             userId: client.data.userId,
             isTyping,
