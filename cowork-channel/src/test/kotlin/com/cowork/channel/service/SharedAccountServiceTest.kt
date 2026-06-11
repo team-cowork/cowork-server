@@ -25,7 +25,9 @@ class SharedAccountServiceTest {
 
     private val sharedAccountRepository = mockk<SharedAccountRepository>(relaxed = true)
     private val accountCredentialCopyRepository = mockk<AccountCredentialCopyRepository>(relaxed = true)
-    private val channelService = mockk<ChannelService>()
+    private val channelService = mockk<ChannelService> {
+        every { requireTeamChannel(any()) } answers { firstArg<Channel>().teamId!! }
+    }
     private val teamPermissionService = mockk<TeamPermissionService>()
     private val credentialEncryptionService = mockk<CredentialEncryptionService>()
 

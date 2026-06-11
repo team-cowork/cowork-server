@@ -12,11 +12,11 @@ class ChannelMemberEventPublisher(
 ) {
     private val log = LoggerFactory.getLogger(ChannelMemberEventPublisher::class.java)
 
-    fun publishJoin(channelId: Long, teamId: Long, userId: Long, role: String = "MEMBER") =
-        publish(ChannelMemberEvent("JOIN", channelId, teamId, userId, role))
+    fun publishJoin(channelId: Long, teamId: Long?, userId: Long, channelType: String, role: String = "MEMBER") =
+        publish(ChannelMemberEvent("JOIN", channelId, teamId, userId, role, channelType))
 
-    fun publishLeave(channelId: Long, teamId: Long, userId: Long, role: String = "MEMBER") =
-        publish(ChannelMemberEvent("LEAVE", channelId, teamId, userId, role))
+    fun publishLeave(channelId: Long, teamId: Long?, userId: Long, channelType: String, role: String = "MEMBER") =
+        publish(ChannelMemberEvent("LEAVE", channelId, teamId, userId, role, channelType))
 
     private fun publish(event: ChannelMemberEvent) {
         kafkaTemplate.send(TOPIC, event.channelId.toString(), event)
