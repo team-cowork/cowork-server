@@ -16,8 +16,17 @@ export class ChannelMember {
     /** 멤버가 속한 채널의 식별자 */
     @Prop({ required: true }) channelId!: number;
 
-    /** 채널이 속한 팀의 식별자 */
-    @Prop({ required: true }) teamId!: number;
+    /** 채널이 속한 팀의 식별자. DM 채널은 팀에 속하지 않으므로 `null`. */
+    @Prop({ type: Number, default: null }) teamId!: number | null;
+
+    /** 채널 타입 (TEXT, VOICE, DM). channel 모듈의 멤버십 이벤트로 동기화된다. */
+    @Prop({ default: 'TEXT' }) channelType!: string;
+
+    /**
+     * DM 대화 숨김 여부 (Discord의 "닫기").
+     * 목록에서만 제외되며, 상대방 메시지 수신 시 자동으로 `false`로 복구된다.
+     */
+    @Prop({ default: false }) isHidden!: boolean;
 
     /** 채널에 가입된 사용자의 식별자 */
     @Prop({ required: true }) userId!: number;
