@@ -262,7 +262,7 @@ export class ChatService {
     /**
      * DM 메시지 전송 가능 여부를 검사한다.
      * 수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
-     * 전송 가능하면 수신자의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+     * 전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
      *
      * @param channelId - DM 채널 ID
      * @param senderId - 발신자 사용자 ID
@@ -276,7 +276,10 @@ export class ChatService {
         if (await this.blockService.isBlocked(receiver.userId, senderId)) {
             throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
         }
-        await this.channelMemberRepository.setHidden(channelId, receiver.userId, false);
+        await Promise.all([
+            this.channelMemberRepository.setHidden(channelId, senderId, false),
+            this.channelMemberRepository.setHidden(channelId, receiver.userId, false),
+        ]);
     }
 
     /**
