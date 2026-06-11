@@ -12,6 +12,7 @@ import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
+import { BlockService } from '../block/block.service';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -43,6 +44,7 @@ const mockMessageRepository = {
     createSystemMessage: jest.fn(),
     countUnread: jest.fn(),
     countUnreadForChannels: jest.fn(),
+    findLastMessages: jest.fn(),
 };
 
 
@@ -52,6 +54,15 @@ const mockChannelMemberRepository = {
     findChannelIdsByUser: jest.fn(),
     updateLastRead: jest.fn(),
     findMembersByTeam: jest.fn(),
+    findMembership: jest.fn(),
+    findByChannelId: jest.fn(),
+    findDmMemberships: jest.fn(),
+    findOtherDmMembers: jest.fn(),
+    setHidden: jest.fn(),
+};
+
+const mockBlockService = {
+    isBlocked: jest.fn(),
 };
 
 const mockElasticsearchService = {
@@ -108,6 +119,7 @@ describe('ChatService', () => {
                 { provide: ProjectClient, useValue: mockProjectClient },
                 { provide: ChannelClient, useValue: mockChannelClient },
                 { provide: UserClient, useValue: mockUserClient },
+                { provide: BlockService, useValue: mockBlockService },
                 { provide: ChatGateway, useValue: mockChatGateway },
             ],
         }).compile();
@@ -137,6 +149,95 @@ describe('ChatService', () => {
         it('멤버가 아니면 ForbiddenException을 던진다', async () => {
             mockChannelMemberRepository.exists.mockResolvedValue(false);
             await expect(service.checkMembership(1, 99)).rejects.toThrow(ForbiddenException);
+        });
+    });
+
+    describe('sendMessage', () => {
+        const ctx = { channelId: 1, userId: 42, userRole: 'USER' };
+
+        it('일반 채널 메시지는 DTO 그대로 producer에 위임한다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+
+            await service.sendMessage(ctx, { teamId: 100, content: 'hi' } as any);
+
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(1, { teamId: 100, content: 'hi' }, 42, 'USER');
+            expect(mockBlockService.isBlocked).not.toHaveBeenCalled();
+        });
+
+        it('채널 멤버가 아니면 ForbiddenException을 던진다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue(null);
+
+            await expect(service.sendMessage(ctx, { content: 'hi' } as any)).rejects.toThrow(ForbiddenException);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('DM 채널에서 수신자가 발신자를 차단했으면 ForbiddenException을 던진다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
+            mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
+            mockBlockService.isBlocked.mockResolvedValue(true);
+
+            await expect(service.sendMessage(ctx, { content: 'hi' } as any)).rejects.toThrow(ForbiddenException);
+            expect(mockBlockService.isBlocked).toHaveBeenCalledWith(7, 42);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('DM 채널 메시지는 teamId/projectId를 null로 강제하고 수신자 숨김을 해제한다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
+            mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
+            mockBlockService.isBlocked.mockResolvedValue(false);
+
+            await service.sendMessage(ctx, { teamId: 999, projectId: 5, content: 'hi' } as any);
+
+            expect(mockChannelMemberRepository.setHidden).toHaveBeenCalledWith(1, 7, false);
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ teamId: null, projectId: null, content: 'hi' }),
+                42,
+                'USER',
+            );
+        });
+    });
+
+    describe('getMyDms', () => {
+        it('숨기지 않은 DM을 마지막 메시지 시각 내림차순으로 반환한다', async () => {
+            mockChannelMemberRepository.findDmMemberships.mockResolvedValue([
+                { channelId: 1, lastReadMessageId: null },
+                { channelId: 2, lastReadMessageId: null },
+            ]);
+            mockChannelMemberRepository.findOtherDmMembers.mockResolvedValue(new Map([[1, 7], [2, 9]]));
+            mockMessageRepository.findLastMessages.mockResolvedValue(new Map([
+                [1, { messageId: 'a', authorId: 7, content: '예전', type: 'TEXT', createdAt: new Date('2026-01-01') }],
+                [2, { messageId: 'b', authorId: 9, content: '최신', type: 'TEXT', createdAt: new Date('2026-06-01') }],
+            ]));
+            mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[1, 3]]));
+
+            const result = await service.getMyDms(42);
+
+            expect(result.map((dm) => dm.channelId)).toEqual([2, 1]);
+            expect(result[1].unreadCount).toBe(3);
+            expect(result[0].otherUserId).toBe(9);
+        });
+
+        it('DM이 없으면 빈 배열을 반환한다', async () => {
+            mockChannelMemberRepository.findDmMemberships.mockResolvedValue([]);
+            await expect(service.getMyDms(42)).resolves.toEqual([]);
+        });
+    });
+
+    describe('hideDm', () => {
+        it('DM 멤버이면 숨김 처리한다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
+            mockChannelMemberRepository.setHidden.mockResolvedValue(true);
+
+            await service.hideDm(1, 42);
+
+            expect(mockChannelMemberRepository.setHidden).toHaveBeenCalledWith(1, 42, true);
+        });
+
+        it('DM 채널이 아니면 ForbiddenException을 던진다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+
+            await expect(service.hideDm(1, 42)).rejects.toThrow(ForbiddenException);
         });
     });
 
