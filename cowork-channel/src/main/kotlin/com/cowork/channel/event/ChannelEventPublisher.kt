@@ -28,7 +28,7 @@ class ChannelEventPublisher(
             description = channel.description,
             isPrivate = channel.isPrivate,
         )
-        kafkaTemplate.send(TOPIC, channel.teamId.toString(), event)
+        kafkaTemplate.send(TOPIC, channel.teamId?.toString() ?: "dm-${channel.id}", event)
             .whenComplete { result, ex ->
                 if (ex != null) {
                     log.error(
