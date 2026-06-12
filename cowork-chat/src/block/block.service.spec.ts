@@ -1,6 +1,5 @@
 import { BlockService } from './block.service';
 import { BlockRedis } from './block.redis';
-import { BlockProducer } from '../kafka/block.producer';
 
 const mockBlockRedis = () => ({
     block: jest.fn(),
@@ -9,45 +8,32 @@ const mockBlockRedis = () => ({
     getBlockedIds: jest.fn(),
 });
 
-const mockBlockProducer = () => ({
-    send: jest.fn(),
-});
-
 describe('BlockService', () => {
     let service: BlockService;
     let redis: ReturnType<typeof mockBlockRedis>;
-    let producer: ReturnType<typeof mockBlockProducer>;
 
     beforeEach(() => {
         redis = mockBlockRedis();
-        producer = mockBlockProducer();
-        service = new BlockService(
-            redis as unknown as BlockRedis,
-            producer as unknown as BlockProducer,
-        );
+        service = new BlockService(redis as unknown as BlockRedis);
     });
 
     describe('blockUser', () => {
-        it('Redis에 차단 저장 후 Kafka 이벤트 발행', async () => {
+        it('Redis에 차단 저장', async () => {
             redis.block.mockResolvedValue(undefined);
-            producer.send.mockResolvedValue(undefined);
 
             await service.blockUser(1, 2);
 
             expect(redis.block).toHaveBeenCalledWith(1, 2);
-            expect(producer.send).toHaveBeenCalledWith({ blockerId: 1, targetId: 2, action: 'BLOCK' });
         });
     });
 
     describe('unblockUser', () => {
-        it('Redis에서 차단 해제 후 Kafka 이벤트 발행', async () => {
+        it('Redis에서 차단 해제', async () => {
             redis.unblock.mockResolvedValue(undefined);
-            producer.send.mockResolvedValue(undefined);
 
             await service.unblockUser(1, 2);
 
             expect(redis.unblock).toHaveBeenCalledWith(1, 2);
-            expect(producer.send).toHaveBeenCalledWith({ blockerId: 1, targetId: 2, action: 'UNBLOCK' });
         });
     });
 
