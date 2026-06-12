@@ -73,8 +73,8 @@ export class Message {
     /** Mongoose `timestamps` 옵션에 의해 자동 설정되는 도큐먼트 최종 수정 시각 */
     updatedAt!: Date;
 
-    /** 메시지가 속한 팀의 식별자 */
-    @Prop({ required: true }) teamId!: number;
+    /** 메시지가 속한 팀의 식별자. DM 채널 메시지는 팀에 속하지 않으므로 `null`. */
+    @Prop({ type: Number, default: null }) teamId!: number | null;
 
     /**
      * 메시지가 속한 프로젝트의 식별자.

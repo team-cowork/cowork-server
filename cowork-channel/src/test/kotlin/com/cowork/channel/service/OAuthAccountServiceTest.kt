@@ -48,7 +48,9 @@ class OAuthAccountServiceTest {
 
     private val sharedAccountRepository = mockk<SharedAccountRepository>(relaxed = true)
     private val credentialEncryptionService = mockk<CredentialEncryptionService>(relaxed = true)
-    private val channelService = mockk<ChannelService>()
+    private val channelService = mockk<ChannelService> {
+        every { requireTeamChannel(any()) } answers { firstArg<Channel>().teamId!! }
+    }
     private val teamPermissionService = mockk<TeamPermissionService>()
 
     private val mockRestClient = mockk<RestClient>(relaxed = true)

@@ -144,7 +144,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 .updateLastRead(event.channelId, event.authorId, saved._id)
                 .catch((err) => this.logger.warn(`lastReadMessageId 업데이트 실패 channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
 
-            if (event.projectId) {
+            if (event.projectId && event.teamId != null) {
                 void this.elasticsearchService.indexMessage({
                     messageId: saved._id.toString(),
                     teamId: event.teamId,

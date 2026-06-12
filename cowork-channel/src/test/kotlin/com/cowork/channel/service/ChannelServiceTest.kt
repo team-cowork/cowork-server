@@ -227,6 +227,73 @@ class ChannelServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
 
+    private fun dmChannel(id: Long = 1L, createdBy: Long = 1L) = Channel(
+        id = id, teamId = null, name = "DM", type = ChannelType.DM, viewType = ChannelViewType.TEXT,
+        description = null, isPrivate = true, createdBy = createdBy, dmKey = "1:2",
+    )
+
+    @Test
+    fun `createChannel은 type=DM이면 BAD_REQUEST`() {
+        every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.createChannel(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `updateChannel은 DM 채널이면 BAD_REQUEST`() {
+        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.updateChannel(1L, 1L, UpdateChannelRequest(name = "x"))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `deleteChannel은 DM 채널이면 BAD_REQUEST`() {
+        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.deleteChannel(1L, 1L)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `addMember는 DM 채널이면 BAD_REQUEST`() {
+        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.addMember(1L, 1L, AddMemberRequest(userId = 50L))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        verify(exactly = 0) { channelMemberRepository.save(any()) }
+    }
+
+    @Test
+    fun `getChannel은 DM 채널이면 채널 멤버에게 허용`() {
+        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 2L) } returns true
+
+        val res = service.getChannel(2L, 1L)
+        assertEquals(null, res.teamId)
+        assertEquals(ChannelType.DM.name, res.type)
+    }
+
+    @Test
+    fun `getChannel은 DM 채널 비멤버이면 FORBIDDEN`() {
+        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 9L) } returns false
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.getChannel(9L, 1L)
+        }
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
     @Test
     fun `addMember 정상 흐름`() {
         val ch = channel(createdBy = 1L)
