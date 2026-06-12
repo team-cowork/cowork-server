@@ -140,6 +140,31 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
+     * `typing:start` / `typing:stop` 이벤트 핸들러.
+     * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
+     */
+    @SubscribeMessage('typing:start')
+    handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+        this.relayTyping(client, payload, true);
+    }
+
+    @SubscribeMessage('typing:stop')
+    handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+        this.relayTyping(client, payload, false);
+    }
+
+    private relayTyping(client: Socket, payload: JoinChannelDto, isTyping: boolean) {
+        if (!payload || typeof payload.channelId !== 'number') return;
+        const room = `chat:${payload.channelId}`;
+        if (!client.rooms.has(room)) return;
+        client.to(room).emit('typing', {
+            channelId: payload.channelId,
+            userId: client.data.userId,
+            isTyping,
+        });
+    }
+
+    /**
      * `join:team` 이벤트 핸들러. `team:{teamId}` 룸에 참여한다.
      * 채널/프로젝트 생성·수정·삭제 이벤트 수신에 사용한다.
      */

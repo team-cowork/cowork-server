@@ -29,7 +29,8 @@ class ThreadService(
 
     @Transactional
     fun createThread(userId: Long, channelId: Long, request: CreateThreadRequest): ThreadResponse {
-        channelService.findChannelOrThrow(channelId)
+        val channel = channelService.findChannelOrThrow(channelId)
+        channelService.requireTeamChannel(channel)
         if (!channelMemberRepository.existsByChannelIdAndUserId(channelId, userId)) {
             throw ExpectedException("채널 멤버만 스레드를 생성할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
@@ -47,7 +48,7 @@ class ThreadService(
 
     fun getThreads(userId: Long, channelId: Long, includeArchived: Boolean, pageable: Pageable): Page<ThreadResponse> {
         val channel = channelService.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
 
         val page = if (includeArchived) {
             threadRepository.findByChannelId(channelId, pageable)
@@ -67,7 +68,7 @@ class ThreadService(
 
         val isThreadCreator = thread.createdBy == userId
         val isChannelCreator = channel.createdBy == userId
-        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(channel.teamId, userId)
+        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)
 
         if (!isThreadCreator && !isChannelCreator && !isTeamManager) {
             throw ExpectedException("스레드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)

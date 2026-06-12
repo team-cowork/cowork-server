@@ -8,6 +8,7 @@ import { createWriteStream, mkdirSync } from 'fs';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
+import { DmController } from './dm.controller';
 import { ProjectMessageController } from './project-message.controller';
 import { TeamUnreadController } from './team-unread.controller';
 import { TeamSearchController } from './team-search.controller';
@@ -27,6 +28,7 @@ import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.sche
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { MembershipModule } from '../membership/membership.module';
+import { BlockModule } from '../block/block.module';
 import { HealthController } from '../health.controller';
 import { MinioModule } from '../storage/minio.module';
 import { SearchModule } from '../search/search.module';
@@ -108,10 +110,11 @@ function createLogStream() {
             { name: ChannelMember.name, schema: ChannelMemberSchema },
         ]),
         MembershipModule,
+        BlockModule,
         MinioModule,
         SearchModule,
     ],
-    controllers: [ChatController, ProjectMessageController, TeamUnreadController, TeamSearchController, HealthController],
+    controllers: [ChatController, DmController, ProjectMessageController, TeamUnreadController, TeamSearchController, HealthController],
     providers: [
         ChatGateway,
         ChatService,

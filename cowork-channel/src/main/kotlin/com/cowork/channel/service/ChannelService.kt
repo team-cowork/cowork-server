@@ -36,10 +36,37 @@ class ChannelService(
             ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
         }
 
-    private fun parseType(value: String): ChannelType = try {
-        ChannelType.valueOf(value.uppercase())
-    } catch (e: IllegalArgumentException) {
-        throw ExpectedException("유효하지 않은 채널 타입입니다. type=$value", HttpStatus.BAD_REQUEST)
+    /** DM 채널이면 거부하고, 팀 채널이면 non-null teamId를 반환한다. */
+    fun requireTeamChannel(channel: Channel): Long {
+        val teamId = channel.teamId
+        if (channel.type == ChannelType.DM || teamId == null) {
+            throw ExpectedException("DM 채널에서는 지원하지 않는 기능입니다.", HttpStatus.BAD_REQUEST)
+        }
+        return teamId
+    }
+
+    /** 팀 채널은 팀 멤버십, DM 채널은 채널 멤버십으로 접근 권한을 검사한다. */
+    private fun requireChannelAccess(channel: Channel, userId: Long) {
+        val teamId = channel.teamId
+        if (teamId == null) {
+            if (!channelMemberRepository.existsByChannelIdAndUserId(channel.id, userId)) {
+                throw ExpectedException("채널 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+            }
+        } else {
+            teamPermissionService.requireTeamMember(teamId, userId)
+        }
+    }
+
+    private fun parseType(value: String): ChannelType {
+        val type = try {
+            ChannelType.valueOf(value.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw ExpectedException("유효하지 않은 채널 타입입니다. type=$value", HttpStatus.BAD_REQUEST)
+        }
+        if (type == ChannelType.DM) {
+            throw ExpectedException("DM 채널은 DM 전용 API로만 생성할 수 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+        return type
     }
 
     private fun parseViewType(value: String): ChannelViewType = try {
@@ -50,7 +77,8 @@ class ChannelService(
 
     private fun requireChannelManager(channel: Channel, userId: Long) {
         if (channel.createdBy == userId) return
-        if (teamPermissionService.isTeamOwnerOrAdmin(channel.teamId, userId)) return
+        val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        if (teamPermissionService.isTeamOwnerOrAdmin(teamId, userId)) return
         throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 
@@ -85,7 +113,7 @@ class ChannelService(
 
     fun getChannel(userId: Long, channelId: Long): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        requireChannelAccess(channel, userId)
         return ChannelResponse.of(channel)
     }
 
@@ -118,6 +146,7 @@ class ChannelService(
     @Transactional
     fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean = false): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
+        requireTeamChannel(channel)
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
@@ -144,13 +173,14 @@ class ChannelService(
     @Transactional
     fun deleteChannel(userId: Long, channelId: Long) {
         val channel = findChannelOrThrow(channelId)
+        requireTeamChannel(channel)
         requireChannelManager(channel, userId)
         val members = channelMemberRepository.findByChannelId(channelId)
         channelRepository.delete(channel)
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
                 members.forEach { member ->
-                    channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId)
+                    channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
                 }
                 channelEventPublisher.publishDeleted(channel)
             }
@@ -160,14 +190,15 @@ class ChannelService(
     @Transactional
     fun addMember(userId: Long, channelId: Long, request: AddMemberRequest): ChannelMemberResponse {
         val channel = findChannelOrThrow(channelId)
+        val teamId = requireTeamChannel(channel)
 
         if (channel.isPrivate) {
             requireChannelManager(channel, userId)
         } else {
-            teamPermissionService.requireTeamMember(channel.teamId, userId)
+            teamPermissionService.requireTeamMember(teamId, userId)
         }
 
-        if (!teamPermissionService.isTeamMember(channel.teamId, request.userId)) {
+        if (!teamPermissionService.isTeamMember(teamId, request.userId)) {
             throw ExpectedException("추가 대상이 팀 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
         }
 
@@ -180,7 +211,7 @@ class ChannelService(
         )
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
-                channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId)
+                channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
             }
         })
         return ChannelMemberResponse.of(member)
@@ -188,13 +219,14 @@ class ChannelService(
 
     fun getMembers(userId: Long, channelId: Long): List<ChannelMemberResponse> {
         val channel = findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        requireChannelAccess(channel, userId)
         return channelMemberRepository.findByChannelId(channelId).map { ChannelMemberResponse.of(it) }
     }
 
     @Transactional
     fun removeMember(userId: Long, channelId: Long, memberId: Long) {
         val channel = findChannelOrThrow(channelId)
+        val teamId = requireTeamChannel(channel)
         val member = channelMemberRepository.findById(memberId).orElseThrow {
             ExpectedException("멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
         }
@@ -209,7 +241,7 @@ class ChannelService(
 
         val isCreator = channel.createdBy == userId
         val isSelf = member.userId == userId
-        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(channel.teamId, userId)
+        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(teamId, userId)
 
         if (!isCreator && !isSelf && !isTeamManager) {
             throw ExpectedException("멤버 제거 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -218,7 +250,7 @@ class ChannelService(
         channelMemberRepository.delete(member)
         TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
             override fun afterCommit() {
-                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId)
+                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
             }
         })
     }

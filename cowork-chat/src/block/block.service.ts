@@ -1,39 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { BlockRedis } from './block.redis';
-import { BlockProducer } from '../kafka/block.producer';
 
-/** 사용자 차단·해제 및 차단 상태 조회를 담당하는 서비스. */
+/** 사용자 차단·해제 및 차단 상태 조회를 담당하는 서비스. DM 메시지 전송 시 차단 검사에 사용한다. */
 @Injectable()
 export class BlockService {
-    constructor(
-        private readonly blockRedis: BlockRedis,
-        private readonly blockProducer: BlockProducer,
-    ) {}
+    constructor(private readonly blockRedis: BlockRedis) {}
 
     /**
      * 사용자를 차단한다.
-     *
-     * Redis에 차단 상태를 저장하고 `dm.block.updated` 토픽에 BLOCK 이벤트를 발행한다.
      *
      * @param blockerId - 차단하는 사용자 ID
      * @param targetId - 차단 대상 사용자 ID
      */
     async blockUser(blockerId: number, targetId: number): Promise<void> {
         await this.blockRedis.block(blockerId, targetId);
-        await this.blockProducer.send({ blockerId, targetId, action: 'BLOCK' });
     }
 
     /**
      * 사용자 차단을 해제한다.
-     *
-     * Redis에서 차단 상태를 제거하고 `dm.block.updated` 토픽에 UNBLOCK 이벤트를 발행한다.
      *
      * @param blockerId - 차단 해제하는 사용자 ID
      * @param targetId - 차단 해제 대상 사용자 ID
      */
     async unblockUser(blockerId: number, targetId: number): Promise<void> {
         await this.blockRedis.unblock(blockerId, targetId);
-        await this.blockProducer.send({ blockerId, targetId, action: 'UNBLOCK' });
     }
 
     /**
