@@ -164,6 +164,19 @@ describe('ChatService', () => {
             expect(mockBlockService.isBlocked).not.toHaveBeenCalled();
         });
 
+        it('팀 채널 메시지는 클라이언트 teamId를 멤버십의 teamId로 덮어쓴다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+
+            await service.sendMessage(ctx, { teamId: 999, content: 'hi' } as any);
+
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ teamId: 100, content: 'hi' }),
+                42,
+                'USER',
+            );
+        });
+
         it('채널 멤버가 아니면 ForbiddenException을 던진다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue(null);
 
