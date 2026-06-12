@@ -1,5 +1,6 @@
 package com.cowork.channel.consumer
 
+import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.TeamMembership
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
@@ -69,7 +70,8 @@ class ChannelLifecycleHandler(
 
     @Transactional
     fun onUserDeleted(userId: Long) {
-        val ownedChannels = channelRepository.findAllByCreatedBy(userId)
+        // DM 채널은 상대방의 대화 기록 보존을 위해 삭제하지 않는다.
+        val ownedChannels = channelRepository.findAllByCreatedBy(userId).filter { it.type != ChannelType.DM }
         if (ownedChannels.isNotEmpty()) {
             channelRepository.deleteAll(ownedChannels)
         }

@@ -1,6 +1,7 @@
 package com.cowork.channel.repository
 
 import com.cowork.channel.domain.Channel
+import com.cowork.channel.domain.ChannelType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -8,6 +9,10 @@ import org.springframework.data.repository.query.Param
 interface ChannelRepository : JpaRepository<Channel, Long> {
 
     fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
+
+    fun findByDmKey(dmKey: String): Channel?
+
+    fun existsByIdAndType(id: Long, type: ChannelType): Boolean
 
     fun findAllByProjectIdOrderByIdAsc(projectId: Long): List<Channel>
 

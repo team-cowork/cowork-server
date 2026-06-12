@@ -3,6 +3,7 @@ package com.cowork.channel.service
 import com.cowork.channel.domain.*
 import com.cowork.channel.dto.*
 import com.cowork.channel.repository.ChannelMemberRepository
+import com.cowork.channel.repository.ChannelRepository
 import com.cowork.channel.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.repository.TemplateSectionRepository
 import io.mockk.*
@@ -17,9 +18,12 @@ class MeetingNoteTemplateServiceTest {
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>()
+    private val channelRepository = mockk<ChannelRepository> {
+        every { existsByIdAndType(any(), any()) } returns false
+    }
 
     private val service = MeetingNoteTemplateService(
-        templateRepository, sectionRepository, channelMemberRepository
+        templateRepository, sectionRepository, channelMemberRepository, channelRepository
     )
 
     private fun channel(id: Long = 1L, name: String = "ch", createdBy: Long = 1L) = Channel(

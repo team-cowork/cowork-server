@@ -95,4 +95,69 @@ export class ChannelMemberRepository {
             lastReadMessageId: (m.lastReadMessageId as Types.ObjectId | null | undefined) ?? null,
         }));
     }
+
+    /**
+     * 채널·사용자로 멤버십을 조회하고 팀 ID와 채널 타입을 반환합니다.
+     * DM 채널 분기(차단 검사 등)가 필요한 메시지 전송 경로에서 사용합니다.
+     *
+     * @returns 멤버십 정보. 멤버가 아니면 `null`
+     */
+    async findMembership(
+        channelId: number,
+        userId: number,
+    ): Promise<{ teamId: number | null; channelType: string } | null> {
+        const member = await this.memberModel
+            .findOne({ channelId, userId }, { teamId: 1, channelType: 1 })
+            .lean();
+        if (!member) return null;
+        return {
+            teamId: member.teamId ?? null,
+            channelType: member.channelType ?? 'TEXT',
+        };
+    }
+
+    /**
+     * 사용자의 숨기지 않은 DM 멤버십 목록을 반환합니다.
+     * DM 대화 목록 조회에 사용합니다.
+     */
+    async findDmMemberships(
+        userId: number,
+    ): Promise<Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>> {
+        const memberships = await this.memberModel
+            .find(
+                { userId, channelType: 'DM', isHidden: { $ne: true } },
+                { channelId: 1, lastReadMessageId: 1 },
+            )
+            .lean();
+        return memberships.map((m) => ({
+            channelId: m.channelId,
+            lastReadMessageId: (m.lastReadMessageId as Types.ObjectId | null | undefined) ?? null,
+        }));
+    }
+
+    /**
+     * 여러 DM 채널에서 본인을 제외한 상대 참여자를 조회합니다.
+     *
+     * @returns channelId → 상대 userId 매핑
+     */
+    async findOtherDmMembers(channelIds: number[], userId: number): Promise<Map<number, number>> {
+        if (channelIds.length === 0) return new Map();
+        const others = await this.memberModel
+            .find({ channelId: { $in: channelIds }, userId: { $ne: userId } }, { channelId: 1, userId: 1 })
+            .lean();
+        return new Map(others.map((m) => [m.channelId, m.userId]));
+    }
+
+    /**
+     * DM 대화 숨김 상태를 변경합니다.
+     *
+     * @returns 멤버십이 존재해 갱신 대상이 매칭되면 `true`
+     */
+    async setHidden(channelId: number, userId: number, isHidden: boolean): Promise<boolean> {
+        const result = await this.memberModel.updateOne(
+            { channelId, userId },
+            { $set: { isHidden } },
+        );
+        return result.matchedCount > 0;
+    }
 }
