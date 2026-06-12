@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 
 data class ChannelResponse(
     val id: Long,
-    val teamId: Long,
+    val teamId: Long?,
     val projectId: Long?,
     val name: String,
     val type: String,

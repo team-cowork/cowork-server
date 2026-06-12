@@ -16,8 +16,8 @@ export class AttachmentDto {
 }
 
 export class SendMessageDto {
-    @ApiProperty({ description: '팀 ID' })
-    @IsNumber() teamId!: number;
+    @ApiPropertyOptional({ description: '팀 ID (DM 채널 메시지는 생략, 서버에서 null 처리)', nullable: true })
+    @IsNumber() @IsOptional() teamId?: number | null;
 
     @ApiPropertyOptional({ description: '프로젝트 ID (팀 채널이면 null)', nullable: true })
     @IsNumber() @IsOptional() projectId?: number | null;

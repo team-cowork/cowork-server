@@ -37,7 +37,8 @@ export type FileAttachmentRow = {
  * `notificationStatus`는 생성 시점에 외부에서 명시적으로 지정합니다.
  */
 export type CreateMessageInput = {
-    teamId: number;
+    /** DM 채널 메시지는 팀에 속하지 않으므로 null */
+    teamId: number | null;
     projectId: number | null;
     channelId: number;
     authorId: number;
@@ -79,7 +80,7 @@ export type MentionedMessageRow = {
  */
 export type MessageRow = {
     _id: Types.ObjectId;
-    teamId: number;
+    teamId: number | null;
     projectId: number | null;
     channelId: number;
     authorId: number;
@@ -540,6 +541,34 @@ export class MessageRepository {
             filter['_id'] = { $gt: afterId };
         }
         return this.messageModel.countDocuments(filter);
+    }
+
+    /**
+     * 여러 채널의 최신 메시지를 한 번의 집계로 조회합니다.
+     * DM 대화 목록의 미리보기·정렬에 사용합니다.
+     *
+     * @returns channelId → 최신 메시지 요약 매핑
+     */
+    async findLastMessages(channelIds: number[]): Promise<Map<number, {
+        messageId: string;
+        authorId: number;
+        content: string;
+        type: string;
+        createdAt: Date;
+    }>> {
+        if (channelIds.length === 0) return new Map();
+        const rows = await this.messageModel.aggregate<{ _id: number; doc: Message & { _id: Types.ObjectId; createdAt: Date } }>([
+            { $match: { channelId: { $in: channelIds } } },
+            { $sort: { channelId: 1, _id: -1 } },
+            { $group: { _id: '$channelId', doc: { $first: '$$ROOT' } } },
+        ]);
+        return new Map(rows.map((row) => [row._id, {
+            messageId: row.doc._id.toString(),
+            authorId: row.doc.authorId,
+            content: row.doc.content,
+            type: row.doc.type,
+            createdAt: row.doc.createdAt,
+        }]));
     }
 
     async countUnreadForChannels(

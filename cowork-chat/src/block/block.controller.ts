@@ -16,7 +16,7 @@ export class BlockController {
 
     @Post(':targetUserId')
     @HttpCode(HttpStatus.NO_CONTENT)
-    @ApiOperation({ summary: '사용자 차단 — Redis에 저장 후 Kafka 이벤트 발행' })
+    @ApiOperation({ summary: '사용자 차단 — DM 메시지 수신 거부' })
     @ApiParam({ name: 'targetUserId', description: '차단할 사용자 ID', type: Number })
     @ApiNoContentResponse({ description: '차단 성공' })
     blockUser(
