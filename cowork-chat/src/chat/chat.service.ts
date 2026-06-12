@@ -254,6 +254,8 @@ export class ChatService {
         if (membership.channelType === DM_CHANNEL_TYPE) {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
             dto = { ...dto, teamId: null, projectId: null };
+        } else {
+            dto = { ...dto, teamId: membership.teamId };
         }
 
         await this.chatMessageProducer.sendMessage(ctx.channelId, dto, ctx.userId, ctx.userRole);
