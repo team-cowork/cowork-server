@@ -33,6 +33,7 @@ import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { MessageRepository, MessageRow } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
+import { BlockService } from '../block/block.service';
 import {
     ChannelUserContext,
     ChannelUserRoleContext,
@@ -43,6 +44,7 @@ import {
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
+const DM_CHANNEL_TYPE = 'DM';
 
 /**
  * 채팅 서비스의 핵심 비즈니스 로직 클래스.
@@ -66,6 +68,7 @@ export class ChatService {
         private readonly projectClient: ProjectClient,
         private readonly channelClient: ChannelClient,
         private readonly userClient: UserClient,
+        private readonly blockService: BlockService,
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
     ) {}
@@ -245,8 +248,84 @@ export class ChatService {
      * @param dto - 메시지 내용, 타입, 첨부파일 등
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
+        if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
+
+        if (membership.channelType === DM_CHANNEL_TYPE) {
+            await this.verifyDmSendable(ctx.channelId, ctx.userId);
+            dto = { ...dto, teamId: null, projectId: null };
+        } else {
+            dto = { ...dto, teamId: membership.teamId };
+        }
+
         await this.chatMessageProducer.sendMessage(ctx.channelId, dto, ctx.userId, ctx.userRole);
+    }
+
+    /**
+     * DM 메시지 전송 가능 여부를 검사한다.
+     * 수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
+     * 전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+     *
+     * @param channelId - DM 채널 ID
+     * @param senderId - 발신자 사용자 ID
+     * @throws ForbiddenException 수신자가 발신자를 차단한 경우
+     */
+    private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
+        const members = await this.channelMemberRepository.findByChannelId(channelId);
+        const receiver = members.find((member) => member.userId !== senderId);
+        if (!receiver) return;
+
+        if (await this.blockService.isBlocked(receiver.userId, senderId)) {
+            throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
+        }
+        await Promise.all([
+            this.channelMemberRepository.setHidden(channelId, senderId, false),
+            this.channelMemberRepository.setHidden(channelId, receiver.userId, false),
+        ]);
+    }
+
+    /**
+     * 내 DM 대화 목록을 조회한다. 숨긴(isHidden) 대화는 제외되며,
+     * 마지막 메시지 시각 내림차순으로 정렬된다.
+     *
+     * @param userId - 조회할 사용자 ID
+     * @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
+     */
+    async getMyDms(userId: number) {
+        const memberships = await this.channelMemberRepository.findDmMemberships(userId);
+        if (memberships.length === 0) return [];
+
+        const channelIds = memberships.map((m) => m.channelId);
+        const [others, lastMessages, unreadCounts] = await Promise.all([
+            this.channelMemberRepository.findOtherDmMembers(channelIds, userId),
+            this.messageRepository.findLastMessages(channelIds),
+            this.messageRepository.countUnreadForChannels(memberships),
+        ]);
+
+        return memberships
+            .map(({ channelId }) => ({
+                channelId,
+                otherUserId: others.get(channelId) ?? null,
+                unreadCount: unreadCounts.get(channelId) ?? 0,
+                lastMessage: lastMessages.get(channelId) ?? null,
+            }))
+            .sort((a, b) => (b.lastMessage?.createdAt?.getTime() ?? 0) - (a.lastMessage?.createdAt?.getTime() ?? 0));
+    }
+
+    /**
+     * DM 대화를 목록에서 숨긴다 (Discord의 "닫기").
+     * 상대방이 메시지를 보내면 자동으로 다시 노출된다.
+     *
+     * @param channelId - 숨길 DM 채널 ID
+     * @param userId - 요청 사용자 ID
+     * @throws ForbiddenException DM 채널 멤버가 아닌 경우
+     */
+    async hideDm(channelId: number, userId: number): Promise<void> {
+        const membership = await this.channelMemberRepository.findMembership(channelId, userId);
+        if (!membership || membership.channelType !== DM_CHANNEL_TYPE) {
+            throw new ForbiddenException('DM 채널 접근 권한이 없습니다');
+        }
+        await this.channelMemberRepository.setHidden(channelId, userId, true);
     }
 
     /**

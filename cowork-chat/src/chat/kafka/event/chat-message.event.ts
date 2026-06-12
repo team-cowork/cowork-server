@@ -12,7 +12,8 @@
 export interface ChatMessageEvent {
     /** Kafka 라우팅용 이벤트 종류 식별자 */
     eventType: string;
-    teamId: number;
+    /** DM 채널 메시지는 팀에 속하지 않으므로 null */
+    teamId: number | null;
     /** 프로젝트 채널일 때만 설정; 팀 채널은 null 또는 undefined */
     projectId?: number | null;
     channelId: number;
