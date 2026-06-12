@@ -1,5 +1,9 @@
 # 다이렉트 메시지(DM)
 
+> **⚠️ 폐기된 설계 (2026-06)**: 별도 `cowork-dm` 서비스 방안은 폐기되었다.
+> 현재 DM은 `cowork-channel`의 `ChannelType.DM` 채널(방 생성/멤버십, `POST /dms`)과
+> `cowork-chat`(메시지/차단/숨김/목록, `GET·DELETE /dms`)으로 구현되어 있다.
+
 - **서비스**: 신규 (`cowork-dm`)
 - **우선순위**: 🟢 추후 고려
 
