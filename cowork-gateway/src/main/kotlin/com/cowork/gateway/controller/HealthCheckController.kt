@@ -89,7 +89,7 @@ class HealthCheckController(
                     }
                 }
             }
-            .collectMap({ it.first }, { it.second })
+            .collectMap<String, ServiceStatus>({ it.first }, { it.second })
             .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
     }
 

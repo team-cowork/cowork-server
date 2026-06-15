@@ -13,8 +13,8 @@ class Channel(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @Column(name = "team_id", nullable = false)
-    val teamId: Long,
+    @Column(name = "team_id", nullable = true)
+    val teamId: Long?,
 
     @Column(name = "project_id", nullable = true)
     var projectId: Long? = null,
@@ -41,6 +41,9 @@ class Channel(
 
     @Column(name = "created_by", nullable = false)
     val createdBy: Long,
+
+    @Column(name = "dm_key", nullable = true, length = 50, unique = true)
+    val dmKey: String? = null,
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
