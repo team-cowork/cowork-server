@@ -221,6 +221,10 @@ export class ChatService {
             message.attachments.map(async (attachment) => {
                 try {
                     const objectKey = this.minioService.extractObjectKey(attachment.url);
+                    if (!objectKey.startsWith(`chat-files/${ctx.channelId}/`)) {
+                        this.logger.warn(`채널 범위를 벗어난 objectKey 삭제를 건너뜁니다 [key=${objectKey}]`);
+                        return;
+                    }
                     await this.minioService.removeObject(objectKey);
                 } catch (error) {
                     this.logger.warn(`MinIO 파일 삭제 실패 [url=${attachment.url}]`, error);
@@ -250,6 +254,12 @@ export class ChatService {
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
         if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
+
+        if (dto.attachments?.length) {
+            for (const attachment of dto.attachments) {
+                this.minioService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
+            }
+        }
 
         if (membership.channelType === DM_CHANNEL_TYPE) {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
