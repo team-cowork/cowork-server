@@ -37,7 +37,8 @@ export type FileAttachmentRow = {
  * `notificationStatus`는 생성 시점에 외부에서 명시적으로 지정합니다.
  */
 export type CreateMessageInput = {
-    teamId: number;
+    /** DM 채널 메시지는 팀에 속하지 않으므로 null */
+    teamId: number | null;
     projectId: number | null;
     channelId: number;
     authorId: number;
@@ -79,7 +80,7 @@ export type MentionedMessageRow = {
  */
 export type MessageRow = {
     _id: Types.ObjectId;
-    teamId: number;
+    teamId: number | null;
     projectId: number | null;
     channelId: number;
     authorId: number;
@@ -126,40 +127,49 @@ export class MessageRepository {
      * @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
      * @returns {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-    findMessages(channelId: number, before?: string): Promise<MessageRow[]> {
+    findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
         const query: Record<string, unknown> = { channelId };
         if (before) {
             query['_id'] = { $lt: new Types.ObjectId(before) };
         }
+        if (parentMessageId) {
+            query['parentMessageId'] = new Types.ObjectId(parentMessageId);
+        }
+
+        const lookupStages = parentMessageId
+            ? [{ $addFields: { mentionedMessage: null } }]
+            : [
+                {
+                    $lookup: {
+                        from: this.messageModel.collection.name,
+                        localField: 'parentMessageId',
+                        foreignField: '_id',
+                        as: 'mentionedMessage',
+                        pipeline: [
+                            {
+                                $project: {
+                                    _id: 1,
+                                    authorId: 1,
+                                    content: 1,
+                                    type: 1,
+                                    createdAt: 1,
+                                },
+                            },
+                        ],
+                    },
+                },
+                {
+                    $addFields: {
+                        mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
+                    },
+                },
+            ];
 
         return this.messageModel.aggregate([
             { $match: query },
             { $sort: { _id: -1 } },
             { $limit: MESSAGE_FETCH_LIMIT },
-            {
-                $lookup: {
-                    from: this.messageModel.collection.name,
-                    localField: 'parentMessageId',
-                    foreignField: '_id',
-                    as: 'mentionedMessage',
-                    pipeline: [
-                        {
-                            $project: {
-                                _id: 1,
-                                authorId: 1,
-                                content: 1,
-                                type: 1,
-                                createdAt: 1,
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $addFields: {
-                    mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
-                },
-            },
+            ...lookupStages,
         ]);
     }
 
@@ -339,9 +349,30 @@ export class MessageRepository {
     findOnePendingAndMarkProcessing(): Promise<NotificationMessage | null> {
         return this.messageModel.findOneAndUpdate(
             { notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING' } },
-            { new: true },
+            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
+            { sort: { createdAt: 1 }, new: true },
         ).lean() as Promise<NotificationMessage | null>;
+    }
+
+    /**
+     * PROCESSING 상태로 전환된 지 `staleThresholdMs` 이상 경과한 메시지를 PENDING으로 되돌립니다.
+     *
+     * 폴러 프로세스가 크래시하면 메시지가 PROCESSING에 영구 stuck될 수 있습니다.
+     * 폴러는 PENDING만 조회하므로 이 회수 없이는 해당 메시지의 알림이 영구 유실됩니다.
+     *
+     * @param staleThresholdMs - PROCESSING을 stale로 판단하는 경과 시간 (밀리초)
+     * @returns 회수된 메시지 수
+     */
+    async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
+        const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
+        const result = await this.messageModel.updateMany(
+            {
+                notificationStatus: 'PROCESSING',
+                notificationProcessingStartedAt: { $lt: staleBeforeDate },
+            },
+            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null } },
+        );
+        return result.modifiedCount;
     }
 
     /**
@@ -525,6 +556,66 @@ export class MessageRepository {
      * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
      * @returns Mongoose `updateOne` 결과 객체
      */
+    countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
+        const filter: Record<string, unknown> = { channelId, parentMessageId: null };
+        if (afterId) {
+            filter['_id'] = { $gt: afterId };
+        }
+        return this.messageModel.countDocuments(filter);
+    }
+
+    /**
+     * 여러 채널의 최신 메시지를 한 번의 집계로 조회합니다.
+     * DM 대화 목록의 미리보기·정렬에 사용합니다.
+     *
+     * @returns channelId → 최신 메시지 요약 매핑
+     */
+    async findLastMessages(channelIds: number[]): Promise<Map<number, {
+        messageId: string;
+        authorId: number;
+        content: string;
+        type: string;
+        createdAt: Date;
+    }>> {
+        if (channelIds.length === 0) return new Map();
+        const rows = await this.messageModel.aggregate<{ _id: number; doc: Message & { _id: Types.ObjectId; createdAt: Date } }>([
+            { $match: { channelId: { $in: channelIds } } },
+            { $sort: { channelId: 1, _id: -1 } },
+            { $group: { _id: '$channelId', doc: { $first: '$$ROOT' } } },
+        ]);
+        return new Map(rows.map((row) => [row._id, {
+            messageId: row.doc._id.toString(),
+            authorId: row.doc.authorId,
+            content: row.doc.content,
+            type: row.doc.type,
+            createdAt: row.doc.createdAt,
+        }]));
+    }
+
+    async countUnreadForChannels(
+        memberships: Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>,
+    ): Promise<Map<number, number>> {
+        if (memberships.length === 0) {
+            return new Map();
+        }
+        const orConditions = memberships.map(({ channelId, lastReadMessageId }) => {
+            const cond: Record<string, unknown> = { channelId, parentMessageId: null };
+            if (lastReadMessageId) {
+                cond['_id'] = { $gt: lastReadMessageId };
+            }
+            return cond;
+        });
+        const results = await this.messageModel.aggregate<{ _id: number; count: number }>([
+            { $match: { $or: orConditions } },
+            { $group: { _id: '$channelId', count: { $sum: 1 } } },
+        ]);
+        const countMap = new Map<number, number>();
+        for (const row of results) {
+            countMap.set(row._id, row.count);
+        }
+        return countMap;
+    }
+
     updateNotificationStatus(
         messageId: Types.ObjectId,
         notificationStatus: string,
