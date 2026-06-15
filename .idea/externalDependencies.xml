@@ -8,7 +8,7 @@
     <plugin id="com.github.dinbtechit.jetbrainsnestjs" />
     <plugin id="org.jetbrains.bazel" />
     <plugin optional="true" id="com.anthropic.code.plugin" />
-    <plugin optional="true" id="me.solohic.gemini-cli-companion" />
+    <plugin optional="true" id="dev.matasar.antigravity-companion" />
     <plugin optional="true" id="com.dsoftware.ghtoolbar" />
   </component>
 </project>
