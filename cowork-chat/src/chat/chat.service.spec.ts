@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -74,6 +74,7 @@ const mockElasticsearchService = {
 const mockMinioService = {
     createPresignedUpload: jest.fn(),
     confirmUpload: jest.fn(),
+    assertOwnedAttachmentUrl: jest.fn(),
 };
 
 const mockChatMessageProducer = {
@@ -181,6 +182,32 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue(null);
 
             await expect(service.sendMessage(ctx, { content: 'hi' } as any)).rejects.toThrow(ForbiddenException);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('첨부파일이 있으면 각 url의 소유권을 검증한다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMinioService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
+            const attachments = [
+                { name: 'a.png', url: 'http://minio/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png' },
+            ];
+
+            await service.sendMessage(ctx, { content: 'hi', attachments } as any);
+
+            expect(mockMinioService.assertOwnedAttachmentUrl).toHaveBeenCalledWith(attachments[0].url, 1, 42);
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
+        });
+
+        it('소유하지 않은 첨부파일 url이면 검증에서 던진 예외가 전파되고 발행되지 않는다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMinioService.assertOwnedAttachmentUrl.mockImplementation(() => {
+                throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
+            });
+            const attachments = [
+                { name: 'a.png', url: 'http://minio/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png' },
+            ];
+
+            await expect(service.sendMessage(ctx, { content: 'hi', attachments } as any)).rejects.toThrow(BadRequestException);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
