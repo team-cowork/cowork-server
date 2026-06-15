@@ -57,6 +57,21 @@ class ChannelLifecycleHandlerTest {
     }
 
     @Test
+    fun `onUserDeleted는 생성 채널을 삭제하되 DM 채널은 보존`() {
+        val owned = channel(1L, 100L, 7L)
+        val dm = Channel(
+            id = 2L, teamId = null, name = "DM", type = ChannelType.DM, viewType = ChannelViewType.TEXT,
+            description = null, isPrivate = true, createdBy = 7L, dmKey = "7:9",
+        )
+        every { channelRepository.findAllByCreatedBy(7L) } returns listOf(owned, dm)
+
+        handler.onUserDeleted(7L)
+
+        verify(exactly = 1) { channelRepository.deleteAll(listOf(owned)) }
+        verify(exactly = 1) { channelMemberRepository.deleteAllByUserId(7L) }
+    }
+
+    @Test
     fun `onMemberRemovedFromTeam은 로컬 멤버십 삭제, 생성자 채널 삭제, 나머지는 멤버십만 제거`() {
         val ownedByTarget = channel(1L, 100L, 7L)
         every { channelRepository.findAllByTeamIdAndCreatedByOrderByIdAsc(100L, 7L) } returns listOf(ownedByTarget)

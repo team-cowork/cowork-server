@@ -30,6 +30,7 @@ class ChannelMembershipSyncPublisher(
                 channelId = channel.id,
                 teamId = channel.teamId,
                 userId = member.userId,
+                channelType = channel.type.name,
             )
         }
     }
@@ -62,7 +63,7 @@ class ChannelMembershipSyncPublisher(
 
             membersPage.content.forEach { member ->
                 channels[member.channelId]?.let {
-                    channelMemberEventPublisher.publishJoin(it.id, it.teamId, member.userId)
+                    channelMemberEventPublisher.publishJoin(it.id, it.teamId, member.userId, it.type.name)
                 }
             }
         } while (membersPage.hasNext())

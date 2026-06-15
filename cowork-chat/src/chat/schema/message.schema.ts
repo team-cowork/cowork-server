@@ -73,8 +73,8 @@ export class Message {
     /** Mongoose `timestamps` 옵션에 의해 자동 설정되는 도큐먼트 최종 수정 시각 */
     updatedAt!: Date;
 
-    /** 메시지가 속한 팀의 식별자 */
-    @Prop({ required: true }) teamId!: number;
+    /** 메시지가 속한 팀의 식별자. DM 채널 메시지는 팀에 속하지 않으므로 `null`. */
+    @Prop({ type: Number, default: null }) teamId!: number | null;
 
     /**
      * 메시지가 속한 프로젝트의 식별자.
@@ -160,6 +160,13 @@ export class Message {
      * 한도 초과 시 `notificationStatus`가 `FAILED`로 전환됩니다.
      */
     @Prop({ default: 0 }) notificationRetryCount!: number;
+
+    /**
+     * PROCESSING 상태로 전환된 시각.
+     * 폴러 프로세스가 크래시하여 PROCESSING에 영구 stuck되는 상황을 방지하기 위해
+     * 이 값이 일정 시간 이상 경과하면 PENDING으로 회수한다.
+     */
+    @Prop({ type: Date, default: null }) notificationProcessingStartedAt!: Date | null;
 }
 
 /** {@link Message} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */
@@ -173,6 +180,9 @@ MessageSchema.index({ authorId: 1 });
 
 /** 스레드 답글 조회 시 부모 메시지 기준으로 빠르게 필터링하기 위한 인덱스 */
 MessageSchema.index({ parentMessageId: 1 });
+
+/** 채널 내 스레드 답글 목록 조회를 위한 복합 인덱스 (`channelId`, `parentMessageId`, `_id` 내림차순) */
+MessageSchema.index({ channelId: 1, parentMessageId: 1, _id: -1 });
 
 /** 채널별 고정 메시지 목록 조회를 위한 복합 인덱스 */
 MessageSchema.index({ isPinned: 1, channelId: 1 });

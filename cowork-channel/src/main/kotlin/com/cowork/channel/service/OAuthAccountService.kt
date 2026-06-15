@@ -47,7 +47,7 @@ class OAuthAccountService(
     fun buildAuthorizeUrl(channelId: Long, userId: Long, provider: AccountProvider): String {
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
         val config = providerConfigOf(provider)
         val state = buildState(channelId, userId, provider)
         val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
@@ -110,7 +110,7 @@ class OAuthAccountService(
 
         val (channelId, userId) = verifyState(state, provider)
         val channel = channelService.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
         val config = providerConfigOf(provider)
         val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
 
