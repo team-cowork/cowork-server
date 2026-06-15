@@ -1,4 +1,5 @@
-import { IsNumber, IsOptional, IsString, MaxLength, IsEnum, IsArray, IsMongoId } from 'class-validator';
+import { IsNumber, IsOptional, IsString, MaxLength, IsEnum, IsArray, IsMongoId, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AttachmentDto {
@@ -29,7 +30,7 @@ export class SendMessageDto {
     @IsEnum(['TEXT', 'FILE']) @IsOptional() type?: string;
 
     @ApiPropertyOptional({ type: [AttachmentDto], description: 'S3 첨부파일 목록' })
-    @IsArray() @IsOptional() attachments?: AttachmentDto[];
+    @IsArray() @IsOptional() @ValidateNested({ each: true }) @Type(() => AttachmentDto) attachments?: AttachmentDto[];
 
     @ApiPropertyOptional({ description: '답장 대상 메시지 ID (MongoDB ObjectId)' })
     @IsMongoId() @IsOptional() parentMessageId?: string;
