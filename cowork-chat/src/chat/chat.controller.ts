@@ -33,6 +33,7 @@ import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dt
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
 import { AddReactionDto } from './dto/add-reaction.dto';
+import { ReadChannelDto } from './dto/read-channel.dto';
 import { EMOJI_REGEX } from './util/emoji';
 
 /**
@@ -211,6 +212,20 @@ export class ChatController {
      * @param userId - Gateway가 주입한 요청자 ID
      * @returns 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
+    @Post('read')
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ summary: '채널 읽음 상태 업데이트' })
+    @ApiResponse({ status: 204 })
+    @ApiResponse({ status: 400, description: '유효하지 않은 메시지 ID' })
+    @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    async readChannel(
+        @Param('channelId', ParseIntPipe) channelId: number,
+        @Body() dto: ReadChannelDto,
+        @UserId() userId: number,
+    ): Promise<void> {
+        await this.chatService.readChannel({ channelId, userId }, dto.lastReadMessageId);
+    }
+
     @Get('messages')
     @ApiOperation({ summary: '채널 메시지 목록 조회 (커서 기반 페이지네이션)' })
     @ApiResponse({ status: 200, type: [MessageResponseDto] })
@@ -220,7 +235,7 @@ export class ChatController {
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
     ) {
-        return this.chatService.getMessages({ channelId, userId }, query.before);
+        return this.chatService.getMessages({ channelId, userId }, query.before, query.parentMessageId);
     }
 
     /**
