@@ -9,6 +9,8 @@ import { ChannelMemberRepository } from '../repository/channel-member.repository
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
 const MAX_RETRY = 3;
+/** 이 시간(2분) 이상 PROCESSING에 머문 메시지를 PENDING으로 회수한다 */
+const PROCESSING_STALE_THRESHOLD_MS = 2 * 60 * 1_000;
 
 /**
  * 알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
@@ -65,6 +67,12 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      * 4. 처리 실패 시 재시도 횟수에 따라 PENDING 또는 FAILED로 전환한다.
      */
     private async poll(): Promise<void> {
+        // 0단계: 크래시 등으로 stuck된 stale PROCESSING 메시지를 PENDING으로 회수
+        const reclaimed = await this.messageRepository.reclaimStaleProcessing(PROCESSING_STALE_THRESHOLD_MS);
+        if (reclaimed > 0) {
+            this.logger.warn(`stale PROCESSING 메시지 ${reclaimed}개를 PENDING으로 회수했습니다`);
+        }
+
         // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
         const msgs: NotificationMessage[] = [];
         for (let i = 0; i < BATCH_SIZE; i++) {
