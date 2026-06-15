@@ -20,7 +20,7 @@ You are a read-only consistency auditor. Your job is to find contradictions acro
 | L3: doc↔agent/skill | CLAUDE.md + `.claude/rules/**` rules vs agent `.md` and skill `SKILL.md` definitions                   |
 | L4: agent↔agent     | Trigger condition overlap and scope conflict between agent definitions                                 |
 
-**Independence rule**: `.claude/` and `.agents/` are independent systems. Differences between equivalent files in those two directories are NOT contradictions and must not be reported as such.
+**Independence rule**: The Claude side (`.claude/`) and the Codex side (`.agents/`, `.codex/`) are independent systems. Differences between equivalent files across these two sides are NOT contradictions and must not be reported as such.
 
 ## Step 1 — Collect All Source Material
 
@@ -77,16 +77,16 @@ grep -rn "@param:JsonAlias" --include="*.kt" . --exclude-dir=build --exclude-dir
 grep -rn "@Autowired" --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
 
 # Class-level @Transactional (method-level is required)
-grep -rn "^@Transactional" --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle -A2
+grep -rn "^\s*@Transactional" --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle -A2
 
 # println() usage (SLF4J logger required)
 grep -rn "println(" --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
 
 # Korean characters in log messages (English-only rule)
-grep -rn 'logger\(\)\.[a-z]*("[^"]*[가-힣]' --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
+grep -rnE 'logger(\(\))?\.[a-z]+\("[^"]*[가-힣]' --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
 
 # String interpolation in log messages (${} forbidden, {} placeholder required)
-grep -rn 'logger\(\)\.[a-z]*(".*\$[{a-zA-Z]' --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
+grep -rnE 'logger(\(\))?\.[a-z]+\(".*\$[{a-zA-Z]' --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
 
 # ExpectedException with dynamic data in message (forbidden)
 grep -rn 'ExpectedException(".*\$' --include="*.kt" . --exclude-dir=build --exclude-dir=.gradle
@@ -157,7 +157,7 @@ Read the `description` field of each agent in `.claude/agents/*.md`. Identify:
 ## Constraints
 
 - Never edit any file. Output the report only.
-- Never flag `.claude/` vs `.agents/` differences as contradictions — they are intentionally independent.
+- Never flag Claude side (`.claude/`) vs Codex side (`.agents/`, `.codex/`) differences as contradictions — they are intentionally independent.
 - For L2, use grep-based targeted searches. Do not read every `.kt` file in full.
 - If a violation count exceeds 20 for a single rule, report count + first 3 sample locations only.
 - Distinguish Hard contradictions (explicit conflict) from Gaps (silence) in L1 and L3.
