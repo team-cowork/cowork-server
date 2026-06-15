@@ -19,6 +19,30 @@
       "Bash(git rev-parse*)"
     ]
   },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/preToolUse.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/postToolUse.sh"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "claude-hud@claude-hud": true,
     "github@claude-plugins-official": true,

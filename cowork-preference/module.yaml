@@ -1,0 +1,36 @@
+product: jvm/app
+layout: maven-like
+dependencies:
+  - bom: io.vertx:vertx-stack-depchain:4.5.10
+  - io.vertx:vertx-core
+  - io.vertx:vertx-web
+  - io.vertx:vertx-lang-kotlin
+  - io.vertx:vertx-lang-kotlin-coroutines
+  - io.vertx:vertx-config
+  - io.vertx:vertx-pg-client
+  - io.vertx:vertx-redis-client
+  - io.vertx:vertx-kafka-client
+  - io.vertx:vertx-service-discovery
+  - io.vertx:vertx-micrometer-metrics
+  - com.ongres.scram:client:2.1
+  - io.micrometer:micrometer-registry-prometheus-simpleclient:1.14.5
+  - com.netflix.eureka:eureka-client:2.0.6
+  - org.flywaydb:flyway-core:10.15.0
+  - org.flywaydb:flyway-database-postgresql:10.15.0
+  - org.postgresql:postgresql:42.7.3
+  - org.apache.logging.log4j:log4j-core:2.24.3
+  - org.apache.logging.log4j:log4j-layout-template-json:2.24.3
+  - org.apache.logging.log4j:log4j-slf4j2-impl:2.24.3
+  - $kotlin.reflect
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1
+
+test-dependencies:
+  - io.vertx:vertx-junit5:4.5.10
+
+settings:
+  jvm:
+    mainClass: com.cowork.preference.CoworkPreferenceMainKt
+    release: 21
+  kotlin:
+    version: 2.1.20
+    freeCompilerArgs: [-Xjsr305=strict]
