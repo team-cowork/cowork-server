@@ -15,6 +15,9 @@ import { Server, Socket } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChannelEventConsumer } from './kafka/channel-event.consumer';
+import { ProjectEventConsumer } from './kafka/project-event.consumer';
+import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 
@@ -45,6 +48,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
+        private readonly channelEventConsumer: ChannelEventConsumer,
+        private readonly projectEventConsumer: ProjectEventConsumer,
+        private readonly membershipConsumer: MembershipConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
     ) {}
@@ -58,6 +64,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     afterInit(server: Server) {
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
+        this.channelEventConsumer.setSocketServer(server);
+        this.projectEventConsumer.setSocketServer(server);
+        this.membershipConsumer.setSocketServer(server);
     }
 
     /**
@@ -81,6 +90,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             client.data.userId = userId;
             client.data.userRole = payload.role ?? UserRole.USER;
+            client.join(`user:${userId}`);
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
@@ -127,5 +137,61 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     @SubscribeMessage('leave')
     handleLeave(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
         client.leave(`chat:${payload.channelId}`);
+    }
+
+    /**
+     * `typing:start` / `typing:stop` 이벤트 핸들러.
+     * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
+     */
+    @SubscribeMessage('typing:start')
+    handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+        this.relayTyping(client, payload, true);
+    }
+
+    @SubscribeMessage('typing:stop')
+    handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+        this.relayTyping(client, payload, false);
+    }
+
+    private relayTyping(client: Socket, payload: JoinChannelDto, isTyping: boolean) {
+        if (!payload || typeof payload.channelId !== 'number') return;
+        const room = `chat:${payload.channelId}`;
+        if (!client.rooms.has(room)) return;
+        client.to(room).emit('typing', {
+            channelId: payload.channelId,
+            userId: client.data.userId,
+            isTyping,
+        });
+    }
+
+    /**
+     * `join:team` 이벤트 핸들러. `team:{teamId}` 룸에 참여한다.
+     * 채널/프로젝트 생성·수정·삭제 이벤트 수신에 사용한다.
+     */
+    @SubscribeMessage('join:team')
+    async handleJoinTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+        if (!payload || typeof payload.teamId !== 'number') {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
+        const { userId } = client.data;
+        const isMember = await this.chatService.isTeamMember(payload.teamId, userId);
+        if (!isMember) {
+            client.emit('error', { message: '팀 접근 권한이 없습니다' });
+            return;
+        }
+        client.join(`team:${payload.teamId}`);
+    }
+
+    /**
+     * `leave:team` 이벤트 핸들러. `team:{teamId}` 룸에서 나간다.
+     */
+    @SubscribeMessage('leave:team')
+    handleLeaveTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+        if (!payload || typeof payload.teamId !== 'number') {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
+        client.leave(`team:${payload.teamId}`);
     }
 }

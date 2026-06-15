@@ -1,32 +1,12 @@
-FROM eclipse-temurin:21-jdk-alpine AS builder
-WORKDIR /workspace
-COPY gradlew gradlew
-COPY gradle gradle
-COPY settings.gradle.kts build.gradle.kts ./
-COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
-COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
-COPY cowork-gateway/src cowork-gateway/src
-COPY cowork-channel/build.gradle.kts cowork-channel/build.gradle.kts
-COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
-COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
-COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
-RUN chmod +x gradlew && ./gradlew :cowork-gateway:bootJar -x test --no-daemon
-
-FROM eclipse-temurin:21-jre-alpine AS extractor
-WORKDIR /app
-COPY --from=builder /workspace/cowork-gateway/build/libs/*.jar app.jar
-RUN java -Djarmode=layertools -jar app.jar extract --destination extracted
-
+# 빌드 전 gateway.jar (Bazel //cowork-gateway:gateway, rules_spring springboot 산출물)이 컨텍스트에 있어야 한다.
+# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --from=extractor /app/extracted/dependencies ./
-COPY --from=extractor /app/extracted/spring-boot-loader ./
-COPY --from=extractor /app/extracted/snapshot-dependencies ./
-COPY --from=extractor /app/extracted/application ./
+COPY --chown=app:app gateway.jar app.jar
 USER app
 EXPOSE 8080
 ENTRYPOINT ["java", \
   "-XX:+UseContainerSupport", \
   "-XX:MaxRAMPercentage=75.0", \
-  "org.springframework.boot.loader.launch.JarLauncher"]
+  "-jar", "app.jar"]

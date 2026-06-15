@@ -27,7 +27,7 @@ async function bootstrap() {
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
     app.setGlobalPrefix('chat', { exclude: ['health'] });
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useStaticAssets(join(__dirname, '..', 'public'));
 
     const config = new DocumentBuilder()

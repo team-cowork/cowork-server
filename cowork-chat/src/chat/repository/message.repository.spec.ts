@@ -2,9 +2,11 @@ import { Types } from 'mongoose';
 import { MessageRepository } from './message.repository';
 
 const mockAggregate = jest.fn();
+const mockCountDocuments = jest.fn();
 
 const mockMessageModel = {
     aggregate: mockAggregate,
+    countDocuments: mockCountDocuments,
     collection: { name: 'messages' },
 };
 
@@ -14,6 +16,42 @@ describe('MessageRepository', () => {
     beforeEach(() => {
         repository = new MessageRepository(mockMessageModel as any);
         jest.clearAllMocks();
+    });
+
+    describe('countUnread', () => {
+        it('afterId가 있으면 _id > afterId 조건으로 스레드 제외 카운트를 반환한다', async () => {
+            const afterId = new Types.ObjectId();
+            mockCountDocuments.mockResolvedValue(7);
+
+            const result = await repository.countUnread(1, afterId);
+
+            expect(mockCountDocuments).toHaveBeenCalledWith({
+                channelId: 1,
+                parentMessageId: null,
+                _id: { $gt: afterId },
+            });
+            expect(result).toBe(7);
+        });
+
+        it('afterId가 null이면 _id 조건 없이 채널 전체를 카운트한다', async () => {
+            mockCountDocuments.mockResolvedValue(20);
+
+            const result = await repository.countUnread(1, null);
+
+            expect(mockCountDocuments).toHaveBeenCalledWith({
+                channelId: 1,
+                parentMessageId: null,
+            });
+            expect(result).toBe(20);
+        });
+
+        it('메시지가 없으면 0을 반환한다', async () => {
+            mockCountDocuments.mockResolvedValue(0);
+
+            const result = await repository.countUnread(1, new Types.ObjectId());
+
+            expect(result).toBe(0);
+        });
     });
 
     describe('findMessages', () => {
@@ -79,18 +117,17 @@ describe('MessageRepository', () => {
 
             const result = await repository.findFileAttachments(1, undefined, 20);
 
-            expect(result.items).toEqual([
-                {
-                    messageId: '665f00000000000000000001',
-                    fileName: 'report.pdf',
-                    fileSize: 2048,
-                    fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
-                    mimeType: 'application/pdf',
-                    uploaderId: 42,
-                    uploadedAt: createdAt.toISOString(),
-                    attachmentIndex: 0,
-                },
-            ]);
+            expect(result.items[0]).toMatchObject({
+                messageId: '665f00000000000000000001',
+                fileName: 'report.pdf',
+                fileSize: 2048,
+                fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                mimeType: 'application/pdf',
+                uploaderId: 42,
+                uploadedAt: createdAt.toISOString(),
+                attachmentIndex: 0,
+            });
+            expect(result.items[0].fileId).toBeDefined();
             expect(result.nextCursor).toBeNull();
         });
 

@@ -12,6 +12,9 @@ defmodule CoworkUser.OpenAPI do
           get: %{summary: "내 프로필 조회", responses: responses(user_schema())},
           patch: %{summary: "내 프로필 수정", requestBody: json_body(update_profile_schema()), responses: responses(user_schema())}
         },
+        "/users/me/status" => %{
+          patch: %{summary: "상태 및 커스텀 상태 메시지 설정", requestBody: json_body(update_status_schema()), responses: responses(user_schema())}
+        },
         "/users/me/profile-image/presigned" => %{
           post: %{summary: "프로필 이미지 업로드 URL 발급", requestBody: json_body(%{type: "object", required: ["content_type"], properties: %{content_type: %{type: "string"}}}), responses: responses(%{type: "object", properties: %{upload_url: %{type: "string"}, object_key: %{type: "string"}}})}
         },
@@ -96,8 +99,22 @@ defmodule CoworkUser.OpenAPI do
       type: "object",
       properties: %{
         nickname: %{type: "string"},
+        name: %{type: "string"},
         description: %{type: "string"},
+        github_id: %{type: "string", nullable: true},
         roles: %{type: "array", items: %{type: "string"}}
+      }
+    }
+  end
+
+  defp update_status_schema do
+    %{
+      type: "object",
+      required: ["status"],
+      properties: %{
+        status: %{type: "string", example: "DO_NOT_DISTURB"},
+        message: %{type: "string", nullable: true, example: "집중 중"},
+        expiresAt: %{type: "string", format: "date-time", nullable: true, example: "2026-05-26T18:00:00Z"}
       }
     }
   end
@@ -148,6 +165,8 @@ defmodule CoworkUser.OpenAPI do
         major: %{type: "string", nullable: true},
         specialty: %{type: "string", nullable: true},
         status: %{type: "string"},
+        status_message: %{type: "string", nullable: true},
+        status_expires_at: %{type: "string", format: "date-time", nullable: true},
         profile_image_url: %{type: "string", nullable: true},
         nickname: %{type: "string", nullable: true},
         roles: %{type: "array", items: %{type: "string"}},
