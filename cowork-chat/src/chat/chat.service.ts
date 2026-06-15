@@ -282,16 +282,23 @@ export class ChatService {
      */
     private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
         const members = await this.channelMemberRepository.findByChannelId(channelId);
+        const sender = members.find((member) => member.userId === senderId);
         const receiver = members.find((member) => member.userId !== senderId);
         if (!receiver) return;
 
         if (await this.blockService.isBlocked(receiver.userId, senderId)) {
             throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
         }
-        await Promise.all([
-            this.channelMemberRepository.setHidden(channelId, senderId, false),
-            this.channelMemberRepository.setHidden(channelId, receiver.userId, false),
-        ]);
+        const updates: Promise<boolean>[] = [];
+        if (sender?.isHidden) {
+            updates.push(this.channelMemberRepository.setHidden(channelId, senderId, false));
+        }
+        if (receiver?.isHidden) {
+            updates.push(this.channelMemberRepository.setHidden(channelId, receiver.userId, false));
+        }
+        if (updates.length > 0) {
+            await Promise.all(updates);
+        }
     }
 
     /**
