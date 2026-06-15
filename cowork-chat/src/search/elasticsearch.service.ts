@@ -161,7 +161,10 @@ export class ElasticsearchService implements OnModuleInit {
         let searchAfter: any[] | undefined;
         if (before) {
             try {
-                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
+                const parsed = JSON.parse(Buffer.from(before, 'base64').toString());
+                if (Array.isArray(parsed)) {
+                    searchAfter = parsed;
+                }
             } catch {
                 searchAfter = undefined;
             }
@@ -246,7 +249,10 @@ export class ElasticsearchService implements OnModuleInit {
         let searchAfter: any[] | undefined;
         if (before) {
             try {
-                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
+                const parsed = JSON.parse(Buffer.from(before, 'base64').toString());
+                if (Array.isArray(parsed)) {
+                    searchAfter = parsed;
+                }
             } catch {
                 searchAfter = undefined;
             }
