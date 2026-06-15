@@ -141,6 +141,24 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
         return fileUrl.slice(prefix.length);
     }
 
+    /**
+     * 첨부파일 URL이 해당 채널·사용자가 실제로 업로드한 오브젝트를 가리키는지 검증한다.
+     * presigned/confirm 단계를 우회해 임의의 objectKey(타 채널·타 사용자 파일)를
+     * 메시지 attachments에 삽입하는 것을 차단한다.
+     *
+     * @param fileUrl - 검증할 첨부파일 URL
+     * @param channelId - 메시지가 속한 채널 ID
+     * @param userId - 업로더(메시지 작성자) ID
+     * @throws BadRequestException URL이 `chat-files/{channelId}/{userId}/` prefix를 벗어난 경우
+     */
+    assertOwnedAttachmentUrl(fileUrl: string, channelId: number, userId: number): void {
+        const objectKey = this.extractObjectKey(fileUrl);
+        const expectedPrefix = `chat-files/${channelId}/${userId}/`;
+        if (!objectKey.startsWith(expectedPrefix)) {
+            throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
+        }
+    }
+
     private validateCredentials(): void {
         if (!this.config.accessKey || !this.config.secretKey) {
             throw new Error('MinIO 접근 키 설정이 필요합니다 (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)');
