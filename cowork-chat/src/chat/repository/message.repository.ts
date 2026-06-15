@@ -350,7 +350,7 @@ export class MessageRepository {
         return this.messageModel.findOneAndUpdate(
             { notificationStatus: 'PENDING' },
             { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
-            { new: true },
+            { sort: { createdAt: 1 }, new: true },
         ).lean() as Promise<NotificationMessage | null>;
     }
 
