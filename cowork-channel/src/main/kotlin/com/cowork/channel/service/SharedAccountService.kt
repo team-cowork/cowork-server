@@ -38,7 +38,7 @@ class SharedAccountService(
     private fun requireAccountEditor(account: SharedAccount, channel: Channel, userId: Long) {
         if (account.createdBy != userId
             && channel.createdBy != userId
-            && !teamPermissionService.isTeamOwnerOrAdmin(channel.teamId, userId)
+            && !teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)
         ) {
             throw ExpectedException("공유 계정을 수정하거나 삭제할 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
@@ -47,7 +47,7 @@ class SharedAccountService(
     fun listAccounts(userId: Long, channelId: Long): List<SharedAccountResponse> {
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
         return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId)
             .map { toResponse(it, listOnly = true) }
     }
@@ -55,7 +55,7 @@ class SharedAccountService(
     fun getAccount(userId: Long, channelId: Long, accountId: Long): SharedAccountResponse {
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
         return toResponse(findAccountOrThrow(accountId, channelId))
     }
 
@@ -63,7 +63,7 @@ class SharedAccountService(
     fun createAccount(userId: Long, channelId: Long, request: CreateSharedAccountRequest): SharedAccountResponse {
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
 
         if (request.provider == AccountProvider.CUSTOM && request.providerLabel.isNullOrBlank()) {
             throw ExpectedException("CUSTOM 서비스는 providerLabel이 필요합니다.", HttpStatus.BAD_REQUEST)
@@ -115,7 +115,7 @@ class SharedAccountService(
     fun copyCredential(userId: Long, channelId: Long, accountId: Long): String {
         val channel = channelService.findChannelOrThrow(channelId)
         requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channel.teamId, userId)
+        teamPermissionService.requireTeamMember(channelService.requireTeamChannel(channel), userId)
         val account = findAccountOrThrow(accountId, channelId)
 
         if (account.credential == null) {

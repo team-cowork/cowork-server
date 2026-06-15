@@ -147,15 +147,22 @@ func (c *Consumer) buildChatMessage(ctx context.Context, event NotificationTrigg
 	content, _ := event.Data["content"].(string)
 	occurredAt, _ := event.Data["occurredAt"].(string)
 
-	teamName, err := c.teamClient.GetName(ctx, teamID)
-	if err != nil {
-		slog.Error("팀 이름 조회 실패 — 알림 스킵", "teamId", teamID, "err", err)
-		return "", "", false
-	}
-
 	senderName, err := c.userClient.GetDisplayName(ctx, authorID)
 	if err != nil {
 		slog.Error("발신자 이름 조회 실패 — 알림 스킵", "authorId", authorID, "err", err)
+		return "", "", false
+	}
+
+	// DM 채널 메시지는 팀에 속하지 않아 teamId가 없다(0). 발신자 이름을 제목으로 사용한다.
+	if teamID == 0 {
+		title = senderName
+		body = fmt.Sprintf("%s\n%s", truncate(content, 100), formatTime(occurredAt))
+		return title, body, true
+	}
+
+	teamName, err := c.teamClient.GetName(ctx, teamID)
+	if err != nil {
+		slog.Error("팀 이름 조회 실패 — 알림 스킵", "teamId", teamID, "err", err)
 		return "", "", false
 	}
 

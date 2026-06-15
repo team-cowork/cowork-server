@@ -1,15 +1,10 @@
-FROM golang:1.25-alpine AS builder
-WORKDIR /app
-COPY go.mod go.sum ./
-RUN go mod download
-COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -trimpath -o cowork-authorization ./cmd
-
+# 빌드 전 cowork-authorization (CGO_ENABLED=0 GOOS=linux 정적 바이너리)이 컨텍스트에 있어야 한다.
+# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates tzdata && \
     addgroup -S app && adduser -S app -G app
-USER app
 WORKDIR /app
-COPY --from=builder /app/cowork-authorization /usr/local/bin/cowork-authorization
+COPY --chown=app:app cowork-authorization /usr/local/bin/cowork-authorization
+USER app
 EXPOSE 8081
 CMD ["cowork-authorization"]

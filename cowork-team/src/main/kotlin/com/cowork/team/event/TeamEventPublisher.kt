@@ -28,6 +28,18 @@ class TeamEventPublisher(
         )
     }
 
+    fun publishMemberJoined(teamId: Long, teamName: String, userId: Long) {
+        publishLifecycle(
+            TeamEventPayload(
+                eventType = "MEMBER_JOINED",
+                teamId = teamId,
+                teamName = teamName,
+                actorUserId = userId,
+                targetUserIds = listOf(userId),
+            )
+        )
+    }
+
     fun publishRoleChanged(
         teamId: Long,
         teamName: String,

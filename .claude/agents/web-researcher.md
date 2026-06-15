@@ -1,7 +1,7 @@
 ---
 name: web-researcher
 description: "Gathers up-to-date information and compiles research from live web sources. Use when you need current facts, release notes, security advisories, library comparisons, or data beyond the model's training knowledge. Trigger phrases: '최신 정보 조사해줘', 'web-researcher 실행해', or any query about current releases, CVEs, or live technical data. DO NOT trigger when the user asks about historical facts, general concepts, or anything answerable from project documentation alone."
-tools: Bash, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, Glob, Grep, Read, RemoteTrigger, Skill, TaskCreate, TaskGet, TaskList, TaskUpdate, ToolSearch, WebFetch, WebSearch
+tools: WebSearch, WebFetch, Read, Glob, Grep, Bash
 model: haiku
 color: pink
 memory: none
@@ -73,8 +73,4 @@ Actionable next steps or suggestions based on the research.
 - **No hallucination**: Only report what you actually found via search. Do not fill gaps with training knowledge without clearly labeling it as such.
 
 ## Context Awareness
-This agent operates in the context of a Kotlin/Spring Boot project (datagsm-server). When research relates to technical topics in this stack, prioritize:
-- Spring Boot 3.4.x ecosystem
-- Kotlin-specific resources
-- JVM tooling and libraries
-- Security advisories affecting the tech stack
+Adapt your research focus to the project's tech stack. If the user's question relates to a specific framework or language, prioritize official documentation and resources for that stack. For security-related queries, always check for recent CVEs and security advisories.
