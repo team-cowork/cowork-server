@@ -2,6 +2,7 @@ package com.cowork.channel.controller
 
 import com.cowork.channel.dto.CreateMeetingNoteRequest
 import com.cowork.channel.dto.MeetingNoteResponse
+import com.cowork.channel.dto.UpdateMeetingNoteRequest
 import com.cowork.channel.service.MeetingNoteService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -59,4 +60,35 @@ class MeetingNoteController(
         @RequestBody request: CreateMeetingNoteRequest,
     ): ResponseEntity<MeetingNoteResponse> =
         ResponseEntity.status(201).body(meetingNoteService.createNote(userId, channelId, request))
+
+    @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "403", description = "채널 멤버가 아니거나 작성자가 아님"),
+        ApiResponse(responseCode = "404", description = "회의록 없음"),
+    )
+    @PatchMapping("/{noteId}")
+    fun updateNote(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable channelId: Long,
+        @PathVariable noteId: Long,
+        @RequestBody request: UpdateMeetingNoteRequest,
+    ): ResponseEntity<MeetingNoteResponse> =
+        ResponseEntity.ok(meetingNoteService.updateNote(userId, channelId, noteId, request))
+
+    @Operation(summary = "회의록 삭제", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "204", description = "삭제 성공"),
+        ApiResponse(responseCode = "403", description = "채널 멤버가 아니거나 작성자가 아님"),
+        ApiResponse(responseCode = "404", description = "회의록 없음"),
+    )
+    @DeleteMapping("/{noteId}")
+    fun deleteNote(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable channelId: Long,
+        @PathVariable noteId: Long,
+    ): ResponseEntity<Unit> {
+        meetingNoteService.deleteNote(userId, channelId, noteId)
+        return ResponseEntity.noContent().build()
+    }
 }

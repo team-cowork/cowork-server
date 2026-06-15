@@ -7,16 +7,20 @@ import com.cowork.project.domain.TeamMembership
 import com.cowork.project.dto.AddProjectMemberRequest
 import com.cowork.project.dto.CreateProjectRequest
 import com.cowork.project.dto.UpdateProjectRequest
+import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -25,8 +29,19 @@ class ProjectServiceTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
+    private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
 
-    private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository, projectEventPublisher)
+
+    @BeforeEach
+    fun setUp() {
+        TransactionSynchronizationManager.initSynchronization()
+    }
+
+    @AfterEach
+    fun tearDown() {
+        TransactionSynchronizationManager.clear()
+    }
 
     private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
