@@ -349,9 +349,30 @@ export class MessageRepository {
     findOnePendingAndMarkProcessing(): Promise<NotificationMessage | null> {
         return this.messageModel.findOneAndUpdate(
             { notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING' } },
+            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
             { new: true },
         ).lean() as Promise<NotificationMessage | null>;
+    }
+
+    /**
+     * PROCESSING 상태로 전환된 지 `staleThresholdMs` 이상 경과한 메시지를 PENDING으로 되돌립니다.
+     *
+     * 폴러 프로세스가 크래시하면 메시지가 PROCESSING에 영구 stuck될 수 있습니다.
+     * 폴러는 PENDING만 조회하므로 이 회수 없이는 해당 메시지의 알림이 영구 유실됩니다.
+     *
+     * @param staleThresholdMs - PROCESSING을 stale로 판단하는 경과 시간 (밀리초)
+     * @returns 회수된 메시지 수
+     */
+    async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
+        const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
+        const result = await this.messageModel.updateMany(
+            {
+                notificationStatus: 'PROCESSING',
+                notificationProcessingStartedAt: { $lt: staleBeforeDate },
+            },
+            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null } },
+        );
+        return result.modifiedCount;
     }
 
     /**

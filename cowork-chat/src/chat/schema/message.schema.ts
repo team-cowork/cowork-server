@@ -160,6 +160,13 @@ export class Message {
      * 한도 초과 시 `notificationStatus`가 `FAILED`로 전환됩니다.
      */
     @Prop({ default: 0 }) notificationRetryCount!: number;
+
+    /**
+     * PROCESSING 상태로 전환된 시각.
+     * 폴러 프로세스가 크래시하여 PROCESSING에 영구 stuck되는 상황을 방지하기 위해
+     * 이 값이 일정 시간 이상 경과하면 PENDING으로 회수한다.
+     */
+    @Prop({ type: Date, default: null }) notificationProcessingStartedAt!: Date | null;
 }
 
 /** {@link Message} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */
