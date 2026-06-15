@@ -20,7 +20,8 @@ export interface NotificationTriggerEvent {
     forcedUserIds: number[];
     data: {
         channelId: number;
-        teamId: number;
+        /** DM 채널 메시지는 팀에 속하지 않으므로 null */
+        teamId: number | null;
         authorId: number;
         content: string;
         /** 이벤트 발생 시각 (ISO 8601, 서버 기준) */

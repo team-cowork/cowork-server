@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 /** Mongoose 문서 타입. HydratedDocument로 래핑되어 _id, save() 등 Mongoose 메서드를 포함합니다. */
 export type ChannelMemberDocument = HydratedDocument<ChannelMember>;
@@ -16,8 +16,17 @@ export class ChannelMember {
     /** 멤버가 속한 채널의 식별자 */
     @Prop({ required: true }) channelId!: number;
 
-    /** 채널이 속한 팀의 식별자 */
-    @Prop({ required: true }) teamId!: number;
+    /** 채널이 속한 팀의 식별자. DM 채널은 팀에 속하지 않으므로 `null`. */
+    @Prop({ type: Number, default: null }) teamId!: number | null;
+
+    /** 채널 타입 (TEXT, VOICE, DM). channel 모듈의 멤버십 이벤트로 동기화된다. */
+    @Prop({ default: 'TEXT' }) channelType!: string;
+
+    /**
+     * DM 대화 숨김 여부 (Discord의 "닫기").
+     * 목록에서만 제외되며, 상대방 메시지 수신 시 자동으로 `false`로 복구된다.
+     */
+    @Prop({ default: false }) isHidden!: boolean;
 
     /** 채널에 가입된 사용자의 식별자 */
     @Prop({ required: true }) userId!: number;
@@ -27,6 +36,9 @@ export class ChannelMember {
      * 기본값은 `'MEMBER'`이며, 추후 `'OWNER'`, `'ADMIN'` 등으로 확장 가능합니다.
      */
     @Prop({ default: 'MEMBER' }) role!: string;
+
+    /** 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`. */
+    @Prop({ type: Types.ObjectId, default: null }) lastReadMessageId!: Types.ObjectId | null;
 }
 
 /** {@link ChannelMember} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */
