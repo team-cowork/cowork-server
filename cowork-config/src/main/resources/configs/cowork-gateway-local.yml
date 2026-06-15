@@ -133,6 +133,23 @@ spring:
             - StripPrefix=1
             - PrefixPath=/chat
 
+        - id: chat-service-team-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/search/messages
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        - id: channel-service-search
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/search/channels
+            - Method=GET
+          filters:
+            - StripPrefix=1
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
@@ -151,6 +168,33 @@ spring:
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+
+        # DM 채널 열기(멱등 생성)는 channel 서비스가 담당
+        - id: dm-open
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/dms
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        # DM 목록 조회/숨기기는 chat 서비스가 담당
+        - id: dm-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/dms, /api/dms/**
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        # 사용자 차단 (DM 수신 거부)
+        - id: block-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/block, /api/block/**
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
 
         - id: preference-service
           uri: lb://cowork-preference
