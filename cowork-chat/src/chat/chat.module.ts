@@ -1,4 +1,7 @@
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Module } from '@nestjs/common';
+import { AuthGuard } from '../common/guard/auth.guard';
+import { HttpLoggingInterceptor } from '../common/interceptor/http-logging.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -116,6 +119,8 @@ function createLogStream() {
     ],
     controllers: [ChatController, DmController, ProjectMessageController, TeamUnreadController, TeamSearchController, HealthController],
     providers: [
+        { provide: APP_GUARD, useClass: AuthGuard },
+        { provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor },
         ChatGateway,
         ChatService,
         MessageRepository,
