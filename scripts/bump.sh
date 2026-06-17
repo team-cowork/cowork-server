@@ -15,8 +15,6 @@ for FILE in "$ROOT_DIR"/cowork-*/build.gradle.kts; do
   perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$FILE"
 done
 
-perl -i -pe "s/^(\s*version\s*=\s*\")[^\"]*/\${1}${NEW_VERSION}/" "$ROOT_DIR/MODULE.bazel"
-
 for FILE in "$ROOT_DIR"/cowork-*/pom.xml; do
   if [ -f "$FILE" ]; then
     perl -i -0pe "s|(<artifactId>cowork-[^<]+</artifactId>\s*<version>)[^<]+|\${1}${NEW_VERSION}|" "$FILE"
