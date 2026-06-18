@@ -10,11 +10,10 @@ import com.cowork.team.dto.TeamMemberResponse
 import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -55,9 +54,7 @@ class TeamMemberService(
                 actorUserId = actorId,
                 targetUserIds = savedMembers.map { it.userId },
             )
-            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-                override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-            })
+            afterCommit { teamEventPublisher.publishLifecycle(payload) }
         }
 
         return savedMembers.map { TeamMemberResponse.of(it) }
@@ -108,9 +105,7 @@ class TeamMemberService(
             targetUserIds = listOf(targetUserId),
             newRole = request.role.name,
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
     }
 
     @Transactional
@@ -134,9 +129,7 @@ class TeamMemberService(
         }
 
         teamMemberRepository.delete(targetMember)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId)
-        })
+        afterCommit { preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId) }
 
         val payload = TeamEventPayload(
             eventType = "MEMBER_REMOVED",
@@ -145,8 +138,6 @@ class TeamMemberService(
             actorUserId = actorId,
             targetUserIds = listOf(targetUserId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
     }
 }
