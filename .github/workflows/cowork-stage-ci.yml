@@ -130,8 +130,8 @@ jobs:
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"},
-              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"22"},
+              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
+              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-team","build":"gradle","working-directory":"."}
             ]}'
@@ -167,7 +167,7 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
             [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
