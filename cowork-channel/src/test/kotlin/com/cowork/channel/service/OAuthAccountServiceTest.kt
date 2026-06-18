@@ -8,7 +8,7 @@ import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.SharedAccount
 import com.cowork.channel.repository.SharedAccountRepository
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
