@@ -6,7 +6,7 @@
 - Eureka Server: 서비스 등록/조회
 
 ## 스택
-- Spring Boot 3 / Kotlin / Java 21
+- Spring Boot 4 / Kotlin / Java 25
 - Spring Cloud Config Server + Eureka Server
 - Spring Cloud Bus (Kafka)
 - Spring Vault

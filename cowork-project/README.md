@@ -6,7 +6,7 @@
 - 멤버 역할 관리 (OWNER / EDITOR / VIEWER)
 
 ## 스택
-- Spring Boot 3 / Kotlin / Java 21
+- Spring Boot 4 / Kotlin / Java 25
 - Spring Data JPA + MySQL + Flyway
 - Spring Cloud (Eureka, Config)
 - Spring Kafka
