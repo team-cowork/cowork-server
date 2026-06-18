@@ -169,8 +169,7 @@ export class ElasticsearchService implements OnModuleInit {
 
         const response = await this.client.search({
             index: INDEX,
-            body: {
-                query: {
+            query: {
                     bool: {
                         must: [
                             { term: { teamId } },
@@ -201,7 +200,6 @@ export class ElasticsearchService implements OnModuleInit {
                 sort: [{ createdAt: 'desc' }, { messageId: 'desc' }],
                 size: limit,
                 ...(searchAfter ? { search_after: searchAfter } : {}),
-            },
         });
 
         const rawHits = (response as any).hits?.hits ?? [];
@@ -254,8 +252,7 @@ export class ElasticsearchService implements OnModuleInit {
 
         const response = await this.client.search({
             index: INDEX,
-            body: {
-                query: {
+            query: {
                     bool: {
                         must: [
                             { term: { projectId } },
@@ -286,7 +283,6 @@ export class ElasticsearchService implements OnModuleInit {
                 sort: [{ createdAt: 'desc' }, { messageId: 'desc' }],
                 size: limit,
                 ...(searchAfter ? { search_after: searchAfter } : {}),
-            },
         });
 
         const rawHits = (response as any).hits?.hits ?? [];
