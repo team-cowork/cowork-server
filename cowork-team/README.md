@@ -7,7 +7,7 @@
 - 팀 프로필 이미지 (MinIO presigned URL)
 
 ## 스택
-- Spring Boot 3 / Kotlin / Java 21
+- Spring Boot 4 / Kotlin / Java 25
 - Spring Data JPA + MySQL + Flyway
 - Spring Cloud (Eureka, Config, OpenFeign)
 - Spring Kafka

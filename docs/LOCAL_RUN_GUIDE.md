@@ -157,13 +157,13 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
 ### Go 서비스 (authorization, notification, voice)
 
 - 빌드 컨텍스트: 각 서비스 디렉터리
-- 베이스 이미지: `golang:1.25-alpine` (빌드) → `alpine:3.20` (런타임)
+- 베이스 이미지: `golang:1.26-alpine` (빌드) → `alpine:3.20` (런타임)
 
 ### NestJS 서비스 (chat)
 
 - 빌드 컨텍스트: `cowork-chat/`
 - `npm run build` (tsc) → `node dist/main.js`
-- 베이스 이미지: `node:22-alpine`
+- 베이스 이미지: `node:24-alpine`
 
 ## 8. 컨테이너 간 네트워크
 
@@ -272,7 +272,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - `docker/secrets/firebase-credentials.json`이 없으면 기동 자체가 실패한다.
 
 `elasticsearch`:
-- 이미지: `docker.elastic.co/elasticsearch/elasticsearch:8.13.4` + nori 형태소 분석기 플러그인 (빌드 시 설치)
+- 이미지: `docker.elastic.co/elasticsearch/elasticsearch:9.4.2` + nori 형태소 분석기 플러그인 (빌드 시 설치)
 - `discovery.type=single-node`, `xpack.security.enabled=false` (로컬 전용, 인증 없음)
 - 힙 메모리: `ES_JAVA_OPTS=-Xms512m -Xmx512m` → 컨테이너에 **최소 1 GB RAM** 여유 필요
 - 포트: `9200` (호스트에서 `localhost:9200`으로 직접 접근 가능)
@@ -295,7 +295,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - 같은 머신에서만 테스트한다면 `http://localhost:9000`으로 충분하다.
 
 Flyway 경고:
-- MySQL 컨테이너가 `8.4.8`이라 Flyway 로그에 버전 불일치 경고가 뜬다.
+- MySQL 컨테이너가 `9.7.1`이라 Flyway 로그에 버전 불일치 경고가 뜬다.
 - 현재는 실행에 지장 없다.
 
 Spring Boot 초기 기동 시간:
