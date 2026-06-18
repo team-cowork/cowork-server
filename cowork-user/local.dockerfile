@@ -1,6 +1,6 @@
-ARG ELIXIR_IMAGE=hexpm/elixir:1.17.3-erlang-27.1.1-debian-bookworm-20240926-slim
+ARG ELIXIR_IMAGE=hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250520-slim
 
-FROM flyway/flyway:11.8.1 AS flyway
+FROM flyway/flyway:12.8.1 AS flyway
 
 FROM ${ELIXIR_IMAGE} AS builder
 WORKDIR /app
