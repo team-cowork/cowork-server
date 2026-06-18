@@ -11,11 +11,10 @@ import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.repository.TeamInviteRepository
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.security.SecureRandom
 import java.time.LocalDateTime
@@ -112,9 +111,7 @@ class TeamInviteService(
             actorUserId = userId,
             targetUserIds = listOf(userId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
 
         return JoinTeamResponse(
             teamId = teamId,
