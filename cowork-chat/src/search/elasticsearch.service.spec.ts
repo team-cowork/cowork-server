@@ -163,7 +163,7 @@ describe('ElasticsearchService', () => {
 
             const result = await service.searchMessages(baseParams);
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.query.bool.must[0]).toEqual({ term: { projectId: 5 } });
             expect(body.query.bool.must[1]).toEqual({ terms: { channelId: [2, 3] } });
             expect(result.hits).toHaveLength(1);
@@ -198,7 +198,7 @@ describe('ElasticsearchService', () => {
 
             await service.searchMessages({ ...baseParams, before });
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.search_after).toEqual(sortValues);
         });
 
@@ -207,7 +207,7 @@ describe('ElasticsearchService', () => {
 
             await service.searchMessages(baseParams);
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.search_after).toBeUndefined();
         });
 
@@ -216,7 +216,7 @@ describe('ElasticsearchService', () => {
 
             await service.searchMessages({ ...baseParams, authorId: 42 });
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.query.bool.filter).toEqual(
                 expect.arrayContaining([{ term: { authorId: 42 } }]),
             );
@@ -227,7 +227,7 @@ describe('ElasticsearchService', () => {
 
             await service.searchMessages({ ...baseParams, type: 'FILE' });
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.query.bool.filter).toEqual(
                 expect.arrayContaining([{ term: { type: 'FILE' } }]),
             );
@@ -238,7 +238,7 @@ describe('ElasticsearchService', () => {
 
             await service.searchMessages({ ...baseParams, hasFile: true });
 
-            const body = mockClient.search.mock.calls[0][0].body;
+            const body = mockClient.search.mock.calls[0][0];
             expect(body.query.bool.filter).toEqual(
                 expect.arrayContaining([{ term: { hasAttachments: true } }]),
             );
