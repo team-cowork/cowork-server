@@ -4,7 +4,7 @@
 cowork 프로모션 웹사이트.
 
 ## 스택
-- Nuxt 3
+- Nuxt 4
 - Tailwind CSS
 - Maven
 - Gradle
