@@ -9,13 +9,12 @@ import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
+import com.cowork.project.support.afterCommit
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 private const val TEAM_ROLE_OWNER = "OWNER"
@@ -101,11 +100,7 @@ class ProjectService(
             )
         )
 
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                projectEventPublisher.publishCreated(project)
-            }
-        })
+        afterCommit { projectEventPublisher.publishCreated(project) }
 
         return ProjectResponse.of(project)
     }
@@ -126,11 +121,7 @@ class ProjectService(
         request.description?.let { project.updateDescription(it) }
         request.status?.let { project.updateStatus(parseStatus(it)) }
 
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                projectEventPublisher.publishUpdated(project)
-            }
-        })
+        afterCommit { projectEventPublisher.publishUpdated(project) }
 
         return ProjectResponse.of(project)
     }
@@ -140,11 +131,7 @@ class ProjectService(
         val project = findProjectOrThrow(projectId)
         requireProjectOwner(project, userId)
         projectRepository.delete(project)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                projectEventPublisher.publishDeleted(project)
-            }
-        })
+        afterCommit { projectEventPublisher.publishDeleted(project) }
     }
 
     fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
