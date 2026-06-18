@@ -11,11 +11,10 @@ import com.cowork.channel.event.ChannelMemberEventPublisher
 import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
+import com.cowork.channel.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -102,12 +101,10 @@ class ChannelService(
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             meetingNoteTemplateService.createDefaultTemplate(channel)
         }
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
-                channelEventPublisher.publishCreated(channel)
-            }
-        })
+        afterCommit {
+            channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+            channelEventPublisher.publishCreated(channel)
+        }
         return ChannelResponse.of(channel)
     }
 
@@ -150,11 +147,7 @@ class ChannelService(
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelEventPublisher.publishUpdated(channel)
-            }
-        })
+        afterCommit { channelEventPublisher.publishUpdated(channel) }
         return ChannelResponse.of(channel)
     }
 
@@ -177,14 +170,12 @@ class ChannelService(
         requireChannelManager(channel, userId)
         val members = channelMemberRepository.findByChannelId(channelId)
         channelRepository.delete(channel)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                members.forEach { member ->
-                    channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-                }
-                channelEventPublisher.publishDeleted(channel)
+        afterCommit {
+            members.forEach { member ->
+                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
             }
-        })
+            channelEventPublisher.publishDeleted(channel)
+        }
     }
 
     @Transactional
@@ -209,11 +200,9 @@ class ChannelService(
         val member = channelMemberRepository.save(
             ChannelMember(channelId = channelId, userId = request.userId)
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
-            }
-        })
+        afterCommit {
+            channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
+        }
         return ChannelMemberResponse.of(member)
     }
 
@@ -248,10 +237,8 @@ class ChannelService(
         }
 
         channelMemberRepository.delete(member)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-            }
-        })
+        afterCommit {
+            channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
+        }
     }
 }
