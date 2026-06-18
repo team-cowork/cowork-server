@@ -7,7 +7,7 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.SharedAccount
 import com.cowork.channel.repository.SharedAccountRepository
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service

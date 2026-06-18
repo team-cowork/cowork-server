@@ -5,7 +5,7 @@ defmodule CoworkUser.MixProject do
     [
       app: :cowork_user,
       version: "20260602.0.0",
-      elixir: "~> 1.17",
+      elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -20,15 +20,15 @@ defmodule CoworkUser.MixProject do
 
   defp deps do
     [
-      {:plug_cowboy, "~> 2.7"},
+      {:plug_cowboy, "~> 2.8"},
       {:jason, "~> 1.4"},
-      {:ecto_sql, "~> 3.12"},
-      {:myxql, "~> 0.7"},
-      {:req, "~> 0.5"},
+      {:ecto_sql, "~> 3.14"},
+      {:myxql, "~> 0.9"},
+      {:req, "~> 0.6"},
       {:brod, "~> 4.5"},
-      {:ex_aws, "~> 2.5"},
+      {:ex_aws, "~> 2.7"},
       {:ex_aws_s3, "~> 2.5"},
-      {:hackney, "~> 1.23"},
+      {:hackney, "~> 4.4"},
       {:logger_file_backend, "~> 0.0.14"},
       {:sweet_xml, "~> 0.7"}
     ]

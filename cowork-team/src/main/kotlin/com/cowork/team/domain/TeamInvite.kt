@@ -41,7 +41,7 @@ class TeamInvite(
         deletedAt = LocalDateTime.now()
     }
 
-    fun isExpired(): Boolean = expiresAt != null && expiresAt.isBefore(LocalDateTime.now())
+    fun isExpired(): Boolean = expiresAt?.isBefore(LocalDateTime.now()) ?: false
 
     fun isDeleted(): Boolean = deletedAt != null
 }
