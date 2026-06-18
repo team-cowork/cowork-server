@@ -1,5 +1,5 @@
 # Build stage: compile and package with the bundled Maven wrapper.
-FROM eclipse-temurin:21-jdk-alpine AS builder
+FROM eclipse-temurin:25-jdk-alpine AS builder
 WORKDIR /workspace/cowork-project
 # Resolve dependencies first so this layer is cached when only sources change.
 COPY cowork-project/.mvn .mvn
@@ -9,7 +9,7 @@ RUN chmod +x mvnw && ./mvnw -B dependency:go-offline || true
 COPY cowork-project/src src
 RUN ./mvnw -B clean package -DskipTests
 
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-project/target/cowork-project-*.jar app.jar

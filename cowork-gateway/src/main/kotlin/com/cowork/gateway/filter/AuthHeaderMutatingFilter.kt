@@ -16,8 +16,8 @@ class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
         return ReactiveSecurityContextHolder.getContext()
-            .map { it.authentication }
-            .filter { it != null && it.isAuthenticated }
+            .mapNotNull { it.authentication }
+            .filter { it.isAuthenticated }
             .flatMap { auth ->
                 @Suppress("UNCHECKED_CAST")
                 val details = auth.details as? Map<String, String>

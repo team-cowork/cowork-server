@@ -1,7 +1,7 @@
 package com.cowork.gateway.filter
 
 import com.cowork.gateway.response.CommonApiResponse
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import org.reactivestreams.Publisher
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
