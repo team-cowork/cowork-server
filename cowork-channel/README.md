@@ -7,7 +7,7 @@
 - 팀/유저 라이프사이클 이벤트 수신 후 채널·멤버십 정리
 
 ## 스택
-- Spring Boot 3 / Kotlin / Java 21
+- Spring Boot 4 / Kotlin / Java 25
 - Spring Data JPA + MySQL + Flyway
 - Spring Cloud (Eureka, Config)
 - Spring Kafka

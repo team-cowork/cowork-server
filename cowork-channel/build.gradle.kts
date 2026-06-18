@@ -11,7 +11,7 @@ version = "20260602.0"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -33,7 +33,8 @@ dependencies {
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
     implementation(libs.spring.cloud.starter.openfeign)
-    implementation(libs.spring.kafka)
+    implementation(libs.spring.boot.starter.kafka)
+    implementation(libs.jackson.module.kotlin)
 
     implementation(libs.mysql.connector.j)
     implementation(libs.flyway.core)
