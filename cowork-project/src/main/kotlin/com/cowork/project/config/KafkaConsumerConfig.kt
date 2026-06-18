@@ -4,7 +4,7 @@ import com.cowork.project.consumer.TeamLifecyclePayload
 import com.cowork.project.consumer.UserLifecyclePayload
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
-import org.springframework.boot.autoconfigure.kafka.KafkaProperties
+import org.springframework.boot.kafka.autoconfigure.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.kafka.annotation.EnableKafka
@@ -30,8 +30,8 @@ class KafkaConsumerConfig(
         private const val RETRY_MAX_ATTEMPTS = 3L
     }
 
-    private fun <T> consumerFactory(targetType: Class<T>): ConsumerFactory<String, T> {
-        val props = kafkaProperties.buildConsumerProperties(null).toMutableMap<String, Any>()
+    private fun <T : Any> consumerFactory(targetType: Class<T>): ConsumerFactory<String, T> {
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS] = StringDeserializer::class.java
@@ -39,14 +39,14 @@ class KafkaConsumerConfig(
         props[JsonDeserializer.TRUSTED_PACKAGES] = "*"
         props[JsonDeserializer.USE_TYPE_INFO_HEADERS] = false
         props[JsonDeserializer.VALUE_DEFAULT_TYPE] = targetType.name
-        return DefaultKafkaConsumerFactory(props)
+        return DefaultKafkaConsumerFactory<String, T>(props)
     }
 
-    private fun <T> listenerContainerFactory(
+    private fun <T : Any> listenerContainerFactory(
         targetType: Class<T>,
     ): ConcurrentKafkaListenerContainerFactory<String, T> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, T>()
-        factory.consumerFactory = consumerFactory(targetType)
+        factory.setConsumerFactory(consumerFactory(targetType))
         factory.setCommonErrorHandler(
             DefaultErrorHandler(
                 DeadLetterPublishingRecoverer(kafkaTemplate),
