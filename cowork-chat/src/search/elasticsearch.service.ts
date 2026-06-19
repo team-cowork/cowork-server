@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Client, estypes } from '@elastic/elasticsearch';
-import { ELASTICSEARCH_CLIENT } from './elasticsearch.module';
+import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 
 const INDEX = 'chat_messages';
 
