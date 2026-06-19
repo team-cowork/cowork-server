@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ElasticsearchService } from './elasticsearch.service';
-import { ELASTICSEARCH_CLIENT } from './elasticsearch.module';
+import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 
 const mockClient = {
     indices: {
