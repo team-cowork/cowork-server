@@ -1,5 +1,6 @@
 defmodule CoworkUser.Accounts do
   import Ecto.Query
+  require Logger
 
   alias Ecto.Multi
   alias CoworkUser.Accounts.{Account, Profile, ProfileRole}
@@ -245,9 +246,7 @@ defmodule CoworkUser.Accounts do
       sort_by = Map.get(params, "sort_by", "id")
       sort_order = Map.get(params, "sort_order", "asc")
 
-      base_query =
-        from p in Profile,
-          join: a in assoc(p, :account)
+      base_query = profile_with_account_query()
 
       filtered_query =
         base_query
@@ -352,12 +351,14 @@ defmodule CoworkUser.Accounts do
   defp query_display_names([]), do: []
 
   defp query_display_names(ids) do
-    from(p in Profile,
-      join: a in assoc(p, :account),
-      where: a.id in ^ids,
-      select: %{id: a.id, name: a.name, nickname: p.nickname}
-    )
+    profile_with_account_query()
+    |> where([_p, a], a.id in ^ids)
+    |> select([p, a], %{id: a.id, name: a.name, nickname: p.nickname})
     |> Repo.all()
+  end
+
+  defp profile_with_account_query do
+    from p in Profile, join: a in assoc(p, :account)
   end
 
   defp fetch_cached_display_names([]), do: %{}
@@ -394,8 +395,12 @@ defmodule CoworkUser.Accounts do
         ["SET", display_name_cache_key(row.id), payload, "EX", Integer.to_string(@display_name_cache_ttl_seconds)]
       end)
 
-    Redix.pipeline(:redix, commands)
-    :ok
+    case Redix.pipeline(:redix, commands) do
+      {:ok, _results} -> :ok
+      {:error, reason} ->
+        Logger.warning("표시 이름 캐시 저장 실패: #{inspect(reason)}")
+        :ok
+    end
   end
 
   defp display_name_cache_key(id), do: "user:display_name:#{id}"
@@ -478,20 +483,27 @@ defmodule CoworkUser.Accounts do
   end
 
   defp maybe_user_ids(query, ids_str) when is_binary(ids_str) do
-    ids =
-      ids_str
-      |> String.split(",")
-      |> Enum.flat_map(fn s ->
-        case Integer.parse(String.trim(s)) do
-          {n, ""} when n > 0 -> [n]
-          _ -> []
-        end
-      end)
-
-    case ids do
+    case parse_int_csv(ids_str) do
       [] -> from [_p, a] in query, where: false
-      _ -> from [_p, a] in query, where: a.id in ^ids
+      ids -> from [_p, a] in query, where: a.id in ^ids
     end
+  end
+
+  @doc """
+  쉼표로 구분된 정수 ID 목록 문자열을 파싱한다.
+
+  유효하지 않은 토큰(빈 문자열, 0 이하, 정수가 아닌 값)은 무시한다.
+  `user_ids` 검색 필터(`maybe_user_ids/2`)와 `GET /users/batch`(router의 `parse_ids/1`)가 공유한다.
+  """
+  def parse_int_csv(ids_str) when is_binary(ids_str) do
+    ids_str
+    |> String.split(",")
+    |> Enum.flat_map(fn s ->
+      case Integer.parse(String.trim(s)) do
+        {n, ""} when n > 0 -> [n]
+        _ -> []
+      end
+    end)
   end
 
   defp maybe_role(query, nil), do: query
