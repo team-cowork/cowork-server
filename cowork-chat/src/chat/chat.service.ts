@@ -780,14 +780,14 @@ export class ChatService {
      */
     private async loadUploaderNames(items: Array<{ uploaderId: number }>): Promise<Map<number, string>> {
         const uniqueUploaderIds = [...new Set(items.map((item) => item.uploaderId))];
-        const entries = await Promise.all(
-            uniqueUploaderIds.map(async (uploaderId) => {
-                if (uploaderId <= SYSTEM_AUTHOR_ID) return [uploaderId, SYSTEM_AUTHOR_NAME] as const;
-                const name = await this.userClient.getDisplayName(uploaderId);
-                return [uploaderId, name] as const;
-            }),
-        );
+        const systemIds = uniqueUploaderIds.filter((id) => id <= SYSTEM_AUTHOR_ID);
+        const realIds = uniqueUploaderIds.filter((id) => id > SYSTEM_AUTHOR_ID);
 
-        return new Map(entries);
+        const names = await this.userClient.getDisplayNames(realIds);
+        for (const systemId of systemIds) {
+            names.set(systemId, SYSTEM_AUTHOR_NAME);
+        }
+
+        return names;
     }
 }

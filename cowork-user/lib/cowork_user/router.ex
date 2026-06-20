@@ -109,6 +109,15 @@ defmodule CoworkUser.Router do
     end
   end
 
+  get "/users/batch" do
+    with {:ok, ids} <- parse_ids(conn.params["ids"]),
+         {:ok, users} <- Accounts.get_display_names(ids) do
+      JSON.send(conn, 200, %{users: users})
+    else
+      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
+    end
+  end
+
   get "/users/:user_id" do
     with {:ok, user_id} <- parse_integer(user_id, "user_id"),
          {:ok, profile} <- Accounts.get_user_profile(user_id) do
@@ -145,6 +154,23 @@ defmodule CoworkUser.Router do
       _ -> {:error, {:validation, "#{field_name} 값이 올바르지 않습니다."}}
     end
   end
+
+  defp parse_ids(nil), do: {:error, {:validation, "ids 파라미터가 필요합니다."}}
+
+  defp parse_ids(ids_str) when is_binary(ids_str) do
+    ids =
+      ids_str
+      |> Accounts.parse_int_csv()
+      |> Enum.uniq()
+      |> Enum.take(100)
+
+    case ids do
+      [] -> {:error, {:validation, "유효한 ids가 없습니다."}}
+      _ -> {:ok, ids}
+    end
+  end
+
+  defp parse_ids(_invalid), do: {:error, {:validation, "ids 파라미터 형식이 올바르지 않습니다."}}
 
   defp measure_request(conn, _opts) do
     start = System.monotonic_time()
