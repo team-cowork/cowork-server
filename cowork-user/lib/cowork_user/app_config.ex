@@ -23,7 +23,9 @@ defmodule CoworkUser.AppConfig do
     :presigned_put_expiry_minutes,
     :presigned_get_expiry_minutes,
     :max_file_size_bytes,
-    :allowed_content_types
+    :allowed_content_types,
+    :redis_host,
+    :redis_port
   ]
 
   @persistent_key {__MODULE__, :config}
@@ -84,7 +86,9 @@ defmodule CoworkUser.AppConfig do
       presigned_put_expiry_minutes: lookup(remote, ["MINIO_PRESIGNED_PUT_EXPIRY_MINUTES", "minio_presigned_put_expiry_minutes"], "5") |> String.to_integer(),
       presigned_get_expiry_minutes: lookup(remote, ["MINIO_PRESIGNED_GET_EXPIRY_MINUTES", "minio_presigned_get_expiry_minutes"], "15") |> String.to_integer(),
       max_file_size_bytes: lookup(remote, ["MINIO_MAX_FILE_SIZE_BYTES", "minio_max_file_size_bytes"], "5242880") |> String.to_integer(),
-      allowed_content_types: parse_csv_or_list(lookup(remote, ["MINIO_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp"))
+      allowed_content_types: parse_csv_or_list(lookup(remote, ["MINIO_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp")),
+      redis_host: lookup(remote, ["REDIS_HOST", "redis_host"], "localhost"),
+      redis_port: lookup(remote, ["REDIS_PORT", "redis_port"], "6379") |> String.to_integer()
     }
   end
 
