@@ -526,6 +526,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       PORT: "8082"
       APP_CONFIG_URL: http://cowork-config:8761
@@ -542,6 +544,8 @@ services:
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     ports:
       - "8082:8082"
     volumes:
