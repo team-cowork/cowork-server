@@ -95,7 +95,7 @@ const mockChannelClient = {
 };
 
 const mockUserClient = {
-    getDisplayName: jest.fn(),
+    getDisplayNames: jest.fn(),
 };
 
 const mockChatGateway = {
@@ -342,13 +342,13 @@ describe('ChatService', () => {
                 ],
                 nextCursor: null,
             });
-            mockUserClient.getDisplayName.mockResolvedValue('홍길동');
+            mockUserClient.getDisplayNames.mockResolvedValue(new Map([[42, '홍길동']]));
 
             const result = await service.getFileList({ channelId: 1, userId: 42 }, {});
 
             expect(mockChannelClient.getChannel).toHaveBeenCalledWith(1, 42);
             expect(mockMessageRepository.findFileAttachments).toHaveBeenCalledWith(1, undefined, 20);
-            expect(mockUserClient.getDisplayName).toHaveBeenCalledWith(42);
+            expect(mockUserClient.getDisplayNames).toHaveBeenCalledWith([42]);
             expect(result.files).toEqual([
                 {
                     messageId: '665f00000000000000000001',
