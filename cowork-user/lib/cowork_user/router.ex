@@ -157,16 +157,10 @@ defmodule CoworkUser.Router do
 
   defp parse_ids(nil), do: {:error, {:validation, "ids 파라미터가 필요합니다."}}
 
-  defp parse_ids(ids_str) do
+  defp parse_ids(ids_str) when is_binary(ids_str) do
     ids =
       ids_str
-      |> String.split(",")
-      |> Enum.flat_map(fn s ->
-        case Integer.parse(String.trim(s)) do
-          {n, ""} when n > 0 -> [n]
-          _ -> []
-        end
-      end)
+      |> Accounts.parse_int_csv()
       |> Enum.uniq()
       |> Enum.take(100)
 
@@ -175,6 +169,8 @@ defmodule CoworkUser.Router do
       _ -> {:ok, ids}
     end
   end
+
+  defp parse_ids(_invalid), do: {:error, {:validation, "ids 파라미터 형식이 올바르지 않습니다."}}
 
   defp measure_request(conn, _opts) do
     start = System.monotonic_time()
