@@ -109,6 +109,15 @@ defmodule CoworkUser.Router do
     end
   end
 
+  get "/users/batch" do
+    with {:ok, ids} <- parse_ids(conn.params["ids"]),
+         {:ok, users} <- Accounts.get_display_names(ids) do
+      JSON.send(conn, 200, %{users: users})
+    else
+      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
+    end
+  end
+
   get "/users/:user_id" do
     with {:ok, user_id} <- parse_integer(user_id, "user_id"),
          {:ok, profile} <- Accounts.get_user_profile(user_id) do
@@ -143,6 +152,27 @@ defmodule CoworkUser.Router do
     case Integer.parse(to_string(value)) do
       {parsed, ""} -> {:ok, parsed}
       _ -> {:error, {:validation, "#{field_name} 값이 올바르지 않습니다."}}
+    end
+  end
+
+  defp parse_ids(nil), do: {:error, {:validation, "ids 파라미터가 필요합니다."}}
+
+  defp parse_ids(ids_str) do
+    ids =
+      ids_str
+      |> String.split(",")
+      |> Enum.flat_map(fn s ->
+        case Integer.parse(String.trim(s)) do
+          {n, ""} when n > 0 -> [n]
+          _ -> []
+        end
+      end)
+      |> Enum.uniq()
+      |> Enum.take(100)
+
+    case ids do
+      [] -> {:error, {:validation, "유효한 ids가 없습니다."}}
+      _ -> {:ok, ids}
     end
   end
 
