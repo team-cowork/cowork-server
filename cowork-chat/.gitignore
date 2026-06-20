@@ -20,3 +20,8 @@ Thumbs.db
 ### IDE ###
 .idea/
 .vscode/
+
+### Personal notes ###
+PERFORMANCE_REVIEW.md
+scripts/bench-n-plus-1.mjs
+scripts/bench-n-plus-1.k6.js
