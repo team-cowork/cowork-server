@@ -18,6 +18,8 @@ defmodule CoworkUser.Accounts do
   end
 
   @display_name_cache_ttl_seconds 60
+  @display_name_not_found_ttl_seconds 30
+  @not_found_marker "__not_found__"
 
   @doc """
   여러 사용자의 표시 이름(name/nickname)만 일괄 조회한다.
@@ -30,15 +32,24 @@ defmodule CoworkUser.Accounts do
   Redis에 `#{@display_name_cache_ttl_seconds}`초 TTL로 캐시한다. 이름/닉네임은
   자주 바뀌지 않고 반복 조회가 많은 데이터라 캐시 적중률이 높다. Redis 조회가 실패해도
   (연결 끊김 등) 전체를 캐시 미스로 간주해 DB로 폴백한다.
+
+  DB에 존재하지 않는 user_id는 `#{@display_name_not_found_ttl_seconds}`초 TTL로 별도
+  마킹해 캐시한다(negative caching). 존재하지 않는 id가 반복 조회되는 캐시 관통을 막기
+  위함이며, 실존 데이터보다 짧은 TTL을 둬서 새로 생성된 사용자가 오래 숨겨지지 않게 한다.
   """
   def get_display_names(ids) when is_list(ids) do
     cached = fetch_cached_display_names(ids)
     missing_ids = Enum.reject(ids, &Map.has_key?(cached, &1))
 
     fresh = query_display_names(missing_ids)
-    cache_display_names(fresh)
+    found_ids = MapSet.new(fresh, & &1.id)
+    not_found_ids = Enum.reject(missing_ids, &MapSet.member?(found_ids, &1))
 
-    {:ok, Map.values(cached) ++ fresh}
+    cache_display_names(fresh)
+    cache_not_found(not_found_ids)
+
+    results = cached |> Map.values() |> Enum.reject(&(&1 == :not_found))
+    {:ok, results ++ fresh}
   end
 
   def update_my_profile(user_id, attrs) do
@@ -379,6 +390,8 @@ defmodule CoworkUser.Accounts do
 
   defp put_if_cached(acc, _id, nil), do: acc
 
+  defp put_if_cached(acc, id, @not_found_marker), do: Map.put(acc, id, :not_found)
+
   defp put_if_cached(acc, id, json) do
     case Jason.decode(json) do
       {:ok, %{"name" => name, "nickname" => nickname}} -> Map.put(acc, id, %{id: id, name: name, nickname: nickname})
@@ -386,15 +399,26 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  defp cache_display_names([]), do: :ok
-
   defp cache_display_names(rows) do
-    commands =
-      Enum.map(rows, fn row ->
-        payload = Jason.encode!(%{name: row.name, nickname: row.nickname})
-        ["SET", display_name_cache_key(row.id), payload, "EX", Integer.to_string(@display_name_cache_ttl_seconds)]
-      end)
+    rows
+    |> Enum.map(fn row ->
+      payload = Jason.encode!(%{name: row.name, nickname: row.nickname})
+      ["SET", display_name_cache_key(row.id), payload, "EX", Integer.to_string(@display_name_cache_ttl_seconds)]
+    end)
+    |> persist_cache_commands()
+  end
 
+  defp cache_not_found(ids) do
+    ids
+    |> Enum.map(fn id ->
+      ["SET", display_name_cache_key(id), @not_found_marker, "EX", Integer.to_string(@display_name_not_found_ttl_seconds)]
+    end)
+    |> persist_cache_commands()
+  end
+
+  defp persist_cache_commands([]), do: :ok
+
+  defp persist_cache_commands(commands) do
     case Redix.pipeline(:redix, commands) do
       {:ok, _results} -> :ok
       {:error, reason} ->
