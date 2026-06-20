@@ -16,6 +16,26 @@ defmodule CoworkUser.Accounts do
     end
   end
 
+  @doc """
+  여러 사용자의 표시 이름(name/nickname)만 단일 쿼리로 일괄 조회한다.
+
+  N개의 user_id에 대해 N번 `GET /users/:id`를 호출하던 N+1 패턴(예: chat 서비스의
+  파일 업로더 이름 조회)을 대체하기 위한 배치 조회 API.
+  `to_user_response/1`(전체 프로필 + profile_roles preload + 프로필 이미지 presigned URL 생성)을
+  N명분 재사용하면 배치 호출 1번이 오히려 더 무거워지므로, JOIN 1번으로 필요한 컬럼만 조회한다.
+  """
+  def get_display_names(ids) when is_list(ids) do
+    rows =
+      from(p in Profile,
+        join: a in assoc(p, :account),
+        where: a.id in ^ids,
+        select: %{id: a.id, name: a.name, nickname: p.nickname}
+      )
+      |> Repo.all()
+
+    {:ok, rows}
+  end
+
   def update_my_profile(user_id, attrs) do
     with %Profile{} = profile <- load_profile(user_id) do
       roles = attrs["roles"] |> normalize_roles()
