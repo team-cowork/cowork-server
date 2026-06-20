@@ -30,7 +30,8 @@ defmodule CoworkUser.MixProject do
       {:ex_aws_s3, "~> 2.5"},
       {:hackney, "~> 4.4"},
       {:logger_file_backend, "~> 0.0.14"},
-      {:sweet_xml, "~> 0.7"}
+      {:sweet_xml, "~> 0.7"},
+      {:redix, "~> 1.5"}
     ]
   end
 end
