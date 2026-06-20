@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
@@ -206,8 +206,8 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
-              MATRIX='{"include":[{"service":"변경 없음","build":"skip"}]}'
-              SERVICES="없음"
+              MATRIX='{"include":[{"service":"no-changes","build":"skip"}]}'
+              SERVICES="none"
             fi
           fi
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
@@ -229,10 +229,10 @@ jobs:
     steps:
       - name: No Changed Services
         if: matrix.build == 'skip'
-        run: echo "변경된 서비스가 없습니다."
+        run: echo "No changed services."
       - name: Checkout Code
         if: matrix.build != 'skip'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup JDK
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v5
