@@ -17,9 +17,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/추방 API")
 @RestController
 @RequestMapping("/teams/{teamId}/members")
-class TeamMemberController(
-    private val teamMemberService: TeamMemberService,
-) {
+class TeamMemberController(private val teamMemberService: TeamMemberService) {
 
     @Operation(summary = "멤버 초대", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -32,16 +30,13 @@ class TeamMemberController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: InviteMembersRequest,
-    ): ResponseEntity<List<TeamMemberResponse>> =
-        ResponseEntity.status(HttpStatus.CREATED)
-            .body(teamMemberService.inviteMembers(userId, teamId, request))
+    ): ResponseEntity<List<TeamMemberResponse>> = ResponseEntity.status(HttpStatus.CREATED)
+        .body(teamMemberService.inviteMembers(userId, teamId, request))
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
-    fun getMembers(
-        @PathVariable teamId: Long,
-    ): ResponseEntity<List<TeamMemberResponse>> =
+    fun getMembers(@PathVariable teamId: Long): ResponseEntity<List<TeamMemberResponse>> =
         ResponseEntity.ok(teamMemberService.getMembers(teamId))
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
@@ -49,10 +44,7 @@ class TeamMemberController(
         ApiResponse(responseCode = "200", description = "멤버 여부 반환"),
     )
     @GetMapping("/{userId}/exists")
-    fun isMember(
-        @PathVariable teamId: Long,
-        @PathVariable userId: Long,
-    ): ResponseEntity<Map<String, Boolean>> =
+    fun isMember(@PathVariable teamId: Long, @PathVariable userId: Long): ResponseEntity<Map<String, Boolean>> =
         ResponseEntity.ok(mapOf("isMember" to teamMemberService.isMember(teamId, userId)))
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
