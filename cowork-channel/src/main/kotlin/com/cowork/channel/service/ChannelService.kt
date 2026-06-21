@@ -30,10 +30,9 @@ class ChannelService(
     private val meetingNoteTemplateService: MeetingNoteTemplateService,
 ) {
 
-    fun findChannelOrThrow(channelId: Long): Channel =
-        channelRepository.findById(channelId).orElseThrow {
-            ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
-        }
+    fun findChannelOrThrow(channelId: Long): Channel = channelRepository.findById(channelId).orElseThrow {
+        ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
+    }
 
     /** DM 채널이면 거부하고, 팀 채널이면 non-null teamId를 반환한다. */
     fun requireTeamChannel(channel: Channel): Long {
@@ -95,7 +94,7 @@ class ChannelService(
                 isPrivate = request.isPrivate,
                 position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
-            )
+            ),
         )
         val member = channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
@@ -141,7 +140,12 @@ class ChannelService(
     }
 
     @Transactional
-    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean = false): ChannelResponse {
+    fun updateChannel(
+        userId: Long,
+        channelId: Long,
+        request: UpdateChannelRequest,
+        updateProjectId: Boolean = false,
+    ): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
         requireTeamChannel(channel)
         requireChannelManager(channel, userId)
@@ -198,7 +202,7 @@ class ChannelService(
         }
 
         val member = channelMemberRepository.save(
-            ChannelMember(channelId = channelId, userId = request.userId)
+            ChannelMember(channelId = channelId, userId = request.userId),
         )
         afterCommit {
             channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)

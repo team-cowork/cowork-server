@@ -23,9 +23,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀", description = "팀 생성/수정/삭제 API")
 @RestController
 @RequestMapping("/teams")
-class TeamController(
-    private val teamService: TeamService,
-) {
+class TeamController(private val teamService: TeamService) {
 
     @Operation(summary = "팀 아이콘 Presigned URL 발급", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -46,9 +44,7 @@ class TeamController(
         ApiResponse(responseCode = "413", description = "파일 크기 초과"),
     )
     @PostMapping("/icon/confirm")
-    fun confirmIconUpload(
-        @RequestBody request: IconConfirmRequest,
-    ): ResponseEntity<IconConfirmResponse> =
+    fun confirmIconUpload(@RequestBody request: IconConfirmRequest): ResponseEntity<IconConfirmResponse> =
         ResponseEntity.ok(teamService.confirmIconUpload(request.objectKey))
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
@@ -68,8 +64,7 @@ class TeamController(
     @GetMapping
     fun getMyTeams(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-    ): ResponseEntity<List<TeamSummaryResponse>> =
-        ResponseEntity.ok(teamService.getMyTeams(userId))
+    ): ResponseEntity<List<TeamSummaryResponse>> = ResponseEntity.ok(teamService.getMyTeams(userId))
 
     @Operation(summary = "팀 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -77,9 +72,7 @@ class TeamController(
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
     @GetMapping("/{teamId}")
-    fun getTeam(
-        @PathVariable teamId: Long,
-    ): ResponseEntity<TeamResponse> =
+    fun getTeam(@PathVariable teamId: Long): ResponseEntity<TeamResponse> =
         ResponseEntity.ok(teamService.getTeam(teamId))
 
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
@@ -93,8 +86,7 @@ class TeamController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateTeamRequest,
-    ): ResponseEntity<TeamResponse> =
-        ResponseEntity.ok(teamService.updateTeam(userId, teamId, request))
+    ): ResponseEntity<TeamResponse> = ResponseEntity.ok(teamService.updateTeam(userId, teamId, request))
 
     @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -107,8 +99,7 @@ class TeamController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateIconRequest,
-    ): ResponseEntity<IconConfirmResponse> =
-        ResponseEntity.ok(teamService.updateIcon(userId, teamId, request.iconUrl))
+    ): ResponseEntity<IconConfirmResponse> = ResponseEntity.ok(teamService.updateIcon(userId, teamId, request.iconUrl))
 
     @Operation(summary = "팀 아이콘 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

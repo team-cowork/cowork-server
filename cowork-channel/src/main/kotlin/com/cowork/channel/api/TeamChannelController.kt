@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "채널", description = "팀 채널 조회 API")
 @RestController
 @RequestMapping("/teams")
-class TeamChannelController(
-    private val listTeamChannelsService: ListTeamChannelsService,
-) {
+class TeamChannelController(private val listTeamChannelsService: ListTeamChannelsService) {
 
     @Operation(summary = "팀 채널 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -29,6 +27,5 @@ class TeamChannelController(
     fun listTeamChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<ChannelResponse> =
-        listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::from)
+    ): List<ChannelResponse> = listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::from)
 }

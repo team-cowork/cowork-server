@@ -64,7 +64,8 @@ class TeamLifecycleSyncPublisher(
                 .groupBy { it.team.id }
                 .values
                 .forEach { members ->
-                    val actorUserId = members.firstOrNull { it.role == TeamRole.OWNER }?.userId ?: members.first().userId
+                    val actorUserId =
+                        members.firstOrNull { it.role == TeamRole.OWNER }?.userId ?: members.first().userId
                     publishTeamSnapshot(actorUserId = actorUserId, members = members)
                 }
         } while (idSlice.hasNext())

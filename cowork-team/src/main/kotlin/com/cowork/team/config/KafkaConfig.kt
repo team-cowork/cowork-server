@@ -24,6 +24,5 @@ class KafkaConfig(private val kafkaProperties: KafkaProperties) {
     }
 
     @Bean
-    fun kafkaTemplate(): KafkaTemplate<String, TeamEventPayload> =
-        KafkaTemplate(producerFactory())
+    fun kafkaTemplate(): KafkaTemplate<String, TeamEventPayload> = KafkaTemplate(producerFactory())
 }

@@ -17,12 +17,13 @@ data class TeamMemberResponse(
     val joinedAt: LocalDateTime,
 ) {
     companion object {
-        fun of(member: TeamMember, roles: List<TeamRoleResponse> = emptyList()): TeamMemberResponse = TeamMemberResponse(
-            id = member.id,
-            userId = member.userId,
-            role = member.role.name,
-            roles = roles,
-            joinedAt = requireNotNull(member.joinedAt),
-        )
+        fun of(member: TeamMember, roles: List<TeamRoleResponse> = emptyList()): TeamMemberResponse =
+            TeamMemberResponse(
+                id = member.id,
+                userId = member.userId,
+                role = member.role.name,
+                roles = roles,
+                joinedAt = requireNotNull(member.joinedAt),
+            )
     }
 }

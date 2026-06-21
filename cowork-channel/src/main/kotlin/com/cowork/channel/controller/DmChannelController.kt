@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "DM", description = "1:1 DM 채널 열기 API")
 @RestController
 @RequestMapping("/dms")
-class DmChannelController(
-    private val dmChannelService: DmChannelService,
-) {
+class DmChannelController(private val dmChannelService: DmChannelService) {
 
     @Operation(summary = "DM 채널 열기 (멱등 — 이미 있으면 기존 채널 반환)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

@@ -7,10 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class ListTeamChannelsService(
-    private val channelRepository: ChannelRepository,
-    private val teamClient: TeamClient,
-) {
+class ListTeamChannelsService(private val channelRepository: ChannelRepository, private val teamClient: TeamClient) {
 
     @Transactional(readOnly = true)
     fun execute(userId: Long, teamId: Long): List<ChannelEntity> {
