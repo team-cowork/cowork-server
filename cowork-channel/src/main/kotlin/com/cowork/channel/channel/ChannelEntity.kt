@@ -33,4 +33,3 @@ class ChannelEntity(
     @Column(name = "position", nullable = false)
     val position: Int = 0,
 ) : BaseEntity()
-

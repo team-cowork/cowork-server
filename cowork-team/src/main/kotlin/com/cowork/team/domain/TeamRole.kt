@@ -1,5 +1,7 @@
 package com.cowork.team.domain
 
 enum class TeamRole {
-    OWNER, ADMIN, MEMBER
+    OWNER,
+    ADMIN,
+    MEMBER,
 }

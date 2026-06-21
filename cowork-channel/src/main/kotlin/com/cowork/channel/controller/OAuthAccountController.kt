@@ -51,18 +51,16 @@ class OAuthAccountController(
         @PathVariable provider: String,
         @RequestParam code: String,
         @RequestParam state: String,
-    ): ResponseEntity<Void> {
-        return runCatching {
-            val account = oAuthAccountService.handleCallback(provider, code, state)
-            val location = "${oAuthProperties.clientRedirectUrl}/channels/${account.channelId}?newAccountId=${account.id}"
-            ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(location))
-                .build<Void>()
-        }.getOrElse { ex ->
-            val errorUrl = "${oAuthProperties.clientRedirectUrl}/error?message=oauth_failed"
-            ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(errorUrl))
-                .build()
-        }
+    ): ResponseEntity<Void> = runCatching {
+        val account = oAuthAccountService.handleCallback(provider, code, state)
+        val location = "${oAuthProperties.clientRedirectUrl}/channels/${account.channelId}?newAccountId=${account.id}"
+        ResponseEntity.status(HttpStatus.FOUND)
+            .location(URI.create(location))
+            .build<Void>()
+    }.getOrElse { ex ->
+        val errorUrl = "${oAuthProperties.clientRedirectUrl}/error?message=oauth_failed"
+        ResponseEntity.status(HttpStatus.FOUND)
+            .location(URI.create(errorUrl))
+            .build()
     }
 }

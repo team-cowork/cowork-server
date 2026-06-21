@@ -38,7 +38,17 @@ class ChannelServiceTest {
     private val projectClient = mockk<ProjectClient>()
     private val meetingNoteTemplateService = mockk<MeetingNoteTemplateService>(relaxed = true)
 
-    private val service = ChannelService(channelRepository, channelMemberRepository, teamPermission, channelMemberEventPublisher, channelMembershipSyncPublisher, channelEventPublisher, projectClient, meetingNoteTemplateService)
+    private val service =
+        ChannelService(
+            channelRepository,
+            channelMemberRepository,
+            teamPermission,
+            channelMemberEventPublisher,
+            channelMembershipSyncPublisher,
+            channelEventPublisher,
+            projectClient,
+            meetingNoteTemplateService,
+        )
 
     @BeforeEach
     fun setUp() {
@@ -70,7 +80,10 @@ class ChannelServiceTest {
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createChannel(7L, CreateChannelRequest(teamId = 100L, name = "n", type = "TEXT", viewType = "WEBHOOK"))
+            service.createChannel(
+                7L,
+                CreateChannelRequest(teamId = 100L, name = "n", type = "TEXT", viewType = "WEBHOOK"),
+            )
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -83,9 +96,15 @@ class ChannelServiceTest {
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
         every { channelMemberRepository.save(any()) } answers { firstArg() }
 
-        service.createChannel(1L, CreateChannelRequest(
-            teamId = 100L, name = "n", type = "TEXT", viewType = "MEETING_NOTE",
-        ))
+        service.createChannel(
+            1L,
+            CreateChannelRequest(
+                teamId = 100L,
+                name = "n",
+                type = "TEXT",
+                viewType = "MEETING_NOTE",
+            ),
+        )
 
         assertEquals(ChannelType.TEXT, saved.captured.type)
         assertEquals(ChannelViewType.MEETING_NOTE, saved.captured.viewType)
@@ -109,7 +128,8 @@ class ChannelServiceTest {
     @Test
     fun `reorderTeamChannels는 팀 채널 ID 누락 시 BAD_REQUEST`() {
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(channel(id = 1L), channel(id = 2L))
+        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns
+            listOf(channel(id = 1L), channel(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.reorderTeamChannels(7L, 100L, listOf(1L))
