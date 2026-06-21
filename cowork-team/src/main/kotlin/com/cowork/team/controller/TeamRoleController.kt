@@ -26,9 +26,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "팀 역할", description = "팀 커스텀 역할/권한/색상/우선순위/멘션 설정 API")
 @RestController
 @RequestMapping("/teams/{teamId}")
-class TeamRoleController(
-    private val teamRoleService: TeamRoleService,
-) {
+class TeamRoleController(private val teamRoleService: TeamRoleService) {
 
     @Operation(summary = "역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
@@ -42,8 +40,7 @@ class TeamRoleController(
     fun getMemberRoles(
         @PathVariable teamId: Long,
         @PathVariable userId: Long,
-    ): ResponseEntity<List<TeamRoleResponse>> =
-        ResponseEntity.ok(teamRoleService.getMemberRoles(teamId, userId))
+    ): ResponseEntity<List<TeamRoleResponse>> = ResponseEntity.ok(teamRoleService.getMemberRoles(teamId, userId))
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -66,8 +63,7 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
         @RequestBody request: UpdateTeamRoleRequest,
-    ): ResponseEntity<TeamRoleResponse> =
-        ResponseEntity.ok(teamRoleService.updateRole(userId, teamId, roleId, request))
+    ): ResponseEntity<TeamRoleResponse> = ResponseEntity.ok(teamRoleService.updateRole(userId, teamId, roleId, request))
 
     @Operation(summary = "역할 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/roles/{roleId}")

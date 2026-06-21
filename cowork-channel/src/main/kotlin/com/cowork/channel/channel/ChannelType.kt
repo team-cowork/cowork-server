@@ -4,4 +4,3 @@ enum class ChannelType {
     TEXT,
     VOICE,
 }
-

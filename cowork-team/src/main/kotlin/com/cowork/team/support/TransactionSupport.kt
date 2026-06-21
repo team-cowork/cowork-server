@@ -13,7 +13,7 @@ fun afterCommit(action: () -> Unit) {
         TransactionSynchronizationManager.registerSynchronization(
             object : TransactionSynchronization {
                 override fun afterCommit() = action()
-            }
+            },
         )
     } else {
         action()
