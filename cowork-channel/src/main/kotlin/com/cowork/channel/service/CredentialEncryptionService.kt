@@ -10,9 +10,7 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 @Service
-class CredentialEncryptionService(
-    @Value("\${account-share.encryption-key}") base64Key: String,
-) {
+class CredentialEncryptionService(@Value("\${account-share.encryption-key}") base64Key: String) {
     private val secretKey: SecretKey
     private val secureRandom = SecureRandom()
 

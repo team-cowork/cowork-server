@@ -23,10 +23,17 @@ class WebhookServiceTest {
 
     private val service = WebhookService(webhookRepository, channelService, teamPermission)
 
-    private fun channel(type: ChannelType, view: ChannelViewType = ChannelViewType.TEXT, createdBy: Long = 1L) = Channel(
-        id = 1L, teamId = 100L, name = "ch", type = type, viewType = view,
-        description = null, isPrivate = false, createdBy = createdBy,
-    )
+    private fun channel(type: ChannelType, view: ChannelViewType = ChannelViewType.TEXT, createdBy: Long = 1L) =
+        Channel(
+            id = 1L,
+            teamId = 100L,
+            name = "ch",
+            type = type,
+            viewType = view,
+            description = null,
+            isPrivate = false,
+            createdBy = createdBy,
+        )
 
     @Test
     fun `VOICE 채널에서는 웹훅 생성 시 BAD_REQUEST`() {
