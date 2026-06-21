@@ -65,13 +65,18 @@ class MeetingNoteService(
                 title = request.title,
                 content = request.content,
                 createdBy = userId,
-            )
+            ),
         )
         return MeetingNoteResponse.of(note)
     }
 
     @Transactional
-    fun updateNote(userId: Long, channelId: Long, noteId: Long, request: UpdateMeetingNoteRequest): MeetingNoteResponse {
+    fun updateNote(
+        userId: Long,
+        channelId: Long,
+        noteId: Long,
+        request: UpdateMeetingNoteRequest,
+    ): MeetingNoteResponse {
         requireChannelMember(channelId, userId)
         request.title?.let {
             if (it.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)

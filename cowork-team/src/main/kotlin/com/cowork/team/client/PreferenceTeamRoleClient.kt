@@ -45,11 +45,7 @@ interface PreferenceTeamRoleClient {
     ): TeamRoleResponse
 
     @DeleteMapping("/preferences/team/{teamId}/roles/{roleId}/members/{accountId}")
-    fun revokeRole(
-        @PathVariable teamId: Long,
-        @PathVariable accountId: Long,
-        @PathVariable roleId: Long,
-    )
+    fun revokeRole(@PathVariable teamId: Long, @PathVariable accountId: Long, @PathVariable roleId: Long)
 
     @DeleteMapping("/preferences/team/{teamId}/roles/members/{accountId}")
     fun deleteMemberRoles(@PathVariable teamId: Long, @PathVariable accountId: Long)

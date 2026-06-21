@@ -23,7 +23,10 @@ class MeetingNoteServiceTest {
     }
 
     private val service = MeetingNoteService(
-        meetingNoteRepository, templateRepository, channelMemberRepository, channelRepository
+        meetingNoteRepository,
+        templateRepository,
+        channelMemberRepository,
+        channelRepository,
     )
 
     private fun note(
