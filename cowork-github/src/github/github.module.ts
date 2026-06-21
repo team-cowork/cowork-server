@@ -1,30 +1,18 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
-import Redis from 'ioredis';
 import { AppConfigService } from '../config/app-config.service';
-import { GithubAuthService } from './auth/github-auth.service';
+import { GithubAuthModule } from './auth/github-auth.module';
 import { GithubApiClient } from './client/github-api.client';
-import { REDIS_CLIENT } from './constants';
 import { IssueService } from './issue/issue.service';
 import { LabelService } from './issue/label.service';
 import { GithubController } from './github.controller';
 import { IssueResultProducer } from './kafka/issue-result.producer';
+import { PullRequestModule } from './pull-request/pull-request.module';
 
 @Module({
-  imports: [HttpModule],
+  imports: [HttpModule, GithubAuthModule, PullRequestModule],
   providers: [
     AppConfigService,
-    {
-      provide: REDIS_CLIENT,
-      useFactory: (config: AppConfigService) =>
-        new Redis({
-          host: config.redisHost,
-          port: config.redisPort,
-          lazyConnect: true,
-        }),
-      inject: [AppConfigService],
-    },
-    GithubAuthService,
     GithubApiClient,
     LabelService,
     IssueService,
