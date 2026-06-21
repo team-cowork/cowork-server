@@ -73,8 +73,7 @@ onMounted(async () => {
                 start: "top top",
                 end: () => `+=${distance() / (1 - DWELL)}`,
                 pin: pinRef.value,
-                scrub: 1,
-                anticipatePin: 1,
+                scrub: 0.4,
                 invalidateOnRefresh: true,
                 onUpdate: () => {
                     const x = -(gsap.getProperty(track, "x") as number);
@@ -542,7 +541,7 @@ const scrollToIndex = (i: number) => {
                 <div class="flex items-center gap-3">
                     <div class="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
                         <div
-                            class="h-full rounded-full transition-[width] duration-150"
+                            class="h-full rounded-full"
                             :style="{
                                 width: `${progress * 100}%`,
                                 backgroundColor: activeColor,
