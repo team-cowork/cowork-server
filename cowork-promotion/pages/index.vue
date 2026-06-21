@@ -470,6 +470,9 @@ const row2 = [...marqueeItems, ...marqueeItems];
             </div>
         </section>
 
+        <!-- Feature Showcase Section -->
+        <FeatureShowcase />
+
         <!-- Divider -->
         <div class="max-w-6xl mx-auto px-6">
             <div
