@@ -11,9 +11,7 @@ import reactor.core.publisher.Mono
 import java.nio.charset.StandardCharsets
 
 @Component
-class JwtServerAuthenticationConverter(
-    private val jwtProperties: JwtProperties
-) : ServerAuthenticationConverter {
+class JwtServerAuthenticationConverter(private val jwtProperties: JwtProperties) : ServerAuthenticationConverter {
 
     private val signingKey by lazy {
         Keys.hmacShaKeyFor(jwtProperties.secret.toByteArray(StandardCharsets.UTF_8))
@@ -38,7 +36,7 @@ class JwtServerAuthenticationConverter(
             auth as Authentication
         }.fold(
             onSuccess = { Mono.just(it) },
-            onFailure = { Mono.empty() }
+            onFailure = { Mono.empty() },
         )
     }
 

@@ -64,7 +64,10 @@ class ChannelLifecycleHandler(
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}, membershipsRemoved={}]",
-            teamId, targetUserId, creatorOf.size, otherIds.size,
+            teamId,
+            targetUserId,
+            creatorOf.size,
+            otherIds.size,
         )
     }
 
