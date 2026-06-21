@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { IssueResultProducer } from '../src/github/kafka/issue-result.producer';
+import { PullRequestResultProducer } from '../src/github/pull-request/kafka/pull-request-result.producer';
 import { applyTestEnv, restoreTestEnv } from './support/test-env';
 
 describe('AppController (e2e)', () => {
@@ -17,6 +18,8 @@ describe('AppController (e2e)', () => {
       imports: [AppModule],
     })
       .overrideProvider(IssueResultProducer)
+      .useValue({ send: jest.fn() })
+      .overrideProvider(PullRequestResultProducer)
       .useValue({ send: jest.fn() })
       .compile();
 
