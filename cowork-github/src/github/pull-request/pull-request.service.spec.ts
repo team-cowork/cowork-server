@@ -96,6 +96,26 @@ describe('PullRequestService', () => {
 
       expect(result.reviewDecision).toBeNull();
     });
+
+    it('승인이 반려(DISMISSED)되면 그 사용자의 표는 결정에서 제외한다', async () => {
+      apiClient.getPullRequest.mockResolvedValue(basePr);
+      apiClient.listPullRequestReviews.mockResolvedValue([
+        {
+          user: { login: 'reviewer' },
+          state: 'APPROVED',
+          submitted_at: '2024-01-01T00:00:00Z',
+        },
+        {
+          user: { login: 'reviewer' },
+          state: 'DISMISSED',
+          submitted_at: '2024-01-02T00:00:00Z',
+        },
+      ]);
+
+      const result = await service.getPullRequestDetail('my-org', 'my-repo', 1);
+
+      expect(result.reviewDecision).toBeNull();
+    });
   });
 
   describe('mergePullRequest', () => {
@@ -150,6 +170,22 @@ describe('PullRequestService', () => {
       apiClient.getPullRequest.mockResolvedValue({
         ...basePr,
         head: { ref: 'feature/foo', repo: { full_name: 'other/fork' } },
+      });
+      apiClient.getCollaboratorPermission.mockResolvedValue({
+        permission: 'write',
+      });
+      apiClient.mergePullRequest.mockResolvedValue(undefined);
+
+      await service.mergePullRequest(params);
+
+      expect(apiClient.deleteBranch).not.toHaveBeenCalled();
+    });
+
+    it('head.repo와 base.repo가 모두 null이면 브랜치를 삭제하지 않는다', async () => {
+      apiClient.getPullRequest.mockResolvedValue({
+        ...basePr,
+        head: { ref: 'feature/foo', repo: null },
+        base: { ref: 'main', repo: null },
       });
       apiClient.getCollaboratorPermission.mockResolvedValue({
         permission: 'write',

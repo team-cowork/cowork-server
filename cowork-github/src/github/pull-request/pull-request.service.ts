@@ -175,7 +175,10 @@ export class PullRequestService {
     repo: string,
     pr: PullRequestDetail,
   ): Promise<void> {
-    const isSameRepo = pr.head.repo?.full_name === pr.base.repo?.full_name;
+    const isSameRepo =
+      !!pr.head.repo &&
+      !!pr.base.repo &&
+      pr.head.repo.full_name === pr.base.repo.full_name;
     if (!isSameRepo) return;
 
     try {
@@ -202,6 +205,8 @@ export class PullRequestService {
     for (const review of sorted) {
       if (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED') {
         latestByUser.set(review.user.login, review.state);
+      } else if (review.state === 'DISMISSED') {
+        latestByUser.delete(review.user.login);
       }
     }
 
