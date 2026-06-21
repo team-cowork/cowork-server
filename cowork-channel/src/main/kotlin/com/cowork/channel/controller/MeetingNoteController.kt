@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "회의록", description = "회의록 작성 및 조회 API")
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-notes")
-class MeetingNoteController(
-    private val meetingNoteService: MeetingNoteService,
-) {
+class MeetingNoteController(private val meetingNoteService: MeetingNoteService) {
 
     @Operation(summary = "회의록 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -29,8 +27,7 @@ class MeetingNoteController(
     fun listNotes(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<MeetingNoteResponse>> =
-        ResponseEntity.ok(meetingNoteService.listNotes(userId, channelId))
+    ): ResponseEntity<List<MeetingNoteResponse>> = ResponseEntity.ok(meetingNoteService.listNotes(userId, channelId))
 
     @Operation(summary = "회의록 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -43,8 +40,7 @@ class MeetingNoteController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
-    ): ResponseEntity<MeetingNoteResponse> =
-        ResponseEntity.ok(meetingNoteService.getNote(userId, channelId, noteId))
+    ): ResponseEntity<MeetingNoteResponse> = ResponseEntity.ok(meetingNoteService.getNote(userId, channelId, noteId))
 
     @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
