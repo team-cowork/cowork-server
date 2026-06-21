@@ -73,6 +73,10 @@ export class AppConfigService {
     );
   }
 
+  get internalApiKey(): string {
+    return this.configService.getOrThrow<string>('INTERNAL_API_KEY');
+  }
+
   private getNumber(key: string, fallback: number): number {
     return Number(this.configService.get(key) ?? fallback);
   }
