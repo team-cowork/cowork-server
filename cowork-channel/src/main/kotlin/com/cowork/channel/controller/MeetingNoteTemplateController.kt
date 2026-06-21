@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "회의록 템플릿", description = "회의록 템플릿 및 섹션 CRUD API")
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-note-templates")
-class MeetingNoteTemplateController(
-    private val meetingNoteTemplateService: MeetingNoteTemplateService,
-) {
+class MeetingNoteTemplateController(private val meetingNoteTemplateService: MeetingNoteTemplateService) {
 
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

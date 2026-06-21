@@ -17,7 +17,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 @EnableConfigurationProperties(JwtProperties::class)
 class SecurityConfig(
     private val jwtConverter: JwtServerAuthenticationConverter,
-    private val jwtAuthManager: JwtReactiveAuthenticationManager
+    private val jwtAuthManager: JwtReactiveAuthenticationManager,
 ) {
 
     @Bean
