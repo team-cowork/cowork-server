@@ -31,6 +31,8 @@ const progress = ref(0);
 
 const activeColor = computed(() => features[activeIndex.value]?.color ?? "#111827");
 
+let ctx: { revert: () => void } | null = null;
+
 onMounted(async () => {
     if (!import.meta.client) return;
     if (window.matchMedia("(min-width: 768px)").matches === false) {
@@ -42,7 +44,7 @@ onMounted(async () => {
     const { ScrollTrigger } = await import("gsap/ScrollTrigger");
     gsap.registerPlugin(ScrollTrigger);
 
-    const ctx = gsap.context(() => {
+    ctx = gsap.context(() => {
         const track = trackRef.value!;
         const panels = gsap.utils.toArray<HTMLElement>(".feature-panel");
         const distance = () => track.scrollWidth - window.innerWidth;
@@ -92,9 +94,9 @@ onMounted(async () => {
 
         reveal(0);
     }, rootRef.value!);
-
-    onUnmounted(() => ctx.revert());
 });
+
+onUnmounted(() => ctx?.revert());
 
 const scrollToIndex = (i: number) => {
     if (!import.meta.client || !rootRef.value) return;
