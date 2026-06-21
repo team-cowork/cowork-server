@@ -10,12 +10,14 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 
 @Component
-class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
+class AuthHeaderMutatingFilter :
+    GlobalFilter,
+    Ordered {
 
     override fun getOrder(): Int = -1
 
-    override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
-        return ReactiveSecurityContextHolder.getContext()
+    override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> =
+        ReactiveSecurityContextHolder.getContext()
             .mapNotNull { it.authentication }
             .filter { it.isAuthenticated }
             .flatMap { auth ->
@@ -50,7 +52,6 @@ class AuthHeaderMutatingFilter : GlobalFilter, Ordered {
                     }
             }
             .switchIfEmpty(chain.filter(exchange))
-    }
 
     companion object {
         private const val MDC_USER_ID = "userId"
