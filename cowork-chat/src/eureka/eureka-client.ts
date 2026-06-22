@@ -83,24 +83,28 @@ export class EurekaClient {
 
     private startHeartbeat(): void {
         this.stopHeartbeat();
-        this.heartbeatTimer = setInterval(async () => {
-            if (this.isPolling) return;
-            this.isPolling = true;
-            try {
-                await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
-                    method: 'PUT',
-                });
-            } catch (err: unknown) {
-                console.warn('eureka heartbeat failed', err);
-                if (err instanceof Error && err.message.includes('404')) {
-                    await this.register().catch((regErr: unknown) => {
-                        console.error('eureka re-registration failed', regErr);
-                    });
-                }
-            } finally {
-                this.isPolling = false;
-            }
+        this.heartbeatTimer = setInterval(() => {
+            void this.sendHeartbeat();
         }, this.config.leaseRenewalIntervalSeconds * 1000);
+    }
+
+    private async sendHeartbeat(): Promise<void> {
+        if (this.isPolling) return;
+        this.isPolling = true;
+        try {
+            await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
+                method: 'PUT',
+            });
+        } catch (err: unknown) {
+            console.warn('eureka heartbeat failed', err);
+            if (err instanceof Error && err.message.includes('404')) {
+                await this.register().catch((regErr: unknown) => {
+                    console.error('eureka re-registration failed', regErr);
+                });
+            }
+        } finally {
+            this.isPolling = false;
+        }
     }
 
     private stopHeartbeat(): void {

@@ -36,10 +36,11 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer
             .run({
+                // eslint-disable-next-line @typescript-eslint/require-await -- kafkajs의 EachMessageHandler가 Promise<void> 반환을 요구함
                 eachMessage: async ({ message }) => {
                     if (!message.value) return;
                     try {
-                        const event: ProjectEvent = JSON.parse(message.value.toString());
+                        const event = JSON.parse(message.value.toString()) as ProjectEvent;
                         this.handleEvent(event);
                     } catch (err) {
                         this.logger.error('프로젝트 이벤트 Kafka 메시지 처리 중 예외 발생', err);
