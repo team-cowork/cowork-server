@@ -38,8 +38,8 @@ class AccessLogFilter : OncePerRequestFilter() {
                             "path" to path,
                             "status" to response.status,
                             "duration" to TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
-                        )
-                    )
+                        ),
+                    ),
                 )
             }
         }

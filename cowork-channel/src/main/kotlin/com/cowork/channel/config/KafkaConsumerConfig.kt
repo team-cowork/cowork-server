@@ -46,7 +46,7 @@ class KafkaConsumerConfig(
             DefaultErrorHandler(
                 DeadLetterPublishingRecoverer(kafkaTemplate),
                 FixedBackOff(1_000L, 3L),
-            )
+            ),
         )
         return factory
     }

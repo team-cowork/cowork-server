@@ -33,14 +33,12 @@ class TeamInviteService(
         private val random = SecureRandom()
     }
 
-    private fun findTeamOrThrow(teamId: Long) =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
-        }
+    private fun findTeamOrThrow(teamId: Long) = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
+    }
 
-    private fun requireMember(teamId: Long, userId: Long) =
-        teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
-            ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
+    private fun requireMember(teamId: Long, userId: Long) = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+        ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
     private fun generateUniqueCode(): String {
         repeat(10) {
