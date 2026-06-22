@@ -8,7 +8,7 @@ import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
-import { SlashCommand } from './dto/slash-command.dto';
+import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
 
 const mockMessageId = new Types.ObjectId().toString();
@@ -305,7 +305,7 @@ describe('ChatController', () => {
             await expect(
                 controller.createSlashCommand(
                     1,
-                    { command: 'unknown.command', payload } as any,
+                    { command: 'unknown.command', payload } as unknown as SlashCommandDto,
                     userId,
                 ),
             ).rejects.toThrow(BadRequestException);
