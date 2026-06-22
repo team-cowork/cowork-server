@@ -1,4 +1,5 @@
 import os from 'os';
+import { Logger } from '@nestjs/common';
 import { requireEnv } from '../common/config/config.util';
 
 type EurekaConfig = {
@@ -12,6 +13,7 @@ type EurekaConfig = {
 };
 
 export class EurekaClient {
+    private readonly logger = new Logger(EurekaClient.name);
     private heartbeatTimer?: NodeJS.Timeout;
     private isPolling = false;
 
@@ -96,10 +98,10 @@ export class EurekaClient {
                 method: 'PUT',
             });
         } catch (err: unknown) {
-            console.warn('eureka heartbeat failed', err);
+            this.logger.warn(`eureka heartbeat failed: ${String(err)}`);
             if (err instanceof Error && err.message.includes('404')) {
                 await this.register().catch((regErr: unknown) => {
-                    console.error('eureka re-registration failed', regErr);
+                    this.logger.error(`eureka re-registration failed: ${String(regErr)}`);
                 });
             }
         } finally {
@@ -132,7 +134,8 @@ export class EurekaClient {
     private resolveIpAddress(): string {
         for (const interfaces of Object.values(os.networkInterfaces())) {
             for (const iface of interfaces ?? []) {
-                if ((iface.family === 'IPv4' || (iface.family as any) === 4) && !iface.internal) {
+                // Node.js 18 미만에서는 family가 숫자(4)였던 레거시 동작을 함께 지원한다.
+                if ((iface.family === 'IPv4' || (iface.family as unknown) === 4) && !iface.internal) {
                     return iface.address;
                 }
             }
