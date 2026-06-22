@@ -42,7 +42,7 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
     }
 
     onModuleInit(): void {
-        this.cleanupTimer = setInterval(async () => {
+        this.cleanupTimer = setInterval(() => {
             if (this.isCleaningUpRateLimitEntries) {
                 return;
             }
