@@ -119,7 +119,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
      * @param channelId - 브로드캐스트 대상 채널 ID
      * @param message - 전송할 메시지 객체
      */
-    private notifyClient(channelId: number, message: any): void {
+    private notifyClient(channelId: number, message: unknown): void {
         this.io?.to(`chat:${channelId}`).emit('message', message);
     }
 }
