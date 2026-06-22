@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model, PipelineStage, Types } from 'mongoose';
 import { Message, MessageDocument } from '../schema/message.schema';
 
 /** 한 번에 조회하는 최대 메시지 수 */
@@ -30,6 +30,15 @@ export type FileAttachmentRow = {
     uploadedAt: string;
     /** 메시지 내 첨부 파일 배열에서의 0-based 인덱스 */
     attachmentIndex: number;
+};
+
+/** {@link findFileAttachments}의 집계 파이프라인 `$project` 결과 행 타입. */
+type FileAttachmentAggregateRow = {
+    _id: Types.ObjectId;
+    authorId: number;
+    createdAt: Date;
+    attachmentIndex?: number;
+    attachment: { name: string; url: string; size: number; mimeType: string };
 };
 
 /**
@@ -278,7 +287,7 @@ export class MessageRepository {
         const safeLimit = Math.min(Math.max(limit, 1), FILE_ATTACHMENT_LIMIT);
         const cursorMatch = before ? this.buildFileCursorMatch(before) : null;
 
-        const pipeline: any[] = [
+        const pipeline: PipelineStage[] = [
             {
                 $match: {
                     channelId,
@@ -312,10 +321,10 @@ export class MessageRepository {
             },
         ];
 
-        const rows = await this.messageModel.aggregate(pipeline);
+        const rows = await this.messageModel.aggregate<FileAttachmentAggregateRow>(pipeline);
         const hasNext = rows.length > safeLimit;
         const pageRows = rows.slice(0, safeLimit);
-        const items: FileAttachmentRow[] = pageRows.map((row: any) => {
+        const items: FileAttachmentRow[] = pageRows.map((row) => {
             const attachmentIndex = row.attachmentIndex ?? 0;
             return {
                 fileId: this.encodeFileCursor(row)!,
@@ -351,7 +360,7 @@ export class MessageRepository {
             { notificationStatus: 'PENDING' },
             { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
             { sort: { createdAt: 1 }, new: true },
-        ).lean() as Promise<NotificationMessage | null>;
+        ).lean();
     }
 
     /**
@@ -668,7 +677,7 @@ export class MessageRepository {
      * @param row - 집계 결과의 단일 행 (`_id`, `createdAt`, `attachmentIndex` 필드 필요)
      * @returns base64 인코딩된 커서 문자열. `row`가 falsy이면 `null`
      */
-    private encodeFileCursor(row: any): string | null {
+    private encodeFileCursor(row: FileAttachmentAggregateRow | undefined): string | null {
         if (!row) {
             return null;
         }
