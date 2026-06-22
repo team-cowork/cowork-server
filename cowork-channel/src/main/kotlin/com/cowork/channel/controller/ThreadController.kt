@@ -19,9 +19,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "스레드", description = "채널 스레드 생성/수정/조회 API")
 @RestController
 @RequestMapping("/channels/{channelId}/threads")
-class ThreadController(
-    private val threadService: ThreadService,
-) {
+class ThreadController(private val threadService: ThreadService) {
 
     @Operation(summary = "스레드 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

@@ -8,6 +8,7 @@ coroutines = "1.11.0"
 jjwt = "0.13.0"
 scram = "2.1"
 log4j = "2.26.0"
+ktlint-plugin = "14.2.0"
 springdoc-webflux = "3.0.3"
 springdoc-webmvc = "3.0.3"
 the-sdk = "1.5"
@@ -86,3 +87,4 @@ spring-dependency-management = { id = "io.spring.dependency-management", version
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
 kotlin-jpa = { id = "org.jetbrains.kotlin.plugin.jpa", version.ref = "kotlin" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint-plugin" }

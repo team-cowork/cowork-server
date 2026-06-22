@@ -1,5 +1,3 @@
 package com.cowork.channel.dto
 
-data class CreateMeetingNoteTemplateRequest(
-    val name: String,
-)
+data class CreateMeetingNoteTemplateRequest(val name: String)
