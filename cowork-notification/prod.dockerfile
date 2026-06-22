@@ -5,6 +5,7 @@ RUN apk --no-cache add ca-certificates tzdata && \
     addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --chown=app:app cowork-notification /usr/local/bin/cowork-notification
+COPY --chown=app:app src/main/resources/db/migration ./db/migration
 USER app
 EXPOSE 8086
 ENV PORT=8086
