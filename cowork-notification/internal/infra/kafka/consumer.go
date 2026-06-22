@@ -36,10 +36,10 @@ type SSEBroadcaster interface {
 }
 
 type Consumer struct {
-	reader     *segkafka.Reader
-	svc        NotificationService
-	teamClient TeamNameResolver
-	userClient UserNameResolver
+	reader         *segkafka.Reader
+	svc            NotificationService
+	teamClient     TeamNameResolver
+	userClient     UserNameResolver
 	sseBroadcaster SSEBroadcaster
 }
 
