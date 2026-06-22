@@ -64,14 +64,6 @@ jobs:
             --title "${{ steps.version.outputs.version }}" \
             --notes $'## 수정내역\n\n- main 브랜치 배포 기준 자동 릴리스'
 
-      - name: Deploy to Cloudtype
-        run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
-            -H "Content-Type: application/json" \
-            "${{ secrets.CLOUDTYPE_DEPLOY_HOOK }}")
-          echo "Cloudtype response: $STATUS"
-          [[ "$STATUS" =~ ^2 ]] || (echo "Cloudtype deploy trigger failed (HTTP $STATUS)" && exit 1)
-
       - name: Notify Discord
         if: always()
         uses: sarisia/actions-status-discord@v1
