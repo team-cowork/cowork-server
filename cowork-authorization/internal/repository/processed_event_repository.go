@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"time"
+
 	"github.com/cowork/authorization/internal/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -34,4 +36,11 @@ func (r *ProcessedEventRepository) MarkProcessed(eventID, eventType string) (boo
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+// DeleteOlderThan removes processed-event records older than the retention window.
+// DataGSM retries complete within hours/days, so old ids no longer need keeping.
+func (r *ProcessedEventRepository) DeleteOlderThan(retention time.Duration) error {
+	cutoff := time.Now().Add(-retention)
+	return r.db.Where("created_at < ?", cutoff).Delete(&domain.ProcessedEvent{}).Error
 }
