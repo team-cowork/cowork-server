@@ -6,12 +6,15 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/cowork/authorization/internal/config"
 )
 
 const testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+var errTest = errors.New("test error")
 
 type fakePublisher struct {
 	calls   int
@@ -28,12 +31,19 @@ func (f *fakePublisher) Publish(_ context.Context, key string, value []byte) err
 }
 
 type fakeStore struct {
-	isNew bool
-	err   error
+	exists    bool
+	existsErr error
+	markErr   error
+	markCalls int
+}
+
+func (f *fakeStore) Exists(_ string) (bool, error) {
+	return f.exists, f.existsErr
 }
 
 func (f *fakeStore) MarkProcessed(_, _ string) (bool, error) {
-	return f.isNew, f.err
+	f.markCalls++
+	return !f.exists, f.markErr
 }
 
 func newTestService(pub EventPublisher, store ProcessedEventStore) *EventService {
@@ -112,7 +122,8 @@ func envelope(t *testing.T, id, event, email, status string) []byte {
 
 func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{isNew: true})
+	store := &fakeStore{}
+	svc := newTestService(pub, store)
 
 	body := envelope(t, "evt_1", "student.status_changed", "s24080@gsm.hs.kr", "STUDENT_COUNCIL")
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
@@ -121,6 +132,9 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 
 	if pub.calls != 1 {
 		t.Fatalf("publish calls = %d, want 1", pub.calls)
+	}
+	if store.markCalls != 1 {
+		t.Errorf("MarkProcessed should be called once after publish, got %d", store.markCalls)
 	}
 	if pub.lastKey != "s24080@gsm.hs.kr" {
 		t.Errorf("publish key = %q, want email", pub.lastKey)
@@ -137,7 +151,7 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 
 func TestProcessEvent_UnsupportedEventSkipped(t *testing.T) {
 	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{isNew: true})
+	svc := newTestService(pub, &fakeStore{})
 
 	body := envelope(t, "evt_2", "club.created", "x@gsm.hs.kr", "")
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
@@ -150,7 +164,7 @@ func TestProcessEvent_UnsupportedEventSkipped(t *testing.T) {
 
 func TestProcessEvent_DuplicateSkipped(t *testing.T) {
 	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{isNew: false})
+	svc := newTestService(pub, &fakeStore{exists: true})
 
 	body := envelope(t, "evt_3", "student.graduated", "x@gsm.hs.kr", "")
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
@@ -163,7 +177,7 @@ func TestProcessEvent_DuplicateSkipped(t *testing.T) {
 
 func TestProcessEvent_MissingEmail(t *testing.T) {
 	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{isNew: true})
+	svc := newTestService(pub, &fakeStore{})
 
 	body := envelope(t, "evt_4", "student.graduated", "", "")
 	if err := svc.ProcessEvent(context.Background(), body); err == nil {
@@ -171,5 +185,46 @@ func TestProcessEvent_MissingEmail(t *testing.T) {
 	}
 	if pub.calls != 0 {
 		t.Errorf("should not publish on missing email, got %d calls", pub.calls)
+	}
+}
+
+func TestProcessEvent_MarkErrorAfterPublishIsNonFatal(t *testing.T) {
+	pub := &fakePublisher{}
+	store := &fakeStore{markErr: errTest}
+	svc := newTestService(pub, store)
+
+	body := envelope(t, "evt_5", "student.graduated", "x@gsm.hs.kr", "")
+	if err := svc.ProcessEvent(context.Background(), body); err != nil {
+		t.Errorf("ProcessEvent() should not fail when mark fails after publish, got %v", err)
+	}
+	if pub.calls != 1 {
+		t.Errorf("publish calls = %d, want 1", pub.calls)
+	}
+}
+
+func TestProcessEvent_PublishErrorReturnsError(t *testing.T) {
+	pub := &fakePublisher{err: errTest}
+	store := &fakeStore{}
+	svc := newTestService(pub, store)
+
+	body := envelope(t, "evt_6", "student.graduated", "x@gsm.hs.kr", "")
+	if err := svc.ProcessEvent(context.Background(), body); err == nil {
+		t.Error("ProcessEvent() expected error when publish fails")
+	}
+	if store.markCalls != 0 {
+		t.Errorf("MarkProcessed must not run when publish fails, got %d", store.markCalls)
+	}
+}
+
+func TestProcessEvent_ExistsErrorReturnsError(t *testing.T) {
+	pub := &fakePublisher{}
+	svc := newTestService(pub, &fakeStore{existsErr: errTest})
+
+	body := envelope(t, "evt_7", "student.graduated", "x@gsm.hs.kr", "")
+	if err := svc.ProcessEvent(context.Background(), body); err == nil {
+		t.Error("ProcessEvent() expected error when Exists fails")
+	}
+	if pub.calls != 0 {
+		t.Errorf("should not publish when Exists fails, got %d calls", pub.calls)
 	}
 }

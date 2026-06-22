@@ -22,6 +22,7 @@ type EventPublisher interface {
 
 // ProcessedEventStore records handled event ids for idempotency.
 type ProcessedEventStore interface {
+	Exists(eventID string) (bool, error)
 	MarkProcessed(eventID, eventType string) (bool, error)
 }
 
@@ -90,11 +91,16 @@ func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool
 		return false
 	}
 
+	providedBytes, err := hex.DecodeString(provided)
+	if err != nil {
+		return false
+	}
+
 	mac := hmac.New(sha256.New, []byte(s.cfg.DataGSMWebhookSecret))
 	mac.Write(body)
-	expected := hex.EncodeToString(mac.Sum(nil))
+	expected := mac.Sum(nil)
 
-	return hmac.Equal([]byte(expected), []byte(provided))
+	return hmac.Equal(expected, providedBytes)
 }
 
 // ProcessEvent parses the verified webhook body and forwards student lifecycle
@@ -113,17 +119,19 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 		return nil
 	}
 
-	isNew, err := s.processedRepo.MarkProcessed(envelope.ID, envelope.Event)
+	processed, err := s.processedRepo.Exists(envelope.ID)
 	if err != nil {
-		return fmt.Errorf("failed to record processed event: %w", err)
+		log.Printf("failed to check processed event %s: %v", envelope.ID, err)
+		return fmt.Errorf("failed to check processed event state")
 	}
-	if !isNew {
+	if processed {
 		log.Printf("duplicate webhook event ignored: %s (%s)", envelope.ID, envelope.Event)
 		return nil
 	}
 
 	var data studentEventData
 	if err := json.Unmarshal(envelope.Data, &data); err != nil {
+		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
 		return fmt.Errorf("failed to parse student event data: %w", err)
 	}
 	if data.Email == "" {
@@ -141,11 +149,18 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 
 	payload, err := json.Marshal(msg)
 	if err != nil {
+		log.Printf("failed to marshal sync message for %s: %v", envelope.ID, err)
 		return fmt.Errorf("failed to marshal sync message: %w", err)
 	}
 
 	if err := s.publisher.Publish(ctx, data.Email, payload); err != nil {
 		return fmt.Errorf("failed to publish sync message: %w", err)
+	}
+
+	// 발행이 성공한 뒤에 기록해 메시지 유실을 방지한다(at-least-once).
+	// 기록 실패는 메시지가 이미 발행됐으므로 치명적이지 않다(다음 동일 이벤트 재수신 시 중복 발행, 다운스트림 멱등).
+	if _, err := s.processedRepo.MarkProcessed(envelope.ID, envelope.Event); err != nil {
+		log.Printf("failed to record processed event %s after publish: %v", envelope.ID, err)
 	}
 
 	return nil
