@@ -46,6 +46,19 @@ docker run -d \
   --restart unless-stopped \
   "$APP_NAME:latest"
 
-echo "==> 헬스체크 (5초 대기 후 확인)"
-sleep 5
-curl -fsS "http://localhost:$APP_PORT/health" && echo " - OK" || echo " - 실패, docker logs $APP_NAME 확인 필요"
+echo "==> 헬스체크 시작 (최대 15초 대기)"
+success=false
+for i in {1..15}; do
+  if curl -fsS "http://localhost:$APP_PORT/health" >/dev/null 2>&1; then
+    success=true
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$success" == "true" ]]; then
+  echo " - OK"
+else
+  echo " - 실패, docker logs $APP_NAME 확인 필요"
+  exit 1
+fi
