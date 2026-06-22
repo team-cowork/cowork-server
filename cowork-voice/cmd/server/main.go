@@ -162,7 +162,7 @@ func main() {
 		exitCode = 1
 	}
 
-	eurekaClient.Deregister(cfg)
+	_ = eurekaClient.Deregister(cfg)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
