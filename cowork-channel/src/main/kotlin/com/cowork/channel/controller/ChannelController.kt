@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.ResponseEntity
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
@@ -27,10 +27,11 @@ class ChannelController(private val channelService: ChannelService, private val 
         ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
     )
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun createChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: CreateChannelRequest,
-    ): ResponseEntity<ChannelResponse> = ResponseEntity.status(201).body(channelService.createChannel(userId, request))
+    ): ChannelResponse = channelService.createChannel(userId, request)
 
     @Operation(summary = "채널 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -41,7 +42,7 @@ class ChannelController(private val channelService: ChannelService, private val 
     fun getChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<ChannelResponse> = ResponseEntity.ok(channelService.getChannel(userId, channelId))
+    ): ChannelResponse = channelService.getChannel(userId, channelId)
 
     @Operation(summary = "채널 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -54,10 +55,10 @@ class ChannelController(private val channelService: ChannelService, private val 
         @PathVariable channelId: Long,
         @SwaggerRequestBody(content = [Content(schema = Schema(implementation = UpdateChannelRequest::class))])
         @RequestBody body: JsonNode,
-    ): ResponseEntity<ChannelResponse> {
+    ): ChannelResponse {
         val request = objectMapper.convertValue(body, UpdateChannelRequest::class.java)
         val updateProjectId = body.has("projectId")
-        return ResponseEntity.ok(channelService.updateChannel(userId, channelId, request, updateProjectId))
+        return channelService.updateChannel(userId, channelId, request, updateProjectId)
     }
 
     @Operation(summary = "채널 삭제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -66,12 +67,12 @@ class ChannelController(private val channelService: ChannelService, private val 
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @DeleteMapping("/{channelId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         channelService.deleteChannel(userId, channelId)
-        return ResponseEntity.noContent().build()
     }
 
     @Operation(summary = "채널 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
@@ -80,12 +81,12 @@ class ChannelController(private val channelService: ChannelService, private val 
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @PostMapping("/{channelId}/members")
+    @ResponseStatus(HttpStatus.CREATED)
     fun addMember(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: AddMemberRequest,
-    ): ResponseEntity<ChannelMemberResponse> =
-        ResponseEntity.status(201).body(channelService.addMember(userId, channelId, request))
+    ): ChannelMemberResponse = channelService.addMember(userId, channelId, request)
 
     @Operation(summary = "채널 멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -96,7 +97,7 @@ class ChannelController(private val channelService: ChannelService, private val 
     fun getMembers(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<ChannelMemberResponse>> = ResponseEntity.ok(channelService.getMembers(userId, channelId))
+    ): List<ChannelMemberResponse> = channelService.getMembers(userId, channelId)
 
     @Operation(summary = "채널 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -104,12 +105,12 @@ class ChannelController(private val channelService: ChannelService, private val 
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @DeleteMapping("/{channelId}/members/{memberId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun removeMember(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable memberId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         channelService.removeMember(userId, channelId, memberId)
-        return ResponseEntity.noContent().build()
     }
 }
