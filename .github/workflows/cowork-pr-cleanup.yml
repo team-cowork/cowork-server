@@ -22,24 +22,3 @@ jobs:
           echo "Removing label '$LABEL' from PR #$PR_NUMBER..."
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --remove-label "$LABEL" || true
           echo "Done."
-
-  remove-contrib-comment:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-
-    steps:
-      - name: Remove Contribution Delta Comment
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const marker = '<!-- contrib-delta-bot -->';
-            const { owner, repo } = context.repo;
-            const issue_number = context.payload.pull_request.number;
-            const comments = await github.paginate(github.rest.issues.listComments,
-              { owner, repo, issue_number, per_page: 100 });
-            for (const c of comments) {
-              if (c.body && c.body.includes(marker)) {
-                await github.rest.issues.deleteComment({ owner, repo, comment_id: c.id });
-              }
-            }
