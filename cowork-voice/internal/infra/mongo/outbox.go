@@ -22,7 +22,10 @@ type OutboxMessage struct {
 	Payload   []byte        `bson:"payload"`
 	CreatedAt time.Time     `bson:"created_at"`
 	SentAt    *time.Time    `bson:"sent_at,omitempty"`
-	Attempts  int           `bson:"attempts"`
+	// FailedAt이 설정되면 재시도 한도를 초과해 격리된(전송 포기) 메시지로, FetchUnsent에서 제외된다.
+	// 큐 진행을 막지 않으면서 운영자가 사후 조회·재처리할 수 있도록 삭제하지 않고 보존한다.
+	FailedAt *time.Time `bson:"failed_at,omitempty"`
+	Attempts int        `bson:"attempts"`
 }
 
 type OutboxRepository struct {
@@ -56,7 +59,8 @@ func (r *OutboxRepository) FetchUnsent(ctx context.Context, limit int) ([]Outbox
 	opts := options.Find().
 		SetSort(bson.D{{Key: "created_at", Value: 1}}).
 		SetLimit(int64(limit))
-	cur, err := r.col.Find(ctx, bson.D{{Key: "sent_at", Value: nil}}, opts)
+	filter := bson.D{{Key: "sent_at", Value: nil}, {Key: "failed_at", Value: nil}}
+	cur, err := r.col.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -76,5 +80,11 @@ func (r *OutboxRepository) MarkSent(ctx context.Context, id bson.ObjectID, sentA
 
 func (r *OutboxRepository) IncrementAttempts(ctx context.Context, id bson.ObjectID) error {
 	_, err := r.col.UpdateByID(ctx, id, bson.D{{Key: "$inc", Value: bson.D{{Key: "attempts", Value: 1}}}})
+	return err
+}
+
+// MarkFailed는 재시도 한도를 초과한 메시지를 격리한다(전송 포기). 이후 FetchUnsent에서 제외된다.
+func (r *OutboxRepository) MarkFailed(ctx context.Context, id bson.ObjectID, failedAt time.Time) error {
+	_, err := r.col.UpdateByID(ctx, id, bson.D{{Key: "$set", Value: bson.D{{Key: "failed_at", Value: failedAt}}}})
 	return err
 }
