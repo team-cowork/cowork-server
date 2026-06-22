@@ -12,7 +12,7 @@ import { loadConfigServerEnv } from './common/config/config-server';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
-        console.log(`[startup] ${message}`);
+        new Logger('Startup').log(message);
     }
 }
 
@@ -89,7 +89,7 @@ async function bootstrap() {
     new Logger('Bootstrap').log(`Swagger UI: ${await app.getUrl()}/api`);
 }
 
-bootstrap().catch((err) => {
-    console.error('Application failed to start', err);
+bootstrap().catch((err: unknown) => {
+    new Logger('Bootstrap').error('Application failed to start', err instanceof Error ? err.stack : String(err));
     process.exit(1);
 });
