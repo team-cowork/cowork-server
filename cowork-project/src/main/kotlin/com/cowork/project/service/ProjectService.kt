@@ -6,9 +6,9 @@ import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.ProjectStatus
 import com.cowork.project.dto.*
 import com.cowork.project.event.ProjectEventPublisher
+import com.cowork.project.github.GithubRepoUrlParser
 import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
-import com.cowork.project.repository.TeamMembershipRepository
 import com.cowork.project.support.afterCommit
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
@@ -17,22 +17,17 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
-private const val TEAM_ROLE_OWNER = "OWNER"
-private const val TEAM_ROLE_ADMIN = "ADMIN"
-
 @Service
 @Transactional(readOnly = true)
 class ProjectService(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
-    private val teamMembershipRepository: TeamMembershipRepository,
     private val projectEventPublisher: ProjectEventPublisher,
+    private val projectAccessGuard: ProjectAccessGuard,
 ) {
 
     private fun findProjectOrThrow(projectId: Long): Project =
-        projectRepository.findById(projectId).orElseThrow {
-            ExpectedException("프로젝트를 찾을 수 없습니다. id=$projectId", HttpStatus.NOT_FOUND)
-        }
+        projectAccessGuard.findProjectOrThrow(projectId)
 
     private fun findMemberOrThrow(memberId: Long): ProjectMember =
         projectMemberRepository.findById(memberId).orElseThrow {
@@ -40,29 +35,16 @@ class ProjectService(
         }
 
     private fun teamRoleOf(teamId: Long, userId: Long): String? =
-        teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
+        projectAccessGuard.teamRoleOf(teamId, userId)
 
-    private fun requireTeamMember(teamId: Long, userId: Long) {
-        teamRoleOf(teamId, userId)
-            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-    }
+    private fun requireTeamMember(teamId: Long, userId: Long) =
+        projectAccessGuard.requireTeamMember(teamId, userId)
 
-    private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
-        teamRoleOf(teamId, userId) in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
+    private fun requireProjectModifier(project: Project, userId: Long) =
+        projectAccessGuard.requireProjectModifier(project, userId)
 
-    private fun requireProjectModifier(project: Project, userId: Long) {
-        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
-        if (role == ProjectMemberRole.OWNER || role == ProjectMemberRole.EDITOR) return
-        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
-        throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
-    }
-
-    private fun requireProjectOwner(project: Project, userId: Long) {
-        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
-        if (role == ProjectMemberRole.OWNER) return
-        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
-        throw ExpectedException("해당 작업은 프로젝트 OWNER만 수행할 수 있습니다.", HttpStatus.FORBIDDEN)
-    }
+    private fun requireProjectOwner(project: Project, userId: Long) =
+        projectAccessGuard.requireProjectOwner(project, userId)
 
     private fun parseRole(role: String): ProjectMemberRole =
         try {
@@ -132,6 +114,31 @@ class ProjectService(
         requireProjectOwner(project, userId)
         projectRepository.delete(project)
         afterCommit { projectEventPublisher.publishDeleted(project) }
+    }
+
+    @Transactional
+    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoRequest): ProjectDetailResponse {
+        val project = findProjectOrThrow(projectId)
+        requireProjectModifier(project, userId)
+
+        GithubRepoUrlParser.parse(request.githubRepoUrl)
+            ?: throw ExpectedException("유효하지 않은 GitHub 레포지토리 URL입니다.", HttpStatus.BAD_REQUEST)
+
+        project.linkGithubRepo(request.githubRepoUrl)
+
+        val memberCount = projectMemberRepository.countByProjectId(projectId)
+        return ProjectDetailResponse.of(project, memberCount)
+    }
+
+    @Transactional
+    fun unlinkGithubRepo(userId: Long, projectId: Long): ProjectDetailResponse {
+        val project = findProjectOrThrow(projectId)
+        requireProjectModifier(project, userId)
+
+        project.unlinkGithubRepo()
+
+        val memberCount = projectMemberRepository.countByProjectId(projectId)
+        return ProjectDetailResponse.of(project, memberCount)
     }
 
     fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
