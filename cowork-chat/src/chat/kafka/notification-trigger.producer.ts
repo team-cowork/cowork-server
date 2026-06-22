@@ -49,7 +49,7 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
 
     constructor(private readonly configService: ConfigService) {}
 
-    async onModuleInit() {
+    onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-notification',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
