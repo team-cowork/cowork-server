@@ -21,6 +21,7 @@ import (
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
+	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
 	mysqlinfra "github.com/cowork/authorization/internal/infra/mysql"
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
@@ -75,12 +76,18 @@ func main() {
 	}
 
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
+	processedEventRepo := repository.NewProcessedEventRepository(db)
 
 	userClient := client.NewUserClient(cfg.UserServiceURL)
 	tokenSvc := service.NewTokenService(cfg)
 	authSvc := service.NewAuthService(cfg, userClient, refreshTokenRepo, tokenSvc)
 
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
+	defer func() { _ = kafkaProducer.Close() }()
+	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
+
 	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
+	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
@@ -98,6 +105,11 @@ func main() {
 		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
+	}
+
+	events := router.Group("/events")
+	{
+		events.POST("/datagsm", eventHandler.DataGSMWebhook)
 	}
 
 	eurekaClient := eurekaclient.NewClient(cfg)
