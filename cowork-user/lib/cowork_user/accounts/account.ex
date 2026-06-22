@@ -57,4 +57,10 @@ defmodule CoworkUser.Accounts.Account do
     |> cast(attrs, [:status, :status_message, :status_expires_at, :last_modified_by])
     |> validate_required([:status])
   end
+
+  def student_role_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:student_role, :last_modified_by])
+    |> validate_required([:student_role])
+  end
 end
