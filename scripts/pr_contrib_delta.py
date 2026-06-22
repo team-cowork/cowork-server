@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""PR이 병합되면 기여도가 얼마나 증가하는지 계산해 PR 코멘트(markdown)를 생성.
+"""PR이 병합되면 기여도가 얼마나 변하는지 계산해 PR 코멘트(markdown)를 생성.
 
 contrib_report.py 의 집계 로직을 재사용한다. base 브랜치 기준 현재 기여도와
-base + PR 커밋 기준 기여도를 비교해, PR 기여자별 증가분 / 랭킹 변화 / 모듈별
-증가량을 산출한다. 커밋 수와 라인 수를 모두 표기하며, GitHub 가 네이티브
-렌더링하는 Mermaid 차트와 색상 텍스트(diff 블록·텍스트 막대)를 함께 출력한다.
+base + PR 커밋 기준 기여도를 비교한다. 전체 기여자 리더보드와 전체 모듈
+현황을 함께 노출하며, 이번 PR로 증가한 항목은 diff 블록의 초록색으로 강조한다.
+시각화는 GitHub 가 네이티브 렌더링하는 Mermaid 차트를 사용한다 (이미지 호스팅 불필요).
 
 CI(GitHub Actions)에서 다음 환경변수로 동작:
     GITHUB_TOKEN   GitHub API 토큰 (실 계정 검증/레이트리밋)
@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import os
 import subprocess
-from pathlib import Path
 
 import contrib_report as cr
 
@@ -44,117 +43,154 @@ def resolve_base() -> str:
     raise SystemExit("base 브랜치를 찾을 수 없습니다. BASE_REF 를 확인하세요.")
 
 
-def rank_of(author: str, totals: dict[str, float]) -> int | None:
+def ranks(totals: dict[str, float]) -> dict[str, int]:
     order = sorted(totals, key=lambda a: totals[a], reverse=True)
-    return order.index(author) + 1 if author in order else None
+    return {a: i + 1 for i, a in enumerate(order)}
 
 
-def text_bar(value: float, vmax: float, width: int = 12) -> str:
-    if vmax <= 0:
-        return "─" * 0
-    filled = round(value / vmax * width)
-    return "█" * filled + "░" * (width - filled)
+def project_totals(contrib: dict[str, dict[str, float]], cats) -> dict[str, int]:
+    return {c: int(sum(contrib[a].get(c, 0) for a in contrib)) for c in cats}
+
+
+def signed(n: int) -> str:
+    return f"+{n:,}" if n > 0 else f"{n:,}"
 
 
 def build_comment(base_sha: str) -> str:
-    include_merges = False
-    base_commits, modules = cr.collect_commits(include_merges, rev_range=base_sha)
-    pr_commits, _ = cr.collect_commits(include_merges, rev_range=f"{base_sha}..HEAD")
+    base_commits, modules = cr.collect_commits(False, rev_range=base_sha)
+    pr_commits, _ = cr.collect_commits(False, rev_range=f"{base_sha}..HEAD")
 
     if not pr_commits:
-        return (f"{MARKER}\n## 📊 기여도 변화 미리보기\n\n"
-                "이 PR에는 집계할 신규 커밋이 없습니다 (머지 커밋 제외).")
+        return (f"{MARKER}\n## 이 PR이 병합되면 — 기여도 변화 미리보기\n\n"
+                "집계할 신규 커밋이 없습니다 (머지 커밋 제외).")
 
     # base + PR 커밋을 함께 login 해석 (PR 작성자 일관 매핑)
     email_login = cr.resolve_logins(base_commits + pr_commits)
     pr_author = os.environ.get("PR_AUTHOR")
     if pr_author:
-        # 연결 안 된 PR 커밋 이메일은 PR 작성자 login 으로 귀속
         for c in pr_commits:
             if not email_login.get(c["email"]):
                 email_login[c["email"]] = pr_author
 
-    sections: list[str] = [MARKER, "## 📊 이 PR이 병합되면 — 기여도 변화 미리보기", ""]
-
-    # 커밋/라인 두 기준 모두 집계
+    # 커밋/라인 두 지표 모두 집계: agg[metric] = (before_contrib, before_totals,
+    #                                           after_contrib, after_totals)
     agg = {}
     for metric in ("commits", "lines"):
-        b_contrib, b_totals, _ = cr.aggregate(base_commits, email_login, modules, metric)
-        a_contrib, a_totals, cats = cr.aggregate(
-            base_commits + pr_commits, email_login, modules, metric)
-        agg[metric] = (b_contrib, b_totals, a_contrib, a_totals, cats)
+        bc, bt, _ = cr.aggregate(base_commits, email_login, modules, metric)
+        ac, at, _ = cr.aggregate(base_commits + pr_commits, email_login, modules, metric)
+        agg[metric] = (bc, bt, ac, at)
 
-    # PR 기여자: after-before 차이가 있는 login (커밋 기준)
-    _, b_tot_c, _, a_tot_c, _ = agg["commits"]
-    contributors = sorted(
-        (a for a in a_tot_c if a_tot_c[a] - b_tot_c.get(a, 0) > 0),
-        key=lambda a: a_tot_c[a] - b_tot_c.get(a, 0), reverse=True)
+    full_cats = list(modules) + ["ai-harness", "etc"]
 
-    if not contributors:
-        sections.append("> GitHub 계정에 연결된 신규 기여가 없어 변화를 집계하지 못했습니다.")
-        return "\n".join(sections)
+    # 이 PR 전체 증가량 요약
+    _, bt_c, _, at_c = agg["commits"]
+    _, bt_l, _, at_l = agg["lines"]
+    d_commits = int(sum(at_c.values()) - sum(bt_c.values()))
+    d_lines = int(sum(at_l.values()) - sum(bt_l.values()))
+    n_contrib = sum(1 for a in at_c if at_c[a] - bt_c.get(a, 0) > 0)
 
-    # ── 요약 (diff 블록: 증가는 초록) ─────────────────────────────
-    sections.append("### ✏️ 기여자별 증가분 & 랭킹 변화")
-    diff_lines = ["```diff"]
-    for a in contributors:
-        parts = []
-        for metric, unit in (("commits", "커밋"), ("lines", "라인")):
-            b_c, b_t, a_c, a_t, _ = agg[metric]
-            before, after = b_t.get(a, 0), a_t.get(a, 0)
-            parts.append(f"{unit} {int(before)}→{int(after)} (+{int(after-before)})")
-        # 랭킹 변화 (커밋 기준)
-        r_before = rank_of(a, b_tot_c)
-        r_after = rank_of(a, a_tot_c)
-        if r_before is None:
-            rank_txt = f"랭킹 신규진입 → {r_after}위"
-        elif r_after < r_before:
-            rank_txt = f"랭킹 {r_before}위 🔺 {r_after}위"
-        elif r_after > r_before:
-            rank_txt = f"랭킹 {r_before}위 🔻 {r_after}위"
-        else:
-            rank_txt = f"랭킹 {r_after}위 (유지)"
-        diff_lines.append(f"+ {a:<18} {' | '.join(parts)} | {rank_txt}")
-    diff_lines.append("```")
-    sections += diff_lines + [""]
-
-    # ── 대표 기여자 모듈별 증가 (Mermaid 차트) ────────────────────
-    top = contributors[0]
-    b_c_c, _, a_c_c, _, cats_c = agg["commits"]
-    mod_delta = [(cat, a_c_c[top].get(cat, 0) - b_c_c.get(top, {}).get(cat, 0))
-                 for cat in cats_c]
-    mod_delta = [(c, d) for c, d in mod_delta if d > 0]
-    mod_delta.sort(key=lambda x: x[1], reverse=True)
-
-    if mod_delta:
-        sections.append(f"### 📦 `{top}` 모듈별 커밋 증가 (Mermaid)")
-        xlabels = ", ".join(f'"{c}"' for c, _ in mod_delta)
-        yvals = ", ".join(str(int(d)) for _, d in mod_delta)
-        sections += [
-            "```mermaid",
-            "xychart-beta",
-            f'    title "이 PR이 병합되면 모듈별 +커밋 ({top})"',
-            f"    x-axis [{xlabels}]",
-            '    y-axis "+commits"',
-            f"    bar [{yvals}]",
-            "```",
-            "",
-        ]
-
-        # 텍스트 막대(색상 미지원 환경 폴백) — 커밋/라인 동시 표기
-        b_c_l, _, a_c_l, _, _ = agg["lines"]
-        vmax = max(d for _, d in mod_delta)
-        sections.append("### 📈 모듈별 증가 상세")
-        rows = ["| 모듈 | +커밋 | +라인 | |", "|---|---:|---:|---|"]
-        for cat, d in mod_delta:
-            dl = a_c_l[top].get(cat, 0) - b_c_l.get(top, {}).get(cat, 0)
-            rows.append(f"| `{cat}` | +{int(d)} | +{int(dl)} | `{text_bar(d, vmax)}` |")
-        sections += rows + [""]
-
+    sections = [
+        MARKER,
+        "## 이 PR이 병합되면 — 기여도 변화 미리보기",
+        "",
+        f"**커밋 {signed(d_commits)}** · **라인 {signed(d_lines)}** · "
+        f"기여자 {n_contrib}명 증가 · GitHub 계정에 연결된 커밋만 집계",
+        "",
+    ]
+    sections += render_leaderboard(agg)
+    sections += render_module_chart(agg, full_cats)
+    sections += render_module_detail(agg, full_cats)
     sections.append(
-        f"<sub>base `{base_sha[:8]}` 기준 · 머지 커밋 제외 · "
-        "GitHub 계정에 연결된 커밋만 집계</sub>")
+        f"<sub>base <code>{base_sha[:8]}</code> 기준 · 머지 커밋 제외</sub>")
     return "\n".join(sections)
+
+
+def render_leaderboard(agg) -> list[str]:
+    bc_c, bt_c, ac_c, at_c = agg["commits"]
+    _, bt_l, _, at_l = agg["lines"]
+    r_before, r_after = ranks(bt_c), ranks(at_c)
+    authors = sorted(at_c, key=lambda a: at_c[a], reverse=True)
+
+    rows = []
+    for a in authors:
+        bcc, acc = int(bt_c.get(a, 0)), int(at_c.get(a, 0))
+        bll, all_ = int(bt_l.get(a, 0)), int(at_l.get(a, 0))
+        rb, ra = r_before.get(a), r_after.get(a)
+        move = f"{rb} -> {ra}" if rb else f"new -> {ra}"
+        commits_col = f"{bcc:,} -> {acc:,} ({signed(acc - bcc)})"
+        lines_col = f"{bll:,} -> {all_:,} ({signed(all_ - bll)})"
+        changed = (acc - bcc) > 0 or (all_ - bll) > 0
+        rows.append((changed, a, commits_col, lines_col, move))
+
+    wa = max([len("AUTHOR")] + [len(r[1]) for r in rows])
+    wc = max([len("COMMITS")] + [len(r[2]) for r in rows])
+    wl = max([len("LINES")] + [len(r[3]) for r in rows])
+
+    out = [
+        "### 전체 기여자 리더보드 (병합 후 기준)",
+        "이번 PR로 기여가 증가한 사람은 초록색으로 강조됩니다.",
+        "",
+        "```diff",
+        f"  {'AUTHOR':<{wa}}  {'COMMITS':<{wc}}  {'LINES':<{wl}}  RANK",
+    ]
+    for changed, a, c, l, m in rows:
+        prefix = "+" if changed else " "
+        out.append(f"{prefix} {a:<{wa}}  {c:<{wc}}  {l:<{wl}}  {m}")
+    out += ["```", ""]
+    return out
+
+
+def render_module_chart(agg, cats) -> list[str]:
+    _, _, ac_c, _ = agg["commits"]
+    after_mod = project_totals(ac_c, cats)
+    labels = ", ".join(f'"{c}"' for c in cats)
+    values = ", ".join(str(after_mod[c]) for c in cats)
+    return [
+        "### 모듈별 누적 커밋 (이 PR 병합 후, 전체 모듈)",
+        "```mermaid",
+        "xychart-beta",
+        '    title "모듈별 누적 커밋 (병합 후)"',
+        f"    x-axis [{labels}]",
+        '    y-axis "commits"',
+        f"    bar [{values}]",
+        "```",
+        "",
+    ]
+
+
+def render_module_detail(agg, cats) -> list[str]:
+    bc_c, _, ac_c, _ = agg["commits"]
+    bc_l, _, ac_l, _ = agg["lines"]
+    before_c, after_c = project_totals(bc_c, cats), project_totals(ac_c, cats)
+    before_l, after_l = project_totals(bc_l, cats), project_totals(ac_l, cats)
+
+    rows = []
+    for c in cats:
+        dc, dl = after_c[c] - before_c[c], after_l[c] - before_l[c]
+        rows.append((dc > 0 or dl > 0, c, after_c[c], dc, after_l[c], dl))
+    rows.sort(key=lambda r: (r[3], r[5]), reverse=True)
+
+    def fmt_cell(total: int, delta: int) -> str:
+        return f"{total:,} ({signed(delta)})" if delta else f"{total:,}"
+
+    cell_c = [fmt_cell(r[2], r[3]) for r in rows]
+    cell_l = [fmt_cell(r[4], r[5]) for r in rows]
+    wm = max([len("MODULE")] + [len(r[1]) for r in rows])
+    wc = max([len("COMMITS")] + [len(s) for s in cell_c])
+    wl = max([len("LINES")] + [len(s) for s in cell_l])
+
+    out = [
+        "### 모듈별 변화 상세 (전체 모듈)",
+        "이번 PR이 커밋을 추가한 모듈은 초록색으로 강조됩니다.",
+        "",
+        "```diff",
+        f"  {'MODULE':<{wm}}  {'COMMITS':<{wc}}  {'LINES':<{wl}}",
+    ]
+    for (changed, name, _, _, _, _), cc, lc in zip(rows, cell_c, cell_l):
+        prefix = "+" if changed else " "
+        out.append(f"{prefix} {name:<{wm}}  {cc:<{wc}}  {lc:<{wl}}")
+    out += ["```", ""]
+    return out
 
 
 def main() -> None:
