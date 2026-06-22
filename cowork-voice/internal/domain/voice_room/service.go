@@ -7,17 +7,19 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
 type RoomService struct {
 	repo         Repository
 	membership   MembershipChecker
 	livekit      LiveKitRoom
+	publisher    EventPublisher
 	livekitWsURL string
 }
 
-func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
-	return &RoomService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
+func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, publisher EventPublisher, livekitWsURL string) *RoomService {
+	return &RoomService{repo: repo, membership: membership, livekit: livekit, publisher: publisher, livekitWsURL: livekitWsURL}
 }
 
 func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
@@ -32,16 +34,20 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}
 	sessionCreatedByUs := false
 	if voiceSession == nil {
-		voiceSession, err = s.repo.CreateSession(ctx, channelID, teamID)
-		if err != nil {
-			return nil, err
+		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, teamID)
+		if cerr != nil {
+			return nil, cerr
 		}
-		sessionCreatedByUs = true
+		if created == nil {
+			return nil, apperr.Internal("failed to create or find active session")
+		}
+		voiceSession = created
+		sessionCreatedByUs = isNew
 	}
 
 	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName); err != nil {
 		if sessionCreatedByUs {
-			if err := s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC()); err != nil {
+			if _, err := s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC()); err != nil {
 				slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
 			}
 		}
@@ -88,8 +94,37 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 		return err
 	}
 
-	if _, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, time.Now().UTC()); err != nil {
+	now := time.Now().UTC()
+	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID)
+	if err != nil {
+		slog.Warn("failed to get participant joined_at", "err", err, "session_id", voiceSession.SessionID)
+	}
+
+	// MarkParticipantLeft가 dedup 게이트 역할을 한다. participant_left 웹훅과 경쟁하더라도
+	// 먼저 left_at을 기록한 쪽만 USER_LEFT를 발행해 이벤트 중복/유실을 방지한다.
+	firstLeave, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, now)
+	if err != nil {
 		slog.Warn("failed to mark participant left", "err", err, "session_id", voiceSession.SessionID)
+		return nil
+	}
+	if !firstLeave {
+		return nil
+	}
+
+	var durationSeconds int64
+	if joinedAt != nil {
+		durationSeconds = int64(now.Sub(*joinedAt).Seconds())
+	}
+	if err := s.publisher.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
+		EventType:       kafkadomain.EventUserLeft,
+		SessionID:       voiceSession.SessionID,
+		ChannelID:       channelID,
+		TeamID:          voiceSession.TeamID,
+		UserID:          userID,
+		DurationSeconds: durationSeconds,
+		Timestamp:       now.Format(time.RFC3339),
+	}); err != nil {
+		slog.Error("failed to publish USER_LEFT", "err", err, "session_id", voiceSession.SessionID)
 	}
 
 	return nil
