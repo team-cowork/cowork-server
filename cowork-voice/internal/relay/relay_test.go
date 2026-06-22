@@ -1,0 +1,117 @@
+package relay
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
+
+	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
+)
+
+type fakeOutbox struct {
+	msgs     []mongoinfra.OutboxMessage
+	sent     map[bson.ObjectID]bool
+	attempts map[bson.ObjectID]int
+}
+
+func newFakeOutbox(keys ...string) *fakeOutbox {
+	f := &fakeOutbox{sent: map[bson.ObjectID]bool{}, attempts: map[bson.ObjectID]int{}}
+	for i, k := range keys {
+		f.msgs = append(f.msgs, mongoinfra.OutboxMessage{
+			ID:        bson.NewObjectID(),
+			Key:       k,
+			Payload:   []byte(`{"i":` + string(rune('0'+i)) + `}`),
+			CreatedAt: time.Unix(int64(1700000000+i), 0).UTC(),
+		})
+	}
+	return f
+}
+
+func (f *fakeOutbox) FetchUnsent(_ context.Context, limit int) ([]mongoinfra.OutboxMessage, error) {
+	var out []mongoinfra.OutboxMessage
+	for _, m := range f.msgs {
+		if f.sent[m.ID] {
+			continue
+		}
+		out = append(out, m)
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeOutbox) MarkSent(_ context.Context, id bson.ObjectID, _ time.Time) error {
+	f.sent[id] = true
+	return nil
+}
+
+func (f *fakeOutbox) IncrementAttempts(_ context.Context, id bson.ObjectID) error {
+	f.attempts[id]++
+	return nil
+}
+
+type fakePublisher struct {
+	published []string
+	failOnKey string
+}
+
+func (p *fakePublisher) PublishRaw(_ context.Context, key string, _ []byte) error {
+	if key == p.failOnKey {
+		return errors.New("kafka down")
+	}
+	p.published = append(p.published, key)
+	return nil
+}
+
+func TestDrain_모든_메시지를_순서대로_전송하고_sent로_표시한다(t *testing.T) {
+	t.Parallel()
+
+	outbox := newFakeOutbox("a", "b", "c")
+	pub := &fakePublisher{}
+	r := New(outbox, pub, time.Second, 100)
+
+	r.drain()
+
+	if len(pub.published) != 3 {
+		t.Fatalf("published = %v, want 3 messages", pub.published)
+	}
+	if pub.published[0] != "a" || pub.published[1] != "b" || pub.published[2] != "c" {
+		t.Fatalf("publish order = %v, want [a b c]", pub.published)
+	}
+	for _, m := range outbox.msgs {
+		if !outbox.sent[m.ID] {
+			t.Fatalf("message %q not marked sent", m.Key)
+		}
+	}
+}
+
+func TestDrain_전송_실패시_순서보존을_위해_멈추고_재시도_대상으로_남긴다(t *testing.T) {
+	t.Parallel()
+
+	outbox := newFakeOutbox("a", "b", "c")
+	pub := &fakePublisher{failOnKey: "b"}
+	r := New(outbox, pub, time.Second, 100)
+
+	r.drain()
+
+	// a만 전송/표시되고, b에서 멈춰 c는 건드리지 않아야 한다.
+	if len(pub.published) != 1 || pub.published[0] != "a" {
+		t.Fatalf("published = %v, want [a]", pub.published)
+	}
+	if !outbox.sent[outbox.msgs[0].ID] {
+		t.Fatal("message a should be marked sent")
+	}
+	if outbox.sent[outbox.msgs[1].ID] {
+		t.Fatal("message b should NOT be marked sent")
+	}
+	if outbox.attempts[outbox.msgs[1].ID] != 1 {
+		t.Fatalf("message b attempts = %d, want 1", outbox.attempts[outbox.msgs[1].ID])
+	}
+	if outbox.attempts[outbox.msgs[2].ID] != 0 {
+		t.Fatal("message c should be untouched")
+	}
+}
