@@ -1,0 +1,80 @@
+name: cowork PR Contribution Delta
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - 'develop'
+      - 'main'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  contrib-delta:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0  # base 와 비교하려면 전체 히스토리 필요
+
+      - name: Fetch Base Branch
+        run: git fetch --no-tags origin ${{ github.event.pull_request.base.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install Dependencies
+        run: python -m pip install --quiet certifi matplotlib numpy
+
+      - name: Build Contribution Delta Comment
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+        run: python scripts/pr_contrib_delta.py
+
+      - name: Generate After-Merge Report Image (artifact)
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/contrib_report.py --out scripts/contrib_report.png
+
+      - name: Upload Report Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: contrib-report-pr-${{ github.event.pull_request.number }}
+          path: |
+            scripts/contrib_report.png
+            scripts/contrib_report.csv
+          if-no-files-found: ignore
+
+      - name: Post or Replace PR Comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- contrib-delta-bot -->';
+            const body = fs.readFileSync('scripts/pr_comment.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+
+            // 갱신 시 기존 봇 코멘트는 삭제하고 새로 작성
+            const comments = await github.paginate(
+              github.rest.issues.listComments,
+              { owner, repo, issue_number, per_page: 100 }
+            );
+            for (const c of comments) {
+              if (c.body && c.body.includes(marker)) {
+                await github.rest.issues.deleteComment({ owner, repo, comment_id: c.id });
+              }
+            }
+            await github.rest.issues.createComment({ owner, repo, issue_number, body });
