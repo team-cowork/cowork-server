@@ -82,8 +82,8 @@ async function bootstrap() {
         await app.close();
         process.exit(0);
     };
-    process.once('SIGINT', shutdown);
-    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', () => void shutdown());
+    process.once('SIGTERM', () => void shutdown());
 
     new Logger('Bootstrap').log(`Chat server running on port ${port}`);
     new Logger('Bootstrap').log(`Swagger UI: ${await app.getUrl()}/api`);

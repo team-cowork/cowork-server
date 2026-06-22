@@ -19,7 +19,7 @@ jest.mock('kafkajs', () => ({
 describe('GithubIssueProducer', () => {
     let producer: GithubIssueProducer;
 
-    beforeEach(async () => {
+    beforeEach(() => {
         jest.clearAllMocks();
         mockConnect.mockResolvedValue(undefined);
         const configService = {
@@ -27,7 +27,7 @@ describe('GithubIssueProducer', () => {
         } as unknown as ConfigService;
 
         producer = new GithubIssueProducer(configService);
-        await producer.onModuleInit();
+        producer.onModuleInit();
     });
 
     afterEach(async () => {
