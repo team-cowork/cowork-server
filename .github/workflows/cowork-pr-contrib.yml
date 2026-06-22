@@ -15,7 +15,7 @@ jobs:
   contrib-delta:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # 차트 이미지를 ci-contrib-charts 브랜치에 업로드
       pull-requests: write
 
     steps:
@@ -57,15 +57,48 @@ jobs:
             scripts/contrib_report.csv
           if-no-files-found: ignore
 
-      - name: Post or Replace PR Comment
+      - name: Upload Chart and Post or Replace PR Comment
         uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
             const marker = '<!-- contrib-delta-bot -->';
-            const body = fs.readFileSync('scripts/pr_comment.md', 'utf8');
+            const placeholder = '__CHART_URL__';
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
+            let body = fs.readFileSync('scripts/pr_comment.md', 'utf8');
+
+            // 차트 PNG 가 있으면 전용 브랜치에 올리고 commit-sha permalink 로 치환
+            if (fs.existsSync('scripts/pr_chart.png')) {
+              const branch = 'ci-contrib-charts';
+              const path = `pr-${issue_number}.png`;
+              const content = fs.readFileSync('scripts/pr_chart.png').toString('base64');
+
+              let parentSha = null, baseTree = undefined;
+              try {
+                const ref = await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` });
+                parentSha = ref.data.object.sha;
+                const c = await github.rest.git.getCommit({ owner, repo, commit_sha: parentSha });
+                baseTree = c.data.tree.sha;
+              } catch (e) { /* 브랜치 없음 → orphan 루트 커밋 */ }
+
+              const blob = await github.rest.git.createBlob({ owner, repo, content, encoding: 'base64' });
+              const tree = await github.rest.git.createTree({
+                owner, repo, base_tree: baseTree,
+                tree: [{ path, mode: '100644', type: 'blob', sha: blob.data.sha }],
+              });
+              const commit = await github.rest.git.createCommit({
+                owner, repo, message: `chart: pr-${issue_number}`,
+                tree: tree.data.sha, parents: parentSha ? [parentSha] : [],
+              });
+              if (parentSha) {
+                await github.rest.git.updateRef({ owner, repo, ref: `heads/${branch}`, sha: commit.data.sha, force: true });
+              } else {
+                await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: commit.data.sha });
+              }
+              const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${commit.data.sha}/${path}`;
+              body = body.split(placeholder).join(rawUrl);
+            }
 
             // 갱신 시 기존 봇 코멘트는 삭제하고 새로 작성
             const comments = await github.paginate(
