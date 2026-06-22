@@ -30,10 +30,9 @@ class TeamService(
     private val s3Service: S3Service,
 ) {
 
-    private fun findTeamOrThrow(teamId: Long): Team =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
-        }
+    private fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
+    }
 
     private fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())
@@ -59,10 +58,10 @@ class TeamService(
                 description = request.description,
                 iconUrl = request.iconUrl,
                 ownerId = ownerId,
-            )
+            ),
         )
         teamMemberRepository.save(
-            TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)
+            TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER),
         )
 
         val payload = TeamEventPayload(
@@ -83,12 +82,10 @@ class TeamService(
         return TeamResponse.of(team)
     }
 
-    fun getMyTeams(userId: Long): List<TeamSummaryResponse> =
-        teamMemberRepository.findAllByUserIdWithTeam(userId)
-            .map { m -> TeamSummaryResponse.of(m.team, m.role) }
+    fun getMyTeams(userId: Long): List<TeamSummaryResponse> = teamMemberRepository.findAllByUserIdWithTeam(userId)
+        .map { m -> TeamSummaryResponse.of(m.team, m.role) }
 
-    fun getTeam(teamId: Long): TeamResponse =
-        TeamResponse.of(findTeamOrThrow(teamId))
+    fun getTeam(teamId: Long): TeamResponse = TeamResponse.of(findTeamOrThrow(teamId))
 
     @Transactional
     fun updateTeam(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {

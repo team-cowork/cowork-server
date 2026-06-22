@@ -17,9 +17,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀 초대", description = "팀 초대 링크 생성·조회·삭제 및 코드로 팀 가입 API")
 @RestController
 @RequestMapping("/teams")
-class TeamInviteController(
-    private val teamInviteService: TeamInviteService,
-) {
+class TeamInviteController(private val teamInviteService: TeamInviteService) {
 
     @Operation(summary = "초대 링크 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -32,9 +30,8 @@ class TeamInviteController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: CreateInviteRequest,
-    ): ResponseEntity<InviteResponse> =
-        ResponseEntity.status(HttpStatus.CREATED)
-            .body(teamInviteService.createInvite(userId, teamId, request))
+    ): ResponseEntity<InviteResponse> = ResponseEntity.status(HttpStatus.CREATED)
+        .body(teamInviteService.createInvite(userId, teamId, request))
 
     @Operation(summary = "초대 링크 목록 조회 (만료 포함)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -45,8 +42,7 @@ class TeamInviteController(
     fun getInvites(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): ResponseEntity<List<InviteResponse>> =
-        ResponseEntity.ok(teamInviteService.getInvites(userId, teamId))
+    ): ResponseEntity<List<InviteResponse>> = ResponseEntity.ok(teamInviteService.getInvites(userId, teamId))
 
     @Operation(summary = "초대 링크 무효화", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -75,6 +71,5 @@ class TeamInviteController(
     fun joinTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable inviteCode: String,
-    ): ResponseEntity<JoinTeamResponse> =
-        ResponseEntity.ok(teamInviteService.joinTeam(userId, inviteCode))
+    ): ResponseEntity<JoinTeamResponse> = ResponseEntity.ok(teamInviteService.joinTeam(userId, inviteCode))
 }

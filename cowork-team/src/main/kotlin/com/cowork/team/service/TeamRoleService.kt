@@ -23,10 +23,7 @@ class TeamRoleService(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
 ) {
 
-    private data class ManageRoleContext(
-        val member: TeamMember,
-        val roles: List<TeamRoleResponse>,
-    ) {
+    private data class ManageRoleContext(val member: TeamMember, val roles: List<TeamRoleResponse>) {
         val maxPriority: Int = roles.maxOfOrNull { it.priority } ?: 0
     }
 

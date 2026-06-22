@@ -12,9 +12,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 
 @Configuration
-class MinioPresignerConfig(
-    private val env: Environment,
-) {
+class MinioPresignerConfig(private val env: Environment) {
 
     /**
      * 내부 통신용 MinIO endpoint(예: 내부 IP)와
@@ -46,8 +44,6 @@ class MinioPresignerConfig(
             .build()
     }
 
-    private fun Environment.getRequired(key: String): String =
-        getProperty(key)?.takeIf { it.isNotBlank() }
-            ?: throw IllegalStateException("Missing required property: $key")
+    private fun Environment.getRequired(key: String): String = getProperty(key)?.takeIf { it.isNotBlank() }
+        ?: throw IllegalStateException("Missing required property: $key")
 }
-

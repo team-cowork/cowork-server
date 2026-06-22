@@ -29,6 +29,8 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId AND c.createdBy <> :createdBy ORDER BY c.id ASC")
     fun findIdsByTeamIdAndCreatedByNot(@Param("teamId") teamId: Long, @Param("createdBy") createdBy: Long): List<Long>
 
-    @Query("SELECT c FROM Channel c WHERE c.teamId = :teamId AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY c.position ASC, c.id ASC")
+    @Query(
+        "SELECT c FROM Channel c WHERE c.teamId = :teamId AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY c.position ASC, c.id ASC",
+    )
     fun searchByTeamIdAndName(@Param("teamId") teamId: Long, @Param("q") q: String): List<Channel>
 }
