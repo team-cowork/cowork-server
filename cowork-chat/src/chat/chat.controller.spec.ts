@@ -246,8 +246,7 @@ describe('ChatController', () => {
 
             expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining()의 반환 타입이 any로 선언되어 있음
-                expect.objectContaining({ payload: expect.objectContaining({ body: undefined }) }),
+                expect.objectContaining({ payload: expect.objectContaining({ body: undefined }) as unknown }),
             );
         });
 
