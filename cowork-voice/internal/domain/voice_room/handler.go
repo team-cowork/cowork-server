@@ -157,7 +157,7 @@ func parseChannelIDParam(r *http.Request) (int64, error) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	_ = json.NewEncoder(w).Encode(v)
 }
 
 func toAppError(err error) *apperr.Error {
