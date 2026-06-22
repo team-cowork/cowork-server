@@ -23,7 +23,7 @@ class ThreadService(
 ) {
 
     private fun findThreadOrThrow(id: Long): Thread = threadRepository.findById(id).orElseThrow {
-        ExpectedException("스레드를 찾을 수 없습니다. id=$id", HttpStatus.NOT_FOUND)
+        ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
     @Transactional

@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestHeader
@@ -29,5 +28,5 @@ class ProjectChannelController(private val channelService: ChannelService) {
     fun listProjectChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<List<ChannelResponse>> = ResponseEntity.ok(channelService.listProjectChannels(userId, projectId))
+    ): List<ChannelResponse> = channelService.listProjectChannels(userId, projectId)
 }
