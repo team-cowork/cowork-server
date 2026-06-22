@@ -69,6 +69,18 @@ defmodule CoworkUser.Kafka.SyncHandler do
 
   defp decode_payload(other), do: {:error, {:unexpected_message, other}}
 
+  defp process_sync_event(%{"event_type" => event_type} = payload) when is_binary(event_type) do
+    case Accounts.apply_student_event(payload) do
+      :ok -> :ok
+      {:skip, reason} -> {:skip, reason}
+      {:error, {:validation, reason}} -> {:error, reason}
+      {:error, {:transient, reason}} -> {:retry, reason}
+      {:error, reason} -> {:error, reason}
+    end
+  rescue
+    exception -> {:retry, Exception.message(exception)}
+  end
+
   defp process_sync_event(payload) do
     if is_nil(payload["user_id"]) and is_nil(payload["userId"]) do
       {:skip, :missing_user_id}
