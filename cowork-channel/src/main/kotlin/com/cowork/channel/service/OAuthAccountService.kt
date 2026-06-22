@@ -103,14 +103,14 @@ class OAuthAccountService(
                     .queryParam("state", state)
                     .build().toUriString()
 
-            else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다. provider=${provider.name}", HttpStatus.BAD_REQUEST)
+            else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
         }
     }
 
     @Transactional
     fun handleCallback(providerName: String, code: String, state: String): SharedAccount {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
-            throw ExpectedException("지원하지 않는 OAuth provider입니다. provider=$providerName", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("지원하지 않는 OAuth provider입니다.", HttpStatus.BAD_REQUEST)
         }
 
         val (channelId, userId) = verifyState(state, provider)
@@ -214,9 +214,9 @@ class OAuthAccountService(
                 .body(body)
                 .retrieve()
                 .body(Map::class.java)
-                ?: throw ExpectedException("${provider.displayName} 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
             response["access_token"] as? String
-                ?: throw ExpectedException("${provider.displayName} access_token 없음", HttpStatus.BAD_GATEWAY)
+                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
         else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
@@ -305,6 +305,6 @@ class OAuthAccountService(
         AccountProvider.JIRA -> oAuthProperties.jira
         AccountProvider.GOOGLE -> oAuthProperties.google
         AccountProvider.FACEBOOK -> oAuthProperties.facebook
-        else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다. provider=${provider.name}", HttpStatus.BAD_REQUEST)
+        else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
     }
 }
