@@ -113,7 +113,10 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 
 	var durationSeconds int64
 	if joinedAt != nil {
-		durationSeconds = int64(now.Sub(*joinedAt).Seconds())
+		// clock skew 등으로 now < joinedAt이면 음수가 될 수 있어 0으로 보정한다.
+		if diff := now.Sub(*joinedAt).Seconds(); diff > 0 {
+			durationSeconds = int64(diff)
+		}
 	}
 	if err := s.publisher.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
 		EventType:       kafkadomain.EventUserLeft,
