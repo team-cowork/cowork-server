@@ -21,6 +21,8 @@ import subprocess
 import contrib_report as cr
 
 OUT_MD = cr.REPO_ROOT / "scripts" / "pr_comment.md"
+CHART_PNG = cr.REPO_ROOT / "scripts" / "pr_chart.png"
+CHART_PLACEHOLDER = "__CHART_URL__"  # 워크플로우가 업로드 후 raw URL 로 치환
 MARKER = "<!-- contrib-delta-bot -->"  # 기존 코멘트 식별용
 
 
@@ -141,21 +143,73 @@ def render_leaderboard(agg) -> list[str]:
 
 
 def render_module_chart(agg, cats) -> list[str]:
-    _, _, ac_c, _ = agg["commits"]
-    after_mod = project_totals(ac_c, cats)
-    labels = ", ".join(f'"{c}"' for c in cats)
-    values = ", ".join(str(after_mod[c]) for c in cats)
+    """이 PR이 작업한 모듈만(Δ>0) 모던 가로 막대 PNG 로 렌더, 이미지 블록 반환."""
+    bc_c, _, ac_c, _ = agg["commits"]
+    bc_l, _, ac_l, _ = agg["lines"]
+    before_c, after_c = project_totals(bc_c, cats), project_totals(ac_c, cats)
+    before_l, after_l = project_totals(bc_l, cats), project_totals(ac_l, cats)
+
+    worked = [(c, after_c[c] - before_c[c], after_l[c] - before_l[c]) for c in cats]
+    worked = [w for w in worked if w[1] > 0 or w[2] > 0]
+    worked.sort(key=lambda w: (w[1], w[2]), reverse=True)
+    if not worked or not generate_chart(worked):
+        return []
     return [
-        "### 모듈별 누적 커밋 (이 PR 병합 후, 전체 모듈)",
-        "```mermaid",
-        "xychart-beta",
-        '    title "모듈별 누적 커밋 (병합 후)"',
-        f"    x-axis [{labels}]",
-        '    y-axis "commits"',
-        f"    bar [{values}]",
-        "```",
+        "### 이 PR이 추가하는 모듈별 커밋",
+        f"![모듈별 증가분]({CHART_PLACEHOLDER})",
         "",
     ]
+
+
+def _set_korean_font(plt, matplotlib) -> None:
+    for cand in ("AppleGothic", "Apple SD Gothic Neo", "Malgun Gothic",
+                 "NanumGothic", "DejaVu Sans"):
+        if any(cand == f.name for f in matplotlib.font_manager.fontManager.ttflist):
+            plt.rcParams["font.family"] = cand
+            break
+    plt.rcParams["axes.unicode_minus"] = False
+
+
+def generate_chart(worked) -> bool:
+    """worked=[(module, +commits, +lines)] → CHART_PNG 저장. matplotlib 없으면 False."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except ImportError:
+        return False
+
+    _set_korean_font(plt, matplotlib)
+    mods = [w[0] for w in worked]
+    dcs = [w[1] for w in worked]
+    dls = [w[2] for w in worked]
+    n = len(mods)
+    vmax = max(dcs) or 1
+
+    fig, ax = plt.subplots(figsize=(9, max(2.2, 0.62 * n + 1.2)), dpi=150)
+    y = np.arange(n)[::-1]  # 가장 큰 값을 위로
+    cmap = plt.get_cmap("viridis")
+    colors = [cmap(0.12 + 0.72 * (v / vmax)) for v in dcs]
+    ax.barh(y, dcs, color=colors, height=0.62, zorder=3)
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(mods, fontsize=11)
+    ax.set_xlim(0, vmax * 1.22)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    ax.tick_params(left=False)
+    ax.xaxis.grid(True, color="#ececec", zorder=0)
+    ax.set_axisbelow(True)
+    for yi, dc, dl in zip(y, dcs, dls):
+        ax.text(dc + vmax * 0.015, yi, f"+{dc:,}  ·  +{dl:,} lines",
+                va="center", ha="left", fontsize=9.5, color="#444")
+    ax.set_title("이 PR이 추가하는 모듈별 커밋 (증가분)",
+                 fontsize=14, fontweight="bold", loc="left", pad=12)
+    ax.set_xlabel("+commits", fontsize=10, color="#777")
+    fig.savefig(CHART_PNG, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    return True
 
 
 def render_module_detail(agg, cats) -> list[str]:
