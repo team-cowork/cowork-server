@@ -58,9 +58,9 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 
 	outbox := db.Collection(CollectionOutbox)
 	outboxIndexes := []mongo.IndexModel{
-		// relay 조회: 미전송 메시지를 생성 순서대로 스캔
+		// relay 조회: 미전송(sent_at=null)·미격리(failed_at=null) 메시지를 생성 순서대로 스캔
 		{
-			Keys: bson.D{{Key: "sent_at", Value: 1}, {Key: "created_at", Value: 1}},
+			Keys: bson.D{{Key: "sent_at", Value: 1}, {Key: "failed_at", Value: 1}, {Key: "created_at", Value: 1}},
 		},
 		// 전송 완료된 메시지를 24h 후 자동 정리(TTL). sent_at이 없는 미전송 문서는 대상 아님.
 		{
