@@ -52,6 +52,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         this.isPolling = true;
         try {
             await this.poll();
+        } catch (err) {
+            this.logger.error('Notification outbox polling failed', err);
         } finally {
             this.isPolling = false;
         }
