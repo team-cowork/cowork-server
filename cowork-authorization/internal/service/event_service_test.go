@@ -136,15 +136,15 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	if store.markCalls != 1 {
 		t.Errorf("MarkProcessed should be called once after publish, got %d", store.markCalls)
 	}
-	if pub.lastKey != "s24080@gsm.hs.kr" {
-		t.Errorf("publish key = %q, want email", pub.lastKey)
+	if pub.lastKey != "1" {
+		t.Errorf("publish key = %q, want student_id", pub.lastKey)
 	}
 
 	var msg userSyncMessage
 	if err := json.Unmarshal(pub.lastVal, &msg); err != nil {
 		t.Fatal(err)
 	}
-	if msg.EventType != "student.status_changed" || msg.StudentRole != "STUDENT_COUNCIL" || msg.Email != "s24080@gsm.hs.kr" {
+	if msg.EventType != "student.status_changed" || msg.StudentRole != "STUDENT_COUNCIL" || msg.DataGSMRefID != 1 {
 		t.Errorf("unexpected sync message: %+v", msg)
 	}
 }
@@ -175,16 +175,23 @@ func TestProcessEvent_DuplicateSkipped(t *testing.T) {
 	}
 }
 
-func TestProcessEvent_MissingEmail(t *testing.T) {
+func TestProcessEvent_MissingStudentID(t *testing.T) {
 	pub := &fakePublisher{}
 	svc := newTestService(pub, &fakeStore{})
 
-	body := envelope(t, "evt_4", "student.graduated", "", "")
+	body, err := json.Marshal(WebhookEvent{
+		ID:    "evt_4",
+		Event: "student.graduated",
+		Data:  json.RawMessage(`{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr"}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.ProcessEvent(context.Background(), body); err == nil {
-		t.Error("ProcessEvent() expected error for missing email")
+		t.Error("ProcessEvent() expected error for missing student_id")
 	}
 	if pub.calls != 0 {
-		t.Errorf("should not publish on missing email, got %d calls", pub.calls)
+		t.Errorf("should not publish on missing student_id, got %d calls", pub.calls)
 	}
 }
 
