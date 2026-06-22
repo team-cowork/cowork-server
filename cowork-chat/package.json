@@ -9,7 +9,9 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix"
   },
   "keywords": [],
   "author": "",
@@ -45,16 +47,20 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@nestjs/testing": "^11.1.27",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^24.13.2",
     "@types/uuid": "^11.0.0",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0",
     "jest": "^30.4.2",
     "socket.io-client": "^4.8.3",
     "ts-jest": "^29.4.11",
     "ts-node": "^10.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
   }
 }
