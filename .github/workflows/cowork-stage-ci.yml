@@ -312,7 +312,6 @@ jobs:
             echo "status=cancelled" >> $GITHUB_OUTPUT
             echo "color=0xFFA500" >> $GITHUB_OUTPUT
           fi
-
       - name: Send Discord Notification
         uses: sarisia/actions-status-discord@v1
         with:
@@ -334,13 +333,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
         with:
-          fetch-depth: 0  # base 와 비교하려면 전체 히스토리 필요
-
+          fetch-depth: 0
       - name: Build and Post Contribution Delta Comment
         uses: actions/github-script@v9
         with:
@@ -359,7 +356,6 @@ jobs:
                 { owner, repo, issue_number, per_page: 100 });
               const bots = comments.filter(c => c.body && c.body.includes(marker));
               if (bots.length) {
-                // 기존 코멘트를 제자리에서 수정 (재게시 대신 edit-in-place)
                 await github.rest.issues.updateComment({ owner, repo, comment_id: bots[0].id, body });
                 for (const extra of bots.slice(1)) {
                   await github.rest.issues.deleteComment({ owner, repo, comment_id: extra.id });
@@ -382,7 +378,6 @@ jobs:
               return 'etc';
             };
 
-            // ── 커밋 수집 (git log --numstat 파싱) ────────────────
             sh(`git fetch --no-tags origin ${baseRef}`);
             const baseSha = sh(`git merge-base origin/${baseRef} HEAD`).trim();
             const S1 = '\x01', S2 = '\x02';
@@ -417,7 +412,6 @@ jobs:
               return;
             }
 
-            // ── 이메일 → GitHub login (실 계정 검증 + 동일인 병합) ──
             const all = baseCommits.concat(prCommits);
             const sampleSha = new Map();
             for (const c of all) if (!sampleSha.has(c.email)) sampleSha.set(c.email, c.sha);
@@ -437,7 +431,7 @@ jobs:
               }
               emailLogin.set(email, login);
             }
-            const canon = new Map();  // login 대소문자 병합, API 정규 표기 우선
+            const canon = new Map();
             for (const [email, login] of emailLogin) {
               if (!login) continue;
               const key = login.toLowerCase();
@@ -449,7 +443,6 @@ jobs:
             }
             for (const c of prCommits) if (!emailLogin.get(c.email)) emailLogin.set(c.email, prAuthor);
 
-            // ── 집계 (커밋/라인 × before/after) ───────────────────
             const fullCats = modules.concat(['ai-harness', 'etc']);
             const aggregate = (commits, metric) => {
               const contrib = {}, totals = {}, seen = {};
@@ -475,7 +468,6 @@ jobs:
               A[m] = { before: aggregate(baseCommits, m), after: aggregate(all, m) };
             }
 
-            // ── 포맷 헬퍼 ─────────────────────────────────────────
             const fmt = (n) => n.toLocaleString('en-US');
             const signed = (n) => n > 0 ? `+${fmt(n)}` : `${fmt(n)}`;
             const ranks = (totals) => {
@@ -491,7 +483,6 @@ jobs:
             const btC = A.commits.before.totals, atC = A.commits.after.totals;
             const btL = A.lines.before.totals, atL = A.lines.after.totals;
 
-            // ── 요약 ──────────────────────────────────────────────
             const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
             const dCommits = sum(atC) - sum(btC);
             const dLines = sum(atL) - sum(btL);
@@ -505,7 +496,6 @@ jobs:
               '',
             ];
 
-            // ── 리더보드 (전체 기여자) ────────────────────────────
             const rB = ranks(btC), rA = ranks(atC);
             const authors = Object.keys(atC).sort((a, b) => atC[b] - atC[a]);
             const lbRows = authors.map(a => {
@@ -533,7 +523,6 @@ jobs:
             }
             out.push('```', '');
 
-            // ── 모듈 차트 (작업 모듈만, QuickChart PNG) ────────────
             const bModC = projTotals(A.commits.before.contrib, fullCats);
             const aModC = projTotals(A.commits.after.contrib, fullCats);
             const bModL = projTotals(A.lines.before.contrib, fullCats);
@@ -569,7 +558,6 @@ jobs:
               out.push('### 이 PR이 추가하는 모듈별 커밋', `![module delta](${chartUrl})`, '');
             }
 
-            // ── 모듈별 상세 (전체 모듈) ───────────────────────────
             const mdRows = fullCats.map(c => {
               const dc = aModC[c] - bModC[c], dl = aModL[c] - bModL[c];
               const cell = (tot, d) => d ? `${fmt(tot)} (${signed(d)})` : `${fmt(tot)}`;
