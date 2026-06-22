@@ -88,6 +88,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	grade := st.Grade
 	classNum := st.ClassNum
 	number := st.Number
+	studentID := st.ID
 
 	upsertReq := client.UpsertUserRequest{
 		Name:                 st.Name,
@@ -99,6 +100,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		Major:                st.Major,
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
+		DataGSMStudentID:     &studentID,
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
