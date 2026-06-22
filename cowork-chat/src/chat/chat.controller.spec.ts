@@ -114,7 +114,7 @@ describe('ChatController', () => {
                 nextCursor: null,
             });
 
-            const result = await controller.getFiles(1, { limit: 20, before: undefined } as any, userId);
+            const result = await controller.getFiles(1, { limit: 20, before: undefined }, userId);
 
             expect(mockChatService.getFileList).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
@@ -131,7 +131,7 @@ describe('ChatController', () => {
         it('멤버십 검증 후 Kafka로 메시지를 발행한다', async () => {
             mockChatService.sendMessage.mockResolvedValue(undefined);
 
-            const result = await controller.sendMessage(1, dto as any, userId, userRole);
+            const result = await controller.sendMessage(1, dto, userId, userRole);
 
             expect(mockChatService.sendMessage).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42, userRole: 'ROLE_USER' },
@@ -144,7 +144,7 @@ describe('ChatController', () => {
             mockChatService.sendMessage.mockRejectedValue(new ForbiddenException());
 
             await expect(
-                controller.sendMessage(1, dto as any, userId, userRole),
+                controller.sendMessage(1, dto, userId, userRole),
             ).rejects.toThrow(ForbiddenException);
         });
     });
@@ -159,7 +159,7 @@ describe('ChatController', () => {
         it('프로젝트 레포 정보를 조회한 뒤 github.issue.create 토픽으로 이벤트를 발행한다', async () => {
             mockChatService.publishGithubIssueCreateCommand.mockResolvedValue(undefined);
 
-            const result = await controller.createGithubIssue(1, dto as any, userId);
+            const result = await controller.createGithubIssue(1, dto, userId);
 
             expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
@@ -171,7 +171,7 @@ describe('ChatController', () => {
         it('body 없이도 이슈 생성 이벤트를 발행한다', async () => {
             mockChatService.publishGithubIssueCreateCommand.mockResolvedValue(undefined);
 
-            await controller.createGithubIssue(1, { ...dto, body: undefined } as any, userId);
+            await controller.createGithubIssue(1, { ...dto, body: undefined }, userId);
 
             expect(mockChatService.publishGithubIssueCreateCommand).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
@@ -183,7 +183,7 @@ describe('ChatController', () => {
             mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new ForbiddenException());
 
             await expect(
-                controller.createGithubIssue(1, dto as any, userId),
+                controller.createGithubIssue(1, dto, userId),
             ).rejects.toThrow(ForbiddenException);
         });
 
@@ -191,7 +191,7 @@ describe('ChatController', () => {
             mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다'));
 
             await expect(
-                controller.createGithubIssue(1, dto as any, userId),
+                controller.createGithubIssue(1, dto, userId),
             ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
         });
 
@@ -199,7 +199,7 @@ describe('ChatController', () => {
             mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다'));
 
             await expect(
-                controller.createGithubIssue(1, dto as any, userId),
+                controller.createGithubIssue(1, dto, userId),
             ).rejects.toThrow('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
         });
 
@@ -207,7 +207,7 @@ describe('ChatController', () => {
             mockChatService.publishGithubIssueCreateCommand.mockRejectedValue(new Error('Kafka 연결 오류'));
 
             await expect(
-                controller.createGithubIssue(1, dto as any, userId),
+                controller.createGithubIssue(1, dto, userId),
             ).rejects.toThrow('Kafka 연결 오류');
         });
     });
@@ -224,7 +224,7 @@ describe('ChatController', () => {
 
             const result = await controller.createSlashCommand(
                 1,
-                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
                 userId,
             );
 
@@ -240,12 +240,13 @@ describe('ChatController', () => {
 
             await controller.createSlashCommand(
                 1,
-                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload: { ...payload, body: undefined } } as any,
+                { command: SlashCommand.GITHUB_ISSUE_CREATE, payload: { ...payload, body: undefined } },
                 userId,
             );
 
             expect(mockChatService.handleSlashCommand).toHaveBeenCalledWith(
                 { channelId: 1, userId: 42 },
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.objectContaining()의 반환 타입이 any로 선언되어 있음
                 expect.objectContaining({ payload: expect.objectContaining({ body: undefined }) }),
             );
         });
@@ -256,7 +257,7 @@ describe('ChatController', () => {
             await expect(
                 controller.createSlashCommand(
                     1,
-                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
                     userId,
                 ),
             ).rejects.toThrow(ForbiddenException);
@@ -268,7 +269,7 @@ describe('ChatController', () => {
             await expect(
                 controller.createSlashCommand(
                     1,
-                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
                     userId,
                 ),
             ).rejects.toThrow('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
@@ -280,7 +281,7 @@ describe('ChatController', () => {
             await expect(
                 controller.createSlashCommand(
                     1,
-                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
                     userId,
                 ),
             ).rejects.toThrow('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
@@ -292,7 +293,7 @@ describe('ChatController', () => {
             await expect(
                 controller.createSlashCommand(
                     1,
-                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload } as any,
+                    { command: SlashCommand.GITHUB_ISSUE_CREATE, payload },
                     userId,
                 ),
             ).rejects.toThrow('Kafka 연결 오류');

@@ -122,8 +122,8 @@ export class ElasticsearchService implements OnModuleInit {
                 id: messageId,
                 doc: { content },
             });
-        } catch (err: any) {
-            if (err?.statusCode === 404) return;
+        } catch (err) {
+            if (this.isNotFoundError(err)) return;
             this.logger.error(`ES 메시지 업데이트 실패 id=${messageId}`, err);
         }
     }
@@ -135,8 +135,8 @@ export class ElasticsearchService implements OnModuleInit {
                 id: messageId,
                 doc: { isPinned },
             });
-        } catch (err: any) {
-            if (err?.statusCode === 404) return;
+        } catch (err) {
+            if (this.isNotFoundError(err)) return;
             this.logger.error(`ES 메시지 핀 상태 업데이트 실패 id=${messageId}`, err);
         }
     }
@@ -144,30 +144,58 @@ export class ElasticsearchService implements OnModuleInit {
     async deleteMessage(messageId: string): Promise<void> {
         try {
             await this.client.delete({ index: INDEX, id: messageId });
-        } catch (err: any) {
-            if (err?.statusCode === 404) return;
+        } catch (err) {
+            if (this.isNotFoundError(err)) return;
             this.logger.error(`ES 메시지 삭제 실패 id=${messageId}`, err);
+        }
+    }
+
+    private isNotFoundError(err: unknown): boolean {
+        return typeof err === 'object' && err !== null && 'statusCode' in err && err.statusCode === 404;
+    }
+
+    private toSearchHits(rawHits: estypes.SearchHit<MessageIndexDoc>[]): SearchHit[] {
+        return rawHits.map((hit) => {
+            const source = hit._source!;
+            return {
+                messageId: source.messageId,
+                channelId: source.channelId,
+                authorId: source.authorId,
+                content: source.content,
+                highlight: hit.highlight?.content ?? [],
+                type: source.type,
+                hasAttachments: source.hasAttachments,
+                isPinned: source.isPinned,
+                createdAt: source.createdAt,
+            };
+        });
+    }
+
+    private buildNextCursor(rawHits: estypes.SearchHit<MessageIndexDoc>[], hitCount: number, limit: number): string | null {
+        const lastHit = rawHits.at(-1);
+        return hitCount === limit && lastHit?.sort ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64') : null;
+    }
+
+    private parseSearchAfter(before: string | undefined): estypes.SortResults | undefined {
+        if (!before) return undefined;
+        try {
+            return JSON.parse(Buffer.from(before, 'base64').toString()) as estypes.SortResults;
+        } catch {
+            return undefined;
         }
     }
 
     async searchTeamMessages(params: SearchTeamMessagesParams): Promise<{ hits: SearchHit[]; nextCursor: string | null }> {
         const { teamId, accessibleChannelIds, q, authorId, type, hasFile, before, limit } = params;
 
-        const filter: any[] = [];
+        const filter: estypes.QueryDslQueryContainer[] = [];
         if (authorId !== undefined) filter.push({ term: { authorId } });
         if (type !== undefined) filter.push({ term: { type } });
         if (hasFile === true) filter.push({ term: { hasAttachments: true } });
 
-        let searchAfter: any[] | undefined;
-        if (before) {
-            try {
-                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
-            } catch {
-                searchAfter = undefined;
-            }
-        }
+        const searchAfter = this.parseSearchAfter(before);
 
-        const response = await this.client.search({
+        const response = await this.client.search<MessageIndexDoc>({
             index: INDEX,
             query: {
                     bool: {
@@ -202,24 +230,9 @@ export class ElasticsearchService implements OnModuleInit {
                 ...(searchAfter ? { search_after: searchAfter } : {}),
         });
 
-        const rawHits = (response as any).hits?.hits ?? [];
-
-        const hits: SearchHit[] = rawHits.map((hit: any) => ({
-            messageId: hit._source.messageId,
-            channelId: hit._source.channelId,
-            authorId: hit._source.authorId,
-            content: hit._source.content,
-            highlight: hit.highlight?.content ?? [],
-            type: hit._source.type,
-            hasAttachments: hit._source.hasAttachments,
-            isPinned: hit._source.isPinned,
-            createdAt: hit._source.createdAt,
-        }));
-
-        const lastHit = rawHits.at(-1);
-        const nextCursor = hits.length === limit && lastHit?.sort
-            ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64')
-            : null;
+        const rawHits = response.hits.hits;
+        const hits = this.toSearchHits(rawHits);
+        const nextCursor = this.buildNextCursor(rawHits, hits.length, limit);
 
         return { hits, nextCursor };
     }
@@ -227,7 +240,7 @@ export class ElasticsearchService implements OnModuleInit {
     async searchMessages(params: SearchMessagesParams): Promise<{ hits: SearchHit[]; nextCursor: string | null }> {
         const { projectId, accessibleChannelIds, q, channelId, authorId, type, hasFile, before, limit } = params;
 
-        const filter: any[] = [];
+        const filter: estypes.QueryDslQueryContainer[] = [];
         if (channelId !== undefined) {
             filter.push({ term: { channelId } });
         }
@@ -241,16 +254,9 @@ export class ElasticsearchService implements OnModuleInit {
             filter.push({ term: { hasAttachments: true } });
         }
 
-        let searchAfter: any[] | undefined;
-        if (before) {
-            try {
-                searchAfter = JSON.parse(Buffer.from(before, 'base64').toString());
-            } catch {
-                searchAfter = undefined;
-            }
-        }
+        const searchAfter = this.parseSearchAfter(before);
 
-        const response = await this.client.search({
+        const response = await this.client.search<MessageIndexDoc>({
             index: INDEX,
             query: {
                     bool: {
@@ -285,24 +291,9 @@ export class ElasticsearchService implements OnModuleInit {
                 ...(searchAfter ? { search_after: searchAfter } : {}),
         });
 
-        const rawHits = (response as any).hits?.hits ?? [];
-
-        const hits: SearchHit[] = rawHits.map((hit: any) => ({
-            messageId: hit._source.messageId,
-            channelId: hit._source.channelId,
-            authorId: hit._source.authorId,
-            content: hit._source.content,
-            highlight: hit.highlight?.content ?? [],
-            type: hit._source.type,
-            hasAttachments: hit._source.hasAttachments,
-            isPinned: hit._source.isPinned,
-            createdAt: hit._source.createdAt,
-        }));
-
-        const lastHit = rawHits.at(-1);
-        const nextCursor = hits.length === limit && lastHit?.sort
-            ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64')
-            : null;
+        const rawHits = response.hits.hits;
+        const hits = this.toSearchHits(rawHits);
+        const nextCursor = this.buildNextCursor(rawHits, hits.length, limit);
 
         return { hits, nextCursor };
     }

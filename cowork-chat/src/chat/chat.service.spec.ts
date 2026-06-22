@@ -159,7 +159,7 @@ describe('ChatService', () => {
         it('일반 채널 메시지는 DTO 그대로 producer에 위임한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
 
-            await service.sendMessage(ctx, { teamId: 100, content: 'hi' } as any);
+            await service.sendMessage(ctx, { teamId: 100, content: 'hi' });
 
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(1, { teamId: 100, content: 'hi' }, 42, 'USER');
             expect(mockBlockService.isBlocked).not.toHaveBeenCalled();
@@ -168,7 +168,7 @@ describe('ChatService', () => {
         it('팀 채널 메시지는 클라이언트 teamId를 멤버십의 teamId로 덮어쓴다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
 
-            await service.sendMessage(ctx, { teamId: 999, content: 'hi' } as any);
+            await service.sendMessage(ctx, { teamId: 999, content: 'hi' });
 
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
                 1,
@@ -181,7 +181,7 @@ describe('ChatService', () => {
         it('채널 멤버가 아니면 ForbiddenException을 던진다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue(null);
 
-            await expect(service.sendMessage(ctx, { content: 'hi' } as any)).rejects.toThrow(ForbiddenException);
+            await expect(service.sendMessage(ctx, { content: 'hi' })).rejects.toThrow(ForbiddenException);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
@@ -192,7 +192,7 @@ describe('ChatService', () => {
                 { name: 'a.png', url: 'http://minio/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png' },
             ];
 
-            await service.sendMessage(ctx, { content: 'hi', attachments } as any);
+            await service.sendMessage(ctx, { content: 'hi', attachments });
 
             expect(mockMinioService.assertOwnedAttachmentUrl).toHaveBeenCalledWith(attachments[0].url, 1, 42);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
@@ -207,7 +207,7 @@ describe('ChatService', () => {
                 { name: 'a.png', url: 'http://minio/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png' },
             ];
 
-            await expect(service.sendMessage(ctx, { content: 'hi', attachments } as any)).rejects.toThrow(BadRequestException);
+            await expect(service.sendMessage(ctx, { content: 'hi', attachments })).rejects.toThrow(BadRequestException);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
@@ -216,7 +216,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(true);
 
-            await expect(service.sendMessage(ctx, { content: 'hi' } as any)).rejects.toThrow(ForbiddenException);
+            await expect(service.sendMessage(ctx, { content: 'hi' })).rejects.toThrow(ForbiddenException);
             expect(mockBlockService.isBlocked).toHaveBeenCalledWith(7, 42);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
@@ -226,7 +226,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(false);
 
-            await service.sendMessage(ctx, { teamId: 999, projectId: 5, content: 'hi' } as any);
+            await service.sendMessage(ctx, { teamId: 999, projectId: 5, content: 'hi' });
 
             expect(mockChannelMemberRepository.setHidden).toHaveBeenCalledWith(1, 7, false);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
