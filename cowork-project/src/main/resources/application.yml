@@ -25,6 +25,14 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:
       auto-offset-reset: earliest
+  http:
+    client:
+      connect-timeout: 3s
+      read-timeout: 10s
+
+github-app:
+  service-url: ${GITHUB_APP_SERVICE_URL:http://localhost:3000}
+  internal-api-key: ${GITHUB_APP_INTERNAL_API_KEY:}
 
 eureka:
   client:
