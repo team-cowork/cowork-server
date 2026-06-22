@@ -60,7 +60,7 @@ func (r *OutboxRepository) FetchUnsent(ctx context.Context, limit int) ([]Outbox
 	if err != nil {
 		return nil, err
 	}
-	defer cur.Close(ctx)
+	defer func() { _ = cur.Close(ctx) }()
 
 	var msgs []OutboxMessage
 	if err := cur.All(ctx, &msgs); err != nil {
