@@ -12,12 +12,12 @@ import (
 )
 
 type mockNotificationService struct {
-	calledUserIDs  []int64
-	calledForced   []int64
-	calledTitle    string
-	calledBody     string
-	calledChannel  int64
-	err            error
+	calledUserIDs []int64
+	calledForced  []int64
+	calledTitle   string
+	calledBody    string
+	calledChannel int64
+	err           error
 }
 
 func (m *mockNotificationService) Notify(_ context.Context, ids []int64, forced []int64, title, body string, channelID int64) error {
