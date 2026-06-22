@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "계정 공유", description = "ACCOUNT_SHARE 채널의 공유 계정 관리 API")
 @RestController
 @RequestMapping("/channels/{channelId}/accounts")
-class SharedAccountController(
-    private val sharedAccountService: SharedAccountService,
-) {
+class SharedAccountController(private val sharedAccountService: SharedAccountService) {
 
     @Operation(summary = "공유 계정 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

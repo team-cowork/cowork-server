@@ -1,5 +1,3 @@
 package com.cowork.channel.dto
 
-data class OpenDmRequest(
-    val targetUserId: Long,
-)
+data class OpenDmRequest(val targetUserId: Long)
