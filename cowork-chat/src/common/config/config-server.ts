@@ -53,5 +53,5 @@ function flattenPropertySources(propertySources: PropertySource[]): Record<strin
 function stringifyPropertyValue(value: unknown): string {
     if (typeof value === 'string') return value;
     if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return value.toString();
-    return JSON.stringify(value);
+    return JSON.stringify(value) ?? '';
 }

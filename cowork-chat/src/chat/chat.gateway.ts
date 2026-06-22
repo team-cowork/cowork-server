@@ -97,7 +97,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             client.data.userId = userId;
             client.data.userRole = payload.role ?? UserRole.USER;
-            void client.join(`user:${userId}`);
+            this.joinRoom(client, `user:${userId}`);
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
@@ -131,7 +131,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
             return;
         }
-        void client.join(`chat:${payload.channelId}`);
+        this.joinRoom(client, `chat:${payload.channelId}`);
         this.logger.log(`userId=${userId} joined chat:${payload.channelId}`);
     }
 
@@ -143,7 +143,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave')
     handleLeave(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        void client.leave(`chat:${payload.channelId}`);
+        this.leaveRoom(client, `chat:${payload.channelId}`);
     }
 
     /**
@@ -187,7 +187,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.emit('error', { message: '팀 접근 권한이 없습니다' });
             return;
         }
-        void client.join(`team:${payload.teamId}`);
+        this.joinRoom(client, `team:${payload.teamId}`);
     }
 
     /**
@@ -199,6 +199,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
-        void client.leave(`team:${payload.teamId}`);
+        this.leaveRoom(client, `team:${payload.teamId}`);
+    }
+
+    private joinRoom(client: ChatSocket, room: string): void {
+        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`방 참여 실패 (room=${room}): ${String(err)}`));
+    }
+
+    private leaveRoom(client: ChatSocket, room: string): void {
+        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`방 퇴장 실패 (room=${room}): ${String(err)}`));
     }
 }
