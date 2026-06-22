@@ -1,4 +1,10 @@
-import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class CreateIssueDto {
   @IsString()
@@ -26,4 +32,12 @@ export class CreateIssueDto {
   @IsString({ each: true })
   @IsOptional()
   assignees?: string[];
+
+  @IsNumber()
+  @IsOptional()
+  channelId?: number;
+
+  @IsNumber()
+  @IsOptional()
+  teamId?: number;
 }

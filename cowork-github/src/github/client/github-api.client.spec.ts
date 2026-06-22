@@ -4,12 +4,14 @@ import { AxiosError } from 'axios';
 import type { AxiosResponse } from 'axios';
 import { of, throwError } from 'rxjs';
 import { GithubApiClient } from './github-api.client';
+import { GithubAuthService } from '../auth/github-auth.service';
 import { GithubClientError } from '../github.errors';
 import { CreateIssueDto } from '../dto/create-issue.dto';
 
 describe('GithubApiClient', () => {
   let client: GithubApiClient;
   let httpService: { get: jest.Mock; post: jest.Mock };
+  let authService: { getInstallationToken: jest.Mock };
 
   const dto: CreateIssueDto = {
     owner: 'my-org',
@@ -20,11 +22,15 @@ describe('GithubApiClient', () => {
 
   beforeEach(async () => {
     httpService = { get: jest.fn(), post: jest.fn() };
+    authService = {
+      getInstallationToken: jest.fn().mockResolvedValue('my-token'),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         GithubApiClient,
         { provide: HttpService, useValue: httpService },
+        { provide: GithubAuthService, useValue: authService },
       ],
     }).compile();
 
@@ -41,7 +47,7 @@ describe('GithubApiClient', () => {
       }),
     );
 
-    const result = await client.createIssue('my-token', dto);
+    const result = await client.createIssue(dto);
 
     expect(result).toEqual({
       number: 42,
@@ -67,7 +73,7 @@ describe('GithubApiClient', () => {
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
     const error = await client
-      .createIssue('my-token', dto)
+      .createIssue(dto)
       .catch((e: unknown) => e as GithubClientError);
 
     expect(error).toBeInstanceOf(GithubClientError);
@@ -84,7 +90,7 @@ describe('GithubApiClient', () => {
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
     const error = await client
-      .createIssue('my-token', dto)
+      .createIssue(dto)
       .catch((e: unknown) => e as GithubClientError);
 
     expect(error).toBeInstanceOf(GithubClientError);
@@ -97,7 +103,7 @@ describe('GithubApiClient', () => {
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
     const error = await client
-      .createIssue('my-token', dto)
+      .createIssue(dto)
       .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);
@@ -109,7 +115,7 @@ describe('GithubApiClient', () => {
     httpService.post.mockReturnValue(throwError(() => networkError));
 
     const error = await client
-      .createIssue('my-token', dto)
+      .createIssue(dto)
       .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);
@@ -132,7 +138,7 @@ describe('GithubApiClient', () => {
       }),
     );
 
-    const result = await client.searchOpenIssuesByTitle('my-token', dto);
+    const result = await client.searchOpenIssuesByTitle(dto);
 
     expect(result).toEqual([
       {
@@ -158,7 +164,7 @@ describe('GithubApiClient', () => {
   it('기존 이슈에 라벨을 추가한다', async () => {
     httpService.post.mockReturnValue(of({ data: {} }));
 
-    await client.addLabelsToIssue('my-token', dto, 7, ['bug']);
+    await client.addLabelsToIssue(dto, 7, ['bug']);
 
     expect(httpService.post).toHaveBeenCalledWith(
       'https://api.github.com/repos/my-org/my-repo/issues/7/labels',
@@ -178,7 +184,7 @@ describe('GithubApiClient', () => {
       }),
     );
 
-    const result = await client.listLabels('my-token', dto);
+    const result = await client.listLabels(dto);
 
     expect(result).toEqual(['bug', 'enhancement:개선작업']);
     expect(httpService.get).toHaveBeenCalledWith(
@@ -194,7 +200,7 @@ describe('GithubApiClient', () => {
   it('repo에 라벨을 생성한다', async () => {
     httpService.post.mockReturnValue(of({ data: {} }));
 
-    await client.createLabel('my-token', dto, {
+    await client.createLabel(dto, {
       name: 'bug:버그',
       color: 'd73a4a',
       description: '버그 또는 오작동',
@@ -224,7 +230,7 @@ describe('GithubApiClient', () => {
     httpService.get.mockReturnValue(throwError(() => axiosError));
 
     const error = await client
-      .searchOpenIssuesByTitle('my-token', dto)
+      .searchOpenIssuesByTitle(dto)
       .catch((e: unknown) => e as GithubClientError);
 
     expect(error).toBeInstanceOf(GithubClientError);
@@ -237,7 +243,7 @@ describe('GithubApiClient', () => {
     httpService.post.mockReturnValue(throwError(() => axiosError));
 
     const error = await client
-      .addLabelsToIssue('my-token', dto, 7, ['bug'])
+      .addLabelsToIssue(dto, 7, ['bug'])
       .catch((e: unknown) => e as AxiosError);
 
     expect(error).toBeInstanceOf(AxiosError);
