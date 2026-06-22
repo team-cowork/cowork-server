@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/cowork/authorization/internal/config"
-	"github.com/cowork/authorization/internal/repository"
 )
 
 const signaturePrefix = "sha256="
@@ -19,6 +18,11 @@ const signaturePrefix = "sha256="
 // EventPublisher publishes a sync message to the user sync stream.
 type EventPublisher interface {
 	Publish(ctx context.Context, key string, value []byte) error
+}
+
+// ProcessedEventStore records handled event ids for idempotency.
+type ProcessedEventStore interface {
+	MarkProcessed(eventID, eventType string) (bool, error)
 }
 
 // DataGSM webhook envelope.
@@ -56,13 +60,13 @@ var supportedStudentEvents = map[string]struct{}{
 type EventService struct {
 	cfg           *config.AppConfig
 	publisher     EventPublisher
-	processedRepo *repository.ProcessedEventRepository
+	processedRepo ProcessedEventStore
 }
 
 func NewEventService(
 	cfg *config.AppConfig,
 	publisher EventPublisher,
-	processedRepo *repository.ProcessedEventRepository,
+	processedRepo ProcessedEventStore,
 ) *EventService {
 	return &EventService{
 		cfg:           cfg,
