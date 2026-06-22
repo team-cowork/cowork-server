@@ -10,7 +10,12 @@ import (
 )
 
 type Sender struct {
-	client *messaging.Client
+	client         messagingClient
+	isUnregistered func(error) bool
+}
+
+type messagingClient interface {
+	SendEachForMulticast(context.Context, *messaging.MulticastMessage) (*messaging.BatchResponse, error)
 }
 
 func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
@@ -22,7 +27,10 @@ func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sender{client: client}, nil
+	return &Sender{
+		client:         client,
+		isUnregistered: messaging.IsUnregistered,
+	}, nil
 }
 
 const fcmBatchSize = 500
@@ -51,7 +59,7 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 		}
 		for j, r := range resp.Responses {
 			if !r.Success {
-				if messaging.IsUnregistered(r.Error) {
+				if s.isUnregistered(r.Error) {
 					invalid = append(invalid, batch[j])
 				} else {
 					slog.Warn("fcm send failed for token", "err", r.Error, "token", batch[j])
