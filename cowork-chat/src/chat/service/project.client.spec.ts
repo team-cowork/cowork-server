@@ -91,8 +91,7 @@ describe('ProjectClient', () => {
 
             expect(global.fetch).toHaveBeenCalledWith(
                 'http://localhost:8084/projects/1',
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any()의 반환 타입이 any로 선언되어 있음
-                expect.objectContaining({ signal: expect.any(AbortSignal) }),
+                expect.objectContaining({ signal: expect.any(AbortSignal) as unknown }),
             );
             expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
         });
@@ -152,8 +151,7 @@ describe('ProjectClient', () => {
                 'http://localhost:8084/projects/5/members/me',
                 expect.objectContaining({
                     headers: { 'X-User-Id': '42' },
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any()의 반환 타입이 any로 선언되어 있음
-                    signal: expect.any(AbortSignal),
+                    signal: expect.any(AbortSignal) as unknown,
                 }),
             );
             expect(result).toBe(true);

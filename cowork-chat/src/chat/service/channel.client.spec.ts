@@ -38,8 +38,7 @@ describe('ChannelClient', () => {
             'http://localhost:8083/channels/1',
             expect.objectContaining({
                 headers: { 'X-User-Id': '42' },
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any()의 반환 타입이 any로 선언되어 있음
-                signal: expect.any(AbortSignal),
+                signal: expect.any(AbortSignal) as unknown,
             }),
         );
     });
