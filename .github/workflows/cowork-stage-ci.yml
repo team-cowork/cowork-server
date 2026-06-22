@@ -237,6 +237,12 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
+      - name: Lint (Go)
+        if: matrix.build == 'go'
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.working-directory }}
       - name: Setup Elixir
         if: matrix.build == 'elixir'
         uses: erlef/setup-beam@v1
