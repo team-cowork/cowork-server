@@ -242,6 +242,12 @@ func overrideFromEnv(cfg *AppConfig) {
 		if parsed, err := strconv.Atoi(v); err == nil {
 			cfg.EurekaInstancePort = parsed
 		}
+	} else if v := os.Getenv("PORT"); v != "" {
+		// EUREKA_INSTANCE_PORT가 별도 지정되지 않으면 서버 리슨 포트(PORT)를 따라가
+		// Eureka 등록 포트와 실제 포트가 어긋나지 않게 한다.
+		if parsed, err := strconv.Atoi(v); err == nil {
+			cfg.EurekaInstancePort = parsed
+		}
 	}
 	if v := os.Getenv("EUREKA_HEARTBEAT_INTERVAL_SECS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil {
