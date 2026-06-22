@@ -29,7 +29,7 @@ class TeamRoleService(
 
     private fun requireTeam(teamId: Long) {
         if (!teamRepository.existsById(teamId)) {
-            throw ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
+            throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
     }
 
@@ -91,7 +91,7 @@ class TeamRoleService(
         val actor = requireManageRoles(teamId, actorId)
         val allRoles = getRoles(teamId)
         val currentRole = allRoles.firstOrNull { it.id == roleId }
-            ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         requireManageablePriority(actor, currentRole)
         request.priority?.let {
             requireManageablePriority(actor, currentRole.copy(priority = it))
@@ -102,7 +102,7 @@ class TeamRoleService(
     fun deleteRole(actorId: Long, teamId: Long, roleId: Long) {
         val actor = requireManageRoles(teamId, actorId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
-            ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         requireManageablePriority(actor, role)
         preferenceTeamRoleClient.deleteRole(teamId, roleId)
     }
@@ -111,7 +111,7 @@ class TeamRoleService(
         val actor = requireManageRoles(teamId, actorId)
         requireMember(teamId, targetUserId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
-            ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         requireManageablePriority(actor, role)
         return preferenceTeamRoleClient.assignRole(teamId, roleId, mapOf("accountId" to targetUserId))
     }
@@ -120,7 +120,7 @@ class TeamRoleService(
         val actor = requireManageRoles(teamId, actorId)
         requireMember(teamId, targetUserId)
         val role = getRoles(teamId).firstOrNull { it.id == roleId }
-            ?: throw ExpectedException("역할을 찾을 수 없습니다. id=$roleId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         requireManageablePriority(actor, role)
         preferenceTeamRoleClient.revokeRole(teamId, targetUserId, roleId)
     }
