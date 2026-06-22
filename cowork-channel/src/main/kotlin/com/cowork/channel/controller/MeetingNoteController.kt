@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.ResponseEntity
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @Tag(name = "회의록", description = "회의록 작성 및 조회 API")
@@ -27,7 +27,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
     fun listNotes(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<MeetingNoteResponse>> = ResponseEntity.ok(meetingNoteService.listNotes(userId, channelId))
+    ): List<MeetingNoteResponse> = meetingNoteService.listNotes(userId, channelId)
 
     @Operation(summary = "회의록 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -40,7 +40,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
-    ): ResponseEntity<MeetingNoteResponse> = ResponseEntity.ok(meetingNoteService.getNote(userId, channelId, noteId))
+    ): MeetingNoteResponse = meetingNoteService.getNote(userId, channelId, noteId)
 
     @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -50,12 +50,12 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         ApiResponse(responseCode = "404", description = "템플릿 없음"),
     )
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun createNote(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateMeetingNoteRequest,
-    ): ResponseEntity<MeetingNoteResponse> =
-        ResponseEntity.status(201).body(meetingNoteService.createNote(userId, channelId, request))
+    ): MeetingNoteResponse = meetingNoteService.createNote(userId, channelId, request)
 
     @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -69,8 +69,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
         @RequestBody request: UpdateMeetingNoteRequest,
-    ): ResponseEntity<MeetingNoteResponse> =
-        ResponseEntity.ok(meetingNoteService.updateNote(userId, channelId, noteId, request))
+    ): MeetingNoteResponse = meetingNoteService.updateNote(userId, channelId, noteId, request)
 
     @Operation(summary = "회의록 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -79,12 +78,12 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         ApiResponse(responseCode = "404", description = "회의록 없음"),
     )
     @DeleteMapping("/{noteId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNote(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
-    ): ResponseEntity<Unit> {
+    ) {
         meetingNoteService.deleteNote(userId, channelId, noteId)
-        return ResponseEntity.noContent().build()
     }
 }
