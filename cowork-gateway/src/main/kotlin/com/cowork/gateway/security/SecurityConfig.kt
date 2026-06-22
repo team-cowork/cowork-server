@@ -49,6 +49,8 @@ class SecurityConfig(
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/voice/webhook").permitAll()
+                    // DataGSM webhook은 Cowork JWT가 아닌 HMAC 서명으로 인증하므로 Gateway JWT 검증을 우회한다
+                    .pathMatchers(HttpMethod.POST, "/api/events/datagsm").permitAll()
                     // Socket.io auth는 HTTP 헤더가 아닌 프로토콜 레벨에서 전달되므로
                     // Gateway JWT 검증을 우회하고 chat 서비스에서 직접 검증한다
                     .pathMatchers("/chat-ws/**").permitAll()
