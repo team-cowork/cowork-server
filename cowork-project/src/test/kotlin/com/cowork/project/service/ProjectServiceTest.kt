@@ -6,6 +6,7 @@ import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.TeamMembership
 import com.cowork.project.dto.AddProjectMemberRequest
 import com.cowork.project.dto.CreateProjectRequest
+import com.cowork.project.dto.LinkGithubRepoRequest
 import com.cowork.project.dto.UpdateProjectRequest
 import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
@@ -30,8 +31,9 @@ class ProjectServiceTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
+    private val projectAccessGuard = ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private val service = ProjectService(projectRepository, projectMemberRepository, teamMembershipRepository, projectEventPublisher)
+    private val service = ProjectService(projectRepository, projectMemberRepository, projectEventPublisher, projectAccessGuard)
 
     @BeforeEach
     fun setUp() {
@@ -133,5 +135,56 @@ class ProjectServiceTest {
             service.addMember(1L, 1L, AddProjectMemberRequest(userId = 50L, role = "EDITOR"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `linkGithubRepo는 유효한 URL이면 저장`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+
+        val response = service.linkGithubRepo(99L, 1L, LinkGithubRepoRequest("https://github.com/my-org/my-repo"))
+
+        assertEquals("https://github.com/my-org/my-repo", response.githubRepoUrl)
+    }
+
+    @Test
+    fun `linkGithubRepo는 github_com이 아닌 호스트면 BAD_REQUEST`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.linkGithubRepo(99L, 1L, LinkGithubRepoRequest("https://gitlab.com/my-org/my-repo"))
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `linkGithubRepo는 EDITOR가 아니면 FORBIDDEN`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
+            ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.linkGithubRepo(50L, 1L, LinkGithubRepoRequest("https://github.com/my-org/my-repo"))
+        }
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
+    @Test
+    fun `unlinkGithubRepo는 githubRepoUrl을 null로 초기화`() {
+        val proj = project().apply { linkGithubRepo("https://github.com/my-org/my-repo") }
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+
+        val response = service.unlinkGithubRepo(99L, 1L)
+
+        assertEquals(null, response.githubRepoUrl)
     }
 }
