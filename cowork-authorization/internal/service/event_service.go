@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	"github.com/cowork/authorization/internal/config"
@@ -134,8 +135,8 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
 		return fmt.Errorf("failed to parse student event data: %w", err)
 	}
-	if data.Email == "" {
-		return fmt.Errorf("student event %s missing email", envelope.ID)
+	if data.StudentID == 0 {
+		return fmt.Errorf("student event %s missing student_id", envelope.ID)
 	}
 
 	msg := userSyncMessage{
@@ -153,7 +154,7 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 		return fmt.Errorf("failed to marshal sync message: %w", err)
 	}
 
-	if err := s.publisher.Publish(ctx, data.Email, payload); err != nil {
+	if err := s.publisher.Publish(ctx, strconv.FormatInt(data.StudentID, 10), payload); err != nil {
 		return fmt.Errorf("failed to publish sync message: %w", err)
 	}
 
