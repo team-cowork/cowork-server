@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -15,6 +16,10 @@ import (
 )
 
 const signaturePrefix = "sha256="
+
+// ErrInvalidPayload marks client/payload errors so the handler can respond 4xx
+// instead of triggering DataGSM retries with a 5xx.
+var ErrInvalidPayload = errors.New("invalid webhook payload")
 
 // EventPublisher publishes a sync message to the user sync stream.
 type EventPublisher interface {
@@ -109,10 +114,11 @@ func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool
 func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	var envelope WebhookEvent
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return fmt.Errorf("failed to parse webhook envelope: %w", err)
+		log.Printf("failed to parse webhook envelope: %v", err)
+		return fmt.Errorf("%w: failed to parse webhook envelope", ErrInvalidPayload)
 	}
 	if envelope.ID == "" || envelope.Event == "" {
-		return fmt.Errorf("webhook envelope missing id or event")
+		return fmt.Errorf("%w: missing id or event", ErrInvalidPayload)
 	}
 
 	if _, ok := supportedStudentEvents[envelope.Event]; !ok {
@@ -133,10 +139,10 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	var data studentEventData
 	if err := json.Unmarshal(envelope.Data, &data); err != nil {
 		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
-		return fmt.Errorf("failed to parse student event data: %w", err)
+		return fmt.Errorf("%w: failed to parse student event data", ErrInvalidPayload)
 	}
 	if data.StudentID == 0 {
-		return fmt.Errorf("student event %s missing student_id", envelope.ID)
+		return fmt.Errorf("%w: event %s missing student_id", ErrInvalidPayload, envelope.ID)
 	}
 
 	msg := userSyncMessage{

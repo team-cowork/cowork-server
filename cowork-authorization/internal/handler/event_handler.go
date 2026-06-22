@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -48,8 +49,13 @@ func (h *EventHandler) DataGSMWebhook(c *gin.Context) {
 	}
 
 	if err := h.eventSvc.ProcessEvent(c.Request.Context(), body); err != nil {
-		// 처리 실패 시 500을 반환해 DataGSM 재시도를 유도한다.
 		log.Printf("failed to process webhook event: %v", err)
+		// 페이로드/유효성 오류는 400으로 응답해 DataGSM의 불필요한 재시도를 막고,
+		// DB/Kafka 등 실제 내부 오류만 500으로 응답해 재시도를 유도한다.
+		if errors.Is(err, service.ErrInvalidPayload) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process event"})
 		return
 	}
