@@ -330,6 +330,7 @@ jobs:
   contrib-delta:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
@@ -387,13 +388,13 @@ jobs:
               for (const line of out.split('\n')) {
                 if (line.startsWith(S1)) {
                   if (cur) commits.push(cur);
-                  const [sha, email, name] = line.slice(1).split(S2);
-                  cur = { sha, email: email.toLowerCase(), name, files: {} };
+                  const [sha, email] = line.slice(1).split(S2);
+                  cur = { sha, email: email.toLowerCase(), files: {} };
                 } else if (line.trim() && cur) {
                   const parts = line.split('\t');
                   if (parts.length !== 3) continue;
                   let [add, del, path] = parts;
-                  const ln = (add === '-' ? 0 : parseInt(add)) + (del === '-' ? 0 : parseInt(del));
+                  const ln = (add === '-' ? 0 : parseInt(add, 10)) + (del === '-' ? 0 : parseInt(del, 10));
                   if (path.includes('=>')) {
                     path = path.replace(/\{[^}]*=> ?([^}]*)\}/, '$1').split(' => ').pop().trim();
                   }
@@ -419,15 +420,21 @@ jobs:
               const m = e.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/);
               return m ? m[1] : null;
             };
+            const FAKE_TLDS = new Set(['test', 'invalid', 'example', 'localhost', 'local', 'internal', 'fake', 'nowhere']);
+            const isFake = (e) => FAKE_TLDS.has(e.split('.').pop());
             const emailLogin = new Map();
             for (const [email, sha] of sampleSha) {
               let login = noreply(email);
               if (!login && email.includes('[bot]')) login = email.split('@')[0];
-              if (!login) {
+              if (!login && !isFake(email)) {
                 try {
                   const r = await github.rest.repos.getCommit({ owner, repo, ref: sha });
                   login = r.data.author ? r.data.author.login : null;
-                } catch (e) { login = null; }
+                } catch (e) {
+                  if (e.status === 403 || e.status === 429) core.warning(`GitHub API rate limit while verifying ${email}`);
+                  else core.warning(`GitHub API error while verifying ${email}: ${e.message}`);
+                  login = null;
+                }
               }
               emailLogin.set(email, login);
             }
@@ -500,14 +507,14 @@ jobs:
             const authors = Object.keys(atC).sort((a, b) => atC[b] - atC[a]);
             const lbRows = authors.map(a => {
               const bcc = btC[a] || 0, acc = atC[a] || 0;
-              const bll = btL[a] || 0, all = atL[a] || 0;
+              const bll = btL[a] || 0, aLines = atL[a] || 0;
               const rbV = rB[a], raV = rA[a];
               const move = rbV ? `${rbV} -> ${raV}` : `new -> ${raV}`;
               return {
-                changed: (acc - bcc) > 0 || (all - bll) > 0,
+                changed: (acc - bcc) > 0 || (aLines - bll) > 0,
                 a,
                 c: `${fmt(bcc)} -> ${fmt(acc)} (${signed(acc - bcc)})`,
-                l: `${fmt(bll)} -> ${fmt(all)} (${signed(all - bll)})`,
+                l: `${fmt(bll)} -> ${fmt(aLines)} (${signed(aLines - bll)})`,
                 m: move,
               };
             });
