@@ -40,12 +40,16 @@ jobs:
             const postComment = async (body) => {
               const comments = await github.paginate(github.rest.issues.listComments,
                 { owner, repo, issue_number, per_page: 100 });
-              for (const c of comments) {
-                if (c.body && c.body.includes(marker)) {
-                  await github.rest.issues.deleteComment({ owner, repo, comment_id: c.id });
+              const bots = comments.filter(c => c.body && c.body.includes(marker));
+              if (bots.length) {
+                // 기존 코멘트를 제자리에서 수정 (재게시 대신 edit-in-place)
+                await github.rest.issues.updateComment({ owner, repo, comment_id: bots[0].id, body });
+                for (const extra of bots.slice(1)) {
+                  await github.rest.issues.deleteComment({ owner, repo, comment_id: extra.id });
                 }
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
               }
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
             };
 
             // ── 모듈 감지 & 경로 분류 ─────────────────────────────
