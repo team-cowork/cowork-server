@@ -1,4 +1,5 @@
-import { Types } from 'mongoose';
+import { Model, Types } from 'mongoose';
+import { Message } from '../schema/message.schema';
 import { MessageRepository } from './message.repository';
 
 const mockAggregate = jest.fn();
@@ -10,11 +11,18 @@ const mockMessageModel = {
     collection: { name: 'messages' },
 };
 
+type AggregatePipelineStage = Record<string, unknown>;
+
+function getAggregatePipeline(): AggregatePipelineStage[] {
+    const calls = mockAggregate.mock.calls as unknown as AggregatePipelineStage[][][];
+    return calls[0][0];
+}
+
 describe('MessageRepository', () => {
     let repository: MessageRepository;
 
     beforeEach(() => {
-        repository = new MessageRepository(mockMessageModel as any);
+        repository = new MessageRepository(mockMessageModel as unknown as Model<Message>);
         jest.clearAllMocks();
     });
 
@@ -60,7 +68,7 @@ describe('MessageRepository', () => {
 
             await repository.findMessages(1);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
+            const pipeline = getAggregatePipeline();
             expect(pipeline[0].$match).toEqual({ channelId: 1 });
             expect(pipeline[1].$sort).toEqual({ _id: -1 });
             expect(pipeline[2].$limit).toBe(100);
@@ -72,7 +80,7 @@ describe('MessageRepository', () => {
 
             await repository.findMessages(1, messageId);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
+            const pipeline = getAggregatePipeline();
             expect(pipeline[0].$match).toEqual({
                 channelId: 1,
                 _id: { $lt: new Types.ObjectId(messageId) },
@@ -84,7 +92,7 @@ describe('MessageRepository', () => {
 
             await repository.findMessages(1);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
+            const pipeline = getAggregatePipeline();
             expect(pipeline[3].$lookup).toEqual(expect.objectContaining({
                 from: 'messages',
                 localField: 'parentMessageId',
@@ -146,7 +154,7 @@ describe('MessageRepository', () => {
 
             await repository.findFileAttachments(1, before, 20);
 
-            const pipeline = mockAggregate.mock.calls[0][0];
+            const pipeline = getAggregatePipeline();
             expect(pipeline[2].$match).toEqual({
                 $or: [
                     { createdAt: { $lt: new Date(cursorRow.createdAt) } },

@@ -26,7 +26,7 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
      * 연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
      * 실제 연결은 첫 번째 이벤트 발행 시 {@link ensureConnected}를 통해 재시도된다.
      */
-    async onModuleInit() {
+    onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-github',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),

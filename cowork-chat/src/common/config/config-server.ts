@@ -43,9 +43,15 @@ function flattenPropertySources(propertySources: PropertySource[]): Record<strin
     for (let i = propertySources.length - 1; i >= 0; i -= 1) {
         const source = propertySources[i]?.source ?? {};
         for (const [key, value] of Object.entries(source)) {
-            flatMap[key] = value == null ? '' : String(value);
+            flatMap[key] = value == null ? '' : stringifyPropertyValue(value);
         }
     }
 
     return flatMap;
+}
+
+function stringifyPropertyValue(value: unknown): string {
+    if (typeof value === 'string') return value;
+    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return value.toString();
+    return JSON.stringify(value) ?? '';
 }
