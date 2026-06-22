@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import { ProjectClient } from './project.client';
+import { ProjectClient, GithubRepoInfo } from './project.client';
+
+type ClientWithPrivates = Omit<ProjectClient, 'parseRepoUrl'> & {
+    parseRepoUrl: (url: string | null | undefined) => Omit<GithubRepoInfo, 'teamId'> | null;
+};
 
 describe('ProjectClient', () => {
     let client: ProjectClient;
@@ -21,7 +25,7 @@ describe('ProjectClient', () => {
 
     describe('parseRepoUrl (private)', () => {
         const parse = (url: string | null | undefined) =>
-            (client as any).parseRepoUrl(url);
+            (client as unknown as ClientWithPrivates).parseRepoUrl(url);
 
         it('표준 GitHub URL에서 owner와 repo를 파싱한다', () => {
             expect(parse('https://github.com/my-org/backend')).toEqual({
@@ -87,6 +91,7 @@ describe('ProjectClient', () => {
 
             expect(global.fetch).toHaveBeenCalledWith(
                 'http://localhost:8084/projects/1',
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any()의 반환 타입이 any로 선언되어 있음
                 expect.objectContaining({ signal: expect.any(AbortSignal) }),
             );
             expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
@@ -147,6 +152,7 @@ describe('ProjectClient', () => {
                 'http://localhost:8084/projects/5/members/me',
                 expect.objectContaining({
                     headers: { 'X-User-Id': '42' },
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- expect.any()의 반환 타입이 any로 선언되어 있음
                     signal: expect.any(AbortSignal),
                 }),
             );
