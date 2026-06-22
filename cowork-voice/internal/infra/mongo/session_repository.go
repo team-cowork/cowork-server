@@ -39,6 +39,9 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	}
 
 	participantIndexes := []mongo.IndexModel{
+		// 세션당 user는 "활성 참가자(left_at=null)" 한 명만 허용(재입장은 left_at이 채워진 옛 문서를
+		// 인덱스에서 제외하므로 허용). InsertParticipant가 left_at을 항상 명시적으로 null로 set하므로
+		// "missing vs null" 모호성은 발생하지 않으며, null 동등 필터는 누락 필드까지 포함해 더 안전하다.
 		{
 			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "user_id", Value: 1}},
 			Options: options.Index().
@@ -51,6 +54,22 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	}
 	if _, err := participants.Indexes().CreateMany(ctx, participantIndexes); err != nil {
 		return fmt.Errorf("voice_participants index creation failed: %w", err)
+	}
+
+	outbox := db.Collection(CollectionOutbox)
+	outboxIndexes := []mongo.IndexModel{
+		// relay 조회: 미전송 메시지를 생성 순서대로 스캔
+		{
+			Keys: bson.D{{Key: "sent_at", Value: 1}, {Key: "created_at", Value: 1}},
+		},
+		// 전송 완료된 메시지를 24h 후 자동 정리(TTL). sent_at이 없는 미전송 문서는 대상 아님.
+		{
+			Keys:    bson.D{{Key: "sent_at", Value: 1}},
+			Options: options.Index().SetExpireAfterSeconds(24 * 60 * 60),
+		},
+	}
+	if _, err := outbox.Indexes().CreateMany(ctx, outboxIndexes); err != nil {
+		return fmt.Errorf("voice_outbox index creation failed: %w", err)
 	}
 
 	return nil
@@ -92,7 +111,7 @@ func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, room
 	return &s, nil
 }
 
-func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, error) {
+func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, bool, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	now := time.Now().UTC()
 	sessionID := uuid.NewString()
@@ -107,12 +126,13 @@ func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, t
 	_, err := col.InsertOne(ctx, s)
 	if err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			// 동시 첫 입장 경쟁 조건: 다른 요청이 먼저 생성함 → 해당 세션 반환
-			return r.FindActiveSession(ctx, channelID)
+			// 동시 첫 입장 경쟁 조건: 다른 요청이 먼저 생성함 → 기존 세션을 created=false로 반환
+			existing, ferr := r.FindActiveSession(ctx, channelID)
+			return existing, false, ferr
 		}
-		return nil, apperr.Internal(err.Error())
+		return nil, false, apperr.Internal(err.Error())
 	}
-	return s, nil
+	return s, true, nil
 }
 
 func (r *mongoSessionRepository) GetSession(ctx context.Context, sessionID string) (*room.VoiceSession, error) {
@@ -129,18 +149,18 @@ func (r *mongoSessionRepository) GetSession(ctx context.Context, sessionID strin
 	return &s, nil
 }
 
-func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) error {
+func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: room.StatusActive}}
 	update := bson.D{{Key: "$set", Value: bson.D{
 		{Key: "status", Value: room.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
 	}}}
-	_, err := col.UpdateOne(ctx, filter, update)
+	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
-		return apperr.Internal(err.Error())
+		return false, apperr.Internal(err.Error())
 	}
-	return nil
+	return result.ModifiedCount == 1, nil
 }
 
 func (r *mongoSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {

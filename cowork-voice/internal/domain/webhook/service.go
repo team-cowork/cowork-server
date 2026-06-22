@@ -190,9 +190,14 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return nil
 	}
 
-	if err := s.repo.EndSession(ctx, voiceSession.SessionID, now); err != nil {
+	ended, err := s.repo.EndSession(ctx, voiceSession.SessionID, now)
+	if err != nil {
 		slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
 		return err
+	}
+	if !ended {
+		// 이미 종료된 세션(room_finished 재전송) → 정리·발행을 반복하지 않는다.
+		return nil
 	}
 
 	count, err := s.repo.CleanupOrphanParticipants(ctx, voiceSession.SessionID, now)
