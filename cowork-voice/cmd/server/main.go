@@ -37,8 +37,8 @@ import (
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 	redisinfra "github.com/cowork/cowork-voice/internal/infra/redis"
 	"github.com/cowork/cowork-voice/internal/middleware"
-	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/internal/monitoring"
+	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
 )
@@ -168,7 +168,7 @@ func main() {
 		exitCode = 1
 	}
 
-	eurekaClient.Deregister(cfg)
+	_ = eurekaClient.Deregister(cfg)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()

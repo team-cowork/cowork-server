@@ -31,7 +31,7 @@ class ChannelService(
 ) {
 
     fun findChannelOrThrow(channelId: Long): Channel = channelRepository.findById(channelId).orElseThrow {
-        ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
+        ExpectedException("채널을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
     /** DM 채널이면 거부하고, 팀 채널이면 non-null teamId를 반환한다. */
@@ -59,7 +59,7 @@ class ChannelService(
         val type = try {
             ChannelType.valueOf(value.uppercase())
         } catch (e: IllegalArgumentException) {
-            throw ExpectedException("유효하지 않은 채널 타입입니다. type=$value", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("유효하지 않은 채널 타입입니다.", HttpStatus.BAD_REQUEST)
         }
         if (type == ChannelType.DM) {
             throw ExpectedException("DM 채널은 DM 전용 API로만 생성할 수 있습니다.", HttpStatus.BAD_REQUEST)
@@ -70,7 +70,7 @@ class ChannelService(
     private fun parseViewType(value: String): ChannelViewType = try {
         ChannelViewType.valueOf(value.uppercase())
     } catch (e: IllegalArgumentException) {
-        throw ExpectedException("유효하지 않은 view_type 입니다. value=$value", HttpStatus.BAD_REQUEST)
+        throw ExpectedException("유효하지 않은 view_type 입니다.", HttpStatus.BAD_REQUEST)
     }
 
     private fun requireChannelManager(channel: Channel, userId: Long) {
@@ -221,7 +221,7 @@ class ChannelService(
         val channel = findChannelOrThrow(channelId)
         val teamId = requireTeamChannel(channel)
         val member = channelMemberRepository.findById(memberId).orElseThrow {
-            ExpectedException("멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
+            ExpectedException("멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
 
         if (member.channelId != channelId) {
