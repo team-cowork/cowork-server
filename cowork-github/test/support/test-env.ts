@@ -6,6 +6,7 @@ export const TEST_ENV: Record<string, string> = {
   GITHUB_PRIVATE_KEY: Buffer.from('test-private-key').toString('base64'),
   REDIS_HOST: 'localhost',
   REDIS_PORT: '6379',
+  INTERNAL_API_KEY: 'test-internal-api-key',
 };
 
 export function applyTestEnv(): NodeJS.ProcessEnv {

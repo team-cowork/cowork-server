@@ -10,13 +10,17 @@ import { validate } from 'class-validator';
 import { CreateIssueDto } from './dto/create-issue.dto';
 import { IssueService } from './issue/issue.service';
 import { GithubClientError } from './github.errors';
+import { IssueResultProducer } from './kafka/issue-result.producer';
 
 @Controller()
 export class GithubController {
   private readonly logger = new Logger(GithubController.name);
   private readonly exitProcess = (code: number): never => process.exit(code);
 
-  constructor(private readonly issueService: IssueService) {}
+  constructor(
+    private readonly issueService: IssueService,
+    private readonly issueResultProducer: IssueResultProducer,
+  ) {}
 
   @EventPattern('github.issue.create')
   async handleIssueCreate(
@@ -40,11 +44,28 @@ export class GithubController {
       this.logger.error('Invalid payload, skipping message', {
         errors: errors.map((e) => e.toString()),
       });
+      if (dto.channelId != null && dto.teamId != null) {
+        await this.issueResultProducer.send({
+          channelId: dto.channelId,
+          teamId: dto.teamId,
+          success: false,
+          error: '잘못된 이슈 생성 요청입니다.',
+        });
+      }
       return true;
     }
 
     try {
-      await this.issueService.createIssue(dto);
+      const result = await this.issueService.createIssue(dto);
+      if (dto.channelId != null && dto.teamId != null) {
+        await this.issueResultProducer.send({
+          channelId: dto.channelId,
+          teamId: dto.teamId,
+          success: true,
+          issueUrl: result.issueUrl,
+          issueNumber: result.issueNumber,
+        });
+      }
       return true;
     } catch (error) {
       if (error instanceof GithubClientError) {
@@ -55,6 +76,14 @@ export class GithubController {
           statusCode: error.statusCode,
           message: error.message,
         });
+        if (dto.channelId != null && dto.teamId != null) {
+          await this.issueResultProducer.send({
+            channelId: dto.channelId,
+            teamId: dto.teamId,
+            success: false,
+            error: error.message,
+          });
+        }
         return true;
       }
       this.logger.error('GitHub server error, consumer will stop for retry', {
