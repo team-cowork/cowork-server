@@ -1,0 +1,6 @@
+# contrib_report.py / pr_contrib_delta.py 생성물 / 캐시
+.contrib_github_cache.json
+contrib_report.png
+contrib_report.csv
+pr_comment.md
+__pycache__/
