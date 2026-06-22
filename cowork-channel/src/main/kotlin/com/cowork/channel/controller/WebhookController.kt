@@ -16,9 +16,7 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "웹훅", description = "채널 웹훅 CRUD API (TEXT 타입 채널 전용)")
 @RestController
 @RequestMapping("/channels/{channelId}/webhooks")
-class WebhookController(
-    private val webhookService: WebhookService,
-) {
+class WebhookController(private val webhookService: WebhookService) {
 
     @Operation(summary = "웹훅 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -43,8 +41,7 @@ class WebhookController(
     fun getWebhooks(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<WebhookResponse>> =
-        ResponseEntity.ok(webhookService.getWebhooks(userId, channelId))
+    ): ResponseEntity<List<WebhookResponse>> = ResponseEntity.ok(webhookService.getWebhooks(userId, channelId))
 
     @Operation(summary = "웹훅 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

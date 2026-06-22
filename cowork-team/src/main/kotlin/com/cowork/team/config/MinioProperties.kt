@@ -10,4 +10,3 @@ data class MinioProperties(
     val maxFileSizeBytes: Long = 1048576,
     val allowedContentTypes: List<String> = listOf("image/jpeg", "image/png", "image/webp"),
 )
-

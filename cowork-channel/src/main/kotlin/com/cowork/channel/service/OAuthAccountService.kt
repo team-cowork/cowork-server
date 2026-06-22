@@ -7,7 +7,6 @@ import com.cowork.channel.domain.Channel
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.SharedAccount
 import com.cowork.channel.repository.SharedAccountRepository
-import tools.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -16,6 +15,7 @@ import org.springframework.util.LinkedMultiValueMap
 import org.springframework.web.client.RestClient
 import org.springframework.web.util.UriComponentsBuilder
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -53,50 +53,55 @@ class OAuthAccountService(
         val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
 
         return when (provider) {
-            AccountProvider.GITHUB -> UriComponentsBuilder
-                .fromUriString("https://github.com/login/oauth/authorize")
-                .queryParam("client_id", config.clientId)
-                .queryParam("redirect_uri", callbackUrl)
-                .queryParam("scope", config.scope)
-                .queryParam("state", state)
-                .build().toUriString()
+            AccountProvider.GITHUB ->
+                UriComponentsBuilder
+                    .fromUriString("https://github.com/login/oauth/authorize")
+                    .queryParam("client_id", config.clientId)
+                    .queryParam("redirect_uri", callbackUrl)
+                    .queryParam("scope", config.scope)
+                    .queryParam("state", state)
+                    .build().toUriString()
 
-            AccountProvider.NOTION -> UriComponentsBuilder
-                .fromUriString("https://api.notion.com/v1/oauth/authorize")
-                .queryParam("client_id", config.clientId)
-                .queryParam("redirect_uri", callbackUrl)
-                .queryParam("response_type", "code")
-                .queryParam("owner", "user")
-                .queryParam("state", state)
-                .build().toUriString()
+            AccountProvider.NOTION ->
+                UriComponentsBuilder
+                    .fromUriString("https://api.notion.com/v1/oauth/authorize")
+                    .queryParam("client_id", config.clientId)
+                    .queryParam("redirect_uri", callbackUrl)
+                    .queryParam("response_type", "code")
+                    .queryParam("owner", "user")
+                    .queryParam("state", state)
+                    .build().toUriString()
 
-            AccountProvider.JIRA -> UriComponentsBuilder
-                .fromUriString("https://auth.atlassian.com/authorize")
-                .queryParam("client_id", config.clientId)
-                .queryParam("redirect_uri", callbackUrl)
-                .queryParam("response_type", "code")
-                .queryParam("scope", config.scope)
-                .queryParam("state", state)
-                .queryParam("prompt", "consent")
-                .build().toUriString()
+            AccountProvider.JIRA ->
+                UriComponentsBuilder
+                    .fromUriString("https://auth.atlassian.com/authorize")
+                    .queryParam("client_id", config.clientId)
+                    .queryParam("redirect_uri", callbackUrl)
+                    .queryParam("response_type", "code")
+                    .queryParam("scope", config.scope)
+                    .queryParam("state", state)
+                    .queryParam("prompt", "consent")
+                    .build().toUriString()
 
-            AccountProvider.GOOGLE -> UriComponentsBuilder
-                .fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
-                .queryParam("client_id", config.clientId)
-                .queryParam("redirect_uri", callbackUrl)
-                .queryParam("response_type", "code")
-                .queryParam("scope", config.scope)
-                .queryParam("state", state)
-                .queryParam("access_type", "online")
-                .build().toUriString()
+            AccountProvider.GOOGLE ->
+                UriComponentsBuilder
+                    .fromUriString("https://accounts.google.com/o/oauth2/v2/auth")
+                    .queryParam("client_id", config.clientId)
+                    .queryParam("redirect_uri", callbackUrl)
+                    .queryParam("response_type", "code")
+                    .queryParam("scope", config.scope)
+                    .queryParam("state", state)
+                    .queryParam("access_type", "online")
+                    .build().toUriString()
 
-            AccountProvider.FACEBOOK -> UriComponentsBuilder
-                .fromUriString("https://www.facebook.com/v18.0/dialog/oauth")
-                .queryParam("client_id", config.clientId)
-                .queryParam("redirect_uri", callbackUrl)
-                .queryParam("scope", config.scope)
-                .queryParam("state", state)
-                .build().toUriString()
+            AccountProvider.FACEBOOK ->
+                UriComponentsBuilder
+                    .fromUriString("https://www.facebook.com/v18.0/dialog/oauth")
+                    .queryParam("client_id", config.clientId)
+                    .queryParam("redirect_uri", callbackUrl)
+                    .queryParam("scope", config.scope)
+                    .queryParam("state", state)
+                    .build().toUriString()
 
             else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다. provider=${provider.name}", HttpStatus.BAD_REQUEST)
         }
@@ -130,7 +135,7 @@ class OAuthAccountService(
                 credential = null,
                 connectedViaOAuth = true,
                 createdBy = userId,
-            )
+            ),
         )
     }
 
@@ -139,79 +144,82 @@ class OAuthAccountService(
         config: OAuthProviderConfig,
         code: String,
         callbackUrl: String,
-    ): String {
-        return when (provider) {
-            AccountProvider.GITHUB -> {
-                val body = LinkedMultiValueMap<String, String>().apply {
-                    add("client_id", config.clientId)
-                    add("client_secret", config.clientSecret)
-                    add("code", code)
-                    add("redirect_uri", callbackUrl)
-                }
-                val response = restClient.post()
-                    .uri(config.tokenUrl)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .accept(MediaType.APPLICATION_JSON)
-                    .body(body)
-                    .retrieve()
-                    .body(Map::class.java) ?: throw ExpectedException("GitHub 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
-                response["access_token"] as? String
-                    ?: throw ExpectedException("GitHub access_token 없음", HttpStatus.BAD_GATEWAY)
+    ): String = when (provider) {
+        AccountProvider.GITHUB -> {
+            val body = LinkedMultiValueMap<String, String>().apply {
+                add("client_id", config.clientId)
+                add("client_secret", config.clientSecret)
+                add("code", code)
+                add("redirect_uri", callbackUrl)
             }
-
-            AccountProvider.NOTION -> {
-                val credentials = Base64.getEncoder()
-                    .encodeToString("${config.clientId}:${config.clientSecret}".toByteArray())
-                val requestBody = mapOf("grant_type" to "authorization_code", "code" to code, "redirect_uri" to callbackUrl)
-                val response = restClient.post()
-                    .uri(config.tokenUrl)
-                    .header("Authorization", "Basic $credentials")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(requestBody)
-                    .retrieve()
-                    .body(Map::class.java) ?: throw ExpectedException("Notion 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
-                response["access_token"] as? String
-                    ?: throw ExpectedException("Notion access_token 없음", HttpStatus.BAD_GATEWAY)
-            }
-
-            AccountProvider.JIRA -> {
-                val body = LinkedMultiValueMap<String, String>().apply {
-                    add("grant_type", "authorization_code")
-                    add("client_id", config.clientId)
-                    add("client_secret", config.clientSecret)
-                    add("code", code)
-                    add("redirect_uri", callbackUrl)
-                }
-                val response = restClient.post()
-                    .uri(config.tokenUrl)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(body)
-                    .retrieve()
-                    .body(Map::class.java) ?: throw ExpectedException("Jira 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
-                response["access_token"] as? String
-                    ?: throw ExpectedException("Jira access_token 없음", HttpStatus.BAD_GATEWAY)
-            }
-
-            AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
-                val body = LinkedMultiValueMap<String, String>().apply {
-                    add("grant_type", "authorization_code")
-                    add("client_id", config.clientId)
-                    add("client_secret", config.clientSecret)
-                    add("code", code)
-                    add("redirect_uri", callbackUrl)
-                }
-                val response = restClient.post()
-                    .uri(config.tokenUrl)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .body(body)
-                    .retrieve()
-                    .body(Map::class.java) ?: throw ExpectedException("${provider.displayName} 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
-                response["access_token"] as? String
-                    ?: throw ExpectedException("${provider.displayName} access_token 없음", HttpStatus.BAD_GATEWAY)
-            }
-
-            else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
+            val response = restClient.post()
+                .uri(config.tokenUrl)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Map::class.java) ?: throw ExpectedException("GitHub 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+            response["access_token"] as? String
+                ?: throw ExpectedException("GitHub access_token 없음", HttpStatus.BAD_GATEWAY)
         }
+
+        AccountProvider.NOTION -> {
+            val credentials = Base64.getEncoder()
+                .encodeToString("${config.clientId}:${config.clientSecret}".toByteArray())
+            val requestBody = mapOf(
+                "grant_type" to "authorization_code",
+                "code" to code,
+                "redirect_uri" to callbackUrl,
+            )
+            val response = restClient.post()
+                .uri(config.tokenUrl)
+                .header("Authorization", "Basic $credentials")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(requestBody)
+                .retrieve()
+                .body(Map::class.java) ?: throw ExpectedException("Notion 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+            response["access_token"] as? String
+                ?: throw ExpectedException("Notion access_token 없음", HttpStatus.BAD_GATEWAY)
+        }
+
+        AccountProvider.JIRA -> {
+            val body = LinkedMultiValueMap<String, String>().apply {
+                add("grant_type", "authorization_code")
+                add("client_id", config.clientId)
+                add("client_secret", config.clientSecret)
+                add("code", code)
+                add("redirect_uri", callbackUrl)
+            }
+            val response = restClient.post()
+                .uri(config.tokenUrl)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(body)
+                .retrieve()
+                .body(Map::class.java) ?: throw ExpectedException("Jira 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+            response["access_token"] as? String
+                ?: throw ExpectedException("Jira access_token 없음", HttpStatus.BAD_GATEWAY)
+        }
+
+        AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
+            val body = LinkedMultiValueMap<String, String>().apply {
+                add("grant_type", "authorization_code")
+                add("client_id", config.clientId)
+                add("client_secret", config.clientSecret)
+                add("code", code)
+                add("redirect_uri", callbackUrl)
+            }
+            val response = restClient.post()
+                .uri(config.tokenUrl)
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(body)
+                .retrieve()
+                .body(Map::class.java)
+                ?: throw ExpectedException("${provider.displayName} 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+            response["access_token"] as? String
+                ?: throw ExpectedException("${provider.displayName} access_token 없음", HttpStatus.BAD_GATEWAY)
+        }
+
+        else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
     }
 
     private fun fetchIdentifier(provider: AccountProvider, config: OAuthProviderConfig, accessToken: String): String? {

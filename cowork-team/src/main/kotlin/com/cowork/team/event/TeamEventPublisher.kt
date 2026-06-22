@@ -6,9 +6,7 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
 
 @Component
-class TeamEventPublisher(
-    private val kafkaTemplate: KafkaTemplate<String, TeamEventPayload>,
-) {
+class TeamEventPublisher(private val kafkaTemplate: KafkaTemplate<String, TeamEventPayload>) {
     private val log = LoggerFactory.getLogger(TeamEventPublisher::class.java)
 
     fun publishNotification(payload: TeamEventPayload) = send(Topics.NOTIFICATION_TRIGGER, payload)
@@ -24,7 +22,7 @@ class TeamEventPublisher(
                 teamName = teamName,
                 actorUserId = actorUserId,
                 targetUserIds = targetUserIds.distinct(),
-            )
+            ),
         )
     }
 
@@ -36,7 +34,7 @@ class TeamEventPublisher(
                 teamName = teamName,
                 actorUserId = userId,
                 targetUserIds = listOf(userId),
-            )
+            ),
         )
     }
 
@@ -56,7 +54,7 @@ class TeamEventPublisher(
                 actorUserId = actorUserId,
                 targetUserIds = targetUserIds.distinct(),
                 newRole = newRole,
-            )
+            ),
         )
     }
 
@@ -66,12 +64,17 @@ class TeamEventPublisher(
                 if (ex != null) {
                     log.error(
                         "Kafka 이벤트 발행 실패 [topic={}, eventType={}, teamId={}]",
-                        topic, payload.eventType, payload.teamId, ex,
+                        topic,
+                        payload.eventType,
+                        payload.teamId,
+                        ex,
                     )
                 } else {
                     log.info(
                         "Kafka 이벤트 발행 성공 [topic={}, eventType={}, offset={}]",
-                        topic, payload.eventType, result.recordMetadata.offset(),
+                        topic,
+                        payload.eventType,
+                        result.recordMetadata.offset(),
                     )
                 }
             }

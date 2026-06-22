@@ -10,5 +10,9 @@ interface SharedAccountRepository : JpaRepository<SharedAccount, Long> {
 
     fun findByIdAndChannelId(id: Long, channelId: Long): SharedAccount?
 
-    fun findByChannelIdAndProviderAndAccountIdentifier(channelId: Long, provider: AccountProvider, accountIdentifier: String?): SharedAccount?
+    fun findByChannelIdAndProviderAndAccountIdentifier(
+        channelId: Long,
+        provider: AccountProvider,
+        accountIdentifier: String?,
+    ): SharedAccount?
 }

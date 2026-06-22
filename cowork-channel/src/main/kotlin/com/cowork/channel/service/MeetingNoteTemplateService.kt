@@ -104,7 +104,11 @@ class MeetingNoteTemplateService(
     }
 
     @Transactional
-    fun createTemplate(userId: Long, channelId: Long, request: CreateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
+    fun createTemplate(
+        userId: Long,
+        channelId: Long,
+        request: CreateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
         val template = templateRepository.save(
             MeetingNoteTemplate(
@@ -112,13 +116,18 @@ class MeetingNoteTemplateService(
                 name = request.name,
                 isActive = false,
                 createdBy = userId,
-            )
+            ),
         )
         return MeetingNoteTemplateResponse.of(template, emptyList())
     }
 
     @Transactional
-    fun updateTemplate(userId: Long, channelId: Long, templateId: Long, request: UpdateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
+    fun updateTemplate(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: UpdateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse {
         requireChannelMember(channelId, userId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
@@ -154,7 +163,12 @@ class MeetingNoteTemplateService(
     }
 
     @Transactional
-    fun addSection(userId: Long, channelId: Long, templateId: Long, request: CreateTemplateSectionRequest): TemplateSectionResponse {
+    fun addSection(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: CreateTemplateSectionRequest,
+    ): TemplateSectionResponse {
         requireChannelMember(channelId, userId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
@@ -165,13 +179,19 @@ class MeetingNoteTemplateService(
                 type = parseSectionType(request.type),
                 placeholder = request.placeholder,
                 isRequired = request.isRequired,
-            )
+            ),
         )
         return TemplateSectionResponse.of(section)
     }
 
     @Transactional
-    fun updateSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long, request: UpdateTemplateSectionRequest): TemplateSectionResponse {
+    fun updateSection(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        sectionId: Long,
+        request: UpdateTemplateSectionRequest,
+    ): TemplateSectionResponse {
         requireChannelMember(channelId, userId)
         val template = findTemplateOrThrow(templateId)
         requireTemplateOwnership(template, channelId)
@@ -204,7 +224,7 @@ class MeetingNoteTemplateService(
                 name = "${channel.name} - 회의록 템플릿",
                 isActive = true,
                 createdBy = channel.createdBy,
-            )
+            ),
         )
         sectionRepository.saveAll(
             defaultSections.map { def ->
@@ -215,7 +235,7 @@ class MeetingNoteTemplateService(
                     placeholder = def.placeholder,
                     isRequired = def.isRequired,
                 )
-            }
+            },
         )
     }
 }

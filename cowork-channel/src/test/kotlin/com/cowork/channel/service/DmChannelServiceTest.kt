@@ -30,7 +30,13 @@ class DmChannelServiceTest {
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
     private val transactionTemplate = mockk<TransactionTemplate>()
 
-    private val service = DmChannelService(channelRepository, channelMemberRepository, channelMembershipSyncPublisher, transactionTemplate)
+    private val service =
+        DmChannelService(
+            channelRepository,
+            channelMemberRepository,
+            channelMembershipSyncPublisher,
+            transactionTemplate,
+        )
 
     @BeforeEach
     fun setUp() {

@@ -39,11 +39,13 @@ class HealthCheckController(
     @ApiResponse(
         responseCode = "200",
         description = "서비스 상태 목록",
-        content = [Content(
-            mediaType = MediaType.APPLICATION_JSON_VALUE,
-            schema = Schema(implementation = CommonApiResponse::class),
-            examples = [ExampleObject(
-                value = """
+        content = [
+            Content(
+                mediaType = MediaType.APPLICATION_JSON_VALUE,
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """
                 {
                   "status": "OK",
                   "code": 200,
@@ -54,44 +56,44 @@ class HealthCheckController(
                     "cowork-authorization": "DEGRADED",
                     "cowork-chat": "DOWN"
                   }
-                }"""
-            )]
-        )]
+                }""",
+                    ),
+                ],
+            ),
+        ],
     )
     @GetMapping
-    fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> {
-        return routeLocator.routes
-            .map { route -> route.uri }
-            .filter { it.scheme == "lb" }
-            .flatMap { uri -> Mono.justOrEmpty(uri.host?.lowercase()) }
-            .distinct()
-            .collectList()
-            .flatMap { serviceIds ->
-                discoveryClient.services.collectList().map { registeredIds ->
-                    serviceIds to registeredIds.map { it.lowercase() }.toSet()
-                }
+    fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> = routeLocator.routes
+        .map { route -> route.uri }
+        .filter { it.scheme == "lb" }
+        .flatMap { uri -> Mono.justOrEmpty(uri.host?.lowercase()) }
+        .distinct()
+        .collectList()
+        .flatMap { serviceIds ->
+            discoveryClient.services.collectList().map { registeredIds ->
+                serviceIds to registeredIds.map { it.lowercase() }.toSet()
             }
-            .flatMapMany { (serviceIds, registeredIds) ->
-                reactor.core.publisher.Flux.fromIterable(serviceIds).flatMap { serviceId ->
-                    if (serviceId !in registeredIds) {
-                        Mono.just(serviceId to ServiceStatus.DOWN)
-                    } else {
-                        discoveryClient.getInstances(serviceId)
-                            .collectList()
-                            .map { instances ->
-                                val status = when {
-                                    instances.isEmpty() || instances.none { it.isUp() } -> ServiceStatus.DOWN
-                                    instances.all { it.isUp() } -> ServiceStatus.UP
-                                    else -> ServiceStatus.DEGRADED
-                                }
-                                serviceId to status
+        }
+        .flatMapMany { (serviceIds, registeredIds) ->
+            reactor.core.publisher.Flux.fromIterable(serviceIds).flatMap { serviceId ->
+                if (serviceId !in registeredIds) {
+                    Mono.just(serviceId to ServiceStatus.DOWN)
+                } else {
+                    discoveryClient.getInstances(serviceId)
+                        .collectList()
+                        .map { instances ->
+                            val status = when {
+                                instances.isEmpty() || instances.none { it.isUp() } -> ServiceStatus.DOWN
+                                instances.all { it.isUp() } -> ServiceStatus.UP
+                                else -> ServiceStatus.DEGRADED
                             }
-                    }
+                            serviceId to status
+                        }
                 }
             }
-            .collectMap<String, ServiceStatus>({ it.first }, { it.second })
-            .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
-    }
+        }
+        .collectMap<String, ServiceStatus>({ it.first }, { it.second })
+        .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
 
     private fun ServiceInstance.isUp(): Boolean {
         if (this is EurekaServiceInstance) {
