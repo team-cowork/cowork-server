@@ -510,7 +510,7 @@ export class ChatService {
             .emit('message:edited', {
                 messageId: ctx.messageId,
                 content: updated.content,
-                editedAt: (updated as MessageDocument).updatedAt?.toISOString(),
+                editedAt: (updated).updatedAt?.toISOString(),
             });
 
         return updated;
@@ -724,7 +724,7 @@ export class ChatService {
      * @returns ADMIN 역할이면 `true`
      */
     private isAdmin(role: string): boolean {
-        return role === UserRole.ADMIN;
+        return role === (UserRole.ADMIN as string);
     }
 
     /**
