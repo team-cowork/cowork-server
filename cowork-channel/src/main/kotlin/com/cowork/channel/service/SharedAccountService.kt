@@ -27,7 +27,7 @@ class SharedAccountService(
 
     private fun findAccountOrThrow(accountId: Long, channelId: Long): SharedAccount =
         sharedAccountRepository.findByIdAndChannelId(accountId, channelId)
-            ?: throw ExpectedException("공유 계정을 찾을 수 없습니다. id=$accountId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("공유 계정을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
     private fun requireAccountShareChannel(channel: Channel) {
         if (channel.viewType != ChannelViewType.ACCOUNT_SHARE) {
