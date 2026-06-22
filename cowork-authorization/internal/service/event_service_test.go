@@ -187,11 +187,28 @@ func TestProcessEvent_MissingStudentID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.ProcessEvent(context.Background(), body); err == nil {
+	err = svc.ProcessEvent(context.Background(), body)
+	if err == nil {
 		t.Error("ProcessEvent() expected error for missing student_id")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Errorf("missing student_id should be ErrInvalidPayload (400), got %v", err)
 	}
 	if pub.calls != 0 {
 		t.Errorf("should not publish on missing student_id, got %d calls", pub.calls)
+	}
+}
+
+func TestProcessEvent_InvalidEnvelopeIsPayloadError(t *testing.T) {
+	pub := &fakePublisher{}
+	svc := newTestService(pub, &fakeStore{})
+
+	err := svc.ProcessEvent(context.Background(), []byte("not json"))
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Errorf("invalid envelope should be ErrInvalidPayload (400), got %v", err)
+	}
+	if pub.calls != 0 {
+		t.Errorf("should not publish on invalid envelope, got %d calls", pub.calls)
 	}
 }
 
@@ -215,8 +232,12 @@ func TestProcessEvent_PublishErrorReturnsError(t *testing.T) {
 	svc := newTestService(pub, store)
 
 	body := envelope(t, "evt_6", "student.graduated", "x@gsm.hs.kr", "")
-	if err := svc.ProcessEvent(context.Background(), body); err == nil {
+	err := svc.ProcessEvent(context.Background(), body)
+	if err == nil {
 		t.Error("ProcessEvent() expected error when publish fails")
+	}
+	if errors.Is(err, ErrInvalidPayload) {
+		t.Error("publish failure is an internal error (500), not ErrInvalidPayload")
 	}
 	if store.markCalls != 0 {
 		t.Errorf("MarkProcessed must not run when publish fails, got %d", store.markCalls)
