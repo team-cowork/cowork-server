@@ -41,16 +41,20 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      * 이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
      */
     onModuleInit() {
-        this.timer = setInterval(async () => {
-            if (this.isPolling) return;
-            this.isPolling = true;
-            try {
-                await this.poll();
-            } finally {
-                this.isPolling = false;
-            }
+        this.timer = setInterval(() => {
+            void this.runPollCycle();
         }, POLL_INTERVAL_MS);
         this.logger.log('Notification outbox poller started');
+    }
+
+    private async runPollCycle(): Promise<void> {
+        if (this.isPolling) return;
+        this.isPolling = true;
+        try {
+            await this.poll();
+        } finally {
+            this.isPolling = false;
+        }
     }
 
     /**
@@ -110,7 +114,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             } catch (err) {
                 const retryCount = (msg.notificationRetryCount ?? 0) + 1;
                 const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
-                this.logger.error(`outbox 처리 실패 (messageId: ${msg._id}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
+                this.logger.error(`outbox 처리 실패 (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
                 await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
             }
         }
