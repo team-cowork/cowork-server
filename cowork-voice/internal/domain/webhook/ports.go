@@ -12,7 +12,7 @@ type SessionRepository interface {
 	MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error)
 	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
 	MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
-	EndSession(ctx context.Context, sessionID string, endedAt time.Time) error
+	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
 	CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error)
 }
 
