@@ -5,6 +5,7 @@ package relay
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -12,10 +13,14 @@ import (
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 )
 
+// maxPublishAttempts를 초과해 실패한 메시지는 격리되어 큐를 막지 않는다(head-of-line blocking 방지).
+const maxPublishAttempts = 50
+
 type Outbox interface {
 	FetchUnsent(ctx context.Context, limit int) ([]mongoinfra.OutboxMessage, error)
 	MarkSent(ctx context.Context, id bson.ObjectID, sentAt time.Time) error
 	IncrementAttempts(ctx context.Context, id bson.ObjectID) error
+	MarkFailed(ctx context.Context, id bson.ObjectID, failedAt time.Time) error
 }
 
 type Publisher interface {
@@ -27,17 +32,21 @@ type Relay struct {
 	publisher Publisher
 	interval  time.Duration
 	batchSize int
-	stopCh    chan struct{}
+	ctx       context.Context
+	cancel    context.CancelFunc
+	stopOnce  sync.Once
 	doneCh    chan struct{}
 }
 
 func New(outbox Outbox, publisher Publisher, interval time.Duration, batchSize int) *Relay {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &Relay{
 		outbox:    outbox,
 		publisher: publisher,
 		interval:  interval,
 		batchSize: batchSize,
-		stopCh:    make(chan struct{}),
+		ctx:       ctx,
+		cancel:    cancel,
 		doneCh:    make(chan struct{}),
 	}
 }
@@ -49,7 +58,7 @@ func (r *Relay) Start() {
 		defer ticker.Stop()
 		for {
 			select {
-			case <-r.stopCh:
+			case <-r.ctx.Done():
 				return
 			case <-ticker.C:
 				r.drain()
@@ -59,12 +68,14 @@ func (r *Relay) Start() {
 }
 
 func (r *Relay) Stop() {
-	close(r.stopCh)
+	// sync.Once로 중복 호출 시 panic을 막고, ctx 취소로 진행 중인 I/O까지 즉시 중단한다.
+	r.stopOnce.Do(r.cancel)
 	<-r.doneCh
 }
 
 func (r *Relay) drain() {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// r.ctx 파생 컨텍스트라 Stop() 시 진행 중인 Fetch/Publish가 즉시 취소되어 셧다운이 지연되지 않는다.
+	ctx, cancel := context.WithTimeout(r.ctx, 30*time.Second)
 	defer cancel()
 
 	msgs, err := r.outbox.FetchUnsent(ctx, r.batchSize)
@@ -75,6 +86,16 @@ func (r *Relay) drain() {
 
 	for _, m := range msgs {
 		if err := r.publisher.PublishRaw(ctx, m.Key, m.Payload); err != nil {
+			if m.Attempts+1 >= maxPublishAttempts {
+				// 재시도 한도 초과: 격리해 큐를 막지 않는다. 격리된 메시지는 보존되어 사후 조회 가능.
+				slog.Error("outbox relay: max attempts exceeded, quarantining message", "err", err, "key", m.Key, "attempts", m.Attempts+1, "id", m.ID.Hex())
+				if ferr := r.outbox.MarkFailed(ctx, m.ID, time.Now().UTC()); ferr != nil {
+					// 격리 실패 시 hot loop를 피하려 멈추고 다음 tick에 재시도한다.
+					slog.Error("outbox relay: mark failed failed", "err", ferr, "key", m.Key)
+					return
+				}
+				continue
+			}
 			slog.Warn("outbox relay: publish failed, will retry", "err", err, "key", m.Key, "attempts", m.Attempts)
 			if ierr := r.outbox.IncrementAttempts(ctx, m.ID); ierr != nil {
 				slog.Error("outbox relay: increment attempts failed", "err", ierr, "key", m.Key)
