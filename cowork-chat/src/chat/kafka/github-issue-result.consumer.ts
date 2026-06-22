@@ -55,7 +55,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
                 eachMessage: async ({ message }) => {
                     if (!message.value) return;
                     try {
-                        const event: GithubIssueResultEvent = JSON.parse(message.value.toString());
+                        const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
                         await this.handleResultEvent(event);
                     } catch (err) {
                         this.logger.error('이슈 결과 처리 중 오류 발생', err);

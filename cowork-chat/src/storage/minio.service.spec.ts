@@ -1,5 +1,6 @@
 import { BadRequestException, HttpException, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as Minio from 'minio';
 import { MinioService } from './minio.service';
 
 const mockMinioClient = {
@@ -25,7 +26,7 @@ describe('MinioService', () => {
     });
 
     it('허용된 파일 타입과 100MB 이하 파일이면 presigned URL을 발급한다', async () => {
-        const service = new MinioService(mockMinioClient as any, createConfigService());
+        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
 
         const result = await service.createPresignedUpload({
             channelId: 1,
@@ -44,7 +45,7 @@ describe('MinioService', () => {
     });
 
     it('허용되지 않은 파일 타입이면 BadRequestException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as any, createConfigService());
+        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
 
         await expect(service.createPresignedUpload({
             channelId: 1,
@@ -56,7 +57,7 @@ describe('MinioService', () => {
     });
 
     it('100MB를 초과하면 PayloadTooLargeException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as any, createConfigService());
+        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
 
         await expect(service.createPresignedUpload({
             channelId: 1,
@@ -68,7 +69,7 @@ describe('MinioService', () => {
     });
 
     it('짧은 시간에 업로드 URL을 너무 많이 발급하면 TooManyRequestsException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as any, createConfigService({
+        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService({
             'minio.chatUploadRateLimitMaxRequests': '2',
             'minio.chatUploadRateLimitWindowMs': '60000',
         }));

@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { ChatGateway } from './chat.gateway';
+import { ChatGateway, ChatSocket } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
@@ -79,7 +79,7 @@ describe('ChatGateway', () => {
     describe('handleConnection', () => {
         it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장되고 전용 룸에 join한다', async () => {
             const client = mockSocket('valid-token');
-            await gateway.handleConnection(client as any);
+            await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.data.userId).toBe(42);
             expect(client.data.userRole).toBe('ROLE_USER');
             expect(client.join).toHaveBeenCalledWith('user:42');
@@ -88,7 +88,7 @@ describe('ChatGateway', () => {
 
         it('토큰 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             const client = mockSocket(undefined);
-            await gateway.handleConnection(client as any);
+            await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 토큰이 전달되지 않았습니다' });
             expect(client.disconnect).toHaveBeenCalled();
         });
@@ -96,7 +96,7 @@ describe('ChatGateway', () => {
         it('유효하지 않은 토큰으로 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
             const client = mockSocket('invalid-token');
-            await gateway.handleConnection(client as any);
+            await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: Invalid token' });
             expect(client.disconnect).toHaveBeenCalled();
         });
@@ -108,7 +108,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as any, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
             expect(client.join).toHaveBeenCalledWith('chat:1');
             expect(client.emit).not.toHaveBeenCalledWith('error', expect.anything());
@@ -119,7 +119,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as any, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
             expect(client.join).not.toHaveBeenCalled();
             expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
@@ -129,7 +129,7 @@ describe('ChatGateway', () => {
     describe('handleLeave', () => {
         it('채널 room에서 퇴장한다', () => {
             const client = mockSocket('valid-token');
-            gateway.handleLeave(client as any, { channelId: 1 });
+            gateway.handleLeave(client as unknown as ChatSocket, { channelId: 1 });
             expect(client.leave).toHaveBeenCalledWith('chat:1');
         });
     });
