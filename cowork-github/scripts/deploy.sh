@@ -2,19 +2,11 @@
 set -euo pipefail
 
 # 학교 서버에서 SSH 접속 후 이 스크립트를 실행해 배포합니다.
-# 사용 전 아래 값을 서버 환경에 맞게 채워주세요. (docker ps / docker network ls로 확인)
-NETWORK_NAME="${NETWORK_NAME:-cowork-net}"
-KAFKA_CONTAINER="${KAFKA_CONTAINER:-}"
-REDIS_CONTAINER="${REDIS_CONTAINER:-}"
+# Kafka/Redis는 이 서버가 아닌 별도 서버(10.0.0.93)에서 동작하므로,
+# 컨테이너 네트워크 연결 없이 .env의 KAFKA_BROKERS/REDIS_HOST로 접속합니다.
 APP_NAME="cowork-github-app"
 APP_PORT="${APP_PORT:-3000}"
 ENV_FILE="${ENV_FILE:-.env}"
-
-if [[ -z "$KAFKA_CONTAINER" || -z "$REDIS_CONTAINER" ]]; then
-  echo "KAFKA_CONTAINER / REDIS_CONTAINER 환경변수를 설정해주세요. 예:"
-  echo "  KAFKA_CONTAINER=kafka REDIS_CONTAINER=redis ./scripts/deploy.sh"
-  exit 1
-fi
 
 if [[ ! -f "$ENV_FILE" ]]; then
   echo "$ENV_FILE 파일이 없습니다. 운영용 .env를 먼저 서버에 준비해주세요."
@@ -24,11 +16,6 @@ fi
 echo "==> 최신 main 가져오기"
 git checkout main
 git pull origin main
-
-echo "==> 공유 네트워크 준비"
-docker network inspect "$NETWORK_NAME" >/dev/null 2>&1 || docker network create "$NETWORK_NAME"
-docker network connect "$NETWORK_NAME" "$KAFKA_CONTAINER" 2>/dev/null || true
-docker network connect "$NETWORK_NAME" "$REDIS_CONTAINER" 2>/dev/null || true
 
 echo "==> 이미지 빌드"
 docker build -t "$APP_NAME:latest" .
@@ -40,7 +27,6 @@ docker rm "$APP_NAME" 2>/dev/null || true
 echo "==> 컨테이너 기동"
 docker run -d \
   --name "$APP_NAME" \
-  --network "$NETWORK_NAME" \
   --env-file "$ENV_FILE" \
   -p "$APP_PORT:3000" \
   --restart unless-stopped \
