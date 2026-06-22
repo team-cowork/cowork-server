@@ -15,10 +15,11 @@ type fakeOutbox struct {
 	msgs     []mongoinfra.OutboxMessage
 	sent     map[bson.ObjectID]bool
 	attempts map[bson.ObjectID]int
+	failed   map[bson.ObjectID]bool
 }
 
 func newFakeOutbox(keys ...string) *fakeOutbox {
-	f := &fakeOutbox{sent: map[bson.ObjectID]bool{}, attempts: map[bson.ObjectID]int{}}
+	f := &fakeOutbox{sent: map[bson.ObjectID]bool{}, attempts: map[bson.ObjectID]int{}, failed: map[bson.ObjectID]bool{}}
 	for i, k := range keys {
 		f.msgs = append(f.msgs, mongoinfra.OutboxMessage{
 			ID:        bson.NewObjectID(),
@@ -33,7 +34,7 @@ func newFakeOutbox(keys ...string) *fakeOutbox {
 func (f *fakeOutbox) FetchUnsent(_ context.Context, limit int) ([]mongoinfra.OutboxMessage, error) {
 	var out []mongoinfra.OutboxMessage
 	for _, m := range f.msgs {
-		if f.sent[m.ID] {
+		if f.sent[m.ID] || f.failed[m.ID] {
 			continue
 		}
 		out = append(out, m)
@@ -51,6 +52,11 @@ func (f *fakeOutbox) MarkSent(_ context.Context, id bson.ObjectID, _ time.Time) 
 
 func (f *fakeOutbox) IncrementAttempts(_ context.Context, id bson.ObjectID) error {
 	f.attempts[id]++
+	return nil
+}
+
+func (f *fakeOutbox) MarkFailed(_ context.Context, id bson.ObjectID, _ time.Time) error {
+	f.failed[id] = true
 	return nil
 }
 
@@ -113,5 +119,31 @@ func TestDrain_전송_실패시_순서보존을_위해_멈추고_재시도_대�
 	}
 	if outbox.attempts[outbox.msgs[2].ID] != 0 {
 		t.Fatal("message c should be untouched")
+	}
+}
+
+func TestDrain_재시도_한도_초과시_격리하고_큐를_진행시킨다(t *testing.T) {
+	t.Parallel()
+
+	outbox := newFakeOutbox("poison", "good")
+	// 첫 메시지는 이미 한도 직전까지 실패한 상태 → 이번 실패로 한도 초과
+	outbox.msgs[0].Attempts = maxPublishAttempts - 1
+	pub := &fakePublisher{failOnKey: "poison"}
+	r := New(outbox, pub, time.Second, 100)
+
+	r.drain()
+
+	// poison은 격리되고, 뒤의 good은 정상 전송되어야 한다(head-of-line blocking 해소).
+	if !outbox.failed[outbox.msgs[0].ID] {
+		t.Fatal("poison 메시지는 격리(MarkFailed)되어야 한다")
+	}
+	if outbox.sent[outbox.msgs[0].ID] {
+		t.Fatal("poison 메시지는 sent로 표시되면 안 된다")
+	}
+	if len(pub.published) != 1 || pub.published[0] != "good" {
+		t.Fatalf("published = %v, want [good]", pub.published)
+	}
+	if !outbox.sent[outbox.msgs[1].ID] {
+		t.Fatal("good 메시지는 전송/표시되어야 한다")
 	}
 }
