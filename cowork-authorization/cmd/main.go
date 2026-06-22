@@ -42,6 +42,8 @@ const (
 	healthTrailingPath  = "/health/"
 	metricsPath         = "/metrics"
 	metricsTrailingPath = "/metrics/"
+
+	processedEventRetention = 7 * 24 * time.Hour
 )
 
 func main() {
@@ -139,6 +141,9 @@ func main() {
 			case <-ticker.C:
 				if err := refreshTokenRepo.DeleteExpired(); err != nil {
 					log.Printf("failed to delete expired refresh tokens: %v", err)
+				}
+				if err := processedEventRepo.DeleteOlderThan(processedEventRetention); err != nil {
+					log.Printf("failed to delete old processed events: %v", err)
 				}
 			case <-stopCleanup:
 				return
