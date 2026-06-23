@@ -1,7 +1,6 @@
 package com.cowork.gateway.filter
 
 import com.cowork.gateway.response.CommonApiResponse
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.reactivestreams.Publisher
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
@@ -17,11 +16,12 @@ import org.springframework.util.AntPathMatcher
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import tools.jackson.databind.ObjectMapper
 
 @Component
-class ApiResponseWrapperFilter(
-    private val objectMapper: ObjectMapper,
-) : GlobalFilter, Ordered {
+class ApiResponseWrapperFilter(private val objectMapper: ObjectMapper) :
+    GlobalFilter,
+    Ordered {
 
     // 래핑하지 않을 경로 (actuator, fallback 등)
     private val skipPatterns = listOf(
@@ -97,9 +97,8 @@ class ApiResponseWrapperFilter(
             }
 
             // chunked transfer-encoding 응답(writeAndFlushWith)도 처리
-            override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
-                return writeWith(Flux.from(body).flatMapSequential { it })
-            }
+            override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> =
+                writeWith(Flux.from(body).flatMapSequential { it })
         }
 
         return chain.filter(exchange.mutate().response(decoratedResponse).build())

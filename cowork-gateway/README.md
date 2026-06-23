@@ -8,7 +8,7 @@ API Gateway. 모든 외부 요청의 단일 진입점.
 - CORS 전역 설정
 
 ## 스택
-- Spring Boot 3 / Kotlin / Java 21
+- Spring Boot 4 / Kotlin / Java 25
 - Spring Cloud Gateway (Reactive)
 - Spring Security + JWT (jjwt)
 - Redis (레이트리밋)

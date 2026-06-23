@@ -11,11 +11,10 @@ import com.cowork.channel.event.ChannelMemberEventPublisher
 import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
+import com.cowork.channel.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -31,10 +30,9 @@ class ChannelService(
     private val meetingNoteTemplateService: MeetingNoteTemplateService,
 ) {
 
-    fun findChannelOrThrow(channelId: Long): Channel =
-        channelRepository.findById(channelId).orElseThrow {
-            ExpectedException("채널을 찾을 수 없습니다. id=$channelId", HttpStatus.NOT_FOUND)
-        }
+    fun findChannelOrThrow(channelId: Long): Channel = channelRepository.findById(channelId).orElseThrow {
+        ExpectedException("채널을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     /** DM 채널이면 거부하고, 팀 채널이면 non-null teamId를 반환한다. */
     fun requireTeamChannel(channel: Channel): Long {
@@ -61,7 +59,7 @@ class ChannelService(
         val type = try {
             ChannelType.valueOf(value.uppercase())
         } catch (e: IllegalArgumentException) {
-            throw ExpectedException("유효하지 않은 채널 타입입니다. type=$value", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("유효하지 않은 채널 타입입니다.", HttpStatus.BAD_REQUEST)
         }
         if (type == ChannelType.DM) {
             throw ExpectedException("DM 채널은 DM 전용 API로만 생성할 수 있습니다.", HttpStatus.BAD_REQUEST)
@@ -72,7 +70,7 @@ class ChannelService(
     private fun parseViewType(value: String): ChannelViewType = try {
         ChannelViewType.valueOf(value.uppercase())
     } catch (e: IllegalArgumentException) {
-        throw ExpectedException("유효하지 않은 view_type 입니다. value=$value", HttpStatus.BAD_REQUEST)
+        throw ExpectedException("유효하지 않은 view_type 입니다.", HttpStatus.BAD_REQUEST)
     }
 
     private fun requireChannelManager(channel: Channel, userId: Long) {
@@ -96,18 +94,16 @@ class ChannelService(
                 isPrivate = request.isPrivate,
                 position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
-            )
+            ),
         )
         val member = channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             meetingNoteTemplateService.createDefaultTemplate(channel)
         }
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
-                channelEventPublisher.publishCreated(channel)
-            }
-        })
+        afterCommit {
+            channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+            channelEventPublisher.publishCreated(channel)
+        }
         return ChannelResponse.of(channel)
     }
 
@@ -144,17 +140,18 @@ class ChannelService(
     }
 
     @Transactional
-    fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean = false): ChannelResponse {
+    fun updateChannel(
+        userId: Long,
+        channelId: Long,
+        request: UpdateChannelRequest,
+        updateProjectId: Boolean = false,
+    ): ChannelResponse {
         val channel = findChannelOrThrow(channelId)
         requireTeamChannel(channel)
         requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelEventPublisher.publishUpdated(channel)
-            }
-        })
+        afterCommit { channelEventPublisher.publishUpdated(channel) }
         return ChannelResponse.of(channel)
     }
 
@@ -177,14 +174,12 @@ class ChannelService(
         requireChannelManager(channel, userId)
         val members = channelMemberRepository.findByChannelId(channelId)
         channelRepository.delete(channel)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                members.forEach { member ->
-                    channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-                }
-                channelEventPublisher.publishDeleted(channel)
+        afterCommit {
+            members.forEach { member ->
+                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
             }
-        })
+            channelEventPublisher.publishDeleted(channel)
+        }
     }
 
     @Transactional
@@ -207,13 +202,11 @@ class ChannelService(
         }
 
         val member = channelMemberRepository.save(
-            ChannelMember(channelId = channelId, userId = request.userId)
+            ChannelMember(channelId = channelId, userId = request.userId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
-            }
-        })
+        afterCommit {
+            channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
+        }
         return ChannelMemberResponse.of(member)
     }
 
@@ -228,7 +221,7 @@ class ChannelService(
         val channel = findChannelOrThrow(channelId)
         val teamId = requireTeamChannel(channel)
         val member = channelMemberRepository.findById(memberId).orElseThrow {
-            ExpectedException("멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
+            ExpectedException("멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
 
         if (member.channelId != channelId) {
@@ -248,10 +241,8 @@ class ChannelService(
         }
 
         channelMemberRepository.delete(member)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-            }
-        })
+        afterCommit {
+            channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
+        }
     }
 }

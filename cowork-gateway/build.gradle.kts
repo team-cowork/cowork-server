@@ -6,11 +6,11 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260602.0"
+version = "20260623.0"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 
@@ -31,6 +31,7 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.spring.boot.starter.data.redis.reactive)
+    implementation(libs.jackson.module.kotlin)
     implementation(libs.jjwt.api)
     runtimeOnly(libs.jjwt.impl)
     runtimeOnly(libs.jjwt.jackson)

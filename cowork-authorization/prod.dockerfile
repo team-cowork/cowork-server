@@ -5,6 +5,7 @@ RUN apk --no-cache add ca-certificates tzdata && \
     addgroup -S app && adduser -S app -G app
 WORKDIR /app
 COPY --chown=app:app cowork-authorization /usr/local/bin/cowork-authorization
+COPY --chown=app:app src/main/resources/db/migration ./db/migration
 USER app
 EXPOSE 8081
 CMD ["cowork-authorization"]
