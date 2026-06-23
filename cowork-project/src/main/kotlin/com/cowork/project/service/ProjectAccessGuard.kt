@@ -6,7 +6,7 @@ import com.cowork.project.repository.ProjectMemberRepository
 import com.cowork.project.repository.ProjectRepository
 import com.cowork.project.repository.TeamMembershipRepository
 import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Component
+import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 
 private const val TEAM_ROLE_OWNER = "OWNER"
@@ -18,7 +18,7 @@ private const val TEAM_ROLE_ADMIN = "ADMIN"
  * `ProjectService`와 `GithubPullRequestService`가 동일한 권한 판단 기준을 공유하기 위해
  * 분리되었다.
  */
-@Component
+@Service
 class ProjectAccessGuard(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
@@ -27,7 +27,7 @@ class ProjectAccessGuard(
 
     fun findProjectOrThrow(projectId: Long): Project =
         projectRepository.findById(projectId).orElseThrow {
-            ExpectedException("프로젝트를 찾을 수 없습니다. id=$projectId", HttpStatus.NOT_FOUND)
+            ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
 
     fun teamRoleOf(teamId: Long, userId: Long): String? =

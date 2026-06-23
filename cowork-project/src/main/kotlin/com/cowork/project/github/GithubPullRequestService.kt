@@ -2,10 +2,10 @@ package com.cowork.project.github
 
 import com.cowork.project.client.UserClient
 import com.cowork.project.domain.Project
-import com.cowork.project.dto.GithubApproveResultResponse
-import com.cowork.project.dto.GithubMergeResultResponse
-import com.cowork.project.dto.GithubPullRequestFileResponse
-import com.cowork.project.dto.GithubPullRequestResponse
+import com.cowork.project.dto.GithubApproveResultResDto
+import com.cowork.project.dto.GithubMergeResultResDto
+import com.cowork.project.dto.GithubPullRequestFileResDto
+import com.cowork.project.dto.GithubPullRequestResDto
 import com.cowork.project.service.ProjectAccessGuard
 import feign.FeignException
 import org.slf4j.LoggerFactory
@@ -23,35 +23,37 @@ class GithubPullRequestService(
 ) {
     private val logger = LoggerFactory.getLogger(GithubPullRequestService::class.java)
 
-    fun getPullRequestDetail(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResponse {
-        val repo = resolveRepoRef(userId, projectId, requireModifier = false)
+    fun getPullRequestDetail(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
+        val repo = resolveRepoRefForRead(userId, projectId)
         return githubAppClient.getPullRequest(repo.owner, repo.repo, prNumber)
     }
 
-    fun listPullRequestFiles(userId: Long, projectId: Long, prNumber: Int): List<GithubPullRequestFileResponse> {
-        val repo = resolveRepoRef(userId, projectId, requireModifier = false)
+    fun listPullRequestFiles(userId: Long, projectId: Long, prNumber: Int): List<GithubPullRequestFileResDto> {
+        val repo = resolveRepoRefForRead(userId, projectId)
         return githubAppClient.listPullRequestFiles(repo.owner, repo.repo, prNumber)
     }
 
-    fun mergePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResponse {
-        val repo = resolveRepoRef(userId, projectId, requireModifier = true)
+    fun mergePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResDto {
+        val repo = resolveRepoRefForModify(userId, projectId)
         val githubUsername = resolveGithubUsername(userId)
         return githubAppClient.mergePullRequest(repo.owner, repo.repo, prNumber, githubUsername)
     }
 
-    fun approvePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubApproveResultResponse {
-        val repo = resolveRepoRef(userId, projectId, requireModifier = true)
+    fun approvePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubApproveResultResDto {
+        val repo = resolveRepoRefForModify(userId, projectId)
         val githubUsername = resolveGithubUsername(userId)
         return githubAppClient.approvePullRequest(repo.owner, repo.repo, prNumber, githubUsername)
     }
 
-    private fun resolveRepoRef(userId: Long, projectId: Long, requireModifier: Boolean): GithubRepoRef {
+    private fun resolveRepoRefForRead(userId: Long, projectId: Long): GithubRepoRef {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
-        if (requireModifier) {
-            projectAccessGuard.requireProjectModifier(project, userId)
-        } else {
-            projectAccessGuard.requireTeamMember(project.teamId, userId)
-        }
+        projectAccessGuard.requireTeamMember(project.teamId, userId)
+        return parseLinkedRepo(project)
+    }
+
+    private fun resolveRepoRefForModify(userId: Long, projectId: Long): GithubRepoRef {
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectModifier(project, userId)
         return parseLinkedRepo(project)
     }
 
@@ -68,7 +70,10 @@ class GithubPullRequestService(
         } catch (e: FeignException.NotFound) {
             throw ExpectedException("사용자 정보를 찾을 수 없습니다.", HttpStatus.BAD_REQUEST)
         } catch (e: FeignException) {
-            logger.error("cowork-user 호출 실패 userId=$userId", e)
+            logger.error("Failed to call cowork-user for userId {}", userId, e)
+            throw ExpectedException("사용자 정보 조회에 실패했습니다.", HttpStatus.BAD_GATEWAY)
+        } catch (e: Exception) {
+            logger.error("Unexpected error while calling cowork-user for userId {}", userId, e)
             throw ExpectedException("사용자 정보 조회에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
