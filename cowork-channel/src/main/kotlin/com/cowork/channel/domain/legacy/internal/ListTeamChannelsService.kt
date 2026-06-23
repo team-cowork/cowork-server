@@ -1,6 +1,6 @@
 package com.cowork.channel.domain.legacy.internal
 
-import com.cowork.channel.domain.client.TeamClient
+import com.cowork.channel.global.client.TeamClient
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
