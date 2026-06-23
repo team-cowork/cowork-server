@@ -25,24 +25,28 @@ class GithubPullRequestService(
 
     fun getPullRequestDetail(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
         val repo = resolveRepoRefForRead(userId, projectId)
-        return githubAppClient.getPullRequest(repo.owner, repo.repo, prNumber)
+        return callGithubApp { githubAppClient.getPullRequest(repo.owner, repo.repo, prNumber) }
     }
 
     fun listPullRequestFiles(userId: Long, projectId: Long, prNumber: Int): List<GithubPullRequestFileResDto> {
         val repo = resolveRepoRefForRead(userId, projectId)
-        return githubAppClient.listPullRequestFiles(repo.owner, repo.repo, prNumber)
+        return callGithubApp { githubAppClient.listPullRequestFiles(repo.owner, repo.repo, prNumber) }
     }
 
     fun mergePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResDto {
         val repo = resolveRepoRefForModify(userId, projectId)
         val githubUsername = resolveGithubUsername(userId)
-        return githubAppClient.mergePullRequest(repo.owner, repo.repo, prNumber, githubUsername)
+        return callGithubApp {
+            githubAppClient.mergePullRequest(repo.owner, repo.repo, prNumber, mapOf("requesterGithubUsername" to githubUsername))
+        }
     }
 
     fun approvePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubApproveResultResDto {
         val repo = resolveRepoRefForModify(userId, projectId)
         val githubUsername = resolveGithubUsername(userId)
-        return githubAppClient.approvePullRequest(repo.owner, repo.repo, prNumber, githubUsername)
+        return callGithubApp {
+            githubAppClient.approvePullRequest(repo.owner, repo.repo, prNumber, mapOf("requesterGithubUsername" to githubUsername))
+        }
     }
 
     private fun resolveRepoRefForRead(userId: Long, projectId: Long): GithubRepoRef {
@@ -63,6 +67,14 @@ class GithubPullRequestService(
         return GithubRepoUrlParser.parse(url)
             ?: throw ExpectedException("연결된 GitHub 레포지토리 URL이 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
     }
+
+    private fun <T> callGithubApp(call: () -> T): T =
+        try {
+            call()
+        } catch (e: FeignException) {
+            logger.error("Failed to call cowork-github-app due to network or timeout error", e)
+            throw ExpectedException("GitHub 연동 서버와 통신할 수 없습니다.", HttpStatus.BAD_GATEWAY)
+        }
 
     private fun resolveGithubUsername(userId: Long): String {
         val profile = try {
