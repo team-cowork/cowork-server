@@ -5,7 +5,7 @@
 Team collaboration platform backend — polyglot microservices monorepo.
 
 - Languages per service: Kotlin (`gateway`, `config`, `channel`, `preference`, `project`, `team`), Go (`authorization`, `notification`, `voice`), TypeScript (`chat`, `promotion`), Elixir (`user`)
-- Frameworks: Spring Boot / Spring Cloud Gateway / Eureka / OpenFeign (Kotlin), NestJS (TS), Gin·Chi (Go), Phoenix (Elixir), LiveKit (`voice`)
+- Frameworks: Spring Boot / Spring Cloud Gateway / Eureka / OpenFeign / Vert.x (Kotlin), NestJS / Nuxt.js (TS), Gin·Chi (Go), Phoenix (Elixir), LiveKit (`voice`)
 - Data & infra: MySQL, MongoDB, Redis, Elasticsearch, Flyway, Kafka, Docker, Vault, Prometheus/Grafana
 
 ## Agent Working Rules
