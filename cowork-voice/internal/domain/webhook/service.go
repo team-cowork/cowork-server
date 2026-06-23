@@ -153,7 +153,10 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 
 	var durationSeconds int64
 	if joinedAt != nil {
-		durationSeconds = int64(now.Sub(*joinedAt).Seconds())
+		// clock skew 등으로 now < joinedAt이면 음수가 될 수 있어 0으로 보정한다.
+		if diff := now.Sub(*joinedAt).Seconds(); diff > 0 {
+			durationSeconds = int64(diff)
+		}
 	}
 
 	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
@@ -190,9 +193,14 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return nil
 	}
 
-	if err := s.repo.EndSession(ctx, voiceSession.SessionID, now); err != nil {
+	ended, err := s.repo.EndSession(ctx, voiceSession.SessionID, now)
+	if err != nil {
 		slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
 		return err
+	}
+	if !ended {
+		// 이미 종료된 세션(room_finished 재전송) → 정리·발행을 반복하지 않는다.
+		return nil
 	}
 
 	count, err := s.repo.CleanupOrphanParticipants(ctx, voiceSession.SessionID, now)
@@ -202,7 +210,11 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		slog.Info("orphan participants cleaned up", "session_id", voiceSession.SessionID, "count", count)
 	}
 
-	durationSeconds := int64(now.Sub(voiceSession.StartedAt).Seconds())
+	var durationSeconds int64
+	// clock skew 등으로 now < StartedAt이면 음수가 될 수 있어 0으로 보정한다.
+	if diff := now.Sub(voiceSession.StartedAt).Seconds(); diff > 0 {
+		durationSeconds = int64(diff)
+	}
 
 	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionEndedEvent{
 		EventType:       kafkadomain.EventSessionEnded,

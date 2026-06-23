@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.ResponseEntity
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @Tag(name = "계정 공유", description = "ACCOUNT_SHARE 채널의 공유 계정 관리 API")
@@ -29,8 +29,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
     fun listAccounts(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<SharedAccountResponse>> =
-        ResponseEntity.ok(sharedAccountService.listAccounts(userId, channelId))
+    ): List<SharedAccountResponse> = sharedAccountService.listAccounts(userId, channelId)
 
     @Operation(summary = "공유 계정 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -43,8 +42,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-    ): ResponseEntity<SharedAccountResponse> =
-        ResponseEntity.ok(sharedAccountService.getAccount(userId, channelId, accountId))
+    ): SharedAccountResponse = sharedAccountService.getAccount(userId, channelId, accountId)
 
     @Operation(summary = "공유 계정 등록 (수동)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -53,12 +51,12 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
     )
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun createAccount(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateSharedAccountRequest,
-    ): ResponseEntity<SharedAccountResponse> =
-        ResponseEntity.status(201).body(sharedAccountService.createAccount(userId, channelId, request))
+    ): SharedAccountResponse = sharedAccountService.createAccount(userId, channelId, request)
 
     @Operation(summary = "공유 계정 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -72,8 +70,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
         @RequestBody request: UpdateSharedAccountRequest,
-    ): ResponseEntity<SharedAccountResponse> =
-        ResponseEntity.ok(sharedAccountService.updateAccount(userId, channelId, accountId, request))
+    ): SharedAccountResponse = sharedAccountService.updateAccount(userId, channelId, accountId, request)
 
     @Operation(summary = "공유 계정 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -82,13 +79,13 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         ApiResponse(responseCode = "404", description = "채널 또는 계정 없음"),
     )
     @DeleteMapping("/{accountId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteAccount(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         sharedAccountService.deleteAccount(userId, channelId, accountId)
-        return ResponseEntity.noContent().build()
     }
 
     @Operation(
@@ -105,8 +102,8 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-    ): ResponseEntity<Map<String, String>> {
+    ): Map<String, String> {
         val credential = sharedAccountService.copyCredential(userId, channelId, accountId)
-        return ResponseEntity.ok(mapOf("credential" to credential))
+        return mapOf("credential" to credential)
     }
 }

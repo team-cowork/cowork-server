@@ -12,21 +12,21 @@ import (
 )
 
 type AppConfig struct {
-	Port                  string
-	MongoDBURI            string
-	MongoDBDB             string
-	RedisAddr             string
-	RedisPassword         string
-	RedisDB               int
-	LiveKitURL            string
-	LiveKitWsURL          string
-	LiveKitAPIKey         string
-	LiveKitAPISecret      string
-	LiveKitTokenTTLSecs   int64
-	KafkaBrokers          string
-	KafkaTopicVoiceEvent  string
-	KafkaMessageTimeoutMs int
-	ChannelServiceURL     string
+	Port                        string
+	MongoDBURI                  string
+	MongoDBDB                   string
+	RedisAddr                   string
+	RedisPassword               string
+	RedisDB                     int
+	LiveKitURL                  string
+	LiveKitWsURL                string
+	LiveKitAPIKey               string
+	LiveKitAPISecret            string
+	LiveKitTokenTTLSecs         int64
+	KafkaBrokers                string
+	KafkaTopicVoiceEvent        string
+	KafkaMessageTimeoutMs       int
+	ChannelServiceURL           string
 	EurekaEnabled               bool
 	EurekaServerURL             string
 	EurekaAppName               string
@@ -101,25 +101,25 @@ func Load() (*AppConfig, error) {
 	}
 
 	cfg := &AppConfig{
-		Port:                  lookup(flatMap, "PORT", "8084"),
-		MongoDBURI:            mongoURI,
-		MongoDBDB:             mongoDB,
-		RedisAddr:             lookup(flatMap, "REDIS_ADDR", "localhost:6379"),
-		RedisPassword:         lookup(flatMap, "REDIS_PASSWORD", ""),
-		RedisDB:               redisDB,
-		LiveKitURL:            liveKitURL,
-		LiveKitWsURL:          liveKitWsURL,
-		LiveKitAPIKey:         liveKitAPIKey,
-		LiveKitAPISecret:      liveKitAPISecret,
-		LiveKitTokenTTLSecs:   ttlSecs,
-		KafkaBrokers:          kafkaBrokers,
-		KafkaTopicVoiceEvent:  kafkaTopic,
-		KafkaMessageTimeoutMs: timeoutMs,
-		ChannelServiceURL:          channelServiceURL,
-		EurekaEnabled:              lookup(flatMap, "EUREKA_ENABLED", "true") != "false",
-		EurekaServerURL:            lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
-		EurekaAppName:              lookup(flatMap, "EUREKA_APP_NAME", "cowork-voice"),
-		EurekaInstanceHost:         lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
+		Port:                        lookup(flatMap, "PORT", "8084"),
+		MongoDBURI:                  mongoURI,
+		MongoDBDB:                   mongoDB,
+		RedisAddr:                   lookup(flatMap, "REDIS_ADDR", "localhost:6379"),
+		RedisPassword:               lookup(flatMap, "REDIS_PASSWORD", ""),
+		RedisDB:                     redisDB,
+		LiveKitURL:                  liveKitURL,
+		LiveKitWsURL:                liveKitWsURL,
+		LiveKitAPIKey:               liveKitAPIKey,
+		LiveKitAPISecret:            liveKitAPISecret,
+		LiveKitTokenTTLSecs:         ttlSecs,
+		KafkaBrokers:                kafkaBrokers,
+		KafkaTopicVoiceEvent:        kafkaTopic,
+		KafkaMessageTimeoutMs:       timeoutMs,
+		ChannelServiceURL:           channelServiceURL,
+		EurekaEnabled:               lookup(flatMap, "EUREKA_ENABLED", "true") != "false",
+		EurekaServerURL:             lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
+		EurekaAppName:               lookup(flatMap, "EUREKA_APP_NAME", "cowork-voice"),
+		EurekaInstanceHost:          lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort:          eurekaPort,
 		EurekaHeartbeatIntervalSecs: heartbeatIntervalSecs,
 	}
@@ -239,6 +239,12 @@ func overrideFromEnv(cfg *AppConfig) {
 		cfg.EurekaInstanceHost = v
 	}
 	if v := os.Getenv("EUREKA_INSTANCE_PORT"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil {
+			cfg.EurekaInstancePort = parsed
+		}
+	} else if v := os.Getenv("PORT"); v != "" {
+		// EUREKA_INSTANCE_PORT가 별도 지정되지 않으면 서버 리슨 포트(PORT)를 따라가
+		// Eureka 등록 포트와 실제 포트가 어긋나지 않게 한다.
 		if parsed, err := strconv.Atoi(v); err == nil {
 			cfg.EurekaInstancePort = parsed
 		}

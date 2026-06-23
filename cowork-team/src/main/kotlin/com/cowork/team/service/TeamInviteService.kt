@@ -34,7 +34,7 @@ class TeamInviteService(
     }
 
     private fun findTeamOrThrow(teamId: Long) = teamRepository.findById(teamId).orElseThrow {
-        ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
+        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
     private fun requireMember(teamId: Long, userId: Long) = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)

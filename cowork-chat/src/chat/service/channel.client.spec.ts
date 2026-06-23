@@ -38,7 +38,7 @@ describe('ChannelClient', () => {
             'http://localhost:8083/channels/1',
             expect.objectContaining({
                 headers: { 'X-User-Id': '42' },
-                signal: expect.any(AbortSignal),
+                signal: expect.any(AbortSignal) as unknown,
             }),
         );
     });

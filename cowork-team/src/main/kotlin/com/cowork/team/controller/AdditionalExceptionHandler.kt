@@ -27,7 +27,7 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleHttpMessageNotReadable(e: HttpMessageNotReadableException): ResponseEntity<CommonApiResponse<Nothing>> {
-        log.warn("읽을 수 없는 요청 본문", e)
+        log.warn("Failed to read request body", e)
         return ResponseEntity.status(
             HttpStatus.BAD_REQUEST,
         ).body(CommonApiResponse.error("요청 본문을 읽을 수 없습니다.", HttpStatus.BAD_REQUEST))
@@ -60,7 +60,7 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {
-        log.error("처리되지 않은 예외 발생", e)
+        log.error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(
             CommonApiResponse.error("서버 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR),
         )

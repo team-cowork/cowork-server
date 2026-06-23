@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
 @Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/추방 API")
@@ -26,26 +25,25 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun inviteMembers(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: InviteMembersRequest,
-    ): ResponseEntity<List<TeamMemberResponse>> = ResponseEntity.status(HttpStatus.CREATED)
-        .body(teamMemberService.inviteMembers(userId, teamId, request))
+    ): List<TeamMemberResponse> = teamMemberService.inviteMembers(userId, teamId, request)
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
-    fun getMembers(@PathVariable teamId: Long): ResponseEntity<List<TeamMemberResponse>> =
-        ResponseEntity.ok(teamMemberService.getMembers(teamId))
+    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = teamMemberService.getMembers(teamId)
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "멤버 여부 반환"),
     )
     @GetMapping("/{userId}/exists")
-    fun isMember(@PathVariable teamId: Long, @PathVariable userId: Long): ResponseEntity<Map<String, Boolean>> =
-        ResponseEntity.ok(mapOf("isMember" to teamMemberService.isMember(teamId, userId)))
+    fun isMember(@PathVariable teamId: Long, @PathVariable userId: Long): Map<String, Boolean> =
+        mapOf("isMember" to teamMemberService.isMember(teamId, userId))
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -59,9 +57,8 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @RequestBody request: ChangeRoleRequest,
-    ): ResponseEntity<Void> {
+    ) {
         teamMemberService.changeRole(userId, teamId, targetUserId, request)
-        return ResponseEntity.ok().build()
     }
 
     @Operation(summary = "멤버 추방 / 탈퇴", security = [SecurityRequirement(name = "BearerAuth")])
@@ -71,12 +68,12 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         ApiResponse(responseCode = "404", description = "멤버 없음"),
     )
     @DeleteMapping("/{targetUserId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun removeMember(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         teamMemberService.removeMember(userId, teamId, targetUserId)
-        return ResponseEntity.noContent().build()
     }
 }
