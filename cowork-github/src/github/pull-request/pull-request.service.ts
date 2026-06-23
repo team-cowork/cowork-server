@@ -7,6 +7,21 @@ import {
   PullRequestFile,
 } from './client/pull-request-api.client';
 
+export const ALLOWED_PR_STATES = ['open', 'closed', 'all'] as const;
+
+export interface PullRequestSummaryResponse {
+  number: number;
+  title: string;
+  author: string;
+  state: string;
+  draft: boolean;
+  merged: boolean;
+  htmlUrl: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PullRequestActionParams {
   owner: string;
   repo: string;
@@ -72,6 +87,29 @@ export class PullRequestService {
     };
   }
 
+  async listPullRequests(
+    owner: string,
+    repo: string,
+    state: string,
+  ): Promise<PullRequestSummaryResponse[]> {
+    this.assertValidState(state);
+
+    const items = await this.apiClient.listPullRequests(owner, repo, state);
+
+    return items.map((item) => ({
+      number: item.number,
+      title: item.title,
+      author: item.user?.login ?? 'ghost',
+      state: item.state,
+      draft: item.draft,
+      merged: item.merged_at != null,
+      htmlUrl: item.html_url,
+      labels: item.labels?.map((label) => label.name) ?? [],
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    }));
+  }
+
   async listPullRequestFiles(
     owner: string,
     repo: string,
@@ -133,6 +171,17 @@ export class PullRequestService {
       requesterGithubUsername,
     });
     return { prUrl: pr.html_url, prNumber };
+  }
+
+  private assertValidState(state: string): void {
+    if (
+      !ALLOWED_PR_STATES.includes(state as (typeof ALLOWED_PR_STATES)[number])
+    ) {
+      throw new GithubClientError(
+        'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
+        400,
+      );
+    }
   }
 
   private async assertWritePermission(
