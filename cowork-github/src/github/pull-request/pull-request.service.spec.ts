@@ -7,6 +7,7 @@ describe('PullRequestService', () => {
   let service: PullRequestService;
   let apiClient: {
     getPullRequest: jest.Mock;
+    listPullRequests: jest.Mock;
     listPullRequestFiles: jest.Mock;
     listPullRequestReviews: jest.Mock;
     getCollaboratorPermission: jest.Mock;
@@ -32,6 +33,7 @@ describe('PullRequestService', () => {
   beforeEach(async () => {
     apiClient = {
       getPullRequest: jest.fn(),
+      listPullRequests: jest.fn(),
       listPullRequestFiles: jest.fn(),
       listPullRequestReviews: jest.fn(),
       getCollaboratorPermission: jest.fn(),
@@ -115,6 +117,67 @@ describe('PullRequestService', () => {
       const result = await service.getPullRequestDetail('my-org', 'my-repo', 1);
 
       expect(result.reviewDecision).toBeNull();
+    });
+  });
+
+  describe('listPullRequests', () => {
+    const baseListItem = {
+      number: 1,
+      title: 'Add feature',
+      state: 'closed',
+      draft: false,
+      merged_at: '2024-01-02T00:00:00Z',
+      html_url: 'https://github.com/my-org/my-repo/pull/1',
+      user: { login: 'author' },
+      labels: [{ name: 'bug' }, { name: 'enhancement' }],
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-03T00:00:00Z',
+    };
+
+    it('raw 목록 아이템을 요약 DTO로 매핑한다', async () => {
+      apiClient.listPullRequests.mockResolvedValue([baseListItem]);
+
+      const result = await service.listPullRequests('my-org', 'my-repo', 'all');
+
+      expect(result).toEqual([
+        {
+          number: 1,
+          title: 'Add feature',
+          author: 'author',
+          state: 'closed',
+          draft: false,
+          merged: true,
+          htmlUrl: 'https://github.com/my-org/my-repo/pull/1',
+          labels: ['bug', 'enhancement'],
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-03T00:00:00Z',
+        },
+      ]);
+      expect(apiClient.listPullRequests).toHaveBeenCalledWith(
+        'my-org',
+        'my-repo',
+        'all',
+      );
+    });
+
+    it('merged_at이 null이면 merged는 false다', async () => {
+      apiClient.listPullRequests.mockResolvedValue([
+        { ...baseListItem, merged_at: null },
+      ]);
+
+      const result = await service.listPullRequests('my-org', 'my-repo', 'open');
+
+      expect(result[0].merged).toBe(false);
+    });
+
+    it('labels가 비어 있으면 빈 배열로 매핑한다', async () => {
+      apiClient.listPullRequests.mockResolvedValue([
+        { ...baseListItem, labels: [] },
+      ]);
+
+      const result = await service.listPullRequests('my-org', 'my-repo', 'open');
+
+      expect(result[0].labels).toEqual([]);
     });
   });
 
