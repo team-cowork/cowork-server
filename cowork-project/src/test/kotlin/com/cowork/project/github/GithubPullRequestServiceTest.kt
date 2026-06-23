@@ -64,6 +64,25 @@ class GithubPullRequestServiceTest : DescribeSpec({
                     ex.statusCode shouldBe HttpStatus.BAD_REQUEST
                 }
             }
+
+            context("githubAppClient 호출 중 네트워크 오류가 발생하는 경우") {
+                it("BAD_GATEWAY로 변환한다") {
+                    val proj = project()
+                    every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
+                    every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                    val networkError = FeignException.NotFound(
+                        "connect timed out",
+                        Request.create(Request.HttpMethod.GET, "/api/repos/my-org/my-repo/pulls/5", emptyMap(), null, RequestTemplate()),
+                        null,
+                        emptyMap(),
+                    )
+                    every { githubAppClient.getPullRequest("my-org", "my-repo", 5) } throws networkError
+
+                    val ex = shouldThrow<ExpectedException> { service.getPullRequestDetail(7L, 1L, 5) }
+
+                    ex.statusCode shouldBe HttpStatus.BAD_GATEWAY
+                }
+            }
         }
 
         describe("mergePullRequest 메서드는") {
@@ -74,7 +93,9 @@ class GithubPullRequestServiceTest : DescribeSpec({
                     every { projectAccessGuard.requireProjectModifier(proj, 7L) } just Runs
                     every { userClient.getUserProfile(7L) } returns UserProfileResDto(githubId = "octocat")
                     val expected = mockk<GithubMergeResultResDto>()
-                    every { githubAppClient.mergePullRequest("my-org", "my-repo", 5, "octocat") } returns expected
+                    every {
+                        githubAppClient.mergePullRequest("my-org", "my-repo", 5, mapOf("requesterGithubUsername" to "octocat"))
+                    } returns expected
 
                     val result = service.mergePullRequest(7L, 1L, 5)
 
