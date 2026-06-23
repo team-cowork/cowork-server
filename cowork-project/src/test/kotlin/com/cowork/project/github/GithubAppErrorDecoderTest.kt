@@ -1,5 +1,8 @@
 package com.cowork.project.github
 
+import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.client.GithubAppErrorDecoder
+
 import feign.Request
 import feign.Response
 import io.kotest.core.spec.style.DescribeSpec

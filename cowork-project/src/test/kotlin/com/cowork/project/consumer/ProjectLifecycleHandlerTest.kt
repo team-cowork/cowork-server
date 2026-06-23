@@ -1,11 +1,13 @@
 package com.cowork.project.consumer
 
-import com.cowork.project.domain.Project
-import com.cowork.project.domain.ProjectMember
-import com.cowork.project.domain.ProjectMemberRole
-import com.cowork.project.repository.ProjectMemberRepository
-import com.cowork.project.repository.ProjectRepository
-import com.cowork.project.repository.TeamMembershipRepository
+import com.cowork.project.domain.consumer.ProjectLifecycleHandler
+
+import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.projectMember.entity.ProjectMember
+import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.domain.project.repository.ProjectRepository
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
