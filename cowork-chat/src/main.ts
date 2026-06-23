@@ -12,7 +12,7 @@ import { loadConfigServerEnv } from './common/config/config-server';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
-        console.log(`[startup] ${message}`);
+        new Logger('Startup').log(message);
     }
 }
 
@@ -82,14 +82,14 @@ async function bootstrap() {
         await app.close();
         process.exit(0);
     };
-    process.once('SIGINT', shutdown);
-    process.once('SIGTERM', shutdown);
+    process.once('SIGINT', () => void shutdown());
+    process.once('SIGTERM', () => void shutdown());
 
     new Logger('Bootstrap').log(`Chat server running on port ${port}`);
     new Logger('Bootstrap').log(`Swagger UI: ${await app.getUrl()}/api`);
 }
 
-bootstrap().catch((err) => {
-    console.error('Application failed to start', err);
+bootstrap().catch((err: unknown) => {
+    new Logger('Bootstrap').error('Application failed to start', err instanceof Error ? err.stack : String(err));
     process.exit(1);
 });

@@ -11,7 +11,7 @@ import {
 } from '@nestjs/websockets';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { Server, Socket } from 'socket.io';
+import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
@@ -20,6 +20,13 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
+
+export interface ChatSocketData {
+    userId: number;
+    userRole: string;
+}
+
+export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, ChatSocketData>;
 
 /**
  * `/chat` 네임스페이스의 WebSocket 게이트웨이.
@@ -75,7 +82,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      *
      * @param client - 연결된 Socket.IO 소켓
      */
-    async handleConnection(client: Socket) {
+    async handleConnection(client: ChatSocket) {
         try {
             const token = client.handshake.auth?.token as string | undefined;
             if (!token) {
@@ -90,7 +97,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
             client.data.userId = userId;
             client.data.userRole = payload.role ?? UserRole.USER;
-            client.join(`user:${userId}`);
+            this.joinRoom(client, `user:${userId}`);
             this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
@@ -105,7 +112,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      *
      * @param client - 연결 해제된 Socket.IO 소켓
      */
-    handleDisconnect(client: Socket) {
+    handleDisconnect(client: ChatSocket) {
         this.logger.log(`연결 해제: ${client.id}`);
     }
 
@@ -117,14 +124,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param payload - 참여할 채널 ID
      */
     @SubscribeMessage('join')
-    async handleJoin(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+    async handleJoin(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
         const { userId } = client.data;
         const isMember = await this.chatService.isMember(payload.channelId, userId);
         if (!isMember) {
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
             return;
         }
-        client.join(`chat:${payload.channelId}`);
+        this.joinRoom(client, `chat:${payload.channelId}`);
         this.logger.log(`userId=${userId} joined chat:${payload.channelId}`);
     }
 
@@ -135,8 +142,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param payload - 나갈 채널 ID
      */
     @SubscribeMessage('leave')
-    handleLeave(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
-        client.leave(`chat:${payload.channelId}`);
+    handleLeave(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        this.leaveRoom(client, `chat:${payload.channelId}`);
     }
 
     /**
@@ -144,16 +151,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
      */
     @SubscribeMessage('typing:start')
-    handleTypingStart(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+    handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
         this.relayTyping(client, payload, true);
     }
 
     @SubscribeMessage('typing:stop')
-    handleTypingStop(@ConnectedSocket() client: Socket, @MessageBody() payload: JoinChannelDto) {
+    handleTypingStop(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
         this.relayTyping(client, payload, false);
     }
 
-    private relayTyping(client: Socket, payload: JoinChannelDto, isTyping: boolean) {
+    private relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
         if (!payload || typeof payload.channelId !== 'number') return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
@@ -169,7 +176,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * 채널/프로젝트 생성·수정·삭제 이벤트 수신에 사용한다.
      */
     @SubscribeMessage('join:team')
-    async handleJoinTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+    async handleJoinTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
         if (!payload || typeof payload.teamId !== 'number') {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
@@ -180,18 +187,26 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.emit('error', { message: '팀 접근 권한이 없습니다' });
             return;
         }
-        client.join(`team:${payload.teamId}`);
+        this.joinRoom(client, `team:${payload.teamId}`);
     }
 
     /**
      * `leave:team` 이벤트 핸들러. `team:{teamId}` 룸에서 나간다.
      */
     @SubscribeMessage('leave:team')
-    handleLeaveTeam(@ConnectedSocket() client: Socket, @MessageBody() payload: { teamId: number }) {
+    handleLeaveTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
         if (!payload || typeof payload.teamId !== 'number') {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
-        client.leave(`team:${payload.teamId}`);
+        this.leaveRoom(client, `team:${payload.teamId}`);
+    }
+
+    private joinRoom(client: ChatSocket, room: string): void {
+        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`방 참여 실패 (room=${room}): ${String(err)}`));
+    }
+
+    private leaveRoom(client: ChatSocket, room: string): void {
+        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`방 퇴장 실패 (room=${room}): ${String(err)}`));
     }
 }
