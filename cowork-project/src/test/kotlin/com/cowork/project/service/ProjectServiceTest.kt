@@ -6,7 +6,7 @@ import com.cowork.project.domain.ProjectMemberRole
 import com.cowork.project.domain.TeamMembership
 import com.cowork.project.dto.AddProjectMemberRequest
 import com.cowork.project.dto.CreateProjectRequest
-import com.cowork.project.dto.LinkGithubRepoRequest
+import com.cowork.project.dto.LinkGithubRepoReqDto
 import com.cowork.project.dto.UpdateProjectRequest
 import com.cowork.project.event.ProjectEventPublisher
 import com.cowork.project.repository.ProjectMemberRepository
@@ -144,7 +144,7 @@ class ProjectServiceTest {
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
 
-        val response = service.linkGithubRepo(99L, 1L, LinkGithubRepoRequest("https://github.com/my-org/my-repo"))
+        val response = service.linkGithubRepo(99L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
 
         assertEquals("https://github.com/my-org/my-repo", response.githubRepoUrl)
     }
@@ -157,7 +157,7 @@ class ProjectServiceTest {
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.linkGithubRepo(99L, 1L, LinkGithubRepoRequest("https://gitlab.com/my-org/my-repo"))
+            service.linkGithubRepo(99L, 1L, LinkGithubRepoReqDto("https://gitlab.com/my-org/my-repo"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
@@ -171,7 +171,7 @@ class ProjectServiceTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.linkGithubRepo(50L, 1L, LinkGithubRepoRequest("https://github.com/my-org/my-repo"))
+            service.linkGithubRepo(50L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -186,5 +186,19 @@ class ProjectServiceTest {
         val response = service.unlinkGithubRepo(99L, 1L)
 
         assertEquals(null, response.githubRepoUrl)
+    }
+
+    @Test
+    fun `unlinkGithubRepo는 EDITOR가 아니면 FORBIDDEN`() {
+        val proj = project().apply { linkGithubRepo("https://github.com/my-org/my-repo") }
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
+            ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.unlinkGithubRepo(50L, 1L)
+        }
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
 }
