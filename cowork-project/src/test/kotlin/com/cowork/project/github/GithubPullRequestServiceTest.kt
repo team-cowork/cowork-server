@@ -1,12 +1,15 @@
 package com.cowork.project.github
 
-import com.cowork.project.client.UserClient
-import com.cowork.project.client.UserProfileResDto
-import com.cowork.project.domain.Project
-import com.cowork.project.dto.GithubMergeResultResDto
-import com.cowork.project.dto.GithubPullRequestResDto
-import com.cowork.project.dto.GithubPullRequestSummaryResDto
-import com.cowork.project.service.ProjectAccessGuard
+import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.service.GithubPullRequestService
+
+import com.cowork.project.domain.client.UserClient
+import com.cowork.project.domain.client.UserProfileResDto
+import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestSummaryResDto
+import com.cowork.project.domain.project.service.ProjectAccessGuard
 import feign.FeignException
 import feign.Request
 import feign.RequestTemplate
