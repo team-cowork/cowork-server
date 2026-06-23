@@ -25,7 +25,7 @@ data class ProjectDetailResponse(
     val updatedAt: LocalDateTime,
     @Schema(description = "프로젝트 멤버 수", example = "5")
     val memberCount: Long,
-    @Schema(description = "연결된 GitHub 레포지토리 URL", example = "https://github.com/my-org/my-repo")
+    @field:Schema(description = "연결된 GitHub 레포지토리 URL", example = "https://github.com/my-org/my-repo")
     val githubRepoUrl: String?,
 ) {
     companion object {
