@@ -1,13 +1,17 @@
 package com.cowork.channel.service
 
-import com.cowork.channel.config.OAuthProperties
-import com.cowork.channel.config.OAuthProviderConfig
-import com.cowork.channel.domain.AccountProvider
-import com.cowork.channel.domain.Channel
-import com.cowork.channel.domain.ChannelType
-import com.cowork.channel.domain.ChannelViewType
-import com.cowork.channel.domain.SharedAccount
-import com.cowork.channel.repository.SharedAccountRepository
+import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.service.ChannelService
+import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
+import com.cowork.channel.domain.sharedAccount.entity.SharedAccount
+import com.cowork.channel.domain.sharedAccount.repository.SharedAccountRepository
+import com.cowork.channel.domain.sharedAccount.service.CredentialEncryptionService
+import com.cowork.channel.domain.sharedAccount.service.OAuthAccountService
+import com.cowork.channel.global.config.OAuthProperties
+import com.cowork.channel.global.config.OAuthProviderConfig
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
