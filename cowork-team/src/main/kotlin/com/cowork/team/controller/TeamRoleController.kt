@@ -11,7 +11,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
@@ -21,6 +20,7 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "팀 역할", description = "팀 커스텀 역할/권한/색상/우선순위/멘션 설정 API")
@@ -31,16 +31,13 @@ class TeamRoleController(private val teamRoleService: TeamRoleService) {
     @Operation(summary = "역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/roles")
-    fun getRoles(@PathVariable teamId: Long): ResponseEntity<List<TeamRoleResponse>> =
-        ResponseEntity.ok(teamRoleService.getRoles(teamId))
+    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = teamRoleService.getRoles(teamId)
 
     @Operation(summary = "멤버 역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/members/{userId}/roles")
-    fun getMemberRoles(
-        @PathVariable teamId: Long,
-        @PathVariable userId: Long,
-    ): ResponseEntity<List<TeamRoleResponse>> = ResponseEntity.ok(teamRoleService.getMemberRoles(teamId, userId))
+    fun getMemberRoles(@PathVariable teamId: Long, @PathVariable userId: Long): List<TeamRoleResponse> =
+        teamRoleService.getMemberRoles(teamId, userId)
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -49,12 +46,12 @@ class TeamRoleController(private val teamRoleService: TeamRoleService) {
         ApiResponse(responseCode = "409", description = "역할 이름 중복"),
     )
     @PostMapping("/roles")
+    @ResponseStatus(HttpStatus.CREATED)
     fun createRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: CreateTeamRoleRequest,
-    ): ResponseEntity<TeamRoleResponse> =
-        ResponseEntity.status(HttpStatus.CREATED).body(teamRoleService.createRole(userId, teamId, request))
+    ): TeamRoleResponse = teamRoleService.createRole(userId, teamId, request)
 
     @Operation(summary = "역할 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @PatchMapping("/roles/{roleId}")
@@ -63,17 +60,17 @@ class TeamRoleController(private val teamRoleService: TeamRoleService) {
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
         @RequestBody request: UpdateTeamRoleRequest,
-    ): ResponseEntity<TeamRoleResponse> = ResponseEntity.ok(teamRoleService.updateRole(userId, teamId, roleId, request))
+    ): TeamRoleResponse = teamRoleService.updateRole(userId, teamId, roleId, request)
 
     @Operation(summary = "역할 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/roles/{roleId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         teamRoleService.deleteRole(userId, teamId, roleId)
-        return ResponseEntity.noContent().build()
     }
 
     @Operation(summary = "멤버에게 역할 부여", security = [SecurityRequirement(name = "BearerAuth")])
@@ -83,18 +80,17 @@ class TeamRoleController(private val teamRoleService: TeamRoleService) {
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
-    ): ResponseEntity<TeamRoleResponse> =
-        ResponseEntity.ok(teamRoleService.assignRole(userId, teamId, targetUserId, roleId))
+    ): TeamRoleResponse = teamRoleService.assignRole(userId, teamId, targetUserId, roleId)
 
     @Operation(summary = "멤버 역할 회수", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/members/{targetUserId}/roles/{roleId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun revokeRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         teamRoleService.revokeRole(userId, teamId, targetUserId, roleId)
-        return ResponseEntity.noContent().build()
     }
 }

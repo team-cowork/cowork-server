@@ -26,6 +26,17 @@ spring:
     consumer:
       auto-offset-reset: earliest
 
+github-app:
+  service-url: ${GITHUB_APP_SERVICE_URL:http://localhost:3000}
+  internal-api-key: ${GITHUB_APP_INTERNAL_API_KEY:}
+
+feign:
+  client:
+    config:
+      github-app:
+        connect-timeout: 3000
+        read-timeout: 10000
+
 eureka:
   client:
     service-url:

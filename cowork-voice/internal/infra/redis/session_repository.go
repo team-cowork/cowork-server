@@ -12,7 +12,10 @@ import (
 	room "github.com/cowork/cowork-voice/internal/domain/voice_room"
 )
 
-const sessionTTL = 48 * time.Hour
+// sessionTTL은 무효화(eviction)가 실패했을 때 stale 항목이 살아남는 최대 시간을 제한하는 안전장치다.
+// Mongo가 진실의 원천이므로 TTL 만료 후 cache miss가 나도 정상 동작(재조회 후 재캐싱)하며,
+// room_finished 시점에 Redis가 일시 장애여서 evict가 실패하더라도 종료된 세션이 최대 이 시간까지만 남는다.
+const sessionTTL = 2 * time.Hour
 
 type cachedSessionRepository struct {
 	mongo room.Repository
@@ -48,7 +51,8 @@ func (r *cachedSessionRepository) evictSession(ctx context.Context, s *room.Voic
 	pipe.Del(ctx, roomKey(s.RoomName))
 	pipe.Del(ctx, sessionKey(s.SessionID))
 	if _, err := pipe.Exec(ctx); err != nil {
-		slog.Warn("redis: failed to evict session", "err", err, "session_id", s.SessionID)
+		// 무효화 실패 시 stale 항목은 sessionTTL까지 남는다(안전장치). 운영 알람을 위해 Error로 남긴다.
+		slog.Error("redis: failed to evict session, stale entry will expire via TTL", "err", err, "session_id", s.SessionID, "ttl", sessionTTL.String())
 	}
 }
 
@@ -103,22 +107,22 @@ func (r *cachedSessionRepository) FindSessionByRoomName(ctx context.Context, roo
 	return s, nil
 }
 
-func (r *cachedSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, error) {
-	s, err := r.mongo.CreateSession(ctx, channelID, teamID)
+func (r *cachedSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, bool, error) {
+	s, created, err := r.mongo.CreateSession(ctx, channelID, teamID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if s != nil {
 		r.cacheSession(ctx, s)
 	}
-	return s, nil
+	return s, created, nil
 }
 
 func (r *cachedSessionRepository) GetSession(ctx context.Context, sessionID string) (*room.VoiceSession, error) {
 	return r.mongo.GetSession(ctx, sessionID)
 }
 
-func (r *cachedSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) error {
+func (r *cachedSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
 	s, err := r.getFromCache(ctx, sessionKey(sessionID))
 	if err != nil {
 		slog.Warn("redis: EndSession cache lookup failed", "err", err, "session_id", sessionID)
@@ -130,14 +134,15 @@ func (r *cachedSessionRepository) EndSession(ctx context.Context, sessionID stri
 		}
 	}
 
-	if err := r.mongo.EndSession(ctx, sessionID, endedAt); err != nil {
-		return err
+	ended, err := r.mongo.EndSession(ctx, sessionID, endedAt)
+	if err != nil {
+		return false, err
 	}
 
 	if s != nil {
 		r.evictSession(ctx, s)
 	}
-	return nil
+	return ended, nil
 }
 
 func (r *cachedSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {

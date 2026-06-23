@@ -37,7 +37,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 eachMessage: async ({ message }) => {
                     if (!message.value) return;
                     try {
-                        const event: ChannelMemberEvent = JSON.parse(message.value.toString());
+                        const event = JSON.parse(message.value.toString()) as ChannelMemberEvent;
                         await this.handleEvent(event);
                     } catch (err) {
                         this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);

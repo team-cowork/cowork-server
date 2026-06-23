@@ -206,7 +206,7 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 	if err != nil {
 		return "", fmt.Errorf("failed to call token endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -239,7 +239,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 	if err != nil {
 		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)

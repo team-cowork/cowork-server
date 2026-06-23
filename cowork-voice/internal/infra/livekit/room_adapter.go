@@ -53,10 +53,6 @@ func (l *liveKitRoomService) ListParticipants(ctx context.Context, roomName stri
 	return result, nil
 }
 
-func (l *liveKitRoomService) DeleteRoom(ctx context.Context, roomName string) error {
-	return DeleteRoom(ctx, l.client, roomName)
-}
-
 func fromProtoParticipant(p *livekitproto.ParticipantInfo) room.LiveKitParticipant {
 	return room.LiveKitParticipant{
 		Identity: p.Identity,

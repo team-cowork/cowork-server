@@ -43,7 +43,7 @@ export abstract class BaseHttpClient {
             return await res.json() as T;
         } catch (err) {
             this.logger.warn(`${this.serviceName} JSON 응답 파싱 실패: ${String(err)}`);
-            throw new Error(`${this.serviceName} 응답 본문 파싱에 실패했습니다`);
+            throw new Error(`${this.serviceName} 응답 본문 파싱에 실패했습니다`, { cause: err });
         }
     }
 }

@@ -53,7 +53,7 @@ class MeetingNoteService(
     fun createNote(userId: Long, channelId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
         requireChannelMember(channelId, userId)
         val template = templateRepository.findById(request.templateId).orElseThrow {
-            ExpectedException("템플릿을 찾을 수 없습니다. id=${request.templateId}", HttpStatus.NOT_FOUND)
+            ExpectedException("템플릿을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
         if (template.channelId != channelId) {
             throw ExpectedException("템플릿을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
@@ -103,7 +103,7 @@ class MeetingNoteService(
 
     private fun findNoteOrThrow(noteId: Long, channelId: Long): MeetingNote {
         val note = meetingNoteRepository.findById(noteId).orElseThrow {
-            ExpectedException("회의록을 찾을 수 없습니다. id=$noteId", HttpStatus.NOT_FOUND)
+            ExpectedException("회의록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
         if (note.channelId != channelId) {
             throw ExpectedException("회의록을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
