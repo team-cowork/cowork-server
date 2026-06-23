@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
@@ -123,15 +123,15 @@ jobs:
             MATRIX='{"include":[
               {"service":"cowork-gateway","build":"gradle","working-directory":"."},
               {"service":"cowork-config","build":"gradle","working-directory":"."},
-              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"},
+              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"},
               {"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"},
               {"service":"cowork-project","build":"gradle","working-directory":"."},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"},
-              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"22"},
+              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
+              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-team","build":"gradle","working-directory":"."}
             ]}'
@@ -146,7 +146,7 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-config"
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-user"
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]') && \
@@ -167,7 +167,7 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
             [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
@@ -176,8 +176,8 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-team"
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
-              MATRIX='{"include":[{"service":"변경 없음","build":"skip"}]}'
-              SERVICES="없음"
+              MATRIX='{"include":[{"service":"no-changes","build":"skip"}]}'
+              SERVICES="none"
             fi
           fi
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
@@ -196,15 +196,15 @@ jobs:
     steps:
       - name: No Changed Services
         if: matrix.build == 'skip'
-        run: echo "변경된 서비스가 없습니다."
+        run: echo "No changed services."
       - name: Checkout Code
         if: matrix.build != 'skip'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup JDK
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v5
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
       - name: Setup Gradle
         if: matrix.build == 'gradle'
@@ -237,6 +237,12 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
+      - name: Lint (Go)
+        if: matrix.build == 'go'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.working-directory }}
       - name: Setup Elixir
         if: matrix.build == 'elixir'
         uses: erlef/setup-beam@v1
@@ -306,7 +312,6 @@ jobs:
             echo "status=cancelled" >> $GITHUB_OUTPUT
             echo "color=0xFFA500" >> $GITHUB_OUTPUT
           fi
-
       - name: Send Discord Notification
         uses: sarisia/actions-status-discord@v1
         with:
@@ -321,3 +326,260 @@ jobs:
             **Validate Title:** ${{ needs.validate-title.result }}
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
+
+  contrib-delta:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Build and Post Contribution Delta Comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const issue_number = pr.number;
+            const baseRef = pr.base.ref;
+            const prAuthor = pr.user.login;
+            const marker = '<!-- contrib-delta-bot -->';
+            const sh = (c) => execSync(c, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+
+            const postComment = async (body) => {
+              const comments = await github.paginate(github.rest.issues.listComments,
+                { owner, repo, issue_number, per_page: 100 });
+              const bots = comments.filter(c => c.body && c.body.includes(marker));
+              if (bots.length) {
+                await github.rest.issues.updateComment({ owner, repo, comment_id: bots[0].id, body });
+                for (const extra of bots.slice(1)) {
+                  await github.rest.issues.deleteComment({ owner, repo, comment_id: extra.id });
+                }
+              } else {
+                await github.rest.issues.createComment({ owner, repo, issue_number, body });
+              }
+            };
+
+            const fs = require('fs');
+            const modules = fs.readdirSync('.', { withFileTypes: true })
+              .filter(d => d.isDirectory() && d.name.startsWith('cowork-'))
+              .map(d => d.name).sort();
+            const AI = new Set(['.harness', '.claude', '.agents', '.codex', '.gemini']);
+            const classify = (p) => {
+              const top = p.split('/')[0];
+              if (modules.includes(top)) return top;
+              if (AI.has(top)) return 'ai-harness';
+              return 'etc';
+            };
+
+            sh(`git fetch --no-tags origin ${baseRef}`);
+            const baseSha = sh(`git merge-base origin/${baseRef} HEAD`).trim();
+            const S1 = '\x01', S2 = '\x02';
+            const parseLog = (range) => {
+              const out = sh(`git log --no-merges --pretty=format:"${S1}%H${S2}%ae${S2}%an" --numstat ${range}`);
+              const commits = []; let cur = null;
+              for (const line of out.split('\n')) {
+                if (line.startsWith(S1)) {
+                  if (cur) commits.push(cur);
+                  const [sha, email] = line.slice(1).split(S2);
+                  cur = { sha, email: email.toLowerCase(), files: {} };
+                } else if (line.trim() && cur) {
+                  const parts = line.split('\t');
+                  if (parts.length !== 3) continue;
+                  let [add, del, path] = parts;
+                  const ln = (add === '-' ? 0 : parseInt(add, 10)) + (del === '-' ? 0 : parseInt(del, 10));
+                  if (path.includes('=>')) {
+                    path = path.replace(/\{[^}]*=> ?([^}]*)\}/, '$1').split(' => ').pop().trim();
+                  }
+                  const cat = classify(path);
+                  cur.files[cat] = (cur.files[cat] || 0) + ln;
+                }
+              }
+              if (cur) commits.push(cur);
+              return commits;
+            };
+
+            const baseCommits = parseLog(baseSha);
+            const prCommits = parseLog(`${baseSha}..HEAD`);
+            if (prCommits.length === 0) {
+              await postComment(`${marker}\n## 이 PR이 병합되면 — 기여도 변화 미리보기\n\n집계할 신규 커밋이 없습니다 (머지 커밋 제외).`);
+              return;
+            }
+
+            const all = baseCommits.concat(prCommits);
+            const sampleSha = new Map();
+            for (const c of all) if (!sampleSha.has(c.email)) sampleSha.set(c.email, c.sha);
+            const noreply = (e) => {
+              const m = e.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/);
+              return m ? m[1] : null;
+            };
+            const FAKE_TLDS = new Set(['test', 'invalid', 'example', 'localhost', 'local', 'internal', 'fake', 'nowhere']);
+            const isFake = (e) => FAKE_TLDS.has(e.split('.').pop());
+            const emailLogin = new Map();
+            for (const [email, sha] of sampleSha) {
+              let login = noreply(email);
+              if (!login && email.includes('[bot]')) login = email.split('@')[0];
+              if (!login && !isFake(email)) {
+                try {
+                  const r = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+                  login = r.data.author ? r.data.author.login : null;
+                } catch (e) {
+                  if (e.status === 403 || e.status === 429) core.warning(`GitHub API rate limit while verifying ${email}`);
+                  else core.warning(`GitHub API error while verifying ${email}: ${e.message}`);
+                  login = null;
+                }
+              }
+              emailLogin.set(email, login);
+            }
+            const canon = new Map();
+            for (const [email, login] of emailLogin) {
+              if (!login) continue;
+              const key = login.toLowerCase();
+              const prev = canon.get(key);
+              if (prev === undefined || (noreply(email) === null && prev !== login)) canon.set(key, login);
+            }
+            for (const [email, login] of emailLogin) {
+              emailLogin.set(email, login ? canon.get(login.toLowerCase()) : null);
+            }
+            for (const c of prCommits) if (!emailLogin.get(c.email)) emailLogin.set(c.email, prAuthor);
+
+            const fullCats = modules.concat(['ai-harness', 'etc']);
+            const aggregate = (commits, metric) => {
+              const contrib = {}, totals = {}, seen = {};
+              for (const c of commits) {
+                const login = emailLogin.get(c.email);
+                if (!login) continue;
+                contrib[login] = contrib[login] || {};
+                if (metric === 'commits') {
+                  for (const cat of Object.keys(c.files)) contrib[login][cat] = (contrib[login][cat] || 0) + 1;
+                  seen[login] = seen[login] || new Set();
+                  if (!seen[login].has(c.sha)) { seen[login].add(c.sha); totals[login] = (totals[login] || 0) + 1; }
+                } else {
+                  for (const [cat, ln] of Object.entries(c.files)) {
+                    contrib[login][cat] = (contrib[login][cat] || 0) + ln;
+                    totals[login] = (totals[login] || 0) + ln;
+                  }
+                }
+              }
+              return { contrib, totals };
+            };
+            const A = {};
+            for (const m of ['commits', 'lines']) {
+              A[m] = { before: aggregate(baseCommits, m), after: aggregate(all, m) };
+            }
+
+            const fmt = (n) => n.toLocaleString('en-US');
+            const signed = (n) => n > 0 ? `+${fmt(n)}` : `${fmt(n)}`;
+            const ranks = (totals) => {
+              const order = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+              const r = {}; order.forEach((a, i) => r[a] = i + 1); return r;
+            };
+            const projTotals = (contrib, cats) => {
+              const t = {}; for (const cat of cats) t[cat] = 0;
+              for (const a of Object.keys(contrib)) for (const cat of cats) t[cat] += (contrib[a][cat] || 0);
+              return t;
+            };
+
+            const btC = A.commits.before.totals, atC = A.commits.after.totals;
+            const btL = A.lines.before.totals, atL = A.lines.after.totals;
+
+            const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
+            const dCommits = sum(atC) - sum(btC);
+            const dLines = sum(atL) - sum(btL);
+            const nContrib = Object.keys(atC).filter(a => (atC[a] - (btC[a] || 0)) > 0).length;
+
+            let out = [
+              marker,
+              '## 이 PR이 병합되면 — 기여도 변화 미리보기',
+              '',
+              `**커밋 ${signed(dCommits)}** · **라인 ${signed(dLines)}** · 기여자 ${nContrib}명 증가 · GitHub 계정에 연결된 커밋만 집계`,
+              '',
+            ];
+
+            const rB = ranks(btC), rA = ranks(atC);
+            const authors = Object.keys(atC).sort((a, b) => atC[b] - atC[a]);
+            const lbRows = authors.map(a => {
+              const bcc = btC[a] || 0, acc = atC[a] || 0;
+              const bll = btL[a] || 0, aLines = atL[a] || 0;
+              const rbV = rB[a], raV = rA[a];
+              const move = rbV ? `${rbV} -> ${raV}` : `new -> ${raV}`;
+              return {
+                changed: (acc - bcc) > 0 || (aLines - bll) > 0,
+                a,
+                c: `${fmt(bcc)} -> ${fmt(acc)} (${signed(acc - bcc)})`,
+                l: `${fmt(bll)} -> ${fmt(aLines)} (${signed(aLines - bll)})`,
+                m: move,
+              };
+            });
+            const pad = (s, w) => s.padEnd(w);
+            const wa = Math.max('AUTHOR'.length, ...lbRows.map(r => r.a.length));
+            const wc = Math.max('COMMITS'.length, ...lbRows.map(r => r.c.length));
+            const wl = Math.max('LINES'.length, ...lbRows.map(r => r.l.length));
+            out.push('### 전체 기여자 리더보드 (병합 후 기준)',
+              '이번 PR로 기여가 증가한 사람은 초록색으로 강조됩니다.', '', '```diff',
+              `  ${pad('AUTHOR', wa)}  ${pad('COMMITS', wc)}  ${pad('LINES', wl)}  RANK`);
+            for (const r of lbRows) {
+              out.push(`${r.changed ? '+' : ' '} ${pad(r.a, wa)}  ${pad(r.c, wc)}  ${pad(r.l, wl)}  ${r.m}`);
+            }
+            out.push('```', '');
+
+            const bModC = projTotals(A.commits.before.contrib, fullCats);
+            const aModC = projTotals(A.commits.after.contrib, fullCats);
+            const bModL = projTotals(A.lines.before.contrib, fullCats);
+            const aModL = projTotals(A.lines.after.contrib, fullCats);
+            let worked = fullCats.map(c => [c, aModC[c] - bModC[c], aModL[c] - bModL[c]])
+              .filter(w => w[1] > 0 || w[2] > 0)
+              .sort((x, y) => (y[1] - x[1]) || (y[2] - x[2]));
+            if (worked.length) {
+              const labels = worked.map(w => w[0]);
+              const data = worked.map(w => w[1]);
+              const vmax = Math.max(...data, 1);
+              const stops = [[68, 1, 84], [59, 82, 139], [33, 145, 140], [94, 201, 98], [253, 231, 37]];
+              const colorFor = (v) => {
+                const t = 0.12 + 0.72 * (v / vmax);
+                const x = Math.min(0.999, Math.max(0, t)) * (stops.length - 1);
+                const i = Math.floor(x), f = x - i, p = stops[i], q = stops[i + 1] || p;
+                const c = (k) => Math.round(p[k] + (q[k] - p[k]) * f);
+                return `rgb(${c(0)},${c(1)},${c(2)})`;
+              };
+              const cfg = {
+                type: 'horizontalBar',
+                data: { labels, datasets: [{ data, backgroundColor: data.map(colorFor) }] },
+                options: {
+                  legend: { display: false },
+                  title: { display: true, fontSize: 16, text: 'Commits added by this PR (per module)' },
+                  plugins: { datalabels: { anchor: 'end', align: 'right', color: '#444', formatter: '__FMT__' } },
+                  scales: { xAxes: [{ ticks: { beginAtZero: true, suggestedMax: Math.ceil(vmax * 1.25) } }] },
+                },
+              };
+              let cfgStr = JSON.stringify(cfg).replace('"__FMT__"', 'function(v){return "+"+v;}');
+              const h = Math.max(180, 46 * labels.length + 90);
+              const chartUrl = `https://quickchart.io/chart?bkg=white&w=820&h=${h}&c=${encodeURIComponent(cfgStr)}`;
+              out.push('### 이 PR이 추가하는 모듈별 커밋', `![module delta](${chartUrl})`, '');
+            }
+
+            const mdRows = fullCats.map(c => {
+              const dc = aModC[c] - bModC[c], dl = aModL[c] - bModL[c];
+              const cell = (tot, d) => d ? `${fmt(tot)} (${signed(d)})` : `${fmt(tot)}`;
+              return { changed: dc > 0 || dl > 0, name: c, dc, dl,
+                cc: cell(aModC[c], dc), lc: cell(aModL[c], dl) };
+            }).sort((x, y) => (y.dc - x.dc) || (y.dl - x.dl));
+            const wm = Math.max('MODULE'.length, ...mdRows.map(r => r.name.length));
+            const wcc = Math.max('COMMITS'.length, ...mdRows.map(r => r.cc.length));
+            const wll = Math.max('LINES'.length, ...mdRows.map(r => r.lc.length));
+            out.push('### 모듈별 변화 상세 (전체 모듈)',
+              '이번 PR이 커밋을 추가한 모듈은 초록색으로 강조됩니다.', '', '```diff',
+              `  ${pad('MODULE', wm)}  ${pad('COMMITS', wcc)}  ${pad('LINES', wll)}`);
+            for (const r of mdRows) {
+              out.push(`${r.changed ? '+' : ' '} ${pad(r.name, wm)}  ${pad(r.cc, wcc)}  ${pad(r.lc, wll)}`);
+            }
+            out.push('```', '');
+            out.push(`<sub>base <code>${baseSha.slice(0, 8)}</code> 기준 · 머지 커밋 제외</sub>`);
+
+            await postComment(out.join('\n'));

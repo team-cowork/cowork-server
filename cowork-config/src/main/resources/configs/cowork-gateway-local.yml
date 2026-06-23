@@ -82,6 +82,13 @@ spring:
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
 
+        - id: authorization-webhook
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/events/datagsm
+          filters:
+            - StripPrefix=1
+
         - id: user-service
           uri: lb://cowork-user
           predicates:

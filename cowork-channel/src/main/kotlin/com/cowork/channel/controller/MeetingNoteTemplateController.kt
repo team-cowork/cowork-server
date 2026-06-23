@@ -8,15 +8,13 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
-import org.springframework.http.ResponseEntity
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
 @Tag(name = "회의록 템플릿", description = "회의록 템플릿 및 섹션 CRUD API")
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-note-templates")
-class MeetingNoteTemplateController(
-    private val meetingNoteTemplateService: MeetingNoteTemplateService,
-) {
+class MeetingNoteTemplateController(private val meetingNoteTemplateService: MeetingNoteTemplateService) {
 
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -27,8 +25,7 @@ class MeetingNoteTemplateController(
     fun listTemplates(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ResponseEntity<List<MeetingNoteTemplateResponse>> =
-        ResponseEntity.ok(meetingNoteTemplateService.listTemplates(userId, channelId))
+    ): List<MeetingNoteTemplateResponse> = meetingNoteTemplateService.listTemplates(userId, channelId)
 
     @Operation(summary = "템플릿 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -36,12 +33,12 @@ class MeetingNoteTemplateController(
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
     )
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun createTemplate(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateMeetingNoteTemplateRequest,
-    ): ResponseEntity<MeetingNoteTemplateResponse> =
-        ResponseEntity.status(201).body(meetingNoteTemplateService.createTemplate(userId, channelId, request))
+    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.createTemplate(userId, channelId, request)
 
     @Operation(summary = "템플릿 상세 조회 (섹션 포함)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -53,8 +50,7 @@ class MeetingNoteTemplateController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-    ): ResponseEntity<MeetingNoteTemplateResponse> =
-        ResponseEntity.ok(meetingNoteTemplateService.getTemplate(userId, channelId, templateId))
+    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.getTemplate(userId, channelId, templateId)
 
     @Operation(summary = "템플릿 이름 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -67,8 +63,7 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @RequestBody request: UpdateMeetingNoteTemplateRequest,
-    ): ResponseEntity<MeetingNoteTemplateResponse> =
-        ResponseEntity.ok(meetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request))
+    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
 
     @Operation(summary = "템플릿 삭제 (활성 템플릿 삭제 불가)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -77,13 +72,13 @@ class MeetingNoteTemplateController(
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
     )
     @DeleteMapping("/{templateId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteTemplate(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         meetingNoteTemplateService.deleteTemplate(userId, channelId, templateId)
-        return ResponseEntity.noContent().build()
     }
 
     @Operation(summary = "템플릿 활성화 (기존 활성 자동 해제)", security = [SecurityRequirement(name = "BearerAuth")])
@@ -96,8 +91,7 @@ class MeetingNoteTemplateController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-    ): ResponseEntity<MeetingNoteTemplateResponse> =
-        ResponseEntity.ok(meetingNoteTemplateService.activateTemplate(userId, channelId, templateId))
+    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.activateTemplate(userId, channelId, templateId)
 
     @Operation(summary = "섹션 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -105,13 +99,13 @@ class MeetingNoteTemplateController(
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
     )
     @PostMapping("/{templateId}/sections")
+    @ResponseStatus(HttpStatus.CREATED)
     fun addSection(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @RequestBody request: CreateTemplateSectionRequest,
-    ): ResponseEntity<TemplateSectionResponse> =
-        ResponseEntity.status(201).body(meetingNoteTemplateService.addSection(userId, channelId, templateId, request))
+    ): TemplateSectionResponse = meetingNoteTemplateService.addSection(userId, channelId, templateId, request)
 
     @Operation(summary = "섹션 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -125,8 +119,8 @@ class MeetingNoteTemplateController(
         @PathVariable templateId: Long,
         @PathVariable sectionId: Long,
         @RequestBody request: UpdateTemplateSectionRequest,
-    ): ResponseEntity<TemplateSectionResponse> =
-        ResponseEntity.ok(meetingNoteTemplateService.updateSection(userId, channelId, templateId, sectionId, request))
+    ): TemplateSectionResponse =
+        meetingNoteTemplateService.updateSection(userId, channelId, templateId, sectionId, request)
 
     @Operation(summary = "섹션 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -134,13 +128,13 @@ class MeetingNoteTemplateController(
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
     )
     @DeleteMapping("/{templateId}/sections/{sectionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteSection(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @PathVariable sectionId: Long,
-    ): ResponseEntity<Void> {
+    ) {
         meetingNoteTemplateService.deleteSection(userId, channelId, templateId, sectionId)
-        return ResponseEntity.noContent().build()
     }
 }
