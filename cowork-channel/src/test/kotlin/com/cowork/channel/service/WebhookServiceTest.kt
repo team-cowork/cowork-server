@@ -1,10 +1,13 @@
 package com.cowork.channel.service
 
-import com.cowork.channel.domain.Channel
-import com.cowork.channel.domain.ChannelType
-import com.cowork.channel.domain.ChannelViewType
-import com.cowork.channel.dto.CreateWebhookRequest
-import com.cowork.channel.repository.WebhookRepository
+import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.service.ChannelService
+import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.webhook.presentation.data.request.CreateWebhookRequest
+import com.cowork.channel.domain.webhook.repository.WebhookRepository
+import com.cowork.channel.domain.webhook.service.WebhookService
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
