@@ -38,7 +38,7 @@ func (c *Client) VerifyMembership(ctx context.Context, channelID, userID int64) 
 		slog.Error("channel service request failed", "err", err)
 		return 0, apperr.ServiceUnavailable("channel service connection failed")
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	switch resp.StatusCode {
 	case http.StatusOK:

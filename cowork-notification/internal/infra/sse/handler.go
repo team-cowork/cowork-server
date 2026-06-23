@@ -50,7 +50,7 @@ func Handler(hub *Hub) http.HandlerFunc {
 		slog.Info("SSE 클라이언트 연결", "userID", userID)
 
 		// 연결 확인용 초기 이벤트
-		fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
+		_, _ = fmt.Fprintf(w, "event: connected\ndata: {}\n\n")
 		flusher.Flush()
 
 		ticker := time.NewTicker(keepaliveInterval)
@@ -62,12 +62,12 @@ func Handler(hub *Hub) http.HandlerFunc {
 				if !open {
 					return
 				}
-				fmt.Fprintf(w, "data: %s\n\n", payload)
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", payload)
 				flusher.Flush()
 
 			case <-ticker.C:
 				// keepalive: 연결 유지용 주석 이벤트
-				fmt.Fprintf(w, ": ping\n\n")
+				_, _ = fmt.Fprintf(w, ": ping\n\n")
 				flusher.Flush()
 
 			case <-r.Context().Done():

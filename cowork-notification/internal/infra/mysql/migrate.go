@@ -191,7 +191,7 @@ func appliedVersions(ctx context.Context, db *gorm.DB) (map[string]bool, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	result := map[string]bool{}
 	for rows.Next() {
