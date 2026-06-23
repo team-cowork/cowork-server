@@ -29,6 +29,19 @@ export interface PullRequestDetail {
   base: PullRequestRef;
 }
 
+export interface GithubPullRequestListItem {
+  number: number;
+  title: string;
+  state: string;
+  draft: boolean;
+  merged_at: string | null;
+  html_url: string;
+  user: { login: string } | null;
+  labels: { name: string }[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface PullRequestFile {
   filename: string;
   status: string;
@@ -65,6 +78,34 @@ export class PullRequestApiClient {
         this.httpService.get<PullRequestDetail>(
           `${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`,
           { headers: this.authHeaders(token) },
+        ),
+      );
+      return data;
+    } catch (error) {
+      this.handleGithubError(error);
+    }
+  }
+
+  // MVP: per_page=100 단일 페이지만 조회. 100개 초과 PR 페이지네이션은 후속 과제.
+  async listPullRequests(
+    owner: string,
+    repo: string,
+    state: string,
+  ): Promise<GithubPullRequestListItem[]> {
+    const token = await this.authService.getInstallationToken(owner);
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get<GithubPullRequestListItem[]>(
+          `${GITHUB_API}/repos/${owner}/${repo}/pulls`,
+          {
+            headers: this.authHeaders(token),
+            params: {
+              state,
+              per_page: 100,
+              sort: 'created',
+              direction: 'desc',
+            },
+          },
         ),
       );
       return data;

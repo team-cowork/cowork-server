@@ -55,6 +55,44 @@ describe('PullRequestApiClient', () => {
     );
   });
 
+  it('PR 목록을 state/per_page/sort/direction 파라미터로 조회한다', async () => {
+    httpService.get.mockReturnValue(of({ data: [{ number: 1 }] }));
+
+    const result = await client.listPullRequests('my-org', 'my-repo', 'open');
+
+    expect(result).toEqual([{ number: 1 }]);
+    expect(httpService.get).toHaveBeenCalledWith(
+      'https://api.github.com/repos/my-org/my-repo/pulls',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer my-token',
+        }) as unknown,
+        params: {
+          state: 'open',
+          per_page: 100,
+          sort: 'created',
+          direction: 'desc',
+        },
+      }),
+    );
+  });
+
+  it('PR 목록 조회 4xx 응답은 GithubClientError로 변환한다', async () => {
+    const axiosError = new AxiosError('Not Found');
+    axiosError.response = {
+      data: { message: 'Not Found' },
+      status: 404,
+    } as unknown as AxiosResponse;
+    httpService.get.mockReturnValue(throwError(() => axiosError));
+
+    const error = await client
+      .listPullRequests('my-org', 'my-repo', 'open')
+      .catch((e: unknown) => e as GithubClientError);
+
+    expect(error).toBeInstanceOf(GithubClientError);
+    expect(error.statusCode).toBe(404);
+  });
+
   it('머지 시 merge_method를 squash로 호출한다', async () => {
     httpService.put.mockReturnValue(of({ data: {} }));
 
