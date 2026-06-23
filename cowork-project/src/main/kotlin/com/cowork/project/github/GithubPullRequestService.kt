@@ -4,6 +4,7 @@ import com.cowork.project.client.UserClient
 import com.cowork.project.domain.Project
 import com.cowork.project.dto.GithubApproveResultResDto
 import com.cowork.project.dto.GithubMergeResultResDto
+import com.cowork.project.dto.GithubPullRequestBoardResDto
 import com.cowork.project.dto.GithubPullRequestFileResDto
 import com.cowork.project.dto.GithubPullRequestResDto
 import com.cowork.project.service.ProjectAccessGuard
@@ -22,6 +23,13 @@ class GithubPullRequestService(
     private val githubAppClient: GithubAppClient,
 ) {
     private val logger = LoggerFactory.getLogger(GithubPullRequestService::class.java)
+
+    fun getPullRequestBoard(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
+        val repo = resolveRepoRefForRead(userId, projectId)
+        val pulls = callGithubApp { githubAppClient.listPullRequests(repo.owner, repo.repo, "open") }
+        val (draft, inReview) = pulls.partition { it.draft }
+        return GithubPullRequestBoardResDto(draft = draft, inReview = inReview)
+    }
 
     fun getPullRequestDetail(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
         val repo = resolveRepoRefForRead(userId, projectId)
