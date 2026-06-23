@@ -1,11 +1,21 @@
 package com.cowork.channel.service
 
 import com.cowork.channel.domain.*
-import com.cowork.channel.dto.*
-import com.cowork.channel.repository.ChannelMemberRepository
-import com.cowork.channel.repository.ChannelRepository
-import com.cowork.channel.repository.MeetingNoteTemplateRepository
-import com.cowork.channel.repository.TemplateSectionRepository
+import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
+import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
+import com.cowork.channel.domain.meetingNote.entity.SectionType
+import com.cowork.channel.domain.meetingNote.entity.TemplateSection
+import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteTemplateRequest
+import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateTemplateSectionRequest
+import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteTemplateRequest
+import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateTemplateSectionRequest
+import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
+import com.cowork.channel.domain.meetingNote.repository.TemplateSectionRepository
+import com.cowork.channel.domain.meetingNote.service.MeetingNoteTemplateService
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test

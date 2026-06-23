@@ -1,12 +1,13 @@
 package com.cowork.channel.consumer
 
-import com.cowork.channel.domain.Channel
-import com.cowork.channel.domain.ChannelType
-import com.cowork.channel.domain.ChannelViewType
-import com.cowork.channel.domain.TeamMembership
-import com.cowork.channel.repository.ChannelMemberRepository
-import com.cowork.channel.repository.ChannelRepository
-import com.cowork.channel.repository.TeamMembershipRepository
+import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
+import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.consumer.ChannelLifecycleHandler
+import com.cowork.channel.domain.membership.entity.TeamMembership
+import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
