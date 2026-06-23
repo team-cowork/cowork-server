@@ -165,7 +165,11 @@ describe('PullRequestService', () => {
         { ...baseListItem, merged_at: null },
       ]);
 
-      const result = await service.listPullRequests('my-org', 'my-repo', 'open');
+      const result = await service.listPullRequests(
+        'my-org',
+        'my-repo',
+        'open',
+      );
 
       expect(result[0].merged).toBe(false);
     });
@@ -175,7 +179,11 @@ describe('PullRequestService', () => {
         { ...baseListItem, labels: [] },
       ]);
 
-      const result = await service.listPullRequests('my-org', 'my-repo', 'open');
+      const result = await service.listPullRequests(
+        'my-org',
+        'my-repo',
+        'open',
+      );
 
       expect(result[0].labels).toEqual([]);
     });
