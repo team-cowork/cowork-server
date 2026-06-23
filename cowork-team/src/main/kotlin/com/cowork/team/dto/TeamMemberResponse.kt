@@ -5,15 +5,15 @@ import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
 data class TeamMemberResponse(
-    @Schema(description = "멤버 레코드 ID", example = "1")
+    @field:Schema(description = "멤버 레코드 ID", example = "1")
     val id: Long,
-    @Schema(description = "사용자 ID", example = "42")
+    @field:Schema(description = "사용자 ID", example = "42")
     val userId: Long,
-    @Schema(description = "역할", example = "MEMBER", allowableValues = ["OWNER", "ADMIN", "MEMBER"])
+    @field:Schema(description = "역할", example = "MEMBER", allowableValues = ["OWNER", "ADMIN", "MEMBER"])
     val role: String,
-    @Schema(description = "커스텀 역할 목록")
+    @field:Schema(description = "커스텀 역할 목록")
     val roles: List<TeamRoleResponse> = emptyList(),
-    @Schema(description = "가입 일시")
+    @field:Schema(description = "가입 일시")
     val joinedAt: LocalDateTime,
 ) {
     companion object {
