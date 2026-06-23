@@ -19,6 +19,7 @@ type messagingClient interface {
 }
 
 func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
+	//nolint:staticcheck // SA1019: 자격증명 파일 경로 기반 초기화를 의도적으로 유지 (별도 마이그레이션 과제)
 	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
 		return nil, err
