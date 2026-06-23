@@ -85,7 +85,7 @@ class ProjectController(
     fun linkGithubRepo(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-        @RequestBody request: LinkGithubRepoRequest,
+        @RequestBody request: LinkGithubRepoReqDto,
     ): ResponseEntity<ProjectDetailResponse> =
         ResponseEntity.ok(projectService.linkGithubRepo(userId, projectId, request))
 

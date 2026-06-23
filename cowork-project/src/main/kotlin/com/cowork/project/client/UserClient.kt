@@ -9,10 +9,10 @@ import org.springframework.web.bind.annotation.PathVariable
 interface UserClient {
 
     @GetMapping("/users/{userId}")
-    fun getUserProfile(@PathVariable userId: Long): UserProfileResponse
+    fun getUserProfile(@PathVariable userId: Long): UserProfileResDto
 }
 
-data class UserProfileResponse(
-    @JsonProperty("github_id")
+data class UserProfileResDto(
+    @field:JsonProperty("github_id")
     val githubId: String?,
 )
