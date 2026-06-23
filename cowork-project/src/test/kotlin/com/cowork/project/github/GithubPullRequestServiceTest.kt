@@ -5,6 +5,7 @@ import com.cowork.project.client.UserProfileResDto
 import com.cowork.project.domain.Project
 import com.cowork.project.dto.GithubMergeResultResDto
 import com.cowork.project.dto.GithubPullRequestResDto
+import com.cowork.project.dto.GithubPullRequestSummaryResDto
 import com.cowork.project.service.ProjectAccessGuard
 import feign.FeignException
 import feign.Request
@@ -37,7 +38,58 @@ class GithubPullRequestServiceTest : DescribeSpec({
     fun project(githubRepoUrl: String? = "https://github.com/my-org/my-repo") =
         Project(id = 1L, teamId = 100L, name = "p", description = null, createdBy = 1L, githubRepoUrl = githubRepoUrl)
 
+    fun summary(number: Int, draft: Boolean) =
+        GithubPullRequestSummaryResDto(
+            number = number,
+            title = "pr-$number",
+            author = "octocat",
+            state = "open",
+            draft = draft,
+            merged = false,
+            htmlUrl = "https://github.com/my-org/my-repo/pull/$number",
+            labels = emptyList(),
+            createdAt = "2026-06-23T00:00:00Z",
+            updatedAt = "2026-06-23T00:00:00Z",
+        )
+
     describe("GithubPullRequestService 클래스의") {
+        describe("getPullRequestBoard 메서드는") {
+            context("팀 멤버인 경우") {
+                it("열린 PR을 draft/inReview 컬럼으로 분리한다") {
+                    val proj = project()
+                    every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
+                    every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                    every { githubAppClient.listPullRequests("my-org", "my-repo", "open") } returns
+                        listOf(summary(1, draft = true), summary(2, draft = false), summary(3, draft = false))
+
+                    val board = service.getPullRequestBoard(7L, 1L)
+
+                    board.draft.map { it.number } shouldBe listOf(1)
+                    board.inReview.map { it.number } shouldBe listOf(2, 3)
+                    verify { githubAppClient.listPullRequests("my-org", "my-repo", "open") }
+                }
+            }
+
+            context("githubAppClient 호출 중 네트워크 오류가 발생하는 경우") {
+                it("BAD_GATEWAY로 변환한다") {
+                    val proj = project()
+                    every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
+                    every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                    val networkError = FeignException.NotFound(
+                        "connect timed out",
+                        Request.create(Request.HttpMethod.GET, "/api/repos/my-org/my-repo/pulls", emptyMap(), null, RequestTemplate()),
+                        null,
+                        emptyMap(),
+                    )
+                    every { githubAppClient.listPullRequests("my-org", "my-repo", "open") } throws networkError
+
+                    val ex = shouldThrow<ExpectedException> { service.getPullRequestBoard(7L, 1L) }
+
+                    ex.statusCode shouldBe HttpStatus.BAD_GATEWAY
+                }
+            }
+        }
+
         describe("getPullRequestDetail 메서드는") {
             context("팀 멤버인 경우") {
                 it("githubAppClient를 호출해 PR 상세를 반환한다") {
