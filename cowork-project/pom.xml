@@ -18,7 +18,7 @@
 
     <groupId>com.cowork</groupId>
     <artifactId>cowork-project</artifactId>
-    <version>20260602.0</version>
+    <version>20260623.0</version>
 
     <properties>
         <java.version>25</java.version>
