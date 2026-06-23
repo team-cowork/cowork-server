@@ -3,11 +3,11 @@ package com.cowork.team.domain.teamRole.service
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.client.PreferenceTeamRoleClient
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
+import com.cowork.team.global.client.PreferenceTeamRoleClient
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
