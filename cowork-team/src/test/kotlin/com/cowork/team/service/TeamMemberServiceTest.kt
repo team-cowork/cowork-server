@@ -1,14 +1,15 @@
 package com.cowork.team.service
 
-import com.cowork.team.client.PreferenceTeamRoleClient
-import com.cowork.team.domain.Team
-import com.cowork.team.domain.TeamMember
-import com.cowork.team.domain.TeamRole
-import com.cowork.team.dto.ChangeRoleRequest
-import com.cowork.team.dto.TeamEventPayload
-import com.cowork.team.event.TeamEventPublisher
-import com.cowork.team.repository.TeamMemberRepository
-import com.cowork.team.repository.TeamRepository
+import com.cowork.team.domain.team.entity.Team
+import com.cowork.team.domain.team.event.TeamEventPayload
+import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
+import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import com.cowork.team.domain.teamMember.service.TeamMemberService
+import com.cowork.team.domain.teamRole.client.PreferenceTeamRoleClient
+import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
