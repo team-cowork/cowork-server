@@ -29,6 +29,7 @@
         <springdoc.version>3.0.3</springdoc.version>
         <logstash-logback.version>9.0</logstash-logback.version>
         <mockk.version>1.14.3</mockk.version>
+        <kotest.version>5.9.1</kotest.version>
         <start-class>com.cowork.project.CoworkProjectApplicationKt</start-class>
     </properties>
 
@@ -69,6 +70,10 @@
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -144,6 +149,18 @@
             <groupId>io.mockk</groupId>
             <artifactId>mockk-jvm</artifactId>
             <version>${mockk.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kotest</groupId>
+            <artifactId>kotest-runner-junit5-jvm</artifactId>
+            <version>${kotest.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.kotest</groupId>
+            <artifactId>kotest-assertions-core-jvm</artifactId>
+            <version>${kotest.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
