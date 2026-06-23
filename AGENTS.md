@@ -2,79 +2,47 @@
 
 ## Overview
 
-Team collaboration platform backend monorepo based on microservices.
+Team collaboration platform backend — polyglot microservices monorepo.
 
-- Core stack: Spring Boot, Spring Cloud Gateway, Eureka, OpenFeign, Kafka, Flyway, MySQL, MongoDB
-- Main services: `cowork-config`, `cowork-gateway`, `cowork-authorization`, `cowork-user`, `cowork-team`, `cowork-project`, `cowork-channel`, `cowork-chat`, `cowork-voice`, `cowork-preference`, `cowork-notification`
+- Languages per service: Kotlin (`gateway`, `config`, `channel`, `preference`, `project`, `team`), Go (`authorization`, `notification`, `voice`), TypeScript (`chat`, `promotion`), Elixir (`user`)
+- Frameworks: Spring Boot / Spring Cloud Gateway / Eureka / OpenFeign (Kotlin), NestJS (TS), Gin·Chi (Go), Phoenix (Elixir), LiveKit (`voice`)
+- Data & infra: MySQL, MongoDB, Redis, Elasticsearch, Flyway, Kafka, Docker, Vault, Prometheus/Grafana
 
 ## Agent Working Rules
 
-Apply the following rules whenever editing code, configuration, or database artifacts in this repository.
+Project-specific conventions only. Universal best practices (no hardcoded secrets, input validation, least privilege, etc.) are assumed and intentionally omitted.
 
-## Security
+### Identity & Gateway
 
-- Never hardcode secrets such as DB credentials, JWT secrets, or API keys.
-- Always inject sensitive values via environment variables or secret management.
-- In YAML config, prefer placeholders such as `${DB_PASSWORD}` instead of literal values.
-- Do not implement JWT parsing or validation in downstream services.
-- The Gateway is the single place that validates JWT and forwards trusted identity headers.
-- Downstream services must trust these Gateway-provided headers:
+- `cowork-gateway` is the only place that validates JWT. Downstream services must NOT parse or validate JWT — trust the Gateway-forwarded headers instead:
   - `X-User-Id`: `Long`
-  - `X-User-Role`: `String` with values `ADMIN` or `MEMBER`
-- In production-oriented code or config, prevent direct service access that bypasses the Gateway.
-- Handle CORS consistently at the gateway level (`cowork-gateway`) and avoid redundant service-level CORS configuration unless a service has a documented exception.
+  - `X-User-Role`: `ADMIN` | `MEMBER`
+- Don't expose service access paths that bypass the Gateway in production-oriented code or config.
+- Configure CORS only at `cowork-gateway`; no per-service CORS unless documented.
 
-## Database
+### Database
 
-- Never modify an already committed Flyway migration file named `V{n}__*.sql`.
-- If schema changes are needed, add a new Flyway migration version instead.
-- Flyway migration files must follow this naming format:
-  - `V{n}__{snake_case_description}.sql`
-  - Example: `V2__add_github_id.sql`
-- All relational table names must use the `tb_` prefix.
-- Use these database naming conventions:
+- Never modify a committed Flyway migration (`V{n}__*.sql`); add a new version instead.
+- Migration naming: `V{n}__{snake_case_description}.sql` (e.g. `V2__add_github_id.sql`).
+- Relational tables use the `tb_` prefix. Constraint naming:
   - Index: `idx_tb_{table}_{column}`
-  - Unique key: `uq_tb_{table}_{column}`
-  - FK-like constraint name: `fk_tb_{table}_{target}`
-- Never create real foreign key constraints across services.
-- When referencing another service's resource, store the ID as a normal column and document the source in the column `COMMENT`.
-- Example:
+  - Unique: `uq_tb_{table}_{column}`
+  - FK-like: `fk_tb_{table}_{target}`
+- Never create real cross-service foreign keys. Store another service's ID as a plain column and document the source in its `COMMENT`:
 
-```sql
-team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
-```
+  ```sql
+  team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
+  ```
 
-- MongoDB-based services such as `cowork-chat` and `cowork-voice` do not use Flyway.
-- For MongoDB services, manage schema-related definitions inside each service's `schema/` directory.
-- Do not remove or transform the `_id` field from Mongoose documents sent to the client.
-- Set `versionKey: false` in the schema to exclude the `__v` key.
+- MongoDB-backed services (`cowork-chat`, `cowork-voice`) don't use Flyway — keep schema definitions in each service's `schema/` directory.
+- For Node/Mongoose services (`cowork-chat`): keep `_id` on documents returned to clients; set `versionKey: false` to drop `__v`.
 
-## Configuration
+### Configuration
 
-- General shared service configuration must be managed through `cowork-config` Config Server.
-- Local-only overrides belong in `application-local.yml`, and that file must stay ignored by Git.
-- For Spring Boot services using relational DB migrations, ensure Flyway is enabled with:
+- Shared config is served by the `cowork-config` Config Server. Local-only overrides go in `application-local.yml`, which stays gitignored.
 
-```yaml
-spring:
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-```
+### Service Startup Order
 
-## Service Startup Order
-
-Start services in this order when bringing up the platform locally or validating environment setup:
-
-1. `cowork-config` because it provides Eureka and Config Server
-2. `cowork-gateway` after Config Server is ready
-3. Business services such as `authorization`, `user`, `team`, `project`, and `channel` in any order
-
-## Scope Notes
-
-- These rules are especially relevant when editing:
-  - Java sources
-  - Spring `application*.yml` and `bootstrap*.yml`
-  - Flyway SQL files under `db/migration/`
-  - JPA entities and repositories
-- When there is a conflict between convenience and these rules, follow these rules.
+1. `cowork-config` (Eureka + Config Server)
+2. `cowork-gateway`
+3. Business services (`authorization`, `user`, `team`, `project`, `channel`, …) in any order
