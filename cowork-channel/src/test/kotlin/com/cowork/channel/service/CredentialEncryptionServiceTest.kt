@@ -1,5 +1,6 @@
 package com.cowork.channel.service
 
+import com.cowork.channel.domain.sharedAccount.service.CredentialEncryptionService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertTrue
