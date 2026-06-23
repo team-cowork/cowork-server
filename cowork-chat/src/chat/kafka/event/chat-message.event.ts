@@ -1,3 +1,5 @@
+import { AttachmentDto } from '../../dto/send-message.dto';
+
 /**
  * 채팅 메시지 발행 시 Kafka로 전송되는 이벤트 페이로드.
  *
@@ -22,7 +24,7 @@ export interface ChatMessageEvent {
     content: string;
     /** 메시지 렌더링 타입 (예: TEXT, FILE, SYSTEM) */
     type: string;
-    attachments?: any[];
+    attachments?: AttachmentDto[];
     /** 스레드 부모 메시지 ID (MongoDB ObjectId 문자열); 최상위 메시지는 undefined */
     parentMessageId?: string;
     /** 클라이언트 측 멱등성 키; 중복 전송 방지에 사용 */

@@ -7,9 +7,7 @@ import org.springframework.stereotype.Component
 private const val TOPIC = "channel.member.event"
 
 @Component
-class ChannelMemberEventPublisher(
-    private val kafkaTemplate: KafkaTemplate<String, Any>,
-) {
+class ChannelMemberEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
     private val log = LoggerFactory.getLogger(ChannelMemberEventPublisher::class.java)
 
     fun publishJoin(channelId: Long, teamId: Long?, userId: Long, channelType: String, role: String = "MEMBER") =
@@ -24,12 +22,18 @@ class ChannelMemberEventPublisher(
                 if (ex != null) {
                     log.error(
                         "채널 멤버 이벤트 발행 실패 [eventType={}, channelId={}, userId={}]",
-                        event.eventType, event.channelId, event.userId, ex,
+                        event.eventType,
+                        event.channelId,
+                        event.userId,
+                        ex,
                     )
                 } else {
                     log.info(
                         "채널 멤버 이벤트 발행 성공 [eventType={}, channelId={}, userId={}, offset={}]",
-                        event.eventType, event.channelId, event.userId, result.recordMetadata.offset(),
+                        event.eventType,
+                        event.channelId,
+                        event.userId,
+                        result.recordMetadata.offset(),
                     )
                 }
             }

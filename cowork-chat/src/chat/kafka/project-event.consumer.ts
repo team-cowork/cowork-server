@@ -36,15 +36,17 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer
             .run({
-                eachMessage: async ({ message }) => {
-                    if (!message.value) return;
-                    try {
-                        const event: ProjectEvent = JSON.parse(message.value.toString());
-                        this.handleEvent(event);
-                    } catch (err) {
-                        this.logger.error('프로젝트 이벤트 Kafka 메시지 처리 중 예외 발생', err);
-                        if (!(err instanceof SyntaxError)) throw err;
+                eachMessage: ({ message }): Promise<void> => {
+                    if (message.value) {
+                        try {
+                            const event = JSON.parse(message.value.toString()) as ProjectEvent;
+                            this.handleEvent(event);
+                        } catch (err) {
+                            this.logger.error('프로젝트 이벤트 Kafka 메시지 처리 중 예외 발생', err);
+                            if (!(err instanceof SyntaxError)) throw err;
+                        }
                     }
+                    return Promise.resolve();
                 },
             })
             .catch((err) => {

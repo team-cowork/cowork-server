@@ -173,7 +173,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/service.TokenPair"
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_service.TokenPair"
                         }
                     },
                     "400": {
@@ -187,6 +187,59 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "authentication failed",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/events/datagsm": {
+            "post": {
+                "description": "DataGSM이 전송하는 student 라이프사이클 이벤트를 수신해 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "DataGSM webhook 수신",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "sha256=\u003cHMAC-SHA256(secret, body)\u003e",
+                        "name": "X-DataGSM-Signature",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "수신 완료",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "서명 검증 실패",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "webhook secret 미설정",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -219,7 +272,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "service.TokenPair": {
+        "github_com_cowork_authorization_internal_service.TokenPair": {
             "type": "object",
             "properties": {
                 "access_token": {
@@ -249,7 +302,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "20260602.0",
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},

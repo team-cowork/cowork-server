@@ -1,4 +1,13 @@
+import { ConfigService } from '@nestjs/config';
 import { ChatMessageConsumer } from './chat-message.consumer';
+import { ChatMessageEvent } from './event/chat-message.event';
+import { ElasticsearchService } from '../../search/elasticsearch.service';
+import { MessageRepository } from '../repository/message.repository';
+import { ChannelMemberRepository } from '../repository/channel-member.repository';
+
+type ConsumerWithPrivates = Omit<ChatMessageConsumer, 'handleMessageEvent'> & {
+    handleMessageEvent: (event: ChatMessageEvent) => Promise<void>;
+};
 
 const mockMessageRepository = {
     createMessage: jest.fn(),
@@ -20,7 +29,12 @@ describe('ChatMessageConsumer', () => {
     let consumer: ChatMessageConsumer;
 
     beforeEach(() => {
-        consumer = new ChatMessageConsumer(mockMessageRepository as any, mockChannelMemberRepository as any, mockConfigService as any, mockElasticsearchService as any);
+        consumer = new ChatMessageConsumer(
+            mockMessageRepository as unknown as MessageRepository,
+            mockChannelMemberRepository as unknown as ChannelMemberRepository,
+            mockConfigService as unknown as ConfigService,
+            mockElasticsearchService as unknown as ElasticsearchService,
+        );
         jest.clearAllMocks();
     });
 
@@ -28,7 +42,8 @@ describe('ChatMessageConsumer', () => {
         const savedMessage = { _id: 'msg-id-1', toObject: jest.fn().mockReturnValue({}) };
         mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
 
-        await (consumer as any).handleMessageEvent({
+        await (consumer as unknown as ConsumerWithPrivates).handleMessageEvent({
+            eventType: 'MESSAGE_SENT',
             teamId: 10,
             projectId: null,
             channelId: 1,
@@ -52,8 +67,9 @@ describe('ChatMessageConsumer', () => {
         const savedMessage = { _id: 'msg-id-42', toObject: jest.fn().mockReturnValue({}) };
         mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
 
-        await (consumer as any).handleMessageEvent({
+        await (consumer as unknown as ConsumerWithPrivates).handleMessageEvent({
             teamId: 10,
+            eventType: 'MESSAGE_SENT',
             projectId: null,
             channelId: 5,
             authorId: 42,

@@ -12,9 +12,9 @@ import reactor.core.publisher.Mono
 import java.util.concurrent.TimeUnit
 
 @Component
-class AccessLogFilter(
-    private val sdkLoggingProperties: SdkLoggingProperties,
-) : GlobalFilter, Ordered {
+class AccessLogFilter(private val sdkLoggingProperties: SdkLoggingProperties) :
+    GlobalFilter,
+    Ordered {
 
     private val log = LoggerFactory.getLogger(AccessLogFilter::class.java)
     private val pathMatcher = AntPathMatcher()
@@ -41,8 +41,8 @@ class AccessLogFilter(
                         "path" to path,
                         "status" to status,
                         "duration" to duration,
-                    )
-                )
+                    ),
+                ),
             )
         }
     }
