@@ -6,11 +6,11 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260602.0"
+version = "20260623.0"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
+        languageVersion = JavaLanguageVersion.of(25)
     }
 }
 

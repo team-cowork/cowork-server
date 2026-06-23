@@ -27,7 +27,7 @@ class SharedAccountService(
 
     private fun findAccountOrThrow(accountId: Long, channelId: Long): SharedAccount =
         sharedAccountRepository.findByIdAndChannelId(accountId, channelId)
-            ?: throw ExpectedException("공유 계정을 찾을 수 없습니다. id=$accountId", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("공유 계정을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
     private fun requireAccountShareChannel(channel: Channel) {
         if (channel.viewType != ChannelViewType.ACCOUNT_SHARE) {
@@ -36,9 +36,9 @@ class SharedAccountService(
     }
 
     private fun requireAccountEditor(account: SharedAccount, channel: Channel, userId: Long) {
-        if (account.createdBy != userId
-            && channel.createdBy != userId
-            && !teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)
+        if (account.createdBy != userId &&
+            channel.createdBy != userId &&
+            !teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)
         ) {
             throw ExpectedException("공유 계정을 수정하거나 삭제할 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
@@ -80,7 +80,7 @@ class SharedAccountService(
                 credential = encryptedCredential,
                 connectedViaOAuth = false,
                 createdBy = userId,
-            )
+            ),
         )
         return toResponse(account)
     }
@@ -123,7 +123,7 @@ class SharedAccountService(
         }
 
         accountCredentialCopyRepository.save(
-            AccountCredentialCopy(accountId = accountId, userId = userId)
+            AccountCredentialCopy(accountId = accountId, userId = userId),
         )
 
         return credentialEncryptionService.decrypt(account.credential!!)

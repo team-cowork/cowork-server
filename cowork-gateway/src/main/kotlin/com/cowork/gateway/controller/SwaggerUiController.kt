@@ -1,22 +1,22 @@
 package com.cowork.gateway.controller
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
+import tools.jackson.databind.ObjectMapper
 
 @RestController
 @EnableConfigurationProperties(CoworkSwaggerUiProperties::class)
 class SwaggerUiController(
     private val swaggerUiProperties: CoworkSwaggerUiProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
 ) {
 
     @GetMapping(
         value = ["/swagger-ui.html", "/swagger-ui/index.html"],
-        produces = [MediaType.TEXT_HTML_VALUE]
+        produces = [MediaType.TEXT_HTML_VALUE],
     )
     fun swaggerUi(): String {
         val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls)
@@ -61,12 +61,6 @@ class SwaggerUiController(
 }
 
 @ConfigurationProperties(prefix = "cowork.swagger-ui")
-data class CoworkSwaggerUiProperties(
-    val urls: List<SwaggerUrl> = emptyList(),
-    val primaryName: String = "user"
-) {
-    data class SwaggerUrl(
-        val name: String = "",
-        val url: String = ""
-    )
+data class CoworkSwaggerUiProperties(val urls: List<SwaggerUrl> = emptyList(), val primaryName: String = "user") {
+    data class SwaggerUrl(val name: String = "", val url: String = "")
 }

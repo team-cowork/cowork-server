@@ -1,7 +1,9 @@
-# DB_DSN, DATAGSM_CLIENT_ID, JWT_SECRET은 Vault secret/cowork-authorization 에서 주입됨
+# DB_DSN, DATAGSM_CLIENT_ID, DATAGSM_WEBHOOK_SECRET, JWT_SECRET은 Vault secret/cowork-authorization 에서 주입됨
 PORT: 8081
 DATAGSM_TOKEN_URL: https://oauth.authorization.datagsm.kr/v1/oauth/token
 DATAGSM_USERINFO_URL: https://oauth.resource.datagsm.kr/userinfo
+KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+KAFKA_TOPIC_USER_SYNC: user.data.sync
 EUREKA_SERVER_URL: http://cowork-config:8761/eureka
 EUREKA_APP_NAME: cowork-authorization
 EUREKA_INSTANCE_HOST: cowork-authorization

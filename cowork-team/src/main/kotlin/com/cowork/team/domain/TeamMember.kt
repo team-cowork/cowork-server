@@ -10,7 +10,7 @@ import java.time.LocalDateTime
 @EntityListeners(AuditingEntityListener::class)
 @Table(
     name = "tb_team_members",
-    uniqueConstraints = [UniqueConstraint(name = "uq_tb_team_members", columnNames = ["team_id", "user_id"])]
+    uniqueConstraints = [UniqueConstraint(name = "uq_tb_team_members", columnNames = ["team_id", "user_id"])],
 )
 class TeamMember(
 

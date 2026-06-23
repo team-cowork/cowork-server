@@ -10,11 +10,10 @@ import com.cowork.team.dto.TeamMemberResponse
 import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -26,10 +25,9 @@ class TeamMemberService(
     private val teamEventPublisher: TeamEventPublisher,
 ) {
 
-    private fun findTeamOrThrow(teamId: Long) =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
-        }
+    private fun findTeamOrThrow(teamId: Long) = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     private fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())
@@ -55,9 +53,7 @@ class TeamMemberService(
                 actorUserId = actorId,
                 targetUserIds = savedMembers.map { it.userId },
             )
-            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-                override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-            })
+            afterCommit { teamEventPublisher.publishLifecycle(payload) }
         }
 
         return savedMembers.map { TeamMemberResponse.of(it) }
@@ -79,8 +75,7 @@ class TeamMemberService(
         }
     }
 
-    fun isMember(teamId: Long, userId: Long): Boolean =
-        teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
+    fun isMember(teamId: Long, userId: Long): Boolean = teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
 
     @Transactional
     fun changeRole(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
@@ -108,9 +103,7 @@ class TeamMemberService(
             targetUserIds = listOf(targetUserId),
             newRole = request.role.name,
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
     }
 
     @Transactional
@@ -126,17 +119,19 @@ class TeamMemberService(
             throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
 
-        val targetMember = if (isSelf) actorMember else teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
-            ?: throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        val targetMember = if (isSelf) {
+            actorMember
+        } else {
+            teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId)
+                ?: throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        }
 
         if (targetMember.role == TeamRole.OWNER) {
             throw ExpectedException("OWNER는 팀을 탈퇴하거나 제거할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
 
         teamMemberRepository.delete(targetMember)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId)
-        })
+        afterCommit { preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId) }
 
         val payload = TeamEventPayload(
             eventType = "MEMBER_REMOVED",
@@ -145,8 +140,6 @@ class TeamMemberService(
             actorUserId = actorId,
             targetUserIds = listOf(targetUserId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
     }
 }

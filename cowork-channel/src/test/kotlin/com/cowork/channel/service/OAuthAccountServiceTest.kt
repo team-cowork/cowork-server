@@ -8,7 +8,6 @@ import com.cowork.channel.domain.ChannelType
 import com.cowork.channel.domain.ChannelViewType
 import com.cowork.channel.domain.SharedAccount
 import com.cowork.channel.repository.SharedAccountRepository
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -19,6 +18,7 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import org.springframework.web.client.RestClient
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -34,16 +34,41 @@ class OAuthAccountServiceTest {
         callbackBaseUrl = "https://example.com",
         clientRedirectUrl = "https://client.example.com",
         stateSecret = STATE_SECRET,
-        github = OAuthProviderConfig("gh-id", "gh-secret",
-            "https://github.com/login/oauth/access_token", "https://api.github.com/user", "read:user"),
-        notion = OAuthProviderConfig("no-id", "no-secret",
-            "https://api.notion.com/v1/oauth/token", "https://api.notion.com/v1/users/me", ""),
-        jira = OAuthProviderConfig("jira-id", "jira-secret",
-            "https://auth.atlassian.com/oauth/token", "https://api.atlassian.com/me", "read:me"),
-        google = OAuthProviderConfig("go-id", "go-secret",
-            "https://oauth2.googleapis.com/token", "https://openidconnect.googleapis.com/v1/userinfo", "openid email"),
-        facebook = OAuthProviderConfig("fb-id", "fb-secret",
-            "https://graph.facebook.com/v18.0/oauth/access_token", "https://graph.facebook.com/me", "public_profile"),
+        github = OAuthProviderConfig(
+            "gh-id",
+            "gh-secret",
+            "https://github.com/login/oauth/access_token",
+            "https://api.github.com/user",
+            "read:user",
+        ),
+        notion = OAuthProviderConfig(
+            "no-id",
+            "no-secret",
+            "https://api.notion.com/v1/oauth/token",
+            "https://api.notion.com/v1/users/me",
+            "",
+        ),
+        jira = OAuthProviderConfig(
+            "jira-id",
+            "jira-secret",
+            "https://auth.atlassian.com/oauth/token",
+            "https://api.atlassian.com/me",
+            "read:me",
+        ),
+        google = OAuthProviderConfig(
+            "go-id",
+            "go-secret",
+            "https://oauth2.googleapis.com/token",
+            "https://openidconnect.googleapis.com/v1/userinfo",
+            "openid email",
+        ),
+        facebook = OAuthProviderConfig(
+            "fb-id",
+            "fb-secret",
+            "https://graph.facebook.com/v18.0/oauth/access_token",
+            "https://graph.facebook.com/me",
+            "public_profile",
+        ),
     )
 
     private val sharedAccountRepository = mockk<SharedAccountRepository>(relaxed = true)
@@ -96,7 +121,7 @@ class OAuthAccountServiceTest {
         )
         val encoder = Base64.getUrlEncoder().withoutPadding()
         val payloadB64 = encoder.encodeToString(
-            objectMapper.writeValueAsString(payload).toByteArray(Charsets.UTF_8)
+            objectMapper.writeValueAsString(payload).toByteArray(Charsets.UTF_8),
         )
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(STATE_SECRET.toByteArray(Charsets.UTF_8), "HmacSHA256"))
@@ -225,9 +250,14 @@ class OAuthAccountServiceTest {
     @Test
     fun `handleCallback는 이미 등록된 계정이면 기존 계정을 반환하고 save를 호출하지 않음`() {
         val existingAccount = SharedAccount(
-            id = 10L, channelId = 1L, provider = AccountProvider.GITHUB,
-            providerLabel = null, accountIdentifier = "ghuser",
-            credential = null, connectedViaOAuth = true, createdBy = 1L,
+            id = 10L,
+            channelId = 1L,
+            provider = AccountProvider.GITHUB,
+            providerLabel = null,
+            accountIdentifier = "ghuser",
+            credential = null,
+            connectedViaOAuth = true,
+            createdBy = 1L,
         )
         val validState = buildValidState(channelId = 1L, userId = 1L, provider = AccountProvider.GITHUB)
 
@@ -238,7 +268,9 @@ class OAuthAccountServiceTest {
         every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
         every {
             sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(
-                1L, AccountProvider.GITHUB, "ghuser"
+                1L,
+                AccountProvider.GITHUB,
+                "ghuser",
             )
         } returns existingAccount
 

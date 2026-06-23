@@ -21,17 +21,18 @@ class WebhookService(
     private val teamPermissionService: TeamPermissionService,
 ) {
 
-    private fun findWebhookOrThrow(id: Long): Webhook =
-        webhookRepository.findById(id).orElseThrow {
-            ExpectedException("웹훅을 찾을 수 없습니다. id=$id", HttpStatus.NOT_FOUND)
-        }
+    private fun findWebhookOrThrow(id: Long): Webhook = webhookRepository.findById(id).orElseThrow {
+        ExpectedException("웹훅을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     private fun requireWebhookManager(channelId: Long, userId: Long, expectedTextChannel: Boolean = true): Channel {
         val channel = channelService.findChannelOrThrow(channelId)
         if (expectedTextChannel && channel.type != ChannelType.TEXT) {
             throw ExpectedException("TEXT 채널에서만 웹훅을 사용할 수 있습니다.", HttpStatus.BAD_REQUEST)
         }
-        if (channel.createdBy != userId && !teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)) {
+        if (channel.createdBy != userId &&
+            !teamPermissionService.isTeamOwnerOrAdmin(channelService.requireTeamChannel(channel), userId)
+        ) {
             throw ExpectedException("웹훅 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
         return channel
@@ -49,7 +50,7 @@ class WebhookService(
                 token = if (request.isSecure) UUID.randomUUID().toString() else null,
                 avatarUrl = request.avatarUrl,
                 createdBy = userId,
-            )
+            ),
         )
         return WebhookResponse.of(webhook)
     }

@@ -62,7 +62,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 eachMessage: async ({ message }) => {
                     if (!message.value) return;
                     try {
-                        const event: ChatMessageEvent = JSON.parse(message.value.toString());
+                        const event = JSON.parse(message.value.toString()) as ChatMessageEvent;
                         await this.handleMessageEvent(event);
                     } catch (err) {
                         this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
@@ -138,7 +138,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 notificationStatus: 'PENDING',
             });
 
-            this.logger.log(`message saved messageId=${saved._id} channelId=${event.channelId}`);
+            this.logger.log(`message saved messageId=${saved._id.toString()} channelId=${event.channelId}`);
             this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
             void this.channelMemberRepository
                 .updateLastRead(event.channelId, event.authorId, saved._id)
@@ -158,8 +158,8 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                     createdAt: event.occurredAt,
                 });
             }
-        } catch (err: any) {
-            if (err?.code === 11000) {
+        } catch (err) {
+            if (typeof err === 'object' && err !== null && 'code' in err && err.code === 11000) {
                 this.logger.warn(`중복 메시지 감지, 스킵합니다 (clientMessageId: ${event.clientMessageId})`);
                 return;
             }
