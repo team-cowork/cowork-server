@@ -84,7 +84,7 @@ class MainVerticle : AbstractVerticle() {
 
         vertx.createHttpServer()
             .requestHandler(router)
-            .listen(appConfig.serverPort) { result ->
+            .listen(appConfig.serverPort).onComplete { result ->
                 if (result.succeeded()) {
                     log.info("cowork-preference listening on port {}", appConfig.serverPort)
                     eurekaRegistration = EurekaRegistration(appConfig)

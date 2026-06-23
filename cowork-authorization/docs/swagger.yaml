@@ -1,6 +1,6 @@
 basePath: /api
 definitions:
-  service.TokenPair:
+  github_com_cowork_authorization_internal_service.TokenPair:
     properties:
       access_token:
         type: string
@@ -14,8 +14,8 @@ definitions:
 info:
   contact: {}
   description: 인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
-  title: cowork Authorization API
-  version: "1.0"
+  title: Cowork Authorization API
+  version: "20260602.0"
 paths:
   /auth/refresh:
     post:
@@ -118,7 +118,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/service.TokenPair'
+            $ref: '#/definitions/github_com_cowork_authorization_internal_service.TokenPair'
         "400":
           description: missing required fields
           schema:
@@ -134,6 +134,42 @@ paths:
       summary: 토큰 발급 (PKCE code exchange)
       tags:
       - auth
+  /events/datagsm:
+    post:
+      consumes:
+      - application/json
+      description: DataGSM이 전송하는 student 라이프사이클 이벤트를 수신해 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256)
+        검증 후 처리합니다.
+      parameters:
+      - description: sha256=<HMAC-SHA256(secret, body)>
+        in: header
+        name: X-DataGSM-Signature
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 수신 완료
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 서명 검증 실패
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: webhook secret 미설정
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: DataGSM webhook 수신
+      tags:
+      - events
   /health:
     get:
       produces:

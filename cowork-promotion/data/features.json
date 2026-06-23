@@ -1,0 +1,56 @@
+[
+  {
+    "id": "workspace",
+    "index": "01",
+    "label": "Workspace",
+    "color": "#8B5CF6",
+    "title": "실시간 협업 워크스페이스",
+    "description": "팀원들이 같은 공간에서 동시에 작업합니다. 누가 어디서 무엇을 보고 있는지 프레즌스와 커서로 실시간 공유됩니다.",
+    "tags": ["Presence", "Live Cursor", "MSA"]
+  },
+  {
+    "id": "kanban",
+    "index": "02",
+    "label": "Board",
+    "color": "#10B981",
+    "title": "칸반 태스크 보드",
+    "description": "드래그앤드롭으로 할 일을 옮기며 진행 상태를 추적합니다. 컬럼을 넘나드는 카드로 흐름이 한눈에 보입니다.",
+    "tags": ["Drag & Drop", "Status Flow", "MySQL"]
+  },
+  {
+    "id": "meeting",
+    "index": "03",
+    "label": "Meeting",
+    "color": "#F43F5E",
+    "title": "화상·음성 회의",
+    "description": "워크스페이스를 벗어나지 않고 바로 미팅을 시작합니다. 저지연 화상·음성으로 팀이 즉시 모입니다.",
+    "tags": ["LiveKit", "Low Latency", "Voice"]
+  },
+  {
+    "id": "github",
+    "index": "04",
+    "label": "GitHub",
+    "color": "#6366F1",
+    "title": "GitHub 연동",
+    "description": "커밋·PR·이슈를 태스크와 자동으로 연결합니다. 코드의 변화가 보드 위에서 그대로 추적됩니다.",
+    "tags": ["Commit", "Pull Request", "cowork-github-app"]
+  },
+  {
+    "id": "notification",
+    "index": "05",
+    "label": "Activity",
+    "color": "#F97316",
+    "title": "실시간 알림 & 활동 피드",
+    "description": "이벤트 스트림 위에서 모든 변화가 즉시 반영됩니다. 놓치는 것 없이 팀의 흐름을 따라갑니다.",
+    "tags": ["Apache Kafka", "Event Stream", "Realtime"]
+  },
+  {
+    "id": "search",
+    "index": "06",
+    "label": "Search",
+    "color": "#0EA5E9",
+    "title": "통합 검색",
+    "description": "문서·태스크·메시지를 한 번에 검색합니다. 흩어진 정보를 가로질러 필요한 것을 즉시 찾습니다.",
+    "tags": ["Elasticsearch", "Full-text", "Unified"]
+  }
+]

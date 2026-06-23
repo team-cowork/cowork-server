@@ -114,7 +114,6 @@ const techCategories: { label: string; items: TechItem[] }[] = [
             { name: "Maven", color: "#C71C36", positions: ["Server"] },
             { name: "Gradle", color: "#02303A", positions: ["Server"] },
             { name: "Amper", color: "#1F6FEB", positions: ["Server"] },
-            { name: "Bazel", color: "#092E20", positions: ["Server"] },
         ],
     },
 ];
@@ -470,6 +469,9 @@ const row2 = [...marqueeItems, ...marqueeItems];
                 </div>
             </div>
         </section>
+
+        <!-- Feature Showcase Section -->
+        <FeatureShowcase />
 
         <!-- Divider -->
         <div class="max-w-6xl mx-auto px-6">

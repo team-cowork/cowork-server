@@ -5,9 +5,7 @@ import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 
 @Component
-class TeamLifecycleConsumer(
-    private val handler: ChannelLifecycleHandler,
-) {
+class TeamLifecycleConsumer(private val handler: ChannelLifecycleHandler) {
     private val log = LoggerFactory.getLogger(TeamLifecycleConsumer::class.java)
 
     @KafkaListener(
@@ -24,7 +22,7 @@ class TeamLifecycleConsumer(
             }
             "MEMBER_REMOVED" -> payload.targetUserIds.forEach { handler.onMemberRemovedFromTeam(payload.teamId, it) }
             "TEAM_DELETED" -> handler.onTeamDeleted(payload.teamId)
-            else -> log.warn("알 수 없는 team.lifecycle 이벤트 [eventType={}]", payload.eventType)
+            else -> log.warn("Received unknown team.lifecycle event [eventType={}]", payload.eventType)
         }
     }
 }

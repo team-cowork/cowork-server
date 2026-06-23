@@ -73,7 +73,7 @@ export class ChannelMemberRepository {
      * @returns 채널에 속한 {@link ChannelMember} 객체 배열
      */
     findByChannelId(channelId: number): Promise<ChannelMember[]> {
-        return this.memberModel.find({ channelId }).lean() as Promise<ChannelMember[]>;
+        return this.memberModel.find({ channelId }).lean();
     }
 
     async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {

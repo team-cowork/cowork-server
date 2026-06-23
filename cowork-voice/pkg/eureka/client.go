@@ -78,7 +78,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("eureka register failed: status=%d", resp.StatusCode)
 	}
@@ -131,7 +131,7 @@ func (c *Client) Deregister(cfg *config.AppConfig) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("eureka deregister failed: status=%d", resp.StatusCode)
 	}
@@ -148,7 +148,7 @@ func (c *Client) heartbeat() error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("eureka heartbeat failed: status=%d", resp.StatusCode)
 	}
