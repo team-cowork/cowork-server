@@ -1,7 +1,7 @@
 package com.cowork.project.global.config
 
-import com.cowork.project.domain.consumer.TeamLifecyclePayload
-import com.cowork.project.domain.consumer.UserLifecyclePayload
+import com.cowork.project.global.consumer.TeamLifecyclePayload
+import com.cowork.project.global.consumer.UserLifecyclePayload
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties
