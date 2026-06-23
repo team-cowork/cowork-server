@@ -1,5 +1,8 @@
 package com.cowork.project.github
 
+import com.cowork.project.domain.github.service.GithubRepoRef
+import com.cowork.project.domain.github.service.GithubRepoUrlParser
+
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
