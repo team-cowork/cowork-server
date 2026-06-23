@@ -8,9 +8,7 @@ import org.springframework.stereotype.Component
 private const val TOPIC = "channel.event"
 
 @Component
-class ChannelEventPublisher(
-    private val kafkaTemplate: KafkaTemplate<String, Any>,
-) {
+class ChannelEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
     private val log = LoggerFactory.getLogger(ChannelEventPublisher::class.java)
 
     fun publishCreated(channel: Channel) = publish("CREATED", channel)
@@ -33,12 +31,16 @@ class ChannelEventPublisher(
                 if (ex != null) {
                     log.error(
                         "채널 이벤트 발행 실패 [eventType={}, channelId={}]",
-                        eventType, channel.id, ex,
+                        eventType,
+                        channel.id,
+                        ex,
                     )
                 } else {
                     log.info(
                         "채널 이벤트 발행 성공 [eventType={}, channelId={}, offset={}]",
-                        eventType, channel.id, result.recordMetadata.offset(),
+                        eventType,
+                        channel.id,
+                        result.recordMetadata.offset(),
                     )
                 }
             }

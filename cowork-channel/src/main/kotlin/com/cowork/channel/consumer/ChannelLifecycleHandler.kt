@@ -26,14 +26,14 @@ class ChannelLifecycleHandler(
         if (newMemberships.isNotEmpty()) {
             teamMembershipRepository.saveAll(newMemberships)
         }
-        log.info("MEMBER_INVITED 처리 완료 [teamId={}, userIds={}]", teamId, userIds)
+        log.info("Processed MEMBER_INVITED event [teamId={}, userIds={}]", teamId, userIds)
     }
 
     @Transactional
     fun onRoleChanged(teamId: Long, userId: Long, newRole: String) {
         val membership = teamMembershipRepository.findByTeamIdAndUserId(teamId, userId) ?: return
         membership.role = newRole
-        log.info("ROLE_CHANGED 처리 완료 [teamId={}, userId={}, newRole={}]", teamId, userId, newRole)
+        log.info("Processed ROLE_CHANGED event [teamId={}, userId={}, newRole={}]", teamId, userId, newRole)
     }
 
     @Transactional
@@ -42,11 +42,11 @@ class ChannelLifecycleHandler(
 
         val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
         if (channels.isEmpty()) {
-            log.info("TEAM_DELETED 처리: 대상 채널 없음 [teamId={}]", teamId)
+            log.info("Skipped TEAM_DELETED event: no channels to delete [teamId={}]", teamId)
             return
         }
         channelRepository.deleteAll(channels)
-        log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedChannels={}]", teamId, channels.size)
+        log.info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)
     }
 
     @Transactional
@@ -64,7 +64,10 @@ class ChannelLifecycleHandler(
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}, membershipsRemoved={}]",
-            teamId, targetUserId, creatorOf.size, otherIds.size,
+            teamId,
+            targetUserId,
+            creatorOf.size,
+            otherIds.size,
         )
     }
 
@@ -76,6 +79,6 @@ class ChannelLifecycleHandler(
             channelRepository.deleteAll(ownedChannels)
         }
         channelMemberRepository.deleteAllByUserId(userId)
-        log.info("USER_DELETED 처리 [userId={}, channelsDeleted={}]", userId, ownedChannels.size)
+        log.info("Processed USER_DELETED event [userId={}, channelsDeleted={}]", userId, ownedChannels.size)
     }
 }

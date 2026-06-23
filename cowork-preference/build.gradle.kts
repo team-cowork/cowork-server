@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260602.0"
+version = "20260623.0"
 
 // On Windows the Kotlin CLI is installed as kotlin.bat.
 val isWindows = System.getProperty("os.name").lowercase().contains("win")

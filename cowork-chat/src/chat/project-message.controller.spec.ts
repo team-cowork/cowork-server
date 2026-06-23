@@ -25,7 +25,7 @@ describe('ProjectMessageController', () => {
 
     describe('searchMessages', () => {
         it('프로젝트 메시지 검색을 ChatService에 위임한다', async () => {
-            const query = { q: '안녕', channelId: 2, limit: 50 } as any;
+            const query = { q: '안녕', channelId: 2, limit: 50 };
             const expected = {
                 messages: [
                     {
@@ -55,7 +55,7 @@ describe('ProjectMessageController', () => {
             mockChatService.searchProjectMessages.mockRejectedValue(error);
 
             await expect(
-                controller.searchMessages(5, { q: '안녕' } as any, userId),
+                controller.searchMessages(5, { q: '안녕' }, userId),
             ).rejects.toThrow(error);
         });
     });

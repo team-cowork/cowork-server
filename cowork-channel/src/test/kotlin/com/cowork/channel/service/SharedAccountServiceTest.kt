@@ -39,11 +39,7 @@ class SharedAccountServiceTest {
         credentialEncryptionService,
     )
 
-    private fun accountShareChannel(
-        id: Long = 1L,
-        teamId: Long = 100L,
-        createdBy: Long = 1L,
-    ) = Channel(
+    private fun accountShareChannel(id: Long = 1L, teamId: Long = 100L, createdBy: Long = 1L) = Channel(
         id = id, teamId = teamId, name = "ch", type = ChannelType.TEXT,
         viewType = ChannelViewType.ACCOUNT_SHARE, description = null,
         isPrivate = false, position = 0, createdBy = createdBy, projectId = null,
@@ -62,9 +58,14 @@ class SharedAccountServiceTest {
         credential: String? = "iv:ciphertext",
         createdBy: Long = 1L,
     ) = SharedAccount(
-        id = id, channelId = channelId, provider = provider,
-        providerLabel = null, accountIdentifier = "user",
-        credential = credential, connectedViaOAuth = false, createdBy = createdBy,
+        id = id,
+        channelId = channelId,
+        provider = provider,
+        providerLabel = null,
+        accountIdentifier = "user",
+        credential = credential,
+        connectedViaOAuth = false,
+        createdBy = createdBy,
     )
 
     // ── listAccounts ───────────────────────────────────────────────────────────
@@ -146,13 +147,14 @@ class SharedAccountServiceTest {
 
         val ex = assertThrows<ExpectedException> {
             service.createAccount(
-                1L, 1L,
+                1L,
+                1L,
                 CreateSharedAccountRequest(
                     provider = AccountProvider.CUSTOM,
                     providerLabel = null,
                     accountIdentifier = null,
                     credential = null,
-                )
+                ),
             )
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
@@ -170,13 +172,14 @@ class SharedAccountServiceTest {
         every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
-            1L, 1L,
+            1L,
+            1L,
             CreateSharedAccountRequest(
                 provider = AccountProvider.GITHUB,
                 providerLabel = null,
                 accountIdentifier = "ghuser",
                 credential = "plainPwd",
-            )
+            ),
         )
 
         assertEquals("encryptedPwd", saved.captured.credential)
@@ -193,13 +196,14 @@ class SharedAccountServiceTest {
         every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
-            1L, 1L,
+            1L,
+            1L,
             CreateSharedAccountRequest(
                 provider = AccountProvider.GITHUB,
                 providerLabel = null,
                 accountIdentifier = "ghuser",
                 credential = null,
-            )
+            ),
         )
 
         assertNull(saved.captured.credential)
@@ -218,8 +222,10 @@ class SharedAccountServiceTest {
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
         val result = service.updateAccount(
-            1L, 1L, 10L,
-            UpdateSharedAccountRequest(accountIdentifier = "newUser", credential = null, providerLabel = null)
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = "newUser", credential = null, providerLabel = null),
         )
 
         assertEquals("newUser", result.accountIdentifier)
@@ -235,8 +241,10 @@ class SharedAccountServiceTest {
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
         val result = service.updateAccount(
-            1L, 1L, 10L,
-            UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null),
         )
         assertEquals(acc.id, result.id)
     }
@@ -252,8 +260,10 @@ class SharedAccountServiceTest {
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
         val result = service.updateAccount(
-            1L, 1L, 10L,
-            UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null),
         )
         assertEquals(acc.id, result.id)
     }
@@ -268,8 +278,10 @@ class SharedAccountServiceTest {
 
         val ex = assertThrows<ExpectedException> {
             service.updateAccount(
-                1L, 1L, 10L,
-                UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
+                1L,
+                1L,
+                10L,
+                UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null),
             )
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
@@ -282,8 +294,10 @@ class SharedAccountServiceTest {
 
         val ex = assertThrows<ExpectedException> {
             service.updateAccount(
-                1L, 1L, 99L,
-                UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null)
+                1L,
+                1L,
+                99L,
+                UpdateSharedAccountRequest(accountIdentifier = null, credential = null, providerLabel = null),
             )
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)

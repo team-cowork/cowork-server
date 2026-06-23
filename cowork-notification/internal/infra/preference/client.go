@@ -36,7 +36,7 @@ func (c *Client) AreNotificationsEnabled(ctx context.Context, accountIDs []int64
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("preference service returned status %d", resp.StatusCode)
 	}
@@ -66,7 +66,7 @@ func (c *Client) IsNotificationEnabled(ctx context.Context, accountID, channelID
 	if err != nil {
 		return true, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return true, fmt.Errorf("preference service returned status %d", resp.StatusCode)

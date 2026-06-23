@@ -6,9 +6,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
+import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest
-import software.amazon.awssdk.services.s3.model.PutObjectRequest
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Duration
 import java.util.UUID
@@ -33,9 +33,9 @@ class S3Service(
     fun buildObjectKey(contentType: String): String {
         val ext = when (contentType) {
             "image/jpeg" -> "jpg"
-            "image/png"  -> "png"
+            "image/png" -> "png"
             "image/webp" -> "webp"
-            else         -> throw ExpectedException("허용되지 않는 파일 형식입니다.", HttpStatus.BAD_REQUEST)
+            else -> throw ExpectedException("허용되지 않는 파일 형식입니다.", HttpStatus.BAD_REQUEST)
         }
         return "team-icons/${UUID.randomUUID()}.$ext"
     }
@@ -80,8 +80,7 @@ class S3Service(
         }
     }
 
-    fun extractObjectKey(iconUrl: String): String =
-        iconUrl.removePrefix("${minioProperties.publicBaseUrl}/")
+    fun extractObjectKey(iconUrl: String): String = iconUrl.removePrefix("${minioProperties.publicBaseUrl}/")
 
     fun deleteObject(objectKey: String) {
         s3Template.deleteObject(minioProperties.bucket, objectKey)

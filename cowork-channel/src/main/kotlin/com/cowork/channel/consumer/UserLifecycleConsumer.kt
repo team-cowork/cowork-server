@@ -5,9 +5,7 @@ import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 
 @Component
-class UserLifecycleConsumer(
-    private val handler: ChannelLifecycleHandler,
-) {
+class UserLifecycleConsumer(private val handler: ChannelLifecycleHandler) {
     private val log = LoggerFactory.getLogger(UserLifecycleConsumer::class.java)
 
     @KafkaListener(
@@ -18,7 +16,7 @@ class UserLifecycleConsumer(
     fun consume(payload: UserLifecyclePayload) {
         when (payload.eventType) {
             "USER_DELETED" -> handler.onUserDeleted(payload.userId)
-            else -> log.warn("알 수 없는 user.lifecycle 이벤트 [eventType={}]", payload.eventType)
+            else -> log.warn("Received unknown user.lifecycle event [eventType={}]", payload.eventType)
         }
     }
 }

@@ -2,6 +2,7 @@ package room
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -56,7 +57,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 
 // Leave godoc
 // @Summary      음성 채널 퇴장
-// @Description  채널에서 퇴장합니다. 마지막 참여자가 나가면 방이 자동으로 삭제됩니다.
+// @Description  채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.
 // @Tags         voice
 // @Security     BearerAuth
 // @Param        channel_id  path      int  true  "채널 ID"
@@ -157,7 +158,9 @@ func parseChannelIDParam(r *http.Request) (int64, error) {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		slog.Error("failed to encode response body", "err", err)
+	}
 }
 
 func toAppError(err error) *apperr.Error {
