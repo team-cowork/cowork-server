@@ -22,7 +22,7 @@ class WebhookService(
 ) {
 
     private fun findWebhookOrThrow(id: Long): Webhook = webhookRepository.findById(id).orElseThrow {
-        ExpectedException("웹훅을 찾을 수 없습니다. id=$id", HttpStatus.NOT_FOUND)
+        ExpectedException("웹훅을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
     private fun requireWebhookManager(channelId: Long, userId: Long, expectedTextChannel: Boolean = true): Channel {
