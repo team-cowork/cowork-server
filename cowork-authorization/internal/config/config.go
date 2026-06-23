@@ -21,9 +21,13 @@ type AppConfig struct {
 
 	DBDSN string
 
-	DataGSMClientID    string
-	DataGSMTokenURL    string
-	DataGSMUserInfoURL string
+	DataGSMClientID      string
+	DataGSMTokenURL      string
+	DataGSMUserInfoURL   string
+	DataGSMWebhookSecret string
+
+	KafkaBootstrapServers string
+	KafkaTopicUserSync    string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -62,9 +66,13 @@ func Load() (*AppConfig, error) {
 		Port:  lookup(flatMap, "PORT", "8081"),
 		DBDSN: lookup(flatMap, "DB_DSN", ""),
 
-		DataGSMClientID:    lookup(flatMap, "DATAGSM_CLIENT_ID", ""),
-		DataGSMTokenURL:    lookup(flatMap, "DATAGSM_TOKEN_URL", ""),
-		DataGSMUserInfoURL: lookup(flatMap, "DATAGSM_USERINFO_URL", ""),
+		DataGSMClientID:      lookup(flatMap, "DATAGSM_CLIENT_ID", ""),
+		DataGSMTokenURL:      lookup(flatMap, "DATAGSM_TOKEN_URL", ""),
+		DataGSMUserInfoURL:   lookup(flatMap, "DATAGSM_USERINFO_URL", ""),
+		DataGSMWebhookSecret: lookup(flatMap, "DATAGSM_WEBHOOK_SECRET", ""),
+
+		KafkaBootstrapServers: lookup(flatMap, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
+		KafkaTopicUserSync:    lookup(flatMap, "KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
 
 		JWTSecret:        lookup(flatMap, "JWT_SECRET", ""),
 		JWTAccessExpire:  accessExpire,
@@ -125,6 +133,15 @@ func overrideFromEnv(cfg *AppConfig) {
 	}
 	if v := os.Getenv("DATAGSM_USERINFO_URL"); v != "" {
 		cfg.DataGSMUserInfoURL = v
+	}
+	if v := os.Getenv("DATAGSM_WEBHOOK_SECRET"); v != "" {
+		cfg.DataGSMWebhookSecret = v
+	}
+	if v := os.Getenv("KAFKA_BOOTSTRAP_SERVERS"); v != "" {
+		cfg.KafkaBootstrapServers = v
+	}
+	if v := os.Getenv("KAFKA_TOPIC_USER_SYNC"); v != "" {
+		cfg.KafkaTopicUserSync = v
 	}
 	if v := os.Getenv("JWT_SECRET"); v != "" {
 		cfg.JWTSecret = v
