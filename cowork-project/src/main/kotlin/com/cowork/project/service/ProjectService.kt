@@ -26,25 +26,10 @@ class ProjectService(
     private val projectAccessGuard: ProjectAccessGuard,
 ) {
 
-    private fun findProjectOrThrow(projectId: Long): Project =
-        projectAccessGuard.findProjectOrThrow(projectId)
-
     private fun findMemberOrThrow(memberId: Long): ProjectMember =
         projectMemberRepository.findById(memberId).orElseThrow {
             ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
         }
-
-    private fun teamRoleOf(teamId: Long, userId: Long): String? =
-        projectAccessGuard.teamRoleOf(teamId, userId)
-
-    private fun requireTeamMember(teamId: Long, userId: Long) =
-        projectAccessGuard.requireTeamMember(teamId, userId)
-
-    private fun requireProjectModifier(project: Project, userId: Long) =
-        projectAccessGuard.requireProjectModifier(project, userId)
-
-    private fun requireProjectOwner(project: Project, userId: Long) =
-        projectAccessGuard.requireProjectOwner(project, userId)
 
     private fun parseRole(role: String): ProjectMemberRole =
         try {
@@ -62,7 +47,7 @@ class ProjectService(
 
     @Transactional
     fun createProject(userId: Long, request: CreateProjectRequest): ProjectResponse {
-        requireTeamMember(request.teamId, userId)
+        projectAccessGuard.requireTeamMember(request.teamId, userId)
 
         val project = projectRepository.save(
             Project(
@@ -88,16 +73,16 @@ class ProjectService(
     }
 
     fun getProject(userId: Long, projectId: Long): ProjectDetailResponse {
-        val project = findProjectOrThrow(projectId)
-        requireTeamMember(project.teamId, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireTeamMember(project.teamId, userId)
         val memberCount = projectMemberRepository.countByProjectId(projectId)
         return ProjectDetailResponse.of(project, memberCount)
     }
 
     @Transactional
     fun updateProject(userId: Long, projectId: Long, request: UpdateProjectRequest): ProjectResponse {
-        val project = findProjectOrThrow(projectId)
-        requireProjectModifier(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectModifier(project, userId)
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }
@@ -110,16 +95,16 @@ class ProjectService(
 
     @Transactional
     fun deleteProject(userId: Long, projectId: Long) {
-        val project = findProjectOrThrow(projectId)
-        requireProjectOwner(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectOwner(project, userId)
         projectRepository.delete(project)
         afterCommit { projectEventPublisher.publishDeleted(project) }
     }
 
     @Transactional
-    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoRequest): ProjectDetailResponse {
-        val project = findProjectOrThrow(projectId)
-        requireProjectModifier(project, userId)
+    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResponse {
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectModifier(project, userId)
 
         GithubRepoUrlParser.parse(request.githubRepoUrl)
             ?: throw ExpectedException("유효하지 않은 GitHub 레포지토리 URL입니다.", HttpStatus.BAD_REQUEST)
@@ -132,8 +117,8 @@ class ProjectService(
 
     @Transactional
     fun unlinkGithubRepo(userId: Long, projectId: Long): ProjectDetailResponse {
-        val project = findProjectOrThrow(projectId)
-        requireProjectModifier(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectModifier(project, userId)
 
         project.unlinkGithubRepo()
 
@@ -142,13 +127,13 @@ class ProjectService(
     }
 
     fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
-        requireTeamMember(teamId, userId)
+        projectAccessGuard.requireTeamMember(teamId, userId)
         return projectRepository.findByTeamId(teamId, pageable).map { ProjectResponse.of(it) }
     }
 
     @Transactional
     fun reorderTeamProjects(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResponse> {
-        requireTeamMember(teamId, userId)
+        projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {
             throw ExpectedException("프로젝트 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
@@ -177,17 +162,17 @@ class ProjectService(
             .map { ProjectResponse.of(it) }
 
     fun getTeamId(projectId: Long): Long =
-        findProjectOrThrow(projectId).teamId
+        projectAccessGuard.findProjectOrThrow(projectId).teamId
 
     fun isMember(projectId: Long, userId: Long): Boolean =
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 
     @Transactional
     fun addMember(userId: Long, projectId: Long, request: AddProjectMemberRequest): ProjectMemberResponse {
-        val project = findProjectOrThrow(projectId)
-        requireProjectOwner(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectOwner(project, userId)
 
-        teamRoleOf(project.teamId, request.userId)
+        projectAccessGuard.teamRoleOf(project.teamId, request.userId)
             ?: throw ExpectedException("추가 대상이 팀 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
 
         val role = parseRole(request.role)
@@ -212,15 +197,15 @@ class ProjectService(
     }
 
     fun getMembers(userId: Long, projectId: Long): List<ProjectMemberResponse> {
-        val project = findProjectOrThrow(projectId)
-        requireTeamMember(project.teamId, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireTeamMember(project.teamId, userId)
         return projectMemberRepository.findByProjectId(projectId).map { ProjectMemberResponse.of(it) }
     }
 
     @Transactional
     fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleRequest): ProjectMemberResponse {
-        val project = findProjectOrThrow(projectId)
-        requireProjectOwner(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectOwner(project, userId)
         val member = findMemberOrThrow(memberId)
 
         if (member.projectId != projectId) {
@@ -242,8 +227,8 @@ class ProjectService(
 
     @Transactional
     fun removeMember(userId: Long, projectId: Long, memberId: Long) {
-        val project = findProjectOrThrow(projectId)
-        requireProjectOwner(project, userId)
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        projectAccessGuard.requireProjectOwner(project, userId)
         val member = findMemberOrThrow(memberId)
 
         if (member.projectId != projectId) {
