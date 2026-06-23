@@ -1,0 +1,187 @@
+package service
+
+import (
+	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log"
+	"strconv"
+	"strings"
+
+	"github.com/cowork/authorization/internal/config"
+)
+
+const signaturePrefix = "sha256="
+
+// ErrInvalidPayload marks client/payload errors so the handler can respond 4xx
+// instead of triggering DataGSM retries with a 5xx.
+var ErrInvalidPayload = errors.New("invalid webhook payload")
+
+// EventPublisher publishes a sync message to the user sync stream.
+type EventPublisher interface {
+	Publish(ctx context.Context, key string, value []byte) error
+}
+
+// ProcessedEventStore records handled event ids for idempotency.
+type ProcessedEventStore interface {
+	Exists(eventID string) (bool, error)
+	MarkProcessed(eventID, eventType string) (bool, error)
+}
+
+// DataGSM webhook envelope.
+type WebhookEvent struct {
+	ID        string          `json:"id"`
+	Event     string          `json:"event"`
+	Timestamp string          `json:"timestamp"`
+	Data      json.RawMessage `json:"data"`
+}
+
+type studentEventData struct {
+	StudentID int64  `json:"student_id"`
+	Name      string `json:"name"`
+	Email     string `json:"email"`
+	Status    string `json:"status"`
+}
+
+// userSyncMessage is consumed by cowork-user's Kafka SyncHandler.
+// event_type drives a targeted update there (partial role change, not a full upsert).
+type userSyncMessage struct {
+	EventType    string `json:"event_type"`
+	EventID      string `json:"event_id"`
+	Email        string `json:"email"`
+	Name         string `json:"name"`
+	StudentRole  string `json:"student_role,omitempty"`
+	DataGSMRefID int64  `json:"datagsm_student_id"`
+}
+
+var supportedStudentEvents = map[string]struct{}{
+	"student.graduated":      {},
+	"student.withdrawn":      {},
+	"student.status_changed": {},
+}
+
+type EventService struct {
+	cfg           *config.AppConfig
+	publisher     EventPublisher
+	processedRepo ProcessedEventStore
+}
+
+func NewEventService(
+	cfg *config.AppConfig,
+	publisher EventPublisher,
+	processedRepo ProcessedEventStore,
+) *EventService {
+	return &EventService{
+		cfg:           cfg,
+		publisher:     publisher,
+		processedRepo: processedRepo,
+	}
+}
+
+// SecretConfigured reports whether webhook verification is available.
+func (s *EventService) SecretConfigured() bool {
+	return s.cfg.DataGSMWebhookSecret != ""
+}
+
+// VerifySignature validates the X-DataGSM-Signature header against the raw body.
+func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool {
+	if s.cfg.DataGSMWebhookSecret == "" {
+		return false
+	}
+	provided := strings.TrimPrefix(signatureHeader, signaturePrefix)
+	if provided == signatureHeader || provided == "" {
+		return false
+	}
+
+	providedBytes, err := hex.DecodeString(provided)
+	if err != nil {
+		return false
+	}
+
+	mac := hmac.New(sha256.New, []byte(s.cfg.DataGSMWebhookSecret))
+	mac.Write(body)
+	expected := mac.Sum(nil)
+
+	return hmac.Equal(expected, providedBytes)
+}
+
+// ProcessEvent parses the verified webhook body and forwards student lifecycle
+// changes to the user sync stream. Idempotent on the event id.
+func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
+	var envelope WebhookEvent
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		log.Printf("failed to parse webhook envelope: %v", err)
+		return fmt.Errorf("%w: failed to parse webhook envelope", ErrInvalidPayload)
+	}
+	if envelope.ID == "" || envelope.Event == "" {
+		return fmt.Errorf("%w: missing id or event", ErrInvalidPayload)
+	}
+
+	if _, ok := supportedStudentEvents[envelope.Event]; !ok {
+		log.Printf("ignoring unsupported webhook event: %s", envelope.Event)
+		return nil
+	}
+
+	processed, err := s.processedRepo.Exists(envelope.ID)
+	if err != nil {
+		log.Printf("failed to check processed event %s: %v", envelope.ID, err)
+		return fmt.Errorf("failed to check processed event state")
+	}
+	if processed {
+		log.Printf("duplicate webhook event ignored: %s (%s)", envelope.ID, envelope.Event)
+		return nil
+	}
+
+	var data studentEventData
+	if err := json.Unmarshal(envelope.Data, &data); err != nil {
+		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
+		return fmt.Errorf("%w: failed to parse student event data", ErrInvalidPayload)
+	}
+	if data.StudentID == 0 {
+		return fmt.Errorf("%w: event %s missing student_id", ErrInvalidPayload, envelope.ID)
+	}
+
+	msg := userSyncMessage{
+		EventType:    envelope.Event,
+		EventID:      envelope.ID,
+		Email:        data.Email,
+		Name:         data.Name,
+		StudentRole:  resolveStudentRole(envelope.Event, data.Status),
+		DataGSMRefID: data.StudentID,
+	}
+
+	payload, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("failed to marshal sync message for %s: %v", envelope.ID, err)
+		return fmt.Errorf("failed to marshal sync message: %w", err)
+	}
+
+	if err := s.publisher.Publish(ctx, strconv.FormatInt(data.StudentID, 10), payload); err != nil {
+		return fmt.Errorf("failed to publish sync message: %w", err)
+	}
+
+	// 발행이 성공한 뒤에 기록해 메시지 유실을 방지한다(at-least-once).
+	// 기록 실패는 메시지가 이미 발행됐으므로 치명적이지 않다(다음 동일 이벤트 재수신 시 중복 발행, 다운스트림 멱등).
+	if _, err := s.processedRepo.MarkProcessed(envelope.ID, envelope.Event); err != nil {
+		log.Printf("failed to record processed event %s after publish: %v", envelope.ID, err)
+	}
+
+	return nil
+}
+
+func resolveStudentRole(event, status string) string {
+	switch event {
+	case "student.graduated":
+		return "GRADUATE"
+	case "student.withdrawn":
+		return "WITHDRAWN"
+	case "student.status_changed":
+		return status
+	default:
+		return status
+	}
+}
