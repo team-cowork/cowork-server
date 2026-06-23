@@ -1,17 +1,20 @@
 package com.cowork.project.service
 
-import com.cowork.project.domain.Project
-import com.cowork.project.domain.ProjectMember
-import com.cowork.project.domain.ProjectMemberRole
-import com.cowork.project.domain.TeamMembership
-import com.cowork.project.dto.AddProjectMemberRequest
-import com.cowork.project.dto.CreateProjectRequest
-import com.cowork.project.dto.LinkGithubRepoReqDto
-import com.cowork.project.dto.UpdateProjectRequest
-import com.cowork.project.event.ProjectEventPublisher
-import com.cowork.project.repository.ProjectMemberRepository
-import com.cowork.project.repository.ProjectRepository
-import com.cowork.project.repository.TeamMembershipRepository
+import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.domain.project.service.ProjectService
+
+import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.projectMember.entity.ProjectMember
+import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import com.cowork.project.domain.membership.entity.TeamMembership
+import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberRequest
+import com.cowork.project.domain.project.presentation.data.request.CreateProjectRequest
+import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
+import com.cowork.project.domain.project.presentation.data.request.UpdateProjectRequest
+import com.cowork.project.domain.project.event.ProjectEventPublisher
+import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.domain.project.repository.ProjectRepository
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
