@@ -22,8 +22,14 @@ class ChannelLifecycleHandlerTest {
     private val handler = ChannelLifecycleHandler(channelRepository, channelMemberRepository, teamMembershipRepository)
 
     private fun channel(id: Long, teamId: Long, createdBy: Long) = Channel(
-        id = id, teamId = teamId, name = "c$id", type = ChannelType.TEXT, viewType = ChannelViewType.TEXT,
-        description = null, isPrivate = false, createdBy = createdBy,
+        id = id,
+        teamId = teamId,
+        name = "c$id",
+        type = ChannelType.TEXT,
+        viewType = ChannelViewType.TEXT,
+        description = null,
+        isPrivate = false,
+        createdBy = createdBy,
     )
 
     @Test
@@ -32,7 +38,16 @@ class ChannelLifecycleHandlerTest {
 
         handler.onMemberInvited(100L, listOf(5L), "MEMBER")
 
-        verify(exactly = 1) { teamMembershipRepository.saveAll(match<List<TeamMembership>> { it.size == 1 && it[0].teamId == 100L && it[0].userId == 5L && it[0].role == "MEMBER" }) }
+        verify(exactly = 1) {
+            teamMembershipRepository.saveAll(
+                match<List<TeamMembership>> {
+                    it.size == 1 &&
+                        it[0].teamId == 100L &&
+                        it[0].userId == 5L &&
+                        it[0].role == "MEMBER"
+                },
+            )
+        }
     }
 
     @Test

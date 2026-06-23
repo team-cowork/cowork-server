@@ -88,6 +88,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	grade := st.Grade
 	classNum := st.ClassNum
 	number := st.Number
+	studentID := st.ID
 
 	upsertReq := client.UpsertUserRequest{
 		Name:                 st.Name,
@@ -99,6 +100,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		Major:                st.Major,
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
+		DataGSMStudentID:     &studentID,
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
@@ -206,7 +208,7 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 	if err != nil {
 		return "", fmt.Errorf("failed to call token endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -239,7 +241,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 	if err != nil {
 		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)

@@ -93,5 +93,4 @@ class TeamMemberServiceTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         verify(exactly = 0) { teamEventPublisher.publishLifecycle(any()) }
     }
-
 }

@@ -13,11 +13,11 @@ import (
 // --- mocks ---
 
 type mockRepo struct {
-	saved          *token.DeviceToken
-	tokens         map[int64][]token.DeviceToken
-	deleted        string
-	deletedBulk    []string
-	err            error
+	saved       *token.DeviceToken
+	tokens      map[int64][]token.DeviceToken
+	deleted     string
+	deletedBulk []string
+	err         error
 }
 
 func (m *mockRepo) Save(_ context.Context, t *token.DeviceToken) error {
