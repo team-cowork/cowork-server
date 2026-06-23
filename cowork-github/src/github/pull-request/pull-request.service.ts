@@ -7,6 +7,19 @@ import {
   PullRequestFile,
 } from './client/pull-request-api.client';
 
+export interface PullRequestSummaryResponse {
+  number: number;
+  title: string;
+  author: string;
+  state: string;
+  draft: boolean;
+  merged: boolean;
+  htmlUrl: string;
+  labels: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PullRequestActionParams {
   owner: string;
   repo: string;
@@ -70,6 +83,27 @@ export class PullRequestService {
       baseRef: pr.base.ref,
       htmlUrl: pr.html_url,
     };
+  }
+
+  async listPullRequests(
+    owner: string,
+    repo: string,
+    state: string,
+  ): Promise<PullRequestSummaryResponse[]> {
+    const items = await this.apiClient.listPullRequests(owner, repo, state);
+
+    return items.map((item) => ({
+      number: item.number,
+      title: item.title,
+      author: item.user.login,
+      state: item.state,
+      draft: item.draft,
+      merged: item.merged_at != null,
+      htmlUrl: item.html_url,
+      labels: item.labels.map((label) => label.name),
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    }));
   }
 
   async listPullRequestFiles(
