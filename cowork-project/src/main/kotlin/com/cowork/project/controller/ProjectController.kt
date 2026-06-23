@@ -74,6 +74,34 @@ class ProjectController(
         return ResponseEntity.noContent().build()
     }
 
+    @Operation(summary = "GitHub 레포지토리 연결", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "연결 성공"),
+        ApiResponse(responseCode = "400", description = "유효하지 않은 GitHub URL"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @PutMapping("/{projectId}/github-repo")
+    fun linkGithubRepo(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @RequestBody request: LinkGithubRepoReqDto,
+    ): ResponseEntity<ProjectDetailResponse> =
+        ResponseEntity.ok(projectService.linkGithubRepo(userId, projectId, request))
+
+    @Operation(summary = "GitHub 레포지토리 연결 해제", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "해제 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @DeleteMapping("/{projectId}/github-repo")
+    fun unlinkGithubRepo(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+    ): ResponseEntity<ProjectDetailResponse> =
+        ResponseEntity.ok(projectService.unlinkGithubRepo(userId, projectId))
+
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
