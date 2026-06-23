@@ -199,7 +199,7 @@ jobs:
         run: echo "No changed services."
       - name: Checkout Code
         if: matrix.build != 'skip'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup JDK
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v5
@@ -239,7 +239,7 @@ jobs:
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
       - name: Lint (Go)
         if: matrix.build == 'go'
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: ${{ matrix.working-directory }}
@@ -366,7 +366,6 @@ jobs:
               }
             };
 
-            // ── 모듈 감지 & 경로 분류 ─────────────────────────────
             const fs = require('fs');
             const modules = fs.readdirSync('.', { withFileTypes: true })
               .filter(d => d.isDirectory() && d.name.startsWith('cowork-'))
