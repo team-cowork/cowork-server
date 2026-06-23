@@ -60,3 +60,14 @@ func TestSender_Send_usesLatestMulticastAPIInBatches(t *testing.T) {
 	assert.Equal(t, "body", client.calls[0].Notification.Body)
 	assert.Equal(t, map[string]string{"k": "v"}, client.calls[0].Data)
 }
+
+func TestSender_Send_doesNotPanicWhenUnregisteredCheckerIsNil(t *testing.T) {
+	sender := &Sender{client: &fakeMessagingClient{}}
+
+	assert.NotPanics(t, func() {
+		invalid, err := sender.Send(context.Background(), []string{"temporary-error-token"}, "title", "body", nil)
+
+		require.NoError(t, err)
+		assert.Empty(t, invalid)
+	})
+}
