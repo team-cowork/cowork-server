@@ -10,10 +10,23 @@ import (
 )
 
 type Sender struct {
-	client *messaging.Client
+	client         messagingClient
+	isUnregistered func(error) bool
+}
+
+type messagingClient interface {
+	SendEachForMulticast(context.Context, *messaging.MulticastMessage) (*messaging.BatchResponse, error)
+}
+
+func (s *Sender) checkUnregistered(err error) bool {
+	if s.isUnregistered != nil {
+		return s.isUnregistered(err)
+	}
+	return messaging.IsUnregistered(err)
 }
 
 func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
+	//nolint:staticcheck // SA1019: 자격증명 파일 경로 기반 초기화를 의도적으로 유지 (별도 마이그레이션 과제)
 	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
 		return nil, err
@@ -22,7 +35,10 @@ func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Sender{client: client}, nil
+	return &Sender{
+		client:         client,
+		isUnregistered: messaging.IsUnregistered,
+	}, nil
 }
 
 const fcmBatchSize = 500
@@ -51,7 +67,7 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 		}
 		for j, r := range resp.Responses {
 			if !r.Success {
-				if messaging.IsUnregistered(r.Error) {
+				if s.checkUnregistered(r.Error) {
 					invalid = append(invalid, batch[j])
 				} else {
 					slog.Warn("fcm send failed for token", "err", r.Error, "token", batch[j])

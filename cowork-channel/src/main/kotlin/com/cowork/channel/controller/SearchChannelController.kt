@@ -17,9 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "검색", description = "전체 검색 API")
 @RestController
 @RequestMapping("/search")
-class SearchChannelController(
-    private val channelService: ChannelService,
-) {
+class SearchChannelController(private val channelService: ChannelService) {
 
     @Operation(summary = "채널 검색", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -31,6 +29,5 @@ class SearchChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
         @RequestParam q: String,
-    ): List<ChannelResponse> =
-        channelService.searchChannels(userId, teamId, q)
+    ): List<ChannelResponse> = channelService.searchChannels(userId, teamId, q)
 }

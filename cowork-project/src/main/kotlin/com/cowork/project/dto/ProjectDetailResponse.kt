@@ -25,6 +25,8 @@ data class ProjectDetailResponse(
     val updatedAt: LocalDateTime,
     @Schema(description = "프로젝트 멤버 수", example = "5")
     val memberCount: Long,
+    @field:Schema(description = "연결된 GitHub 레포지토리 URL", example = "https://github.com/my-org/my-repo")
+    val githubRepoUrl: String?,
 ) {
     companion object {
         fun of(project: Project, memberCount: Long): ProjectDetailResponse =
@@ -39,6 +41,7 @@ data class ProjectDetailResponse(
                 createdAt = project.createdAt,
                 updatedAt = project.updatedAt,
                 memberCount = memberCount,
+                githubRepoUrl = project.githubRepoUrl,
             )
     }
 }

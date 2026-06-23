@@ -8,11 +8,10 @@ import com.cowork.channel.dto.ChannelResponse
 import com.cowork.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.repository.ChannelMemberRepository
 import com.cowork.channel.repository.ChannelRepository
+import com.cowork.channel.support.afterCommit
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import team.themoment.sdk.exception.ExpectedException
 import kotlin.math.max
@@ -57,16 +56,12 @@ class DmChannelService(
                 isPrivate = true,
                 createdBy = creatorId,
                 dmKey = dmKey,
-            )
+            ),
         )
         val members = listOf(creatorId, targetUserId).map { memberId ->
             channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = memberId))
         }
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                channelMembershipSyncPublisher.publishChannelSnapshot(channel, members)
-            }
-        })
+        afterCommit { channelMembershipSyncPublisher.publishChannelSnapshot(channel, members) }
         return ChannelResponse.of(channel)
     }
 

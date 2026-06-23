@@ -22,10 +22,9 @@ class ThreadService(
     private val teamPermissionService: TeamPermissionService,
 ) {
 
-    private fun findThreadOrThrow(id: Long): Thread =
-        threadRepository.findById(id).orElseThrow {
-            ExpectedException("스레드를 찾을 수 없습니다. id=$id", HttpStatus.NOT_FOUND)
-        }
+    private fun findThreadOrThrow(id: Long): Thread = threadRepository.findById(id).orElseThrow {
+        ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     @Transactional
     fun createThread(userId: Long, channelId: Long, request: CreateThreadRequest): ThreadResponse {
@@ -41,7 +40,7 @@ class ThreadService(
                 name = request.name,
                 parentMessageId = request.parentMessageId,
                 createdBy = userId,
-            )
+            ),
         )
         return ThreadResponse.of(thread)
     }

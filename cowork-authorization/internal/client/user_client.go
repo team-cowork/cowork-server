@@ -32,6 +32,7 @@ type UpsertUserRequest struct {
 	Major                string  `json:"major"`
 	Role                 string  `json:"role"`
 	GithubID             *string `json:"github_id"`
+	DataGSMStudentID     *int64  `json:"datagsm_student_id"`
 }
 
 type upsertUserResponse struct {
@@ -57,7 +58,7 @@ func (c *UserClient) Upsert(ctx context.Context, userId int64, req UpsertUserReq
 	if err != nil {
 		return 0, fmt.Errorf("upsert request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, _ := io.ReadAll(resp.Body)

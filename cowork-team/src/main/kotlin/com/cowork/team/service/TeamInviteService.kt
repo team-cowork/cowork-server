@@ -11,11 +11,10 @@ import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.repository.TeamInviteRepository
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.security.SecureRandom
 import java.time.LocalDateTime
@@ -34,14 +33,12 @@ class TeamInviteService(
         private val random = SecureRandom()
     }
 
-    private fun findTeamOrThrow(teamId: Long) =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
-        }
+    private fun findTeamOrThrow(teamId: Long) = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
-    private fun requireMember(teamId: Long, userId: Long) =
-        teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
-            ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
+    private fun requireMember(teamId: Long, userId: Long) = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
+        ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
     private fun generateUniqueCode(): String {
         repeat(10) {
@@ -112,9 +109,7 @@ class TeamInviteService(
             actorUserId = userId,
             targetUserIds = listOf(userId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
 
         return JoinTeamResponse(
             teamId = teamId,
