@@ -45,22 +45,26 @@ const scrollToIndex = (i: number) => {
     });
 };
 
+const handleScroll = () => {
+    if (!rootRef.value) return;
+    const rect = rootRef.value.getBoundingClientRect();
+    const scrollable = rootRef.value.offsetHeight - window.innerHeight;
+    if (scrollable <= 0) return;
+    const p = Math.max(0, Math.min(1, -rect.top / scrollable));
+    progress.value = p;
+    activeIndex.value = Math.min(
+        features.length - 1,
+        Math.floor(p * features.length),
+    );
+};
+
 onMounted(() => {
-    const handleScroll = () => {
-        if (!rootRef.value) return;
-        const rect = rootRef.value.getBoundingClientRect();
-        const scrollable = rootRef.value.offsetHeight - window.innerHeight;
-        if (scrollable <= 0) return;
-        const p = Math.max(0, Math.min(1, -rect.top / scrollable));
-        progress.value = p;
-        activeIndex.value = Math.min(
-            features.length - 1,
-            Math.floor(p * features.length),
-        );
-    };
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
-    onUnmounted(() => window.removeEventListener("scroll", handleScroll));
+});
+
+onUnmounted(() => {
+    window.removeEventListener("scroll", handleScroll);
 });
 </script>
 
