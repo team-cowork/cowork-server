@@ -1,6 +1,6 @@
 services:
   mysql:
-    image: mysql:8.4.8
+    image: mysql:9.7.1
     container_name: cowork-mysql
     restart: unless-stopped
     environment:
@@ -19,7 +19,7 @@ services:
       retries: 5
 
   postgres:
-    image: postgres:16
+    image: postgres:18.4
     container_name: cowork-postgres
     restart: unless-stopped
     environment:
@@ -29,7 +29,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ./docker/postgres/init.sh:/docker-entrypoint-initdb.d/init.sh
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d postgres" ]
@@ -38,7 +38,7 @@ services:
       retries: 5
 
   mongodb:
-    image: mongo:8.0
+    image: mongo:8.3
     container_name: cowork-mongodb
     restart: unless-stopped
     environment:
@@ -55,7 +55,7 @@ services:
       retries: 5
 
   kafka:
-    image: apache/kafka:3.9.2
+    image: apache/kafka:4.3.0
     container_name: cowork-kafka
     restart: unless-stopped
     environment:
@@ -93,7 +93,7 @@ services:
       - "8090:8080"
 
   vault:
-    image: hashicorp/vault:2.0.0
+    image: hashicorp/vault:2.0.3
     container_name: cowork-vault
     restart: unless-stopped
     environment:
@@ -112,7 +112,7 @@ services:
       retries: 5
 
   vault-init:
-    image: hashicorp/vault:2.0.0
+    image: hashicorp/vault:2.0.3
     container_name: cowork-vault-init
     restart: "no"
     depends_on:
@@ -123,6 +123,7 @@ services:
       VAULT_TOKEN: dev-root-token
       JWT_SECRET: ${JWT_SECRET}
       DATAGSM_CLIENT_ID: ${DATAGSM_CLIENT_ID}
+      DATAGSM_WEBHOOK_SECRET: ${DATAGSM_WEBHOOK_SECRET:-}
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -149,7 +150,7 @@ services:
       /bin/sh -c "
       vault secrets enable -version=2 -path=secret kv 2>/dev/null || true;
       vault kv put secret/application JWT_SECRET=$${JWT_SECRET} MYSQL_USER=$${MYSQL_USER} MYSQL_PASSWORD=$${MYSQL_PASSWORD} POSTGRES_USER=$${POSTGRES_USER} POSTGRES_PASSWORD=$${POSTGRES_PASSWORD} MINIO_ACCESS_KEY=$${MINIO_ACCESS_KEY} MINIO_SECRET_KEY=$${MINIO_SECRET_KEY} MINIO_PUBLIC_ENDPOINT=$${MINIO_PUBLIC_ENDPOINT} MINIO_INTERNAL_ENDPOINT=$${MINIO_INTERNAL_ENDPOINT} MINIO_PUBLIC_BASE_URL=$${MINIO_PUBLIC_BASE_URL};
-      vault kv put secret/cowork-authorization DB_DSN=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local\" DATAGSM_CLIENT_ID=\"$${DATAGSM_CLIENT_ID}\" JWT_SECRET=\"$${JWT_SECRET}\";
+      vault kv put secret/cowork-authorization DB_DSN=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local\" DATAGSM_CLIENT_ID=\"$${DATAGSM_CLIENT_ID}\" DATAGSM_WEBHOOK_SECRET=\"$${DATAGSM_WEBHOOK_SECRET}\" JWT_SECRET=\"$${JWT_SECRET}\";
       vault kv put secret/cowork-notification db.dsn=\"$${MYSQL_USER}:$${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local\";
       vault kv put secret/cowork-voice MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin\" LIVEKIT_API_KEY=\"$${LIVEKIT_API_KEY}\" LIVEKIT_API_SECRET=\"$${LIVEKIT_API_SECRET}\";
       vault kv put secret/cowork-chat MONGODB_URI=\"mongodb://$${MONGO_ROOT_USERNAME}:$${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin\" ELASTICSEARCH_URL=\"$${ELASTICSEARCH_URL}\";
@@ -220,7 +221,7 @@ services:
       start_period: 60s
 
   redis:
-    image: redis:8.6.2-alpine
+    image: redis:8.8.0-alpine
     container_name: cowork-redis
     restart: unless-stopped
     ports:
@@ -255,7 +256,7 @@ services:
 
 
   loki:
-    image: grafana/loki:3.5.0
+    image: grafana/loki:3.7.2
     container_name: cowork-loki
     restart: unless-stopped
     ports:
@@ -271,7 +272,7 @@ services:
       retries: 5
 
   promtail:
-    image: grafana/promtail:3.5.0
+    image: grafana/promtail:3.6.0
     container_name: cowork-promtail
     restart: unless-stopped
     volumes:
@@ -284,7 +285,7 @@ services:
         condition: service_healthy
 
   blackbox_exporter:
-    image: prom/blackbox-exporter:v0.25.0
+    image: prom/blackbox-exporter:v0.28.0
     container_name: cowork-blackbox-exporter
     restart: unless-stopped
     ports:
@@ -295,7 +296,7 @@ services:
       - '--config.file=/etc/blackbox_exporter/config.yml'
 
   prometheus:
-    image: prom/prometheus:v3.3.1
+    image: prom/prometheus:v3.12.0
     container_name: cowork-prometheus
     restart: unless-stopped
     ports:
@@ -312,8 +313,22 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  alertmanager:
+    image: prom/alertmanager:v0.33.0
+    container_name: cowork-alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./cowork-monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--config.expand-env=true'
+
   grafana:
-    image: grafana/grafana:12.0.0
+    image: grafana/grafana:13.0.2
     container_name: cowork-grafana
     restart: unless-stopped
     ports:
@@ -329,7 +344,7 @@ services:
       - prometheus
 
   mysqld_exporter:
-    image: prom/mysqld-exporter:v0.17.2
+    image: prom/mysqld-exporter:v0.19.0
     container_name: cowork-mysqld-exporter
     restart: unless-stopped
     ports:
@@ -344,7 +359,7 @@ services:
         condition: service_healthy
 
   redis_exporter:
-    image: oliver006/redis_exporter:v1.73.0
+    image: oliver006/redis_exporter:v1.86.0
     container_name: cowork-redis-exporter
     restart: unless-stopped
     ports:
@@ -368,7 +383,7 @@ services:
         condition: service_healthy
 
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.17.1
+    image: prometheuscommunity/postgres-exporter:v0.19.1
     container_name: cowork-postgres-exporter
     restart: unless-stopped
     ports:
@@ -380,7 +395,7 @@ services:
         condition: service_healthy
 
   mongodb_exporter:
-    image: percona/mongodb_exporter:0.50.0
+    image: percona/mongodb_exporter:0.51.0
     container_name: cowork-mongodb-exporter
     restart: unless-stopped
     ports:
@@ -450,6 +465,8 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
       cowork-config:
         condition: service_healthy
     environment:
@@ -457,6 +474,8 @@ services:
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
       DATAGSM_TOKEN_URL: https://oauth.authorization.datagsm.kr/v1/oauth/token
       DATAGSM_USERINFO_URL: https://oauth.resource.datagsm.kr/userinfo
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_USER_SYNC: ${KAFKA_TOPIC_USER_SYNC:-user.data.sync}
       JWT_ACCESS_EXPIRE: ${JWT_ACCESS_EXPIRE:-30m}
       JWT_REFRESH_EXPIRE: ${JWT_REFRESH_EXPIRE:-2160h}
     ports:
@@ -512,6 +531,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       PORT: "8082"
       APP_CONFIG_URL: http://cowork-config:8761
@@ -528,6 +549,8 @@ services:
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     ports:
       - "8082:8082"
     volumes:
@@ -612,6 +635,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+      GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
+      GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY}
     ports:
       - "8089:8084"
     volumes:

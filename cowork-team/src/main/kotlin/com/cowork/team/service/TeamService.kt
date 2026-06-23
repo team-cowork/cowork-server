@@ -14,11 +14,10 @@ import com.cowork.team.event.TeamEventPublisher
 import com.cowork.team.event.TeamLifecycleSyncPublisher
 import com.cowork.team.repository.TeamMemberRepository
 import com.cowork.team.repository.TeamRepository
+import com.cowork.team.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
@@ -31,10 +30,9 @@ class TeamService(
     private val s3Service: S3Service,
 ) {
 
-    private fun findTeamOrThrow(teamId: Long): Team =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다. id=$teamId", HttpStatus.NOT_FOUND)
-        }
+    private fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     private fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())
@@ -60,10 +58,10 @@ class TeamService(
                 description = request.description,
                 iconUrl = request.iconUrl,
                 ownerId = ownerId,
-            )
+            ),
         )
         teamMemberRepository.save(
-            TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)
+            TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER),
         )
 
         val payload = TeamEventPayload(
@@ -73,25 +71,21 @@ class TeamService(
             actorUserId = ownerId,
             targetUserIds = listOf(ownerId),
         )
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() {
-                teamEventPublisher.publishNotification(payload)
-                teamLifecycleSyncPublisher.publishTeamSnapshot(
-                    actorUserId = ownerId,
-                    members = listOf(TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)),
-                )
-            }
-        })
+        afterCommit {
+            teamEventPublisher.publishNotification(payload)
+            teamLifecycleSyncPublisher.publishTeamSnapshot(
+                actorUserId = ownerId,
+                members = listOf(TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)),
+            )
+        }
 
         return TeamResponse.of(team)
     }
 
-    fun getMyTeams(userId: Long): List<TeamSummaryResponse> =
-        teamMemberRepository.findAllByUserIdWithTeam(userId)
-            .map { m -> TeamSummaryResponse.of(m.team, m.role) }
+    fun getMyTeams(userId: Long): List<TeamSummaryResponse> = teamMemberRepository.findAllByUserIdWithTeam(userId)
+        .map { m -> TeamSummaryResponse.of(m.team, m.role) }
 
-    fun getTeam(teamId: Long): TeamResponse =
-        TeamResponse.of(findTeamOrThrow(teamId))
+    fun getTeam(teamId: Long): TeamResponse = TeamResponse.of(findTeamOrThrow(teamId))
 
     @Transactional
     fun updateTeam(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
@@ -112,9 +106,7 @@ class TeamService(
             team.iconUrl = iconUrl
             previousIconUrl?.let { prev ->
                 val key = s3Service.extractObjectKey(prev)
-                TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-                    override fun afterCommit() = s3Service.deleteObject(key)
-                })
+                afterCommit { s3Service.deleteObject(key) }
             }
         }
         return IconConfirmResponse(iconUrl = iconUrl)
@@ -129,9 +121,7 @@ class TeamService(
         team.iconUrl = null
 
         val key = s3Service.extractObjectKey(previousIconUrl)
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = s3Service.deleteObject(key)
-        })
+        afterCommit { s3Service.deleteObject(key) }
     }
 
     @Transactional
@@ -146,8 +136,6 @@ class TeamService(
         )
         teamRepository.delete(team)
 
-        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
-            override fun afterCommit() = teamEventPublisher.publishLifecycle(payload)
-        })
+        afterCommit { teamEventPublisher.publishLifecycle(payload) }
     }
 }

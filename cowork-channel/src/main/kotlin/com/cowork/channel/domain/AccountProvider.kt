@@ -1,10 +1,6 @@
 package com.cowork.channel.domain
 
-enum class AccountProvider(
-    val displayName: String?,
-    val loginUrl: String?,
-    val oauthSupported: Boolean,
-) {
+enum class AccountProvider(val displayName: String?, val loginUrl: String?, val oauthSupported: Boolean) {
     GITHUB("GitHub", "https://github.com/login", true),
     NOTION("Notion", "https://www.notion.so/login", true),
     JIRA("Jira", "https://id.atlassian.com/login", true),

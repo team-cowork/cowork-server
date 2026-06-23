@@ -5,6 +5,10 @@ import { GithubIssueResultConsumer } from './github-issue-result.consumer';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
 
+type ConsumerWithPrivates = Omit<GithubIssueResultConsumer, 'handleResultEvent'> & {
+    handleResultEvent: (event: GithubIssueResultEvent) => Promise<void>;
+};
+
 const mockToObject = jest.fn();
 const mockSaveSystemMessage = jest.fn();
 
@@ -40,7 +44,7 @@ describe('GithubIssueResultConsumer', () => {
     });
 
     const callHandleResultEvent = (event: GithubIssueResultEvent) =>
-        (consumer as any).handleResultEvent(event);
+        (consumer as unknown as ConsumerWithPrivates).handleResultEvent(event);
 
     describe('이슈 생성 성공', () => {
         it('성공 SYSTEM 메시지를 저장하고 WebSocket으로 브로드캐스트한다', async () => {
@@ -108,13 +112,13 @@ describe('GithubIssueResultConsumer', () => {
     describe('WebSocket 서버 미설정', () => {
         it('io가 없어도 메시지 저장은 정상 처리된다', async () => {
             const consumerWithoutIo = new GithubIssueResultConsumer(
-                mockChatService as any,
-                { get: jest.fn().mockReturnValue('localhost:9092') } as any,
+                mockChatService as unknown as ChatService,
+                { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
             );
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
 
             await expect(
-                (consumerWithoutIo as any).handleResultEvent({
+                (consumerWithoutIo as unknown as ConsumerWithPrivates).handleResultEvent({
                     channelId: 5,
                     teamId: 1,
                     success: true,

@@ -113,7 +113,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
@@ -150,7 +150,7 @@ jobs:
             MATRIX='{"include":[
               {"service":"cowork-gateway","build":"gradle","working-directory":"."},
               {"service":"cowork-config","build":"gradle","working-directory":"."},
-              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"},
+              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"},
               {"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"},
               {"service":"cowork-team","build":"gradle","working-directory":"."},
@@ -158,8 +158,8 @@ jobs:
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"},
-              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"22"},
+              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
+              {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
               {"service":"cowork-channel","build":"gradle","working-directory":"."}
             ]}'
             SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-project, cowork-channel, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
@@ -173,7 +173,7 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-config"
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.17.3","otp-version":"27.1.1"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-user"
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]') && \
@@ -197,17 +197,17 @@ jobs:
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"22"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
             [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"22"}]') && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-promotion"
             [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
-              MATRIX='{"include":[{"service":"변경 없음","build":"skip"}]}'
-              SERVICES="없음"
+              MATRIX='{"include":[{"service":"no-changes","build":"skip"}]}'
+              SERVICES="none"
             fi
           fi
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
@@ -229,15 +229,15 @@ jobs:
     steps:
       - name: No Changed Services
         if: matrix.build == 'skip'
-        run: echo "변경된 서비스가 없습니다."
+        run: echo "No changed services."
       - name: Checkout Code
         if: matrix.build != 'skip'
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Setup JDK
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v5
         with:
-          java-version: '21'
+          java-version: '25'
           distribution: 'temurin'
       - name: Setup Gradle
         if: matrix.build == 'gradle'
@@ -270,6 +270,12 @@ jobs:
         with:
           go-version-file: ${{ matrix.go-version-file }}
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
+      - name: Lint (Go)
+        if: matrix.build == 'go'
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
+          working-directory: ${{ matrix.working-directory }}
       - name: Setup Elixir
         if: matrix.build == 'elixir'
         uses: erlef/setup-beam@v1

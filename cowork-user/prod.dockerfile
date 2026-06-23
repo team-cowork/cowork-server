@@ -1,6 +1,6 @@
 # 빌드 전 _build/prod/rel/cowork_user (MIX_ENV=prod mix release) 산출물이 컨텍스트에 있어야 한다.
 # TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
-FROM flyway/flyway:11.8.1 AS flyway
+FROM flyway/flyway:12.8.1 AS flyway
 
 FROM debian:bookworm-20240926-slim
 WORKDIR /app
