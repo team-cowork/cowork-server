@@ -8,8 +8,8 @@ import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.client.PreferenceTeamRoleClient
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.global.client.PreferenceTeamRoleClient
 import com.cowork.team.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
