@@ -14,8 +14,8 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelMembe
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
-import com.cowork.channel.domain.client.ProjectClient
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteTemplateService
+import com.cowork.channel.global.client.ProjectClient
 import com.cowork.channel.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service

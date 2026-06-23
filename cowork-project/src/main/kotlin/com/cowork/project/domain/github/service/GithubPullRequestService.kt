@@ -2,7 +2,7 @@ package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.client.GithubAppClient
 
-import com.cowork.project.domain.client.UserClient
+import com.cowork.project.global.client.UserClient
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
