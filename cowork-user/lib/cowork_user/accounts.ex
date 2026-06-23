@@ -214,6 +214,7 @@ defmodule CoworkUser.Accounts do
       "github_id" => Map.get(event, "github_id") || Map.get(event, "github"),
       "student_role" => Map.get(event, "student_role") || Map.get(event, "st_role") || Map.get(event, "stRole"),
       "student_number" => Map.get(event, "student_number") || Map.get(event, "st_num") || Map.get(event, "stNum"),
+      "datagsm_student_id" => Map.get(event, "datagsm_student_id"),
       "major" => Map.get(event, "major"),
       "role" => Map.get(event, "role"),
       "specialty" => Map.get(event, "specialty") || Map.get(event, "spe"),
@@ -249,6 +250,36 @@ defmodule CoworkUser.Accounts do
     exception ->
       {:error, {:transient, Exception.message(exception)}}
   end
+
+  @doc """
+  DataGSM webhook에서 전달된 student 라이프사이클 이벤트를 반영한다.
+
+  전체 upsert(`upsert_user_from_sync_event/1`)와 달리 불변인 `datagsm_student_id`로 기존
+  account를 찾아 `student_role`만 부분 갱신한다. 이메일은 변경될 수 있어 조인 키로 쓰지 않는다.
+  접속 상태(status)나 학번/전공 등 다른 필드는 보존한다.
+  cowork에 아직 가입(로그인)하지 않은 사용자(account 없음)는 갱신 대상이 없으므로 skip한다.
+  """
+  def apply_student_event(%{"datagsm_student_id" => student_id, "student_role" => student_role})
+      when is_integer(student_id) and is_binary(student_role) and student_role != "" do
+    case Repo.get_by(Account, datagsm_student_id: student_id) do
+      nil ->
+        {:skip, :account_not_found}
+
+      account ->
+        account
+        |> Account.student_role_changeset(%{student_role: student_role})
+        |> Repo.update()
+        |> case do
+          {:ok, _} -> :ok
+          {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
+        end
+    end
+  rescue
+    exception in [Ecto.ConstraintError] -> {:error, {:validation, Exception.message(exception)}}
+    exception -> {:error, {:transient, Exception.message(exception)}}
+  end
+
+  def apply_student_event(_event), do: {:error, :invalid_student_event}
 
   def search_users(params) do
     with {:ok, params} <- resolve_team(params) do
@@ -328,6 +359,7 @@ defmodule CoworkUser.Accounts do
       description: Map.get(attrs, "account_description"),
       student_role: Map.get(attrs, "student_role") || Map.get(attrs, "role"),
       student_number: Map.get(attrs, "student_number") || build_student_number(attrs),
+      datagsm_student_id: Map.get(attrs, "datagsm_student_id"),
       major: Map.get(attrs, "major"),
       specialty: Map.get(attrs, "specialty"),
       status: Map.get(attrs, "status", "offline")

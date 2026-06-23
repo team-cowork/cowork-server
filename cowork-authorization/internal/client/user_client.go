@@ -32,6 +32,7 @@ type UpsertUserRequest struct {
 	Major                string  `json:"major"`
 	Role                 string  `json:"role"`
 	GithubID             *string `json:"github_id"`
+	DataGSMStudentID     *int64  `json:"datagsm_student_id"`
 }
 
 type upsertUserResponse struct {

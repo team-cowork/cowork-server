@@ -11,6 +11,7 @@ defmodule CoworkUser.Accounts.Account do
     field :description, :string
     field :student_role, :string
     field :student_number, :string
+    field :datagsm_student_id, :integer
     field :major, :string
     field :specialty, :string
     field :status, :string
@@ -35,6 +36,7 @@ defmodule CoworkUser.Accounts.Account do
       :description,
       :student_role,
       :student_number,
+      :datagsm_student_id,
       :major,
       :specialty,
       :status,
@@ -56,5 +58,11 @@ defmodule CoworkUser.Accounts.Account do
     account
     |> cast(attrs, [:status, :status_message, :status_expires_at, :last_modified_by])
     |> validate_required([:status])
+  end
+
+  def student_role_changeset(account, attrs) do
+    account
+    |> cast(attrs, [:student_role, :last_modified_by])
+    |> validate_required([:student_role])
   end
 end
