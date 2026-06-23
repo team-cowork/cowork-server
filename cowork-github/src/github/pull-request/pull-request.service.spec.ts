@@ -187,6 +187,27 @@ describe('PullRequestService', () => {
 
       expect(result[0].labels).toEqual([]);
     });
+
+    it('user가 null(탈퇴 계정)이면 author를 ghost로 매핑한다', async () => {
+      apiClient.listPullRequests.mockResolvedValue([
+        { ...baseListItem, user: null },
+      ]);
+
+      const result = await service.listPullRequests(
+        'my-org',
+        'my-repo',
+        'open',
+      );
+
+      expect(result[0].author).toBe('ghost');
+    });
+
+    it('허용되지 않은 state 값은 GitHub 호출 없이 400 GithubClientError를 던진다', async () => {
+      await expect(
+        service.listPullRequests('my-org', 'my-repo', 'invalid'),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(apiClient.listPullRequests).not.toHaveBeenCalled();
+    });
   });
 
   describe('mergePullRequest', () => {
