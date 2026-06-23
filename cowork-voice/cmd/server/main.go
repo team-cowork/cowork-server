@@ -38,6 +38,7 @@ import (
 	redisinfra "github.com/cowork/cowork-voice/internal/infra/redis"
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
+	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
 )
@@ -95,15 +96,20 @@ func main() {
 	channelClient := channel.NewClient(cfg.ChannelServiceURL)
 	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
 	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
+	outboxRepo := mongoinfra.NewOutboxRepository(db)
 	livekitRoom := lkinfra.NewLiveKitRoom(
 		livekitClient,
 		cfg.LiveKitAPIKey,
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, cfg.LiveKitWsURL)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, outboxRepo, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
-	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, kafkaProducer)
+	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, outboxRepo)
+
+	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
+	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
+	outboxRelay.Start()
 	webhookHandler := webhookdomain.NewHandler(
 		webhookSvc,
 		auth.NewSimpleKeyProvider(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret),
@@ -162,7 +168,7 @@ func main() {
 		exitCode = 1
 	}
 
-	eurekaClient.Deregister(cfg)
+	_ = eurekaClient.Deregister(cfg)
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -170,6 +176,7 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server shutdown error", "err", err)
 	}
+	outboxRelay.Stop()
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
 	}

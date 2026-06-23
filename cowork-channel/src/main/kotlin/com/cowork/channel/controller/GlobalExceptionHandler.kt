@@ -33,7 +33,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
-        log.error("처리되지 않은 예외 발생", e)
+        log.error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(ErrorResponse("서버 오류가 발생했습니다."))
     }
 }
