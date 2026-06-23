@@ -1,0 +1,3 @@
+60391eed4b4a6592e970f4a3b45929c3b1101e7c 60391ee fix(github): prettier 포맷 규칙에 맞게 테스트 인자 줄바꿈
+0ab00a46f013e11b881511f27b9703808611f06e 0ab00a4 ci/cd(github): PR 제목 scope 수정 후 CI 재검증 트리거
+1f05ea9f4bb94973310c9f84ab554791b5f2078f 1f05ea9 add(pull-request): PR 목록 조회 엔드포인트 추가

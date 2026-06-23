@@ -36,7 +36,7 @@ export interface GithubPullRequestListItem {
   draft: boolean;
   merged_at: string | null;
   html_url: string;
-  user: { login: string };
+  user: { login: string } | null;
   labels: { name: string }[];
   created_at: string;
   updated_at: string;

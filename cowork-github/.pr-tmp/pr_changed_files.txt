@@ -1,0 +1,7 @@
+src/github/pull-request/client/pull-request-api.client.spec.ts
+src/github/pull-request/client/pull-request-api.client.ts
+src/github/pull-request/pull-request-list-http.controller.spec.ts
+src/github/pull-request/pull-request-list-http.controller.ts
+src/github/pull-request/pull-request.module.ts
+src/github/pull-request/pull-request.service.spec.ts
+src/github/pull-request/pull-request.service.ts

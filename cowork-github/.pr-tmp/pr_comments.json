@@ -1,0 +1,23 @@
+[
+  {
+    "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nGitHub API 명세에 따르면, PR을 생성한 사용자의 계정이 삭제된 경우 `user` 필드가 `null`로 반환될 수 있습니다. 타입 안정성을 위해 `user` 타입을 `{ login: string } | null`로 정의하는 것이 좋습니다.\n\n```suggestion\n  user: { login: string } | null;\n```",
+    "id": 3456806069,
+    "line": 39,
+    "path": "src/github/pull-request/client/pull-request-api.client.ts",
+    "user": "gemini-code-assist[bot]"
+  },
+  {
+    "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\nGitHub API에서 탈퇴한 사용자의 경우 `user` 필드가 `null`로 반환될 수 있습니다. 따라서 `item.user.login` 호출 시 `TypeError`가 발생할 수 있으므로, 옵셔널 체이닝(`?.`)과 널 병합 연산자(`??`)를 사용하여 방어적으로 코드를 작성하는 것이 안전합니다. 또한 `labels` 필드도 안전하게 처리하기 위해 옵셔널 체이닝을 적용하는 것을 권장합니다.\n\n```suggestion\n    return items.map((item) => ({\n      number: item.number,\n      title: item.title,\n      author: item.user?.login ?? 'ghost',\n      state: item.state,\n      draft: item.draft,\n      merged: item.merged_at != null,\n      htmlUrl: item.html_url,\n      labels: item.labels?.map((label) => label.name) ?? [],\n      createdAt: item.created_at,\n      updatedAt: item.updated_at,\n    }));\n```",
+    "id": 3456806075,
+    "line": 106,
+    "path": "src/github/pull-request/pull-request.service.ts",
+    "user": "gemini-code-assist[bot]"
+  },
+  {
+    "body": "![medium](https://www.gstatic.com/codereviewagent/medium-priority.svg)\n\n`state` 쿼리 파라미터의 값으로 `open`, `closed`, `all` 이외의 잘못된 값이 들어올 경우, GitHub API를 호출하기 전에 컨트롤러 레벨에서 미리 검증하여 불필요한 API 호출을 방지하고 클라이언트에게 명확한 에러(400 Bad Request)를 반환하는 것이 좋습니다.\n\n```typescript\n  @Get()\n  async list(\n    @Param('owner') owner: string,\n    @Param('repo') repo: string,\n    @Query('state') state: 'open' | 'closed' | 'all' = 'open',\n  ) {\n    if (state && !['open', 'closed', 'all'].includes(state)) {\n      throw new HttpException(\n        'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',\n        400,\n      );\n    }\n    return this.handle(() =>\n      this.pullRequestService.listPullRequests(owner, repo, state),\n    );\n  }\n```",
+    "id": 3456806081,
+    "line": 27,
+    "path": "src/github/pull-request/pull-request-list-http.controller.ts",
+    "user": "gemini-code-assist[bot]"
+  }
+]
