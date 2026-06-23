@@ -1,11 +1,12 @@
 package com.cowork.channel.service
 
-import com.cowork.channel.domain.MeetingNote
-import com.cowork.channel.dto.UpdateMeetingNoteRequest
-import com.cowork.channel.repository.ChannelMemberRepository
-import com.cowork.channel.repository.ChannelRepository
-import com.cowork.channel.repository.MeetingNoteRepository
-import com.cowork.channel.repository.MeetingNoteTemplateRepository
+import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
+import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.meetingNote.entity.MeetingNote
+import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
+import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
+import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
+import com.cowork.channel.domain.meetingNote.service.MeetingNoteService
 import io.mockk.*
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
