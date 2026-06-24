@@ -52,3 +52,10 @@ ChannelMemberSchema.index({ channelId: 1, userId: 1 }, { unique: true });
 
 /** 특정 사용자가 속한 모든 채널을 빠르게 조회하기 위한 단일 필드 인덱스 */
 ChannelMemberSchema.index({ userId: 1 });
+
+/**
+ * 팀 단위 멤버십 조회를 위한 복합 인덱스 (`teamId`, `userId`).
+ * 팀 미읽음 수 집계·팀 메시지 검색·`join:team` 권한 확인 등
+ * `{ teamId, userId }`로 시작하는 쿼리가 `{ userId }` 인덱스를 풀스캔하지 않도록 한다.
+ */
+ChannelMemberSchema.index({ teamId: 1, userId: 1 });
