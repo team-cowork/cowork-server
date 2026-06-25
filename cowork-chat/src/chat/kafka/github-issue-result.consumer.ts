@@ -2,9 +2,11 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * Kafka `github.issue.result` 토픽을 구독하여 GitHub 이슈 생성 결과를 처리하는 컨슈머.
@@ -21,6 +23,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     constructor(
         private readonly chatService: ChatService,
         private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
     ) {}
 
     /**
@@ -63,7 +66,19 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
                     }
                 },
             })
-            .catch((err) => this.logger.error('github.issue.result Kafka consumer 실행 실패', err));
+            .catch(async (err) => {
+                this.logger.error('github.issue.result Kafka consumer 실행 실패', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 github.issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'github.issue.result', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: github.issue.result');
     }
 

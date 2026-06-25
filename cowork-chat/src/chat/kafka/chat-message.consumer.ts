@@ -3,11 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Types } from 'mongoose';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { MessageRepository } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * Kafka `chat.message` 토픽을 구독하여 채팅 메시지를 처리하는 컨슈머.
@@ -28,6 +30,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly configService: ConfigService,
         private readonly elasticsearchService: ElasticsearchService,
+        private readonly dicoshot: DicoshotService,
     ) {}
 
     /**
@@ -70,8 +73,17 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                     }
                 },
             })
-            .catch((err) => {
+            .catch(async (err) => {
                 this.logger.error('chat.message Kafka consumer 실행 실패', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 chat.message consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'chat.message', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: chat.message');
