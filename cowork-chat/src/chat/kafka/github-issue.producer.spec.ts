@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { DicoshotService } from 'dicoshot-nest';
 import { GithubIssueProducer } from './github-issue.producer';
 import { GithubIssueCreateEvent } from './event/github-issue.event';
 
@@ -25,8 +26,11 @@ describe('GithubIssueProducer', () => {
         const configService = {
             get: jest.fn().mockReturnValue('localhost:9092'),
         } as unknown as ConfigService;
+        const dicoshotService = {
+            sendCustom: jest.fn().mockResolvedValue(true),
+        } as unknown as DicoshotService;
 
-        producer = new GithubIssueProducer(configService);
+        producer = new GithubIssueProducer(configService, dicoshotService);
         producer.onModuleInit();
     });
 
