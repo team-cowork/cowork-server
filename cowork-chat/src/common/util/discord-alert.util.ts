@@ -14,7 +14,7 @@ export function buildErrorFields(error: unknown): DiscordField[] {
     const stack = error instanceof Error ? error.stack : undefined;
 
     const fields: DiscordField[] = [
-        { name: 'Error', value: message || '(no message)' },
+        { name: 'Error', value: truncate(message || '(no message)', MAX_FIELD_LENGTH) },
         { name: 'Host', value: hostname(), inline: true },
     ];
 
