@@ -1,10 +1,13 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { DicoshotService } from 'dicoshot-nest';
 import { Message } from '../schema/message.schema';
 import { ChannelMember } from '../schema/channel-member.schema';
 import { NotificationTriggerProducer } from './notification-trigger.producer';
 import { MessageRepository, NotificationMessage } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
+import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
@@ -13,6 +16,10 @@ const MAX_RETRY = 3;
 const PROCESSING_STALE_THRESHOLD_MS = 2 * 60 * 1_000;
 /** reclaimStaleProcessing 실행 최소 간격 — 5초마다 updateMany를 보내지 않도록 스로틀 */
 const RECLAIM_INTERVAL_MS = 60_000;
+/** 폴링 사이클 실패 알림 최소 간격 — 5초마다 반복 실패해도 Discord 알림은 5분에 한 번만 보낸다 */
+const POLL_FAILURE_ALERT_COOLDOWN_MS = 5 * 60 * 1_000;
+/** 메시지 영구 실패(FAILED) 알림 최소 간격 — 동시에 여러 건이 실패해도 1분에 한 번만 보낸다 */
+const MESSAGE_FAILURE_ALERT_COOLDOWN_MS = 60_000;
 
 /**
  * 알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
@@ -33,6 +40,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         private readonly messageRepository: MessageRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly triggerProducer: NotificationTriggerProducer,
+        private readonly dicoshot: DicoshotService,
     ) {}
 
     /**
@@ -54,6 +62,14 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             await this.poll();
         } catch (err) {
             this.logger.error('Notification outbox polling failed', err);
+            if (AlertThrottleUtil.shouldAlert('notification-outbox-poll-failed', POLL_FAILURE_ALERT_COOLDOWN_MS)) {
+                void this.dicoshot.sendCustom({
+                    title: '🔴 Notification Outbox 폴링 실패',
+                    description: 'cowork-chat의 outbox 폴링 사이클이 실패했습니다. 알림 발송이 지연될 수 있습니다.',
+                    color: 'danger',
+                    fields: buildErrorFields(err),
+                }).catch(() => {});
+            }
         } finally {
             this.isPolling = false;
         }
@@ -118,6 +134,18 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
                 const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
                 this.logger.error(`outbox 처리 실패 (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
                 await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
+                if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
+                    void this.dicoshot.sendCustom({
+                        title: '⚠️ 알림 발송 영구 실패',
+                        description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
+                        color: 'warning',
+                        fields: [
+                            { name: 'messageId', value: msg._id.toString(), inline: true },
+                            { name: 'channelId', value: String(msg.channelId), inline: true },
+                            ...buildErrorFields(err),
+                        ],
+                    }).catch(() => {});
+                }
             }
         }
     }
