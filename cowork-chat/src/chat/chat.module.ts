@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
+import { DicoshotModule } from 'dicoshot-nest';
 import { LoggerModule } from 'nestjs-pino';
 import { createWriteStream, mkdirSync } from 'fs';
 import { ChatGateway } from './chat.gateway';
@@ -41,6 +42,7 @@ const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
 const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH]);
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
     ? []
@@ -97,6 +99,17 @@ function createLogStream() {
         PrometheusModule.register({
             defaultMetrics: { enabled: true },
             path: '/metrics',
+        }),
+        DicoshotModule.registerAsync({
+            imports: [ConfigModule],
+            inject: [ConfigService],
+            useFactory: (...[configService]: unknown[]) => ({
+                webhookUrl: getOptionalConfig(configService as ConfigService, 'DISCORD_WEBHOOK_URL'),
+                applicationName: 'cowork-chat',
+                locale: 'ko',
+            }),
+            filter: IS_PRODUCTION ? { environment: 'production' } : false,
+            interceptor: IS_PRODUCTION,
         }),
         MongooseModule.forRootAsync({
             imports: [ConfigModule],
