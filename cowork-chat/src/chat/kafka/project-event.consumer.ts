@@ -2,7 +2,9 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 interface ProjectEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -19,7 +21,10 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
     private consumer!: Consumer;
     private io?: Server;
 
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
+    ) {}
 
     setSocketServer(io: Server) {
         this.io = io;
@@ -49,8 +54,17 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                     return Promise.resolve();
                 },
             })
-            .catch((err) => {
+            .catch(async (err) => {
                 this.logger.error('프로젝트 이벤트 Kafka consumer 실행 실패', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 project.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'project.event', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: project.event');
