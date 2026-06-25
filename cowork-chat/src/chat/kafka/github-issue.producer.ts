@@ -1,8 +1,10 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
+import { DicoshotService } from 'dicoshot-nest';
 import { GithubIssueCreateEvent } from './event/github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * GitHub 이슈 생성 이벤트를 Kafka `github.issue.create` 토픽으로 발행하는 프로듀서.
@@ -18,7 +20,10 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
     private isConnected = false;
     private connectPromise?: Promise<void>;
 
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
+    ) {}
 
     /**
      * 모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
@@ -34,6 +39,15 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
         this.producer = kafka.producer();
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`GitHub issue producer bootstrap connect failed: ${this.formatError(error)}`);
+            void this.dicoshot.sendCustom({
+                title: '🔴 Kafka Producer 연결 실패',
+                description: 'cowork-chat의 github.issue.create producer가 부트스트랩 연결에 실패했습니다.',
+                color: 'danger',
+                fields: [
+                    { name: 'Topic', value: 'github.issue.create', inline: true },
+                    ...buildErrorFields(error),
+                ],
+            }).catch(() => {});
         });
     }
 
