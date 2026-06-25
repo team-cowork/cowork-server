@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { GithubIssueResultConsumer } from './github-issue-result.consumer';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
@@ -34,6 +35,10 @@ describe('GithubIssueResultConsumer', () => {
                 {
                     provide: ConfigService,
                     useValue: { get: jest.fn().mockReturnValue('localhost:9092') },
+                },
+                {
+                    provide: DicoshotService,
+                    useValue: { sendCustom: jest.fn().mockResolvedValue(true) },
                 },
             ],
         }).compile();
@@ -114,6 +119,7 @@ describe('GithubIssueResultConsumer', () => {
             const consumerWithoutIo = new GithubIssueResultConsumer(
                 mockChatService as unknown as ChatService,
                 { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
+                { sendCustom: jest.fn().mockResolvedValue(true) } as unknown as DicoshotService,
             );
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
 
