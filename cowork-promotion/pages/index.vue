@@ -159,9 +159,11 @@ const positionOrder = [
     "Mobile App Client",
     "Cloud",
     "Design",
-];
+] as const;
 
-const positionConfig: Record<string, { color: string; description: string }> = {
+type PositionName = (typeof positionOrder)[number];
+
+const positionConfig: Record<PositionName, { color: string; description: string }> = {
     Server: {
         color: "#8B5CF6",
         description:
@@ -208,7 +210,7 @@ const positionTechsMap = computed<Record<string, string[]>>(() => {
 });
 
 interface PositionGroup {
-    name: string;
+    name: PositionName;
     color: string;
     description: string;
     techs: string[];
