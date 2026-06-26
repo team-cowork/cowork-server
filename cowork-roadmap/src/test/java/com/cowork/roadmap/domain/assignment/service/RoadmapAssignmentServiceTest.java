@@ -13,12 +13,15 @@ import com.cowork.roadmap.domain.assignment.entity.RoadmapAssignment;
 import com.cowork.roadmap.domain.assignment.presentation.data.request.CreateAssignmentReqDto;
 import com.cowork.roadmap.domain.assignment.presentation.data.request.UpdateAssignmentStatusReqDto;
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
+import com.cowork.roadmap.domain.assignment.service.impl.CreateRoadmapAssignmentServiceImpl;
+import com.cowork.roadmap.domain.assignment.service.impl.ModifyRoadmapAssignmentStatusServiceImpl;
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
+import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -31,16 +34,20 @@ class RoadmapAssignmentServiceTest {
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
-    private final RoadmapAssignmentService assignmentService = new RoadmapAssignmentService(assignmentRepository,
-            roadmapRepository,
+    private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
+    private final CreateRoadmapAssignmentServiceImpl createRoadmapAssignmentService = new CreateRoadmapAssignmentServiceImpl(
+            assignmentRepository,
             nodeRepository,
-            accessGuard);
+            accessGuard,
+            roadmapLookupSupport);
+    private final ModifyRoadmapAssignmentStatusServiceImpl modifyRoadmapAssignmentStatusService = new ModifyRoadmapAssignmentStatusServiceImpl(
+            assignmentRepository);
 
     @Test
     void createAssignment_globalScope_failsWithBadRequest() {
         CreateAssignmentReqDto request = new CreateAssignmentReqDto(1L, null, RoadmapScope.GLOBAL, 5L, null, 42L, null);
 
-        StepVerifier.create(assignmentService.createAssignment(1L, "ADMIN", request))
+        StepVerifier.create(createRoadmapAssignmentService.execute(1L, "ADMIN", request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
                 .verify();
@@ -61,7 +68,7 @@ class RoadmapAssignmentServiceTest {
         when(accessGuard.requireTeamManagerOrAdmin(any(), any(), any())).thenReturn(Mono.empty());
         when(nodeRepository.findById(99L)).thenReturn(Mono.just(node));
 
-        StepVerifier.create(assignmentService.createAssignment(1L, "MEMBER", request))
+        StepVerifier.create(createRoadmapAssignmentService.execute(1L, "MEMBER", request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
                 .verify();
@@ -71,7 +78,8 @@ class RoadmapAssignmentServiceTest {
     void updateStatus_byUnrelatedNonAdmin_isForbidden() {
         when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment(5L, 100L, 200L)));
 
-        StepVerifier.create(assignmentService.updateStatus(999L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
+        StepVerifier
+                .create(modifyRoadmapAssignmentStatusService.execute(999L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.FORBIDDEN)
                 .verify();
@@ -83,7 +91,8 @@ class RoadmapAssignmentServiceTest {
         when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
         when(assignmentRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        StepVerifier.create(assignmentService.updateStatus(100L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
+        StepVerifier
+                .create(modifyRoadmapAssignmentStatusService.execute(100L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
                 .assertNext(response -> assertThat(response.status()).isEqualTo(AssignmentStatus.DONE.name()))
                 .verifyComplete();
     }
