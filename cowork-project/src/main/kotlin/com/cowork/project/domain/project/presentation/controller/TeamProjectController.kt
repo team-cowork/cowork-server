@@ -2,8 +2,8 @@ package com.cowork.project.domain.project.presentation.controller
 
 import com.cowork.project.domain.project.service.ProjectService
 
-import com.cowork.project.domain.project.presentation.data.response.ProjectResponse
-import com.cowork.project.domain.project.presentation.data.request.ReorderProjectsRequest
+import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
+import com.cowork.project.domain.project.presentation.data.request.ReorderProjectsReqDto
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -34,7 +34,7 @@ class TeamProjectController(
     fun reorderTeamProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-        @RequestBody request: ReorderProjectsRequest,
-    ): List<ProjectResponse> =
+        @RequestBody request: ReorderProjectsReqDto,
+    ): List<ProjectResDto> =
         projectService.reorderTeamProjects(userId, teamId, request.orderedProjectIds)
 }
