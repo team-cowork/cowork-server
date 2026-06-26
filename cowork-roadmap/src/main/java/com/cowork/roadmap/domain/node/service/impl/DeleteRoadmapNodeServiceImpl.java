@@ -43,11 +43,13 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
     @Transactional
     public Mono<Void> execute(Long userId, String userRole, Long nodeId) {
         return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                        .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(nodeRepository.findByRoadmapIdOrderByPositionAsc(node.getRoadmapId())
-                                        .collectList())
-                                .flatMap(all -> nodeRepository.deleteAllById(collectSubtreeIds(nodeId, all)))));
+                .flatMap(
+                        node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
+                                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
+                                        .then(Mono.defer(() -> nodeRepository
+                                                .findByRoadmapIdOrderByPositionAsc(node.getRoadmapId())
+                                                .collectList()))
+                                        .flatMap(all -> nodeRepository.deleteAllById(collectSubtreeIds(nodeId, all)))));
     }
 
     private Set<Long> collectSubtreeIds(Long rootId, List<RoadmapNode> all) {

@@ -13,7 +13,7 @@ import com.cowork.roadmap.domain.roadmap.service.impl.CreateRoadmapServiceImpl;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class CreateRoadmapServiceImplTest {
+class CreateRoadmapServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
