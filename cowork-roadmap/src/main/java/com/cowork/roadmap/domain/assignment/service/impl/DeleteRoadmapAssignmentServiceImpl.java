@@ -34,7 +34,7 @@ public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignme
                 return assignmentRepository.delete(assignment);
             }
             return accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId())
-                    .then(assignmentRepository.delete(assignment));
+                    .then(Mono.defer(() -> assignmentRepository.delete(assignment)));
         });
     }
 

@@ -17,7 +17,7 @@ import com.cowork.roadmap.domain.roadmap.service.impl.ListRoadmapsServiceImpl;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
-class ListRoadmapsServiceImplTest {
+class ListRoadmapsServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
 
