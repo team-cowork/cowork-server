@@ -10,7 +10,6 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
@@ -18,18 +17,15 @@ import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapReqDto;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
-import com.cowork.roadmap.domain.roadmap.service.impl.CreateRoadmapServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.impl.QueryRoadmapTreeServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
-import team.themoment.sdk.exception.ExpectedException;
 
-class RoadmapServiceTest {
+class QueryRoadmapTreeServiceImplTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
@@ -41,8 +37,6 @@ class RoadmapServiceTest {
             referenceRepository,
             accessGuard,
             lookupSupport);
-    private final CreateRoadmapServiceImpl createRoadmapService = new CreateRoadmapServiceImpl(roadmapRepository,
-            accessGuard);
 
     @Test
     void getRoadmapTree_assemblesNodesIntoNestedTreeWithReferences() {
@@ -69,16 +63,6 @@ class RoadmapServiceTest {
             assertThat(tree.nodes().get(1).id()).isEqualTo(3L);
             assertThat(tree.nodes().get(1).children()).isEmpty();
         }).verifyComplete();
-    }
-
-    @Test
-    void createRoadmap_teamScopeWithoutOwnerTeamId_failsWithBadRequest() {
-        CreateRoadmapReqDto request = new CreateRoadmapReqDto("title", null, "Flutter", RoadmapScope.TEAM, null, null);
-
-        StepVerifier.create(createRoadmapService.execute(1L, "MEMBER", request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
-                .verify();
     }
 
     private static Roadmap roadmap(Long id, RoadmapScope scope) {
