@@ -1,5 +1,5 @@
 package com.cowork.project.domain.project.presentation.data.request
 
-data class ReorderProjectsRequest(
+data class ReorderProjectsReqDto(
     val orderedProjectIds: List<Long>,
 )

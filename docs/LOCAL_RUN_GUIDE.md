@@ -32,6 +32,7 @@
 | `cowork-chat`          | `8087` | NestJS                               | 정상 |
 | `cowork-voice`         | `8084` | Go                                   | 정상 |
 | `cowork-project`       | `8089` | Spring Boot                          | 정상 |
+| `cowork-roadmap`       | `8088` | Spring Boot (WebFlux + R2DBC)        | 정상 |
 
 인프라 (DB, 브로커, 모니터링 등) 17개 컨테이너도 동일하게 올라간다.
 

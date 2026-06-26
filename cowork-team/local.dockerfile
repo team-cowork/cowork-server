@@ -10,6 +10,7 @@ COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
 COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
 COPY cowork-team/src cowork-team/src
 COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
+COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
 RUN chmod +x gradlew && ./gradlew :cowork-team:bootJar -x test --no-daemon
 
 FROM eclipse-temurin:25-jre-alpine

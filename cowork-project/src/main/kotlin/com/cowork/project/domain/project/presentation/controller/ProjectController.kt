@@ -2,14 +2,14 @@ package com.cowork.project.domain.project.presentation.controller
 
 import com.cowork.project.domain.project.service.ProjectService
 
-import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberRequest
-import com.cowork.project.domain.project.presentation.data.request.CreateProjectRequest
+import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
+import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
-import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResponse
-import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResponse
-import com.cowork.project.domain.project.presentation.data.response.ProjectResponse
-import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleRequest
-import com.cowork.project.domain.project.presentation.data.request.UpdateProjectRequest
+import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
+import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
+import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
+import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleReqDto
+import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -38,8 +38,8 @@ class ProjectController(
     @PostMapping
     fun createProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateProjectRequest,
-    ): ResponseEntity<ProjectResponse> =
+        @RequestBody request: CreateProjectReqDto,
+    ): ResponseEntity<ProjectResDto> =
         ResponseEntity.status(201).body(projectService.createProject(userId, request))
 
     @Operation(summary = "프로젝트 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -51,7 +51,7 @@ class ProjectController(
     fun getProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResponse> =
+    ): ResponseEntity<ProjectDetailResDto> =
         ResponseEntity.ok(projectService.getProject(userId, projectId))
 
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
@@ -64,8 +64,8 @@ class ProjectController(
     fun updateProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-        @RequestBody request: UpdateProjectRequest,
-    ): ResponseEntity<ProjectResponse> =
+        @RequestBody request: UpdateProjectReqDto,
+    ): ResponseEntity<ProjectResDto> =
         ResponseEntity.ok(projectService.updateProject(userId, projectId, request))
 
     @Operation(summary = "프로젝트 삭제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -95,7 +95,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @RequestBody request: LinkGithubRepoReqDto,
-    ): ResponseEntity<ProjectDetailResponse> =
+    ): ResponseEntity<ProjectDetailResDto> =
         ResponseEntity.ok(projectService.linkGithubRepo(userId, projectId, request))
 
     @Operation(summary = "GitHub 레포지토리 연결 해제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -108,7 +108,7 @@ class ProjectController(
     fun unlinkGithubRepo(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResponse> =
+    ): ResponseEntity<ProjectDetailResDto> =
         ResponseEntity.ok(projectService.unlinkGithubRepo(userId, projectId))
 
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -120,7 +120,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
         @PageableDefault(size = 20, sort = ["position", "id"]) pageable: Pageable,
-    ): ResponseEntity<Page<ProjectResponse>> =
+    ): ResponseEntity<Page<ProjectResDto>> =
         ResponseEntity.ok(projectService.getProjectsByTeamId(userId, teamId, pageable))
 
     @Operation(summary = "내 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -131,7 +131,7 @@ class ProjectController(
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
-    ): ResponseEntity<Page<ProjectResponse>> =
+    ): ResponseEntity<Page<ProjectResDto>> =
         ResponseEntity.ok(projectService.getMyProjects(userId, pageable))
 
     @Operation(summary = "프로젝트 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
@@ -144,8 +144,8 @@ class ProjectController(
     fun addMember(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-        @RequestBody request: AddProjectMemberRequest,
-    ): ResponseEntity<ProjectMemberResponse> =
+        @RequestBody request: AddProjectMemberReqDto,
+    ): ResponseEntity<ProjectMemberResDto> =
         ResponseEntity.status(201).body(projectService.addMember(userId, projectId, request))
 
     @Operation(summary = "프로젝트 멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -157,7 +157,7 @@ class ProjectController(
     fun getMembers(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<List<ProjectMemberResponse>> =
+    ): ResponseEntity<List<ProjectMemberResDto>> =
         ResponseEntity.ok(projectService.getMembers(userId, projectId))
 
     @Operation(summary = "프로젝트 멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
@@ -171,8 +171,8 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable memberId: Long,
-        @RequestBody request: UpdateProjectMemberRoleRequest,
-    ): ResponseEntity<ProjectMemberResponse> =
+        @RequestBody request: UpdateProjectMemberRoleReqDto,
+    ): ResponseEntity<ProjectMemberResDto> =
         ResponseEntity.ok(projectService.updateMemberRole(userId, projectId, memberId, request))
 
     @Operation(
