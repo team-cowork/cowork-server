@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 
 /** PATCH 의미: null인 필드는 변경하지 않는다. */
-public record UpdateRoadmapRequest(
+public record UpdateRoadmapReqDto(
 
         @Schema(description = "로드맵 제목") @Size(max = 150) String title,
 

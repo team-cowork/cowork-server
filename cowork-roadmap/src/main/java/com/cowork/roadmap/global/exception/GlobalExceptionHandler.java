@@ -44,7 +44,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternal(Exception e) {
-        log.error("처리되지 않은 예외 발생", e);
+        log.error("Unhandled exception occurred", e);
         return ResponseEntity.internalServerError().body(new ErrorResponse("서버 오류가 발생했습니다."));
     }
 }
