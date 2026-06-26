@@ -56,11 +56,11 @@ dependencies {
     testImplementation(libs.reactor.test)
 }
 
-// hellogsm-server-26의 Spotless 규칙을 따르되, Eclipse 포맷터 설정에 메서드 체이닝 줄바꿈을 추가한다.
+// Spotless Java formatter configuration.
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
-        eclipse().configFile("$projectDir/config/eclipse-java-formatter.xml")
+        eclipse().configFile("$projectDir/src/main/resources/eclipse-java-formatter.xml")
         leadingTabsToSpaces(4)
         importOrder("java", "javax", "org", "com", "")
         removeUnusedImports()
