@@ -648,6 +648,34 @@ services:
       retries: 10
       start_period: 90s
 
+  cowork-roadmap:
+    image: cowork-roadmap:local
+    container_name: cowork-roadmap
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_R2DBC_URL: "r2dbc:mysql://mysql:3306/cowork_roadmap?serverZoneId=Asia/Seoul"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+    ports:
+      - "8088:8088"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
   cowork-notification:
     image: cowork-notification:local
     container_name: cowork-notification

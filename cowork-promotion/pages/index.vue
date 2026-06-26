@@ -25,6 +25,7 @@ const techCategories: { label: string; items: TechItem[] }[] = [
                 color: "#7F52FF",
                 positions: ["Server", "Desktop App Client"],
             },
+            { name: "Java", color: "#ED8B00", positions: ["Server"] },
             {
                 name: "TypeScript",
                 color: "#3178C6",
