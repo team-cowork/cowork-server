@@ -4,7 +4,7 @@ import com.cowork.project.domain.project.entity.Project
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
-data class ProjectResponse(
+data class ProjectResDto(
     @Schema(description = "프로젝트 ID", example = "1")
     val id: Long,
     @Schema(description = "팀 ID", example = "1")
@@ -25,8 +25,8 @@ data class ProjectResponse(
     val updatedAt: LocalDateTime,
 ) {
     companion object {
-        fun of(project: Project): ProjectResponse =
-            ProjectResponse(
+        fun of(project: Project): ProjectResDto =
+            ProjectResDto(
                 id = project.id,
                 teamId = project.teamId,
                 name = project.name,
