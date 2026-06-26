@@ -31,7 +31,7 @@ public class ListRoadmapAssignmentsServiceImpl implements ListRoadmapAssignments
     public Flux<AssignmentResDto> execute(Long userId, String userRole, Long roadmapId) {
         return roadmapLookupSupport.findRoadmapOrThrow(roadmapId)
                 .flatMapMany(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                        .thenMany(assignmentRepository.findByRoadmapIdOrderByIdDesc(roadmapId)
-                                .map(AssignmentResDto::from)));
+                        .thenMany(Flux.defer(() -> assignmentRepository.findByRoadmapIdOrderByIdDesc(roadmapId)
+                                .map(AssignmentResDto::from))));
     }
 }
