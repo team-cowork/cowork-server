@@ -15,7 +15,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cowork.roadmap.domain.assignment.presentation.data.request.CreateAssignmentReqDto;
 import com.cowork.roadmap.domain.assignment.presentation.data.request.UpdateAssignmentStatusReqDto;
 import com.cowork.roadmap.domain.assignment.presentation.data.response.AssignmentResDto;
-import com.cowork.roadmap.domain.assignment.service.RoadmapAssignmentService;
+import com.cowork.roadmap.domain.assignment.service.CreateRoadmapAssignmentService;
+import com.cowork.roadmap.domain.assignment.service.DeleteRoadmapAssignmentService;
+import com.cowork.roadmap.domain.assignment.service.ListMyRoadmapAssignmentsService;
+import com.cowork.roadmap.domain.assignment.service.ListRoadmapAssignmentsService;
+import com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,10 +33,22 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/roadmaps")
 public class RoadmapAssignmentController {
 
-    private final RoadmapAssignmentService assignmentService;
+    private final CreateRoadmapAssignmentService createRoadmapAssignmentService;
+    private final ListMyRoadmapAssignmentsService listMyRoadmapAssignmentsService;
+    private final ListRoadmapAssignmentsService listRoadmapAssignmentsService;
+    private final ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService;
+    private final DeleteRoadmapAssignmentService deleteRoadmapAssignmentService;
 
-    public RoadmapAssignmentController(RoadmapAssignmentService assignmentService) {
-        this.assignmentService = assignmentService;
+    public RoadmapAssignmentController(CreateRoadmapAssignmentService createRoadmapAssignmentService,
+            ListMyRoadmapAssignmentsService listMyRoadmapAssignmentsService,
+            ListRoadmapAssignmentsService listRoadmapAssignmentsService,
+            ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService,
+            DeleteRoadmapAssignmentService deleteRoadmapAssignmentService) {
+        this.createRoadmapAssignmentService = createRoadmapAssignmentService;
+        this.listMyRoadmapAssignmentsService = listMyRoadmapAssignmentsService;
+        this.listRoadmapAssignmentsService = listRoadmapAssignmentsService;
+        this.modifyRoadmapAssignmentStatusService = modifyRoadmapAssignmentStatusService;
+        this.deleteRoadmapAssignmentService = deleteRoadmapAssignmentService;
     }
 
     @Operation(summary = "과제 출제")
@@ -41,14 +57,14 @@ public class RoadmapAssignmentController {
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @Valid @RequestBody CreateAssignmentReqDto request) {
-        return assignmentService.createAssignment(userId, userRole, request)
+        return createRoadmapAssignmentService.execute(userId, userRole, request)
                 .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
     @Operation(summary = "내 과제 목록")
     @GetMapping("/assignments/me")
     public Flux<AssignmentResDto> listMyAssignments(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId) {
-        return assignmentService.listMyAssignments(userId);
+        return listMyRoadmapAssignmentsService.execute(userId);
     }
 
     @Operation(summary = "로드맵별 과제 목록")
@@ -56,7 +72,7 @@ public class RoadmapAssignmentController {
     public Flux<AssignmentResDto> listByRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return assignmentService.listByRoadmap(userId, userRole, roadmapId);
+        return listRoadmapAssignmentsService.execute(userId, userRole, roadmapId);
     }
 
     @Operation(summary = "과제 진행 상태 변경")
@@ -65,7 +81,7 @@ public class RoadmapAssignmentController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long assignmentId,
             @Valid @RequestBody UpdateAssignmentStatusReqDto request) {
-        return assignmentService.updateStatus(userId, userRole, assignmentId, request);
+        return modifyRoadmapAssignmentStatusService.execute(userId, userRole, assignmentId, request);
     }
 
     @Operation(summary = "과제 삭제")
@@ -74,7 +90,7 @@ public class RoadmapAssignmentController {
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long assignmentId) {
-        return assignmentService.deleteAssignment(userId, userRole, assignmentId)
+        return deleteRoadmapAssignmentService.execute(userId, userRole, assignmentId)
                 .thenReturn(ResponseEntity.noContent().build());
     }
 }
