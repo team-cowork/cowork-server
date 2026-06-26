@@ -142,6 +142,17 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: roadmap-service
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/api/roadmaps/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: chat-service-legacy
           uri: lb://cowork-chat
           predicates:
@@ -313,6 +324,13 @@ spring:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: roadmap-service-docs
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/v3/api-docs/roadmap
+          filters:
+            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
 # jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
 
