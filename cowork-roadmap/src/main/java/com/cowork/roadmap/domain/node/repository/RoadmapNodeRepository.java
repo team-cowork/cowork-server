@@ -14,6 +14,4 @@ public interface RoadmapNodeRepository extends R2dbcRepository<RoadmapNode, Long
     Mono<Long> countByRoadmapIdAndParentIdIsNull(Long roadmapId);
 
     Mono<Long> countByRoadmapIdAndParentId(Long roadmapId, Long parentId);
-
-    Mono<Long> countByParentId(Long parentId);
 }
