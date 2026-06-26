@@ -30,6 +30,7 @@ cowork-server/
 ├── cowork-user/          사용자 프로필 관리 — Elixir
 ├── cowork-team/          팀 관리 — Kotlin (Spring Boot)
 ├── cowork-project/       프로젝트 관리 — Kotlin (Spring Boot)
+├── cowork-roadmap/       전공/포지션별 온보딩 로드맵 — Java (Spring Boot WebFlux + R2DBC)
 ├── cowork-channel/       채널 관리 (텍스트/음성/웹훅 등) — Kotlin (Spring Boot)
 ├── cowork-preference/    팀 설정 관리 — Kotlin (Vert.x)
 ├── cowork-chat/          채팅 메시지 (MongoDB + Elasticsearch) — NestJS (TypeScript)
@@ -334,6 +335,7 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 | cowork-notification | 8086 | Go |
 | cowork-chat | 8087 | NestJS (TypeScript) |
 | cowork-project | 8089 | Kotlin (Spring Boot) |
+| cowork-roadmap | 8088 | Java (Spring Boot WebFlux + R2DBC) |
 | cowork-preference | 9001 | Kotlin (Vert.x) |
 
 ### Makefile 명령어
