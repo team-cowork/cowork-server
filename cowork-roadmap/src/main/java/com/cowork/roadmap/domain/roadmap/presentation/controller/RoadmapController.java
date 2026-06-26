@@ -18,7 +18,12 @@ import com.cowork.roadmap.domain.roadmap.presentation.data.request.QueryRoadmapR
 import com.cowork.roadmap.domain.roadmap.presentation.data.request.UpdateRoadmapReqDto;
 import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDto;
 import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapTreeResDto;
-import com.cowork.roadmap.domain.roadmap.service.RoadmapService;
+import com.cowork.roadmap.domain.roadmap.service.CreateRoadmapService;
+import com.cowork.roadmap.domain.roadmap.service.DeleteRoadmapService;
+import com.cowork.roadmap.domain.roadmap.service.ListRoadmapsService;
+import com.cowork.roadmap.domain.roadmap.service.ModifyRoadmapService;
+import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapService;
+import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -32,10 +37,25 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/roadmaps")
 public class RoadmapController {
 
-    private final RoadmapService roadmapService;
+    private final CreateRoadmapService createRoadmapService;
+    private final ListRoadmapsService listRoadmapsService;
+    private final QueryRoadmapService queryRoadmapService;
+    private final QueryRoadmapTreeService queryRoadmapTreeService;
+    private final ModifyRoadmapService modifyRoadmapService;
+    private final DeleteRoadmapService deleteRoadmapService;
 
-    public RoadmapController(RoadmapService roadmapService) {
-        this.roadmapService = roadmapService;
+    public RoadmapController(CreateRoadmapService createRoadmapService,
+            ListRoadmapsService listRoadmapsService,
+            QueryRoadmapService queryRoadmapService,
+            QueryRoadmapTreeService queryRoadmapTreeService,
+            ModifyRoadmapService modifyRoadmapService,
+            DeleteRoadmapService deleteRoadmapService) {
+        this.createRoadmapService = createRoadmapService;
+        this.listRoadmapsService = listRoadmapsService;
+        this.queryRoadmapService = queryRoadmapService;
+        this.queryRoadmapTreeService = queryRoadmapTreeService;
+        this.modifyRoadmapService = modifyRoadmapService;
+        this.deleteRoadmapService = deleteRoadmapService;
     }
 
     @Operation(summary = "로드맵 생성")
@@ -44,14 +64,14 @@ public class RoadmapController {
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @Valid @RequestBody CreateRoadmapReqDto request) {
-        return roadmapService.createRoadmap(userId, userRole, request)
+        return createRoadmapService.execute(userId, userRole, request)
                 .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
     @Operation(summary = "로드맵 목록 조회", description = "teamId/projectId가 있으면 커스텀 로드맵, 없으면 scope(기본 GLOBAL) 기준 조회")
     @GetMapping
     public Flux<RoadmapResDto> listRoadmaps(@Valid @ModelAttribute QueryRoadmapReqDto request) {
-        return roadmapService.listRoadmaps(request.scope(), request.category(), request.teamId(), request.projectId());
+        return listRoadmapsService.execute(request.scope(), request.category(), request.teamId(), request.projectId());
     }
 
     @Operation(summary = "로드맵 메타 조회")
@@ -59,7 +79,7 @@ public class RoadmapController {
     public Mono<RoadmapResDto> getRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return roadmapService.getRoadmap(userId, userRole, roadmapId);
+        return queryRoadmapService.execute(userId, userRole, roadmapId);
     }
 
     @Operation(summary = "로드맵 트리 조회", description = "노드(문서)와 관련자료가 중첩된 전체 트리를 반환")
@@ -67,7 +87,7 @@ public class RoadmapController {
     public Mono<RoadmapTreeResDto> getRoadmapTree(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return roadmapService.getRoadmapTree(userId, userRole, roadmapId);
+        return queryRoadmapTreeService.execute(userId, userRole, roadmapId);
     }
 
     @Operation(summary = "로드맵 수정")
@@ -76,7 +96,7 @@ public class RoadmapController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody UpdateRoadmapReqDto request) {
-        return roadmapService.updateRoadmap(userId, userRole, roadmapId, request);
+        return modifyRoadmapService.execute(userId, userRole, roadmapId, request);
     }
 
     @Operation(summary = "로드맵 삭제")
@@ -84,6 +104,6 @@ public class RoadmapController {
     public Mono<ResponseEntity<Void>> deleteRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return roadmapService.deleteRoadmap(userId, userRole, roadmapId).thenReturn(ResponseEntity.noContent().build());
+        return deleteRoadmapService.execute(userId, userRole, roadmapId).thenReturn(ResponseEntity.noContent().build());
     }
 }
