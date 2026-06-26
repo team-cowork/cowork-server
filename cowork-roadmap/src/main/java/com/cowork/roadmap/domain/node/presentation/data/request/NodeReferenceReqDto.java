@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record NodeReferenceRequest(
+public record NodeReferenceReqDto(
 
         @Schema(description = "관련 자료 제목") @NotBlank @Size(max = 200) String title,
 
