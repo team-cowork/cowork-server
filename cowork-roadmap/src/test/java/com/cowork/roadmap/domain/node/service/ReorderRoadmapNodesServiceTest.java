@@ -26,7 +26,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class ReorderRoadmapNodesServiceImplTest {
+class ReorderRoadmapNodesServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
