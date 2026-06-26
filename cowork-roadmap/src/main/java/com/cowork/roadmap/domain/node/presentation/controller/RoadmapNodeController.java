@@ -19,7 +19,15 @@ import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqD
 import com.cowork.roadmap.domain.node.presentation.data.request.UpdateNodeReqDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
-import com.cowork.roadmap.domain.node.service.RoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.CreateNodeReferenceService;
+import com.cowork.roadmap.domain.node.service.CreateRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.DeleteNodeReferenceService;
+import com.cowork.roadmap.domain.node.service.DeleteRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.ListNodeReferencesService;
+import com.cowork.roadmap.domain.node.service.ModifyNodeReferenceService;
+import com.cowork.roadmap.domain.node.service.ModifyRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.QueryRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -33,10 +41,34 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/roadmaps")
 public class RoadmapNodeController {
 
-    private final RoadmapNodeService nodeService;
+    private final CreateRoadmapNodeService createRoadmapNodeService;
+    private final ReorderRoadmapNodesService reorderRoadmapNodesService;
+    private final QueryRoadmapNodeService queryRoadmapNodeService;
+    private final ModifyRoadmapNodeService modifyRoadmapNodeService;
+    private final DeleteRoadmapNodeService deleteRoadmapNodeService;
+    private final ListNodeReferencesService listNodeReferencesService;
+    private final CreateNodeReferenceService createNodeReferenceService;
+    private final ModifyNodeReferenceService modifyNodeReferenceService;
+    private final DeleteNodeReferenceService deleteNodeReferenceService;
 
-    public RoadmapNodeController(RoadmapNodeService nodeService) {
-        this.nodeService = nodeService;
+    public RoadmapNodeController(CreateRoadmapNodeService createRoadmapNodeService,
+            ReorderRoadmapNodesService reorderRoadmapNodesService,
+            QueryRoadmapNodeService queryRoadmapNodeService,
+            ModifyRoadmapNodeService modifyRoadmapNodeService,
+            DeleteRoadmapNodeService deleteRoadmapNodeService,
+            ListNodeReferencesService listNodeReferencesService,
+            CreateNodeReferenceService createNodeReferenceService,
+            ModifyNodeReferenceService modifyNodeReferenceService,
+            DeleteNodeReferenceService deleteNodeReferenceService) {
+        this.createRoadmapNodeService = createRoadmapNodeService;
+        this.reorderRoadmapNodesService = reorderRoadmapNodesService;
+        this.queryRoadmapNodeService = queryRoadmapNodeService;
+        this.modifyRoadmapNodeService = modifyRoadmapNodeService;
+        this.deleteRoadmapNodeService = deleteRoadmapNodeService;
+        this.listNodeReferencesService = listNodeReferencesService;
+        this.createNodeReferenceService = createNodeReferenceService;
+        this.modifyNodeReferenceService = modifyNodeReferenceService;
+        this.deleteNodeReferenceService = deleteNodeReferenceService;
     }
 
     @Operation(summary = "노드 생성")
@@ -46,7 +78,7 @@ public class RoadmapNodeController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody CreateNodeReqDto request) {
-        return nodeService.createNode(userId, userRole, roadmapId, request)
+        return createRoadmapNodeService.execute(userId, userRole, roadmapId, request)
                 .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
@@ -56,7 +88,7 @@ public class RoadmapNodeController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody ReorderNodesReqDto request) {
-        return nodeService.reorderNodes(userId, userRole, roadmapId, request)
+        return reorderRoadmapNodesService.execute(userId, userRole, roadmapId, request)
                 .thenReturn(ResponseEntity.noContent().build());
     }
 
@@ -65,7 +97,7 @@ public class RoadmapNodeController {
     public Mono<NodeResDto> getNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return nodeService.getNode(userId, userRole, nodeId);
+        return queryRoadmapNodeService.execute(userId, userRole, nodeId);
     }
 
     @Operation(summary = "노드 수정")
@@ -74,7 +106,7 @@ public class RoadmapNodeController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody UpdateNodeReqDto request) {
-        return nodeService.updateNode(userId, userRole, nodeId, request);
+        return modifyRoadmapNodeService.execute(userId, userRole, nodeId, request);
     }
 
     @Operation(summary = "노드 삭제 (하위 노드 포함)")
@@ -82,7 +114,8 @@ public class RoadmapNodeController {
     public Mono<ResponseEntity<Void>> deleteNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return nodeService.deleteNode(userId, userRole, nodeId).thenReturn(ResponseEntity.noContent().build());
+        return deleteRoadmapNodeService.execute(userId, userRole, nodeId)
+                .thenReturn(ResponseEntity.noContent().build());
     }
 
     @Operation(summary = "노드 관련자료 목록")
@@ -90,7 +123,7 @@ public class RoadmapNodeController {
     public Flux<NodeReferenceResDto> listReferences(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return nodeService.listReferences(userId, userRole, nodeId);
+        return listNodeReferencesService.execute(userId, userRole, nodeId);
     }
 
     @Operation(summary = "노드 관련자료 추가")
@@ -100,7 +133,7 @@ public class RoadmapNodeController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody NodeReferenceReqDto request) {
-        return nodeService.addReference(userId, userRole, nodeId, request)
+        return createNodeReferenceService.execute(userId, userRole, nodeId, request)
                 .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
     }
 
@@ -110,7 +143,7 @@ public class RoadmapNodeController {
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId,
             @Valid @RequestBody NodeReferenceReqDto request) {
-        return nodeService.updateReference(userId, userRole, referenceId, request);
+        return modifyNodeReferenceService.execute(userId, userRole, referenceId, request);
     }
 
     @Operation(summary = "관련자료 삭제")
@@ -118,7 +151,7 @@ public class RoadmapNodeController {
     public Mono<ResponseEntity<Void>> deleteReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId) {
-        return nodeService.deleteReference(userId, userRole, referenceId)
+        return deleteNodeReferenceService.execute(userId, userRole, referenceId)
                 .thenReturn(ResponseEntity.noContent().build());
     }
 }
