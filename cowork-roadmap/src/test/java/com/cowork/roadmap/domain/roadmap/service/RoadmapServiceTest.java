@@ -18,7 +18,7 @@ import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapRequest;
+import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapReqDto;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 
 import reactor.core.publisher.Flux;
@@ -67,12 +67,7 @@ class RoadmapServiceTest {
 
     @Test
     void createRoadmap_teamScopeWithoutOwnerTeamId_failsWithBadRequest() {
-        CreateRoadmapRequest request = new CreateRoadmapRequest("title",
-                null,
-                "Flutter",
-                RoadmapScope.TEAM,
-                null,
-                null);
+        CreateRoadmapReqDto request = new CreateRoadmapReqDto("title", null, "Flutter", RoadmapScope.TEAM, null, null);
 
         StepVerifier.create(roadmapService.createRoadmap(1L, "MEMBER", request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected

@@ -4,7 +4,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-public record CreateNodeRequest(
+public record CreateNodeReqDto(
 
         @Schema(description = "상위 노드 ID (루트면 null)") Long parentId,
 
