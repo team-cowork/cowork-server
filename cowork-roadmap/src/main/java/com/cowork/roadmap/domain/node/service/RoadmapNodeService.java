@@ -12,15 +12,16 @@ import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
-import com.cowork.roadmap.domain.node.presentation.data.request.CreateNodeRequest;
-import com.cowork.roadmap.domain.node.presentation.data.request.NodeReferenceRequest;
-import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesRequest;
-import com.cowork.roadmap.domain.node.presentation.data.request.UpdateNodeRequest;
-import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResponse;
-import com.cowork.roadmap.domain.node.presentation.data.response.NodeResponse;
+import com.cowork.roadmap.domain.node.presentation.data.request.CreateNodeReqDto;
+import com.cowork.roadmap.domain.node.presentation.data.request.NodeReferenceReqDto;
+import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
+import com.cowork.roadmap.domain.node.presentation.data.request.UpdateNodeReqDto;
+import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
+import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
@@ -49,7 +50,8 @@ public class RoadmapNodeService {
         this.accessGuard = accessGuard;
     }
 
-    public Mono<NodeResponse> createNode(Long userId, String userRole, Long roadmapId, CreateNodeRequest request) {
+    @Transactional
+    public Mono<NodeResDto> createNode(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
         return findRoadmapOrThrow(roadmapId).flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                 .then(validateParent(roadmapId, request.parentId()))
                 .then(nextPosition(roadmapId, request.parentId()))
@@ -64,18 +66,19 @@ public class RoadmapNodeService {
                     node.setPosition(position);
                     node.setCreatedBy(userId);
                     node.setLastModifiedBy(userId);
-                    return nodeRepository.save(node).map(saved -> NodeResponse.of(saved, List.of()));
+                    return nodeRepository.save(node).map(saved -> NodeResDto.of(saved, List.of()));
                 }));
     }
 
-    public Mono<NodeResponse> getNode(Long userId, String userRole, Long nodeId) {
+    public Mono<NodeResDto> getNode(Long userId, String userRole, Long nodeId) {
         return findNodeOrThrow(nodeId).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
                 .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
                         .then(loadReferences(nodeId))
-                        .map(refs -> NodeResponse.of(node, refs))));
+                        .map(refs -> NodeResDto.of(node, refs))));
     }
 
-    public Mono<NodeResponse> updateNode(Long userId, String userRole, Long nodeId, UpdateNodeRequest request) {
+    @Transactional
+    public Mono<NodeResDto> updateNode(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request) {
         return findNodeOrThrow(nodeId).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
                     if (request.title() != null) {
@@ -92,9 +95,10 @@ public class RoadmapNodeService {
                     }
                     node.setLastModifiedBy(userId);
                     return nodeRepository.save(node);
-                })).flatMap(saved -> loadReferences(saved.getId()).map(refs -> NodeResponse.of(saved, refs)))));
+                })).flatMap(saved -> loadReferences(saved.getId()).map(refs -> NodeResDto.of(saved, refs)))));
     }
 
+    @Transactional
     public Mono<Void> deleteNode(Long userId, String userRole, Long nodeId) {
         return findNodeOrThrow(nodeId).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
@@ -102,7 +106,8 @@ public class RoadmapNodeService {
                         .flatMap(all -> nodeRepository.deleteAllById(collectSubtreeIds(nodeId, all)))));
     }
 
-    public Mono<Void> reorderNodes(Long userId, String userRole, Long roadmapId, ReorderNodesRequest request) {
+    @Transactional
+    public Mono<Void> reorderNodes(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
         return findRoadmapOrThrow(roadmapId).flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                 .then(nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList())
                 .flatMap(all -> {
@@ -130,18 +135,19 @@ public class RoadmapNodeService {
                 }));
     }
 
-    public Flux<NodeReferenceResponse> listReferences(Long userId, String userRole, Long nodeId) {
+    public Flux<NodeReferenceResDto> listReferences(Long userId, String userRole, Long nodeId) {
         return findNodeOrThrow(nodeId)
                 .flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
                         .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole).thenReturn(node)))
                 .flatMapMany(node -> referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
-                        .map(NodeReferenceResponse::from));
+                        .map(NodeReferenceResDto::from));
     }
 
-    public Mono<NodeReferenceResponse> addReference(Long userId,
+    @Transactional
+    public Mono<NodeReferenceResDto> addReference(Long userId,
             String userRole,
             Long nodeId,
-            NodeReferenceRequest request) {
+            NodeReferenceReqDto request) {
         return findNodeOrThrow(nodeId).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                         .then(referenceRepository.countByNodeId(nodeId))
@@ -151,23 +157,25 @@ public class RoadmapNodeService {
                             ref.setTitle(request.title());
                             ref.setUrl(request.url());
                             ref.setPosition(count.intValue());
-                            return referenceRepository.save(ref).map(NodeReferenceResponse::from);
+                            return referenceRepository.save(ref).map(NodeReferenceResDto::from);
                         })));
     }
 
-    public Mono<NodeReferenceResponse> updateReference(Long userId,
+    @Transactional
+    public Mono<NodeReferenceResDto> updateReference(Long userId,
             String userRole,
             Long referenceId,
-            NodeReferenceRequest request) {
+            NodeReferenceReqDto request) {
         return findReferenceOrThrow(referenceId).flatMap(
                 ref -> findNodeOrThrow(ref.getNodeId()).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId()).flatMap(
                         roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
                             ref.setTitle(request.title());
                             ref.setUrl(request.url());
-                            return referenceRepository.save(ref).map(NodeReferenceResponse::from);
+                            return referenceRepository.save(ref).map(NodeReferenceResDto::from);
                         })))));
     }
 
+    @Transactional
     public Mono<Void> deleteReference(Long userId, String userRole, Long referenceId) {
         return findReferenceOrThrow(referenceId)
                 .flatMap(ref -> findNodeOrThrow(ref.getNodeId()).flatMap(node -> findRoadmapOrThrow(node.getRoadmapId())
@@ -175,10 +183,8 @@ public class RoadmapNodeService {
                                 .then(referenceRepository.delete(ref)))));
     }
 
-    private Mono<List<NodeReferenceResponse>> loadReferences(Long nodeId) {
-        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
-                .map(NodeReferenceResponse::from)
-                .collectList();
+    private Mono<List<NodeReferenceResDto>> loadReferences(Long nodeId) {
+        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId).map(NodeReferenceResDto::from).collectList();
     }
 
     private Mono<Void> validateParent(Long roadmapId, Long parentId) {
@@ -186,8 +192,7 @@ public class RoadmapNodeService {
             return Mono.empty();
         }
         return nodeRepository.findById(parentId)
-                .switchIfEmpty(
-                        Mono.error(new ExpectedException("상위 노드를 찾을 수 없습니다. id=" + parentId, HttpStatus.NOT_FOUND)))
+                .switchIfEmpty(Mono.error(new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)))
                 .flatMap(parent -> roadmapId.equals(parent.getRoadmapId())
                         ? Mono.empty()
                         : Mono.error(new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST)))
@@ -223,18 +228,16 @@ public class RoadmapNodeService {
 
     private Mono<RoadmapNode> findNodeOrThrow(Long nodeId) {
         return nodeRepository.findById(nodeId)
-                .switchIfEmpty(Mono.error(new ExpectedException("노드를 찾을 수 없습니다. id=" + nodeId, HttpStatus.NOT_FOUND)));
+                .switchIfEmpty(Mono.error(new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
     }
 
     private Mono<RoadmapNodeReference> findReferenceOrThrow(Long referenceId) {
         return referenceRepository.findById(referenceId)
-                .switchIfEmpty(
-                        Mono.error(new ExpectedException("관련 자료를 찾을 수 없습니다. id=" + referenceId, HttpStatus.NOT_FOUND)));
+                .switchIfEmpty(Mono.error(new ExpectedException("관련 자료를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
     }
 
     private Mono<Roadmap> findRoadmapOrThrow(Long roadmapId) {
         return roadmapRepository.findById(roadmapId)
-                .switchIfEmpty(
-                        Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다. id=" + roadmapId, HttpStatus.NOT_FOUND)));
+                .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
     }
 }

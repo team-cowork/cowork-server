@@ -7,19 +7,20 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
-import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResponse;
-import com.cowork.roadmap.domain.node.presentation.data.response.NodeTreeResponse;
+import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
+import com.cowork.roadmap.domain.node.presentation.data.response.NodeTreeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapRequest;
-import com.cowork.roadmap.domain.roadmap.presentation.data.request.UpdateRoadmapRequest;
-import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResponse;
-import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapTreeResponse;
+import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapReqDto;
+import com.cowork.roadmap.domain.roadmap.presentation.data.request.UpdateRoadmapReqDto;
+import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDto;
+import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapTreeResDto;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 
 import reactor.core.publisher.Flux;
@@ -44,7 +45,8 @@ public class RoadmapService {
         this.accessGuard = accessGuard;
     }
 
-    public Mono<RoadmapResponse> createRoadmap(Long userId, String userRole, CreateRoadmapRequest request) {
+    @Transactional
+    public Mono<RoadmapResDto> createRoadmap(Long userId, String userRole, CreateRoadmapReqDto request) {
         RoadmapScope scope = request.scope();
         if (scope != RoadmapScope.GLOBAL && request.ownerTeamId() == null) {
             return Mono.error(new ExpectedException("TEAM/PROJECT 로드맵에는 ownerTeamId가 필요합니다.", HttpStatus.BAD_REQUEST));
@@ -63,16 +65,16 @@ public class RoadmapService {
             roadmap.setOwnerProjectId(scope == RoadmapScope.PROJECT ? request.ownerProjectId() : null);
             roadmap.setCreatedBy(userId);
             roadmap.setLastModifiedBy(userId);
-            return roadmapRepository.save(roadmap).map(RoadmapResponse::from);
+            return roadmapRepository.save(roadmap).map(RoadmapResDto::from);
         }));
     }
 
-    public Mono<RoadmapResponse> getRoadmap(Long userId, String userRole, Long roadmapId) {
+    public Mono<RoadmapResDto> getRoadmap(Long userId, String userRole, Long roadmapId) {
         return findRoadmapOrThrow(roadmapId).flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                .thenReturn(RoadmapResponse.from(roadmap)));
+                .thenReturn(RoadmapResDto.from(roadmap)));
     }
 
-    public Flux<RoadmapResponse> listRoadmaps(RoadmapScope scope, String category, Long teamId, Long projectId) {
+    public Flux<RoadmapResDto> listRoadmaps(RoadmapScope scope, String category, Long teamId, Long projectId) {
         Flux<Roadmap> roadmaps;
         if (projectId != null) {
             roadmaps = roadmapRepository.findByOwnerProjectIdOrderByIdDesc(projectId);
@@ -84,28 +86,28 @@ public class RoadmapService {
                     ? roadmapRepository.findByScopeOrderByIdDesc(target.name())
                     : roadmapRepository.findByScopeAndCategoryOrderByIdDesc(target.name(), category);
         }
-        return roadmaps.map(RoadmapResponse::from);
+        return roadmaps.map(RoadmapResDto::from);
     }
 
-    public Mono<RoadmapTreeResponse> getRoadmapTree(Long userId, String userRole, Long roadmapId) {
+    public Mono<RoadmapTreeResDto> getRoadmapTree(Long userId, String userRole, Long roadmapId) {
         return findRoadmapOrThrow(roadmapId).flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
                 .then(nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList())
                 .flatMap(nodes -> {
                     if (nodes.isEmpty()) {
-                        return Mono.just(new RoadmapTreeResponse(RoadmapResponse.from(roadmap), List.of()));
+                        return Mono.just(new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of()));
                     }
                     List<Long> nodeIds = nodes.stream().map(RoadmapNode::getId).toList();
                     return referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds)
                             .collectList()
-                            .map(refs -> new RoadmapTreeResponse(RoadmapResponse.from(roadmap),
-                                    assembleTree(nodes, refs)));
+                            .map(refs -> new RoadmapTreeResDto(RoadmapResDto.from(roadmap), assembleTree(nodes, refs)));
                 }));
     }
 
-    public Mono<RoadmapResponse> updateRoadmap(Long userId,
+    @Transactional
+    public Mono<RoadmapResDto> updateRoadmap(Long userId,
             String userRole,
             Long roadmapId,
-            UpdateRoadmapRequest request) {
+            UpdateRoadmapReqDto request) {
         return findRoadmapOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
                     if (request.title() != null) {
@@ -118,10 +120,11 @@ public class RoadmapService {
                         roadmap.setCategory(request.category());
                     }
                     roadmap.setLastModifiedBy(userId);
-                    return roadmapRepository.save(roadmap).map(RoadmapResponse::from);
+                    return roadmapRepository.save(roadmap).map(RoadmapResDto::from);
                 })));
     }
 
+    @Transactional
     public Mono<Void> deleteRoadmap(Long userId, String userRole, Long roadmapId) {
         return findRoadmapOrThrow(roadmapId).flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                 .then(roadmapRepository.delete(roadmap)));
@@ -129,12 +132,11 @@ public class RoadmapService {
 
     private Mono<Roadmap> findRoadmapOrThrow(Long roadmapId) {
         return roadmapRepository.findById(roadmapId)
-                .switchIfEmpty(
-                        Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다. id=" + roadmapId, HttpStatus.NOT_FOUND)));
+                .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
     }
 
     /** position 순으로 정렬된 평면 노드 목록을 parent_id 기준으로 중첩 트리로 조립한다. */
-    private List<NodeTreeResponse> assembleTree(List<RoadmapNode> nodes, List<RoadmapNodeReference> refs) {
+    private List<NodeTreeResDto> assembleTree(List<RoadmapNode> nodes, List<RoadmapNodeReference> refs) {
         List<RoadmapNode> roots = new ArrayList<>();
         Map<Long, List<RoadmapNode>> childrenByParent = new HashMap<>();
         for (RoadmapNode node : nodes) {
@@ -145,22 +147,22 @@ public class RoadmapService {
             }
         }
 
-        Map<Long, List<NodeReferenceResponse>> refsByNode = new HashMap<>();
+        Map<Long, List<NodeReferenceResDto>> refsByNode = new HashMap<>();
         for (RoadmapNodeReference ref : refs) {
-            refsByNode.computeIfAbsent(ref.getNodeId(), k -> new ArrayList<>()).add(NodeReferenceResponse.from(ref));
+            refsByNode.computeIfAbsent(ref.getNodeId(), k -> new ArrayList<>()).add(NodeReferenceResDto.from(ref));
         }
 
         return roots.stream().map(root -> buildSubtree(root, childrenByParent, refsByNode)).toList();
     }
 
-    private NodeTreeResponse buildSubtree(RoadmapNode node,
+    private NodeTreeResDto buildSubtree(RoadmapNode node,
             Map<Long, List<RoadmapNode>> childrenByParent,
-            Map<Long, List<NodeReferenceResponse>> refsByNode) {
-        List<NodeTreeResponse> children = childrenByParent.getOrDefault(node.getId(), List.of())
+            Map<Long, List<NodeReferenceResDto>> refsByNode) {
+        List<NodeTreeResDto> children = childrenByParent.getOrDefault(node.getId(), List.of())
                 .stream()
                 .map(child -> buildSubtree(child, childrenByParent, refsByNode))
                 .toList();
-        return new NodeTreeResponse(node.getId(),
+        return new NodeTreeResDto(node.getId(),
                 node.getParentId(),
                 node.getTitle(),
                 node.getContent(),

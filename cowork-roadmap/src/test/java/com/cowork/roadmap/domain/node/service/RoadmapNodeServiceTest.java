@@ -17,7 +17,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
-import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesRequest;
+import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
@@ -49,7 +49,7 @@ class RoadmapNodeServiceTest {
         when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L))
                 .thenReturn(Flux.fromIterable(List.of(node(1L, 10L, null), node(2L, 10L, null))));
 
-        ReorderNodesRequest request = new ReorderNodesRequest(null, List.of(1L, 2L, 3L));
+        ReorderNodesReqDto request = new ReorderNodesReqDto(null, List.of(1L, 2L, 3L));
 
         StepVerifier.create(nodeService.reorderNodes(1L, "ADMIN", 10L, request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected

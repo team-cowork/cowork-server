@@ -4,10 +4,10 @@ import java.time.LocalDateTime;
 
 import com.cowork.roadmap.domain.assignment.entity.RoadmapAssignment;
 
-public record AssignmentResponse(Long id, Long roadmapId, Long nodeId, String scope, Long teamId, Long projectId,
+public record AssignmentResDto(Long id, Long roadmapId, Long nodeId, String scope, Long teamId, Long projectId,
         Long assigneeUserId, Long assignedBy, String status, LocalDateTime dueDate, LocalDateTime createdAt) {
-    public static AssignmentResponse from(RoadmapAssignment assignment) {
-        return new AssignmentResponse(assignment.getId(),
+    public static AssignmentResDto from(RoadmapAssignment assignment) {
+        return new AssignmentResDto(assignment.getId(),
                 assignment.getRoadmapId(),
                 assignment.getNodeId(),
                 assignment.getScope(),
