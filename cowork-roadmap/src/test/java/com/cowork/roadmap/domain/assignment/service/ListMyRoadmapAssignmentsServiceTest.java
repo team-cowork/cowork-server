@@ -15,7 +15,7 @@ import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import reactor.core.publisher.Flux;
 import reactor.test.StepVerifier;
 
-class ListMyRoadmapAssignmentsServiceImplTest {
+class ListMyRoadmapAssignmentsServiceTest {
 
     private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
 

@@ -4,6 +4,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
@@ -24,7 +26,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class ListRoadmapAssignmentsServiceImplTest {
+class ListRoadmapAssignmentsServiceTest {
 
     private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
@@ -63,14 +65,14 @@ class ListRoadmapAssignmentsServiceImplTest {
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireReadable(any(), anyLong(), anyString()))
                 .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
-        // requireReadable().thenMany(find().map()) 구조라 find 인자가 eager 평가된다. NPE 방지를 위해
-        // stub.
-        when(assignmentRepository.findByRoadmapIdOrderByIdDesc(10L)).thenReturn(Flux.empty());
 
         StepVerifier.create(listRoadmapAssignmentsService.execute(2L, "MEMBER", 10L))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.FORBIDDEN)
                 .verify();
+
+        // find는 Flux.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
+        verify(assignmentRepository, never()).findByRoadmapIdOrderByIdDesc(anyLong());
     }
 
     private static Roadmap roadmap(Long id) {

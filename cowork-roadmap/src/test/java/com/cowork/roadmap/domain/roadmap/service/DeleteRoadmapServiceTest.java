@@ -21,7 +21,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class DeleteRoadmapServiceImplTest {
+class DeleteRoadmapServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
@@ -61,14 +61,14 @@ class DeleteRoadmapServiceImplTest {
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireMutable(any(), anyLong(), anyString()))
                 .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
-        // requireMutable().then(delete(roadmap)) 구조라 delete 인자가 eager 평가된다. NPE 방지를 위해
-        // stub.
-        when(roadmapRepository.delete(roadmap)).thenReturn(Mono.empty());
 
         StepVerifier.create(deleteRoadmapService.execute(2L, "MEMBER", 10L))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.FORBIDDEN)
                 .verify();
+
+        // delete는 Mono.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
+        verify(roadmapRepository, never()).delete(any());
     }
 
     private static Roadmap roadmap(Long id) {
