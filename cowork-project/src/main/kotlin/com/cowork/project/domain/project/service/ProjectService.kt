@@ -4,14 +4,14 @@ import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.entity.ProjectStatus
 
-import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberRequest
-import com.cowork.project.domain.project.presentation.data.request.CreateProjectRequest
+import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
+import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
-import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResponse
-import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResponse
-import com.cowork.project.domain.project.presentation.data.response.ProjectResponse
-import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleRequest
-import com.cowork.project.domain.project.presentation.data.request.UpdateProjectRequest
+import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
+import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
+import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
+import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleReqDto
+import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
@@ -55,7 +55,7 @@ class ProjectService(
         }
 
     @Transactional
-    fun createProject(userId: Long, request: CreateProjectRequest): ProjectResponse {
+    fun createProject(userId: Long, request: CreateProjectReqDto): ProjectResDto {
         projectAccessGuard.requireTeamMember(request.teamId, userId)
 
         val project = projectRepository.save(
@@ -78,18 +78,18 @@ class ProjectService(
 
         afterCommit { projectEventPublisher.publishCreated(project) }
 
-        return ProjectResponse.of(project)
+        return ProjectResDto.of(project)
     }
 
-    fun getProject(userId: Long, projectId: Long): ProjectDetailResponse {
+    fun getProject(userId: Long, projectId: Long): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireTeamMember(project.teamId, userId)
         val memberCount = projectMemberRepository.countByProjectId(projectId)
-        return ProjectDetailResponse.of(project, memberCount)
+        return ProjectDetailResDto.of(project, memberCount)
     }
 
     @Transactional
-    fun updateProject(userId: Long, projectId: Long, request: UpdateProjectRequest): ProjectResponse {
+    fun updateProject(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 
@@ -99,7 +99,7 @@ class ProjectService(
 
         afterCommit { projectEventPublisher.publishUpdated(project) }
 
-        return ProjectResponse.of(project)
+        return ProjectResDto.of(project)
     }
 
     @Transactional
@@ -111,7 +111,7 @@ class ProjectService(
     }
 
     @Transactional
-    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResponse {
+    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 
@@ -121,27 +121,27 @@ class ProjectService(
         project.linkGithubRepo(request.githubRepoUrl)
 
         val memberCount = projectMemberRepository.countByProjectId(projectId)
-        return ProjectDetailResponse.of(project, memberCount)
+        return ProjectDetailResDto.of(project, memberCount)
     }
 
     @Transactional
-    fun unlinkGithubRepo(userId: Long, projectId: Long): ProjectDetailResponse {
+    fun unlinkGithubRepo(userId: Long, projectId: Long): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 
         project.unlinkGithubRepo()
 
         val memberCount = projectMemberRepository.countByProjectId(projectId)
-        return ProjectDetailResponse.of(project, memberCount)
+        return ProjectDetailResDto.of(project, memberCount)
     }
 
-    fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResponse> {
+    fun getProjectsByTeamId(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
-        return projectRepository.findByTeamId(teamId, pageable).map { ProjectResponse.of(it) }
+        return projectRepository.findByTeamId(teamId, pageable).map { ProjectResDto.of(it) }
     }
 
     @Transactional
-    fun reorderTeamProjects(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResponse> {
+    fun reorderTeamProjects(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {
@@ -163,12 +163,12 @@ class ProjectService(
             projectById[projectId]?.updatePosition(index)
         }
 
-        return orderedProjectIds.mapNotNull { projectById[it] }.map(ProjectResponse::of)
+        return orderedProjectIds.mapNotNull { projectById[it] }.map(ProjectResDto::of)
     }
 
-    fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResponse> =
+    fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResDto> =
         projectRepository.findProjectsByMemberUserId(userId, pageable)
-            .map { ProjectResponse.of(it) }
+            .map { ProjectResDto.of(it) }
 
     fun getTeamId(projectId: Long): Long =
         projectAccessGuard.findProjectOrThrow(projectId).teamId
@@ -177,7 +177,7 @@ class ProjectService(
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 
     @Transactional
-    fun addMember(userId: Long, projectId: Long, request: AddProjectMemberRequest): ProjectMemberResponse {
+    fun addMember(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
 
@@ -202,17 +202,17 @@ class ProjectService(
             )
         )
 
-        return ProjectMemberResponse.of(member)
+        return ProjectMemberResDto.of(member)
     }
 
-    fun getMembers(userId: Long, projectId: Long): List<ProjectMemberResponse> {
+    fun getMembers(userId: Long, projectId: Long): List<ProjectMemberResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireTeamMember(project.teamId, userId)
-        return projectMemberRepository.findByProjectId(projectId).map { ProjectMemberResponse.of(it) }
+        return projectMemberRepository.findByProjectId(projectId).map { ProjectMemberResDto.of(it) }
     }
 
     @Transactional
-    fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleRequest): ProjectMemberResponse {
+    fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleReqDto): ProjectMemberResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
         val member = findMemberOrThrow(memberId)
@@ -231,7 +231,7 @@ class ProjectService(
 
         member.updateRole(role)
 
-        return ProjectMemberResponse.of(member)
+        return ProjectMemberResDto.of(member)
     }
 
     @Transactional
