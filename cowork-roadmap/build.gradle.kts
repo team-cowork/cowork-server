@@ -60,7 +60,7 @@ dependencies {
 spotless {
     java {
         target("src/main/java/**/*.java", "src/test/java/**/*.java")
-        eclipse().configFile("$projectDir/src/main/resources/eclipse-java-formatter.xml")
+        eclipse().configFile("$projectDir/config/eclipse-java-formatter.xml")
         leadingTabsToSpaces(4)
         importOrder("java", "javax", "org", "com", "")
         removeUnusedImports()
