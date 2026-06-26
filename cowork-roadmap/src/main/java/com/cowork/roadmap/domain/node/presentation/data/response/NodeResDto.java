@@ -27,9 +27,9 @@ public record NodeResDto(
 
         @Schema(description = "관련 자료 목록") List<NodeReferenceResDto> references,
 
-        @Schema(description = "생성 일시") LocalDateTime createdAt,
+        @Schema(description = "생성 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime createdAt,
 
-        @Schema(description = "수정 일시") LocalDateTime updatedAt) {
+        @Schema(description = "수정 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime updatedAt) {
 
     public static NodeResDto of(RoadmapNode node, List<NodeReferenceResDto> references) {
         return new NodeResDto(node.getId(),
