@@ -38,7 +38,7 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
         return nodeLookupSupport.findNodeOrThrow(nodeId)
                 .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                         .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(referenceRepository.countByNodeId(nodeId))
+                                .then(Mono.defer(() -> referenceRepository.countByNodeId(nodeId)))
                                 .flatMap(count -> {
                                     RoadmapNodeReference ref = new RoadmapNodeReference();
                                     ref.setNodeId(nodeId);
