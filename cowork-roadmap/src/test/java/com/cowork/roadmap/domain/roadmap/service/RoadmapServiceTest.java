@@ -20,6 +20,9 @@ import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.presentation.data.request.CreateRoadmapReqDto;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
+import com.cowork.roadmap.domain.roadmap.service.impl.CreateRoadmapServiceImpl;
+import com.cowork.roadmap.domain.roadmap.service.impl.QueryRoadmapTreeServiceImpl;
+import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -33,9 +36,12 @@ class RoadmapServiceTest {
     private final RoadmapNodeReferenceRepository referenceRepository = mock(RoadmapNodeReferenceRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
-    private final RoadmapService roadmapService = new RoadmapService(roadmapRepository,
-            nodeRepository,
+    private final RoadmapLookupSupport lookupSupport = new RoadmapLookupSupport(roadmapRepository);
+    private final QueryRoadmapTreeServiceImpl queryRoadmapTreeService = new QueryRoadmapTreeServiceImpl(nodeRepository,
             referenceRepository,
+            accessGuard,
+            lookupSupport);
+    private final CreateRoadmapServiceImpl createRoadmapService = new CreateRoadmapServiceImpl(roadmapRepository,
             accessGuard);
 
     @Test
@@ -53,7 +59,7 @@ class RoadmapServiceTest {
         when(referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(any()))
                 .thenReturn(Flux.fromIterable(List.of(ref)));
 
-        StepVerifier.create(roadmapService.getRoadmapTree(1L, "ADMIN", 10L)).assertNext(tree -> {
+        StepVerifier.create(queryRoadmapTreeService.execute(1L, "ADMIN", 10L)).assertNext(tree -> {
             assertThat(tree.nodes()).hasSize(2);
             assertThat(tree.nodes().get(0).id()).isEqualTo(1L);
             assertThat(tree.nodes().get(0).children()).hasSize(1);
@@ -69,7 +75,7 @@ class RoadmapServiceTest {
     void createRoadmap_teamScopeWithoutOwnerTeamId_failsWithBadRequest() {
         CreateRoadmapReqDto request = new CreateRoadmapReqDto("title", null, "Flutter", RoadmapScope.TEAM, null, null);
 
-        StepVerifier.create(roadmapService.createRoadmap(1L, "MEMBER", request))
+        StepVerifier.create(createRoadmapService.execute(1L, "MEMBER", request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
                 .verify();
