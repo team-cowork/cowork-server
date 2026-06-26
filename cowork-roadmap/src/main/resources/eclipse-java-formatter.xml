@@ -1,22 +1,29 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!--
-  themoment-team/hellogsm-server-26의 Spotless Eclipse 포맷터 규칙을 기반으로 한다.
-  단, 원본에 없던 alignment_for_selector_in_method_invocation을 추가해
-  메서드 체이닝(빌더/리액티브 체인)이 줄 길이를 넘기면 각 .호출()이 개별 줄로 내려가도록 한다.
--->
 <profiles version="13">
   <profile kind="CodeFormatterProfile" name="CoworkFormatter" version="13">
+    <!-- 한 줄 최대 길이 -->
     <setting id="org.eclipse.jdt.core.formatter.lineSplit" value="120"/>
+    <!-- 메서드 체인 줄바꿈 -->
     <setting id="org.eclipse.jdt.core.formatter.alignment_for_selector_in_method_invocation" value="80"/>
+    <!-- 메서드 호출 인자 정렬 -->
     <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_method_invocation" value="80"/>
+    <!-- 생성자 호출 인자 정렬 -->
     <setting id="org.eclipse.jdt.core.formatter.alignment_for_arguments_in_allocation_expression" value="80"/>
+    <!-- 메서드 선언 파라미터 정렬 -->
     <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_method_declaration" value="80"/>
+    <!-- 생성자 선언 파라미터 정렬 -->
     <setting id="org.eclipse.jdt.core.formatter.alignment_for_parameters_in_constructor_declaration" value="80"/>
+    <!-- 들여쓰기 문자 -->
     <setting id="org.eclipse.jdt.core.formatter.tabulation.char" value="space"/>
+    <!-- 탭 크기 -->
     <setting id="org.eclipse.jdt.core.formatter.tabulation.size" value="4"/>
+    <!-- 들여쓰기 크기 -->
     <setting id="org.eclipse.jdt.core.formatter.indentation.size" value="4"/>
   </profile>
+  <!-- import 그룹 순서 -->
   <setting id="org.eclipse.jdt.ui.importorder" value="java;javax;org;com;"/>
+  <!-- 일반 import 와일드카드 기준 -->
   <setting id="org.eclipse.jdt.ui.ondemandthreshold" value="99"/>
+  <!-- static import 와일드카드 기준 -->
   <setting id="org.eclipse.jdt.ui.staticondemandthreshold" value="99"/>
 </profiles>
