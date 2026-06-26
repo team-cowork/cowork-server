@@ -42,7 +42,8 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
     public Mono<Void> execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
         return roadmapLookupSupport.findRoadmapOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                        .then(nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList())
+                        .then(Mono
+                                .defer(() -> nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList()))
                         .flatMap(all -> {
                             List<RoadmapNode> siblings = all.stream()
                                     .filter(node -> Objects.equals(node.getParentId(), request.parentId()))

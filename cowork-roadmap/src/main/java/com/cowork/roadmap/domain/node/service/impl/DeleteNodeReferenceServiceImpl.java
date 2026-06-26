@@ -36,6 +36,6 @@ public class DeleteNodeReferenceServiceImpl implements DeleteNodeReferenceServic
                 .flatMap(ref -> nodeLookupSupport.findNodeOrThrow(ref.getNodeId())
                         .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                        .then(referenceRepository.delete(ref)))));
+                                        .then(Mono.defer(() -> referenceRepository.delete(ref))))));
     }
 }

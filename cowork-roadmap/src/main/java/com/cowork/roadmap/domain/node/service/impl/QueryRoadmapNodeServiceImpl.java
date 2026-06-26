@@ -32,7 +32,7 @@ public class QueryRoadmapNodeServiceImpl implements QueryRoadmapNodeService {
         return nodeLookupSupport.findNodeOrThrow(nodeId)
                 .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                         .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                                .then(nodeLookupSupport.loadReferences(nodeId))
+                                .then(Mono.defer(() -> nodeLookupSupport.loadReferences(nodeId)))
                                 .map(refs -> NodeResDto.of(node, refs))));
     }
 }

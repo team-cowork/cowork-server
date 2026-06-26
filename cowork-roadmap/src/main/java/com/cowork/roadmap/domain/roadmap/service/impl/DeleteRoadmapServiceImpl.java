@@ -30,6 +30,6 @@ public class DeleteRoadmapServiceImpl implements DeleteRoadmapService {
     public Mono<Void> execute(Long userId, String userRole, Long roadmapId) {
         return lookupSupport.findRoadmapOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                        .then(roadmapRepository.delete(roadmap)));
+                        .then(Mono.defer(() -> roadmapRepository.delete(roadmap))));
     }
 }
