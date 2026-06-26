@@ -2,7 +2,7 @@ package com.cowork.project.domain.project.presentation.data.request
 
 import io.swagger.v3.oas.annotations.media.Schema
 
-data class UpdateProjectRequest(
+data class UpdateProjectReqDto(
     @Schema(description = "프로젝트 이름", example = "코워크 앱 개발")
     val name: String? = null,
     @Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")

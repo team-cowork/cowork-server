@@ -2,7 +2,7 @@ package com.cowork.project.domain.project.presentation.data.request
 
 import io.swagger.v3.oas.annotations.media.Schema
 
-data class CreateProjectRequest(
+data class CreateProjectReqDto(
     @Schema(description = "팀 ID", example = "1", required = true)
     val teamId: Long,
     @Schema(description = "프로젝트 이름", example = "코워크 앱 개발", required = true)
