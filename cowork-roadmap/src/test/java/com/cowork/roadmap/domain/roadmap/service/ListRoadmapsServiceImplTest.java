@@ -1,6 +1,7 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -31,7 +32,7 @@ class ListRoadmapsServiceImplTest {
                 .verifyComplete();
 
         verify(roadmapRepository).findByOwnerProjectIdOrderByIdDesc(7L);
-        verify(roadmapRepository, never()).findByOwnerTeamIdOrderByIdDesc(org.mockito.ArgumentMatchers.anyLong());
+        verify(roadmapRepository, never()).findByOwnerTeamIdOrderByIdDesc(anyLong());
     }
 
     @Test
