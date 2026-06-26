@@ -7,7 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record CreateRoadmapRequest(
+public record CreateRoadmapReqDto(
 
         @Schema(description = "로드맵 제목", example = "Flutter 온보딩 로드맵") @NotBlank @Size(max = 150) String title,
 

@@ -7,7 +7,7 @@ import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 
-public record CreateAssignmentRequest(
+public record CreateAssignmentReqDto(
 
         @Schema(description = "할당할 로드맵 ID") @NotNull Long roadmapId,
 
