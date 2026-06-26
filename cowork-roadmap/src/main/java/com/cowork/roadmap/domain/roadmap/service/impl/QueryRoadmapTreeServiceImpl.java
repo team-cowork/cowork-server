@@ -45,7 +45,8 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
     public Mono<RoadmapTreeResDto> execute(Long userId, String userRole, Long roadmapId) {
         return lookupSupport.findRoadmapOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                        .then(nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList())
+                        .then(Mono
+                                .defer(() -> nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList()))
                         .flatMap(nodes -> {
                             if (nodes.isEmpty()) {
                                 return Mono.just(new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of()));
