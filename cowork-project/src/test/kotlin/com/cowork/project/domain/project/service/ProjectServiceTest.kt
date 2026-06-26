@@ -5,10 +5,10 @@ import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberRequest
-import com.cowork.project.domain.project.presentation.data.request.CreateProjectRequest
+import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
+import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
-import com.cowork.project.domain.project.presentation.data.request.UpdateProjectRequest
+import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -57,7 +57,7 @@ class ProjectServiceTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createProject(7L, CreateProjectRequest(teamId = 100L, name = "p", description = null))
+            service.createProject(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
         verify(exactly = 0) { projectRepository.save(any()) }
@@ -70,7 +70,7 @@ class ProjectServiceTest {
         every { projectRepository.save(any()) } answers { firstArg() }
         every { projectMemberRepository.save(any()) } answers { firstArg() }
 
-        val response = service.createProject(7L, CreateProjectRequest(teamId = 100L, name = "p", description = null))
+        val response = service.createProject(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
         assertEquals(4, response.position)
     }
@@ -107,7 +107,7 @@ class ProjectServiceTest {
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
 
-        val response = service.updateProject(99L, 1L, UpdateProjectRequest(name = "newName"))
+        val response = service.updateProject(99L, 1L, UpdateProjectReqDto(name = "newName"))
         assertEquals("newName", response.name)
     }
 
@@ -119,7 +119,7 @@ class ProjectServiceTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.updateProject(99L, 1L, UpdateProjectRequest(name = "x"))
+            service.updateProject(99L, 1L, UpdateProjectReqDto(name = "x"))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -133,7 +133,7 @@ class ProjectServiceTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.addMember(1L, 1L, AddProjectMemberRequest(userId = 50L, role = "EDITOR"))
+            service.addMember(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

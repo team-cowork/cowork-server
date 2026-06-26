@@ -41,6 +41,11 @@ services:
       context: .
       dockerfile: cowork-project/local.dockerfile
 
+  cowork-roadmap:
+    build:
+      context: .
+      dockerfile: cowork-roadmap/local.dockerfile
+
   cowork-notification:
     build:
       context: cowork-notification
