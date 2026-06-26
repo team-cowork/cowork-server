@@ -25,7 +25,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-class QueryRoadmapTreeServiceImplTest {
+class QueryRoadmapTreeServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);

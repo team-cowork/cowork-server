@@ -1,5 +1,6 @@
 package com.cowork.roadmap.domain.assignment.service;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -21,7 +22,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class DeleteRoadmapAssignmentServiceImplTest {
+class DeleteRoadmapAssignmentServiceTest {
 
     private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
@@ -73,14 +74,14 @@ class DeleteRoadmapAssignmentServiceImplTest {
         when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
         when(accessGuard.requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong()))
                 .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
-        // requireTeamManagerOrAdmin().then(delete(assignment)) 구조라 delete 인자가 eager
-        // 평가된다. NPE 방지를 위해 stub.
-        when(assignmentRepository.delete(assignment)).thenReturn(Mono.empty());
 
         StepVerifier.create(deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.FORBIDDEN)
                 .verify();
+
+        // delete는 Mono.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
+        verify(assignmentRepository, never()).delete(any());
     }
 
     @Test

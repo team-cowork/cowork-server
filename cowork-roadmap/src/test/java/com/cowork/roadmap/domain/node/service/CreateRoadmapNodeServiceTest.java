@@ -24,7 +24,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
-class CreateRoadmapNodeServiceImplTest {
+class CreateRoadmapNodeServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
