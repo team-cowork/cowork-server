@@ -20,10 +20,14 @@ import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.service.impl.DeleteRoadmapNodeServiceImpl;
+import com.cowork.roadmap.domain.node.service.impl.ReorderRoadmapNodesServiceImpl;
+import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
+import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -37,10 +41,18 @@ class RoadmapNodeServiceTest {
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
-    private final RoadmapNodeService nodeService = new RoadmapNodeService(nodeRepository,
-            referenceRepository,
-            roadmapRepository,
-            accessGuard);
+    private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
+    private final RoadmapNodeLookupSupport nodeLookupSupport = new RoadmapNodeLookupSupport(nodeRepository,
+            referenceRepository);
+    private final ReorderRoadmapNodesServiceImpl reorderRoadmapNodesService = new ReorderRoadmapNodesServiceImpl(
+            nodeRepository,
+            accessGuard,
+            roadmapLookupSupport);
+    private final DeleteRoadmapNodeServiceImpl deleteRoadmapNodeService = new DeleteRoadmapNodeServiceImpl(
+            nodeRepository,
+            accessGuard,
+            roadmapLookupSupport,
+            nodeLookupSupport);
 
     @Test
     void reorderNodes_idsDoNotMatchSiblingSet_failsWithBadRequest() {
@@ -51,7 +63,7 @@ class RoadmapNodeServiceTest {
 
         ReorderNodesReqDto request = new ReorderNodesReqDto(null, List.of(1L, 2L, 3L));
 
-        StepVerifier.create(nodeService.reorderNodes(1L, "ADMIN", 10L, request))
+        StepVerifier.create(reorderRoadmapNodesService.execute(1L, "ADMIN", 10L, request))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
                         && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
                 .verify();
@@ -71,7 +83,7 @@ class RoadmapNodeServiceTest {
                 .thenReturn(Flux.fromIterable(List.of(root, child, grandChild, otherRoot)));
         when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
 
-        StepVerifier.create(nodeService.deleteNode(1L, "ADMIN", 1L)).verifyComplete();
+        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Long>> captor = ArgumentCaptor.forClass(Iterable.class);
