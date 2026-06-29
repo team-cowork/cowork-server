@@ -1,5 +1,8 @@
 import { Args, Context, Int, Query, Resolver } from '@nestjs/graphql';
+import { BadRequestException } from '@nestjs/common';
 import { Request } from 'express';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { UnifiedSearchResult } from '../search/unified-search.types';
 import { ChatService } from './chat.service';
@@ -34,7 +37,11 @@ export class UnifiedSearchResolver {
     ): Promise<UnifiedSearchResult> {
         const userId = RequestContextUtil.getUserId(req.headers as Record<string, string | string[] | undefined>);
 
-        const dto = { teamId, q, channelId, authorId, type, hasFile, before, limit } as SearchTeamMessagesDto;
+        const dto = plainToInstance(SearchTeamMessagesDto, { teamId, q, channelId, authorId, type, hasFile, before, limit });
+        const errors = await validate(dto);
+        if (errors.length > 0) {
+            throw new BadRequestException('유효하지 않은 검색 요청입니다');
+        }
 
         const [messageResult, channels] = await Promise.all([
             this.chatService.searchTeamMessages(teamId, dto, { userId }),
