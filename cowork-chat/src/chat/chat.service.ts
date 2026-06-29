@@ -234,9 +234,7 @@ export class ChatService {
 
         await this.messageRepository.deleteById(messageId);
         if (message.projectId) {
-            this.elasticsearchService.deleteMessage(messageId).catch((err) =>
-                this.logger.error(`ES deleteMessage 실패 [messageId=${messageId}]`, err),
-            );
+            void this.elasticsearchService.deleteMessage(messageId);
         }
 
         this.chatGateway.server
@@ -504,9 +502,7 @@ export class ChatService {
         message.isEdited = true;
         const updated = await message.save();
         if (updated.projectId) {
-            this.elasticsearchService.updateMessage(ctx.messageId, dto.content).catch((err) =>
-                this.logger.error(`ES updateMessage 실패 [messageId=${ctx.messageId}]`, err),
-            );
+            void this.elasticsearchService.updateMessage(ctx.messageId, dto.content);
         }
 
         this.chatGateway.server
@@ -534,9 +530,7 @@ export class ChatService {
 
         await this.messageRepository.deleteById(ctx.messageId);
         if (message.projectId) {
-            this.elasticsearchService.deleteMessage(ctx.messageId).catch((err) =>
-                this.logger.error(`ES deleteMessage 실패 [messageId=${ctx.messageId}]`, err),
-            );
+            void this.elasticsearchService.deleteMessage(ctx.messageId);
         }
 
         this.chatGateway.server
@@ -564,9 +558,7 @@ export class ChatService {
         const updated = await message.save();
 
         if (updated.projectId) {
-            this.elasticsearchService.updatePinStatus(ctx.messageId, true).catch((err) =>
-                this.logger.error(`ES updatePinStatus 실패 [messageId=${ctx.messageId}]`, err),
-            );
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, true);
         }
 
         this.chatGateway.server
@@ -593,9 +585,7 @@ export class ChatService {
         const updated = await message.save();
 
         if (updated.projectId) {
-            this.elasticsearchService.updatePinStatus(ctx.messageId, false).catch((err) =>
-                this.logger.error(`ES updatePinStatus 실패 [messageId=${ctx.messageId}]`, err),
-            );
+            void this.elasticsearchService.updatePinStatus(ctx.messageId, false);
         }
 
         this.chatGateway.server
