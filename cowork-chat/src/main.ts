@@ -49,6 +49,19 @@ async function bootstrap() {
             '## 파일 목록\n' +
             '`GET /channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
             '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n' +
+            '## 통합 검색 (GraphQL)\n' +
+            '`POST /chat/graphql` — 메시지(Elasticsearch)와 채널(channel-service)을 단일 요청으로 병렬 검색.\n\n' +
+            '```graphql\n' +
+            'query {\n' +
+            '  unifiedSearch(teamId: 1, q: "배포") {\n' +
+            '    messages { messageId channelId content highlight createdAt }\n' +
+            '    messageNextCursor\n' +
+            '    channels { id name type isPrivate }\n' +
+            '  }\n' +
+            '}\n' +
+            '```\n\n' +
+            '선택 인자: `channelId`, `authorId`, `type`, `hasFile`, `before`, `limit`\n\n' +
+            'GraphQL Playground: `/chat/graphql` (GET)\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
             'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +
