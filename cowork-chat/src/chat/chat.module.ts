@@ -1,5 +1,8 @@
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Module } from '@nestjs/common';
+import { GraphQLModule } from '@nestjs/graphql';
+import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
+import { Request } from 'express';
 import { AuthGuard } from '../common/guard/auth.guard';
 import { HttpLoggingInterceptor } from '../common/interceptor/http-logging.interceptor';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -26,6 +29,8 @@ import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectClient } from './service/project.client';
 import { ChannelClient } from './service/channel.client';
+import { ChannelSearchClient } from './service/channel-search.client';
+import { UnifiedSearchResolver } from './unified-search.resolver';
 import { UserClient } from './service/user.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
@@ -129,6 +134,11 @@ function createLogStream() {
         BlockModule,
         MinioModule,
         SearchModule,
+        GraphQLModule.forRoot<ApolloDriverConfig>({
+            driver: ApolloDriver,
+            autoSchemaFile: true,
+            context: ({ req }: { req: Request }) => ({ req }),
+        }),
     ],
     controllers: [ChatController, DmController, ProjectMessageController, TeamUnreadController, TeamSearchController, HealthController],
     providers: [
@@ -148,7 +158,9 @@ function createLogStream() {
         ProjectEventConsumer,
         ProjectClient,
         ChannelClient,
+        ChannelSearchClient,
         UserClient,
+        UnifiedSearchResolver,
     ],
 })
 export class ChatModule {}
