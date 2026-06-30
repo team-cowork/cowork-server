@@ -68,7 +68,7 @@ class S3Service(
 
         if (metadata.contentLength() > minioProperties.maxFileSizeBytes) {
             s3Template.deleteObject(minioProperties.bucket, objectKey)
-            throw ExpectedException("파일 크기가 1MB를 초과합니다.", HttpStatus.PAYLOAD_TOO_LARGE)
+            throw ExpectedException("파일 크기가 1MB를 초과합니다.", HttpStatus.CONTENT_TOO_LARGE)
         }
 
         return "${minioProperties.publicBaseUrl}/$objectKey"
