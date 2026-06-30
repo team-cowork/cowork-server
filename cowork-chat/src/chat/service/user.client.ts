@@ -35,9 +35,7 @@ export class UserClient extends BaseHttpClient {
     async getDisplayNames(userIds: number[]): Promise<Map<number, string>> {
         if (userIds.length === 0) return new Map();
 
-        const res = await fetch(`${this.userServiceUrl}/users/batch?ids=${userIds.join(',')}`, {
-            signal: AbortSignal.timeout(3000),
-        });
+        const res = await this.fetchWithRetry(`${this.userServiceUrl}/users/batch?ids=${userIds.join(',')}`, {}, 3000);
 
         if (!res.ok) {
             const message = await this.readErrorMessage(res);
