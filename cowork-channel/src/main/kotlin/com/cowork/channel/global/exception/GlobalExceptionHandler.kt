@@ -7,6 +7,7 @@ import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.multipart.MultipartException
 import team.themoment.sdk.exception.ExpectedException
 
 @RestControllerAdvice
@@ -30,6 +31,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(MissingRequestHeaderException::class)
     fun handleMissingHeader(e: MissingRequestHeaderException): ResponseEntity<ErrorResponse> =
         ResponseEntity.badRequest().body(ErrorResponse("필수 헤더가 누락되었습니다. header=${e.headerName}"))
+
+    @ExceptionHandler(MultipartException::class)
+    fun handleMultipartException(e: MultipartException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.badRequest().body(ErrorResponse("파일 업로드에 실패했습니다."))
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
