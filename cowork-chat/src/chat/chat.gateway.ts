@@ -98,10 +98,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.data.userId = userId;
             client.data.userRole = payload.role ?? UserRole.USER;
             this.joinRoom(client, `user:${userId}`);
-            this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
+            this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
-            this.logger.warn(`인증 실패로 연결 거부: ${client.id} - ${message}`);
+            this.logger.warn(`Auth failed, rejecting connection: ${client.id} - ${message}`);
             client.emit('exception', { message: '인증 실패: ' + message });
             client.disconnect();
         }
@@ -113,7 +113,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param client - 연결 해제된 Socket.IO 소켓
      */
     handleDisconnect(client: ChatSocket) {
-        this.logger.log(`연결 해제: ${client.id}`);
+        this.logger.log(`Disconnected: ${client.id}`);
     }
 
     /**
@@ -203,10 +203,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     private joinRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`방 참여 실패 (room=${room}): ${String(err)}`));
+        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`Failed to join room (room=${room}): ${String(err)}`));
     }
 
     private leaveRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`방 퇴장 실패 (room=${room}): ${String(err)}`));
+        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`Failed to leave room (room=${room}): ${String(err)}`));
     }
 }
