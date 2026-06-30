@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
+import { BaseHttpClient } from './base-http-client';
 
 /**
  * GitHub 저장소 연동 정보.
@@ -18,11 +19,13 @@ export interface GithubRepoInfo {
  * 말미 슬래시는 자동으로 제거된다.
  */
 @Injectable()
-export class ProjectClient {
-    private readonly logger = new Logger(ProjectClient.name);
+export class ProjectClient extends BaseHttpClient {
+    protected readonly logger = new Logger(ProjectClient.name);
+    protected readonly serviceName = 'project-service';
     private readonly projectServiceUrl: string;
 
     constructor(private readonly configService: ConfigService) {
+        super();
         this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
     }
 
@@ -40,14 +43,12 @@ export class ProjectClient {
      */
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
         try {
-            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}`, {
-                signal: AbortSignal.timeout(5000),
-            });
+            const res = await this.fetchWithRetry(`${this.projectServiceUrl}/projects/${projectId}`, {}, 5000);
             if (res.status === 404) return null;
             if (!res.ok) {
                 throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
             }
-            const body = await res.json() as { teamId?: number | null; githubRepoUrl?: string | null };
+            const body = await this.readJsonBody<{ teamId?: number | null; githubRepoUrl?: string | null }>(res);
             const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
             if (!repoInfo || typeof body.teamId !== 'number') return null;
             return { teamId: body.teamId, ...repoInfo };
@@ -71,10 +72,11 @@ export class ProjectClient {
      */
     async isMember(projectId: number, userId: number): Promise<boolean> {
         try {
-            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}/members/me`, {
-                headers: { 'X-User-Id': String(userId) },
-                signal: AbortSignal.timeout(3000),
-            });
+            const res = await this.fetchWithRetry(
+                `${this.projectServiceUrl}/projects/${projectId}/members/me`,
+                { headers: { 'X-User-Id': String(userId) } },
+                3000,
+            );
             if (res.status === 404) return false;
             if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
             return true;
