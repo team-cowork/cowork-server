@@ -40,12 +40,12 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                         const event = JSON.parse(message.value.toString()) as ChannelMemberEvent;
                         await this.handleEvent(event);
                     } catch (err) {
-                        this.logger.error('멤버십 Kafka 메시지 처리 중 예외 발생', err);
+                        this.logger.error('Exception while processing channel.member.event Kafka message', err);
                         if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
-            .catch((err) => this.logger.error('멤버십 Kafka consumer 실행 실패', err));
+            .catch((err) => this.logger.error('channel.member.event Kafka consumer failed', err));
         this.logger.log('Kafka consumer started: channel.member.event');
     }
 
@@ -55,7 +55,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
 
     private async handleEvent(event: ChannelMemberEvent): Promise<void> {
         if (!event || !event.eventType || !event.channelId || !event.userId) {
-            this.logger.warn('유효하지 않은 멤버십 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            this.logger.warn('Invalid membership event payload: ' + JSON.stringify(event));
             return;
         }
         const { eventType, channelId, teamId, userId, role } = event;
@@ -77,7 +77,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 this.io?.to(`chat:${channelId}`).emit('member:role:updated', { channelId, teamId, userId, role });
             }
         } catch (err) {
-            this.logger.error(`멤버십 이벤트 처리 실패 [${eventType}]`, err);
+            this.logger.error(`Failed to handle membership event [${eventType}]`, err);
             throw err;
         }
     }
