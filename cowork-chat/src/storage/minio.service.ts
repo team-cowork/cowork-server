@@ -103,7 +103,7 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
             if (code === 'NoSuchKey' || code === 'NotFound') {
                 throw new ConflictException('S3에 파일이 없습니다. 업로드를 먼저 완료하세요');
             }
-            this.logger.error(`MinIO statObject 실패 [key=${objectKey}]`, error);
+            this.logger.error(`MinIO statObject failed [key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 확인 중 오류가 발생했습니다');
         }
 
@@ -124,7 +124,7 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
             if (code === 'NoSuchKey' || code === 'NotFound') {
                 return false;
             }
-            this.logger.error(`MinIO statObject 실패 [bucket=${this.config.bucket}, key=${objectKey}]`, error);
+            this.logger.error(`MinIO statObject failed [bucket=${this.config.bucket}, key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
         }
     }
