@@ -1,5 +1,6 @@
 package com.cowork.channel.global.exception
 
+import org.apache.commons.fileupload.FileUploadException
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -30,6 +31,10 @@ class GlobalExceptionHandler {
     @ExceptionHandler(MissingRequestHeaderException::class)
     fun handleMissingHeader(e: MissingRequestHeaderException): ResponseEntity<ErrorResponse> =
         ResponseEntity.badRequest().body(ErrorResponse("필수 헤더가 누락되었습니다. header=${e.headerName}"))
+
+    @ExceptionHandler(FileUploadException::class)
+    fun handleFileUpload(e: FileUploadException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.badRequest().body(ErrorResponse("파일 업로드에 실패했습니다."))
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
