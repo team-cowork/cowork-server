@@ -15,7 +15,7 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
 import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-import org.springframework.kafka.support.serializer.JsonDeserializer
+import org.springframework.kafka.support.serializer.JacksonJsonDeserializer
 import org.springframework.util.backoff.FixedBackOff
 
 @Configuration
@@ -30,10 +30,10 @@ class KafkaConsumerConfig(
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS] = StringDeserializer::class.java
-        props[ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS] = JsonDeserializer::class.java
-        props[JsonDeserializer.TRUSTED_PACKAGES] = "*"
-        props[JsonDeserializer.USE_TYPE_INFO_HEADERS] = false
-        props[JsonDeserializer.VALUE_DEFAULT_TYPE] = targetType.name
+        props[ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS] = JacksonJsonDeserializer::class.java
+        props[JacksonJsonDeserializer.TRUSTED_PACKAGES] = "*"
+        props[JacksonJsonDeserializer.USE_TYPE_INFO_HEADERS] = false
+        props[JacksonJsonDeserializer.VALUE_DEFAULT_TYPE] = targetType.name
         return DefaultKafkaConsumerFactory<String, T>(props)
     }
 
