@@ -11,6 +11,45 @@ export abstract class BaseHttpClient {
     protected abstract readonly serviceName: string;
 
     /**
+     * 일시적 장애(5xx, 네트워크 오류, 타임아웃)에 대해 exponential backoff 재시도를 수행하며 fetch를 실행한다.
+     *
+     * - 4xx 응답은 확정적 에러로 간주해 재시도하지 않고 즉시 반환한다.
+     * - 5xx 응답 또는 네트워크/타임아웃 에러는 `maxRetries`회까지 재시도한다.
+     * - 대기 시간: 1차 100ms, 2차 200ms, … (100ms × 2^(attempt-1))
+     * - 매 시도마다 `AbortSignal.timeout(timeoutMs)`를 새로 생성하므로 타임아웃이 정확히 적용된다.
+     *
+     * @param url - 요청 대상 URL
+     * @param init - fetch RequestInit (signal 제외)
+     * @param timeoutMs - 단일 시도의 타임아웃(ms)
+     * @param maxRetries - 최대 재시도 횟수 (기본 2 → 최대 3회 시도)
+     * @returns fetch Response
+     * @throws 마지막 시도에서도 네트워크/타임아웃 에러가 발생한 경우
+     */
+    protected async fetchWithRetry(
+        url: string,
+        init: Omit<RequestInit, 'signal'>,
+        timeoutMs: number,
+        maxRetries = 2,
+    ): Promise<Response> {
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            if (attempt > 0) {
+                await new Promise<void>((resolve) => setTimeout(resolve, 100 * 2 ** (attempt - 1)));
+                this.logger.warn(`${this.serviceName} 재시도 ${attempt}/${maxRetries}`);
+            }
+            let res: Response;
+            try {
+                res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+            } catch (err) {
+                if (attempt === maxRetries) throw err;
+                continue;
+            }
+            if (res.status >= 500 && attempt < maxRetries) continue;
+            return res;
+        }
+        throw new Error(`${this.serviceName} fetchWithRetry: unreachable`);
+    }
+
+    /**
      * HTTP 오류 응답의 본문을 문자열로 읽는다.
      *
      * 응답 본문 읽기에 실패하더라도 예외를 던지지 않고 `null`을 반환한다.
