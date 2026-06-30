@@ -43,10 +43,11 @@ export class ChannelClient extends BaseHttpClient {
      * @throws {Error} 응답 본문의 형식이 올바르지 않은 경우
      */
     async getChannel(channelId: number, userId: number): Promise<ChannelInfo> {
-        const res = await fetch(`${this.channelServiceUrl}/channels/${channelId}`, {
-            headers: { 'X-User-Id': String(userId) },
-            signal: AbortSignal.timeout(3000),
-        });
+        const res = await this.fetchWithRetry(
+            `${this.channelServiceUrl}/channels/${channelId}`,
+            { headers: { 'X-User-Id': String(userId) } },
+            3000,
+        );
 
         if (!res.ok) {
             const message = await this.readErrorMessage(res);
