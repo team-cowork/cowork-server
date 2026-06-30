@@ -222,12 +222,12 @@ export class ChatService {
                 try {
                     const objectKey = this.minioService.extractObjectKey(attachment.url);
                     if (!objectKey.startsWith(`chat-files/${ctx.channelId}/`)) {
-                        this.logger.warn(`채널 범위를 벗어난 objectKey 삭제를 건너뜁니다 [key=${objectKey}]`);
+                        this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
                         return;
                     }
                     await this.minioService.removeObject(objectKey);
                 } catch (error) {
-                    this.logger.warn(`MinIO 파일 삭제 실패 [url=${attachment.url}]`, error);
+                    this.logger.warn(`Failed to delete MinIO file [url=${attachment.url}]`, error);
                 }
             }),
         );

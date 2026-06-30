@@ -18,7 +18,7 @@ export class BlockRedis implements OnModuleInit, OnModuleDestroy {
 
         this.client = new Redis({ host, port, lazyConnect: true });
         void this.client.connect().catch((err: unknown) => {
-            this.logger.warn(`Redis 초기 연결 실패: ${err instanceof Error ? err.message : String(err)}`);
+            this.logger.warn(`Redis initial connection failed: ${err instanceof Error ? err.message : String(err)}`);
         });
     }
 
