@@ -43,7 +43,10 @@ export abstract class BaseHttpClient {
                 if (attempt === maxRetries) throw err;
                 continue;
             }
-            if (res.status >= 500 && attempt < maxRetries) continue;
+            if (res.status >= 500 && attempt < maxRetries) {
+                void res.body?.cancel().catch((err) => this.logger.warn(`${this.serviceName} response body cancel 실패: ${String(err)}`));
+                continue;
+            }
             return res;
         }
         throw new Error(`${this.serviceName} fetchWithRetry: unreachable`);
