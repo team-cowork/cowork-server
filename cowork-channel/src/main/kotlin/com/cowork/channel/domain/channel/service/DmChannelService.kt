@@ -38,7 +38,7 @@ class DmChannelService(
         channelRepository.findByDmKey(dmKey)?.let { return ChannelResponse.of(it) }
 
         return try {
-            transactionTemplate.execute { createDm(userId, targetUserId, dmKey) }!!
+            transactionTemplate.execute { createDm(userId, targetUserId, dmKey) }
         } catch (e: DataIntegrityViolationException) {
             val existing = channelRepository.findByDmKey(dmKey) ?: throw e
             ChannelResponse.of(existing)
