@@ -22,8 +22,8 @@ async function bootstrap() {
     debugStartup('config server properties loaded');
 
     debugStartup('creating Nest application');
-    const { ChatModule } = await import('./chat/chat.module');
-    const app = await NestFactory.create<NestExpressApplication>(ChatModule, { bufferLogs: true });
+    const { AppModule } = await import('./app.module');
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
     app.setGlobalPrefix('chat', { exclude: ['health'] });
