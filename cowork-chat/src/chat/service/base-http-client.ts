@@ -34,7 +34,7 @@ export abstract class BaseHttpClient {
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (attempt > 0) {
                 await new Promise<void>((resolve) => setTimeout(resolve, 100 * 2 ** (attempt - 1)));
-                this.logger.warn(`${this.serviceName} 재시도 ${attempt}/${maxRetries}`);
+                this.logger.warn(`${this.serviceName} retry ${attempt}/${maxRetries}`);
             }
             let res: Response;
             try {
@@ -44,7 +44,7 @@ export abstract class BaseHttpClient {
                 continue;
             }
             if (res.status >= 500 && attempt < maxRetries) {
-                void res.body?.cancel().catch((err) => this.logger.warn(`${this.serviceName} response body cancel 실패: ${String(err)}`));
+                void res.body?.cancel().catch((err) => this.logger.warn(`${this.serviceName} response body cancel failed: ${String(err)}`));
                 continue;
             }
             return res;
@@ -65,7 +65,7 @@ export abstract class BaseHttpClient {
         try {
             return await res.text();
         } catch (err) {
-            this.logger.warn(`${this.serviceName} 오류 응답 본문 읽기 실패: ${String(err)}`);
+            this.logger.warn(`${this.serviceName} failed to read error response body: ${String(err)}`);
             return null;
         }
     }
@@ -84,8 +84,8 @@ export abstract class BaseHttpClient {
         try {
             return await res.json() as T;
         } catch (err) {
-            this.logger.warn(`${this.serviceName} JSON 응답 파싱 실패: ${String(err)}`);
-            throw new Error(`${this.serviceName} 응답 본문 파싱에 실패했습니다`, { cause: err });
+            this.logger.warn(`${this.serviceName} failed to parse JSON response: ${String(err)}`);
+            throw new Error(`${this.serviceName} failed to parse response body`, { cause: err });
         }
     }
 }

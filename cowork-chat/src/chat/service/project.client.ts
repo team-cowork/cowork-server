@@ -46,14 +46,14 @@ export class ProjectClient extends BaseHttpClient {
             const res = await this.fetchWithRetry(`${this.projectServiceUrl}/projects/${projectId}`, {}, 5000);
             if (res.status === 404) return null;
             if (!res.ok) {
-                throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
+                throw new Error(`project-service error response: ${res.status}`);
             }
             const body = await this.readJsonBody<{ teamId?: number | null; githubRepoUrl?: string | null }>(res);
             const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
             if (!repoInfo || typeof body.teamId !== 'number') return null;
             return { teamId: body.teamId, ...repoInfo };
         } catch (err) {
-            this.logger.error(`프로젝트 서비스 호출 오류 projectId=${projectId}`, err);
+            this.logger.error(`Failed to call project-service projectId=${projectId}`, err);
             throw err;
         }
     }
@@ -78,10 +78,10 @@ export class ProjectClient extends BaseHttpClient {
                 3000,
             );
             if (res.status === 404) return false;
-            if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
+            if (!res.ok) throw new Error(`project-service error: ${res.status}`);
             return true;
         } catch (err) {
-            this.logger.error(`project-service 멤버 확인 오류 projectId=${projectId} userId=${userId}`, err);
+            this.logger.error(`Failed to check membership in project-service projectId=${projectId} userId=${userId}`, err);
             throw err;
         }
     }

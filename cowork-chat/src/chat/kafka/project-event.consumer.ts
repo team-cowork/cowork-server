@@ -47,7 +47,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                             const event = JSON.parse(message.value.toString()) as ProjectEvent;
                             this.handleEvent(event);
                         } catch (err) {
-                            this.logger.error('프로젝트 이벤트 Kafka 메시지 처리 중 예외 발생', err);
+                            this.logger.error('Exception while processing project.event Kafka message', err);
                             if (!(err instanceof SyntaxError)) throw err;
                         }
                     }
@@ -55,7 +55,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                 },
             })
             .catch(async (err) => {
-                this.logger.error('프로젝트 이벤트 Kafka consumer 실행 실패', err);
+                this.logger.error('project.event Kafka consumer failed', err);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: 'cowork-chat의 project.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
@@ -79,7 +79,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new Error('Socket.IO server is not initialized yet');
         }
         if (!event || !event.eventType || !event.teamId) {
-            this.logger.warn('유효하지 않은 프로젝트 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            this.logger.warn('Invalid project event payload: ' + JSON.stringify(event));
             return;
         }
         const room = `team:${event.teamId}`;
