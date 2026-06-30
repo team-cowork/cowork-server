@@ -14,43 +14,9 @@ import { AuthGuard } from './common/guard/auth.guard';
 import { HttpLoggingInterceptor } from './common/interceptor/http-logging.interceptor';
 import { getOptionalConfig, getRequiredConfig } from './common/config/config.util';
 
-const LOG_DIR = process.env.COWORK_CHAT_LOG_DIR ?? `${process.cwd()}/build/logs/cowork/chat`;
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
 const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH]);
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-
-function createLogStream() {
-    try {
-        mkdirSync(LOG_DIR, { recursive: true });
-        return createWriteStream(`${LOG_DIR}/app.log`, { flags: 'a' });
-    } catch {
-        return process.stdout;
-    }
-}
-
-const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
-    ? []
-    : [
-        LoggerModule.forRoot({
-            pinoHttp: {
-                level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-                stream: createLogStream(),
-                autoLogging: {
-                    ignore: (req) => {
-                        const path = req.url?.split('?')[0]?.replace(/\/$/, '');
-                        return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
-                    },
-                },
-                timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
-                formatters: {
-                    level: (label: string) => ({ level: label }),
-                },
-                base: { service: 'cowork-chat' },
-                messageKey: 'message',
-            },
-        }),
-    ];
 
 @Module({
     imports: [
@@ -64,7 +30,43 @@ const loggerImports = process.env.CHAT_LOGGER_ENABLED === 'false'
                 directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
             }),
         }),
-        ...loggerImports,
+        LoggerModule.forRootAsync({
+            inject: [ConfigService],
+            useFactory: (configService: ConfigService) => {
+                const loggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
+                if (!loggerEnabled) {
+                    return { pinoHttp: { level: 'silent' } };
+                }
+                const logDir = (configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR) ?? `${process.cwd()}/build/logs/cowork/chat`;
+                const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
+                const createLogStream = () => {
+                    try {
+                        mkdirSync(logDir, { recursive: true });
+                        return createWriteStream(`${logDir}/app.log`, { flags: 'a' });
+                    } catch {
+                        return process.stdout;
+                    }
+                };
+                return {
+                    pinoHttp: {
+                        level: nodeEnv === 'production' ? 'info' : 'debug',
+                        stream: createLogStream(),
+                        autoLogging: {
+                            ignore: (req) => {
+                                const path = req.url?.split('?')[0]?.replace(/\/$/, '');
+                                return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
+                            },
+                        },
+                        timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
+                        formatters: {
+                            level: (label: string) => ({ level: label }),
+                        },
+                        base: { service: 'cowork-chat' },
+                        messageKey: 'message',
+                    },
+                };
+            },
+        }),
         PrometheusModule.register({
             defaultMetrics: { enabled: true },
             path: '/metrics',
