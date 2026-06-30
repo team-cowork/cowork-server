@@ -61,13 +61,13 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
                         const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
                         await this.handleResultEvent(event);
                     } catch (err) {
-                        this.logger.error('이슈 결과 처리 중 오류 발생', err);
+                        this.logger.error('Failed to process issue result event', err);
                         if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
             .catch(async (err) => {
-                this.logger.error('github.issue.result Kafka consumer 실행 실패', err);
+                this.logger.error('github.issue.result Kafka consumer failed', err);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: 'cowork-chat의 github.issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
