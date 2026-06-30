@@ -98,7 +98,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             this.lastReclaimTime = now;
             const reclaimed = await this.messageRepository.reclaimStaleProcessing(PROCESSING_STALE_THRESHOLD_MS);
             if (reclaimed > 0) {
-                this.logger.warn(`stale PROCESSING 메시지 ${reclaimed}개를 PENDING으로 회수했습니다`);
+                this.logger.warn(`Reclaimed ${reclaimed} stale PROCESSING message(s) back to PENDING`);
             }
         }
 
@@ -132,7 +132,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             } catch (err) {
                 const retryCount = (msg.notificationRetryCount ?? 0) + 1;
                 const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
-                this.logger.error(`outbox 처리 실패 (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), ${nextStatus} 전환`, err);
+                this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
                 await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
                 if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
                     void this.dicoshot.sendCustom({
