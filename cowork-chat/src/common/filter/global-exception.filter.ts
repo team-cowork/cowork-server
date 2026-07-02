@@ -40,7 +40,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         }
 
         const status = isHttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
-        const body = isHttpException ? exception.getResponse() : { message: '서버 오류가 발생했습니다' };
+        const body = isHttpException ? exception.getResponse() : { message: '서버 오류가 발생했습니다.' };
         const payload = typeof body === 'string' ? { statusCode: status, message: body } : { statusCode: status, ...body };
 
         host.switchToHttp().getResponse<Response>().status(status).json(payload);
