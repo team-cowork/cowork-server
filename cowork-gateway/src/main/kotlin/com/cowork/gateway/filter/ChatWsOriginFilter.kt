@@ -1,6 +1,7 @@
 package com.cowork.gateway.filter
 
 import com.cowork.gateway.security.ChatWsProperties
+import org.slf4j.LoggerFactory
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
 import org.springframework.core.Ordered
@@ -21,6 +22,8 @@ class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) :
     GlobalFilter,
     Ordered {
 
+    private val log = LoggerFactory.getLogger(ChatWsOriginFilter::class.java)
+
     override fun getOrder(): Int = -2
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
@@ -34,6 +37,7 @@ class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) :
         if (origin != null) {
             val allowed = chatWsProperties.allowedOrigins
             if (!allowed.contains("*") && origin !in allowed) {
+                log.warn("Reject WS connection due to unauthorized origin {}", origin)
                 exchange.response.statusCode = HttpStatus.FORBIDDEN
                 return exchange.response.setComplete()
             }
