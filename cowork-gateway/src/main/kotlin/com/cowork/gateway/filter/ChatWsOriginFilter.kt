@@ -2,13 +2,11 @@ package com.cowork.gateway.filter
 
 import com.cowork.gateway.security.ChatWsProperties
 import org.slf4j.LoggerFactory
-import org.springframework.cloud.gateway.filter.GatewayFilterChain
-import org.springframework.cloud.gateway.filter.GlobalFilter
-import org.springframework.core.Ordered
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilter
+import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
 /**
@@ -16,24 +14,15 @@ import reactor.core.publisher.Mono
  * 실어 보내는 특성을 악용해 다른 사이트가 사용자 몰래 연결을 시도하는 것을 막기 위해
  * `Origin` 헤더를 허용 목록과 대조한다. 네이티브 앱은 보통 `Origin` 헤더를 보내지 않으므로
  * (Authorization 헤더로 직접 인증) 그 경우는 통과시킨다.
+ *
+ * `SecurityConfig`의 `/chat-ws` 전용 보안 체인에만 연결되므로 경로를 다시 확인할 필요가 없다.
  */
-@Component
-class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) :
-    GlobalFilter,
-    Ordered {
+class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) : WebFilter {
 
     private val log = LoggerFactory.getLogger(ChatWsOriginFilter::class.java)
 
-    override fun getOrder(): Int = -2
-
-    override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
-        val request = exchange.request
-        val path = request.uri.path
-        if (path != CHAT_WS_PATH && !path.startsWith("$CHAT_WS_PATH/")) {
-            return chain.filter(exchange)
-        }
-
-        val origin = request.headers.getFirst(HttpHeaders.ORIGIN)
+    override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
+        val origin = exchange.request.headers.getFirst(HttpHeaders.ORIGIN)
         if (origin != null) {
             val allowed = chatWsProperties.allowedOrigins
             if (!allowed.contains("*") && origin !in allowed) {
@@ -44,9 +33,5 @@ class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) :
         }
 
         return chain.filter(exchange)
-    }
-
-    companion object {
-        private const val CHAT_WS_PATH = "/chat-ws"
     }
 }
