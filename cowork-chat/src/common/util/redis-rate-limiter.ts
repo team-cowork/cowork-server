@@ -23,13 +23,17 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
 
         this.client = new Redis({ host, port, lazyConnect: true });
+        // ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
+        this.client.on('error', (err: unknown) => {
+            this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
+        });
         void this.client.connect().catch((err: unknown) => {
             this.logger.warn(`Redis initial connection failed: ${err instanceof Error ? err.message : String(err)}`);
         });
     }
 
     onModuleDestroy(): void {
-        this.client.disconnect();
+        this.client?.disconnect();
     }
 
     /**
@@ -55,7 +59,10 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 
             const countBeforeAdd = Number(results?.[1]?.[1] ?? 0);
             if (countBeforeAdd >= maxRequests) {
-                await this.client.zrem(key, member);
+                // 정리(cleanup) 실패가 이 판정(한도 초과)을 fail-open으로 뒤집지 않도록 await하지 않는다
+                void this.client.zrem(key, member).catch((err: unknown) => {
+                    this.logger.warn(`Failed to clean up rate limit member: key=${key}, error=${err instanceof Error ? err.message : String(err)}`);
+                });
                 return false;
             }
             return true;
