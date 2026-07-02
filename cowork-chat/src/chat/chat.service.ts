@@ -2,11 +2,14 @@ import {
     BadRequestException,
     ForbiddenException,
     forwardRef,
+    HttpException,
+    HttpStatus,
     Inject,
     Injectable,
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 import { MessageDocument } from './schema/message.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
@@ -40,11 +43,16 @@ import {
     MessageUserRoleContext,
     UserContext,
 } from './dto/context';
+import { getOptionalConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
+const MESSAGE_RATE_LIMIT_KEY_PREFIX = 'chat:msgrate:';
+const DEFAULT_MESSAGE_RATE_LIMIT_WINDOW_MS = 10_000;
+const DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS = 20;
 
 /**
  * 채팅 서비스의 핵심 비즈니스 로직 클래스.
@@ -57,6 +65,8 @@ const DM_CHANNEL_TYPE = 'DM';
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
+    private readonly messageRateLimitWindowMs: number;
+    private readonly messageRateLimitMaxRequests: number;
 
     constructor(
         private readonly messageRepository: MessageRepository,
@@ -71,7 +81,16 @@ export class ChatService {
         private readonly blockService: BlockService,
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
-    ) {}
+        private readonly rateLimiter: RedisRateLimiter,
+        configService: ConfigService,
+    ) {
+        this.messageRateLimitWindowMs = Number(
+            getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_MESSAGE_RATE_LIMIT_WINDOW_MS,
+        );
+        this.messageRateLimitMaxRequests = Number(
+            getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS,
+        );
+    }
 
     /**
      * 사용자가 채널 멤버인지 확인한다.
@@ -250,8 +269,18 @@ export class ChatService {
      *
      * @param ctx - 채널·사용자·역할 컨텍스트
      * @param dto - 메시지 내용, 타입, 첨부파일 등
+     * @throws HttpException(429) 사용자가 시간창 내 메시지 전송 한도를 초과한 경우
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+        const allowed = await this.rateLimiter.tryAcquire(
+            `${MESSAGE_RATE_LIMIT_KEY_PREFIX}${ctx.userId}`,
+            this.messageRateLimitWindowMs,
+            this.messageRateLimitMaxRequests,
+        );
+        if (!allowed) {
+            throw new HttpException('짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.', HttpStatus.TOO_MANY_REQUESTS);
+        }
+
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
         if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
 
