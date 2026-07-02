@@ -2,7 +2,7 @@ import { ConfigService } from '@nestjs/config';
 import { RedisRateLimiter } from './redis-rate-limiter';
 
 const mockExec = jest.fn();
-const mockZrem = jest.fn();
+const mockZrem = jest.fn().mockResolvedValue(undefined);
 const mockPipeline = {
     zremrangebyscore: jest.fn().mockReturnThis(),
     zcard: jest.fn().mockReturnThis(),
@@ -13,12 +13,14 @@ const mockPipeline = {
 const mockMulti = jest.fn(() => mockPipeline);
 const mockConnect = jest.fn().mockResolvedValue(undefined);
 const mockDisconnect = jest.fn();
+const mockOn = jest.fn();
 
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     multi: mockMulti,
     zrem: mockZrem,
     connect: mockConnect,
     disconnect: mockDisconnect,
+    on: mockOn,
 })));
 
 const mockConfigService = {
