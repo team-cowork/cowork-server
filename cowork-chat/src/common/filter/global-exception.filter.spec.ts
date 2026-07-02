@@ -36,7 +36,7 @@ describe('GlobalExceptionFilter', () => {
         filter.catch(new Error('secret internal detail'), host);
 
         expect(status).toHaveBeenCalledWith(500);
-        expect(json).toHaveBeenCalledWith({ statusCode: 500, message: '서버 오류가 발생했습니다' });
+        expect(json).toHaveBeenCalledWith({ statusCode: 500, message: '서버 오류가 발생했습니다.' });
     });
 
     it('WebSocket 컨텍스트는 client.emit(\'exception\', ...)으로 위임한다', () => {
