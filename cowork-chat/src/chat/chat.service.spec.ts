@@ -14,6 +14,7 @@ import { UserClient } from './service/user.client';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { BlockService } from '../block/block.service';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -109,6 +110,10 @@ const mockConfigService = {
     get: jest.fn().mockReturnValue(undefined),
 };
 
+const mockRateLimiter = {
+    tryAcquire: jest.fn().mockResolvedValue(true),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -127,6 +132,7 @@ describe('ChatService', () => {
                 { provide: UserClient, useValue: mockUserClient },
                 { provide: BlockService, useValue: mockBlockService },
                 { provide: ChatGateway, useValue: mockChatGateway },
+                { provide: RedisRateLimiter, useValue: mockRateLimiter },
                 { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
@@ -243,30 +249,13 @@ describe('ChatService', () => {
             );
         });
 
-        it('시간창 내 허용 한도를 초과하면 HttpException(429)을 던지고 producer를 호출하지 않는다', async () => {
-            const rateLimitedConfigService = {
-                get: jest.fn((key: string) => (key === 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS' ? '1' : undefined)),
-            };
-            const rateLimitedService = new ChatService(
-                mockMessageRepository as never,
-                mockChannelMemberRepository as never,
-                mockElasticsearchService as never,
-                mockMinioService as never,
-                mockChatMessageProducer as never,
-                mockGithubIssueProducer as never,
-                mockProjectClient as never,
-                mockChannelClient as never,
-                mockUserClient as never,
-                mockBlockService as never,
-                mockChatGateway as never,
-                rateLimitedConfigService as never,
-            );
+        it('rate limiter가 한도 초과를 반환하면 HttpException(429)을 던지고 producer를 호출하지 않는다', async () => {
+            mockRateLimiter.tryAcquire.mockResolvedValueOnce(false);
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
 
-            await rateLimitedService.sendMessage(ctx, { teamId: 100, content: 'first' });
-            mockChatMessageProducer.sendMessage.mockClear();
+            await expect(service.sendMessage(ctx, { teamId: 100, content: 'hi' })).rejects.toThrow(HttpException);
 
-            await expect(rateLimitedService.sendMessage(ctx, { teamId: 100, content: 'second' })).rejects.toThrow(HttpException);
+            expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:msgrate:42', expect.any(Number), expect.any(Number));
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
     });
