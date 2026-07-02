@@ -44,12 +44,13 @@ import {
     UserContext,
 } from './dto/context';
 import { getOptionalConfig } from '../common/config/config.util';
-import { SlidingWindowRateLimiter } from '../common/util/rate-limiter.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
+const MESSAGE_RATE_LIMIT_KEY_PREFIX = 'chat:msgrate:';
 const DEFAULT_MESSAGE_RATE_LIMIT_WINDOW_MS = 10_000;
 const DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS = 20;
 
@@ -64,7 +65,8 @@ const DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS = 20;
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
-    private readonly messageRateLimiter: SlidingWindowRateLimiter;
+    private readonly messageRateLimitWindowMs: number;
+    private readonly messageRateLimitMaxRequests: number;
 
     constructor(
         private readonly messageRepository: MessageRepository,
@@ -79,11 +81,14 @@ export class ChatService {
         private readonly blockService: BlockService,
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
+        private readonly rateLimiter: RedisRateLimiter,
         configService: ConfigService,
     ) {
-        this.messageRateLimiter = new SlidingWindowRateLimiter(
-            Number(getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_MESSAGE_RATE_LIMIT_WINDOW_MS),
-            Number(getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS),
+        this.messageRateLimitWindowMs = Number(
+            getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_MESSAGE_RATE_LIMIT_WINDOW_MS,
+        );
+        this.messageRateLimitMaxRequests = Number(
+            getOptionalConfig(configService, 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_MESSAGE_RATE_LIMIT_MAX_REQUESTS,
         );
     }
 
@@ -267,7 +272,12 @@ export class ChatService {
      * @throws HttpException(429) 사용자가 시간창 내 메시지 전송 한도를 초과한 경우
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
-        if (!this.messageRateLimiter.tryAcquire(ctx.userId)) {
+        const allowed = await this.rateLimiter.tryAcquire(
+            `${MESSAGE_RATE_LIMIT_KEY_PREFIX}${ctx.userId}`,
+            this.messageRateLimitWindowMs,
+            this.messageRateLimitMaxRequests,
+        );
+        if (!allowed) {
             throw new HttpException('짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하세요', HttpStatus.TOO_MANY_REQUESTS);
         }
 
