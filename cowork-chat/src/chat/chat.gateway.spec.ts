@@ -8,9 +8,14 @@ import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer'
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
+};
+
+const mockRateLimiter = {
+    tryAcquire: jest.fn().mockResolvedValue(true),
 };
 
 const mockJwtService = {
@@ -72,6 +77,7 @@ describe('ChatGateway', () => {
                 { provide: MembershipConsumer, useValue: mockMembershipConsumer },
                 { provide: ConfigService, useValue: mockConfigService },
                 { provide: JwtService, useValue: mockJwtService },
+                { provide: RedisRateLimiter, useValue: mockRateLimiter },
             ],
         }).compile();
 
@@ -137,48 +143,31 @@ describe('ChatGateway', () => {
     });
 
     describe('typing rate limit', () => {
-        it('룸에 참여한 상태에서 typing:start를 호출하면 같은 룸에 typing 이벤트를 릴레이한다', () => {
+        it('룸에 참여한 상태에서 typing:start를 호출하면 같은 룸에 typing 이벤트를 릴레이한다', async () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
             const emit = jest.fn();
             client.to = jest.fn(() => ({ emit }));
 
-            gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
 
+            expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:typingrate:42', expect.any(Number), expect.any(Number));
             expect(client.to).toHaveBeenCalledWith('chat:1');
             expect(emit).toHaveBeenCalledWith('typing', { channelId: 1, userId: 42, isTyping: true });
         });
 
-        it('시간창 내 허용 한도를 초과하면 이후 typing 이벤트는 조용히 무시한다', async () => {
-            const rateLimitedConfigService = {
-                get: jest.fn((key: string) => (key === 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS' ? '1' : '')),
-            };
-            const module: TestingModule = await Test.createTestingModule({
-                providers: [
-                    ChatGateway,
-                    { provide: ChatService, useValue: mockChatService },
-                    { provide: ChatMessageConsumer, useValue: mockConsumer },
-                    { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
-                    { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
-                    { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
-                    { provide: MembershipConsumer, useValue: mockMembershipConsumer },
-                    { provide: ConfigService, useValue: rateLimitedConfigService },
-                    { provide: JwtService, useValue: mockJwtService },
-                ],
-            }).compile();
-            const rateLimitedGateway = module.get<ChatGateway>(ChatGateway);
-
+        it('rate limiter가 한도 초과를 반환하면 typing 이벤트를 조용히 무시한다', async () => {
+            mockRateLimiter.tryAcquire.mockResolvedValueOnce(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
             const emit = jest.fn();
             client.to = jest.fn(() => ({ emit }));
 
-            rateLimitedGateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
-            rateLimitedGateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(emit).toHaveBeenCalledTimes(1);
+            expect(emit).not.toHaveBeenCalled();
         });
     });
 });
