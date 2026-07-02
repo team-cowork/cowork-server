@@ -25,14 +25,18 @@ class ChatWsOriginFilter(private val chatWsProperties: ChatWsProperties) :
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
         val request = exchange.request
-        if (!request.uri.path.startsWith(CHAT_WS_PATH)) {
+        val path = request.uri.path
+        if (path != CHAT_WS_PATH && !path.startsWith("$CHAT_WS_PATH/")) {
             return chain.filter(exchange)
         }
 
         val origin = request.headers.getFirst(HttpHeaders.ORIGIN)
-        if (origin != null && origin !in chatWsProperties.allowedOrigins) {
-            exchange.response.statusCode = HttpStatus.FORBIDDEN
-            return exchange.response.setComplete()
+        if (origin != null) {
+            val allowed = chatWsProperties.allowedOrigins
+            if (!allowed.contains("*") && origin !in allowed) {
+                exchange.response.statusCode = HttpStatus.FORBIDDEN
+                return exchange.response.setComplete()
+            }
         }
 
         return chain.filter(exchange)
