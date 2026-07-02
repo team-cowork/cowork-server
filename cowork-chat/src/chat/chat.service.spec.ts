@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -104,6 +105,10 @@ const mockChatGateway = {
     },
 };
 
+const mockConfigService = {
+    get: jest.fn().mockReturnValue(undefined),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -122,6 +127,7 @@ describe('ChatService', () => {
                 { provide: UserClient, useValue: mockUserClient },
                 { provide: BlockService, useValue: mockBlockService },
                 { provide: ChatGateway, useValue: mockChatGateway },
+                { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
 
@@ -235,6 +241,33 @@ describe('ChatService', () => {
                 42,
                 'USER',
             );
+        });
+
+        it('시간창 내 허용 한도를 초과하면 HttpException(429)을 던지고 producer를 호출하지 않는다', async () => {
+            const rateLimitedConfigService = {
+                get: jest.fn((key: string) => (key === 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS' ? '1' : undefined)),
+            };
+            const rateLimitedService = new ChatService(
+                mockMessageRepository as never,
+                mockChannelMemberRepository as never,
+                mockElasticsearchService as never,
+                mockMinioService as never,
+                mockChatMessageProducer as never,
+                mockGithubIssueProducer as never,
+                mockProjectClient as never,
+                mockChannelClient as never,
+                mockUserClient as never,
+                mockBlockService as never,
+                mockChatGateway as never,
+                rateLimitedConfigService as never,
+            );
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+
+            await rateLimitedService.sendMessage(ctx, { teamId: 100, content: 'first' });
+            mockChatMessageProducer.sendMessage.mockClear();
+
+            await expect(rateLimitedService.sendMessage(ctx, { teamId: 100, content: 'second' })).rejects.toThrow(HttpException);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
     });
 
