@@ -42,7 +42,7 @@ class JwtServerAuthenticationConverter(private val jwtProperties: JwtProperties)
 
     private fun extractToken(exchange: ServerWebExchange): String? {
         val authHeader = exchange.request.headers.getFirst("Authorization")?.trim()
-        if (authHeader != null) {
+        if (!authHeader.isNullOrEmpty()) {
             val bearerPrefix = "Bearer "
             if (authHeader.startsWith(bearerPrefix, ignoreCase = true)) {
                 return authHeader.substring(bearerPrefix.length).trim().ifEmpty { null }
