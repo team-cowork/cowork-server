@@ -10,7 +10,7 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
 
 /**
- * `/ws/**` 핸드셰이크는 쿠키에 담긴 JWT로 인증되므로, 브라우저가 쿠키를 자동으로
+ * `/ws` 하위 전체 핸드셰이크는 쿠키에 담긴 JWT로 인증되므로, 브라우저가 쿠키를 자동으로
  * 실어 보내는 특성을 악용해 다른 사이트가 사용자 몰래 연결을 시도하는 것을 막기 위해
  * `Origin` 헤더를 허용 목록과 대조한다. 네이티브 앱은 보통 `Origin` 헤더를 보내지 않으므로
  * (Authorization 헤더로 직접 인증) 그 경우는 통과시킨다.
