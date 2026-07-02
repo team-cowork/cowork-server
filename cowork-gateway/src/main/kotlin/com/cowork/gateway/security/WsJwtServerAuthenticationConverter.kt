@@ -6,7 +6,7 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 
 /**
- * `/ws/**` 전용 인증 컨버터. 이 클래스는 [SecurityConfig]의 `/ws` 전용
+ * `/ws` 하위 전체 전용 인증 컨버터. 이 클래스는 [SecurityConfig]의 `/ws` 전용
  * 보안 체인에서만 사용되므로 경로를 다시 확인할 필요가 없다.
  * chat 외 다른 모듈이 웹소켓을 추가하더라도 이 컨버터를 그대로 재사용한다.
  *
