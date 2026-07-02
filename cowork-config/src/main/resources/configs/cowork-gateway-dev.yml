@@ -190,7 +190,7 @@ spring:
         - id: chat-service-ws
           uri: lb:ws://cowork-chat
           predicates:
-            - Path=/chat-ws/**
+            - Path=/ws/chat/**
           filters:
             - name: RequestRateLimiter
               args:
@@ -335,7 +335,7 @@ spring:
 # jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
 
 app:
-  chat-ws:
+  ws:
     allowed-origins:
       - "http://localhost:3000"
 
