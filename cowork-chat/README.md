@@ -52,7 +52,7 @@
 
 ## 인증
 - REST: 모든 요청은 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더로 식별한다(`AuthGuard`가 전역 적용). `@Public()`으로 인증 예외, `@Roles()`로 역할 제한, `@UserId()`/`@UserRole()` 데코레이터로 컨트롤러에 값 주입.
-- WebSocket: REST와 별도로 Socket.IO handshake의 `auth.token`에 담긴 JWT를 `JwtService`로 직접 검증한다(`ChatGateway.handleConnection`). 인증 실패 시 `exception` 이벤트 emit 후 연결 종료.
+- WebSocket: Gateway가 `chat-ws` 핸드셰이크 요청의 `cowork_ws_token` 쿠키(`cowork-authorization`이 로그인/리프레시 시 발급)에서 JWT를 검증해 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰한다. 브라우저의 WebSocket 업그레이드 요청은 커스텀 `Authorization` 헤더를 실을 수 없어, REST와 달리 쿠키로 토큰을 전달한다. 헤더가 없는 경우(Gateway 미경유 등)에 한해 Socket.IO handshake의 `auth.token`에 담긴 JWT를 `JwtService`로 직접 검증하는 방식으로 대체한다(`ChatGateway.resolveIdentity`). 두 방식 모두 실패 시 `exception` 이벤트 emit 후 연결 종료.
 
 ## Mongoose 스키마 컨벤션 (`src/**/schema/*.schema.ts`)
 - 모든 최상위 도큐먼트 스키마는 `@Schema({ timestamps: true, versionKey: false })`로 `createdAt`/`updatedAt`을 자동 관리하고 `__v`를 제거한다. 클라이언트 응답에는 `_id`를 유지한다.

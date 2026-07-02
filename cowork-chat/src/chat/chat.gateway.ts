@@ -38,7 +38,8 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 /**
  * `/chat` 네임스페이스의 WebSocket 게이트웨이.
  *
- * 연결 시 `auth.token`(JWT)을 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
+ * 연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
+ * 헤더가 없으면 `auth.token`(JWT)을 직접 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
  * 인증 실패 시 `exception` 이벤트를 emit하고 소켓을 즉시 끊는다.
  * `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
  * Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
@@ -100,26 +101,19 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     * 클라이언트 연결 시 JWT를 검증하고 `client.data`에 인증 정보를 설정한다.
-     * `auth.token`이 없거나 유효하지 않으면 `exception` 이벤트 후 소켓을 끊는다.
+     * 클라이언트 연결 시 인증 정보를 확인해 `client.data`에 설정한다.
+     * Gateway가 `X-User-Id`/`X-User-Role` 헤더를 주입한 경우 이를 신뢰하고,
+     * 헤더가 없으면(Gateway 미경유 등) `auth.token`의 JWT를 직접 검증하는 기존 방식으로 대체한다.
+     * 두 방식 모두 실패하면 `exception` 이벤트 후 소켓을 끊는다.
      *
      * @param client - 연결된 Socket.IO 소켓
      */
     async handleConnection(client: ChatSocket) {
         try {
-            const token = client.handshake.auth?.token as string | undefined;
-            if (!token) {
-                throw new Error('토큰이 전달되지 않았습니다');
-            }
-
-            const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
-            const userId = Number(payload.sub);
-            if (isNaN(userId) || userId <= 0) {
-                throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
-            }
+            const { userId, userRole } = await this.resolveIdentity(client);
 
             client.data.userId = userId;
-            client.data.userRole = payload.role ?? UserRole.USER;
+            client.data.userRole = userRole;
             this.joinRoom(client, `user:${userId}`);
             this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (err) {
@@ -128,6 +122,35 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.emit('exception', { message: '인증 실패: ' + message });
             client.disconnect();
         }
+    }
+
+    /**
+     * Gatewa근데 y가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
+     * 없으면 `auth.token`의 JWT를 직접 검증해 사용자 정보를 확인한다.
+     */
+    private async resolveIdentity(client: ChatSocket): Promise<{ userId: number; userRole: string }> {
+        const headerUserId = client.handshake.headers['x-user-id'];
+        if (typeof headerUserId === 'string') {
+            const userId = Number(headerUserId);
+            if (isNaN(userId) || userId <= 0) {
+                throw new Error('X-User-Id 헤더가 유효하지 않습니다');
+            }
+            const headerUserRole = client.handshake.headers['x-user-role'];
+            const userRole = typeof headerUserRole === 'string' && headerUserRole ? headerUserRole : UserRole.USER;
+            return { userId, userRole };
+        }
+
+        const token = client.handshake.auth?.token as string | undefined;
+        if (!token) {
+            throw new Error('인증 정보가 전달되지 않았습니다');
+        }
+
+        const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
+        const userId = Number(payload.sub);
+        if (isNaN(userId) || userId <= 0) {
+            throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
+        }
+        return { userId, userRole: payload.role ?? UserRole.USER };
     }
 
     /**
