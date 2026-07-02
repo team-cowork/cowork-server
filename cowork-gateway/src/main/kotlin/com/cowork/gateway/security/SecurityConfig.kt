@@ -26,7 +26,7 @@ class SecurityConfig(
 ) {
 
     /**
-     * `/ws/**` 전용 보안 체인. 브라우저의 WebSocket 핸드셰이크는 커스텀 `Authorization`
+     * `/ws` 하위 전체 전용 보안 체인. 브라우저의 WebSocket 핸드셰이크는 커스텀 `Authorization`
      * 헤더를 실을 수 없어 쿠키 기반 인증(`WsJwtServerAuthenticationConverter`)과
      * Origin 검사(`WsOriginFilter`)가 이 경로에만 필요하다. 별도 체인으로 분리해
      * 기본 체인과 그 컨버터가 이 예외를 몰라도 되게 한다.
