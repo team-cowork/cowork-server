@@ -9,6 +9,7 @@ import { Logger as PinoLogger } from 'nestjs-pino';
 import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
+import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -28,6 +29,7 @@ async function bootstrap() {
     app.useLogger(app.get(PinoLogger));
     app.setGlobalPrefix('chat', { exclude: ['health'] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
 
     const config = new DocumentBuilder()
