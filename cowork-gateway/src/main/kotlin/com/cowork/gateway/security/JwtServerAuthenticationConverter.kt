@@ -42,13 +42,26 @@ class JwtServerAuthenticationConverter(private val jwtProperties: JwtProperties)
 
     private fun extractToken(exchange: ServerWebExchange): String? {
         val authHeader = exchange.request.headers.getFirst("Authorization")?.trim()
-            ?: return null
-
-        val bearerPrefix = "Bearer "
-        if (authHeader.startsWith(bearerPrefix, ignoreCase = true)) {
-            return authHeader.substring(bearerPrefix.length).trim().ifEmpty { null }
+        if (authHeader != null) {
+            val bearerPrefix = "Bearer "
+            if (authHeader.startsWith(bearerPrefix, ignoreCase = true)) {
+                return authHeader.substring(bearerPrefix.length).trim().ifEmpty { null }
+            }
+            return authHeader.takeIf { it.count { ch -> ch == '.' } == 2 }
         }
 
-        return authHeader.takeIf { it.count { ch -> ch == '.' } == 2 }
+        // Socket.IO WebSocket 핸드셰이크는 브라우저 제약상 커스텀 Authorization 헤더를 실을 수 없어
+        // 로그인 시 함께 발급한 전용 쿠키로 토큰을 전달한다. 노출 범위를 최소화하기 위해
+        // /chat-ws 경로에서만 허용하고, 쿠키 자체도 Path=/chat-ws로 스코프되어 있다.
+        if (exchange.request.uri.path.startsWith(CHAT_WS_PATH)) {
+            return exchange.request.cookies.getFirst(CHAT_WS_COOKIE_NAME)?.value?.trim()?.ifEmpty { null }
+        }
+
+        return null
+    }
+
+    companion object {
+        private const val CHAT_WS_PATH = "/chat-ws"
+        private const val CHAT_WS_COOKIE_NAME = "cowork_ws_token"
     }
 }

@@ -13,6 +13,12 @@ import (
 
 const (
 	userIDKey = "userID"
+
+	// chatWsCookieName은 cowork-chat의 WebSocket 핸드셰이크 인증에 쓰인다.
+	// 브라우저의 WebSocket 핸드셰이크는 커스텀 Authorization 헤더를 실을 수 없어,
+	// Gateway가 이 쿠키에서 access token을 꺼내 검증한다(Path=/chat-ws로 노출 범위 최소화).
+	chatWsCookieName = "cowork_ws_token"
+	chatWsCookiePath = "/chat-ws"
 )
 
 type AuthHandler struct {
@@ -22,6 +28,18 @@ type AuthHandler struct {
 
 func NewAuthHandler(authSvc *service.AuthService, tokenSvc *service.TokenService) *AuthHandler {
 	return &AuthHandler{authSvc: authSvc, tokenSvc: tokenSvc}
+}
+
+// setChatWsCookie는 access token을 chat-ws 전용 httpOnly 쿠키로도 내려준다.
+// REST 인증에 쓰는 응답 본문의 access_token과 동일한 값·수명을 그대로 재사용한다.
+func setChatWsCookie(c *gin.Context, pair *service.TokenPair) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(chatWsCookieName, pair.AccessToken, pair.ExpiresIn, chatWsCookiePath, "", true, true)
+}
+
+func clearChatWsCookie(c *gin.Context) {
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(chatWsCookieName, "", -1, chatWsCookiePath, "", true, true)
 }
 
 // Token godoc
@@ -53,6 +71,7 @@ func (h *AuthHandler) Token(c *gin.Context) {
 		return
 	}
 
+	setChatWsCookie(c, pair)
 	c.JSON(http.StatusOK, pair)
 }
 
@@ -82,6 +101,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	setChatWsCookie(c, pair)
 	c.JSON(http.StatusOK, pair)
 }
 
@@ -112,6 +132,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
+	clearChatWsCookie(c)
 	c.Status(http.StatusNoContent)
 }
 

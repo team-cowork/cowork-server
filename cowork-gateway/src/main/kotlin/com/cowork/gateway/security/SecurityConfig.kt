@@ -14,7 +14,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 
 @Configuration
 @EnableWebFluxSecurity
-@EnableConfigurationProperties(JwtProperties::class)
+@EnableConfigurationProperties(JwtProperties::class, ChatWsProperties::class)
 class SecurityConfig(
     private val jwtConverter: JwtServerAuthenticationConverter,
     private val jwtAuthManager: JwtReactiveAuthenticationManager,
