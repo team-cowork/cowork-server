@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Logger, UseFilters } from '@nestjs/common';
 import {
     WebSocketGateway,
     WebSocketServer,
@@ -20,6 +20,13 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
+import { getOptionalConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
+
+const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
+const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
+const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 
 export interface ChatSocketData {
     userId: number;
@@ -35,7 +42,12 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
  * 인증 실패 시 `exception` 이벤트를 emit하고 소켓을 즉시 끊는다.
  * `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
  * Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
+ *
+ * `app.useGlobalFilters()`로 등록한 전역 필터는 WebSocket Gateway 예외를 감지하지 못하므로
+ * (Nest `@nestjs/websockets`의 `ExceptionFiltersContext`는 전역 필터 메타데이터를 조회하지 않음),
+ * `GlobalExceptionFilter`를 클래스 레벨에 별도로 바인딩한다.
  */
+@UseFilters(GlobalExceptionFilter)
 @WebSocketGateway({
     namespace: '/chat',
     path: '/chat-ws',
@@ -50,6 +62,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     @WebSocketServer() server!: Server;
 
+    private readonly typingRateLimitWindowMs: number;
+    private readonly typingRateLimitMaxRequests: number;
+
     constructor(
         @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
@@ -60,7 +75,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly membershipConsumer: MembershipConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
-    ) {}
+        private readonly rateLimiter: RedisRateLimiter,
+    ) {
+        this.typingRateLimitWindowMs = Number(
+            getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
+        );
+        this.typingRateLimitMaxRequests = Number(
+            getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
+        );
+    }
 
     /**
      * Socket.IO 서버 초기화 후 호출된다.
@@ -149,21 +172,28 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     /**
      * `typing:start` / `typing:stop` 이벤트 핸들러.
      * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
+     * 사용자별 시간창 내 호출 한도를 초과하면 조용히 무시한다(별도 에러 emit 없음).
      */
     @SubscribeMessage('typing:start')
-    handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        this.relayTyping(client, payload, true);
+    async handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        await this.relayTyping(client, payload, true);
     }
 
     @SubscribeMessage('typing:stop')
-    handleTypingStop(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        this.relayTyping(client, payload, false);
+    async handleTypingStop(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        await this.relayTyping(client, payload, false);
     }
 
-    private relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
+    private async relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
         if (!payload || typeof payload.channelId !== 'number') return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
+        const allowed = await this.rateLimiter.tryAcquire(
+            `${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
+            this.typingRateLimitWindowMs,
+            this.typingRateLimitMaxRequests,
+        );
+        if (!allowed) return;
         client.to(room).emit('typing', {
             channelId: payload.channelId,
             userId: client.data.userId,
