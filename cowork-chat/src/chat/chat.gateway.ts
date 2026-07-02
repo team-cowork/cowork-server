@@ -125,17 +125,19 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     * Gatewa근데 y가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
+     * Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
      * 없으면 `auth.token`의 JWT를 직접 검증해 사용자 정보를 확인한다.
      */
     private async resolveIdentity(client: ChatSocket): Promise<{ userId: number; userRole: string }> {
-        const headerUserId = client.handshake.headers['x-user-id'];
+        const rawUserId = client.handshake.headers['x-user-id'];
+        const headerUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
         if (typeof headerUserId === 'string') {
             const userId = Number(headerUserId);
             if (isNaN(userId) || userId <= 0) {
                 throw new Error('X-User-Id 헤더가 유효하지 않습니다');
             }
-            const headerUserRole = client.handshake.headers['x-user-role'];
+            const rawUserRole = client.handshake.headers['x-user-role'];
+            const headerUserRole = Array.isArray(rawUserRole) ? rawUserRole[0] : rawUserRole;
             const userRole = typeof headerUserRole === 'string' && headerUserRole ? headerUserRole : UserRole.USER;
             return { userId, userRole };
         }
