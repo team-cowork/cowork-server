@@ -32,6 +32,7 @@ import { BlockModule } from '../block/block.module';
 import { MinioModule } from '../storage/minio.module';
 import { SearchModule } from '../search/search.module';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -84,6 +85,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelSearchClient,
         UserClient,
         UnifiedSearchResolver,
+        RedisRateLimiter,
     ],
 })
 export class ChatModule {}
