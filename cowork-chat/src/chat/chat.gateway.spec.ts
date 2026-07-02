@@ -21,9 +21,11 @@ const mockSocket = (authToken?: string) => ({
     id: 'socket-1',
     handshake: { auth: { token: authToken } },
     data: {} as Record<string, unknown>,
+    rooms: new Set<string>(),
     join: jest.fn(),
     leave: jest.fn(),
     emit: jest.fn(),
+    to: jest.fn(() => ({ emit: jest.fn() })),
     disconnect: jest.fn(),
 });
 
@@ -131,6 +133,52 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             gateway.handleLeave(client as unknown as ChatSocket, { channelId: 1 });
             expect(client.leave).toHaveBeenCalledWith('chat:1');
+        });
+    });
+
+    describe('typing rate limit', () => {
+        it('룸에 참여한 상태에서 typing:start를 호출하면 같은 룸에 typing 이벤트를 릴레이한다', () => {
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+            client.rooms.add('chat:1');
+            const emit = jest.fn();
+            client.to = jest.fn(() => ({ emit }));
+
+            gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(client.to).toHaveBeenCalledWith('chat:1');
+            expect(emit).toHaveBeenCalledWith('typing', { channelId: 1, userId: 42, isTyping: true });
+        });
+
+        it('시간창 내 허용 한도를 초과하면 이후 typing 이벤트는 조용히 무시한다', async () => {
+            const rateLimitedConfigService = {
+                get: jest.fn((key: string) => (key === 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS' ? '1' : '')),
+            };
+            const module: TestingModule = await Test.createTestingModule({
+                providers: [
+                    ChatGateway,
+                    { provide: ChatService, useValue: mockChatService },
+                    { provide: ChatMessageConsumer, useValue: mockConsumer },
+                    { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
+                    { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
+                    { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
+                    { provide: MembershipConsumer, useValue: mockMembershipConsumer },
+                    { provide: ConfigService, useValue: rateLimitedConfigService },
+                    { provide: JwtService, useValue: mockJwtService },
+                ],
+            }).compile();
+            const rateLimitedGateway = module.get<ChatGateway>(ChatGateway);
+
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+            client.rooms.add('chat:1');
+            const emit = jest.fn();
+            client.to = jest.fn(() => ({ emit }));
+
+            rateLimitedGateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            rateLimitedGateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(emit).toHaveBeenCalledTimes(1);
         });
     });
 });
