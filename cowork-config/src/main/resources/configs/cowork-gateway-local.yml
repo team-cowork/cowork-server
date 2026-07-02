@@ -167,7 +167,7 @@ spring:
         - id: chat-service-ws
           uri: lb:ws://cowork-chat
           predicates:
-            - Path=/chat-ws/**
+            - Path=/ws/chat/**
           filters:
             - name: RequestRateLimiter
               args:
@@ -302,6 +302,11 @@ spring:
             - Path=/v3/api-docs/notification
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
+app:
+  ws:
+    allowed-origins:
+      - "http://localhost:3000"
 
 resilience4j:
   circuitbreaker:
