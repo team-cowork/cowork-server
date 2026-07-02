@@ -1,27 +1,32 @@
-# MongoDB Message Schema (cowork-chat)
+# MongoDB Schema (cowork-chat)
+
+소스: `src/chat/schema/message.schema.ts`, `src/chat/schema/channel-member.schema.ts`.
+공통 컨벤션(스키마 옵션, 인덱스 정의 방식 등)은 서비스 루트 `README.md`의 "Mongoose 스키마 컨벤션" 절 참고.
 
 ## Collection: messages
 
 ```json
 {
   "_id": "ObjectId",
-  "channelId": "Long (tb_channels.id)",
-  "threadId": "Long | null (tb_threads.id, null이면 채널 루트 메시지)",
-  "authorId": "Long (tb_user_profiles.id)",
-  "type": "STRING (TEXT | FILE | WEBHOOK | SYSTEM)",
-  "content": "String | null (type=FILE이면 null 가능)",
+  "teamId": "Long | null (DM 채널 메시지는 null)",
+  "projectId": "Long | null (프로젝트 무관 채널은 null)",
+  "channelId": "Long (channel-service의 채널 ID)",
+  "authorId": "Long (user-service의 사용자 ID)",
+  "type": "STRING (TEXT | FILE | SYSTEM)",
+  "content": "String (최대 25,000자, FILE 타입은 파일 설명 텍스트)",
   "attachments": [
-    {
-      "name": "String",
-      "url": "String",
-      "size": "Long (bytes)",
-      "mimeType": "String"
-    }
+    { "name": "String", "url": "String", "size": "Long (bytes)", "mimeType": "String" }
   ],
-  "webhookName": "String | null (type=WEBHOOK일 때 발신자 이름)",
-  "webhookAvatarUrl": "String | null",
+  "parentMessageId": "ObjectId | null (스레드 부모 메시지, 최상위 메시지는 null)",
   "isEdited": "Boolean",
+  "editHistory": [{ "content": "String", "editedAt": "Date" }],
   "isPinned": "Boolean",
+  "reactions": [{ "emoji": "String", "userIds": ["Long"] }],
+  "clientMessageId": "String | null (멱등성 키, sparse unique)",
+  "mentions": ["Long"],
+  "notificationStatus": "STRING (PENDING | PROCESSING | SENT | FAILED)",
+  "notificationRetryCount": "Number",
+  "notificationProcessingStartedAt": "Date | null",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -29,26 +34,39 @@
 
 ## Index 전략
 
-| 필드 | 인덱스 | 목적 |
-|---|---|---|
-| `channelId` + `createdAt` | Compound | 채널별 메시지 최신순 조회 |
-| `threadId` + `createdAt` | Compound | 스레드 메시지 조회 |
-| `authorId` | Single | 사용자별 메시지 조회 |
-| `isPinned` + `channelId` | Compound | 채널 고정 메시지 조회 |
+| 인덱스 | 목적 |
+|---|---|
+| `channelId` + `_id` (desc) | 채널별 메시지 최신순 커서 페이지네이션 |
+| `authorId` | 사용자별 메시지 조회 |
+| `parentMessageId` | 스레드 답글 필터링 |
+| `channelId` + `parentMessageId` + `_id` (desc) | 채널 내 스레드 답글 목록 조회 |
+| `isPinned` + `channelId` | 채널 고정 메시지 조회 |
+| `clientMessageId` (unique, sparse) | 클라이언트 재시도로 인한 메시지 중복 생성 방지 |
+| `mentions` | 멘션된 사용자 기준 조회 |
+| `notificationStatus` + `createdAt` | 아웃박스 워커의 PENDING 메시지 처리 순서 |
 
-## 채널 타입별 메시지 규칙
+## 알림 아웃박스 패턴
 
-| 채널 타입 | 허용 메시지 type | 비고 |
-|---|---|---|
-| TEXT | TEXT, FILE, SYSTEM | 일반 채팅 |
-| WEBHOOK | WEBHOOK, SYSTEM | 외부 서비스 메시지만 수신, 사용자 전송 불가 |
-| FILE_SHARE | FILE, SYSTEM | 파일 첨부 필수 |
-| MEETING_NOTE | TEXT, FILE, SYSTEM | 회의록 전용 포맷 |
-| ACCOUNT_SHARE | SYSTEM | 별도 처리 |
-| VOICE | SYSTEM | 입장/퇴장 시스템 메시지만 |
+`notificationStatus`(`PENDING`→`PROCESSING`→`SENT`/`FAILED`)로 `notification.trigger` Kafka 발행을 추적한다. `notificationProcessingStartedAt`이 일정 시간 이상 경과하면 폴러가 해당 메시지를 다시 `PENDING`으로 회수해 워커 크래시로 인한 영구 stuck을 방지한다.
 
-## 스레드 연결 방식
+## Collection: channel_members
 
-- 채널 루트 메시지: `threadId = null`
-- 스레드 메시지: `threadId = tb_threads.id`
-- 스레드 시작점 메시지의 `_id` (ObjectId) → MySQL `tb_threads.parent_message_id`에 저장
+```json
+{
+  "_id": "ObjectId",
+  "channelId": "Long",
+  "teamId": "Long | null (DM 채널은 null)",
+  "channelType": "STRING (기본 TEXT, channel-service 멤버십 이벤트로 동기화)",
+  "isHidden": "Boolean (DM 대화 숨김, 상대 메시지 수신 시 자동 복구)",
+  "userId": "Long",
+  "role": "STRING (기본 MEMBER)",
+  "lastReadMessageId": "ObjectId | null",
+  "createdAt": "Date",
+  "updatedAt": "Date"
+}
+```
+
+| 인덱스 | 목적 |
+|---|---|
+| `channelId` + `userId` (unique) | 동일 사용자의 중복 가입 방지 |
+| `userId` + `teamId` | 사용자 단위/팀 단위 멤버십 조회 공용 (prefix로 `userId` 단독 조회도 커버) |
