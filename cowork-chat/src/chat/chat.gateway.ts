@@ -51,7 +51,7 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 @UseFilters(GlobalExceptionFilter)
 @WebSocketGateway({
     namespace: '/chat',
-    path: '/chat-ws',
+    path: '/ws/chat',
     cors: {
         origin: true, // Gateway에서 이미 제어되지만, 필요시 ConfigService로 주입 가능
         methods: ['GET', 'POST'],
