@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, HttpException, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
@@ -13,6 +14,7 @@ import { UserClient } from './service/user.client';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { BlockService } from '../block/block.service';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -104,6 +106,14 @@ const mockChatGateway = {
     },
 };
 
+const mockConfigService = {
+    get: jest.fn().mockReturnValue(undefined),
+};
+
+const mockRateLimiter = {
+    tryAcquire: jest.fn().mockResolvedValue(true),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -122,6 +132,8 @@ describe('ChatService', () => {
                 { provide: UserClient, useValue: mockUserClient },
                 { provide: BlockService, useValue: mockBlockService },
                 { provide: ChatGateway, useValue: mockChatGateway },
+                { provide: RedisRateLimiter, useValue: mockRateLimiter },
+                { provide: ConfigService, useValue: mockConfigService },
             ],
         }).compile();
 
@@ -235,6 +247,16 @@ describe('ChatService', () => {
                 42,
                 'USER',
             );
+        });
+
+        it('rate limiter가 한도 초과를 반환하면 HttpException(429)을 던지고 producer를 호출하지 않는다', async () => {
+            mockRateLimiter.tryAcquire.mockResolvedValueOnce(false);
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+
+            await expect(service.sendMessage(ctx, { teamId: 100, content: 'hi' })).rejects.toThrow(HttpException);
+
+            expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:msgrate:42', expect.any(Number), expect.any(Number));
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
     });
 
