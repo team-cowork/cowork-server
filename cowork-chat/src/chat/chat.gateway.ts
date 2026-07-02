@@ -20,6 +20,11 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
+import { getOptionalConfig } from '../common/config/config.util';
+import { SlidingWindowRateLimiter } from '../common/util/rate-limiter.util';
+
+const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
+const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 
 export interface ChatSocketData {
     userId: number;
@@ -50,6 +55,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     @WebSocketServer() server!: Server;
 
+    private readonly typingRateLimiter: SlidingWindowRateLimiter;
+
     constructor(
         @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
@@ -60,7 +67,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly membershipConsumer: MembershipConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
-    ) {}
+    ) {
+        this.typingRateLimiter = new SlidingWindowRateLimiter(
+            Number(getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS),
+            Number(getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS),
+        );
+    }
 
     /**
      * Socket.IO 서버 초기화 후 호출된다.
@@ -149,6 +161,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     /**
      * `typing:start` / `typing:stop` 이벤트 핸들러.
      * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
+     * 사용자별 시간창 내 호출 한도를 초과하면 조용히 무시한다(별도 에러 emit 없음).
      */
     @SubscribeMessage('typing:start')
     handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
@@ -164,6 +177,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         if (!payload || typeof payload.channelId !== 'number') return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
+        if (!this.typingRateLimiter.tryAcquire(client.data.userId)) return;
         client.to(room).emit('typing', {
             channelId: payload.channelId,
             userId: client.data.userId,
