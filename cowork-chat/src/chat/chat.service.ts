@@ -278,7 +278,7 @@ export class ChatService {
             this.messageRateLimitMaxRequests,
         );
         if (!allowed) {
-            throw new HttpException('짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하세요', HttpStatus.TOO_MANY_REQUESTS);
+            throw new HttpException('짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.', HttpStatus.TOO_MANY_REQUESTS);
         }
 
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
