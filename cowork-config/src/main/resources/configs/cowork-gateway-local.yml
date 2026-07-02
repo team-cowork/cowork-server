@@ -303,6 +303,11 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
 
+app:
+  chat-ws:
+    allowed-origins:
+      - "http://localhost:3000"
+
 resilience4j:
   circuitbreaker:
     instances:
