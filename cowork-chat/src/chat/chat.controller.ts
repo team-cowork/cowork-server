@@ -136,6 +136,7 @@ export class ChatController {
     @ApiOperation({ summary: '메시지 전송 (Kafka 비동기)' })
     @ApiResponse({ status: 201, type: SendMessageResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    @ApiResponse({ status: 429, description: '메시지 전송 요청이 너무 많음' })
     async sendMessage(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SendMessageDto,
