@@ -22,9 +22,9 @@ const mockJwtService = {
     verifyAsync: jest.fn(),
 };
 
-const mockSocket = (authToken?: string) => ({
+const mockSocket = (authToken?: string, headers: Record<string, string> = {}) => ({
     id: 'socket-1',
-    handshake: { auth: { token: authToken } },
+    handshake: { auth: { token: authToken }, headers },
     data: {} as Record<string, unknown>,
     rooms: new Set<string>(),
     join: jest.fn(),
@@ -85,7 +85,24 @@ describe('ChatGateway', () => {
     });
 
     describe('handleConnection', () => {
-        it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장되고 전용 룸에 join한다', async () => {
+        it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
+            const client = mockSocket(undefined, { 'x-user-id': '7', 'x-user-role': 'ADMIN' });
+            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(client.data.userId).toBe(7);
+            expect(client.data.userRole).toBe('ADMIN');
+            expect(client.join).toHaveBeenCalledWith('user:7');
+            expect(mockJwtService.verifyAsync).not.toHaveBeenCalled();
+            expect(client.disconnect).not.toHaveBeenCalled();
+        });
+
+        it('X-User-Id 헤더가 유효하지 않으면 exception 이벤트를 emit하고 disconnect된다', async () => {
+            const client = mockSocket(undefined, { 'x-user-id': 'not-a-number' });
+            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: X-User-Id 헤더가 유효하지 않습니다' });
+            expect(client.disconnect).toHaveBeenCalled();
+        });
+
+        it('헤더가 없으면 auth.token의 JWT를 직접 검증해 연결한다', async () => {
             const client = mockSocket('valid-token');
             await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.data.userId).toBe(42);
@@ -94,10 +111,10 @@ describe('ChatGateway', () => {
             expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('토큰 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
+        it('헤더도 토큰도 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             const client = mockSocket(undefined);
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 토큰이 전달되지 않았습니다' });
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 인증 정보가 전달되지 않았습니다' });
             expect(client.disconnect).toHaveBeenCalled();
         });
 
