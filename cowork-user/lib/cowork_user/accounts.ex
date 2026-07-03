@@ -557,7 +557,7 @@ defmodule CoworkUser.Accounts do
   """
   def parse_int_csv(ids_str) when is_binary(ids_str) do
     ids_str
-    |> String.split(",", parts: @max_raw_csv_tokens)
+    |> String.split(",", parts: @max_raw_csv_tokens + 1)
     |> Enum.flat_map(fn s ->
       case Integer.parse(String.trim(s)) do
         {n, ""} when n > 0 -> [n]
