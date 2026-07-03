@@ -24,13 +24,13 @@ describe('RequestContextUtil', () => {
 
     describe('getUserRole', () => {
         it('헤더에서 role을 반환한다', () => {
-            expect(RequestContextUtil.getUserRole({ 'x-user-role': 'ROLE_ADMIN' })).toBe(
-                'ROLE_ADMIN',
+            expect(RequestContextUtil.getUserRole({ 'x-user-role': 'ADMIN' })).toBe(
+                'ADMIN',
             );
         });
 
-        it('헤더가 없으면 기본값 ROLE_USER를 반환한다', () => {
-            expect(RequestContextUtil.getUserRole({})).toBe('ROLE_USER');
+        it('헤더가 없으면 기본값 MEMBER를 반환한다', () => {
+            expect(RequestContextUtil.getUserRole({})).toBe('MEMBER');
         });
     });
 });
