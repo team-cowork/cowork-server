@@ -444,7 +444,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(msg);
 
-            await service.editMessage(ctx({ userRole: 'ROLE_ADMIN' }), { content: '관리자 수정' });
+            await service.editMessage(ctx({ userRole: 'ADMIN' }), { content: '관리자 수정' });
 
             expect(msg.save).toHaveBeenCalled();
         });
@@ -561,7 +561,7 @@ describe('ChatService', () => {
             mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             await expect(
-                service.deleteMessage(ctx({ userRole: 'ROLE_ADMIN' })),
+                service.deleteMessage(ctx({ userRole: 'ADMIN' })),
             ).resolves.toBeDefined();
         });
 
