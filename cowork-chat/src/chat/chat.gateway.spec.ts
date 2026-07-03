@@ -64,7 +64,7 @@ describe('ChatGateway', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
-        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'ROLE_USER' });
+        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'MEMBER' });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -106,7 +106,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.data.userId).toBe(42);
-            expect(client.data.userRole).toBe('ROLE_USER');
+            expect(client.data.userRole).toBe('MEMBER');
             expect(client.join).toHaveBeenCalledWith('user:42');
             expect(client.disconnect).not.toHaveBeenCalled();
         });
