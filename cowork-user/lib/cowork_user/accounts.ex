@@ -20,6 +20,7 @@ defmodule CoworkUser.Accounts do
   @display_name_cache_ttl_seconds 60
   @display_name_not_found_ttl_seconds 30
   @not_found_marker "__not_found__"
+  @max_raw_csv_tokens 1000
 
   @doc """
   여러 사용자의 표시 이름(name/nickname)만 일괄 조회한다.
@@ -549,11 +550,14 @@ defmodule CoworkUser.Accounts do
   쉼표로 구분된 정수 ID 목록 문자열을 파싱한다.
 
   유효하지 않은 토큰(빈 문자열, 0 이하, 정수가 아닌 값)은 무시한다.
+  원본 토큰 수가 #{@max_raw_csv_tokens}개를 넘으면 초과분은 파싱하지 않고 버린다
+  (`ids=1,1,1,...`처럼 중복 토큰을 대량으로 보내 `split`/`Integer.parse`을
+  불필요하게 반복시키는 것을 방지).
   `user_ids` 검색 필터(`maybe_user_ids/2`)와 `GET /users/batch`(router의 `parse_ids/1`)가 공유한다.
   """
   def parse_int_csv(ids_str) when is_binary(ids_str) do
     ids_str
-    |> String.split(",")
+    |> String.split(",", parts: @max_raw_csv_tokens)
     |> Enum.flat_map(fn s ->
       case Integer.parse(String.trim(s)) do
         {n, ""} when n > 0 -> [n]
