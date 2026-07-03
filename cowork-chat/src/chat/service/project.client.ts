@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
 import { BaseHttpClient } from './base-http-client';
+import { ProjectMemberCache } from './project-member.cache';
 
 /**
  * GitHub 저장소 연동 정보.
@@ -24,7 +25,10 @@ export class ProjectClient extends BaseHttpClient {
     protected readonly serviceName = 'project-service';
     private readonly projectServiceUrl: string;
 
-    constructor(private readonly configService: ConfigService) {
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly memberCache: ProjectMemberCache,
+    ) {
         super();
         this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
     }
@@ -65,20 +69,30 @@ export class ProjectClient extends BaseHttpClient {
      * project-service가 404를 반환하면 멤버가 아닌 것으로 간주하여 `false`를 반환한다.
      * 그 외 HTTP 오류 및 네트워크 오류는 예외로 전파한다.
      *
+     * 동일 `(projectId, userId)` 조합의 결과는 Redis에 30초 TTL로 캐싱된다.
+     * Redis 조회 실패 시에는 캐시 미스로 간주해 항상 project-service로 폴백한다.
+     *
      * @param projectId - 확인할 프로젝트의 ID
      * @param userId - 확인할 사용자의 ID (`X-User-Id` 헤더로 전달됨)
      * @returns 멤버이면 `true`, 404이면 `false`
      * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
      */
     async isMember(projectId: number, userId: number): Promise<boolean> {
+        const cached = await this.memberCache.get(projectId, userId);
+        if (cached !== null) return cached;
+
         try {
             const res = await this.fetchWithRetry(
                 `${this.projectServiceUrl}/projects/${projectId}/members/me`,
                 { headers: { 'X-User-Id': String(userId) } },
                 3000,
             );
-            if (res.status === 404) return false;
+            if (res.status === 404) {
+                await this.memberCache.set(projectId, userId, false);
+                return false;
+            }
             if (!res.ok) throw new Error(`project-service error: ${res.status}`);
+            await this.memberCache.set(projectId, userId, true);
             return true;
         } catch (err) {
             this.logger.error(`Failed to check membership in project-service projectId=${projectId} userId=${userId}`, err);
