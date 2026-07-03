@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { ProjectClient, GithubRepoInfo } from './project.client';
+import { ProjectMemberCache } from './project-member.cache';
 
 type ClientWithPrivates = Omit<ProjectClient, 'parseRepoUrl'> & {
     parseRepoUrl: (url: string | null | undefined) => Omit<GithubRepoInfo, 'teamId'> | null;
@@ -8,8 +9,11 @@ type ClientWithPrivates = Omit<ProjectClient, 'parseRepoUrl'> & {
 
 describe('ProjectClient', () => {
     let client: ProjectClient;
+    let memberCache: { get: jest.Mock; set: jest.Mock };
 
     beforeEach(async () => {
+        memberCache = { get: jest.fn().mockResolvedValue(null), set: jest.fn().mockResolvedValue(undefined) };
+
         const module: TestingModule = await Test.createTestingModule({
             providers: [
                 ProjectClient,
@@ -17,6 +21,7 @@ describe('ProjectClient', () => {
                     provide: ConfigService,
                     useValue: { get: jest.fn().mockReturnValue('http://localhost:8084') },
                 },
+                { provide: ProjectMemberCache, useValue: memberCache },
             ],
         }).compile();
 
@@ -142,7 +147,7 @@ describe('ProjectClient', () => {
             jest.restoreAllMocks();
         });
 
-        it('200 응답이면 true를 반환한다', async () => {
+        it('200 응답이면 true를 반환하고 캐시에 저장한다', async () => {
             (global.fetch as jest.Mock).mockResolvedValue({ ok: true, status: 200 });
 
             const result = await client.isMember(5, 42);
@@ -155,24 +160,47 @@ describe('ProjectClient', () => {
                 }),
             );
             expect(result).toBe(true);
+            expect(memberCache.set).toHaveBeenCalledWith(5, 42, true);
         });
 
-        it('404 응답이면 false를 반환한다', async () => {
+        it('404 응답이면 false를 반환하고 캐시에 저장한다', async () => {
             (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 404 });
 
             expect(await client.isMember(5, 99)).toBe(false);
+            expect(memberCache.set).toHaveBeenCalledWith(5, 99, false);
         });
 
-        it('5xx 응답이면 예외를 던진다', async () => {
+        it('5xx 응답이면 예외를 던지고 캐시에 저장하지 않는다', async () => {
             (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
 
             await expect(client.isMember(5, 42)).rejects.toThrow('project-service 오류: 500');
+            expect(memberCache.set).not.toHaveBeenCalled();
         });
 
-        it('네트워크 오류가 발생하면 예외를 던진다', async () => {
+        it('네트워크 오류가 발생하면 예외를 던지고 캐시에 저장하지 않는다', async () => {
             (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
 
             await expect(client.isMember(5, 42)).rejects.toThrow('ECONNREFUSED');
+            expect(memberCache.set).not.toHaveBeenCalled();
+        });
+
+        it('캐시에 값이 있으면 project-service를 호출하지 않고 캐시된 값을 반환한다', async () => {
+            memberCache.get.mockResolvedValue(true);
+
+            const result = await client.isMember(5, 42);
+
+            expect(result).toBe(true);
+            expect(global.fetch).not.toHaveBeenCalled();
+            expect(memberCache.set).not.toHaveBeenCalled();
+        });
+
+        it('캐시에 false가 저장되어 있으면 project-service를 호출하지 않는다', async () => {
+            memberCache.get.mockResolvedValue(false);
+
+            const result = await client.isMember(5, 42);
+
+            expect(result).toBe(false);
+            expect(global.fetch).not.toHaveBeenCalled();
         });
     });
 });

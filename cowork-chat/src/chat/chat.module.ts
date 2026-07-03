@@ -19,6 +19,7 @@ import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer'
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectClient } from './service/project.client';
+import { ProjectMemberCache } from './service/project-member.cache';
 import { ChannelClient } from './service/channel.client';
 import { ChannelSearchClient } from './service/channel-search.client';
 import { UnifiedSearchResolver } from './unified-search.resolver';
@@ -81,6 +82,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelEventConsumer,
         ProjectEventConsumer,
         ProjectClient,
+        ProjectMemberCache,
         ChannelClient,
         ChannelSearchClient,
         UserClient,
