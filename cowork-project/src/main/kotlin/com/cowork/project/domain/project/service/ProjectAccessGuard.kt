@@ -18,8 +18,8 @@ private const val TEAM_ROLE_ADMIN = "ADMIN"
 /**
  * 프로젝트 조회/수정 권한 검증을 담당하는 컴포넌트.
  *
- * `ProjectService`와 `GithubRepoAccessResolver`가 동일한 권한 판단 기준을 공유하기 위해
- * 분리되었다.
+ * project 도메인의 엔드포인트별 서비스들과 `GithubRepoAccessResolver`가 동일한 권한 판단 기준을
+ * 공유하기 위해 분리되었다.
  */
 @Service
 class ProjectAccessGuard(
