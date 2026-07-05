@@ -43,7 +43,7 @@ class AddProjectMemberServiceImpl(
                 projectId = projectId,
                 userId = request.userId,
                 role = role,
-            )
+            ),
         )
 
         return ProjectMemberResDto.of(member)
