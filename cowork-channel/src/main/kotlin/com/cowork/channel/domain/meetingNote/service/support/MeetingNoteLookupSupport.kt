@@ -7,9 +7,7 @@ import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
 
 @Component
-class MeetingNoteLookupSupport(
-    private val meetingNoteRepository: MeetingNoteRepository,
-) {
+class MeetingNoteLookupSupport(private val meetingNoteRepository: MeetingNoteRepository) {
 
     fun findNoteOrThrow(noteId: Long, channelId: Long): MeetingNote {
         val note = meetingNoteRepository.findById(noteId).orElseThrow {
