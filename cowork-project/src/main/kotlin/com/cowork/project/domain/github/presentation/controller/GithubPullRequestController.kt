@@ -1,6 +1,9 @@
 package com.cowork.project.domain.github.presentation.controller
 
-import com.cowork.project.domain.github.service.GithubPullRequestService
+import com.cowork.project.domain.github.service.ApprovePullRequestService
+import com.cowork.project.domain.github.service.GetPullRequestDetailService
+import com.cowork.project.domain.github.service.ListPullRequestFilesService
+import com.cowork.project.domain.github.service.MergePullRequestService
 
 import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
@@ -23,7 +26,10 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/projects/{projectId}/github/pulls/{prNumber}")
 class GithubPullRequestController(
-    private val githubPullRequestService: GithubPullRequestService,
+    private val getPullRequestDetailService: GetPullRequestDetailService,
+    private val listPullRequestFilesService: ListPullRequestFilesService,
+    private val mergePullRequestService: MergePullRequestService,
+    private val approvePullRequestService: ApprovePullRequestService,
 ) {
 
     @Operation(summary = "PR 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -40,7 +46,7 @@ class GithubPullRequestController(
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
     ): GithubPullRequestResDto =
-        githubPullRequestService.getPullRequestDetail(userId, projectId, prNumber)
+        getPullRequestDetailService.getPullRequestDetail(userId, projectId, prNumber)
 
     @Operation(summary = "PR 파일 변경 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -56,7 +62,7 @@ class GithubPullRequestController(
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
     ): List<GithubPullRequestFileResDto> =
-        githubPullRequestService.listPullRequestFiles(userId, projectId, prNumber)
+        listPullRequestFilesService.listPullRequestFiles(userId, projectId, prNumber)
 
     @Operation(summary = "PR 머지 (squash)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -73,7 +79,7 @@ class GithubPullRequestController(
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
     ): GithubMergeResultResDto =
-        githubPullRequestService.mergePullRequest(userId, projectId, prNumber)
+        mergePullRequestService.mergePullRequest(userId, projectId, prNumber)
 
     @Operation(summary = "PR 승인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -89,5 +95,5 @@ class GithubPullRequestController(
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
     ): GithubApproveResultResDto =
-        githubPullRequestService.approvePullRequest(userId, projectId, prNumber)
+        approvePullRequestService.approvePullRequest(userId, projectId, prNumber)
 }
