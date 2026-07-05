@@ -1,12 +1,10 @@
-package com.cowork.team.domain.team.service
+package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamLifecycleSyncPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.S3Service
-import com.cowork.team.domain.team.service.TeamService
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -23,21 +21,14 @@ import org.junit.jupiter.api.Test
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.util.Optional
 
-class TeamServiceTest {
+class DeleteTeamServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
-    private val teamLifecycleSyncPublisher = mockk<TeamLifecycleSyncPublisher>(relaxed = true)
-    private val s3Service = mockk<S3Service>()
+    private val teamAccessGuard = TeamAccessGuard(teamRepository, teamMemberRepository)
 
-    private val service = TeamService(
-        teamRepository = teamRepository,
-        teamMemberRepository = teamMemberRepository,
-        teamEventPublisher = teamEventPublisher,
-        teamLifecycleSyncPublisher = teamLifecycleSyncPublisher,
-        s3Service = s3Service,
-    )
+    private val service = DeleteTeamServiceImpl(teamRepository, teamEventPublisher, teamAccessGuard)
 
     @BeforeEach
     fun setUp() {
