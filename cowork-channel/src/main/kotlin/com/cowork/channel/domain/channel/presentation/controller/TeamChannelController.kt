@@ -2,8 +2,8 @@ package com.cowork.channel.domain.channel.presentation.controller
 
 import com.cowork.channel.domain.channel.presentation.data.request.ReorderChannelsRequest
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.service.ChannelService
 import com.cowork.channel.domain.channel.service.ListTeamChannelsService
+import com.cowork.channel.domain.channel.service.ReorderTeamChannelsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/teams")
 class TeamChannelController(
     private val listTeamChannelsService: ListTeamChannelsService,
-    private val channelService: ChannelService,
+    private val reorderTeamChannelsService: ReorderTeamChannelsService,
 ) {
 
     @Operation(summary = "팀 채널 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -35,7 +35,7 @@ class TeamChannelController(
     fun listTeamChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<ChannelResponse> = listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::of)
+    ): List<ChannelResponse> = listTeamChannelsService.listTeamChannels(userId, teamId).map(ChannelResponse::of)
 
     @Operation(summary = "팀 채널 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -48,5 +48,5 @@ class TeamChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: ReorderChannelsRequest,
-    ): List<ChannelResponse> = channelService.reorderTeamChannels(userId, teamId, request.orderedChannelIds)
+    ): List<ChannelResponse> = reorderTeamChannelsService.reorderTeamChannels(userId, teamId, request.orderedChannelIds)
 }
