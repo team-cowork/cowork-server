@@ -27,7 +27,11 @@ class CreateSharedAccountServiceImpl(
     private val lookupSupport: SharedAccountLookupSupport,
 ) : CreateSharedAccountService {
 
-    override fun createAccount(userId: Long, channelId: Long, request: CreateSharedAccountRequest): SharedAccountResponse {
+    override fun createAccount(
+        userId: Long,
+        channelId: Long,
+        request: CreateSharedAccountRequest,
+    ): SharedAccountResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
