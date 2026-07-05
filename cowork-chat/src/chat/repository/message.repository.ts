@@ -456,12 +456,10 @@ export class MessageRepository {
     /**
      * 메시지에 이모지 반응을 추가합니다.
      *
-     * 동시 요청 경합을 처리하기 위해 최대 3단계의 upsert를 순차적으로 시도합니다.
-     * 1. 이미 동일 이모지 항목이 존재하고 사용자가 미반응인 경우: `$addToSet`으로 userId 추가
-     * 2. 이미 반응한 경우(`alreadyReacted` 확인): `-1` 즉시 반환
-     * 3. 이모지 항목이 없는 경우: `$push`로 새 reaction 항목 생성
-     * 4. 동시 요청으로 항목이 생성된 경우: 1번 로직 재시도
-     * 5. 재시도 후에도 실패하면 메시지 존재 여부를 확인하여 `-1` 또는 `null` 반환
+     * "이모지 항목 생성"과 "userId 추가"를 집계 파이프라인 업데이트 하나로 원자적으로 처리합니다.
+     * MongoDB는 단일 도큐먼트에 대한 업데이트를 원자적으로 실행하므로 별도의 재시도 로직이 필요 없습니다.
+     * `new: false`로 업데이트 이전 상태를 반환받아, 추가 조회 없이 "이미 반응했는지"와 "추가 후 카운트"를
+     * 같은 요청 안에서 계산합니다.
      *
      * @param channelId - 메시지가 속한 채널의 식별자 (채널 귀속 검증용)
      * @param messageId - 반응을 추가할 메시지의 ObjectId 문자열
@@ -473,54 +471,51 @@ export class MessageRepository {
      *   - `null`: 메시지가 존재하지 않는 경우
      */
     async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
-        const updated = await this.messageModel.findOneAndUpdate(
-            {
-                _id: messageId,
-                channelId,
-                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
-            },
-            { $addToSet: { 'reactions.$[elem].userIds': userId } },
-            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        const before = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId },
+            [
+                {
+                    $set: {
+                        reactions: {
+                            $cond: [
+                                { $in: [emoji, { $ifNull: ['$reactions.emoji', []] }] },
+                                {
+                                    $map: {
+                                        input: '$reactions',
+                                        as: 'r',
+                                        in: {
+                                            $cond: [
+                                                { $eq: ['$$r.emoji', emoji] },
+                                                {
+                                                    emoji: '$$r.emoji',
+                                                    userIds: {
+                                                        $cond: [
+                                                            { $in: [userId, '$$r.userIds'] },
+                                                            '$$r.userIds',
+                                                            { $concatArrays: ['$$r.userIds', [userId]] },
+                                                        ],
+                                                    },
+                                                },
+                                                '$$r',
+                                            ],
+                                        },
+                                    },
+                                },
+                                { $concatArrays: [{ $ifNull: ['$reactions', []] }, [{ emoji, userIds: [userId] }]] },
+                            ],
+                        },
+                    },
+                },
+            ],
+            { new: false },
         ).lean() as ReactionDoc | null;
 
-        if (updated) {
-            return updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
-        }
+        if (!before) return null;
 
-        const alreadyReacted = await this.messageModel.exists({
-            _id: messageId,
-            channelId,
-            reactions: { $elemMatch: { emoji, userIds: userId } },
-        });
-        if (alreadyReacted) return -1;
+        const existing = before.reactions.find(r => r.emoji === emoji);
+        if (existing?.userIds.includes(userId)) return -1;
 
-        const newDoc = await this.messageModel.findOneAndUpdate(
-            { _id: messageId, channelId, 'reactions.emoji': { $ne: emoji } },
-            { $push: { reactions: { emoji, userIds: [userId] } } },
-            { new: true },
-        ).lean() as ReactionDoc | null;
-
-        if (newDoc) {
-            return newDoc.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 1;
-        }
-
-        // 동시 요청으로 emoji 항목이 생성된 경우 재시도
-        const retryUpdated = await this.messageModel.findOneAndUpdate(
-            {
-                _id: messageId,
-                channelId,
-                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
-            },
-            { $addToSet: { 'reactions.$[elem].userIds': userId } },
-            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
-        ).lean() as ReactionDoc | null;
-
-        if (retryUpdated) {
-            return retryUpdated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
-        }
-
-        const messageExists = await this.messageModel.exists({ _id: messageId, channelId });
-        return messageExists ? -1 : null;
+        return (existing?.userIds.length ?? 0) + 1;
     }
 
     /**
