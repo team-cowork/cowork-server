@@ -1,13 +1,10 @@
 package com.cowork.project.domain.project.service
 
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
-
-import com.cowork.project.domain.github.service.GithubRepoAccessResolver
-
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -28,10 +25,9 @@ class ProjectAccessGuard(
     private val teamMembershipRepository: TeamMembershipRepository,
 ) {
 
-    fun findProjectOrThrow(projectId: Long): Project =
-        projectRepository.findById(projectId).orElseThrow {
-            ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        }
+    fun findProjectOrThrow(projectId: Long): Project = projectRepository.findById(projectId).orElseThrow {
+        ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     fun teamRoleOf(teamId: Long, userId: Long): String? =
         teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role

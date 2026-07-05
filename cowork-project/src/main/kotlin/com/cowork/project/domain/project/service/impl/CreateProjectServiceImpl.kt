@@ -33,7 +33,7 @@ class CreateProjectServiceImpl(
                 description = request.description,
                 position = projectRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
-            )
+            ),
         )
 
         projectMemberRepository.save(
@@ -41,7 +41,7 @@ class CreateProjectServiceImpl(
                 projectId = project.id,
                 userId = userId,
                 role = ProjectMemberRole.OWNER,
-            )
+            ),
         )
 
         afterCommit { projectEventPublisher.publishCreated(project) }
