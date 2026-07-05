@@ -1,4 +1,4 @@
-package com.cowork.channel.domain.channel.service
+package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelMember
@@ -8,6 +8,7 @@ import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.service.OpenDmService
 import com.cowork.channel.global.support.afterCommit
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -18,19 +19,19 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Service
-class DmChannelService(
+class OpenDmServiceImpl(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
     private val transactionTemplate: TransactionTemplate,
-) {
+) : OpenDmService {
 
     /**
      * 두 사용자 간 DM 채널을 연다 (멱등).
      * 이미 존재하면 기존 채널을 반환하고, 없으면 생성한다.
      * 동시 생성 경합은 dm_key 유니크 제약 충돌 시 재조회로 해소한다.
      */
-    fun openDm(userId: Long, targetUserId: Long): ChannelResponse {
+    override fun openDm(userId: Long, targetUserId: Long): ChannelResponse {
         if (targetUserId == userId) {
             throw ExpectedException("자기 자신과는 DM을 만들 수 없습니다.", HttpStatus.BAD_REQUEST)
         }

@@ -3,7 +3,9 @@ package com.cowork.channel.domain.thread.presentation.controller
 import com.cowork.channel.domain.thread.presentation.data.request.CreateThreadRequest
 import com.cowork.channel.domain.thread.presentation.data.request.UpdateThreadRequest
 import com.cowork.channel.domain.thread.presentation.data.response.ThreadResponse
-import com.cowork.channel.domain.thread.service.ThreadService
+import com.cowork.channel.domain.thread.service.CreateThreadService
+import com.cowork.channel.domain.thread.service.GetThreadsService
+import com.cowork.channel.domain.thread.service.UpdateThreadService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -19,7 +21,11 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "스레드", description = "채널 스레드 생성/수정/조회 API")
 @RestController
 @RequestMapping("/channels/{channelId}/threads")
-class ThreadController(private val threadService: ThreadService) {
+class ThreadController(
+    private val createThreadService: CreateThreadService,
+    private val getThreadsService: GetThreadsService,
+    private val updateThreadService: UpdateThreadService,
+) {
 
     @Operation(summary = "스레드 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -32,7 +38,7 @@ class ThreadController(private val threadService: ThreadService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateThreadRequest,
-    ): ThreadResponse = threadService.createThread(userId, channelId, request)
+    ): ThreadResponse = createThreadService.createThread(userId, channelId, request)
 
     @Operation(summary = "스레드 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -45,7 +51,7 @@ class ThreadController(private val threadService: ThreadService) {
         @PathVariable channelId: Long,
         @RequestParam(defaultValue = "false") includeArchived: Boolean,
         @PageableDefault(size = 20) pageable: Pageable,
-    ): Page<ThreadResponse> = threadService.getThreads(userId, channelId, includeArchived, pageable)
+    ): Page<ThreadResponse> = getThreadsService.getThreads(userId, channelId, includeArchived, pageable)
 
     @Operation(summary = "스레드 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -58,5 +64,5 @@ class ThreadController(private val threadService: ThreadService) {
         @PathVariable channelId: Long,
         @PathVariable threadId: Long,
         @RequestBody request: UpdateThreadRequest,
-    ): ThreadResponse = threadService.updateThread(userId, channelId, threadId, request)
+    ): ThreadResponse = updateThreadService.updateThread(userId, channelId, threadId, request)
 }
