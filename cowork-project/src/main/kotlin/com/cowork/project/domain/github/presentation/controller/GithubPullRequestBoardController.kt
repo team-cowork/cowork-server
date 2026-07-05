@@ -1,6 +1,6 @@
 package com.cowork.project.domain.github.presentation.controller
 
-import com.cowork.project.domain.github.service.GithubPullRequestService
+import com.cowork.project.domain.github.service.GetPullRequestBoardService
 
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestBoardResDto
 import io.swagger.v3.oas.annotations.Operation
@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/projects/{projectId}/github/pulls")
 class GithubPullRequestBoardController(
-    private val githubPullRequestService: GithubPullRequestService,
+    private val getPullRequestBoardService: GetPullRequestBoardService,
 ) {
 
     @Operation(
@@ -39,5 +39,5 @@ class GithubPullRequestBoardController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): GithubPullRequestBoardResDto =
-        githubPullRequestService.getPullRequestBoard(userId, projectId)
+        getPullRequestBoardService.getPullRequestBoard(userId, projectId)
 }
