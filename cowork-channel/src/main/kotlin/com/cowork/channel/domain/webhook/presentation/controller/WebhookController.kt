@@ -3,7 +3,10 @@ package com.cowork.channel.domain.webhook.presentation.controller
 import com.cowork.channel.domain.webhook.presentation.data.request.CreateWebhookRequest
 import com.cowork.channel.domain.webhook.presentation.data.request.UpdateWebhookRequest
 import com.cowork.channel.domain.webhook.presentation.data.response.WebhookResponse
-import com.cowork.channel.domain.webhook.service.WebhookService
+import com.cowork.channel.domain.webhook.service.CreateWebhookService
+import com.cowork.channel.domain.webhook.service.DeleteWebhookService
+import com.cowork.channel.domain.webhook.service.GetWebhooksService
+import com.cowork.channel.domain.webhook.service.UpdateWebhookService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,7 +19,12 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "웹훅", description = "채널 웹훅 CRUD API (TEXT 타입 채널 전용)")
 @RestController
 @RequestMapping("/channels/{channelId}/webhooks")
-class WebhookController(private val webhookService: WebhookService) {
+class WebhookController(
+    private val createWebhookService: CreateWebhookService,
+    private val getWebhooksService: GetWebhooksService,
+    private val updateWebhookService: UpdateWebhookService,
+    private val deleteWebhookService: DeleteWebhookService,
+) {
 
     @Operation(summary = "웹훅 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -30,7 +38,7 @@ class WebhookController(private val webhookService: WebhookService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateWebhookRequest,
-    ): WebhookResponse = webhookService.createWebhook(userId, channelId, request)
+    ): WebhookResponse = createWebhookService.createWebhook(userId, channelId, request)
 
     @Operation(summary = "웹훅 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -41,7 +49,7 @@ class WebhookController(private val webhookService: WebhookService) {
     fun getWebhooks(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<WebhookResponse> = webhookService.getWebhooks(userId, channelId)
+    ): List<WebhookResponse> = getWebhooksService.getWebhooks(userId, channelId)
 
     @Operation(summary = "웹훅 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -54,7 +62,7 @@ class WebhookController(private val webhookService: WebhookService) {
         @PathVariable channelId: Long,
         @PathVariable webhookId: Long,
         @RequestBody request: UpdateWebhookRequest,
-    ): WebhookResponse = webhookService.updateWebhook(userId, channelId, webhookId, request)
+    ): WebhookResponse = updateWebhookService.updateWebhook(userId, channelId, webhookId, request)
 
     @Operation(summary = "웹훅 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -68,6 +76,6 @@ class WebhookController(private val webhookService: WebhookService) {
         @PathVariable channelId: Long,
         @PathVariable webhookId: Long,
     ) {
-        webhookService.deleteWebhook(userId, channelId, webhookId)
+        deleteWebhookService.deleteWebhook(userId, channelId, webhookId)
     }
 }
