@@ -4,5 +4,9 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMee
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteTemplateResponse
 
 interface CreateMeetingNoteTemplateService {
-    fun createTemplate(userId: Long, channelId: Long, request: CreateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse
+    fun createTemplate(
+        userId: Long,
+        channelId: Long,
+        request: CreateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse
 }

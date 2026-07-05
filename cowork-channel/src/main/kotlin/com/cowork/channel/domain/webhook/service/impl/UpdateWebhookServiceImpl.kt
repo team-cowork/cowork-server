@@ -11,11 +11,14 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 @Transactional
-class UpdateWebhookServiceImpl(
-    private val webhookAccessGuard: WebhookAccessGuard,
-) : UpdateWebhookService {
+class UpdateWebhookServiceImpl(private val webhookAccessGuard: WebhookAccessGuard) : UpdateWebhookService {
 
-    override fun updateWebhook(userId: Long, channelId: Long, webhookId: Long, request: UpdateWebhookRequest): WebhookResponse {
+    override fun updateWebhook(
+        userId: Long,
+        channelId: Long,
+        webhookId: Long,
+        request: UpdateWebhookRequest,
+    ): WebhookResponse {
         webhookAccessGuard.requireWebhookManager(channelId, userId)
         val webhook = webhookAccessGuard.findWebhookOrThrow(webhookId)
         if (webhook.channelId != channelId) {

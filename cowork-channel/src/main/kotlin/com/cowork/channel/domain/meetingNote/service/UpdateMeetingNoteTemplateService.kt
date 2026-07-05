@@ -4,5 +4,10 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMee
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteTemplateResponse
 
 interface UpdateMeetingNoteTemplateService {
-    fun updateTemplate(userId: Long, channelId: Long, templateId: Long, request: UpdateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse
+    fun updateTemplate(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: UpdateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse
 }

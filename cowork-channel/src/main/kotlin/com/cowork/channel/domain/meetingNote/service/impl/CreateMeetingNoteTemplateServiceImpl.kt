@@ -16,7 +16,11 @@ class CreateMeetingNoteTemplateServiceImpl(
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
 ) : CreateMeetingNoteTemplateService {
 
-    override fun createTemplate(userId: Long, channelId: Long, request: CreateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
+    override fun createTemplate(
+        userId: Long,
+        channelId: Long,
+        request: CreateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireChannelMember(channelId, userId)
         val template = templateRepository.save(
             MeetingNoteTemplate(
