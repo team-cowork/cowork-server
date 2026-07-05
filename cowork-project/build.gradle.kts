@@ -3,10 +3,22 @@
 // (settings.gradle.kts) and delegates every build action to the bundled Maven wrapper (mvnw).
 plugins {
     base
+    idea
 }
 
 group = "com.cowork"
 version = "20260623.0"
+
+// The Kotlin sources live under src/main/kotlin (Maven's kotlin-maven-plugin compiles them),
+// but Gradle/IntelliJ only auto-detect source roots from applied language plugins. Registering
+// them here through the `idea` plugin makes IntelliJ show real packages instead of plain nested
+// folders — it only edits IDE project metadata and does not add any Gradle compile/build task.
+idea {
+    module {
+        sourceDirs = sourceDirs + file("src/main/kotlin")
+        testSources.from(file("src/test/kotlin"))
+    }
+}
 
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val mvnw = file(if (isWindows) "mvnw.cmd" else "mvnw").absolutePath
