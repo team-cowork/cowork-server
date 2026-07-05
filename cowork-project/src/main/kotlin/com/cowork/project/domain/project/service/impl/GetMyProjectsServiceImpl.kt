@@ -10,9 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetMyProjectsServiceImpl(
-    private val projectRepository: ProjectRepository,
-) : GetMyProjectsService {
+class GetMyProjectsServiceImpl(private val projectRepository: ProjectRepository) : GetMyProjectsService {
 
     override fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResDto> =
         projectRepository.findProjectsByMemberUserId(userId, pageable)

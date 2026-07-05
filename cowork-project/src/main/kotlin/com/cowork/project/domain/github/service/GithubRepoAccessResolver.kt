@@ -11,9 +11,7 @@ import team.themoment.sdk.exception.ExpectedException
  * 수정 권한(프로젝트 수정자) 기준으로 해석한다.
  */
 @Component
-class GithubRepoAccessResolver(
-    private val projectAccessGuard: ProjectAccessGuard,
-) {
+class GithubRepoAccessResolver(private val projectAccessGuard: ProjectAccessGuard) {
 
     fun resolveForRead(userId: Long, projectId: Long): GithubRepoRef {
         val project = projectAccessGuard.findProjectOrThrow(projectId)

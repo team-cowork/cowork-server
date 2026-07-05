@@ -22,7 +22,14 @@ class MergePullRequestServiceImpl(
         val repo = repoAccessResolver.resolveForModify(userId, projectId)
         val githubUsername = usernameResolver.resolve(userId)
         return callExecutor.execute {
-            githubAppClient.mergePullRequest(repo.owner, repo.repo, prNumber, mapOf("requesterGithubUsername" to githubUsername))
+            githubAppClient.mergePullRequest(
+                repo.owner,
+                repo.repo,
+                prNumber,
+                mapOf(
+                    "requesterGithubUsername" to githubUsername,
+                ),
+            )
         }
     }
 }
