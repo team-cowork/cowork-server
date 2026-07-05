@@ -1,4 +1,4 @@
-package com.cowork.team.domain.teamMember.service
+package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPayload
@@ -7,9 +7,8 @@ import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.TeamMemberService
+import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
-import com.cowork.team.global.client.PreferenceTeamRoleClient
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -26,19 +25,14 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
-class TeamMemberServiceTest {
+class ChangeTeamMemberRoleServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val preferenceTeamRoleClient = mockk<PreferenceTeamRoleClient>(relaxed = true)
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
+    private val teamMemberAccessGuard = TeamMemberAccessGuard(teamRepository, teamMemberRepository)
 
-    private val service = TeamMemberService(
-        teamRepository = teamRepository,
-        teamMemberRepository = teamMemberRepository,
-        preferenceTeamRoleClient = preferenceTeamRoleClient,
-        teamEventPublisher = teamEventPublisher,
-    )
+    private val service = ChangeTeamMemberRoleServiceImpl(teamMemberRepository, teamEventPublisher, teamMemberAccessGuard)
 
     @BeforeEach
     fun setUp() {
