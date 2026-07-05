@@ -15,10 +15,9 @@ class TeamMemberAccessGuard(
     private val teamMemberRepository: TeamMemberRepository,
 ) {
 
-    fun findTeamOrThrow(teamId: Long): Team =
-        teamRepository.findById(teamId).orElseThrow {
-            ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        }
+    fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
+        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())

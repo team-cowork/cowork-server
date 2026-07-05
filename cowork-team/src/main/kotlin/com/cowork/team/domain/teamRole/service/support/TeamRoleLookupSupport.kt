@@ -7,9 +7,7 @@ import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
 
 @Component
-class TeamRoleLookupSupport(
-    private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
-) {
+class TeamRoleLookupSupport(private val preferenceTeamRoleClient: PreferenceTeamRoleClient) {
 
     fun findRoleOrThrow(teamId: Long, roleId: Long): TeamRoleResponse =
         preferenceTeamRoleClient.getRoles(teamId).firstOrNull { it.id == roleId }
