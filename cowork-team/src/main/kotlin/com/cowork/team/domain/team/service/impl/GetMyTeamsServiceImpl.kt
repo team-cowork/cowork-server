@@ -8,9 +8,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetMyTeamsServiceImpl(
-    private val teamMemberRepository: TeamMemberRepository,
-) : GetMyTeamsService {
+class GetMyTeamsServiceImpl(private val teamMemberRepository: TeamMemberRepository) : GetMyTeamsService {
 
     override fun getMyTeams(userId: Long): List<TeamSummaryResponse> =
         teamMemberRepository.findAllByUserIdWithTeam(userId)

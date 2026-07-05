@@ -32,7 +32,8 @@ class ChangeTeamMemberRoleServiceImplTest {
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
     private val teamMemberAccessGuard = TeamMemberAccessGuard(teamRepository, teamMemberRepository)
 
-    private val service = ChangeTeamMemberRoleServiceImpl(teamMemberRepository, teamEventPublisher, teamMemberAccessGuard)
+    private val service =
+        ChangeTeamMemberRoleServiceImpl(teamMemberRepository, teamEventPublisher, teamMemberAccessGuard)
 
     @BeforeEach
     fun setUp() {

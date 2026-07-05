@@ -8,9 +8,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetTeamServiceImpl(
-    private val teamAccessGuard: TeamAccessGuard,
-) : GetTeamService {
+class GetTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : GetTeamService {
 
     override fun getTeam(teamId: Long): TeamResponse = TeamResponse.of(teamAccessGuard.findTeamOrThrow(teamId))
 }
