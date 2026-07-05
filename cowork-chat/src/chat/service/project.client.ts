@@ -87,13 +87,19 @@ export class ProjectClient extends BaseHttpClient {
                 { headers: { 'X-User-Id': String(userId) } },
                 3000,
             );
-            if (res.status === 404) {
-                await this.memberCache.set(projectId, userId, false);
-                return false;
+            try {
+                if (res.status === 404) {
+                    await this.memberCache.set(projectId, userId, false);
+                    return false;
+                }
+                if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
+                await this.memberCache.set(projectId, userId, true);
+                return true;
+            } finally {
+                void res.body?.cancel().catch((err: unknown) => {
+                    this.logger.warn(`Failed to cancel response body projectId=${projectId} userId=${userId}`, err);
+                });
             }
-            if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
-            await this.memberCache.set(projectId, userId, true);
-            return true;
         } catch (err) {
             this.logger.error(`Failed to check membership in project-service projectId=${projectId} userId=${userId}`, err);
             throw err;
