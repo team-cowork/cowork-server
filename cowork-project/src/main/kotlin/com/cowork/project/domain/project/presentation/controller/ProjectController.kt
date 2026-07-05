@@ -1,5 +1,10 @@
 package com.cowork.project.domain.project.presentation.controller
 
+import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
+import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
+import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
+import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
+import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.service.AddProjectMemberService
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.DeleteProjectService
@@ -14,16 +19,9 @@ import com.cowork.project.domain.project.service.RemoveProjectMemberService
 import com.cowork.project.domain.project.service.UnlinkGithubRepoService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
 import com.cowork.project.domain.project.service.UpdateProjectService
-
 import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
-import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
-import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
-import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
-import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
-import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleReqDto
-import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
-
+import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -77,8 +75,7 @@ class ProjectController(
     fun getProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResDto> =
-        ResponseEntity.ok(getProjectService.getProject(userId, projectId))
+    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(getProjectService.getProject(userId, projectId))
 
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -91,8 +88,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @RequestBody request: UpdateProjectReqDto,
-    ): ResponseEntity<ProjectResDto> =
-        ResponseEntity.ok(updateProjectService.updateProject(userId, projectId, request))
+    ): ResponseEntity<ProjectResDto> = ResponseEntity.ok(updateProjectService.updateProject(userId, projectId, request))
 
     @Operation(summary = "프로젝트 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -157,8 +153,7 @@ class ProjectController(
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
-    ): ResponseEntity<Page<ProjectResDto>> =
-        ResponseEntity.ok(getMyProjectsService.getMyProjects(userId, pageable))
+    ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(getMyProjectsService.getMyProjects(userId, pageable))
 
     @Operation(summary = "프로젝트 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -214,9 +209,11 @@ class ProjectController(
     fun getMyMembership(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<Void> =
-        if (isProjectMemberService.isMember(projectId, userId)) ResponseEntity.ok().build()
-        else ResponseEntity.notFound().build()
+    ): ResponseEntity<Void> = if (isProjectMemberService.isMember(projectId, userId)) {
+        ResponseEntity.ok().build()
+    } else {
+        ResponseEntity.notFound().build()
+    }
 
     @Operation(
         summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
@@ -227,9 +224,7 @@ class ProjectController(
         ApiResponse(responseCode = "404", description = "프로젝트 없음"),
     )
     @GetMapping("/{projectId}/team-id")
-    fun getTeamId(
-        @PathVariable projectId: Long,
-    ): ResponseEntity<Long> =
+    fun getTeamId(@PathVariable projectId: Long): ResponseEntity<Long> =
         ResponseEntity.ok(getProjectTeamIdService.getTeamId(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
