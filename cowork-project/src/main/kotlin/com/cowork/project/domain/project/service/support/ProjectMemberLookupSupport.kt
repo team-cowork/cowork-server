@@ -7,12 +7,9 @@ import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
 
 @Component
-class ProjectMemberLookupSupport(
-    private val projectMemberRepository: ProjectMemberRepository,
-) {
+class ProjectMemberLookupSupport(private val projectMemberRepository: ProjectMemberRepository) {
 
-    fun findMemberOrThrow(memberId: Long): ProjectMember =
-        projectMemberRepository.findById(memberId).orElseThrow {
-            ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
-        }
+    fun findMemberOrThrow(memberId: Long): ProjectMember = projectMemberRepository.findById(memberId).orElseThrow {
+        ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
+    }
 }

@@ -21,7 +21,8 @@ class UnlinkGithubRepoServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
-    private val projectAccessGuard = ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val projectAccessGuard =
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
     private val service = UnlinkGithubRepoServiceImpl(projectMemberRepository, projectAccessGuard)
 

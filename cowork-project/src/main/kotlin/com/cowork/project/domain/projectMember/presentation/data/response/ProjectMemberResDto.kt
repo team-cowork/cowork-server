@@ -17,13 +17,12 @@ data class ProjectMemberResDto(
     val joinedAt: LocalDateTime,
 ) {
     companion object {
-        fun of(member: ProjectMember): ProjectMemberResDto =
-            ProjectMemberResDto(
-                id = member.id,
-                projectId = member.projectId,
-                userId = member.userId,
-                role = member.role.name,
-                joinedAt = member.joinedAt,
-            )
+        fun of(member: ProjectMember): ProjectMemberResDto = ProjectMemberResDto(
+            id = member.id,
+            projectId = member.projectId,
+            userId = member.userId,
+            role = member.role.name,
+            joinedAt = member.joinedAt,
+        )
     }
 }
