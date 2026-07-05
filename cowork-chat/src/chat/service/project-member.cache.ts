@@ -21,7 +21,13 @@ export class ProjectMemberCache implements OnModuleInit, OnModuleDestroy {
         const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
         const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
 
-        this.client = new Redis({ host, port, lazyConnect: true });
+        this.client = new Redis({
+            host,
+            port,
+            lazyConnect: true,
+            enableOfflineQueue: false,
+            maxRetriesPerRequest: 0,
+        });
         this.client.on('error', (err: unknown) => {
             this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
         });
