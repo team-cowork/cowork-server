@@ -12,10 +12,8 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 @Transactional
-class DeleteTeamIconServiceImpl(
-    private val s3Service: S3Service,
-    private val teamAccessGuard: TeamAccessGuard,
-) : DeleteTeamIconService {
+class DeleteTeamIconServiceImpl(private val s3Service: S3Service, private val teamAccessGuard: TeamAccessGuard) :
+    DeleteTeamIconService {
 
     override fun deleteIcon(userId: Long, teamId: Long) {
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
