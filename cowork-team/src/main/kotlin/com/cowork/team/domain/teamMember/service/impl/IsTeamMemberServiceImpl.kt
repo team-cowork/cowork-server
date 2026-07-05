@@ -7,9 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class IsTeamMemberServiceImpl(
-    private val teamMemberRepository: TeamMemberRepository,
-) : IsTeamMemberService {
+class IsTeamMemberServiceImpl(private val teamMemberRepository: TeamMemberRepository) : IsTeamMemberService {
 
     override fun isMember(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)

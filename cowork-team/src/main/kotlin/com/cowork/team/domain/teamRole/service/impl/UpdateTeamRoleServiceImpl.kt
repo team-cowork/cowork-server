@@ -17,7 +17,12 @@ class UpdateTeamRoleServiceImpl(
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : UpdateTeamRoleService {
 
-    override fun updateRole(actorId: Long, teamId: Long, roleId: Long, request: UpdateTeamRoleRequest): TeamRoleResponse {
+    override fun updateRole(
+        actorId: Long,
+        teamId: Long,
+        roleId: Long,
+        request: UpdateTeamRoleRequest,
+    ): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val currentRole = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
         teamRoleAccessGuard.requireManageablePriority(actor, currentRole)

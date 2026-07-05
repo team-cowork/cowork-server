@@ -11,10 +11,8 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional
-class UpdateTeamIconServiceImpl(
-    private val s3Service: S3Service,
-    private val teamAccessGuard: TeamAccessGuard,
-) : UpdateTeamIconService {
+class UpdateTeamIconServiceImpl(private val s3Service: S3Service, private val teamAccessGuard: TeamAccessGuard) :
+    UpdateTeamIconService {
 
     override fun updateIcon(userId: Long, teamId: Long, iconUrl: String): IconConfirmResponse {
         s3Service.validateIconUrl(iconUrl)

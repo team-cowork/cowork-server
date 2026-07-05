@@ -8,9 +8,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class ConfirmIconUploadServiceImpl(
-    private val s3Service: S3Service,
-) : ConfirmIconUploadService {
+class ConfirmIconUploadServiceImpl(private val s3Service: S3Service) : ConfirmIconUploadService {
 
     override fun confirmIconUpload(objectKey: String): IconConfirmResponse {
         val iconUrl = s3Service.confirmObject(objectKey)
