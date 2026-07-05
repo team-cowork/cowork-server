@@ -18,7 +18,12 @@ class UpdateChannelServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : UpdateChannelService {
 
-    override fun updateChannel(userId: Long, channelId: Long, request: UpdateChannelRequest, updateProjectId: Boolean): ChannelResponse {
+    override fun updateChannel(
+        userId: Long,
+        channelId: Long,
+        request: UpdateChannelRequest,
+        updateProjectId: Boolean,
+    ): ChannelResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)

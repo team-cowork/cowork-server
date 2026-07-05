@@ -23,10 +23,7 @@ class ListProjectChannelsServiceImplTest {
 
     private val service = ListProjectChannelsServiceImpl(channelRepository, teamPermission, projectClient)
 
-    private fun channel(
-        id: Long = 1L,
-        teamId: Long = 100L,
-    ) = Channel(
+    private fun channel(id: Long = 1L, teamId: Long = 100L) = Channel(
         id = id, teamId = teamId, name = "ch", type = ChannelType.TEXT, viewType = ChannelViewType.TEXT,
         description = null, isPrivate = false, position = 0, createdBy = 1L,
     )

@@ -37,10 +37,34 @@ class BuildOAuthAuthorizeUrlServiceImplTest {
             "https://api.github.com/user",
             "read:user",
         ),
-        notion = OAuthProviderConfig("no-id", "no-secret", "https://api.notion.com/v1/oauth/token", "https://api.notion.com/v1/users/me", ""),
-        jira = OAuthProviderConfig("jira-id", "jira-secret", "https://auth.atlassian.com/oauth/token", "https://api.atlassian.com/me", "read:me"),
-        google = OAuthProviderConfig("go-id", "go-secret", "https://oauth2.googleapis.com/token", "https://openidconnect.googleapis.com/v1/userinfo", "openid email"),
-        facebook = OAuthProviderConfig("fb-id", "fb-secret", "https://graph.facebook.com/v18.0/oauth/access_token", "https://graph.facebook.com/me", "public_profile"),
+        notion = OAuthProviderConfig(
+            "no-id",
+            "no-secret",
+            "https://api.notion.com/v1/oauth/token",
+            "https://api.notion.com/v1/users/me",
+            "",
+        ),
+        jira = OAuthProviderConfig(
+            "jira-id",
+            "jira-secret",
+            "https://auth.atlassian.com/oauth/token",
+            "https://api.atlassian.com/me",
+            "read:me",
+        ),
+        google = OAuthProviderConfig(
+            "go-id",
+            "go-secret",
+            "https://oauth2.googleapis.com/token",
+            "https://openidconnect.googleapis.com/v1/userinfo",
+            "openid email",
+        ),
+        facebook = OAuthProviderConfig(
+            "fb-id",
+            "fb-secret",
+            "https://graph.facebook.com/v18.0/oauth/access_token",
+            "https://graph.facebook.com/me",
+            "public_profile",
+        ),
     )
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)

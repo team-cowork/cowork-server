@@ -26,7 +26,8 @@ class DeleteMeetingNoteServiceImplTest {
     private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
     private val meetingNoteLookupSupport = MeetingNoteLookupSupport(meetingNoteRepository)
 
-    private val service = DeleteMeetingNoteServiceImpl(meetingNoteRepository, meetingNoteAccessGuard, meetingNoteLookupSupport)
+    private val service =
+        DeleteMeetingNoteServiceImpl(meetingNoteRepository, meetingNoteAccessGuard, meetingNoteLookupSupport)
 
     private fun note(
         id: Long = 1L,
