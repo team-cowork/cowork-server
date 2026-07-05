@@ -18,7 +18,12 @@ class GetThreadsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
 ) : GetThreadsService {
 
-    override fun getThreads(userId: Long, channelId: Long, includeArchived: Boolean, pageable: Pageable): Page<ThreadResponse> {
+    override fun getThreads(
+        userId: Long,
+        channelId: Long,
+        includeArchived: Boolean,
+        pageable: Pageable,
+    ): Page<ThreadResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
 

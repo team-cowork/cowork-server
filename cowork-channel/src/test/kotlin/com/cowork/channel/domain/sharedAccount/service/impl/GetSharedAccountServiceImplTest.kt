@@ -29,9 +29,16 @@ class GetSharedAccountServiceImplTest {
     private val credentialEncryptionService = mockk<CredentialEncryptionService>()
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val sharedAccountAccessGuard = SharedAccountAccessGuard()
-    private val lookupSupport = SharedAccountLookupSupport(sharedAccountRepository, channelAccessGuard, teamPermissionService, credentialEncryptionService)
+    private val lookupSupport =
+        SharedAccountLookupSupport(
+            sharedAccountRepository,
+            channelAccessGuard,
+            teamPermissionService,
+            credentialEncryptionService,
+        )
 
-    private val service = GetSharedAccountServiceImpl(channelAccessGuard, teamPermissionService, sharedAccountAccessGuard, lookupSupport)
+    private val service =
+        GetSharedAccountServiceImpl(channelAccessGuard, teamPermissionService, sharedAccountAccessGuard, lookupSupport)
 
     private fun accountShareChannel(id: Long = 1L, teamId: Long = 100L, createdBy: Long = 1L) = Channel(
         id = id, teamId = teamId, name = "ch", type = ChannelType.TEXT,
