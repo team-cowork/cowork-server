@@ -3,7 +3,11 @@ package com.cowork.team.domain.teamMember.presentation.controller
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
-import com.cowork.team.domain.teamMember.service.TeamMemberService
+import com.cowork.team.domain.teamMember.service.ChangeTeamMemberRoleService
+import com.cowork.team.domain.teamMember.service.GetTeamMembersService
+import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
+import com.cowork.team.domain.teamMember.service.IsTeamMemberService
+import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,7 +20,13 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/추방 API")
 @RestController
 @RequestMapping("/teams/{teamId}/members")
-class TeamMemberController(private val teamMemberService: TeamMemberService) {
+class TeamMemberController(
+    private val inviteTeamMembersService: InviteTeamMembersService,
+    private val getTeamMembersService: GetTeamMembersService,
+    private val isTeamMemberService: IsTeamMemberService,
+    private val changeTeamMemberRoleService: ChangeTeamMemberRoleService,
+    private val removeTeamMemberService: RemoveTeamMemberService,
+) {
 
     @Operation(summary = "멤버 초대", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -30,12 +40,12 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: InviteMembersRequest,
-    ): List<TeamMemberResponse> = teamMemberService.inviteMembers(userId, teamId, request)
+    ): List<TeamMemberResponse> = inviteTeamMembersService.inviteMembers(userId, teamId, request)
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
-    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = teamMemberService.getMembers(teamId)
+    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = getTeamMembersService.getMembers(teamId)
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -43,7 +53,7 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
     )
     @GetMapping("/{userId}/exists")
     fun isMember(@PathVariable teamId: Long, @PathVariable userId: Long): Map<String, Boolean> =
-        mapOf("isMember" to teamMemberService.isMember(teamId, userId))
+        mapOf("isMember" to isTeamMemberService.isMember(teamId, userId))
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -58,7 +68,7 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         @PathVariable targetUserId: Long,
         @RequestBody request: ChangeRoleRequest,
     ) {
-        teamMemberService.changeRole(userId, teamId, targetUserId, request)
+        changeTeamMemberRoleService.changeRole(userId, teamId, targetUserId, request)
     }
 
     @Operation(summary = "멤버 추방 / 탈퇴", security = [SecurityRequirement(name = "BearerAuth")])
@@ -74,6 +84,6 @@ class TeamMemberController(private val teamMemberService: TeamMemberService) {
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
     ) {
-        teamMemberService.removeMember(userId, teamId, targetUserId)
+        removeTeamMemberService.removeMember(userId, teamId, targetUserId)
     }
 }
