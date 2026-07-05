@@ -1,6 +1,6 @@
 package com.cowork.project.domain.project.presentation.controller
 
-import com.cowork.project.domain.project.service.ProjectService
+import com.cowork.project.domain.project.service.ReorderTeamProjectsService
 
 import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.presentation.data.request.ReorderProjectsReqDto
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/teams")
 class TeamProjectController(
-    private val projectService: ProjectService,
+    private val reorderTeamProjectsService: ReorderTeamProjectsService,
 ) {
 
     @Operation(summary = "팀 프로젝트 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
@@ -36,5 +36,5 @@ class TeamProjectController(
         @PathVariable teamId: Long,
         @RequestBody request: ReorderProjectsReqDto,
     ): List<ProjectResDto> =
-        projectService.reorderTeamProjects(userId, teamId, request.orderedProjectIds)
+        reorderTeamProjectsService.reorderTeamProjects(userId, teamId, request.orderedProjectIds)
 }
