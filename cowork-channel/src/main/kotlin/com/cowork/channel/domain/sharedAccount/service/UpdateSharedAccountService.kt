@@ -4,5 +4,10 @@ import com.cowork.channel.domain.sharedAccount.presentation.data.request.UpdateS
 import com.cowork.channel.domain.sharedAccount.presentation.data.response.SharedAccountResponse
 
 interface UpdateSharedAccountService {
-    fun updateAccount(userId: Long, channelId: Long, accountId: Long, request: UpdateSharedAccountRequest): SharedAccountResponse
+    fun updateAccount(
+        userId: Long,
+        channelId: Long,
+        accountId: Long,
+        request: UpdateSharedAccountRequest,
+    ): SharedAccountResponse
 }

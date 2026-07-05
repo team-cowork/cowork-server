@@ -28,7 +28,8 @@ class DeleteMeetingNoteTemplateServiceImplTest {
     private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
-    private val service = DeleteMeetingNoteTemplateServiceImpl(templateRepository, meetingNoteAccessGuard, lookupSupport)
+    private val service =
+        DeleteMeetingNoteTemplateServiceImpl(templateRepository, meetingNoteAccessGuard, lookupSupport)
 
     private fun template(
         id: Long = 10L,

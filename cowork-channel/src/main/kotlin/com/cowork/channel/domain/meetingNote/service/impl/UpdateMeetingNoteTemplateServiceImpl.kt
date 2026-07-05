@@ -18,7 +18,12 @@ class UpdateMeetingNoteTemplateServiceImpl(
     private val lookupSupport: MeetingNoteTemplateLookupSupport,
 ) : UpdateMeetingNoteTemplateService {
 
-    override fun updateTemplate(userId: Long, channelId: Long, templateId: Long, request: UpdateMeetingNoteTemplateRequest): MeetingNoteTemplateResponse {
+    override fun updateTemplate(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: UpdateMeetingNoteTemplateRequest,
+    ): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireChannelMember(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)

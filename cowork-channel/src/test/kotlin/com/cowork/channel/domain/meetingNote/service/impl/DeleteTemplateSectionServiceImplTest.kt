@@ -36,11 +36,8 @@ class DeleteTemplateSectionServiceImplTest {
         createdBy: Long = 1L,
     ) = MeetingNoteTemplate(id = id, channelId = channelId, name = name, isActive = isActive, createdBy = createdBy)
 
-    private fun section(
-        id: Long = 20L,
-        templateId: Long = 10L,
-        title: String = "회의 제목",
-    ) = TemplateSection(id = id, templateId = templateId, title = title, type = SectionType.TEXT)
+    private fun section(id: Long = 20L, templateId: Long = 10L, title: String = "회의 제목") =
+        TemplateSection(id = id, templateId = templateId, title = title, type = SectionType.TEXT)
 
     @Test
     fun `deleteSection은 정상적으로 섹션을 삭제`() {

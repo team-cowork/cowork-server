@@ -18,7 +18,12 @@ class AddTemplateSectionServiceImpl(
     private val lookupSupport: MeetingNoteTemplateLookupSupport,
 ) : AddTemplateSectionService {
 
-    override fun addSection(userId: Long, channelId: Long, templateId: Long, request: CreateTemplateSectionRequest): TemplateSectionResponse {
+    override fun addSection(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: CreateTemplateSectionRequest,
+    ): TemplateSectionResponse {
         meetingNoteAccessGuard.requireChannelMember(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
