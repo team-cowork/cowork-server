@@ -14,10 +14,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 @Component
-class OAuthStateSupport(
-    private val oAuthProperties: OAuthProperties,
-    private val objectMapper: ObjectMapper,
-) {
+class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private val objectMapper: ObjectMapper) {
 
     init {
         require(oAuthProperties.stateSecret.isNotBlank()) { "account-share.oauth.state-secret must not be empty" }
