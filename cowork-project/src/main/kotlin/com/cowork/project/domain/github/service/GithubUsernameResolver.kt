@@ -11,9 +11,7 @@ import team.themoment.sdk.exception.ExpectedException
  * `cowork-user`에서 사용자 프로필을 조회해 연동된 GitHub 사용자명을 해석한다.
  */
 @Component
-class GithubUsernameResolver(
-    private val userClient: UserClient,
-) {
+class GithubUsernameResolver(private val userClient: UserClient) {
     private val logger = LoggerFactory.getLogger(GithubUsernameResolver::class.java)
 
     fun resolve(userId: Long): String {

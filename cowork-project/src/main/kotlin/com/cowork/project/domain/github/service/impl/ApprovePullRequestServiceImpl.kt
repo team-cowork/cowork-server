@@ -22,7 +22,14 @@ class ApprovePullRequestServiceImpl(
         val repo = repoAccessResolver.resolveForModify(userId, projectId)
         val githubUsername = usernameResolver.resolve(userId)
         return callExecutor.execute {
-            githubAppClient.approvePullRequest(repo.owner, repo.repo, prNumber, mapOf("requesterGithubUsername" to githubUsername))
+            githubAppClient.approvePullRequest(
+                repo.owner,
+                repo.repo,
+                prNumber,
+                mapOf(
+                    "requesterGithubUsername" to githubUsername,
+                ),
+            )
         }
     }
 }

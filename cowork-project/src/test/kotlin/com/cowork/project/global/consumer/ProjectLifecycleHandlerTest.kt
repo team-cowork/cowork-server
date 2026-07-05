@@ -1,12 +1,11 @@
 package com.cowork.project.global.consumer
 
-
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.domain.project.repository.ProjectRepository
-import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
@@ -50,7 +49,9 @@ class ProjectLifecycleHandlerTest {
         every { projectRepository.findIdsByTeamId(100L) } returns listOf(1L, 2L, 3L)
         every {
             projectMemberRepository.findAllByUserIdAndRoleAndProjectIdIn(
-                7L, ProjectMemberRole.OWNER, listOf(1L, 2L, 3L),
+                7L,
+                ProjectMemberRole.OWNER,
+                listOf(1L, 2L, 3L),
             )
         } returns listOf(ProjectMember(projectId = 2L, userId = 7L, role = ProjectMemberRole.OWNER))
 
