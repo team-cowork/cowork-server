@@ -1,4 +1,4 @@
-package com.cowork.channel.domain.channel.service
+package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelMember
@@ -7,7 +7,6 @@ import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
-import com.cowork.channel.domain.channel.service.DmChannelService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -24,7 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import team.themoment.sdk.exception.ExpectedException
 
-class DmChannelServiceTest {
+class OpenDmServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
@@ -32,7 +31,7 @@ class DmChannelServiceTest {
     private val transactionTemplate = mockk<TransactionTemplate>()
 
     private val service =
-        DmChannelService(
+        OpenDmServiceImpl(
             channelRepository,
             channelMemberRepository,
             channelMembershipSyncPublisher,
