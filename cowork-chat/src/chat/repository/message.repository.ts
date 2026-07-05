@@ -512,10 +512,12 @@ export class MessageRepository {
 
         if (!before) return null;
 
-        const existing = before.reactions.find(r => r.emoji === emoji);
-        if (existing?.userIds.includes(userId)) return -1;
+        const reactions = before.reactions ?? [];
+        const existing = reactions.find(r => r.emoji === emoji);
+        const userIds = existing?.userIds ?? [];
+        if (userIds.includes(userId)) return -1;
 
-        return (existing?.userIds.length ?? 0) + 1;
+        return userIds.length + 1;
     }
 
     /**
