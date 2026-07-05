@@ -4,5 +4,10 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateTem
 import com.cowork.channel.domain.meetingNote.presentation.data.response.TemplateSectionResponse
 
 interface AddTemplateSectionService {
-    fun addSection(userId: Long, channelId: Long, templateId: Long, request: CreateTemplateSectionRequest): TemplateSectionResponse
+    fun addSection(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        request: CreateTemplateSectionRequest,
+    ): TemplateSectionResponse
 }

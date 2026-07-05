@@ -33,7 +33,13 @@ class CopySharedAccountCredentialServiceImplTest {
     private val credentialEncryptionService = mockk<CredentialEncryptionService>()
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val sharedAccountAccessGuard = SharedAccountAccessGuard()
-    private val lookupSupport = SharedAccountLookupSupport(sharedAccountRepository, channelAccessGuard, teamPermissionService, credentialEncryptionService)
+    private val lookupSupport =
+        SharedAccountLookupSupport(
+            sharedAccountRepository,
+            channelAccessGuard,
+            teamPermissionService,
+            credentialEncryptionService,
+        )
 
     private val service = CopySharedAccountCredentialServiceImpl(
         accountCredentialCopyRepository,

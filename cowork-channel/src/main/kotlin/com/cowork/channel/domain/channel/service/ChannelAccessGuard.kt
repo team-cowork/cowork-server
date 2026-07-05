@@ -8,9 +8,7 @@ import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class ChannelAccessGuard(
-    private val channelRepository: ChannelRepository,
-) {
+class ChannelAccessGuard(private val channelRepository: ChannelRepository) {
 
     fun findChannelOrThrow(channelId: Long): Channel = channelRepository.findById(channelId).orElseThrow {
         ExpectedException("채널을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

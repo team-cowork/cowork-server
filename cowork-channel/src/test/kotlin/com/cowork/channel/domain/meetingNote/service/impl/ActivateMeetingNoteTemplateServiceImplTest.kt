@@ -25,7 +25,13 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
-    private val service = ActivateMeetingNoteTemplateServiceImpl(templateRepository, sectionRepository, meetingNoteAccessGuard, lookupSupport)
+    private val service =
+        ActivateMeetingNoteTemplateServiceImpl(
+            templateRepository,
+            sectionRepository,
+            meetingNoteAccessGuard,
+            lookupSupport,
+        )
 
     private fun template(
         id: Long = 10L,

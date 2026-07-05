@@ -86,7 +86,8 @@ class MeetingNoteTemplateController(
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @RequestBody request: UpdateMeetingNoteTemplateRequest,
-    ): MeetingNoteTemplateResponse = updateMeetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
+    ): MeetingNoteTemplateResponse =
+        updateMeetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
 
     @Operation(summary = "템플릿 삭제 (활성 템플릿 삭제 불가)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
