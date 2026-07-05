@@ -14,11 +14,10 @@ import team.themoment.sdk.exception.ExpectedException
 class GithubAppCallExecutor {
     private val logger = LoggerFactory.getLogger(GithubAppCallExecutor::class.java)
 
-    fun <T> execute(call: () -> T): T =
-        try {
-            call()
-        } catch (e: FeignException) {
-            logger.error("Failed to call cowork-github-app due to network or timeout error", e)
-            throw ExpectedException("GitHub 연동 서버와 통신할 수 없습니다.", HttpStatus.BAD_GATEWAY)
-        }
+    fun <T> execute(call: () -> T): T = try {
+        call()
+    } catch (e: FeignException) {
+        logger.error("Failed to call cowork-github-app due to network or timeout error", e)
+        throw ExpectedException("GitHub 연동 서버와 통신할 수 없습니다.", HttpStatus.BAD_GATEWAY)
+    }
 }

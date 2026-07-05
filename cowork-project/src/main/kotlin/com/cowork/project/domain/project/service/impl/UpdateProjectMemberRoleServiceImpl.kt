@@ -20,7 +20,12 @@ class UpdateProjectMemberRoleServiceImpl(
     private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectMemberRoleService {
 
-    override fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleReqDto): ProjectMemberResDto {
+    override fun updateMemberRole(
+        userId: Long,
+        projectId: Long,
+        memberId: Long,
+        request: UpdateProjectMemberRoleReqDto,
+    ): ProjectMemberResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
         val member = projectMemberLookupSupport.findMemberOrThrow(memberId)
