@@ -26,10 +26,9 @@ class MeetingNoteTemplateLookupSupport(
         }
     }
 
-    fun findSectionOrThrow(sectionId: Long): TemplateSection =
-        sectionRepository.findById(sectionId).orElseThrow {
-            ExpectedException("섹션을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        }
+    fun findSectionOrThrow(sectionId: Long): TemplateSection = sectionRepository.findById(sectionId).orElseThrow {
+        ExpectedException("섹션을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     fun requireSectionOwnership(section: TemplateSection, templateId: Long) {
         if (section.templateId != templateId) {

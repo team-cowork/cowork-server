@@ -24,7 +24,12 @@ class UpdateThreadServiceImpl(
         ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
-    override fun updateThread(userId: Long, channelId: Long, threadId: Long, request: UpdateThreadRequest): ThreadResponse {
+    override fun updateThread(
+        userId: Long,
+        channelId: Long,
+        threadId: Long,
+        request: UpdateThreadRequest,
+    ): ThreadResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val thread = findThreadOrThrow(threadId)
         if (thread.channelId != channelId) {
@@ -33,7 +38,10 @@ class UpdateThreadServiceImpl(
 
         val isThreadCreator = thread.createdBy == userId
         val isChannelCreator = channel.createdBy == userId
-        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(channelAccessGuard.requireTeamChannel(channel), userId)
+        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(
+            channelAccessGuard.requireTeamChannel(channel),
+            userId,
+        )
 
         if (!isThreadCreator && !isChannelCreator && !isTeamManager) {
             throw ExpectedException("스레드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)

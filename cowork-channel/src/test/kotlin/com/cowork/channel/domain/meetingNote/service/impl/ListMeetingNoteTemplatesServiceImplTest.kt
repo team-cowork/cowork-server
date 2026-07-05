@@ -24,7 +24,8 @@ class ListMeetingNoteTemplatesServiceImplTest {
     }
     private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
 
-    private val service = ListMeetingNoteTemplatesServiceImpl(templateRepository, sectionRepository, meetingNoteAccessGuard)
+    private val service =
+        ListMeetingNoteTemplatesServiceImpl(templateRepository, sectionRepository, meetingNoteAccessGuard)
 
     private fun template(
         id: Long = 10L,
