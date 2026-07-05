@@ -6,6 +6,16 @@ import { Message, MessageDocument } from '../schema/message.schema';
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
 
+/** {@link MessageRow}에 필요한 필드만 남기는 프로젝션. `editHistory` 등 클라이언트 미사용 필드 전송을 막는다. */
+const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
+    $project: {
+        _id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1,
+        content: 1, type: 1, attachments: 1, parentMessageId: 1,
+        isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
+        reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
+    },
+};
+
 /** 한 번에 조회하는 최대 파일 첨부 항목 수 */
 const FILE_ATTACHMENT_LIMIT = 100;
 
@@ -179,6 +189,7 @@ export class MessageRepository {
             { $sort: { _id: -1 } },
             { $limit: MESSAGE_FETCH_LIMIT },
             ...lookupStages,
+            MESSAGE_ROW_PROJECTION,
         ]);
     }
 
@@ -421,6 +432,7 @@ export class MessageRepository {
                     mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
                 },
             },
+            MESSAGE_ROW_PROJECTION,
         ]);
     }
 
