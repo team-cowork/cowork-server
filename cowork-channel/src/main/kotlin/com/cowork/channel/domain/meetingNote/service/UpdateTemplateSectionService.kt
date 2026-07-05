@@ -4,5 +4,11 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateTem
 import com.cowork.channel.domain.meetingNote.presentation.data.response.TemplateSectionResponse
 
 interface UpdateTemplateSectionService {
-    fun updateSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long, request: UpdateTemplateSectionRequest): TemplateSectionResponse
+    fun updateSection(
+        userId: Long,
+        channelId: Long,
+        templateId: Long,
+        sectionId: Long,
+        request: UpdateTemplateSectionRequest,
+    ): TemplateSectionResponse
 }

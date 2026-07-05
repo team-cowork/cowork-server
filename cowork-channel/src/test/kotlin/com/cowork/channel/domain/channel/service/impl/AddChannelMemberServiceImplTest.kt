@@ -39,12 +39,7 @@ class AddChannelMemberServiceImplTest {
         channelPermissionSupport,
     )
 
-    private fun channel(
-        id: Long = 1L,
-        teamId: Long = 100L,
-        createdBy: Long = 1L,
-        isPrivate: Boolean = false,
-    ) = Channel(
+    private fun channel(id: Long = 1L, teamId: Long = 100L, createdBy: Long = 1L, isPrivate: Boolean = false) = Channel(
         id = id, teamId = teamId, name = "ch", type = ChannelType.TEXT, viewType = ChannelViewType.TEXT,
         description = null, isPrivate = isPrivate, position = 0, createdBy = createdBy,
     )
