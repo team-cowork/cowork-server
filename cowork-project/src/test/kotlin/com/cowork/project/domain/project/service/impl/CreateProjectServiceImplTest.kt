@@ -25,9 +25,11 @@ class CreateProjectServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
-    private val projectAccessGuard = ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val projectAccessGuard =
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private val service = CreateProjectServiceImpl(projectRepository, projectMemberRepository, projectEventPublisher, projectAccessGuard)
+    private val service =
+        CreateProjectServiceImpl(projectRepository, projectMemberRepository, projectEventPublisher, projectAccessGuard)
 
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
