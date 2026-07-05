@@ -5,9 +5,7 @@ import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 
 @Component
-class TeamLifecycleConsumer(
-    private val handler: ProjectLifecycleHandler,
-) {
+class TeamLifecycleConsumer(private val handler: ProjectLifecycleHandler) {
     private val log = LoggerFactory.getLogger(TeamLifecycleConsumer::class.java)
 
     @KafkaListener(

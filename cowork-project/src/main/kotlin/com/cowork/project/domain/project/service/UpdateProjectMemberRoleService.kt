@@ -4,5 +4,10 @@ import com.cowork.project.domain.projectMember.presentation.data.request.UpdateP
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 
 interface UpdateProjectMemberRoleService {
-    fun updateMemberRole(userId: Long, projectId: Long, memberId: Long, request: UpdateProjectMemberRoleReqDto): ProjectMemberResDto
+    fun updateMemberRole(
+        userId: Long,
+        projectId: Long,
+        memberId: Long,
+        request: UpdateProjectMemberRoleReqDto,
+    ): ProjectMemberResDto
 }

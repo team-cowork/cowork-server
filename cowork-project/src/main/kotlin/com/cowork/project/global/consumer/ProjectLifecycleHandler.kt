@@ -1,10 +1,10 @@
 package com.cowork.project.global.consumer
 
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
+import com.cowork.project.domain.project.repository.ProjectRepository
+import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -68,7 +68,10 @@ class ProjectLifecycleHandler(
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}, membershipsRemoved={}]",
-            teamId, targetUserId, ownerProjects.size, remaining.size,
+            teamId,
+            targetUserId,
+            ownerProjects.size,
+            remaining.size,
         )
     }
 
@@ -85,7 +88,8 @@ class ProjectLifecycleHandler(
 
         log.info(
             "USER_DELETED 처리 [userId={}, ownerProjectsDeleted={}]",
-            userId, ownerProjectIds.size,
+            userId,
+            ownerProjectIds.size,
         )
     }
 }

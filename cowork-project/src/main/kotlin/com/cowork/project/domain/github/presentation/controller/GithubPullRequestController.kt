@@ -1,14 +1,13 @@
 package com.cowork.project.domain.github.presentation.controller
 
-import com.cowork.project.domain.github.service.ApprovePullRequestService
-import com.cowork.project.domain.github.service.GetPullRequestDetailService
-import com.cowork.project.domain.github.service.ListPullRequestFilesService
-import com.cowork.project.domain.github.service.MergePullRequestService
-
 import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
+import com.cowork.project.domain.github.service.ApprovePullRequestService
+import com.cowork.project.domain.github.service.GetPullRequestDetailService
+import com.cowork.project.domain.github.service.ListPullRequestFilesService
+import com.cowork.project.domain.github.service.MergePullRequestService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -45,8 +44,7 @@ class GithubPullRequestController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
-    ): GithubPullRequestResDto =
-        getPullRequestDetailService.getPullRequestDetail(userId, projectId, prNumber)
+    ): GithubPullRequestResDto = getPullRequestDetailService.getPullRequestDetail(userId, projectId, prNumber)
 
     @Operation(summary = "PR 파일 변경 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -61,8 +59,7 @@ class GithubPullRequestController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
-    ): List<GithubPullRequestFileResDto> =
-        listPullRequestFilesService.listPullRequestFiles(userId, projectId, prNumber)
+    ): List<GithubPullRequestFileResDto> = listPullRequestFilesService.listPullRequestFiles(userId, projectId, prNumber)
 
     @Operation(summary = "PR 머지 (squash)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -78,8 +75,7 @@ class GithubPullRequestController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
-    ): GithubMergeResultResDto =
-        mergePullRequestService.mergePullRequest(userId, projectId, prNumber)
+    ): GithubMergeResultResDto = mergePullRequestService.mergePullRequest(userId, projectId, prNumber)
 
     @Operation(summary = "PR 승인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -94,6 +90,5 @@ class GithubPullRequestController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
-    ): GithubApproveResultResDto =
-        approvePullRequestService.approvePullRequest(userId, projectId, prNumber)
+    ): GithubApproveResultResDto = approvePullRequestService.approvePullRequest(userId, projectId, prNumber)
 }

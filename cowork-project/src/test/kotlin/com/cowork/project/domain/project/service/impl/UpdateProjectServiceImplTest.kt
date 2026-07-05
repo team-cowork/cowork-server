@@ -27,7 +27,8 @@ class UpdateProjectServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
-    private val projectAccessGuard = ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val projectAccessGuard =
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
     private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard, ProjectEnumParser())
 

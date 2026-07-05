@@ -19,7 +19,8 @@ class ReorderTeamProjectsServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
-    private val projectAccessGuard = ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val projectAccessGuard =
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
     private val service = ReorderTeamProjectsServiceImpl(projectRepository, projectAccessGuard)
 
@@ -46,7 +47,8 @@ class ReorderTeamProjectsServiceImplTest {
     @Test
     fun `reorderTeamProjects는 팀 프로젝트 ID 누락 시 BAD_REQUEST`() {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
-        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(project(id = 1L), project(id = 2L))
+        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns
+            listOf(project(id = 1L), project(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.reorderTeamProjects(7L, 100L, listOf(1L))
