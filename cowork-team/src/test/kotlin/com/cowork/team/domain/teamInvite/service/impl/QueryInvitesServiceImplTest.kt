@@ -17,14 +17,14 @@ import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.LocalDateTime
 
-class GetInvitesServiceImplTest {
+class QueryInvitesServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
     private val teamInviteAccessGuard = TeamInviteAccessGuard(teamRepository, teamMemberRepository)
 
-    private val service = GetInvitesServiceImpl(teamInviteRepository, teamInviteAccessGuard)
+    private val service = QueryInvitesServiceImpl(teamInviteRepository, teamInviteAccessGuard)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
     private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.MEMBER)

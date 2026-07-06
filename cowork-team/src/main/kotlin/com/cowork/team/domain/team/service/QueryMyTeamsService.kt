@@ -2,6 +2,6 @@ package com.cowork.team.domain.team.service
 
 import com.cowork.team.domain.team.presentation.data.response.TeamSummaryResponse
 
-interface GetMyTeamsService {
+interface QueryMyTeamsService {
     fun execute(userId: Long): List<TeamSummaryResponse>
 }
