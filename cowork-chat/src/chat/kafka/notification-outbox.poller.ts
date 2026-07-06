@@ -111,7 +111,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
         if (msgs.length === 0) return;
 
-        // 2단계: 배치 내 고유 parentMessageId를 한 번에 조회해 parentCache 사전 채움
+        // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const memberCache = new Map<string, ChannelMember[]>();
         const parentCache = new Map<string, { authorId: number } | null>();
         const parentIds = [...new Set(
@@ -122,6 +122,12 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             for (const id of parentIds) {
                 parentCache.set(id.toString(), parentMap.get(id.toString()) ?? null);
             }
+        }
+
+        const channelIds = [...new Set(msgs.map((m) => m.channelId))];
+        const membersByChannel = await this.channelMemberRepository.findByChannelIds(channelIds);
+        for (const channelId of channelIds) {
+            memberCache.set(String(channelId), membersByChannel.get(channelId) ?? []);
         }
 
         // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
@@ -165,7 +171,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      *   단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
      *
      * **캐시 활용**:
-     * - `memberCache`: 같은 채널 ID가 배치 내에서 중복 조회되는 것을 방지한다.
+     * - `memberCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 채널 멤버 조회에 사용된다.
      * - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
      *
      * @param msg - 처리할 알림 대상 메시지
@@ -178,12 +184,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         memberCache: Map<string, ChannelMember[]>,
         parentCache: Map<string, { authorId: number } | null>,
     ): Promise<void> {
-        const cacheKey = String(msg.channelId);
-        let members = memberCache.get(cacheKey);
-        if (!members) {
-            members = await this.channelMemberRepository.findByChannelId(msg.channelId);
-            memberCache.set(cacheKey, members);
-        }
+        const members = memberCache.get(String(msg.channelId)) ?? [];
         const memberIdSet = new Set(members.map((m) => m.userId));
 
         const targetUserIds = [...memberIdSet].filter((id) => id !== msg.authorId);
