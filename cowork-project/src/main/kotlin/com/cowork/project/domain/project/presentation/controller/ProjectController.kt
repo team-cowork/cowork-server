@@ -8,13 +8,13 @@ import com.cowork.project.domain.project.presentation.data.response.ProjectResDt
 import com.cowork.project.domain.project.service.AddProjectMemberService
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.DeleteProjectService
-import com.cowork.project.domain.project.service.GetMyProjectsService
-import com.cowork.project.domain.project.service.GetProjectMembersService
-import com.cowork.project.domain.project.service.GetProjectService
-import com.cowork.project.domain.project.service.GetProjectTeamIdService
-import com.cowork.project.domain.project.service.GetProjectsByTeamIdService
 import com.cowork.project.domain.project.service.LinkGithubRepoService
+import com.cowork.project.domain.project.service.QueryMyProjectsService
 import com.cowork.project.domain.project.service.QueryProjectMemberService
+import com.cowork.project.domain.project.service.QueryProjectMembersService
+import com.cowork.project.domain.project.service.QueryProjectService
+import com.cowork.project.domain.project.service.QueryProjectTeamIdService
+import com.cowork.project.domain.project.service.QueryProjectsByTeamIdService
 import com.cowork.project.domain.project.service.RemoveProjectMemberService
 import com.cowork.project.domain.project.service.UnlinkGithubRepoService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
@@ -39,18 +39,18 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/projects")
 class ProjectController(
     private val createProjectService: CreateProjectService,
-    private val getProjectService: GetProjectService,
+    private val queryProjectService: QueryProjectService,
     private val updateProjectService: UpdateProjectService,
     private val deleteProjectService: DeleteProjectService,
     private val linkGithubRepoService: LinkGithubRepoService,
     private val unlinkGithubRepoService: UnlinkGithubRepoService,
-    private val getProjectsByTeamIdService: GetProjectsByTeamIdService,
-    private val getMyProjectsService: GetMyProjectsService,
+    private val queryProjectsByTeamIdService: QueryProjectsByTeamIdService,
+    private val queryMyProjectsService: QueryMyProjectsService,
     private val addProjectMemberService: AddProjectMemberService,
-    private val getProjectMembersService: GetProjectMembersService,
+    private val queryProjectMembersService: QueryProjectMembersService,
     private val updateProjectMemberRoleService: UpdateProjectMemberRoleService,
     private val queryProjectMemberService: QueryProjectMemberService,
-    private val getProjectTeamIdService: GetProjectTeamIdService,
+    private val queryProjectTeamIdService: QueryProjectTeamIdService,
     private val removeProjectMemberService: RemoveProjectMemberService,
 ) {
 
@@ -74,7 +74,7 @@ class ProjectController(
     fun getProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(getProjectService.execute(userId, projectId))
+    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(queryProjectService.execute(userId, projectId))
 
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -141,7 +141,7 @@ class ProjectController(
         @RequestParam teamId: Long,
         @PageableDefault(size = 20, sort = ["position", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResDto>> =
-        ResponseEntity.ok(getProjectsByTeamIdService.execute(userId, teamId, pageable))
+        ResponseEntity.ok(queryProjectsByTeamIdService.execute(userId, teamId, pageable))
 
     @Operation(summary = "내 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -151,7 +151,7 @@ class ProjectController(
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
-    ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(getMyProjectsService.execute(userId, pageable))
+    ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(queryMyProjectsService.execute(userId, pageable))
 
     @Operation(summary = "프로젝트 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -177,7 +177,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<List<ProjectMemberResDto>> =
-        ResponseEntity.ok(getProjectMembersService.execute(userId, projectId))
+        ResponseEntity.ok(queryProjectMembersService.execute(userId, projectId))
 
     @Operation(summary = "프로젝트 멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -223,7 +223,7 @@ class ProjectController(
     )
     @GetMapping("/{projectId}/team-id")
     fun getTeamId(@PathVariable projectId: Long): ResponseEntity<Long> =
-        ResponseEntity.ok(getProjectTeamIdService.execute(projectId))
+        ResponseEntity.ok(queryProjectTeamIdService.execute(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
