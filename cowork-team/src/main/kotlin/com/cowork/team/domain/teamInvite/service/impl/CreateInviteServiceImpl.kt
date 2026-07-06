@@ -14,7 +14,6 @@ import java.security.SecureRandom
 import java.time.LocalDateTime
 
 @Service
-@Transactional
 class CreateInviteServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
     private val teamInviteAccessGuard: TeamInviteAccessGuard,
@@ -34,6 +33,7 @@ class CreateInviteServiceImpl(
         throw ExpectedException("초대 코드 생성에 실패했습니다.", HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
         teamInviteAccessGuard.requireMember(teamId, userId)
         val team = teamInviteAccessGuard.findTeamOrThrow(teamId)

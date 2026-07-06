@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class CreateProjectServiceImpl(
     private val projectRepository: ProjectRepository,
     private val projectMemberRepository: ProjectMemberRepository,
@@ -23,6 +22,7 @@ class CreateProjectServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : CreateProjectService {
 
+    @Transactional
     override fun execute(userId: Long, request: CreateProjectReqDto): ProjectResDto {
         projectAccessGuard.requireTeamMember(request.teamId, userId)
 

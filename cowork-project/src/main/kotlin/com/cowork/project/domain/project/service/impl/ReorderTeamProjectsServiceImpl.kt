@@ -10,12 +10,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class ReorderTeamProjectsServiceImpl(
     private val projectRepository: ProjectRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : ReorderTeamProjectsService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
 

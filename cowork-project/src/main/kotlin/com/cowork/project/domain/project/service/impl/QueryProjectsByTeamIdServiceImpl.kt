@@ -10,12 +10,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryProjectsByTeamIdServiceImpl(
     private val projectRepository: ProjectRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : QueryProjectsByTeamIdService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
         return projectRepository.findByTeamId(teamId, pageable).map { ProjectResDto.of(it) }

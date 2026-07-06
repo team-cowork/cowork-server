@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class MergePullRequestServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
     private val usernameResolver: GithubUsernameResolver,
@@ -18,6 +17,7 @@ class MergePullRequestServiceImpl(
     private val githubAppClient: GithubAppClient,
 ) : MergePullRequestService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResDto {
         val repo = repoAccessResolver.resolveForModify(userId, projectId)
         val githubUsername = usernameResolver.resolve(userId)

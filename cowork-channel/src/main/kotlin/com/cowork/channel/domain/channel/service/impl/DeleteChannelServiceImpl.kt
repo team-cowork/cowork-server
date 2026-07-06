@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class DeleteChannelServiceImpl(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
@@ -22,6 +21,7 @@ class DeleteChannelServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : DeleteChannelService {
 
+    @Transactional
     override fun execute(userId: Long, channelId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)

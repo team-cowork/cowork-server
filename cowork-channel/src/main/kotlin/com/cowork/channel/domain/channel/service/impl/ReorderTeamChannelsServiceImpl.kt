@@ -10,12 +10,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class ReorderTeamChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
 ) : ReorderTeamChannelsService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
 

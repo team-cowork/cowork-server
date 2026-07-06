@@ -6,9 +6,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryTeamMemberServiceImpl(private val teamMemberRepository: TeamMemberRepository) : QueryTeamMemberService {
 
+    @Transactional(readOnly = true)
     override fun execute(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
 }

@@ -8,12 +8,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryChannelServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : QueryChannelService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, channelId: Long): ChannelResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelPermissionSupport.requireChannelAccess(channel, userId)

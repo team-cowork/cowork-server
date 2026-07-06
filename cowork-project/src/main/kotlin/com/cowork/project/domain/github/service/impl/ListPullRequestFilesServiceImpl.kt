@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class ListPullRequestFilesServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
     private val callExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
 ) : ListPullRequestFilesService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, prNumber: Int): List<GithubPullRequestFileResDto> {
         val repo = repoAccessResolver.resolveForRead(userId, projectId)
         return callExecutor.execute { githubAppClient.listPullRequestFiles(repo.owner, repo.repo, prNumber) }

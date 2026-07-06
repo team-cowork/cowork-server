@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class LinkGithubRepoServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : LinkGithubRepoService {
 
+    @Transactional
     override fun execute(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)

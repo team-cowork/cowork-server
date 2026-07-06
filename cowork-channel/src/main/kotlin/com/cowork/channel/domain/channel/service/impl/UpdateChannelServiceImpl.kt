@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class UpdateChannelServiceImpl(
     private val channelEventPublisher: ChannelEventPublisher,
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : UpdateChannelService {
 
+    @Transactional
     override fun execute(
         userId: Long,
         channelId: Long,

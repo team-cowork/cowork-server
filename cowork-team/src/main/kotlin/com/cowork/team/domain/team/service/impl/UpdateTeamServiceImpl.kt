@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class UpdateTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : UpdateTeamService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamAccessGuard.findTeamOrThrow(teamId)

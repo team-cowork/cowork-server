@@ -7,9 +7,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryMyTeamsServiceImpl(private val teamMemberRepository: TeamMemberRepository) : QueryMyTeamsService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long): List<TeamSummaryResponse> = teamMemberRepository.findAllByUserIdWithTeam(userId)
         .map { m -> TeamSummaryResponse.of(m.team, m.role) }
 }
