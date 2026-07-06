@@ -1,90 +1,35 @@
+// cowork-project is built by Maven; pom.xml is the single source of truth for the build.
+// This Gradle file is only a wrapper that keeps the module in the multi-module build
+// (settings.gradle.kts) and delegates every build action to the bundled Maven wrapper (mvnw).
 plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
-    alias(libs.plugins.kotlin.jpa)
+    base
 }
 
 group = "com.cowork"
 version = "20260623.0"
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
-
-repositories {
-    maven { url = uri("https://jitpack.io") }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
-}
-
-dependencies {
-    implementation(libs.spring.boot.starter.web)
-    implementation(libs.spring.boot.starter.actuator)
-    implementation(libs.micrometer.registry.prometheus)
-    implementation(libs.spring.boot.starter.data.jpa)
-    implementation(libs.spring.cloud.starter.netflix.eureka.client)
-    implementation(libs.spring.cloud.starter.config)
-    implementation(libs.spring.cloud.starter.openfeign)
-    implementation(libs.spring.boot.starter.kafka)
-    implementation(libs.jackson.module.kotlin)
-    implementation(libs.mysql.connector.j)
-    implementation(libs.flyway.core)
-    implementation(libs.flyway.mysql)
-    implementation(libs.kotlin.reflect)
-    implementation(libs.the.sdk) {
-        exclude(group = "org.springframework.boot")
-        exclude(group = "org.springframework.cloud")
-        exclude(group = "org.springdoc")
-    }
-    implementation(libs.springdoc.openapi.webmvc.ui)
-    implementation(libs.logstash.logback.encoder)
-
-    testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.spring.kafka.test)
-    testImplementation(libs.mockk)
-    testImplementation("io.kotest:kotest-runner-junit5-jvm:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core-jvm:5.9.1")
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
-}
-
-tasks.named("jar") {
-    enabled = false
-}
-
-// Legacy escape hatches: the module used to be built exclusively through the bundled
-// Maven wrapper. Gradle (via the plugins above) is now the real day-to-day build and
-// the one IntelliJ syncs against, but these tasks stay available for anyone still
-// invoking Maven directly.
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val mvnw = file(if (isWindows) "mvnw.cmd" else "mvnw").absolutePath
 
-tasks.register<Exec>("mvnPackage") {
-    group = "build"
-    description = "Compile, test, and package the executable jar (Maven, legacy)"
-    workingDir = projectDir
-    commandLine(mvnw, "package")
-}
+fun mvnTask(name: String, vararg mvnArgs: String, taskGroup: String, desc: String) =
+    tasks.register<Exec>(name) {
+        group = taskGroup
+        description = desc
+        workingDir = projectDir
+        commandLine(mvnw, *mvnArgs)
+    }
 
-tasks.register<Exec>("mvnClean") {
-    group = "build"
-    description = "Clean the Maven build output (Maven, legacy)"
+val mvnPackage = mvnTask("mvnPackage", "package", taskGroup = "build", desc = "Compile, test, and package the executable jar (Maven)")
+val mvnClean = mvnTask("mvnClean", "clean", taskGroup = "build", desc = "Clean the Maven build output")
+
+// Wire the delegating tasks into the base plugin lifecycle so existing commands
+// like `:cowork-project:build` keep working (they now invoke Maven under the hood).
+tasks.named("assemble") { dependsOn(mvnPackage) }
+tasks.named("clean") { dependsOn(mvnClean) }
+
+tasks.register<Exec>("run") {
+    group = "application"
+    description = "Run the application via the Spring Boot Maven plugin"
     workingDir = projectDir
-    commandLine(mvnw, "clean")
+    commandLine(mvnw, "spring-boot:run")
 }
