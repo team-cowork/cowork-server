@@ -41,7 +41,7 @@ class ReorderTeamChannelsServiceImplTest {
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
 
-        val result = service.reorderTeamChannels(7L, 100L, listOf(2L, 1L))
+        val result = service.execute(7L, 100L, listOf(2L, 1L))
 
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
@@ -55,7 +55,7 @@ class ReorderTeamChannelsServiceImplTest {
             listOf(channel(id = 1L), channel(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.reorderTeamChannels(7L, 100L, listOf(1L))
+            service.execute(7L, 100L, listOf(1L))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

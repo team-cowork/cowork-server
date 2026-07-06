@@ -56,7 +56,7 @@ class CreateInviteServiceImplTest {
         val saved = makeInvite()
         every { teamInviteRepository.save(any()) } returns saved
 
-        val result = service.createInvite(42L, 1L, CreateInviteRequest(InviteDuration.SEVEN_DAYS))
+        val result = service.execute(42L, 1L, CreateInviteRequest(InviteDuration.SEVEN_DAYS))
 
         assertEquals("aB3xK9mZ", result.inviteCode)
         assertEquals("7d", result.duration)
@@ -68,7 +68,7 @@ class CreateInviteServiceImplTest {
         every { teamMemberRepository.findByTeamIdAndUserId(1L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createInvite(99L, 1L, CreateInviteRequest(InviteDuration.SEVEN_DAYS))
+            service.execute(99L, 1L, CreateInviteRequest(InviteDuration.SEVEN_DAYS))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

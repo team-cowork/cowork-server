@@ -14,7 +14,7 @@ class GetTeamMembersServiceImpl(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
 ) : GetTeamMembersService {
 
-    override fun getMembers(teamId: Long): List<TeamMemberResponse> {
+    override fun execute(teamId: Long): List<TeamMemberResponse> {
         val members = teamMemberRepository.findAllByTeamId(teamId)
         val rolesById = preferenceTeamRoleClient.getRoles(teamId).associateBy { it.id }
         val roleIdsByUserId = preferenceTeamRoleClient.getMemberRoleAssignments(teamId)

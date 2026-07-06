@@ -4,5 +4,5 @@ import com.cowork.channel.domain.channel.presentation.data.request.AddMemberRequ
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelMemberResponse
 
 interface AddChannelMemberService {
-    fun addMember(userId: Long, channelId: Long, request: AddMemberRequest): ChannelMemberResponse
+    fun execute(userId: Long, channelId: Long, request: AddMemberRequest): ChannelMemberResponse
 }

@@ -5,5 +5,5 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 
 interface GetMyProjectsService {
-    fun getMyProjects(userId: Long, pageable: Pageable): Page<ProjectResDto>
+    fun execute(userId: Long, pageable: Pageable): Page<ProjectResDto>
 }

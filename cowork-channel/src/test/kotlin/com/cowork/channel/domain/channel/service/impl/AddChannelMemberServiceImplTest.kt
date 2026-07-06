@@ -68,7 +68,7 @@ class AddChannelMemberServiceImplTest :
                         every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns false
 
                         val ex = shouldThrow<ExpectedException> {
-                            service.addMember(1L, 1L, AddMemberRequest(userId = 50L))
+                            service.execute(1L, 1L, AddMemberRequest(userId = 50L))
                         }
 
                         ex.statusCode shouldBe HttpStatus.FORBIDDEN
@@ -84,7 +84,7 @@ class AddChannelMemberServiceImplTest :
                         every { teamPermission.isTeamMember(100L, 50L) } returns false
 
                         val ex = shouldThrow<ExpectedException> {
-                            service.addMember(1L, 1L, AddMemberRequest(userId = 50L))
+                            service.execute(1L, 1L, AddMemberRequest(userId = 50L))
                         }
 
                         ex.statusCode shouldBe HttpStatus.BAD_REQUEST
@@ -96,7 +96,7 @@ class AddChannelMemberServiceImplTest :
                         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
 
                         val ex = shouldThrow<ExpectedException> {
-                            service.addMember(1L, 1L, AddMemberRequest(userId = 50L))
+                            service.execute(1L, 1L, AddMemberRequest(userId = 50L))
                         }
 
                         ex.statusCode shouldBe HttpStatus.BAD_REQUEST
@@ -114,7 +114,7 @@ class AddChannelMemberServiceImplTest :
                         val savedMember = slot<ChannelMember>()
                         every { channelMemberRepository.save(capture(savedMember)) } answers { savedMember.captured }
 
-                        service.addMember(1L, 1L, AddMemberRequest(userId = 50L))
+                        service.execute(1L, 1L, AddMemberRequest(userId = 50L))
 
                         savedMember.captured.userId shouldBe 50L
                     }

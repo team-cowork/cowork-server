@@ -36,7 +36,7 @@ class UnlinkGithubRepoServiceImplTest {
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
 
-        val response = service.unlinkGithubRepo(99L, 1L)
+        val response = service.execute(99L, 1L)
 
         assertEquals(null, response.githubRepoUrl)
     }
@@ -50,7 +50,7 @@ class UnlinkGithubRepoServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.unlinkGithubRepo(50L, 1L)
+            service.execute(50L, 1L)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

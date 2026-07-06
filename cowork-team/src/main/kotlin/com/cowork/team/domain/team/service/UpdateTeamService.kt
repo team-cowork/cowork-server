@@ -4,5 +4,5 @@ import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 
 interface UpdateTeamService {
-    fun updateTeam(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse
+    fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse
 }

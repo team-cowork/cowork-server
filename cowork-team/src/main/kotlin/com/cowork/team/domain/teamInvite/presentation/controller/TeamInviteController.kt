@@ -38,7 +38,7 @@ class TeamInviteController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: CreateInviteRequest,
-    ): InviteResponse = createInviteService.createInvite(userId, teamId, request)
+    ): InviteResponse = createInviteService.execute(userId, teamId, request)
 
     @Operation(summary = "초대 링크 목록 조회 (만료 포함)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -49,7 +49,7 @@ class TeamInviteController(
     fun getInvites(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<InviteResponse> = getInvitesService.getInvites(userId, teamId)
+    ): List<InviteResponse> = getInvitesService.execute(userId, teamId)
 
     @Operation(summary = "초대 링크 무효화", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -64,7 +64,7 @@ class TeamInviteController(
         @PathVariable teamId: Long,
         @PathVariable inviteCode: String,
     ) {
-        deleteInviteService.deleteInvite(userId, teamId, inviteCode)
+        deleteInviteService.execute(userId, teamId, inviteCode)
     }
 
     @Operation(summary = "초대 코드로 팀 가입", security = [SecurityRequirement(name = "BearerAuth")])
@@ -78,5 +78,5 @@ class TeamInviteController(
     fun joinTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable inviteCode: String,
-    ): JoinTeamResponse = joinTeamService.joinTeam(userId, inviteCode)
+    ): JoinTeamResponse = joinTeamService.execute(userId, inviteCode)
 }

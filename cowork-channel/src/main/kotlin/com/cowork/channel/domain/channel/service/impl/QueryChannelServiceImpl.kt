@@ -14,7 +14,7 @@ class QueryChannelServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : QueryChannelService {
 
-    override fun getChannel(userId: Long, channelId: Long): ChannelResponse {
+    override fun execute(userId: Long, channelId: Long): ChannelResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelPermissionSupport.requireChannelAccess(channel, userId)
         return ChannelResponse.of(channel)
