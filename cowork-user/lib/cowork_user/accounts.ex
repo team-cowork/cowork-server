@@ -399,11 +399,14 @@ defmodule CoworkUser.Accounts do
 
   defp maybe_put_student_number(attrs, event) do
     cond do
-      Map.has_key?(event, "student_number") ->
+      not is_nil(Map.get(event, "student_number")) ->
         Map.put(attrs, :student_number, normalize_student_number(Map.get(event, "student_number")))
 
       has_student_number_parts?(event) ->
         Map.put(attrs, :student_number, build_student_number(event))
+
+      Map.has_key?(event, "student_number") ->
+        Map.put(attrs, :student_number, nil)
 
       true ->
         attrs
