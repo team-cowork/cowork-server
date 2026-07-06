@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class ListProjectChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
     private val projectClient: ProjectClient,
 ) : ListProjectChannelsService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): List<ChannelResponse> {
         val teamId = projectClient.getTeamId(projectId)
         teamPermissionService.requireTeamMember(teamId, userId)

@@ -8,12 +8,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryInvitesServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
     private val teamInviteAccessGuard: TeamInviteAccessGuard,
 ) : QueryInvitesService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<InviteResponse> {
         teamInviteAccessGuard.requireMember(teamId, userId)
         return teamInviteRepository.findAllByTeamId(teamId).map { InviteResponse.of(it) }

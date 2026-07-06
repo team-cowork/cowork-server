@@ -14,13 +14,13 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class ChangeTeamMemberRoleServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : ChangeTeamMemberRoleService {
 
+    @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
         teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER)
 

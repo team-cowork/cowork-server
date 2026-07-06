@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class CreateChannelServiceImpl(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
@@ -48,6 +47,7 @@ class CreateChannelServiceImpl(
         throw ExpectedException("유효하지 않은 view_type 입니다.", HttpStatus.BAD_REQUEST)
     }
 
+    @Transactional
     override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
         teamPermissionService.requireTeamMember(request.teamId, userId)
 

@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class AssignTeamRoleServiceImpl(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : AssignTeamRoleService {
 
+    @Transactional(readOnly = true)
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireMemberExists(teamId, targetUserId)
