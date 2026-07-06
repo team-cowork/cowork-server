@@ -14,13 +14,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class InviteTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : InviteTeamMembersService {
 
+    @Transactional
     override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
         teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamMemberAccessGuard.findTeamOrThrow(teamId)

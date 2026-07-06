@@ -9,13 +9,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryPullRequestBoardServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
     private val callExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
 ) : QueryPullRequestBoardService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
         val repo = repoAccessResolver.resolveForRead(userId, projectId)
         val pulls = callExecutor.execute { githubAppClient.listPullRequests(repo.owner, repo.repo, "open") }
