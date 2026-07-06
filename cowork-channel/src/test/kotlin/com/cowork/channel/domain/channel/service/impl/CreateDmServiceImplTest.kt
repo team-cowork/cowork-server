@@ -23,7 +23,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import team.themoment.sdk.exception.ExpectedException
 
-class OpenDmServiceImplTest {
+class CreateDmServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
@@ -31,7 +31,7 @@ class OpenDmServiceImplTest {
     private val transactionTemplate = mockk<TransactionTemplate>()
 
     private val service =
-        OpenDmServiceImpl(
+        CreateDmServiceImpl(
             channelRepository,
             channelMemberRepository,
             channelMembershipSyncPublisher,
