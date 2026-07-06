@@ -111,7 +111,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
         if (msgs.length === 0) return;
 
-        // 2단계: 배치 내 고유 parentMessageId를 한 번에 조회해 parentCache 사전 채움
+        // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const memberCache = new Map<string, ChannelMember[]>();
         const parentCache = new Map<string, { authorId: number } | null>();
         const parentIds = [...new Set(
@@ -124,28 +124,40 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
 
-        // 3단계: 각 메시지 처리
-        for (const msg of msgs) {
-            try {
-                await this.processMessage(msg, memberCache, parentCache);
-                await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
-            } catch (err) {
-                const retryCount = (msg.notificationRetryCount ?? 0) + 1;
-                const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
-                this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
-                await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
-                if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
-                    void this.dicoshot.sendCustom({
-                        title: '⚠️ 알림 발송 영구 실패',
-                        description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
-                        color: 'warning',
-                        fields: [
-                            { name: 'messageId', value: msg._id.toString(), inline: true },
-                            { name: 'channelId', value: String(msg.channelId), inline: true },
-                            ...buildErrorFields(err),
-                        ],
-                    }).catch(() => {});
-                }
+        const channelIds = [...new Set(msgs.map((m) => m.channelId))];
+        const membersByChannel = await this.channelMemberRepository.findByChannelIds(channelIds);
+        for (const channelId of channelIds) {
+            memberCache.set(String(channelId), membersByChannel.get(channelId) ?? []);
+        }
+
+        // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
+        await Promise.all(msgs.map((msg) => this.processMessageAndUpdateStatus(msg, memberCache, parentCache)));
+    }
+
+    private async processMessageAndUpdateStatus(
+        msg: NotificationMessage,
+        memberCache: Map<string, ChannelMember[]>,
+        parentCache: Map<string, { authorId: number } | null>,
+    ): Promise<void> {
+        try {
+            await this.processMessage(msg, memberCache, parentCache);
+            await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
+        } catch (err) {
+            const retryCount = (msg.notificationRetryCount ?? 0) + 1;
+            const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
+            this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
+            await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
+            if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
+                void this.dicoshot.sendCustom({
+                    title: '⚠️ 알림 발송 영구 실패',
+                    description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
+                    color: 'warning',
+                    fields: [
+                        { name: 'messageId', value: msg._id.toString(), inline: true },
+                        { name: 'channelId', value: String(msg.channelId), inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
             }
         }
     }
@@ -159,7 +171,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      *   단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
      *
      * **캐시 활용**:
-     * - `memberCache`: 같은 채널 ID가 배치 내에서 중복 조회되는 것을 방지한다.
+     * - `memberCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 채널 멤버 조회에 사용된다.
      * - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
      *
      * @param msg - 처리할 알림 대상 메시지
@@ -172,12 +184,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         memberCache: Map<string, ChannelMember[]>,
         parentCache: Map<string, { authorId: number } | null>,
     ): Promise<void> {
-        const cacheKey = String(msg.channelId);
-        let members = memberCache.get(cacheKey);
-        if (!members) {
-            members = await this.channelMemberRepository.findByChannelId(msg.channelId);
-            memberCache.set(cacheKey, members);
-        }
+        const members = memberCache.get(String(msg.channelId)) ?? [];
         const memberIdSet = new Set(members.map((m) => m.userId));
 
         const targetUserIds = [...memberIdSet].filter((id) => id !== msg.authorId);
