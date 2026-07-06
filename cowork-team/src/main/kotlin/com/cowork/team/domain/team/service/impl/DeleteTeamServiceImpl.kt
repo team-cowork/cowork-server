@@ -18,7 +18,7 @@ class DeleteTeamServiceImpl(
     private val teamAccessGuard: TeamAccessGuard,
 ) : DeleteTeamService {
 
-    override fun deleteTeam(userId: Long, teamId: Long) {
+    override fun execute(userId: Long, teamId: Long) {
         val team = teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER).team
         val payload = TeamEventPayload(
             eventType = "TEAM_DELETED",

@@ -21,7 +21,7 @@ class InviteTeamMembersServiceImpl(
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : InviteTeamMembersService {
 
-    override fun inviteMembers(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
+    override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
         teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamMemberAccessGuard.findTeamOrThrow(teamId)
 

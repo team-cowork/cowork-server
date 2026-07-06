@@ -25,7 +25,7 @@ class AddChannelMemberServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : AddChannelMemberService {
 
-    override fun addMember(userId: Long, channelId: Long, request: AddMemberRequest): ChannelMemberResponse {
+    override fun execute(userId: Long, channelId: Long, request: AddMemberRequest): ChannelMemberResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
 

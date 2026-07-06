@@ -21,7 +21,7 @@ class JoinTeamServiceImpl(
     private val teamEventPublisher: TeamEventPublisher,
 ) : JoinTeamService {
 
-    override fun joinTeam(userId: Long, inviteCode: String): JoinTeamResponse {
+    override fun execute(userId: Long, inviteCode: String): JoinTeamResponse {
         val invite = teamInviteRepository.findActiveByInviteCode(inviteCode)
             ?: throw ExpectedException("유효하지 않은 초대 코드입니다.", HttpStatus.NOT_FOUND)
 

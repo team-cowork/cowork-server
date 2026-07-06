@@ -4,5 +4,5 @@ import com.cowork.project.domain.projectMember.presentation.data.request.AddProj
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 
 interface AddProjectMemberService {
-    fun addMember(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto
+    fun execute(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto
 }

@@ -1,5 +1,5 @@
 package com.cowork.project.domain.project.service
 
 interface DeleteProjectService {
-    fun deleteProject(userId: Long, projectId: Long)
+    fun execute(userId: Long, projectId: Long)
 }

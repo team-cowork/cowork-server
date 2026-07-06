@@ -37,7 +37,7 @@ class ReorderTeamProjectsServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
         every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
 
-        val result = service.reorderTeamProjects(7L, 100L, listOf(2L, 1L))
+        val result = service.execute(7L, 100L, listOf(2L, 1L))
 
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
@@ -51,7 +51,7 @@ class ReorderTeamProjectsServiceImplTest {
             listOf(project(id = 1L), project(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.reorderTeamProjects(7L, 100L, listOf(1L))
+            service.execute(7L, 100L, listOf(1L))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

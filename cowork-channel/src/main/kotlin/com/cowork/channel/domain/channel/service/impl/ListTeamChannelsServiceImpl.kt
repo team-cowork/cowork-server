@@ -14,7 +14,7 @@ class ListTeamChannelsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
 ) : ListTeamChannelsService {
 
-    override fun listTeamChannels(userId: Long, teamId: Long): List<Channel> {
+    override fun execute(userId: Long, teamId: Long): List<Channel> {
         teamPermissionService.requireTeamMember(teamId, userId)
         return channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
     }

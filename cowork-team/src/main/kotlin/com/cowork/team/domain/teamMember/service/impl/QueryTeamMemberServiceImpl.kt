@@ -9,6 +9,6 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class QueryTeamMemberServiceImpl(private val teamMemberRepository: TeamMemberRepository) : QueryTeamMemberService {
 
-    override fun isMember(teamId: Long, userId: Long): Boolean =
+    override fun execute(teamId: Long, userId: Long): Boolean =
         teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)
 }

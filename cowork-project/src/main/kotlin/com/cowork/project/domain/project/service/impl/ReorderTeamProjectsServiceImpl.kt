@@ -16,7 +16,7 @@ class ReorderTeamProjectsServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : ReorderTeamProjectsService {
 
-    override fun reorderTeamProjects(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
+    override fun execute(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {

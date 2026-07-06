@@ -4,5 +4,5 @@ import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteR
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
 
 interface CreateInviteService {
-    fun createInvite(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse
+    fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse
 }

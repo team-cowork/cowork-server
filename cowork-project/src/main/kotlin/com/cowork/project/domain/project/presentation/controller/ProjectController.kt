@@ -63,8 +63,7 @@ class ProjectController(
     fun createProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: CreateProjectReqDto,
-    ): ResponseEntity<ProjectResDto> =
-        ResponseEntity.status(201).body(createProjectService.createProject(userId, request))
+    ): ResponseEntity<ProjectResDto> = ResponseEntity.status(201).body(createProjectService.execute(userId, request))
 
     @Operation(summary = "프로젝트 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -75,7 +74,7 @@ class ProjectController(
     fun getProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(getProjectService.getProject(userId, projectId))
+    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(getProjectService.execute(userId, projectId))
 
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -88,7 +87,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @RequestBody request: UpdateProjectReqDto,
-    ): ResponseEntity<ProjectResDto> = ResponseEntity.ok(updateProjectService.updateProject(userId, projectId, request))
+    ): ResponseEntity<ProjectResDto> = ResponseEntity.ok(updateProjectService.execute(userId, projectId, request))
 
     @Operation(summary = "프로젝트 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -101,7 +100,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<Void> {
-        deleteProjectService.deleteProject(userId, projectId)
+        deleteProjectService.execute(userId, projectId)
         return ResponseEntity.noContent().build()
     }
 
@@ -118,7 +117,7 @@ class ProjectController(
         @PathVariable projectId: Long,
         @RequestBody request: LinkGithubRepoReqDto,
     ): ResponseEntity<ProjectDetailResDto> =
-        ResponseEntity.ok(linkGithubRepoService.linkGithubRepo(userId, projectId, request))
+        ResponseEntity.ok(linkGithubRepoService.execute(userId, projectId, request))
 
     @Operation(summary = "GitHub 레포지토리 연결 해제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -130,8 +129,7 @@ class ProjectController(
     fun unlinkGithubRepo(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResDto> =
-        ResponseEntity.ok(unlinkGithubRepoService.unlinkGithubRepo(userId, projectId))
+    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(unlinkGithubRepoService.execute(userId, projectId))
 
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -143,7 +141,7 @@ class ProjectController(
         @RequestParam teamId: Long,
         @PageableDefault(size = 20, sort = ["position", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResDto>> =
-        ResponseEntity.ok(getProjectsByTeamIdService.getProjectsByTeamId(userId, teamId, pageable))
+        ResponseEntity.ok(getProjectsByTeamIdService.execute(userId, teamId, pageable))
 
     @Operation(summary = "내 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -153,7 +151,7 @@ class ProjectController(
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
-    ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(getMyProjectsService.getMyProjects(userId, pageable))
+    ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(getMyProjectsService.execute(userId, pageable))
 
     @Operation(summary = "프로젝트 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -167,7 +165,7 @@ class ProjectController(
         @PathVariable projectId: Long,
         @RequestBody request: AddProjectMemberReqDto,
     ): ResponseEntity<ProjectMemberResDto> =
-        ResponseEntity.status(201).body(addProjectMemberService.addMember(userId, projectId, request))
+        ResponseEntity.status(201).body(addProjectMemberService.execute(userId, projectId, request))
 
     @Operation(summary = "프로젝트 멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -179,7 +177,7 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<List<ProjectMemberResDto>> =
-        ResponseEntity.ok(getProjectMembersService.getMembers(userId, projectId))
+        ResponseEntity.ok(getProjectMembersService.execute(userId, projectId))
 
     @Operation(summary = "프로젝트 멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -194,7 +192,7 @@ class ProjectController(
         @PathVariable memberId: Long,
         @RequestBody request: UpdateProjectMemberRoleReqDto,
     ): ResponseEntity<ProjectMemberResDto> =
-        ResponseEntity.ok(updateProjectMemberRoleService.updateMemberRole(userId, projectId, memberId, request))
+        ResponseEntity.ok(updateProjectMemberRoleService.execute(userId, projectId, memberId, request))
 
     @Operation(
         summary = "내 멤버십 확인 (내부 서비스용)",
@@ -209,7 +207,7 @@ class ProjectController(
     fun getMyMembership(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<Void> = if (queryProjectMemberService.isMember(projectId, userId)) {
+    ): ResponseEntity<Void> = if (queryProjectMemberService.execute(projectId, userId)) {
         ResponseEntity.ok().build()
     } else {
         ResponseEntity.notFound().build()
@@ -225,7 +223,7 @@ class ProjectController(
     )
     @GetMapping("/{projectId}/team-id")
     fun getTeamId(@PathVariable projectId: Long): ResponseEntity<Long> =
-        ResponseEntity.ok(getProjectTeamIdService.getTeamId(projectId))
+        ResponseEntity.ok(getProjectTeamIdService.execute(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -239,7 +237,7 @@ class ProjectController(
         @PathVariable projectId: Long,
         @PathVariable memberId: Long,
     ): ResponseEntity<Void> {
-        removeProjectMemberService.removeMember(userId, projectId, memberId)
+        removeProjectMemberService.execute(userId, projectId, memberId)
         return ResponseEntity.noContent().build()
     }
 }

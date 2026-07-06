@@ -21,7 +21,7 @@ class AddProjectMemberServiceImpl(
     private val projectEnumParser: ProjectEnumParser,
 ) : AddProjectMemberService {
 
-    override fun addMember(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto {
+    override fun execute(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
 

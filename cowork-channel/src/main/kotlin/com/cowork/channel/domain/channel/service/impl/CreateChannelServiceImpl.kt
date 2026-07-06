@@ -48,7 +48,7 @@ class CreateChannelServiceImpl(
         throw ExpectedException("유효하지 않은 view_type 입니다.", HttpStatus.BAD_REQUEST)
     }
 
-    override fun createChannel(userId: Long, request: CreateChannelRequest): ChannelResponse {
+    override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
         teamPermissionService.requireTeamMember(request.teamId, userId)
 
         val channel = channelRepository.save(

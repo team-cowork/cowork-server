@@ -55,7 +55,7 @@ class UpdateChannelServiceImplTest {
         every { channelRepository.findById(1L) } returns Optional.of(ch)
         every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns true
 
-        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(name = "newName"), false)
+        val res = service.execute(1L, 1L, UpdateChannelRequest(name = "newName"), false)
         assertEquals("newName", res.name)
     }
 
@@ -66,7 +66,7 @@ class UpdateChannelServiceImplTest {
         every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.updateChannel(1L, 1L, UpdateChannelRequest(name = "x"), false)
+            service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -76,7 +76,7 @@ class UpdateChannelServiceImplTest {
         val ch = channel(createdBy = 1L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
 
-        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
+        val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
         assertEquals(5L, res.projectId)
     }
 
@@ -85,7 +85,7 @@ class UpdateChannelServiceImplTest {
         val ch = channel(createdBy = 1L, projectId = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
 
-        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(), false)
+        val res = service.execute(1L, 1L, UpdateChannelRequest(), false)
         assertEquals(99L, res.projectId)
     }
 
@@ -94,7 +94,7 @@ class UpdateChannelServiceImplTest {
         val ch = channel(createdBy = 1L, projectId = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
 
-        val res = service.updateChannel(1L, 1L, UpdateChannelRequest(projectId = null), true)
+        val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = null), true)
         assertEquals(null, res.projectId)
     }
 
@@ -103,7 +103,7 @@ class UpdateChannelServiceImplTest {
         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.updateChannel(1L, 1L, UpdateChannelRequest(name = "x"), false)
+            service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

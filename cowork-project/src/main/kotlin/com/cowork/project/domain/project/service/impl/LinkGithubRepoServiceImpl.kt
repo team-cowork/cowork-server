@@ -18,7 +18,7 @@ class LinkGithubRepoServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : LinkGithubRepoService {
 
-    override fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto {
+    override fun execute(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 

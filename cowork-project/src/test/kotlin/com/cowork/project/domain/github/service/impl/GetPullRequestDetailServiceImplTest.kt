@@ -38,7 +38,7 @@ class GetPullRequestDetailServiceImplTest :
                         val expected = mockk<GithubPullRequestResDto>()
                         every { githubAppClient.getPullRequest("my-org", "my-repo", 5) } returns expected
 
-                        val result = service.getPullRequestDetail(7L, 1L, 5)
+                        val result = service.execute(7L, 1L, 5)
 
                         result shouldBe expected
                         verify { repoAccessResolver.resolveForRead(7L, 1L) }

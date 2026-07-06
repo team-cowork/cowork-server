@@ -56,7 +56,7 @@ class CreateChannelServiceImplTest {
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createChannel(
+            service.execute(
                 7L,
                 CreateChannelRequest(teamId = 100L, name = "n", type = "TEXT", viewType = "WEBHOOK"),
             )
@@ -72,7 +72,7 @@ class CreateChannelServiceImplTest {
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
         every { channelMemberRepository.save(any()) } answers { firstArg() }
 
-        service.createChannel(
+        service.execute(
             1L,
             CreateChannelRequest(
                 teamId = 100L,
@@ -92,7 +92,7 @@ class CreateChannelServiceImplTest {
         every { teamPermission.requireTeamMember(any(), any()) } returns Unit
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createChannel(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))
+            service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

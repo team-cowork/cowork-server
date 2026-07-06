@@ -35,5 +35,5 @@ class GithubPullRequestBoardController(private val getPullRequestBoardService: G
     fun getBoard(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): GithubPullRequestBoardResDto = getPullRequestBoardService.getPullRequestBoard(userId, projectId)
+    ): GithubPullRequestBoardResDto = getPullRequestBoardService.execute(userId, projectId)
 }

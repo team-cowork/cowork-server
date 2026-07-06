@@ -14,7 +14,7 @@ class GetProjectMembersServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : GetProjectMembersService {
 
-    override fun getMembers(userId: Long, projectId: Long): List<ProjectMemberResDto> {
+    override fun execute(userId: Long, projectId: Long): List<ProjectMemberResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireTeamMember(project.teamId, userId)
         return projectMemberRepository.findByProjectId(projectId).map { ProjectMemberResDto.of(it) }

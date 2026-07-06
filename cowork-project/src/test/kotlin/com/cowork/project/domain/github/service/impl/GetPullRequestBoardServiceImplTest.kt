@@ -50,7 +50,7 @@ class GetPullRequestBoardServiceImplTest :
                         every { githubAppClient.listPullRequests("my-org", "my-repo", "open") } returns
                             listOf(summary(1, draft = true), summary(2, draft = false), summary(3, draft = false))
 
-                        val board = service.getPullRequestBoard(7L, 1L)
+                        val board = service.execute(7L, 1L)
 
                         board.draft.map { it.number } shouldBe listOf(1)
                         board.inReview.map { it.number } shouldBe listOf(2, 3)

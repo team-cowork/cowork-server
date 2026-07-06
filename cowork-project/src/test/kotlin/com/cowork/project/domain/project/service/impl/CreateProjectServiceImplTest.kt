@@ -49,7 +49,7 @@ class CreateProjectServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.createProject(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
+            service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
         verify(exactly = 0) { projectRepository.save(any()) }
@@ -62,7 +62,7 @@ class CreateProjectServiceImplTest {
         every { projectRepository.save(any()) } answers { firstArg() }
         every { projectMemberRepository.save(any()) } answers { firstArg() }
 
-        val response = service.createProject(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
+        val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
         assertEquals(4, response.position)
     }

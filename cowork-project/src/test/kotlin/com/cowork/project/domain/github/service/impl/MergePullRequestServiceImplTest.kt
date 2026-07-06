@@ -51,7 +51,7 @@ class MergePullRequestServiceImplTest :
                             )
                         } returns expected
 
-                        val result = service.mergePullRequest(7L, 1L, 5)
+                        val result = service.execute(7L, 1L, 5)
 
                         result shouldBe expected
                         verify { repoAccessResolver.resolveForModify(7L, 1L) }
