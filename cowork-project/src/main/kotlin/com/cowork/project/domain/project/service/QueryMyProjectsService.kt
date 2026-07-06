@@ -4,6 +4,6 @@ import com.cowork.project.domain.project.presentation.data.response.ProjectResDt
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 
-interface GetProjectsByTeamIdService {
-    fun execute(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResDto>
+interface QueryMyProjectsService {
+    fun execute(userId: Long, pageable: Pageable): Page<ProjectResDto>
 }
