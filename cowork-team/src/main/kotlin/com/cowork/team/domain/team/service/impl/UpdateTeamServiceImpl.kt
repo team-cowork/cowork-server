@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional
 class UpdateTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : UpdateTeamService {
 
-    override fun updateTeam(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
+    override fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamAccessGuard.findTeamOrThrow(teamId)
         team.update(request.name, request.description, request.iconUrl)

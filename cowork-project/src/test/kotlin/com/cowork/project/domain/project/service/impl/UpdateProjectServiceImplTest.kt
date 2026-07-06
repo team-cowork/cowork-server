@@ -55,7 +55,7 @@ class UpdateProjectServiceImplTest {
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
 
-        val response = service.updateProject(99L, 1L, UpdateProjectReqDto(name = "newName"))
+        val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
         assertEquals("newName", response.name)
     }
 
@@ -67,7 +67,7 @@ class UpdateProjectServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.updateProject(99L, 1L, UpdateProjectReqDto(name = "x"))
+            service.execute(99L, 1L, UpdateProjectReqDto(name = "x"))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

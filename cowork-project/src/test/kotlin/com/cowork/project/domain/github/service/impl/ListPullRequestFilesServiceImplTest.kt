@@ -38,7 +38,7 @@ class ListPullRequestFilesServiceImplTest :
                         val expected = listOf(mockk<GithubPullRequestFileResDto>())
                         every { githubAppClient.listPullRequestFiles("my-org", "my-repo", 5) } returns expected
 
-                        val result = service.listPullRequestFiles(7L, 1L, 5)
+                        val result = service.execute(7L, 1L, 5)
 
                         result shouldBe expected
                         verify { repoAccessResolver.resolveForRead(7L, 1L) }

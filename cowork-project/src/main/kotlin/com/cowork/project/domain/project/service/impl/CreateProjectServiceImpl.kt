@@ -23,7 +23,7 @@ class CreateProjectServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : CreateProjectService {
 
-    override fun createProject(userId: Long, request: CreateProjectReqDto): ProjectResDto {
+    override fun execute(userId: Long, request: CreateProjectReqDto): ProjectResDto {
         projectAccessGuard.requireTeamMember(request.teamId, userId)
 
         val project = projectRepository.save(
