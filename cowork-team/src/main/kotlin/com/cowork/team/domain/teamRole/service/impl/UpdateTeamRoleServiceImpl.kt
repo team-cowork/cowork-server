@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class UpdateTeamRoleServiceImpl(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : UpdateTeamRoleService {
 
+    @Transactional(readOnly = true)
     override fun execute(actorId: Long, teamId: Long, roleId: Long, request: UpdateTeamRoleRequest): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val currentRole = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
