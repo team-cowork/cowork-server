@@ -80,9 +80,9 @@ class HandleOAuthCallbackServiceImpl(
                 .accept(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("GitHub 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
             response["access_token"] as? String
-                ?: throw ExpectedException("GitHub access_token 없음", HttpStatus.BAD_GATEWAY)
+                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
         AccountProvider.NOTION -> {
@@ -99,9 +99,9 @@ class HandleOAuthCallbackServiceImpl(
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(requestBody)
                 .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("Notion 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
             response["access_token"] as? String
-                ?: throw ExpectedException("Notion access_token 없음", HttpStatus.BAD_GATEWAY)
+                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
         AccountProvider.JIRA -> {
@@ -117,9 +117,9 @@ class HandleOAuthCallbackServiceImpl(
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(body)
                 .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("Jira 토큰 교환 실패", HttpStatus.BAD_GATEWAY)
+                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
             response["access_token"] as? String
-                ?: throw ExpectedException("Jira access_token 없음", HttpStatus.BAD_GATEWAY)
+                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
         }
 
         AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
