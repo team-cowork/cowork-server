@@ -14,7 +14,7 @@ class UnlinkGithubRepoServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : UnlinkGithubRepoService {
 
-    override fun unlinkGithubRepo(userId: Long, projectId: Long): ProjectDetailResDto {
+    override fun execute(userId: Long, projectId: Long): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 

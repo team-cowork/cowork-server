@@ -40,7 +40,7 @@ class AddProjectMemberServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.addMember(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+            service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

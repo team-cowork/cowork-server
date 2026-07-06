@@ -16,7 +16,7 @@ class AssignTeamRoleServiceImpl(
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : AssignTeamRoleService {
 
-    override fun assignRole(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long): TeamRoleResponse {
+    override fun execute(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireMemberExists(teamId, targetUserId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)

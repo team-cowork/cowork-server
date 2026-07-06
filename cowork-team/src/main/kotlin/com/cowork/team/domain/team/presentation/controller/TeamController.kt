@@ -49,7 +49,7 @@ class TeamController(
     )
     @PostMapping("/icon/presigned")
     fun generateIconPresignedUrl(@RequestBody request: IconPresignedUrlRequest): IconPresignedUrlResponse =
-        generateIconPresignedUrlService.generateIconPresignedUrl(request.contentType)
+        generateIconPresignedUrlService.execute(request.contentType)
 
     @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -60,7 +60,7 @@ class TeamController(
     )
     @PostMapping("/icon/confirm")
     fun confirmIconUpload(@RequestBody request: IconConfirmRequest): IconConfirmResponse =
-        confirmIconUploadService.confirmIconUpload(request.objectKey)
+        confirmIconUploadService.execute(request.objectKey)
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -72,13 +72,13 @@ class TeamController(
     fun createTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: CreateTeamRequest,
-    ): TeamResponse = createTeamService.createTeam(userId, request)
+    ): TeamResponse = createTeamService.execute(userId, request)
 
     @Operation(summary = "내 팀 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
     fun getMyTeams(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long): List<TeamSummaryResponse> =
-        getMyTeamsService.getMyTeams(userId)
+        getMyTeamsService.execute(userId)
 
     @Operation(summary = "팀 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -86,7 +86,7 @@ class TeamController(
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
     @GetMapping("/{teamId}")
-    fun getTeam(@PathVariable teamId: Long): TeamResponse = getTeamService.getTeam(teamId)
+    fun getTeam(@PathVariable teamId: Long): TeamResponse = getTeamService.execute(teamId)
 
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -99,7 +99,7 @@ class TeamController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateTeamRequest,
-    ): TeamResponse = updateTeamService.updateTeam(userId, teamId, request)
+    ): TeamResponse = updateTeamService.execute(userId, teamId, request)
 
     @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -112,7 +112,7 @@ class TeamController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateIconRequest,
-    ): IconConfirmResponse = updateTeamIconService.updateIcon(userId, teamId, request.iconUrl)
+    ): IconConfirmResponse = updateTeamIconService.execute(userId, teamId, request.iconUrl)
 
     @Operation(summary = "팀 아이콘 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -123,7 +123,7 @@ class TeamController(
     @DeleteMapping("/{teamId}/icon")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteIcon(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long, @PathVariable teamId: Long) {
-        deleteTeamIconService.deleteIcon(userId, teamId)
+        deleteTeamIconService.execute(userId, teamId)
     }
 
     @Operation(summary = "팀 삭제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -135,6 +135,6 @@ class TeamController(
     @DeleteMapping("/{teamId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteTeam(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long, @PathVariable teamId: Long) {
-        deleteTeamService.deleteTeam(userId, teamId)
+        deleteTeamService.execute(userId, teamId)
     }
 }

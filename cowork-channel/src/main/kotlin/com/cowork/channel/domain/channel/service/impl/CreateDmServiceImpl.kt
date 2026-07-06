@@ -31,7 +31,7 @@ class CreateDmServiceImpl(
      * 이미 존재하면 기존 채널을 반환하고, 없으면 생성한다.
      * 동시 생성 경합은 dm_key 유니크 제약 충돌 시 재조회로 해소한다.
      */
-    override fun openDm(userId: Long, targetUserId: Long): ChannelResponse {
+    override fun execute(userId: Long, targetUserId: Long): ChannelResponse {
         if (targetUserId == userId) {
             throw ExpectedException("자기 자신과는 DM을 만들 수 없습니다.", HttpStatus.BAD_REQUEST)
         }

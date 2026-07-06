@@ -16,7 +16,7 @@ class GetPullRequestBoardServiceImpl(
     private val githubAppClient: GithubAppClient,
 ) : GetPullRequestBoardService {
 
-    override fun getPullRequestBoard(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
+    override fun execute(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
         val repo = repoAccessResolver.resolveForRead(userId, projectId)
         val pulls = callExecutor.execute { githubAppClient.listPullRequests(repo.owner, repo.repo, "open") }
         val (draft, inReview) = pulls.partition { it.draft }

@@ -50,7 +50,7 @@ class ChannelController(
     fun createChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: CreateChannelRequest,
-    ): ChannelResponse = createChannelService.createChannel(userId, request)
+    ): ChannelResponse = createChannelService.execute(userId, request)
 
     @Operation(summary = "채널 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -61,7 +61,7 @@ class ChannelController(
     fun getChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): ChannelResponse = queryChannelService.getChannel(userId, channelId)
+    ): ChannelResponse = queryChannelService.execute(userId, channelId)
 
     @Operation(summary = "채널 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -77,7 +77,7 @@ class ChannelController(
     ): ChannelResponse {
         val request = objectMapper.convertValue(body, UpdateChannelRequest::class.java)
         val updateProjectId = body.has("projectId")
-        return updateChannelService.updateChannel(userId, channelId, request, updateProjectId)
+        return updateChannelService.execute(userId, channelId, request, updateProjectId)
     }
 
     @Operation(summary = "채널 삭제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -91,7 +91,7 @@ class ChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
     ) {
-        deleteChannelService.deleteChannel(userId, channelId)
+        deleteChannelService.execute(userId, channelId)
     }
 
     @Operation(summary = "채널 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
@@ -105,7 +105,7 @@ class ChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: AddMemberRequest,
-    ): ChannelMemberResponse = addChannelMemberService.addMember(userId, channelId, request)
+    ): ChannelMemberResponse = addChannelMemberService.execute(userId, channelId, request)
 
     @Operation(summary = "채널 멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -116,7 +116,7 @@ class ChannelController(
     fun getMembers(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<ChannelMemberResponse> = queryChannelMembersService.getMembers(userId, channelId)
+    ): List<ChannelMemberResponse> = queryChannelMembersService.execute(userId, channelId)
 
     @Operation(summary = "채널 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -130,6 +130,6 @@ class ChannelController(
         @PathVariable channelId: Long,
         @PathVariable memberId: Long,
     ) {
-        removeChannelMemberService.removeMember(userId, channelId, memberId)
+        removeChannelMemberService.execute(userId, channelId, memberId)
     }
 }

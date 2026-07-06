@@ -18,7 +18,7 @@ class RemoveProjectMemberServiceImpl(
     private val projectMemberLookupSupport: ProjectMemberLookupSupport,
 ) : RemoveProjectMemberService {
 
-    override fun removeMember(userId: Long, projectId: Long, memberId: Long) {
+    override fun execute(userId: Long, projectId: Long, memberId: Long) {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
         val member = projectMemberLookupSupport.findMemberOrThrow(memberId)

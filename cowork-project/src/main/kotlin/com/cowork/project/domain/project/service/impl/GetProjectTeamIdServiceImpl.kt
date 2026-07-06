@@ -9,5 +9,5 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class GetProjectTeamIdServiceImpl(private val projectAccessGuard: ProjectAccessGuard) : GetProjectTeamIdService {
 
-    override fun getTeamId(projectId: Long): Long = projectAccessGuard.findProjectOrThrow(projectId).teamId
+    override fun execute(projectId: Long): Long = projectAccessGuard.findProjectOrThrow(projectId).teamId
 }

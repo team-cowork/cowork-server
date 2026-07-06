@@ -15,7 +15,7 @@ class DeleteTeamRoleServiceImpl(
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : DeleteTeamRoleService {
 
-    override fun deleteRole(actorId: Long, teamId: Long, roleId: Long) {
+    override fun execute(actorId: Long, teamId: Long, roleId: Long) {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
         teamRoleAccessGuard.requireManageablePriority(actor, role)

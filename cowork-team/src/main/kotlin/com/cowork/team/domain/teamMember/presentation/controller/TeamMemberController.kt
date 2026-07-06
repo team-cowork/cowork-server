@@ -40,12 +40,12 @@ class TeamMemberController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: InviteMembersRequest,
-    ): List<TeamMemberResponse> = inviteTeamMembersService.inviteMembers(userId, teamId, request)
+    ): List<TeamMemberResponse> = inviteTeamMembersService.execute(userId, teamId, request)
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
-    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = getTeamMembersService.getMembers(teamId)
+    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = getTeamMembersService.execute(teamId)
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -53,7 +53,7 @@ class TeamMemberController(
     )
     @GetMapping("/{userId}/exists")
     fun isMember(@PathVariable teamId: Long, @PathVariable userId: Long): Map<String, Boolean> =
-        mapOf("isMember" to queryTeamMemberService.isMember(teamId, userId))
+        mapOf("isMember" to queryTeamMemberService.execute(teamId, userId))
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -68,7 +68,7 @@ class TeamMemberController(
         @PathVariable targetUserId: Long,
         @RequestBody request: ChangeRoleRequest,
     ) {
-        changeTeamMemberRoleService.changeRole(userId, teamId, targetUserId, request)
+        changeTeamMemberRoleService.execute(userId, teamId, targetUserId, request)
     }
 
     @Operation(summary = "멤버 추방 / 탈퇴", security = [SecurityRequirement(name = "BearerAuth")])
@@ -84,6 +84,6 @@ class TeamMemberController(
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
     ) {
-        removeTeamMemberService.removeMember(userId, teamId, targetUserId)
+        removeTeamMemberService.execute(userId, teamId, targetUserId)
     }
 }

@@ -16,7 +16,7 @@ class ReorderTeamChannelsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
 ) : ReorderTeamChannelsService {
 
-    override fun reorderTeamChannels(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
+    override fun execute(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
 
         if (orderedChannelIds.isEmpty()) {

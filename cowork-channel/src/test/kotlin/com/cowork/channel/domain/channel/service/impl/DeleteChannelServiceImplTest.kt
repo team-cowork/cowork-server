@@ -48,7 +48,7 @@ class DeleteChannelServiceImplTest {
         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.deleteChannel(1L, 1L)
+            service.execute(1L, 1L)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }

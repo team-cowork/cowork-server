@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 class UpdateTeamIconServiceImpl(private val s3Service: S3Service, private val teamAccessGuard: TeamAccessGuard) :
     UpdateTeamIconService {
 
-    override fun updateIcon(userId: Long, teamId: Long, iconUrl: String): IconConfirmResponse {
+    override fun execute(userId: Long, teamId: Long, iconUrl: String): IconConfirmResponse {
         s3Service.validateIconUrl(iconUrl)
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamAccessGuard.findTeamOrThrow(teamId)

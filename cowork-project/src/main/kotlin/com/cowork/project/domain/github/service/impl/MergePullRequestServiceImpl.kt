@@ -18,7 +18,7 @@ class MergePullRequestServiceImpl(
     private val githubAppClient: GithubAppClient,
 ) : MergePullRequestService {
 
-    override fun mergePullRequest(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResDto {
+    override fun execute(userId: Long, projectId: Long, prNumber: Int): GithubMergeResultResDto {
         val repo = repoAccessResolver.resolveForModify(userId, projectId)
         val githubUsername = usernameResolver.resolve(userId)
         return callExecutor.execute {

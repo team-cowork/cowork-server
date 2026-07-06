@@ -1,5 +1,5 @@
 package com.cowork.project.domain.project.service
 
 interface GetProjectTeamIdService {
-    fun getTeamId(projectId: Long): Long
+    fun execute(projectId: Long): Long
 }

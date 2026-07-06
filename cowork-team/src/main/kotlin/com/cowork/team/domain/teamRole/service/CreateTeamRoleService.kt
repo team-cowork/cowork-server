@@ -4,5 +4,5 @@ import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleR
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 
 interface CreateTeamRoleService {
-    fun createRole(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse
+    fun execute(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse
 }

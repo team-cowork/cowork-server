@@ -20,7 +20,7 @@ class UpdateProjectMemberRoleServiceImpl(
     private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectMemberRoleService {
 
-    override fun updateMemberRole(
+    override fun execute(
         userId: Long,
         projectId: Long,
         memberId: Long,

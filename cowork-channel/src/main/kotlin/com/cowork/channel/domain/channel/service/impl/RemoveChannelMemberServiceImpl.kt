@@ -20,7 +20,7 @@ class RemoveChannelMemberServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
 ) : RemoveChannelMemberService {
 
-    override fun removeMember(userId: Long, channelId: Long, memberId: Long) {
+    override fun execute(userId: Long, channelId: Long, memberId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         val member = channelMemberRepository.findById(memberId).orElseThrow {

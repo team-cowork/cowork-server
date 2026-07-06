@@ -18,7 +18,7 @@ class UpdateChannelServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : UpdateChannelService {
 
-    override fun updateChannel(
+    override fun execute(
         userId: Long,
         channelId: Long,
         request: UpdateChannelRequest,
