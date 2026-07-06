@@ -11,10 +11,10 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class DeleteTeamIconServiceImpl(private val s3Service: S3Service, private val teamAccessGuard: TeamAccessGuard) :
     DeleteTeamIconService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long) {
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
         val team = teamAccessGuard.findTeamOrThrow(teamId)

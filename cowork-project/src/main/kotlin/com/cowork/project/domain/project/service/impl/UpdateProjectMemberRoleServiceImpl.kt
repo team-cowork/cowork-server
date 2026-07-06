@@ -13,13 +13,13 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class UpdateProjectMemberRoleServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectMemberLookupSupport: ProjectMemberLookupSupport,
     private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectMemberRoleService {
 
+    @Transactional
     override fun execute(
         userId: Long,
         projectId: Long,
