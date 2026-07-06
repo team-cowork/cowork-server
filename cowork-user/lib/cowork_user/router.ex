@@ -41,7 +41,6 @@ defmodule CoworkUser.Router do
     else
       {:error, :not_found} -> JSON.error(conn, 404, "사용자를 찾을 수 없습니다.")
       {:error, :missing_user_id} -> JSON.error(conn, 400, "X-User-Id 헤더가 누락되었습니다.")
-      {:error, message} when is_binary(message) -> JSON.error(conn, 400, message)
     end
   end
 
