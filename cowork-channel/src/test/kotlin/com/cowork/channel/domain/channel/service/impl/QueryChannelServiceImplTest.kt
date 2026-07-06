@@ -16,14 +16,14 @@ import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
-class GetChannelServiceImplTest {
+class QueryChannelServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val channelPermissionSupport = ChannelPermissionSupport(channelMemberRepository, mockk(relaxed = true))
 
-    private val service = GetChannelServiceImpl(channelAccessGuard, channelPermissionSupport)
+    private val service = QueryChannelServiceImpl(channelAccessGuard, channelPermissionSupport)
 
     private fun dmChannel(id: Long = 1L, createdBy: Long = 1L) = Channel(
         id = id, teamId = null, name = "DM", type = ChannelType.DM, viewType = ChannelViewType.TEXT,
