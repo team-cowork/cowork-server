@@ -11,26 +11,26 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 
-class GetPullRequestDetailServiceImplTest :
+class QueryPullRequestDetailServiceImplTest :
     DescribeSpec({
 
         lateinit var repoAccessResolver: GithubRepoAccessResolver
         lateinit var callExecutor: GithubAppCallExecutor
         lateinit var githubAppClient: GithubAppClient
-        lateinit var service: GetPullRequestDetailServiceImpl
+        lateinit var service: QueryPullRequestDetailServiceImpl
 
         beforeEach {
             repoAccessResolver = mockk()
             callExecutor = mockk()
             githubAppClient = mockk()
-            service = GetPullRequestDetailServiceImpl(repoAccessResolver, callExecutor, githubAppClient)
+            service = QueryPullRequestDetailServiceImpl(repoAccessResolver, callExecutor, githubAppClient)
 
             every { callExecutor.execute(any<() -> GithubPullRequestResDto>()) } answers {
                 firstArg<() -> GithubPullRequestResDto>().invoke()
             }
         }
 
-        describe("GetPullRequestDetailServiceImpl 클래스의") {
+        describe("QueryPullRequestDetailServiceImpl 클래스의") {
             describe("getPullRequestDetail 메서드는") {
                 context("조회 권한이 있는 경우") {
                     it("읽기 권한으로 레포를 해석해 PR 상세를 조회한다") {

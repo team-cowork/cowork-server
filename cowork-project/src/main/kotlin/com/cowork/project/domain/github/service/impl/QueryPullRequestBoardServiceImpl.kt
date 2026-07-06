@@ -2,19 +2,19 @@ package com.cowork.project.domain.github.service.impl
 
 import com.cowork.project.domain.github.client.GithubAppClient
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestBoardResDto
-import com.cowork.project.domain.github.service.GetPullRequestBoardService
 import com.cowork.project.domain.github.service.GithubAppCallExecutor
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
+import com.cowork.project.domain.github.service.QueryPullRequestBoardService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetPullRequestBoardServiceImpl(
+class QueryPullRequestBoardServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
     private val callExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
-) : GetPullRequestBoardService {
+) : QueryPullRequestBoardService {
 
     override fun execute(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
         val repo = repoAccessResolver.resolveForRead(userId, projectId)
