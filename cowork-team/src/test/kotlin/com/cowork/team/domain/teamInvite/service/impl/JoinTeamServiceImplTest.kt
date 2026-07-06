@@ -77,7 +77,7 @@ class JoinTeamServiceImplTest {
         val captured = slot<TeamEventPayload>()
         every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
 
-        val result = service.joinTeam(99L, "aB3xK9mZ")
+        val result = service.execute(99L, "aB3xK9mZ")
         fireAfterCommit()
 
         assertEquals(1L, result.teamId)
@@ -94,7 +94,7 @@ class JoinTeamServiceImplTest {
         every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns expired
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.joinTeam(99L, "aB3xK9mZ")
+            service.execute(99L, "aB3xK9mZ")
         }
         assertEquals(HttpStatus.GONE, ex.statusCode)
     }
@@ -106,7 +106,7 @@ class JoinTeamServiceImplTest {
         every { teamMemberRepository.existsByTeamIdAndUserId(1L, 42L) } returns true
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.joinTeam(42L, "aB3xK9mZ")
+            service.execute(42L, "aB3xK9mZ")
         }
         assertEquals(HttpStatus.CONFLICT, ex.statusCode)
     }
@@ -116,7 +116,7 @@ class JoinTeamServiceImplTest {
         every { teamInviteRepository.findActiveByInviteCode("invalid") } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.joinTeam(99L, "invalid")
+            service.execute(99L, "invalid")
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
     }

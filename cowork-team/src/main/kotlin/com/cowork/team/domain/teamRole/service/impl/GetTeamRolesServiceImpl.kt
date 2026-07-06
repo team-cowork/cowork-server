@@ -14,7 +14,7 @@ class GetTeamRolesServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
 ) : GetTeamRolesService {
 
-    override fun getRoles(teamId: Long): List<TeamRoleResponse> {
+    override fun execute(teamId: Long): List<TeamRoleResponse> {
         teamRoleAccessGuard.requireTeam(teamId)
         return preferenceTeamRoleClient.getRoles(teamId)
     }

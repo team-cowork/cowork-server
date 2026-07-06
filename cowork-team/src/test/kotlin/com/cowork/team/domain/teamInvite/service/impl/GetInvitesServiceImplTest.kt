@@ -52,7 +52,7 @@ class GetInvitesServiceImplTest {
         val expired = makeInvite(inviteCode = "expird01", expiresAt = LocalDateTime.now().minusDays(1))
         every { teamInviteRepository.findAllByTeamId(1L) } returns listOf(active, expired)
 
-        val result = service.getInvites(42L, 1L)
+        val result = service.execute(42L, 1L)
 
         assertEquals(2, result.size)
         assertEquals(false, result.first { it.inviteCode == "active01" }.expired)
@@ -64,7 +64,7 @@ class GetInvitesServiceImplTest {
         every { teamMemberRepository.findByTeamIdAndUserId(1L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.getInvites(99L, 1L)
+            service.execute(99L, 1L)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

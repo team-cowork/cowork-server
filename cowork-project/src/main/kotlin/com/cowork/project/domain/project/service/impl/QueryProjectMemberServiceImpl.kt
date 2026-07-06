@@ -10,6 +10,6 @@ import org.springframework.transaction.annotation.Transactional
 class QueryProjectMemberServiceImpl(private val projectMemberRepository: ProjectMemberRepository) :
     QueryProjectMemberService {
 
-    override fun isMember(projectId: Long, userId: Long): Boolean =
+    override fun execute(projectId: Long, userId: Long): Boolean =
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 }

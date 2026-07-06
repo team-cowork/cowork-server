@@ -24,7 +24,7 @@ class CreateTeamServiceImpl(
     private val teamLifecycleSyncPublisher: TeamLifecycleSyncPublisher,
 ) : CreateTeamService {
 
-    override fun createTeam(ownerId: Long, request: CreateTeamRequest): TeamResponse {
+    override fun execute(ownerId: Long, request: CreateTeamRequest): TeamResponse {
         val team = teamRepository.save(
             Team(
                 name = request.name,

@@ -21,7 +21,7 @@ class ChangeTeamMemberRoleServiceImpl(
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : ChangeTeamMemberRoleService {
 
-    override fun changeRole(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
+    override fun execute(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
         teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER)
 
         if (request.role == TeamRole.OWNER) {

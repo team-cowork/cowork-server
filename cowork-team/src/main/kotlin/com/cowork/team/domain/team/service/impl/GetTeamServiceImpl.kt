@@ -10,5 +10,5 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class GetTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : GetTeamService {
 
-    override fun getTeam(teamId: Long): TeamResponse = TeamResponse.of(teamAccessGuard.findTeamOrThrow(teamId))
+    override fun execute(teamId: Long): TeamResponse = TeamResponse.of(teamAccessGuard.findTeamOrThrow(teamId))
 }

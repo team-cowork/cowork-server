@@ -59,7 +59,7 @@ class CreateDmServiceImplTest {
     @Test
     fun `openDm은 자기 자신과의 DM이면 BAD_REQUEST`() {
         val ex = assertThrows(ExpectedException::class.java) {
-            service.openDm(7L, 7L)
+            service.execute(7L, 7L)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
@@ -69,7 +69,7 @@ class CreateDmServiceImplTest {
         val existing = dmChannel()
         every { channelRepository.findByDmKey("1:2") } returns existing
 
-        val result = service.openDm(2L, 1L)
+        val result = service.execute(2L, 1L)
 
         assertEquals(existing.id, result.id)
         verify(exactly = 0) { channelRepository.save(any()) }
@@ -83,7 +83,7 @@ class CreateDmServiceImplTest {
         val savedMembers = mutableListOf<ChannelMember>()
         every { channelMemberRepository.save(capture(savedMembers)) } answers { savedMembers.last() }
 
-        val result = service.openDm(2L, 1L)
+        val result = service.execute(2L, 1L)
 
         assertEquals(ChannelType.DM.name, result.type)
         assertEquals(null, result.teamId)
@@ -98,7 +98,7 @@ class CreateDmServiceImplTest {
         every { transactionTemplate.execute(any<TransactionCallback<Any>>()) } throws
             DataIntegrityViolationException("duplicate dm_key")
 
-        val result = service.openDm(1L, 2L)
+        val result = service.execute(1L, 2L)
 
         assertEquals(existing.id, result.id)
     }

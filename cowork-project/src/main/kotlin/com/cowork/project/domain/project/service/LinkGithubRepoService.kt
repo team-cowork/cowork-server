@@ -4,5 +4,5 @@ import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepo
 import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
 
 interface LinkGithubRepoService {
-    fun linkGithubRepo(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto
+    fun execute(userId: Long, projectId: Long, request: LinkGithubRepoReqDto): ProjectDetailResDto
 }

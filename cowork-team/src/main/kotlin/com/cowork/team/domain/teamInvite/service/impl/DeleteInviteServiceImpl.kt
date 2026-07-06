@@ -16,7 +16,7 @@ class DeleteInviteServiceImpl(
     private val teamInviteAccessGuard: TeamInviteAccessGuard,
 ) : DeleteInviteService {
 
-    override fun deleteInvite(userId: Long, teamId: Long, inviteCode: String) {
+    override fun execute(userId: Long, teamId: Long, inviteCode: String) {
         val actor = teamInviteAccessGuard.requireMember(teamId, userId)
         val invite = teamInviteRepository.findByTeamIdAndInviteCode(teamId, inviteCode)
             ?: throw ExpectedException("초대 링크를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

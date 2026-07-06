@@ -16,7 +16,7 @@ class GetPullRequestDetailServiceImpl(
     private val githubAppClient: GithubAppClient,
 ) : GetPullRequestDetailService {
 
-    override fun getPullRequestDetail(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
+    override fun execute(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
         val repo = repoAccessResolver.resolveForRead(userId, projectId)
         return callExecutor.execute { githubAppClient.getPullRequest(repo.owner, repo.repo, prNumber) }
     }

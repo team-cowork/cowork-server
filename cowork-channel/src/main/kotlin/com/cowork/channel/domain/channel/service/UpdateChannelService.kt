@@ -4,7 +4,7 @@ import com.cowork.channel.domain.channel.presentation.data.request.UpdateChannel
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 
 interface UpdateChannelService {
-    fun updateChannel(
+    fun execute(
         userId: Long,
         channelId: Long,
         request: UpdateChannelRequest,
