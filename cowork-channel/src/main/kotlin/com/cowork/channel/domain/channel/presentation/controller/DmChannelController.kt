@@ -2,7 +2,7 @@ package com.cowork.channel.domain.channel.presentation.controller
 
 import com.cowork.channel.domain.channel.presentation.data.request.OpenDmRequest
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.service.OpenDmService
+import com.cowork.channel.domain.channel.service.CreateDmService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "DM", description = "1:1 DM 채널 열기 API")
 @RestController
 @RequestMapping("/dms")
-class DmChannelController(private val openDmService: OpenDmService) {
+class DmChannelController(private val createDmService: CreateDmService) {
 
     @Operation(summary = "DM 채널 열기 (멱등 — 이미 있으면 기존 채널 반환)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -32,5 +32,5 @@ class DmChannelController(private val openDmService: OpenDmService) {
     fun openDm(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: OpenDmRequest,
-    ): ChannelResponse = openDmService.openDm(userId, request.targetUserId)
+    ): ChannelResponse = createDmService.openDm(userId, request.targetUserId)
 }
