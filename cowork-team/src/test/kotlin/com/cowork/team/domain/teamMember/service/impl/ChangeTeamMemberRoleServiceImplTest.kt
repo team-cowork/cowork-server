@@ -65,7 +65,7 @@ class ChangeTeamMemberRoleServiceImplTest {
         val captured = slot<TeamEventPayload>()
         every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
 
-        service.changeRole(actorId, teamId, targetUserId, ChangeRoleRequest(role = TeamRole.ADMIN))
+        service.execute(actorId, teamId, targetUserId, ChangeRoleRequest(role = TeamRole.ADMIN))
         fireAfterCommit()
 
         verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }
@@ -84,7 +84,7 @@ class ChangeTeamMemberRoleServiceImplTest {
             TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.changeRole(actorId, teamId, 7L, ChangeRoleRequest(role = TeamRole.OWNER))
+            service.execute(actorId, teamId, 7L, ChangeRoleRequest(role = TeamRole.OWNER))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         verify(exactly = 0) { teamEventPublisher.publishLifecycle(any()) }

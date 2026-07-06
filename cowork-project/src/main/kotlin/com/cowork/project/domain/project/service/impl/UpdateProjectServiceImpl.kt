@@ -18,7 +18,7 @@ class UpdateProjectServiceImpl(
     private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectService {
 
-    override fun updateProject(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
+    override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 

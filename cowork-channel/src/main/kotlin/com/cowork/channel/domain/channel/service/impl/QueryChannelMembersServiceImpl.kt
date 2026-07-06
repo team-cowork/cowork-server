@@ -16,7 +16,7 @@ class QueryChannelMembersServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : QueryChannelMembersService {
 
-    override fun getMembers(userId: Long, channelId: Long): List<ChannelMemberResponse> {
+    override fun execute(userId: Long, channelId: Long): List<ChannelMemberResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelPermissionSupport.requireChannelAccess(channel, userId)
         return channelMemberRepository.findByChannelId(channelId).map { ChannelMemberResponse.of(it) }

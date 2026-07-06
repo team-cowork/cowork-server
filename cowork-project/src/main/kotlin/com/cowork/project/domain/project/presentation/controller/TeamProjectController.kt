@@ -32,5 +32,5 @@ class TeamProjectController(private val reorderTeamProjectsService: ReorderTeamP
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: ReorderProjectsReqDto,
-    ): List<ProjectResDto> = reorderTeamProjectsService.reorderTeamProjects(userId, teamId, request.orderedProjectIds)
+    ): List<ProjectResDto> = reorderTeamProjectsService.execute(userId, teamId, request.orderedProjectIds)
 }

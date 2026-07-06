@@ -14,7 +14,7 @@ class SearchChannelsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
 ) : SearchChannelsService {
 
-    override fun searchChannels(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
+    override fun execute(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
         return channelRepository.searchByTeamIdAndName(teamId, q).map { ChannelResponse.of(it) }
