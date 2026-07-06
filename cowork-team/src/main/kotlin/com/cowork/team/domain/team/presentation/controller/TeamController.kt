@@ -14,8 +14,8 @@ import com.cowork.team.domain.team.service.CreateTeamService
 import com.cowork.team.domain.team.service.DeleteTeamIconService
 import com.cowork.team.domain.team.service.DeleteTeamService
 import com.cowork.team.domain.team.service.GenerateIconPresignedUrlService
-import com.cowork.team.domain.team.service.GetMyTeamsService
-import com.cowork.team.domain.team.service.GetTeamService
+import com.cowork.team.domain.team.service.QueryMyTeamsService
+import com.cowork.team.domain.team.service.QueryTeamService
 import com.cowork.team.domain.team.service.UpdateTeamIconService
 import com.cowork.team.domain.team.service.UpdateTeamService
 import io.swagger.v3.oas.annotations.Operation
@@ -34,8 +34,8 @@ class TeamController(
     private val generateIconPresignedUrlService: GenerateIconPresignedUrlService,
     private val confirmIconUploadService: ConfirmIconUploadService,
     private val createTeamService: CreateTeamService,
-    private val getMyTeamsService: GetMyTeamsService,
-    private val getTeamService: GetTeamService,
+    private val queryMyTeamsService: QueryMyTeamsService,
+    private val queryTeamService: QueryTeamService,
     private val updateTeamService: UpdateTeamService,
     private val updateTeamIconService: UpdateTeamIconService,
     private val deleteTeamIconService: DeleteTeamIconService,
@@ -78,7 +78,7 @@ class TeamController(
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
     fun getMyTeams(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long): List<TeamSummaryResponse> =
-        getMyTeamsService.execute(userId)
+        queryMyTeamsService.execute(userId)
 
     @Operation(summary = "팀 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -86,7 +86,7 @@ class TeamController(
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
     @GetMapping("/{teamId}")
-    fun getTeam(@PathVariable teamId: Long): TeamResponse = getTeamService.execute(teamId)
+    fun getTeam(@PathVariable teamId: Long): TeamResponse = queryTeamService.execute(teamId)
 
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
