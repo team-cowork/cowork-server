@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class RemoveTeamMemberServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
@@ -22,6 +21,7 @@ class RemoveTeamMemberServiceImpl(
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : RemoveTeamMemberService {
 
+    @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long) {
         val team = teamMemberAccessGuard.findTeamOrThrow(teamId)
         val actorMember = teamMemberRepository.findByTeamIdAndUserId(teamId, actorId)

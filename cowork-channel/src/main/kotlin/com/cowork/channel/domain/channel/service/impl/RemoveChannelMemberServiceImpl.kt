@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class RemoveChannelMemberServiceImpl(
     private val channelMemberRepository: ChannelMemberRepository,
     private val teamPermissionService: TeamPermissionService,
@@ -20,6 +19,7 @@ class RemoveChannelMemberServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
 ) : RemoveChannelMemberService {
 
+    @Transactional
     override fun execute(userId: Long, channelId: Long, memberId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)

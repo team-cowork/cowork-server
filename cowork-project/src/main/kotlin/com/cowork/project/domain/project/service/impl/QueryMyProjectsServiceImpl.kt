@@ -9,9 +9,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryMyProjectsServiceImpl(private val projectRepository: ProjectRepository) : QueryMyProjectsService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, pageable: Pageable): Page<ProjectResDto> =
         projectRepository.findProjectsByMemberUserId(userId, pageable)
             .map { ProjectResDto.of(it) }
