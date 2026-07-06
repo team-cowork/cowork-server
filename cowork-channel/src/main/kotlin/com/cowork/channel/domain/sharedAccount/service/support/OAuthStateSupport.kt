@@ -52,7 +52,7 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
 
         val (payloadB64, signature) = parts
         if (hmacSign(payloadB64) != signature) {
-            throw ExpectedException("state 서명 검증 실패.", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("state 서명 검증에 실패했습니다.", HttpStatus.BAD_REQUEST)
         }
 
         val decoder = Base64.getUrlDecoder()
@@ -62,18 +62,18 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
         val payload = objectMapper.readValue(payloadJson, Map::class.java) as Map<String, Any>
 
         val exp = (payload["exp"] as? Number)?.toLong()
-            ?: throw ExpectedException("state payload 오류.", HttpStatus.BAD_REQUEST)
+            ?: throw ExpectedException("state payload가 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
         if (Instant.now().epochSecond > exp) {
             throw ExpectedException("state가 만료되었습니다.", HttpStatus.BAD_REQUEST)
         }
         if (payload["provider"] != provider.name) {
-            throw ExpectedException("state provider 불일치.", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("state의 provider가 일치하지 않습니다.", HttpStatus.BAD_REQUEST)
         }
 
         val channelId = (payload["channelId"] as? Number)?.toLong()
-            ?: throw ExpectedException("state channelId 오류.", HttpStatus.BAD_REQUEST)
+            ?: throw ExpectedException("state의 channelId 값이 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
         val userId = (payload["userId"] as? Number)?.toLong()
-            ?: throw ExpectedException("state userId 오류.", HttpStatus.BAD_REQUEST)
+            ?: throw ExpectedException("state의 userId 값이 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
 
         return channelId to userId
     }

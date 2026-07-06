@@ -12,12 +12,12 @@ class ProjectEnumParser {
     fun parseRole(role: String): ProjectMemberRole = try {
         ProjectMemberRole.valueOf(role.uppercase())
     } catch (e: IllegalArgumentException) {
-        throw ExpectedException("유효하지 않은 역할입니다: $role", HttpStatus.BAD_REQUEST)
+        throw ExpectedException("유효하지 않은 역할입니다.", HttpStatus.BAD_REQUEST)
     }
 
     fun parseStatus(status: String): ProjectStatus = try {
         ProjectStatus.valueOf(status.uppercase())
     } catch (e: IllegalArgumentException) {
-        throw ExpectedException("유효하지 않은 상태입니다: $status", HttpStatus.BAD_REQUEST)
+        throw ExpectedException("유효하지 않은 상태입니다.", HttpStatus.BAD_REQUEST)
     }
 }
