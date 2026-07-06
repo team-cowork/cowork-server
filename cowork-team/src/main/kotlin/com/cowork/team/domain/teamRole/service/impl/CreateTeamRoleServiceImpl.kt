@@ -18,7 +18,7 @@ class CreateTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
 ) : CreateTeamRoleService {
 
-    override fun createRole(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse {
+    override fun execute(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         if (actor.member.role != TeamRole.OWNER && actor.member.role != TeamRole.ADMIN) {
             if (request.priority >= actor.maxPriority) {

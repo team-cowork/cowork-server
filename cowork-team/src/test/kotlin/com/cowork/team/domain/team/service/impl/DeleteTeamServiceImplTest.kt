@@ -58,7 +58,7 @@ class DeleteTeamServiceImplTest {
         val captured = slot<TeamEventPayload>()
         every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
 
-        service.deleteTeam(ownerId, teamId)
+        service.execute(ownerId, teamId)
         fireAfterCommit()
 
         verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }

@@ -14,7 +14,7 @@ class GetProjectServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : GetProjectService {
 
-    override fun getProject(userId: Long, projectId: Long): ProjectDetailResDto {
+    override fun execute(userId: Long, projectId: Long): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireTeamMember(project.teamId, userId)
         val memberCount = projectMemberRepository.countByProjectId(projectId)

@@ -37,7 +37,7 @@ class LinkGithubRepoServiceImplTest {
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
 
-        val response = service.linkGithubRepo(99L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
+        val response = service.execute(99L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
 
         assertEquals("https://github.com/my-org/my-repo", response.githubRepoUrl)
     }
@@ -50,7 +50,7 @@ class LinkGithubRepoServiceImplTest {
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.linkGithubRepo(99L, 1L, LinkGithubRepoReqDto("https://gitlab.com/my-org/my-repo"))
+            service.execute(99L, 1L, LinkGithubRepoReqDto("https://gitlab.com/my-org/my-repo"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
@@ -64,7 +64,7 @@ class LinkGithubRepoServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.linkGithubRepo(50L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
+            service.execute(50L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

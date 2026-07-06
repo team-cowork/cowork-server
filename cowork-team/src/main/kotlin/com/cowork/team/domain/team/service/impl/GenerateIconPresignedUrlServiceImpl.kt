@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class GenerateIconPresignedUrlServiceImpl(private val s3Service: S3Service) : GenerateIconPresignedUrlService {
 
-    override fun generateIconPresignedUrl(contentType: String): IconPresignedUrlResponse {
+    override fun execute(contentType: String): IconPresignedUrlResponse {
         s3Service.validateContentType(contentType)
         val objectKey = s3Service.buildObjectKey(contentType)
         val uploadUrl = s3Service.generatePutPresignedUrl(objectKey, contentType)

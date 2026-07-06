@@ -52,7 +52,7 @@ class DeleteInviteServiceImplTest {
         val invite = makeInvite(createdBy = 42L)
         every { teamInviteRepository.findByTeamIdAndInviteCode(1L, "aB3xK9mZ") } returns invite
 
-        service.deleteInvite(42L, 1L, "aB3xK9mZ")
+        service.execute(42L, 1L, "aB3xK9mZ")
 
         assertEquals(true, invite.isDeleted())
     }
@@ -63,7 +63,7 @@ class DeleteInviteServiceImplTest {
         val invite = makeInvite(createdBy = 42L)
         every { teamInviteRepository.findByTeamIdAndInviteCode(1L, "aB3xK9mZ") } returns invite
 
-        service.deleteInvite(10L, 1L, "aB3xK9mZ")
+        service.execute(10L, 1L, "aB3xK9mZ")
 
         assertEquals(true, invite.isDeleted())
     }
@@ -76,7 +76,7 @@ class DeleteInviteServiceImplTest {
         every { teamInviteRepository.findByTeamIdAndInviteCode(1L, "aB3xK9mZ") } returns invite
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.deleteInvite(55L, 1L, "aB3xK9mZ")
+            service.execute(55L, 1L, "aB3xK9mZ")
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -87,7 +87,7 @@ class DeleteInviteServiceImplTest {
         every { teamInviteRepository.findByTeamIdAndInviteCode(1L, "notfound") } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.deleteInvite(42L, 1L, "notfound")
+            service.execute(42L, 1L, "notfound")
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
     }

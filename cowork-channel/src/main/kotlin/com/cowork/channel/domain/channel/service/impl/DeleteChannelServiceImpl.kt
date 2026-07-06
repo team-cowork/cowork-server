@@ -22,7 +22,7 @@ class DeleteChannelServiceImpl(
     private val channelPermissionSupport: ChannelPermissionSupport,
 ) : DeleteChannelService {
 
-    override fun deleteChannel(userId: Long, channelId: Long) {
+    override fun execute(userId: Long, channelId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
