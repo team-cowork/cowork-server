@@ -8,12 +8,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryProjectMembersServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : QueryProjectMembersService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): List<ProjectMemberResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireTeamMember(project.teamId, userId)

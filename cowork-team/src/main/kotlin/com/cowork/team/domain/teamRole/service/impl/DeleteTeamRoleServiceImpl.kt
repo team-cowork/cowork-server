@@ -8,13 +8,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class DeleteTeamRoleServiceImpl(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : DeleteTeamRoleService {
 
+    @Transactional(readOnly = true)
     override fun execute(actorId: Long, teamId: Long, roleId: Long) {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
