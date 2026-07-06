@@ -1,7 +1,7 @@
 package com.cowork.project.domain.project.service.impl
 
-import com.cowork.project.domain.project.service.GetProjectMembersService
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.domain.project.service.QueryProjectMembersService
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import org.springframework.stereotype.Service
@@ -9,10 +9,10 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetProjectMembersServiceImpl(
+class QueryProjectMembersServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
-) : GetProjectMembersService {
+) : QueryProjectMembersService {
 
     override fun execute(userId: Long, projectId: Long): List<ProjectMemberResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)

@@ -5,8 +5,8 @@ import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteR
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
 import com.cowork.team.domain.teamInvite.service.CreateInviteService
 import com.cowork.team.domain.teamInvite.service.DeleteInviteService
-import com.cowork.team.domain.teamInvite.service.GetInvitesService
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
+import com.cowork.team.domain.teamInvite.service.QueryInvitesService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/teams")
 class TeamInviteController(
     private val createInviteService: CreateInviteService,
-    private val getInvitesService: GetInvitesService,
+    private val queryInvitesService: QueryInvitesService,
     private val deleteInviteService: DeleteInviteService,
     private val joinTeamService: JoinTeamService,
 ) {
@@ -49,7 +49,7 @@ class TeamInviteController(
     fun getInvites(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<InviteResponse> = getInvitesService.execute(userId, teamId)
+    ): List<InviteResponse> = queryInvitesService.execute(userId, teamId)
 
     @Operation(summary = "초대 링크 무효화", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
