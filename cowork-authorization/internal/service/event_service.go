@@ -44,24 +44,44 @@ type studentEventData struct {
 	StudentID int64  `json:"student_id"`
 	Name      string `json:"name"`
 	Email     string `json:"email"`
-	Status    string `json:"status"`
+	Sex       string `json:"sex"`
+	Role      string `json:"role"`
+
+	StudentNumber *int64  `json:"student_number"`
+	Major         *string `json:"major"`
+	Specialty     *string `json:"specialty"`
+	GithubID      *string `json:"github_id"`
+}
+
+type webhookEventData struct {
+	Old []indexedEventObject `json:"old"`
+	New []indexedEventObject `json:"new"`
+}
+
+type indexedEventObject struct {
+	Index  int             `json:"index"`
+	Object json.RawMessage `json:"object"`
 }
 
 // userSyncMessage is consumed by cowork-user's Kafka SyncHandler.
 // event_type drives a targeted update there (partial role change, not a full upsert).
 type userSyncMessage struct {
-	EventType    string `json:"event_type"`
-	EventID      string `json:"event_id"`
-	Email        string `json:"email"`
-	Name         string `json:"name"`
-	StudentRole  string `json:"student_role,omitempty"`
-	DataGSMRefID int64  `json:"datagsm_student_id"`
+	EventType     string  `json:"event_type"`
+	EventID       string  `json:"event_id"`
+	EventIndex    int     `json:"event_index"`
+	Email         string  `json:"email"`
+	Name          string  `json:"name"`
+	Sex           string  `json:"sex"`
+	StudentRole   string  `json:"student_role"`
+	StudentNumber *int64  `json:"student_number"`
+	Major         *string `json:"major"`
+	Specialty     *string `json:"specialty"`
+	GithubID      *string `json:"github_id"`
+	DataGSMRefID  int64   `json:"datagsm_student_id"`
 }
 
 var supportedStudentEvents = map[string]struct{}{
-	"student.graduated":      {},
-	"student.withdrawn":      {},
-	"student.status_changed": {},
+	"student.updated": {},
 }
 
 type EventService struct {
@@ -109,7 +129,7 @@ func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool
 	return hmac.Equal(expected, providedBytes)
 }
 
-// ProcessEvent parses the verified webhook body and forwards student lifecycle
+// ProcessEvent parses the verified webhook body and forwards student.updated
 // changes to the user sync stream. Idempotent on the event id.
 func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	var envelope WebhookEvent
@@ -136,32 +156,21 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 		return nil
 	}
 
-	var data studentEventData
-	if err := json.Unmarshal(envelope.Data, &data); err != nil {
-		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
-		return fmt.Errorf("%w: failed to parse student event data", ErrInvalidPayload)
-	}
-	if data.StudentID == 0 {
-		return fmt.Errorf("%w: event %s missing student_id", ErrInvalidPayload, envelope.ID)
-	}
-
-	msg := userSyncMessage{
-		EventType:    envelope.Event,
-		EventID:      envelope.ID,
-		Email:        data.Email,
-		Name:         data.Name,
-		StudentRole:  resolveStudentRole(envelope.Event, data.Status),
-		DataGSMRefID: data.StudentID,
-	}
-
-	payload, err := json.Marshal(msg)
+	messages, err := s.buildUserSyncMessages(envelope)
 	if err != nil {
-		log.Printf("failed to marshal sync message for %s: %v", envelope.ID, err)
-		return fmt.Errorf("failed to marshal sync message: %w", err)
+		return err
 	}
 
-	if err := s.publisher.Publish(ctx, strconv.FormatInt(data.StudentID, 10), payload); err != nil {
-		return fmt.Errorf("failed to publish sync message: %w", err)
+	for _, msg := range messages {
+		payload, err := json.Marshal(msg)
+		if err != nil {
+			log.Printf("failed to marshal sync message for %s: %v", envelope.ID, err)
+			return fmt.Errorf("failed to marshal sync message: %w", err)
+		}
+
+		if err := s.publisher.Publish(ctx, strconv.FormatInt(msg.DataGSMRefID, 10), payload); err != nil {
+			return fmt.Errorf("failed to publish sync message: %w", err)
+		}
 	}
 
 	// 발행이 성공한 뒤에 기록해 메시지 유실을 방지한다(at-least-once).
@@ -173,15 +182,65 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	return nil
 }
 
-func resolveStudentRole(event, status string) string {
-	switch event {
-	case "student.graduated":
-		return "GRADUATE"
-	case "student.withdrawn":
-		return "WITHDRAWN"
-	case "student.status_changed":
-		return status
-	default:
-		return status
+func (s *EventService) buildUserSyncMessages(envelope WebhookEvent) ([]userSyncMessage, error) {
+	var data webhookEventData
+	if err := json.Unmarshal(envelope.Data, &data); err != nil {
+		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
+		return nil, fmt.Errorf("%w: failed to parse student event data", ErrInvalidPayload)
 	}
+	if len(data.New) == 0 {
+		return nil, fmt.Errorf("%w: event %s missing data.new", ErrInvalidPayload, envelope.ID)
+	}
+
+	messages := make([]userSyncMessage, 0, len(data.New))
+	for _, item := range data.New {
+		if isEmptyObject(item.Object) {
+			log.Printf("skipping empty student.updated new object for event %s index %d", envelope.ID, item.Index)
+			continue
+		}
+
+		var student studentEventData
+		if err := json.Unmarshal(item.Object, &student); err != nil {
+			log.Printf("failed to unmarshal student object for %s index %d: %v", envelope.ID, item.Index, err)
+			return nil, fmt.Errorf("%w: failed to parse student object", ErrInvalidPayload)
+		}
+		if student.StudentID == 0 {
+			return nil, fmt.Errorf("%w: event %s index %d missing student_id", ErrInvalidPayload, envelope.ID, item.Index)
+		}
+		if student.Name == "" || student.Email == "" || student.Sex == "" {
+			return nil, fmt.Errorf("%w: event %s index %d missing required student field", ErrInvalidPayload, envelope.ID, item.Index)
+		}
+		if student.Role == "" {
+			return nil, fmt.Errorf("%w: event %s index %d missing role", ErrInvalidPayload, envelope.ID, item.Index)
+		}
+
+		messages = append(messages, userSyncMessage{
+			EventType:     envelope.Event,
+			EventID:       envelope.ID,
+			EventIndex:    item.Index,
+			Email:         student.Email,
+			Name:          student.Name,
+			Sex:           student.Sex,
+			StudentRole:   student.Role,
+			StudentNumber: student.StudentNumber,
+			Major:         student.Major,
+			Specialty:     student.Specialty,
+			GithubID:      student.GithubID,
+			DataGSMRefID:  student.StudentID,
+		})
+	}
+
+	if len(messages) == 0 {
+		log.Printf("no student objects to publish for event %s", envelope.ID)
+	}
+
+	return messages, nil
+}
+
+func isEmptyObject(raw json.RawMessage) bool {
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &object); err != nil {
+		return false
+	}
+	return len(object) == 0
 }
