@@ -8,7 +8,7 @@ import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
-import com.cowork.channel.domain.channel.service.OpenDmService
+import com.cowork.channel.domain.channel.service.CreateDmService
 import com.cowork.channel.global.support.afterCommit
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -19,12 +19,12 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Service
-class OpenDmServiceImpl(
+class CreateDmServiceImpl(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
     private val transactionTemplate: TransactionTemplate,
-) : OpenDmService {
+) : CreateDmService {
 
     /**
      * 두 사용자 간 DM 채널을 연다 (멱등).
