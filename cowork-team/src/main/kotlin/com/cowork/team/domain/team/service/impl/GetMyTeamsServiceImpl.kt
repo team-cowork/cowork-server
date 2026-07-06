@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional
 @Transactional(readOnly = true)
 class GetMyTeamsServiceImpl(private val teamMemberRepository: TeamMemberRepository) : GetMyTeamsService {
 
-    override fun getMyTeams(userId: Long): List<TeamSummaryResponse> =
-        teamMemberRepository.findAllByUserIdWithTeam(userId)
-            .map { m -> TeamSummaryResponse.of(m.team, m.role) }
+    override fun execute(userId: Long): List<TeamSummaryResponse> = teamMemberRepository.findAllByUserIdWithTeam(userId)
+        .map { m -> TeamSummaryResponse.of(m.team, m.role) }
 }

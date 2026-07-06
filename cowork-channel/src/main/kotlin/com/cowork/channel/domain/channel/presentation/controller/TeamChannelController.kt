@@ -35,7 +35,7 @@ class TeamChannelController(
     fun listTeamChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<ChannelResponse> = listTeamChannelsService.listTeamChannels(userId, teamId).map(ChannelResponse::of)
+    ): List<ChannelResponse> = listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::of)
 
     @Operation(summary = "팀 채널 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -48,5 +48,5 @@ class TeamChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: ReorderChannelsRequest,
-    ): List<ChannelResponse> = reorderTeamChannelsService.reorderTeamChannels(userId, teamId, request.orderedChannelIds)
+    ): List<ChannelResponse> = reorderTeamChannelsService.execute(userId, teamId, request.orderedChannelIds)
 }

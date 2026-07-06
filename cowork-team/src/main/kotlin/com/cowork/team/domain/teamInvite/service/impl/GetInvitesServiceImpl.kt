@@ -14,7 +14,7 @@ class GetInvitesServiceImpl(
     private val teamInviteAccessGuard: TeamInviteAccessGuard,
 ) : GetInvitesService {
 
-    override fun getInvites(userId: Long, teamId: Long): List<InviteResponse> {
+    override fun execute(userId: Long, teamId: Long): List<InviteResponse> {
         teamInviteAccessGuard.requireMember(teamId, userId)
         return teamInviteRepository.findAllByTeamId(teamId).map { InviteResponse.of(it) }
     }

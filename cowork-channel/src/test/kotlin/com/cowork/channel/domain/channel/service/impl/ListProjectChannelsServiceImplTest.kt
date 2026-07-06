@@ -35,7 +35,7 @@ class ListProjectChannelsServiceImplTest {
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
         every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
 
-        val result = service.listProjectChannels(1L, 5L)
+        val result = service.execute(1L, 5L)
         assertEquals(1, result.size)
         verify { teamPermission.requireTeamMember(100L, 1L) }
     }
@@ -47,7 +47,7 @@ class ListProjectChannelsServiceImplTest {
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.listProjectChannels(1L, 5L)
+            service.execute(1L, 5L)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }
@@ -58,7 +58,7 @@ class ListProjectChannelsServiceImplTest {
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
         every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns emptyList()
 
-        val result = service.listProjectChannels(1L, 5L)
+        val result = service.execute(1L, 5L)
         assertEquals(0, result.size)
         verify { teamPermission.requireTeamMember(100L, 1L) }
     }
