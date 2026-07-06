@@ -124,28 +124,34 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
 
-        // 3단계: 각 메시지 처리
-        for (const msg of msgs) {
-            try {
-                await this.processMessage(msg, memberCache, parentCache);
-                await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
-            } catch (err) {
-                const retryCount = (msg.notificationRetryCount ?? 0) + 1;
-                const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
-                this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
-                await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
-                if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
-                    void this.dicoshot.sendCustom({
-                        title: '⚠️ 알림 발송 영구 실패',
-                        description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
-                        color: 'warning',
-                        fields: [
-                            { name: 'messageId', value: msg._id.toString(), inline: true },
-                            { name: 'channelId', value: String(msg.channelId), inline: true },
-                            ...buildErrorFields(err),
-                        ],
-                    }).catch(() => {});
-                }
+        // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
+        await Promise.all(msgs.map((msg) => this.processMessageAndUpdateStatus(msg, memberCache, parentCache)));
+    }
+
+    private async processMessageAndUpdateStatus(
+        msg: NotificationMessage,
+        memberCache: Map<string, ChannelMember[]>,
+        parentCache: Map<string, { authorId: number } | null>,
+    ): Promise<void> {
+        try {
+            await this.processMessage(msg, memberCache, parentCache);
+            await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
+        } catch (err) {
+            const retryCount = (msg.notificationRetryCount ?? 0) + 1;
+            const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
+            this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
+            await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
+            if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
+                void this.dicoshot.sendCustom({
+                    title: '⚠️ 알림 발송 영구 실패',
+                    description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
+                    color: 'warning',
+                    fields: [
+                        { name: 'messageId', value: msg._id.toString(), inline: true },
+                        { name: 'channelId', value: String(msg.channelId), inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
             }
         }
     }
