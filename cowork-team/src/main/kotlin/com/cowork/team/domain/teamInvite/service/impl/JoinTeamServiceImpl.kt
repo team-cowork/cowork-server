@@ -14,13 +14,13 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class JoinTeamServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
 ) : JoinTeamService {
 
+    @Transactional
     override fun execute(userId: Long, inviteCode: String): JoinTeamResponse {
         val invite = teamInviteRepository.findActiveByInviteCode(inviteCode)
             ?: throw ExpectedException("유효하지 않은 초대 코드입니다.", HttpStatus.NOT_FOUND)

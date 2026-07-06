@@ -11,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class RemoveProjectMemberServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectMemberLookupSupport: ProjectMemberLookupSupport,
 ) : RemoveProjectMemberService {
 
+    @Transactional
     override fun execute(userId: Long, projectId: Long, memberId: Long) {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)

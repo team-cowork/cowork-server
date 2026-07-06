@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class DeleteTeamServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamAccessGuard: TeamAccessGuard,
 ) : DeleteTeamService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long) {
         val team = teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER).team
         val payload = TeamEventPayload(
