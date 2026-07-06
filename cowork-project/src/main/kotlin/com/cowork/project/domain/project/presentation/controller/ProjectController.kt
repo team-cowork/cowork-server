@@ -13,8 +13,8 @@ import com.cowork.project.domain.project.service.GetProjectMembersService
 import com.cowork.project.domain.project.service.GetProjectService
 import com.cowork.project.domain.project.service.GetProjectTeamIdService
 import com.cowork.project.domain.project.service.GetProjectsByTeamIdService
-import com.cowork.project.domain.project.service.IsProjectMemberService
 import com.cowork.project.domain.project.service.LinkGithubRepoService
+import com.cowork.project.domain.project.service.QueryProjectMemberService
 import com.cowork.project.domain.project.service.RemoveProjectMemberService
 import com.cowork.project.domain.project.service.UnlinkGithubRepoService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
@@ -49,7 +49,7 @@ class ProjectController(
     private val addProjectMemberService: AddProjectMemberService,
     private val getProjectMembersService: GetProjectMembersService,
     private val updateProjectMemberRoleService: UpdateProjectMemberRoleService,
-    private val isProjectMemberService: IsProjectMemberService,
+    private val queryProjectMemberService: QueryProjectMemberService,
     private val getProjectTeamIdService: GetProjectTeamIdService,
     private val removeProjectMemberService: RemoveProjectMemberService,
 ) {
@@ -209,7 +209,7 @@ class ProjectController(
     fun getMyMembership(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): ResponseEntity<Void> = if (isProjectMemberService.isMember(projectId, userId)) {
+    ): ResponseEntity<Void> = if (queryProjectMemberService.isMember(projectId, userId)) {
         ResponseEntity.ok().build()
     } else {
         ResponseEntity.notFound().build()
