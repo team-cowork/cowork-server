@@ -16,7 +16,7 @@ class DeleteProjectServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
 ) : DeleteProjectService {
 
-    override fun deleteProject(userId: Long, projectId: Long) {
+    override fun execute(userId: Long, projectId: Long) {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
         projectRepository.delete(project)

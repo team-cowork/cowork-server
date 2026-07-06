@@ -35,7 +35,7 @@ class QueryChannelServiceImplTest {
         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 2L) } returns true
 
-        val res = service.getChannel(2L, 1L)
+        val res = service.execute(2L, 1L)
         assertEquals(null, res.teamId)
         assertEquals(ChannelType.DM.name, res.type)
     }
@@ -46,7 +46,7 @@ class QueryChannelServiceImplTest {
         every { channelMemberRepository.existsByChannelIdAndUserId(1L, 9L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.getChannel(9L, 1L)
+            service.execute(9L, 1L)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
     }

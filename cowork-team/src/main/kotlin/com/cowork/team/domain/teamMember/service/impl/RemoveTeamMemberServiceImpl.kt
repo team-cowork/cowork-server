@@ -22,7 +22,7 @@ class RemoveTeamMemberServiceImpl(
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : RemoveTeamMemberService {
 
-    override fun removeMember(actorId: Long, teamId: Long, targetUserId: Long) {
+    override fun execute(actorId: Long, teamId: Long, targetUserId: Long) {
         val team = teamMemberAccessGuard.findTeamOrThrow(teamId)
         val actorMember = teamMemberRepository.findByTeamIdAndUserId(teamId, actorId)
             ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)

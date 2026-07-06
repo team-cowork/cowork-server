@@ -34,7 +34,7 @@ class CreateInviteServiceImpl(
         throw ExpectedException("초대 코드 생성에 실패했습니다.", HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
-    override fun createInvite(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
+    override fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
         teamInviteAccessGuard.requireMember(teamId, userId)
         val team = teamInviteAccessGuard.findTeamOrThrow(teamId)
         val expiresAt = request.duration.toExpiresAt(LocalDateTime.now())

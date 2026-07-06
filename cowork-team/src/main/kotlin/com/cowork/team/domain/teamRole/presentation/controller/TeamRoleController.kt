@@ -45,13 +45,13 @@ class TeamRoleController(
     @Operation(summary = "역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/roles")
-    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = getTeamRolesService.getRoles(teamId)
+    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = getTeamRolesService.execute(teamId)
 
     @Operation(summary = "멤버 역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/members/{userId}/roles")
     fun getMemberRoles(@PathVariable teamId: Long, @PathVariable userId: Long): List<TeamRoleResponse> =
-        getMemberRolesService.getMemberRoles(teamId, userId)
+        getMemberRolesService.execute(teamId, userId)
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -65,7 +65,7 @@ class TeamRoleController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: CreateTeamRoleRequest,
-    ): TeamRoleResponse = createTeamRoleService.createRole(userId, teamId, request)
+    ): TeamRoleResponse = createTeamRoleService.execute(userId, teamId, request)
 
     @Operation(summary = "역할 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @PatchMapping("/roles/{roleId}")
@@ -74,7 +74,7 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
         @RequestBody request: UpdateTeamRoleRequest,
-    ): TeamRoleResponse = updateTeamRoleService.updateRole(userId, teamId, roleId, request)
+    ): TeamRoleResponse = updateTeamRoleService.execute(userId, teamId, roleId, request)
 
     @Operation(summary = "역할 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/roles/{roleId}")
@@ -84,7 +84,7 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
     ) {
-        deleteTeamRoleService.deleteRole(userId, teamId, roleId)
+        deleteTeamRoleService.execute(userId, teamId, roleId)
     }
 
     @Operation(summary = "멤버에게 역할 부여", security = [SecurityRequirement(name = "BearerAuth")])
@@ -94,7 +94,7 @@ class TeamRoleController(
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
-    ): TeamRoleResponse = assignTeamRoleService.assignRole(userId, teamId, targetUserId, roleId)
+    ): TeamRoleResponse = assignTeamRoleService.execute(userId, teamId, targetUserId, roleId)
 
     @Operation(summary = "멤버 역할 회수", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/members/{targetUserId}/roles/{roleId}")
@@ -105,6 +105,6 @@ class TeamRoleController(
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
     ) {
-        revokeTeamRoleService.revokeRole(userId, teamId, targetUserId, roleId)
+        revokeTeamRoleService.execute(userId, teamId, targetUserId, roleId)
     }
 }

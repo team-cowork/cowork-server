@@ -32,5 +32,5 @@ class DmChannelController(private val createDmService: CreateDmService) {
     fun openDm(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: OpenDmRequest,
-    ): ChannelResponse = createDmService.openDm(userId, request.targetUserId)
+    ): ChannelResponse = createDmService.execute(userId, request.targetUserId)
 }
