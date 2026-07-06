@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class UpdateProjectServiceImpl(
     private val projectEventPublisher: ProjectEventPublisher,
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectService {
 
+    @Transactional
     override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)

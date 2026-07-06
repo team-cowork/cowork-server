@@ -6,10 +6,10 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryProjectMemberServiceImpl(private val projectMemberRepository: ProjectMemberRepository) :
     QueryProjectMemberService {
 
+    @Transactional(readOnly = true)
     override fun execute(projectId: Long, userId: Long): Boolean =
         projectMemberRepository.findByProjectIdAndUserId(projectId, userId) != null
 }

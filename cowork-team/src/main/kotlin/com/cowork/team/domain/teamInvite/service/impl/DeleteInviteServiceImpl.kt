@@ -10,12 +10,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class DeleteInviteServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
     private val teamInviteAccessGuard: TeamInviteAccessGuard,
 ) : DeleteInviteService {
 
+    @Transactional
     override fun execute(userId: Long, teamId: Long, inviteCode: String) {
         val actor = teamInviteAccessGuard.requireMember(teamId, userId)
         val invite = teamInviteRepository.findByTeamIdAndInviteCode(teamId, inviteCode)

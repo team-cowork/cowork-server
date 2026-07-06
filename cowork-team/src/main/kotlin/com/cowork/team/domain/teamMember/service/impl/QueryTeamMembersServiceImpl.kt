@@ -8,12 +8,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class QueryTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
 ) : QueryTeamMembersService {
 
+    @Transactional(readOnly = true)
     override fun execute(teamId: Long): List<TeamMemberResponse> {
         val members = teamMemberRepository.findAllByTeamId(teamId)
         val rolesById = preferenceTeamRoleClient.getRoles(teamId).associateBy { it.id }

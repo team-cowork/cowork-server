@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class CreateTeamServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
@@ -24,6 +23,7 @@ class CreateTeamServiceImpl(
     private val teamLifecycleSyncPublisher: TeamLifecycleSyncPublisher,
 ) : CreateTeamService {
 
+    @Transactional
     override fun execute(ownerId: Long, request: CreateTeamRequest): TeamResponse {
         val team = teamRepository.save(
             Team(

@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional(readOnly = true)
 class CreateTeamRoleServiceImpl(
     private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
 ) : CreateTeamRoleService {
 
+    @Transactional(readOnly = true)
     override fun execute(actorId: Long, teamId: Long, request: CreateTeamRoleRequest): TeamRoleResponse {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         if (actor.member.role != TeamRole.OWNER && actor.member.role != TeamRole.ADMIN) {

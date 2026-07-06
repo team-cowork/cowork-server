@@ -8,12 +8,12 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class SearchChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
 ) : SearchChannelsService {
 
+    @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
