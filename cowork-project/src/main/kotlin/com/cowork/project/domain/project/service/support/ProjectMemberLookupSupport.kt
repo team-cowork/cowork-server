@@ -10,6 +10,6 @@ import team.themoment.sdk.exception.ExpectedException
 class ProjectMemberLookupSupport(private val projectMemberRepository: ProjectMemberRepository) {
 
     fun findMemberOrThrow(memberId: Long): ProjectMember = projectMemberRepository.findById(memberId).orElseThrow {
-        ExpectedException("프로젝트 멤버를 찾을 수 없습니다. id=$memberId", HttpStatus.NOT_FOUND)
+        ExpectedException("프로젝트 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 }
