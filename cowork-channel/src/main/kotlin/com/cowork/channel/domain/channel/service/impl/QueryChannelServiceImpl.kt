@@ -2,17 +2,17 @@ package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
-import com.cowork.channel.domain.channel.service.GetChannelService
+import com.cowork.channel.domain.channel.service.QueryChannelService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 @Transactional(readOnly = true)
-class GetChannelServiceImpl(
+class QueryChannelServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
-) : GetChannelService {
+) : QueryChannelService {
 
     override fun getChannel(userId: Long, channelId: Long): ChannelResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
