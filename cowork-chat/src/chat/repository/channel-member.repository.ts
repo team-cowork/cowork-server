@@ -76,6 +76,27 @@ export class ChannelMemberRepository {
         return this.memberModel.find({ channelId }).lean();
     }
 
+    /**
+     * 여러 채널의 멤버 목록을 단일 쿼리로 조회합니다.
+     *
+     * @param channelIds - 멤버 목록을 조회할 채널 식별자 목록
+     * @returns channelId → 해당 채널 멤버 배열 매핑
+     */
+    async findByChannelIds(channelIds: number[]): Promise<Map<number, ChannelMember[]>> {
+        if (channelIds.length === 0) return new Map();
+        const members = await this.memberModel.find({ channelId: { $in: channelIds } }).lean();
+        const result = new Map<number, ChannelMember[]>();
+        for (const member of members) {
+            const list = result.get(member.channelId);
+            if (list) {
+                list.push(member);
+            } else {
+                result.set(member.channelId, [member]);
+            }
+        }
+        return result;
+    }
+
     async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
         await this.memberModel.updateOne(
             { channelId, userId },
