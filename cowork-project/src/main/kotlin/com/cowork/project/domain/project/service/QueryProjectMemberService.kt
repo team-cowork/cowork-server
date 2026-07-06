@@ -1,5 +1,5 @@
 package com.cowork.project.domain.project.service
 
-interface IsProjectMemberService {
+interface QueryProjectMemberService {
     fun isMember(projectId: Long, userId: Long): Boolean
 }
