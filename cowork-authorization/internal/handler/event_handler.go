@@ -22,7 +22,7 @@ func NewEventHandler(eventSvc *service.EventService) *EventHandler {
 
 // DataGSMWebhook godoc
 // @Summary      DataGSM webhook 수신
-// @Description  DataGSM이 전송하는 student 라이프사이클 이벤트를 수신해 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+// @Description  DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
 // @Tags         events
 // @Accept       json
 // @Produce      json
