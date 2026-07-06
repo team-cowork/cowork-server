@@ -10,19 +10,19 @@ import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 
-class GetPullRequestBoardServiceImplTest :
+class QueryPullRequestBoardServiceImplTest :
     DescribeSpec({
 
         lateinit var repoAccessResolver: GithubRepoAccessResolver
         lateinit var callExecutor: GithubAppCallExecutor
         lateinit var githubAppClient: GithubAppClient
-        lateinit var service: GetPullRequestBoardServiceImpl
+        lateinit var service: QueryPullRequestBoardServiceImpl
 
         beforeEach {
             repoAccessResolver = mockk()
             callExecutor = mockk()
             githubAppClient = mockk()
-            service = GetPullRequestBoardServiceImpl(repoAccessResolver, callExecutor, githubAppClient)
+            service = QueryPullRequestBoardServiceImpl(repoAccessResolver, callExecutor, githubAppClient)
 
             every { callExecutor.execute(any<() -> List<GithubPullRequestSummaryResDto>>()) } answers {
                 firstArg<() -> List<GithubPullRequestSummaryResDto>>().invoke()
@@ -42,7 +42,7 @@ class GetPullRequestBoardServiceImplTest :
             updatedAt = "2026-06-23T00:00:00Z",
         )
 
-        describe("GetPullRequestBoardServiceImpl 클래스의") {
+        describe("QueryPullRequestBoardServiceImpl 클래스의") {
             describe("getPullRequestBoard 메서드는") {
                 context("읽기 권한이 있는 경우") {
                     it("열린 PR을 draft/inReview 컬럼으로 분리한다") {

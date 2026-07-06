@@ -4,9 +4,9 @@ import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembers
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberRoleService
-import com.cowork.team.domain.teamMember.service.GetTeamMembersService
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
 import com.cowork.team.domain.teamMember.service.QueryTeamMemberService
+import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
 import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/teams/{teamId}/members")
 class TeamMemberController(
     private val inviteTeamMembersService: InviteTeamMembersService,
-    private val getTeamMembersService: GetTeamMembersService,
+    private val queryTeamMembersService: QueryTeamMembersService,
     private val queryTeamMemberService: QueryTeamMemberService,
     private val changeTeamMemberRoleService: ChangeTeamMemberRoleService,
     private val removeTeamMemberService: RemoveTeamMemberService,
@@ -45,7 +45,7 @@ class TeamMemberController(
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
-    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = getTeamMembersService.execute(teamId)
+    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = queryTeamMembersService.execute(teamId)
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

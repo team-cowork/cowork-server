@@ -5,9 +5,9 @@ import com.cowork.project.domain.github.presentation.data.response.GithubMergeRe
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
 import com.cowork.project.domain.github.service.ApprovePullRequestService
-import com.cowork.project.domain.github.service.GetPullRequestDetailService
 import com.cowork.project.domain.github.service.ListPullRequestFilesService
 import com.cowork.project.domain.github.service.MergePullRequestService
+import com.cowork.project.domain.github.service.QueryPullRequestDetailService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/projects/{projectId}/github/pulls/{prNumber}")
 class GithubPullRequestController(
-    private val getPullRequestDetailService: GetPullRequestDetailService,
+    private val queryPullRequestDetailService: QueryPullRequestDetailService,
     private val listPullRequestFilesService: ListPullRequestFilesService,
     private val mergePullRequestService: MergePullRequestService,
     private val approvePullRequestService: ApprovePullRequestService,
@@ -44,7 +44,7 @@ class GithubPullRequestController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable prNumber: Int,
-    ): GithubPullRequestResDto = getPullRequestDetailService.execute(userId, projectId, prNumber)
+    ): GithubPullRequestResDto = queryPullRequestDetailService.execute(userId, projectId, prNumber)
 
     @Operation(summary = "PR 파일 변경 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

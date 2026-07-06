@@ -6,8 +6,8 @@ import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleRespon
 import com.cowork.team.domain.teamRole.service.AssignTeamRoleService
 import com.cowork.team.domain.teamRole.service.CreateTeamRoleService
 import com.cowork.team.domain.teamRole.service.DeleteTeamRoleService
-import com.cowork.team.domain.teamRole.service.GetMemberRolesService
-import com.cowork.team.domain.teamRole.service.GetTeamRolesService
+import com.cowork.team.domain.teamRole.service.QueryMemberRolesService
+import com.cowork.team.domain.teamRole.service.QueryTeamRolesService
 import com.cowork.team.domain.teamRole.service.RevokeTeamRoleService
 import com.cowork.team.domain.teamRole.service.UpdateTeamRoleService
 import io.swagger.v3.oas.annotations.Operation
@@ -33,8 +33,8 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/teams/{teamId}")
 class TeamRoleController(
-    private val getTeamRolesService: GetTeamRolesService,
-    private val getMemberRolesService: GetMemberRolesService,
+    private val queryTeamRolesService: QueryTeamRolesService,
+    private val queryMemberRolesService: QueryMemberRolesService,
     private val createTeamRoleService: CreateTeamRoleService,
     private val updateTeamRoleService: UpdateTeamRoleService,
     private val deleteTeamRoleService: DeleteTeamRoleService,
@@ -45,13 +45,13 @@ class TeamRoleController(
     @Operation(summary = "역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/roles")
-    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = getTeamRolesService.execute(teamId)
+    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = queryTeamRolesService.execute(teamId)
 
     @Operation(summary = "멤버 역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping("/members/{userId}/roles")
     fun getMemberRoles(@PathVariable teamId: Long, @PathVariable userId: Long): List<TeamRoleResponse> =
-        getMemberRolesService.execute(teamId, userId)
+        queryMemberRolesService.execute(teamId, userId)
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
