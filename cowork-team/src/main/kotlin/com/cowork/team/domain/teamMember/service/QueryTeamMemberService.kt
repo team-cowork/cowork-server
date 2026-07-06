@@ -1,5 +1,5 @@
 package com.cowork.team.domain.teamMember.service
 
-interface IsTeamMemberService {
+interface QueryTeamMemberService {
     fun isMember(teamId: Long, userId: Long): Boolean
 }
