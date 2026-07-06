@@ -29,5 +29,5 @@ class SearchChannelController(private val searchChannelsService: SearchChannelsS
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestParam teamId: Long,
         @RequestParam q: String,
-    ): List<ChannelResponse> = searchChannelsService.searchChannels(userId, teamId, q)
+    ): List<ChannelResponse> = searchChannelsService.execute(userId, teamId, q)
 }

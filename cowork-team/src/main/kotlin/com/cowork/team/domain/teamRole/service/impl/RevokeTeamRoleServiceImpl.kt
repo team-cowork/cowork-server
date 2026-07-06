@@ -15,7 +15,7 @@ class RevokeTeamRoleServiceImpl(
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
 ) : RevokeTeamRoleService {
 
-    override fun revokeRole(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long) {
+    override fun execute(actorId: Long, teamId: Long, targetUserId: Long, roleId: Long) {
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireMemberExists(teamId, targetUserId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)

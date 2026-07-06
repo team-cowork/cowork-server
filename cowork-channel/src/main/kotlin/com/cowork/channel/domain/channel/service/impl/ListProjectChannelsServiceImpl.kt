@@ -16,7 +16,7 @@ class ListProjectChannelsServiceImpl(
     private val projectClient: ProjectClient,
 ) : ListProjectChannelsService {
 
-    override fun listProjectChannels(userId: Long, projectId: Long): List<ChannelResponse> {
+    override fun execute(userId: Long, projectId: Long): List<ChannelResponse> {
         val teamId = projectClient.getTeamId(projectId)
         teamPermissionService.requireTeamMember(teamId, userId)
         return channelRepository.findAllByProjectIdOrderByIdAsc(projectId).map { ChannelResponse.of(it) }

@@ -28,5 +28,5 @@ class ProjectChannelController(private val listProjectChannelsService: ListProje
     fun listProjectChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): List<ChannelResponse> = listProjectChannelsService.listProjectChannels(userId, projectId)
+    ): List<ChannelResponse> = listProjectChannelsService.execute(userId, projectId)
 }
