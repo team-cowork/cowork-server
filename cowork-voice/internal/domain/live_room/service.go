@@ -72,8 +72,12 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 
 // compensateFailedStart는 세션 생성 이후 단계(LiveKit 방 생성·토큰 발급)가 실패했을 때
 // 고아 상태로 남는 활성 세션을 종료해, 채널이 EmptyTimeout까지 묶이지 않게 한다.
+// ctx는 클라이언트 취소·타임아웃으로 이미 취소됐을 수 있으므로, 보상 트랜잭션은
+// 별도의 취소되지 않는 컨텍스트로 실행한다.
 func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *LiveSession) {
-	if _, endErr := s.repo.EndSession(ctx, liveSession.SessionID, time.Now().UTC()); endErr != nil {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	if _, endErr := s.repo.EndSession(cleanupCtx, liveSession.SessionID, time.Now().UTC()); endErr != nil {
 		slog.Error("failed to end live session", "err", endErr, "session_id", liveSession.SessionID)
 	}
 }
