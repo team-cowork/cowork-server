@@ -6,7 +6,15 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMee
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateTemplateSectionRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteTemplateResponse
 import com.cowork.channel.domain.meetingNote.presentation.data.response.TemplateSectionResponse
-import com.cowork.channel.domain.meetingNote.service.MeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.ActivateMeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.AddTemplateSectionService
+import com.cowork.channel.domain.meetingNote.service.CreateMeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.DeleteMeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.DeleteTemplateSectionService
+import com.cowork.channel.domain.meetingNote.service.GetMeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.ListMeetingNoteTemplatesService
+import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteTemplateService
+import com.cowork.channel.domain.meetingNote.service.UpdateTemplateSectionService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -19,7 +27,17 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "회의록 템플릿", description = "회의록 템플릿 및 섹션 CRUD API")
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-note-templates")
-class MeetingNoteTemplateController(private val meetingNoteTemplateService: MeetingNoteTemplateService) {
+class MeetingNoteTemplateController(
+    private val listMeetingNoteTemplatesService: ListMeetingNoteTemplatesService,
+    private val createMeetingNoteTemplateService: CreateMeetingNoteTemplateService,
+    private val getMeetingNoteTemplateService: GetMeetingNoteTemplateService,
+    private val updateMeetingNoteTemplateService: UpdateMeetingNoteTemplateService,
+    private val deleteMeetingNoteTemplateService: DeleteMeetingNoteTemplateService,
+    private val activateMeetingNoteTemplateService: ActivateMeetingNoteTemplateService,
+    private val addTemplateSectionService: AddTemplateSectionService,
+    private val updateTemplateSectionService: UpdateTemplateSectionService,
+    private val deleteTemplateSectionService: DeleteTemplateSectionService,
+) {
 
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -30,7 +48,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
     fun listTemplates(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<MeetingNoteTemplateResponse> = meetingNoteTemplateService.listTemplates(userId, channelId)
+    ): List<MeetingNoteTemplateResponse> = listMeetingNoteTemplatesService.listTemplates(userId, channelId)
 
     @Operation(summary = "템플릿 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -43,7 +61,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateMeetingNoteTemplateRequest,
-    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.createTemplate(userId, channelId, request)
+    ): MeetingNoteTemplateResponse = createMeetingNoteTemplateService.createTemplate(userId, channelId, request)
 
     @Operation(summary = "템플릿 상세 조회 (섹션 포함)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -55,7 +73,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.getTemplate(userId, channelId, templateId)
+    ): MeetingNoteTemplateResponse = getMeetingNoteTemplateService.getTemplate(userId, channelId, templateId)
 
     @Operation(summary = "템플릿 이름 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -68,7 +86,8 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @RequestBody request: UpdateMeetingNoteTemplateRequest,
-    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
+    ): MeetingNoteTemplateResponse =
+        updateMeetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
 
     @Operation(summary = "템플릿 삭제 (활성 템플릿 삭제 불가)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -83,7 +102,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
     ) {
-        meetingNoteTemplateService.deleteTemplate(userId, channelId, templateId)
+        deleteMeetingNoteTemplateService.deleteTemplate(userId, channelId, templateId)
     }
 
     @Operation(summary = "템플릿 활성화 (기존 활성 자동 해제)", security = [SecurityRequirement(name = "BearerAuth")])
@@ -96,7 +115,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
-    ): MeetingNoteTemplateResponse = meetingNoteTemplateService.activateTemplate(userId, channelId, templateId)
+    ): MeetingNoteTemplateResponse = activateMeetingNoteTemplateService.activateTemplate(userId, channelId, templateId)
 
     @Operation(summary = "섹션 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -110,7 +129,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @PathVariable channelId: Long,
         @PathVariable templateId: Long,
         @RequestBody request: CreateTemplateSectionRequest,
-    ): TemplateSectionResponse = meetingNoteTemplateService.addSection(userId, channelId, templateId, request)
+    ): TemplateSectionResponse = addTemplateSectionService.addSection(userId, channelId, templateId, request)
 
     @Operation(summary = "섹션 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -125,7 +144,7 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @PathVariable sectionId: Long,
         @RequestBody request: UpdateTemplateSectionRequest,
     ): TemplateSectionResponse =
-        meetingNoteTemplateService.updateSection(userId, channelId, templateId, sectionId, request)
+        updateTemplateSectionService.updateSection(userId, channelId, templateId, sectionId, request)
 
     @Operation(summary = "섹션 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -140,6 +159,6 @@ class MeetingNoteTemplateController(private val meetingNoteTemplateService: Meet
         @PathVariable templateId: Long,
         @PathVariable sectionId: Long,
     ) {
-        meetingNoteTemplateService.deleteSection(userId, channelId, templateId, sectionId)
+        deleteTemplateSectionService.deleteSection(userId, channelId, templateId, sectionId)
     }
 }

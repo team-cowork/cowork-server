@@ -1,11 +1,11 @@
 package com.cowork.project.domain.github.client
 
-import tools.jackson.databind.ObjectMapper
 import feign.Response
 import feign.codec.ErrorDecoder
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.ObjectMapper
 
 class GithubAppErrorDecoder(private val objectMapper: ObjectMapper) : ErrorDecoder {
     private val logger = LoggerFactory.getLogger(GithubAppErrorDecoder::class.java)
@@ -23,13 +23,12 @@ class GithubAppErrorDecoder(private val objectMapper: ObjectMapper) : ErrorDecod
         return ExpectedException("GitHub 연동 서버와 통신할 수 없습니다.", HttpStatus.BAD_GATEWAY)
     }
 
-    private fun extractMessage(response: Response): String =
-        runCatching {
-            response.body()?.asInputStream()?.use { stream ->
-                objectMapper.readTree(stream).get("message")?.asText()
-            }
+    private fun extractMessage(response: Response): String = runCatching {
+        response.body()?.asInputStream()?.use { stream ->
+            objectMapper.readTree(stream).get("message")?.asText()
         }
-            .onFailure { logger.warn("Failed to parse cowork-github-app error response body", it) }
-            .getOrNull()
-            ?: "GitHub 연동 서버 오류"
+    }
+        .onFailure { logger.warn("Failed to parse cowork-github-app error response body", it) }
+        .getOrNull()
+        ?: "GitHub 연동 서버 오류"
 }

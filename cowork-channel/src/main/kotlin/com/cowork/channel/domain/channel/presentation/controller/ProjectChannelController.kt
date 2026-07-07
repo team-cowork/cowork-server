@@ -1,7 +1,7 @@
 package com.cowork.channel.domain.channel.presentation.controller
 
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.service.ChannelService
+import com.cowork.channel.domain.channel.service.ListProjectChannelsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "프로젝트 채널", description = "프로젝트 채널 조회 API")
 @RestController
 @RequestMapping("/projects")
-class ProjectChannelController(private val channelService: ChannelService) {
+class ProjectChannelController(private val listProjectChannelsService: ListProjectChannelsService) {
 
     @Operation(summary = "프로젝트 채널 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -28,5 +28,5 @@ class ProjectChannelController(private val channelService: ChannelService) {
     fun listProjectChannels(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): List<ChannelResponse> = channelService.listProjectChannels(userId, projectId)
+    ): List<ChannelResponse> = listProjectChannelsService.execute(userId, projectId)
 }

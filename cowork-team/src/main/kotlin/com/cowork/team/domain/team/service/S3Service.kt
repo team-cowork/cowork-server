@@ -23,10 +23,7 @@ class S3Service(
 
     fun validateContentType(contentType: String) {
         if (contentType !in minioProperties.allowedContentTypes) {
-            throw ExpectedException(
-                "허용되지 않는 파일 형식입니다. 허용 형식: ${minioProperties.allowedContentTypes.joinToString()}",
-                HttpStatus.BAD_REQUEST,
-            )
+            throw ExpectedException("허용되지 않는 파일 형식입니다.", HttpStatus.BAD_REQUEST)
         }
     }
 

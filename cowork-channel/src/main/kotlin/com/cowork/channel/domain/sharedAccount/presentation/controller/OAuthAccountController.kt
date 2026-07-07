@@ -1,7 +1,8 @@
 package com.cowork.channel.domain.sharedAccount.presentation.controller
 
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
-import com.cowork.channel.domain.sharedAccount.service.OAuthAccountService
+import com.cowork.channel.domain.sharedAccount.service.BuildOAuthAuthorizeUrlService
+import com.cowork.channel.domain.sharedAccount.service.HandleOAuthCallbackService
 import com.cowork.channel.global.config.OAuthProperties
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -17,7 +18,8 @@ import java.net.URI
 @Tag(name = "계정 공유 OAuth", description = "공유 계정 OAuth 연동 API")
 @RestController
 class OAuthAccountController(
-    private val oAuthAccountService: OAuthAccountService,
+    private val buildOAuthAuthorizeUrlService: BuildOAuthAuthorizeUrlService,
+    private val handleOAuthCallbackService: HandleOAuthCallbackService,
     private val oAuthProperties: OAuthProperties,
 ) {
 
@@ -40,7 +42,7 @@ class OAuthAccountController(
         val accountProvider = runCatching { AccountProvider.valueOf(provider.uppercase()) }.getOrElse {
             return ResponseEntity.badRequest().body(mapOf("error" to "지원하지 않는 provider: $provider"))
         }
-        val redirectUrl = oAuthAccountService.buildAuthorizeUrl(channelId, userId, accountProvider)
+        val redirectUrl = buildOAuthAuthorizeUrlService.buildAuthorizeUrl(channelId, userId, accountProvider)
         return ResponseEntity.ok(mapOf("redirectUrl" to redirectUrl))
     }
 
@@ -52,7 +54,7 @@ class OAuthAccountController(
         @RequestParam code: String,
         @RequestParam state: String,
     ): ResponseEntity<Void> = runCatching {
-        val account = oAuthAccountService.handleCallback(provider, code, state)
+        val account = handleOAuthCallbackService.handleCallback(provider, code, state)
         val location = "${oAuthProperties.clientRedirectUrl}/channels/${account.channelId}?newAccountId=${account.id}"
         ResponseEntity.status(HttpStatus.FOUND)
             .location(URI.create(location))
