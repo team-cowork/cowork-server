@@ -1,9 +1,6 @@
 package com.cowork.project.domain.project.repository
 
 import com.cowork.project.domain.project.entity.Project
-
-import com.cowork.project.domain.projectMember.entity.ProjectMember
-
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
@@ -11,7 +8,9 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
-interface ProjectRepository : JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
+interface ProjectRepository :
+    JpaRepository<Project, Long>,
+    JpaSpecificationExecutor<Project> {
 
     fun findAllByTeamId(teamId: Long): List<Project>
 
@@ -26,8 +25,10 @@ interface ProjectRepository : JpaRepository<Project, Long>, JpaSpecificationExec
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
     @Query(
-        value = "SELECT DISTINCT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id WHERE m.userId = :userId",
-        countQuery = "SELECT COUNT(DISTINCT p) FROM Project p JOIN ProjectMember m ON m.projectId = p.id WHERE m.userId = :userId",
+        value = "SELECT DISTINCT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
+            "WHERE m.userId = :userId",
+        countQuery = "SELECT COUNT(DISTINCT p) FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
+            "WHERE m.userId = :userId",
     )
     fun findProjectsByMemberUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
 }

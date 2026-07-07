@@ -25,17 +25,16 @@ data class ProjectResDto(
     val updatedAt: LocalDateTime,
 ) {
     companion object {
-        fun of(project: Project): ProjectResDto =
-            ProjectResDto(
-                id = project.id,
-                teamId = project.teamId,
-                name = project.name,
-                description = project.description,
-                status = project.status.name,
-                position = project.position,
-                createdBy = project.createdBy,
-                createdAt = project.createdAt,
-                updatedAt = project.updatedAt,
-            )
+        fun of(project: Project): ProjectResDto = ProjectResDto(
+            id = project.id,
+            teamId = project.teamId,
+            name = project.name,
+            description = project.description,
+            status = project.status.name,
+            position = project.position,
+            createdBy = project.createdBy,
+            createdAt = project.createdAt,
+            updatedAt = project.updatedAt,
+        )
     }
 }
