@@ -170,6 +170,11 @@ func (r *mongoLiveSessionRepository) InsertViewer(ctx context.Context, v *live.L
 	}
 	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
 	if err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			// 동시 join 경쟁: 다른 요청이 같은 (session_id, user_id) 활성 행을 먼저 insert함.
+			// 이미 시청자로 등록된 상태이므로 에러가 아니라 성공으로 처리한다.
+			return nil
+		}
 		return apperr.Internal(err.Error())
 	}
 	return nil
