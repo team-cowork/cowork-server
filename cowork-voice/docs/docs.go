@@ -15,6 +15,202 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/live/channels/{channel_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "채널의 현재 라이브 진행 여부와 시청자 수를 반환합니다.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "live"
+                ],
+                "summary": "라이브 상태 조회",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "채널 ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_live_room.StatusResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/live/channels/{channel_id}/join": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "진행 중인 라이브에 시청자로 참여합니다. subscribe 전용 토큰을 받습니다. 호스트가 재입장하면 publish 권한 토큰이 재발급됩니다.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "live"
+                ],
+                "summary": "라이브 시청 참여",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "채널 ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_live_room.JoinResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "채널 멤버가 아님",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "진행 중인 라이브 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/live/channels/{channel_id}/leave": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자 전원이 퇴장 처리됩니다.",
+                "tags": [
+                    "live"
+                ],
+                "summary": "라이브 퇴장",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "채널 ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "퇴장 성공"
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "404": {
+                        "description": "진행 중인 라이브 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/live/channels/{channel_id}/start": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유) 토큰을 받습니다. 채널당 동시 라이브는 1개입니다.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "live"
+                ],
+                "summary": "라이브 방송 시작",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "채널 ID",
+                        "name": "channel_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_live_room.StartResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "채널 멤버가 아님",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "409": {
+                        "description": "이미 라이브 진행 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/voice/channels/{channel_id}/join": {
             "post": {
                 "security": [
@@ -74,7 +270,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "채널에서 퇴장합니다. 마지막 참여자가 나가면 방이 자동으로 삭제됩니다.",
+                "description": "채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.",
                 "tags": [
                     "voice"
                 ],
@@ -248,6 +444,77 @@ const docTemplate = `{
                 }
             }
         },
+        "internal_domain_live_room.JoinResponse": {
+            "type": "object",
+            "properties": {
+                "host_user_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "livekit_url": {
+                    "type": "string",
+                    "example": "wss://livekit.example.com"
+                },
+                "room_name": {
+                    "type": "string",
+                    "example": "live-42-550e8400"
+                },
+                "session_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiJ9..."
+                }
+            }
+        },
+        "internal_domain_live_room.StartResponse": {
+            "type": "object",
+            "properties": {
+                "livekit_url": {
+                    "type": "string",
+                    "example": "wss://livekit.example.com"
+                },
+                "room_name": {
+                    "type": "string",
+                    "example": "live-42-550e8400"
+                },
+                "session_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiJ9..."
+                }
+            }
+        },
+        "internal_domain_live_room.StatusResponse": {
+            "type": "object",
+            "properties": {
+                "host_user_id": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "live": {
+                    "type": "boolean",
+                    "example": true
+                },
+                "session_id": {
+                    "type": "string",
+                    "example": "550e8400-e29b-41d4-a716-446655440000"
+                },
+                "started_at": {
+                    "type": "string",
+                    "example": "2024-01-01T00:00:00Z"
+                },
+                "viewer_count": {
+                    "type": "integer",
+                    "example": 3
+                }
+            }
+        },
         "internal_domain_voice_room.JoinResponse": {
             "type": "object",
             "properties": {
@@ -343,7 +610,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "20260623.0",
 	Host:             "",
 	BasePath:         "/api",
 	Schemes:          []string{},
