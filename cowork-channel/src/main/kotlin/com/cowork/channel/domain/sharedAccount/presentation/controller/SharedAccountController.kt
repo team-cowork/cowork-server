@@ -3,7 +3,12 @@ package com.cowork.channel.domain.sharedAccount.presentation.controller
 import com.cowork.channel.domain.sharedAccount.presentation.data.request.CreateSharedAccountRequest
 import com.cowork.channel.domain.sharedAccount.presentation.data.request.UpdateSharedAccountRequest
 import com.cowork.channel.domain.sharedAccount.presentation.data.response.SharedAccountResponse
-import com.cowork.channel.domain.sharedAccount.service.SharedAccountService
+import com.cowork.channel.domain.sharedAccount.service.CopySharedAccountCredentialService
+import com.cowork.channel.domain.sharedAccount.service.CreateSharedAccountService
+import com.cowork.channel.domain.sharedAccount.service.DeleteSharedAccountService
+import com.cowork.channel.domain.sharedAccount.service.GetSharedAccountService
+import com.cowork.channel.domain.sharedAccount.service.ListSharedAccountsService
+import com.cowork.channel.domain.sharedAccount.service.UpdateSharedAccountService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,7 +21,14 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "계정 공유", description = "ACCOUNT_SHARE 채널의 공유 계정 관리 API")
 @RestController
 @RequestMapping("/channels/{channelId}/accounts")
-class SharedAccountController(private val sharedAccountService: SharedAccountService) {
+class SharedAccountController(
+    private val listSharedAccountsService: ListSharedAccountsService,
+    private val getSharedAccountService: GetSharedAccountService,
+    private val createSharedAccountService: CreateSharedAccountService,
+    private val updateSharedAccountService: UpdateSharedAccountService,
+    private val deleteSharedAccountService: DeleteSharedAccountService,
+    private val copySharedAccountCredentialService: CopySharedAccountCredentialService,
+) {
 
     @Operation(summary = "공유 계정 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -29,7 +41,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
     fun listAccounts(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<SharedAccountResponse> = sharedAccountService.listAccounts(userId, channelId)
+    ): List<SharedAccountResponse> = listSharedAccountsService.listAccounts(userId, channelId)
 
     @Operation(summary = "공유 계정 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -42,7 +54,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-    ): SharedAccountResponse = sharedAccountService.getAccount(userId, channelId, accountId)
+    ): SharedAccountResponse = getSharedAccountService.getAccount(userId, channelId, accountId)
 
     @Operation(summary = "공유 계정 등록 (수동)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -56,7 +68,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateSharedAccountRequest,
-    ): SharedAccountResponse = sharedAccountService.createAccount(userId, channelId, request)
+    ): SharedAccountResponse = createSharedAccountService.createAccount(userId, channelId, request)
 
     @Operation(summary = "공유 계정 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -70,7 +82,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
         @RequestBody request: UpdateSharedAccountRequest,
-    ): SharedAccountResponse = sharedAccountService.updateAccount(userId, channelId, accountId, request)
+    ): SharedAccountResponse = updateSharedAccountService.updateAccount(userId, channelId, accountId, request)
 
     @Operation(summary = "공유 계정 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -85,7 +97,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
     ) {
-        sharedAccountService.deleteAccount(userId, channelId, accountId)
+        deleteSharedAccountService.deleteAccount(userId, channelId, accountId)
     }
 
     @Operation(
@@ -103,7 +115,7 @@ class SharedAccountController(private val sharedAccountService: SharedAccountSer
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
     ): Map<String, String> {
-        val credential = sharedAccountService.copyCredential(userId, channelId, accountId)
+        val credential = copySharedAccountCredentialService.copyCredential(userId, channelId, accountId)
         return mapOf("credential" to credential)
     }
 }

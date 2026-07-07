@@ -2,11 +2,12 @@ package com.cowork.project.domain.projectMember.repository
 
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 
-interface ProjectMemberRepository : JpaRepository<ProjectMember, Long>, JpaSpecificationExecutor<ProjectMember> {
+interface ProjectMemberRepository :
+    JpaRepository<ProjectMember, Long>,
+    JpaSpecificationExecutor<ProjectMember> {
 
     fun findByProjectId(projectId: Long): List<ProjectMember>
 
@@ -18,7 +19,11 @@ interface ProjectMemberRepository : JpaRepository<ProjectMember, Long>, JpaSpeci
 
     fun findAllByUserIdAndRole(userId: Long, role: ProjectMemberRole): List<ProjectMember>
 
-    fun findAllByUserIdAndRoleAndProjectIdIn(userId: Long, role: ProjectMemberRole, projectIds: List<Long>): List<ProjectMember>
+    fun findAllByUserIdAndRoleAndProjectIdIn(
+        userId: Long,
+        role: ProjectMemberRole,
+        projectIds: List<Long>,
+    ): List<ProjectMember>
 
     fun deleteAllByUserId(userId: Long)
 
