@@ -32,7 +32,10 @@ func NewLiveWebhookService(repo LiveSessionRepository, room LiveRoomController, 
 }
 
 func (s *LiveWebhookService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
-	now := s.now()
+	now := time.Now().UTC()
+	if s.now != nil {
+		now = s.now()
+	}
 	nowStr := now.Format(time.RFC3339)
 
 	switch WebhookEventType(event.GetEvent()) {
