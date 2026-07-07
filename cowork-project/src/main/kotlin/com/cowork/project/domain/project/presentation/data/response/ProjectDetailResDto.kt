@@ -29,19 +29,18 @@ data class ProjectDetailResDto(
     val githubRepoUrl: String?,
 ) {
     companion object {
-        fun of(project: Project, memberCount: Long): ProjectDetailResDto =
-            ProjectDetailResDto(
-                id = project.id,
-                teamId = project.teamId,
-                name = project.name,
-                description = project.description,
-                status = project.status.name,
-                position = project.position,
-                createdBy = project.createdBy,
-                createdAt = project.createdAt,
-                updatedAt = project.updatedAt,
-                memberCount = memberCount,
-                githubRepoUrl = project.githubRepoUrl,
-            )
+        fun of(project: Project, memberCount: Long): ProjectDetailResDto = ProjectDetailResDto(
+            id = project.id,
+            teamId = project.teamId,
+            name = project.name,
+            description = project.description,
+            status = project.status.name,
+            position = project.position,
+            createdBy = project.createdBy,
+            createdAt = project.createdAt,
+            updatedAt = project.updatedAt,
+            memberCount = memberCount,
+            githubRepoUrl = project.githubRepoUrl,
+        )
     }
 }
