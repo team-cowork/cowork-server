@@ -94,8 +94,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
                 args.push(String(channelId), String(count));
             }
             const key = this.key(userId);
-            await this.client.hset(key, ...args);
-            await this.client.expire(key, TTL_SECONDS);
+            await this.client.pipeline().hset(key, ...args).expire(key, TTL_SECONDS).exec();
         } catch (err) {
             this.logger.warn(`Redis setMany failed [userId=${userId}]`, err);
         }
@@ -107,8 +106,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     async set(channelId: number, userId: number, count: number): Promise<void> {
         try {
             const key = this.key(userId);
-            await this.client.hset(key, String(channelId), String(count));
-            await this.client.expire(key, TTL_SECONDS);
+            await this.client.pipeline().hset(key, String(channelId), String(count)).expire(key, TTL_SECONDS).exec();
         } catch (err) {
             this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, err);
         }
