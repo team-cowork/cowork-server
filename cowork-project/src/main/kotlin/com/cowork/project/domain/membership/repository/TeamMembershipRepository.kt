@@ -1,7 +1,6 @@
 package com.cowork.project.domain.membership.repository
 
 import com.cowork.project.domain.membership.entity.TeamMembership
-
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface TeamMembershipRepository : JpaRepository<TeamMembership, Long> {
