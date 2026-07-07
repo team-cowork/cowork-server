@@ -45,6 +45,7 @@ import {
 } from './dto/context';
 import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { UnreadCounterService } from './service/unread-counter.service';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
@@ -82,6 +83,7 @@ export class ChatService {
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
         private readonly rateLimiter: RedisRateLimiter,
+        private readonly unreadCounterService: UnreadCounterService,
         configService: ConfigService,
     ) {
         this.messageRateLimitWindowMs = Number(
@@ -338,7 +340,7 @@ export class ChatService {
         const [others, lastMessages, unreadCounts] = await Promise.all([
             this.channelMemberRepository.findOtherDmMembers(channelIds, userId),
             this.messageRepository.findLastMessages(channelIds),
-            this.messageRepository.countUnreadForChannels(memberships),
+            this.getUnreadCounts(userId, memberships),
         ]);
 
         return memberships
@@ -687,6 +689,7 @@ export class ChatService {
         const oid = new Types.ObjectId(lastReadMessageId);
         await this.channelMemberRepository.updateLastRead(ctx.channelId, ctx.userId, oid);
         const unreadCount = await this.messageRepository.countUnread(ctx.channelId, oid);
+        await this.unreadCounterService.set(ctx.channelId, ctx.userId, unreadCount);
         this.chatGateway.server
             ?.to(`user:${ctx.userId}`)
             .emit('channel:unread:updated', { channelId: ctx.channelId, unreadCount });
@@ -697,11 +700,44 @@ export class ChatService {
         if (memberships.length === 0) {
             return [];
         }
-        const unreadCounts = await this.messageRepository.countUnreadForChannels(memberships);
+        const unreadCounts = await this.getUnreadCounts(userId, memberships);
         return memberships.map(({ channelId }) => ({
             channelId,
             unreadCount: unreadCounts.get(channelId) ?? 0,
         }));
+    }
+
+    /**
+     * 여러 채널의 안읽음 수를 조회한다. Redis 캐시(`UnreadCounterService`)를 우선 조회하고,
+     * 캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
+     * Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
+     *
+     * @param userId - 조회할 사용자 ID
+     * @param memberships - 대상 채널 멤버십 목록 (팀 unread, DM 목록에서 공유)
+     * @returns channelId → 안읽음 수 매핑
+     */
+    private async getUnreadCounts(
+        userId: number,
+        memberships: Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>,
+    ): Promise<Map<number, number>> {
+        const channelIds = memberships.map((m) => m.channelId);
+        const cached = await this.unreadCounterService.getMany(userId, channelIds);
+        const missedIds = cached ? cached.misses : channelIds;
+        if (missedIds.length === 0) {
+            return cached!.hits;
+        }
+
+        const missedSet = new Set(missedIds);
+        const missedMemberships = memberships.filter((m) => missedSet.has(m.channelId));
+        const recomputed = await this.messageRepository.countUnreadForChannels(missedMemberships);
+        const filled = new Map(missedIds.map((id) => [id, recomputed.get(id) ?? 0]));
+        void this.unreadCounterService.setMany(userId, filled);
+
+        const result = new Map(cached?.hits ?? []);
+        for (const [channelId, count] of filled) {
+            result.set(channelId, count);
+        }
+        return result;
     }
 
     async getPinnedMessages(ctx: ChannelUserContext) {
@@ -726,7 +762,11 @@ export class ChatService {
         content: string,
         projectId: number | null = null,
     ) {
-        return this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
+        const saved = await this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
+        const members = await this.channelMemberRepository.findByChannelId(channelId);
+        const targetUserIds = members.map((m) => m.userId).filter((id) => id !== SYSTEM_AUTHOR_ID);
+        await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
+        return saved;
     }
 
     /**
