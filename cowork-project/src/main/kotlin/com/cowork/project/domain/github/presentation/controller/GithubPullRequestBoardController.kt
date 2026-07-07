@@ -1,8 +1,7 @@
 package com.cowork.project.domain.github.presentation.controller
 
-import com.cowork.project.domain.github.service.GithubPullRequestService
-
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestBoardResDto
+import com.cowork.project.domain.github.service.QueryPullRequestBoardService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -18,9 +17,7 @@ import org.springframework.web.bind.annotation.RestController
 @Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 레포지토리의 PR 조회/머지/승인 API")
 @RestController
 @RequestMapping("/projects/{projectId}/github/pulls")
-class GithubPullRequestBoardController(
-    private val githubPullRequestService: GithubPullRequestService,
-) {
+class GithubPullRequestBoardController(private val queryPullRequestBoardService: QueryPullRequestBoardService) {
 
     @Operation(
         summary = "진행 중 PR 보드 조회",
@@ -38,6 +35,5 @@ class GithubPullRequestBoardController(
     fun getBoard(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): GithubPullRequestBoardResDto =
-        githubPullRequestService.getPullRequestBoard(userId, projectId)
+    ): GithubPullRequestBoardResDto = queryPullRequestBoardService.execute(userId, projectId)
 }

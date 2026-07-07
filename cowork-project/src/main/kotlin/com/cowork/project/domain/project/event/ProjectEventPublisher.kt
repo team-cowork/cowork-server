@@ -8,9 +8,7 @@ import org.springframework.stereotype.Component
 private const val TOPIC = "project.event"
 
 @Component
-class ProjectEventPublisher(
-    private val kafkaTemplate: KafkaTemplate<String, Any>,
-) {
+class ProjectEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
     private val log = LoggerFactory.getLogger(ProjectEventPublisher::class.java)
 
     fun publishCreated(project: Project) = publish("CREATED", project)
@@ -31,12 +29,16 @@ class ProjectEventPublisher(
                 if (ex != null) {
                     log.error(
                         "프로젝트 이벤트 발행 실패 [eventType={}, projectId={}]",
-                        eventType, project.id, ex,
+                        eventType,
+                        project.id,
+                        ex,
                     )
                 } else {
                     log.info(
                         "프로젝트 이벤트 발행 성공 [eventType={}, projectId={}, offset={}]",
-                        eventType, project.id, result.recordMetadata.offset(),
+                        eventType,
+                        project.id,
+                        result.recordMetadata.offset(),
                     )
                 }
             }

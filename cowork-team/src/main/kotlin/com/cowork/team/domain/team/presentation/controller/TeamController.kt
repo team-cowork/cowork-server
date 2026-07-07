@@ -9,7 +9,15 @@ import com.cowork.team.domain.team.presentation.data.response.IconConfirmRespons
 import com.cowork.team.domain.team.presentation.data.response.IconPresignedUrlResponse
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.presentation.data.response.TeamSummaryResponse
-import com.cowork.team.domain.team.service.TeamService
+import com.cowork.team.domain.team.service.ConfirmIconUploadService
+import com.cowork.team.domain.team.service.CreateTeamService
+import com.cowork.team.domain.team.service.DeleteTeamIconService
+import com.cowork.team.domain.team.service.DeleteTeamService
+import com.cowork.team.domain.team.service.GenerateIconPresignedUrlService
+import com.cowork.team.domain.team.service.QueryMyTeamsService
+import com.cowork.team.domain.team.service.QueryTeamService
+import com.cowork.team.domain.team.service.UpdateTeamIconService
+import com.cowork.team.domain.team.service.UpdateTeamService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -22,7 +30,17 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀", description = "팀 생성/수정/삭제 API")
 @RestController
 @RequestMapping("/teams")
-class TeamController(private val teamService: TeamService) {
+class TeamController(
+    private val generateIconPresignedUrlService: GenerateIconPresignedUrlService,
+    private val confirmIconUploadService: ConfirmIconUploadService,
+    private val createTeamService: CreateTeamService,
+    private val queryMyTeamsService: QueryMyTeamsService,
+    private val queryTeamService: QueryTeamService,
+    private val updateTeamService: UpdateTeamService,
+    private val updateTeamIconService: UpdateTeamIconService,
+    private val deleteTeamIconService: DeleteTeamIconService,
+    private val deleteTeamService: DeleteTeamService,
+) {
 
     @Operation(summary = "팀 아이콘 Presigned URL 발급", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -31,7 +49,7 @@ class TeamController(private val teamService: TeamService) {
     )
     @PostMapping("/icon/presigned")
     fun generateIconPresignedUrl(@RequestBody request: IconPresignedUrlRequest): IconPresignedUrlResponse =
-        teamService.generateIconPresignedUrl(request.contentType)
+        generateIconPresignedUrlService.execute(request.contentType)
 
     @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -42,7 +60,7 @@ class TeamController(private val teamService: TeamService) {
     )
     @PostMapping("/icon/confirm")
     fun confirmIconUpload(@RequestBody request: IconConfirmRequest): IconConfirmResponse =
-        teamService.confirmIconUpload(request.objectKey)
+        confirmIconUploadService.execute(request.objectKey)
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -54,13 +72,13 @@ class TeamController(private val teamService: TeamService) {
     fun createTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @RequestBody request: CreateTeamRequest,
-    ): TeamResponse = teamService.createTeam(userId, request)
+    ): TeamResponse = createTeamService.execute(userId, request)
 
     @Operation(summary = "내 팀 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponse(responseCode = "200", description = "조회 성공")
     @GetMapping
     fun getMyTeams(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long): List<TeamSummaryResponse> =
-        teamService.getMyTeams(userId)
+        queryMyTeamsService.execute(userId)
 
     @Operation(summary = "팀 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -68,7 +86,7 @@ class TeamController(private val teamService: TeamService) {
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
     @GetMapping("/{teamId}")
-    fun getTeam(@PathVariable teamId: Long): TeamResponse = teamService.getTeam(teamId)
+    fun getTeam(@PathVariable teamId: Long): TeamResponse = queryTeamService.execute(teamId)
 
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -81,7 +99,7 @@ class TeamController(private val teamService: TeamService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateTeamRequest,
-    ): TeamResponse = teamService.updateTeam(userId, teamId, request)
+    ): TeamResponse = updateTeamService.execute(userId, teamId, request)
 
     @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -94,7 +112,7 @@ class TeamController(private val teamService: TeamService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: UpdateIconRequest,
-    ): IconConfirmResponse = teamService.updateIcon(userId, teamId, request.iconUrl)
+    ): IconConfirmResponse = updateTeamIconService.execute(userId, teamId, request.iconUrl)
 
     @Operation(summary = "팀 아이콘 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -105,7 +123,7 @@ class TeamController(private val teamService: TeamService) {
     @DeleteMapping("/{teamId}/icon")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteIcon(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long, @PathVariable teamId: Long) {
-        teamService.deleteIcon(userId, teamId)
+        deleteTeamIconService.execute(userId, teamId)
     }
 
     @Operation(summary = "팀 삭제", security = [SecurityRequirement(name = "BearerAuth")])
@@ -117,6 +135,6 @@ class TeamController(private val teamService: TeamService) {
     @DeleteMapping("/{teamId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteTeam(@Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long, @PathVariable teamId: Long) {
-        teamService.deleteTeam(userId, teamId)
+        deleteTeamService.execute(userId, teamId)
     }
 }

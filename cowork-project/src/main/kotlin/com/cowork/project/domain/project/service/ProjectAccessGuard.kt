@@ -1,13 +1,10 @@
 package com.cowork.project.domain.project.service
 
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
-
-import com.cowork.project.domain.github.service.GithubPullRequestService
-
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -18,8 +15,8 @@ private const val TEAM_ROLE_ADMIN = "ADMIN"
 /**
  * 프로젝트 조회/수정 권한 검증을 담당하는 컴포넌트.
  *
- * `ProjectService`와 `GithubPullRequestService`가 동일한 권한 판단 기준을 공유하기 위해
- * 분리되었다.
+ * project 도메인의 엔드포인트별 서비스들과 `GithubRepoAccessResolver`가 동일한 권한 판단 기준을
+ * 공유하기 위해 분리되었다.
  */
 @Service
 class ProjectAccessGuard(
@@ -28,10 +25,9 @@ class ProjectAccessGuard(
     private val teamMembershipRepository: TeamMembershipRepository,
 ) {
 
-    fun findProjectOrThrow(projectId: Long): Project =
-        projectRepository.findById(projectId).orElseThrow {
-            ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        }
+    fun findProjectOrThrow(projectId: Long): Project = projectRepository.findById(projectId).orElseThrow {
+        ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    }
 
     fun teamRoleOf(teamId: Long, userId: Long): String? =
         teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
