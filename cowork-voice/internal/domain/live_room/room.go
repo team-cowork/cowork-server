@@ -46,8 +46,8 @@ func IsLiveRoomName(roomName string) bool {
 // DurationSecondsSince는 from부터 now까지의 경과 시간을 초 단위로 반환한다.
 // clock skew 등으로 now < from이면 음수가 될 수 있어 0으로 보정한다.
 func DurationSecondsSince(now, from time.Time) int64 {
-	if diff := now.Sub(from).Seconds(); diff > 0 {
-		return int64(diff)
+	if diff := now.Sub(from); diff > 0 {
+		return int64(diff / time.Second)
 	}
 	return 0
 }
