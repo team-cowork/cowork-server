@@ -28,35 +28,37 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 		return nil, err
 	}
 
-	existing, err := s.repo.FindActiveSession(ctx, channelID)
-	if err != nil {
-		return nil, err
-	}
-	if existing != nil {
-		return nil, apperr.Conflict("live already in progress")
-	}
-
-	liveSession, created, err := s.repo.CreateSession(ctx, channelID, teamID, userID)
-	if err != nil {
-		return nil, err
-	}
-	if !created {
-		// 동시 start 경쟁에서 패배: voice와 달리 기존 세션에 합류하지 않고 충돌로 응답한다.
-		return nil, apperr.Conflict("live already in progress")
+	// CreateSession의 duplicate-key 경쟁 재조회가 (nil, false, nil)을 반환할 수 있다:
+	// 경쟁 상대의 세션이 우리가 재조회하기 전에 이미 종료된 극히 드문 경우다. 이때는
+	// 채널이 실제로 비어 있으므로 오탐 409 대신 즉시 한 번 재시도한다.
+	const maxAttempts = 2
+	var liveSession *LiveSession
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, teamID, userID)
+		if cerr != nil {
+			return nil, cerr
+		}
+		if isNew {
+			liveSession = created
+			break
+		}
+		if created != nil {
+			return nil, apperr.Conflict("live already in progress")
+		}
+		// created == nil && !isNew: 경쟁 세션이 사라짐 → 재시도
 	}
 	if liveSession == nil {
 		return nil, apperr.Internal("failed to create live session")
 	}
 
 	if err := s.livekit.CreateRoomIfNotExists(ctx, liveSession.RoomName); err != nil {
-		if _, endErr := s.repo.EndSession(ctx, liveSession.SessionID, time.Now().UTC()); endErr != nil {
-			slog.Error("failed to end live session", "err", endErr, "session_id", liveSession.SessionID)
-		}
+		s.compensateFailedStart(ctx, liveSession)
 		return nil, err
 	}
 
 	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, true)
 	if err != nil {
+		s.compensateFailedStart(ctx, liveSession)
 		return nil, err
 	}
 
@@ -66,6 +68,14 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 		SessionID:  liveSession.SessionID,
 		RoomName:   liveSession.RoomName,
 	}, nil
+}
+
+// compensateFailedStart는 세션 생성 이후 단계(LiveKit 방 생성·토큰 발급)가 실패했을 때
+// 고아 상태로 남는 활성 세션을 종료해, 채널이 EmptyTimeout까지 묶이지 않게 한다.
+func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *LiveSession) {
+	if _, endErr := s.repo.EndSession(ctx, liveSession.SessionID, time.Now().UTC()); endErr != nil {
+		slog.Error("failed to end live session", "err", endErr, "session_id", liveSession.SessionID)
+	}
 }
 
 func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
@@ -151,10 +161,7 @@ func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error 
 
 	var durationSeconds int64
 	if joinedAt != nil {
-		// clock skew 등으로 now < joinedAt이면 음수가 될 수 있어 0으로 보정한다.
-		if diff := now.Sub(*joinedAt).Seconds(); diff > 0 {
-			durationSeconds = int64(diff)
-		}
+		durationSeconds = DurationSecondsSince(now, *joinedAt)
 	}
 	if err := s.publisher.Publish(ctx, liveSession.SessionID, &kafkadomain.ViewerLeftEvent{
 		EventType:       kafkadomain.EventViewerLeft,
@@ -184,17 +191,9 @@ func (s *LiveService) GetStatus(ctx context.Context, channelID, userID int64) (*
 		return &StatusResponse{Live: false, ViewerCount: 0}, nil
 	}
 
-	lkParticipants, err := s.livekit.ListParticipants(ctx, liveSession.RoomName)
+	viewerCount, err := s.repo.CountActiveViewers(ctx, liveSession.SessionID)
 	if err != nil {
 		return nil, err
-	}
-
-	hostIdentity := strconv.FormatInt(liveSession.HostUserID, 10)
-	viewerCount := 0
-	for _, p := range lkParticipants {
-		if p.Identity != hostIdentity {
-			viewerCount++
-		}
 	}
 
 	return &StatusResponse{
