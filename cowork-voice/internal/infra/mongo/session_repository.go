@@ -72,7 +72,7 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 		return fmt.Errorf("voice_outbox index creation failed: %w", err)
 	}
 
-	return nil
+	return CreateLiveIndexes(ctx, db)
 }
 
 type mongoSessionRepository struct {
