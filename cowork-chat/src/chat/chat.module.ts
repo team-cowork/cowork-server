@@ -20,6 +20,7 @@ import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectClient } from './service/project.client';
 import { ProjectMemberCache } from './service/project-member.cache';
+import { UnreadCounterService } from './service/unread-counter.service';
 import { ChannelClient } from './service/channel.client';
 import { ChannelSearchClient } from './service/channel-search.client';
 import { UnifiedSearchResolver } from './unified-search.resolver';
@@ -83,6 +84,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ProjectEventConsumer,
         ProjectClient,
         ProjectMemberCache,
+        UnreadCounterService,
         ChannelClient,
         ChannelSearchClient,
         UserClient,
