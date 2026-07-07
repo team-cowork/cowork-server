@@ -6,6 +6,7 @@ import { ChannelMember } from '../schema/channel-member.schema';
 import { NotificationTriggerProducer } from './notification-trigger.producer';
 import { MessageRepository, NotificationMessage } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
+import { UnreadCounterService } from '../service/unread-counter.service';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 
@@ -40,6 +41,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         private readonly messageRepository: MessageRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly triggerProducer: NotificationTriggerProducer,
+        private readonly unreadCounterService: UnreadCounterService,
         private readonly dicoshot: DicoshotService,
     ) {}
 
@@ -188,6 +190,10 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         const memberIdSet = new Set(members.map((m) => m.userId));
 
         const targetUserIds = [...memberIdSet].filter((id) => id !== msg.authorId);
+
+        if (msg.parentMessageId == null) {
+            await this.unreadCounterService.incrementIfPresent(msg.channelId, targetUserIds);
+        }
 
         const forcedSet = new Set<number>();
         for (const mentionedId of msg.mentions ?? []) {
