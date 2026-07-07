@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
 
 const KEY_PREFIX = 'unread:';
+const TTL_SECONDS = 86_400;
 
 export interface UnreadCacheResult {
     hits: Map<number, number>;
@@ -92,7 +93,9 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             for (const [channelId, count] of values) {
                 args.push(String(channelId), String(count));
             }
-            await this.client.hset(this.key(userId), ...args);
+            const key = this.key(userId);
+            await this.client.hset(key, ...args);
+            await this.client.expire(key, TTL_SECONDS);
         } catch (err) {
             this.logger.warn(`Redis setMany failed [userId=${userId}]`, err);
         }
@@ -103,7 +106,9 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      */
     async set(channelId: number, userId: number, count: number): Promise<void> {
         try {
-            await this.client.hset(this.key(userId), String(channelId), String(count));
+            const key = this.key(userId);
+            await this.client.hset(key, String(channelId), String(count));
+            await this.client.expire(key, TTL_SECONDS);
         } catch (err) {
             this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, err);
         }
