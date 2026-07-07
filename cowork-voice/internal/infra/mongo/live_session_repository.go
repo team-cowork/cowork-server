@@ -222,5 +222,18 @@ func (r *mongoLiveSessionRepository) GetViewerJoinedAt(ctx context.Context, sess
 	return &v.JoinedAt, nil
 }
 
+func (r *mongoLiveSessionRepository) CountActiveViewers(ctx context.Context, sessionID string) (int, error) {
+	col := r.db.Collection(live.CollectionViewers)
+	filter := bson.D{
+		{Key: "session_id", Value: sessionID},
+		{Key: "left_at", Value: nil},
+	}
+	count, err := col.CountDocuments(ctx, filter)
+	if err != nil {
+		return 0, apperr.Internal(err.Error())
+	}
+	return int(count), nil
+}
+
 // ensure interface compliance
 var _ live.Repository = (*mongoLiveSessionRepository)(nil)
