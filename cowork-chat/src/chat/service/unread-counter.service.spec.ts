@@ -2,12 +2,12 @@ import { ConfigService } from '@nestjs/config';
 import { UnreadCounterService } from './unread-counter.service';
 
 const mockHmget = jest.fn();
-const mockHset = jest.fn().mockResolvedValue(undefined);
-const mockExpire = jest.fn().mockResolvedValue(1);
-const mockPipelineExec = jest.fn();
+const mockPipelineExec = jest.fn().mockResolvedValue(undefined);
 const mockPipeline = {
     hexists: jest.fn().mockReturnThis(),
     hincrby: jest.fn().mockReturnThis(),
+    hset: jest.fn().mockReturnThis(),
+    expire: jest.fn().mockReturnThis(),
     exec: mockPipelineExec,
 };
 const mockPipelineFn = jest.fn(() => mockPipeline);
@@ -17,8 +17,6 @@ const mockOn = jest.fn();
 
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     hmget: mockHmget,
-    hset: mockHset,
-    expire: mockExpire,
     pipeline: mockPipelineFn,
     connect: mockConnect,
     disconnect: mockDisconnect,
@@ -39,8 +37,7 @@ describe('UnreadCounterService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockConnect.mockResolvedValue(undefined);
-        mockHset.mockResolvedValue(undefined);
-        mockExpire.mockResolvedValue(1);
+        mockPipelineExec.mockResolvedValue(undefined);
         service = new UnreadCounterService(mockConfigService);
         service.onModuleInit();
     });
@@ -79,37 +76,38 @@ describe('UnreadCounterService', () => {
     });
 
     describe('setMany', () => {
-        it('값이 있으면 hset을 flatten된 인자로 호출하고 TTL을 설정한다', async () => {
+        it('값이 있으면 파이프라인으로 hset과 expire를 한 번에 실행한다', async () => {
             await service.setMany(1, new Map([[10, 3], [20, 0]]));
 
-            expect(mockHset).toHaveBeenCalledWith('unread:1', '10', '3', '20', '0');
-            expect(mockExpire).toHaveBeenCalledWith('unread:1', 86_400);
+            expect(mockPipeline.hset).toHaveBeenCalledWith('unread:1', '10', '3', '20', '0');
+            expect(mockPipeline.expire).toHaveBeenCalledWith('unread:1', 86_400);
+            expect(mockPipelineExec).toHaveBeenCalled();
         });
 
-        it('빈 Map이면 hset을 호출하지 않는다', async () => {
+        it('빈 Map이면 파이프라인을 실행하지 않는다', async () => {
             await service.setMany(1, new Map());
 
-            expect(mockHset).not.toHaveBeenCalled();
-            expect(mockExpire).not.toHaveBeenCalled();
+            expect(mockPipelineFn).not.toHaveBeenCalled();
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
-            mockHset.mockRejectedValue(new Error('connection lost'));
+            mockPipelineExec.mockRejectedValueOnce(new Error('connection lost'));
 
             await expect(service.setMany(1, new Map([[10, 3]]))).resolves.toBeUndefined();
         });
     });
 
     describe('set', () => {
-        it('단일 채널 값을 hset으로 저장하고 TTL을 설정한다', async () => {
+        it('단일 채널 값을 파이프라인으로 hset과 expire를 한 번에 실행한다', async () => {
             await service.set(10, 1, 5);
 
-            expect(mockHset).toHaveBeenCalledWith('unread:1', '10', '5');
-            expect(mockExpire).toHaveBeenCalledWith('unread:1', 86_400);
+            expect(mockPipeline.hset).toHaveBeenCalledWith('unread:1', '10', '5');
+            expect(mockPipeline.expire).toHaveBeenCalledWith('unread:1', 86_400);
+            expect(mockPipelineExec).toHaveBeenCalled();
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
-            mockHset.mockRejectedValue(new Error('connection lost'));
+            mockPipelineExec.mockRejectedValueOnce(new Error('connection lost'));
 
             await expect(service.set(10, 1, 5)).resolves.toBeUndefined();
         });
