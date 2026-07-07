@@ -3,7 +3,10 @@ package com.cowork.team.domain.teamInvite.presentation.controller
 import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
-import com.cowork.team.domain.teamInvite.service.TeamInviteService
+import com.cowork.team.domain.teamInvite.service.CreateInviteService
+import com.cowork.team.domain.teamInvite.service.DeleteInviteService
+import com.cowork.team.domain.teamInvite.service.JoinTeamService
+import com.cowork.team.domain.teamInvite.service.QueryInvitesService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,7 +19,12 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "팀 초대", description = "팀 초대 링크 생성·조회·삭제 및 코드로 팀 가입 API")
 @RestController
 @RequestMapping("/teams")
-class TeamInviteController(private val teamInviteService: TeamInviteService) {
+class TeamInviteController(
+    private val createInviteService: CreateInviteService,
+    private val queryInvitesService: QueryInvitesService,
+    private val deleteInviteService: DeleteInviteService,
+    private val joinTeamService: JoinTeamService,
+) {
 
     @Operation(summary = "초대 링크 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -30,7 +38,7 @@ class TeamInviteController(private val teamInviteService: TeamInviteService) {
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: CreateInviteRequest,
-    ): InviteResponse = teamInviteService.createInvite(userId, teamId, request)
+    ): InviteResponse = createInviteService.execute(userId, teamId, request)
 
     @Operation(summary = "초대 링크 목록 조회 (만료 포함)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -41,7 +49,7 @@ class TeamInviteController(private val teamInviteService: TeamInviteService) {
     fun getInvites(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-    ): List<InviteResponse> = teamInviteService.getInvites(userId, teamId)
+    ): List<InviteResponse> = queryInvitesService.execute(userId, teamId)
 
     @Operation(summary = "초대 링크 무효화", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -56,7 +64,7 @@ class TeamInviteController(private val teamInviteService: TeamInviteService) {
         @PathVariable teamId: Long,
         @PathVariable inviteCode: String,
     ) {
-        teamInviteService.deleteInvite(userId, teamId, inviteCode)
+        deleteInviteService.execute(userId, teamId, inviteCode)
     }
 
     @Operation(summary = "초대 코드로 팀 가입", security = [SecurityRequirement(name = "BearerAuth")])
@@ -70,5 +78,5 @@ class TeamInviteController(private val teamInviteService: TeamInviteService) {
     fun joinTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable inviteCode: String,
-    ): JoinTeamResponse = teamInviteService.joinTeam(userId, inviteCode)
+    ): JoinTeamResponse = joinTeamService.execute(userId, inviteCode)
 }

@@ -3,7 +3,11 @@ package com.cowork.channel.domain.meetingNote.presentation.controller
 import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteResponse
-import com.cowork.channel.domain.meetingNote.service.MeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.CreateMeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.DeleteMeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.GetMeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.ListMeetingNotesService
+import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,7 +20,13 @@ import org.springframework.web.bind.annotation.*
 @Tag(name = "회의록", description = "회의록 작성 및 조회 API")
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-notes")
-class MeetingNoteController(private val meetingNoteService: MeetingNoteService) {
+class MeetingNoteController(
+    private val listMeetingNotesService: ListMeetingNotesService,
+    private val getMeetingNoteService: GetMeetingNoteService,
+    private val createMeetingNoteService: CreateMeetingNoteService,
+    private val updateMeetingNoteService: UpdateMeetingNoteService,
+    private val deleteMeetingNoteService: DeleteMeetingNoteService,
+) {
 
     @Operation(summary = "회의록 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -27,7 +37,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
     fun listNotes(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<MeetingNoteResponse> = meetingNoteService.listNotes(userId, channelId)
+    ): List<MeetingNoteResponse> = listMeetingNotesService.listNotes(userId, channelId)
 
     @Operation(summary = "회의록 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -40,7 +50,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
-    ): MeetingNoteResponse = meetingNoteService.getNote(userId, channelId, noteId)
+    ): MeetingNoteResponse = getMeetingNoteService.getNote(userId, channelId, noteId)
 
     @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -55,7 +65,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestBody request: CreateMeetingNoteRequest,
-    ): MeetingNoteResponse = meetingNoteService.createNote(userId, channelId, request)
+    ): MeetingNoteResponse = createMeetingNoteService.createNote(userId, channelId, request)
 
     @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -69,7 +79,7 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
         @RequestBody request: UpdateMeetingNoteRequest,
-    ): MeetingNoteResponse = meetingNoteService.updateNote(userId, channelId, noteId, request)
+    ): MeetingNoteResponse = updateMeetingNoteService.updateNote(userId, channelId, noteId, request)
 
     @Operation(summary = "회의록 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -84,6 +94,6 @@ class MeetingNoteController(private val meetingNoteService: MeetingNoteService) 
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
     ) {
-        meetingNoteService.deleteNote(userId, channelId, noteId)
+        deleteMeetingNoteService.deleteNote(userId, channelId, noteId)
     }
 }
