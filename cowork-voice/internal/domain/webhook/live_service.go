@@ -176,10 +176,7 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 
 	var durationSeconds int64
 	if joinedAt != nil {
-		// clock skew 등으로 now < joinedAt이면 음수가 될 수 있어 0으로 보정한다.
-		if diff := now.Sub(*joinedAt).Seconds(); diff > 0 {
-			durationSeconds = int64(diff)
-		}
+		durationSeconds = livedomain.DurationSecondsSince(now, *joinedAt)
 	}
 
 	if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.ViewerLeftEvent{
@@ -238,11 +235,7 @@ func (s *LiveWebhookService) handleRoomFinished(ctx context.Context, event *live
 		return nil
 	}
 
-	var durationSeconds int64
-	// clock skew 등으로 now < StartedAt이면 음수가 될 수 있어 0으로 보정한다.
-	if diff := now.Sub(liveSession.StartedAt).Seconds(); diff > 0 {
-		durationSeconds = int64(diff)
-	}
+	durationSeconds := livedomain.DurationSecondsSince(now, liveSession.StartedAt)
 
 	if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.LiveEndedEvent{
 		EventType:       kafkadomain.EventLiveEnded,

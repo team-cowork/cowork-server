@@ -54,24 +54,10 @@ func TestStart_활성_라이브가_없으면_세션을_만들고_호스트_토�
 	}
 }
 
-func TestStart_이미_라이브_중이면_Conflict를_반환한다(t *testing.T) {
-	t.Parallel()
-
-	repo := &stubRepository{findActiveSessionResult: activeSession()}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
-
-	_, err := svc.Start(context.Background(), 123, 99)
-	assertConflict(t, err)
-
-	if repo.createSessionCalls != 0 {
-		t.Fatalf("CreateSession() calls = %d, want 0", repo.createSessionCalls)
-	}
-}
-
 func TestStart_동시_start_경쟁에서_지면_Conflict를_반환한다(t *testing.T) {
 	t.Parallel()
 
-	// CreateSession이 duplicate key 경쟁으로 다른 호스트가 만든 세션을 created=false로 반환.
+	// CreateSession이 duplicate key 경쟁으로 다른 호스트가 만든 기존 활성 세션을 created=false로 반환.
 	repo := &stubRepository{
 		createSessionResult:  activeSession(),
 		createSessionCreated: false,
@@ -87,6 +73,30 @@ func TestStart_동시_start_경쟁에서_지면_Conflict를_반환한다(t *test
 	}
 }
 
+func TestStart_경쟁_세션이_재조회_전에_사라지면_재시도해서_생성한다(t *testing.T) {
+	t.Parallel()
+
+	// 1차 호출: duplicate key 경쟁 상대의 세션이 이미 종료돼 재조회가 (nil, false, nil)을 반환.
+	// 오탐 409 대신 재시도해서 새 세션을 만들어야 한다.
+	repo := &stubRepository{
+		createSessionResults:  []*LiveSession{nil, activeSession()},
+		createSessionCreateds: []bool{false, true},
+	}
+	livekit := &stubLiveKitRoom{token: "host-token"}
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+
+	resp, err := svc.Start(context.Background(), 123, 42)
+	if err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	if repo.createSessionCalls != 2 {
+		t.Fatalf("CreateSession() calls = %d, want 2", repo.createSessionCalls)
+	}
+	if resp.Token != "host-token" {
+		t.Fatalf("response token = %q, want host-token", resp.Token)
+	}
+}
+
 func TestStart_LiveKit방_생성_실패시_생성된_세션을_정리한다(t *testing.T) {
 	t.Parallel()
 
@@ -95,6 +105,25 @@ func TestStart_LiveKit방_생성_실패시_생성된_세션을_정리한다(t *t
 		createSessionCreated: true,
 	}
 	lk := &stubLiveKitRoom{createErr: errors.New("livekit unavailable")}
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, &stubPublisher{}, "wss://livekit.example")
+
+	if _, err := svc.Start(context.Background(), 123, 42); err == nil {
+		t.Fatal("Start() error = nil, want error")
+	}
+
+	if repo.endSessionCalls != 1 {
+		t.Fatalf("EndSession() calls = %d, want 1", repo.endSessionCalls)
+	}
+}
+
+func TestStart_토큰_발급_실패시_생성된_세션을_정리한다(t *testing.T) {
+	t.Parallel()
+
+	repo := &stubRepository{
+		createSessionResult:  activeSession(),
+		createSessionCreated: true,
+	}
+	lk := &stubLiveKitRoom{tokenErr: errors.New("token issuance failed")}
 	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, &stubPublisher{}, "wss://livekit.example")
 
 	if _, err := svc.Start(context.Background(), 123, 42); err == nil {
@@ -263,18 +292,14 @@ func TestGetStatus_라이브가_없으면_live_false를_반환한다(t *testing.
 	}
 }
 
-func TestGetStatus_호스트를_제외한_시청자_수를_센다(t *testing.T) {
+func TestGetStatus_활성_시청자_수를_Mongo에서_센다(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubRepository{findActiveSessionResult: activeSession()}
-	livekit := &stubLiveKitRoom{
-		participants: []LiveKitParticipant{
-			{Identity: "42", JoinedAt: 1700000100}, // 호스트
-			{Identity: "99", JoinedAt: 1700000200},
-			{Identity: "100", JoinedAt: 1700000300},
-		},
+	repo := &stubRepository{
+		findActiveSessionResult:  activeSession(),
+		countActiveViewersResult: 2,
 	}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
 
 	resp, err := svc.GetStatus(context.Background(), 123, 99)
 	if err != nil {
@@ -370,15 +395,21 @@ type stubRepository struct {
 	createSessionResult     *LiveSession
 	createSessionCreated    bool
 	createSessionErr        error
-	createSessionHostUserID int64
-	insertViewerErr         error
-	insertViewer            *LiveViewer
-	getViewerJoinedAtValue  *time.Time
-	markViewerLeftFirst     bool
-	createSessionCalls      int
-	markViewerLeftCalls     int
-	endSessionCalls         int
-	endSessionErr           error
+	// createSessionResults/createSessionCreateds가 설정되면 호출 순서대로 순차 반환한다
+	// (재시도 시나리오 테스트용). 비어 있으면 단일 값 필드를 매 호출마다 반환한다.
+	createSessionResults     []*LiveSession
+	createSessionCreateds    []bool
+	createSessionHostUserID  int64
+	insertViewerErr          error
+	insertViewer             *LiveViewer
+	getViewerJoinedAtValue   *time.Time
+	markViewerLeftFirst      bool
+	createSessionCalls       int
+	markViewerLeftCalls      int
+	endSessionCalls          int
+	endSessionErr            error
+	countActiveViewersResult int
+	countActiveViewersErr    error
 }
 
 func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*LiveSession, error) {
@@ -390,8 +421,13 @@ func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Li
 }
 
 func (s *stubRepository) CreateSession(_ context.Context, _, _, hostUserID int64) (*LiveSession, bool, error) {
-	s.createSessionCalls++
 	s.createSessionHostUserID = hostUserID
+	if len(s.createSessionResults) > 0 {
+		idx := s.createSessionCalls
+		s.createSessionCalls++
+		return s.createSessionResults[idx], s.createSessionCreateds[idx], s.createSessionErr
+	}
+	s.createSessionCalls++
 	return s.createSessionResult, s.createSessionCreated, s.createSessionErr
 }
 
@@ -420,6 +456,10 @@ func (s *stubRepository) CleanupOrphanViewers(_ context.Context, _ string, _ tim
 
 func (s *stubRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
 	return s.getViewerJoinedAtValue, nil
+}
+
+func (s *stubRepository) CountActiveViewers(_ context.Context, _ string) (int, error) {
+	return s.countActiveViewersResult, s.countActiveViewersErr
 }
 
 type stubPublisher struct {
