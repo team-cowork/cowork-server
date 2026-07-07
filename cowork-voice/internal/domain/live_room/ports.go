@@ -26,6 +26,8 @@ type Repository interface {
 	MarkViewerLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
 	CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error)
 	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
+	// CountActiveViewers는 세션의 현재 활성(left_at=null) 시청자 수를 반환한다.
+	CountActiveViewers(ctx context.Context, sessionID string) (int, error)
 }
 
 type MembershipChecker interface {
