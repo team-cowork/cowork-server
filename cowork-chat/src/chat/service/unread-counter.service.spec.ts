@@ -3,6 +3,7 @@ import { UnreadCounterService } from './unread-counter.service';
 
 const mockHmget = jest.fn();
 const mockHset = jest.fn().mockResolvedValue(undefined);
+const mockExpire = jest.fn().mockResolvedValue(1);
 const mockPipelineExec = jest.fn();
 const mockPipeline = {
     hexists: jest.fn().mockReturnThis(),
@@ -17,6 +18,7 @@ const mockOn = jest.fn();
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     hmget: mockHmget,
     hset: mockHset,
+    expire: mockExpire,
     pipeline: mockPipelineFn,
     connect: mockConnect,
     disconnect: mockDisconnect,
@@ -38,6 +40,7 @@ describe('UnreadCounterService', () => {
         jest.clearAllMocks();
         mockConnect.mockResolvedValue(undefined);
         mockHset.mockResolvedValue(undefined);
+        mockExpire.mockResolvedValue(1);
         service = new UnreadCounterService(mockConfigService);
         service.onModuleInit();
     });
@@ -76,16 +79,18 @@ describe('UnreadCounterService', () => {
     });
 
     describe('setMany', () => {
-        it('값이 있으면 hset을 flatten된 인자로 호출한다', async () => {
+        it('값이 있으면 hset을 flatten된 인자로 호출하고 TTL을 설정한다', async () => {
             await service.setMany(1, new Map([[10, 3], [20, 0]]));
 
             expect(mockHset).toHaveBeenCalledWith('unread:1', '10', '3', '20', '0');
+            expect(mockExpire).toHaveBeenCalledWith('unread:1', 86_400);
         });
 
         it('빈 Map이면 hset을 호출하지 않는다', async () => {
             await service.setMany(1, new Map());
 
             expect(mockHset).not.toHaveBeenCalled();
+            expect(mockExpire).not.toHaveBeenCalled();
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
@@ -96,10 +101,11 @@ describe('UnreadCounterService', () => {
     });
 
     describe('set', () => {
-        it('단일 채널 값을 hset으로 저장한다', async () => {
+        it('단일 채널 값을 hset으로 저장하고 TTL을 설정한다', async () => {
             await service.set(10, 1, 5);
 
             expect(mockHset).toHaveBeenCalledWith('unread:1', '10', '5');
+            expect(mockExpire).toHaveBeenCalledWith('unread:1', 86_400);
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
