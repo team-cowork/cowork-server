@@ -313,8 +313,9 @@ services:
       - |
         mkdir -p /sd/blackbox
         if [ -n "$$EXTERNAL_HOST_URL" ]; then
-          host_port="$${EXTERNAL_HOST_URL#*://}"
-          printf '[{"targets":["%s%s"],"labels":{}}]\n' "$$EXTERNAL_HOST_URL" "$$EXTERNAL_HOST_HEALTH_PATH" > /sd/blackbox/external-home.json
+          url_trimmed="$${EXTERNAL_HOST_URL%/}"
+          host_port="$${url_trimmed#*://}"
+          printf '[{"targets":["%s%s"],"labels":{}}]\n' "$$url_trimmed" "$$EXTERNAL_HOST_HEALTH_PATH" > /sd/blackbox/external-home.json
           printf '[{"targets":["%s"],"labels":{"service":"%s","__metrics_path__":"/actuator/prometheus"}}]\n' "$$host_port" "$$EXTERNAL_HOST_NAME" > /sd/external-home-metrics.json
         else
           printf '[]\n' > /sd/blackbox/external-home.json
