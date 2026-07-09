@@ -34,6 +34,10 @@ func BadRequest(msg string) *Error {
 	return &Error{HTTPStatus: http.StatusBadRequest, Code: "BAD_REQUEST", Message: msg}
 }
 
+func Conflict(msg string) *Error {
+	return &Error{HTTPStatus: http.StatusConflict, Code: "CONFLICT", Message: msg}
+}
+
 func Unauthorized() *Error {
 	return &Error{HTTPStatus: http.StatusUnauthorized, Code: "UNAUTHORIZED", Message: "인증이 필요합니다."}
 }
