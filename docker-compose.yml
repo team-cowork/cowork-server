@@ -447,6 +447,11 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       REDIS_HOST: redis
+      # TODO: 임시 - 홈서버 등 Eureka 미등록 외부 호스트 연동. ExternalRouteConfig 제거 시 함께 삭제할 것
+      EXTERNAL_HOST_URL: ${EXTERNAL_HOST_URL:-}
+      EXTERNAL_HOST_NAME: ${EXTERNAL_HOST_NAME:-external}
+      EXTERNAL_HOST_HEALTH_PATH: ${EXTERNAL_HOST_HEALTH_PATH:-/health}
+      EXTERNAL_HOST_DOCS_PATH: ${EXTERNAL_HOST_DOCS_PATH:-/v3/api-docs}
     ports:
       - "8080:8080"
     volumes:
