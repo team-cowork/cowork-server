@@ -1,5 +1,6 @@
 package com.cowork.gateway.controller
 
+import com.cowork.gateway.config.ExternalHostProperties
 import com.cowork.gateway.health.ServiceStatus
 import com.cowork.gateway.response.CommonApiResponse
 import com.netflix.appinfo.InstanceInfo
@@ -18,7 +19,9 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
+import java.time.Duration
 
 @Tag(name = "Health", description = "서비스 헬스 체크 API")
 @RestController
@@ -26,7 +29,10 @@ import reactor.core.publisher.Mono
 class HealthCheckController(
     private val discoveryClient: ReactiveDiscoveryClient,
     private val routeLocator: RouteLocator,
+    private val externalHostProperties: ExternalHostProperties,
 ) {
+    // TODO: 임시 - 외부 호스트는 Eureka lb 대상이 아니므로 로드밸런싱이 적용되지 않는 순수 WebClient를 사용
+    private val webClient = WebClient.create()
 
     @Operation(
         summary = "전체 서비스 상태 조회",
@@ -93,7 +99,25 @@ class HealthCheckController(
             }
         }
         .collectMap<String, ServiceStatus>({ it.first }, { it.second })
+        .flatMap { statuses -> externalHostStatus().map { extra -> statuses + extra }.defaultIfEmpty(statuses) }
         .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
+
+    // TODO: 임시 - 홈서버 등 Eureka 미등록 외부 호스트 헬스체크. ExternalRouteConfig 제거 시 함께 삭제할 것
+    private fun externalHostStatus(): Mono<Pair<String, ServiceStatus>> {
+        val url = externalHostProperties.url.removeSuffix("/")
+        if (url.isBlank()) return Mono.empty()
+
+        val healthPath = externalHostProperties.healthPath.removePrefix("/")
+
+        return Mono.defer {
+            webClient.get()
+                .uri("$url/$healthPath")
+                .retrieve()
+                .toBodilessEntity()
+                .map { externalHostProperties.name to ServiceStatus.UP }
+                .timeout(Duration.ofSeconds(3))
+        }.onErrorReturn(externalHostProperties.name to ServiceStatus.DOWN)
+    }
 
     private fun ServiceInstance.isUp(): Boolean {
         if (this is EurekaServiceInstance) {
