@@ -30,9 +30,9 @@ class HealthCheckController(
     private val discoveryClient: ReactiveDiscoveryClient,
     private val routeLocator: RouteLocator,
     private val externalHostProperties: ExternalHostProperties,
-    webClientBuilder: WebClient.Builder,
 ) {
-    private val webClient = webClientBuilder.build()
+    // TODO: 임시 - 외부 호스트는 Eureka lb 대상이 아니므로 로드밸런싱이 적용되지 않는 순수 WebClient를 사용
+    private val webClient = WebClient.create()
 
     @Operation(
         summary = "전체 서비스 상태 조회",
@@ -109,13 +109,14 @@ class HealthCheckController(
 
         val healthPath = externalHostProperties.healthPath.removePrefix("/")
 
-        return webClient.get()
-            .uri("$url/$healthPath")
-            .retrieve()
-            .toBodilessEntity()
-            .map { externalHostProperties.name to ServiceStatus.UP }
-            .timeout(Duration.ofSeconds(3))
-            .onErrorReturn(externalHostProperties.name to ServiceStatus.DOWN)
+        return Mono.defer {
+            webClient.get()
+                .uri("$url/$healthPath")
+                .retrieve()
+                .toBodilessEntity()
+                .map { externalHostProperties.name to ServiceStatus.UP }
+                .timeout(Duration.ofSeconds(3))
+        }.onErrorReturn(externalHostProperties.name to ServiceStatus.DOWN)
     }
 
     private fun ServiceInstance.isUp(): Boolean {
