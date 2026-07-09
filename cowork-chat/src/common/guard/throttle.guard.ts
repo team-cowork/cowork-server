@@ -18,6 +18,8 @@ export class ThrottleGuard implements CanActivate {
     ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
+        if (context.getType() !== 'http') return true;
+
         const options = this.reflector.getAllAndOverride<ThrottleOptions>(THROTTLE_OPTIONS_KEY, [
             context.getHandler(),
             context.getClass(),
@@ -27,13 +29,21 @@ export class ThrottleGuard implements CanActivate {
         const request = context.switchToHttp().getRequest<Request>();
         const userId = RequestContextUtil.getUserId(request.headers);
 
-        const windowMs = Number(getOptionalConfig(this.configService, options.windowMsConfigKey) ?? options.defaultWindowMs);
-        const maxRequests = Number(getOptionalConfig(this.configService, options.maxRequestsConfigKey) ?? options.defaultMaxRequests);
+        const windowMs = this.resolveNumberConfig(options.windowMsConfigKey, options.defaultWindowMs);
+        const maxRequests = this.resolveNumberConfig(options.maxRequestsConfigKey, options.defaultMaxRequests);
 
         const allowed = await this.rateLimiter.tryAcquire(`${options.key}:${userId}`, windowMs, maxRequests);
         if (!allowed) {
             throw new HttpException(options.message ?? DEFAULT_THROTTLE_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
         }
         return true;
+    }
+
+    private resolveNumberConfig(configKey: string, defaultValue: number): number {
+        const raw = getOptionalConfig(this.configService, configKey);
+        if (raw === undefined) return defaultValue;
+
+        const parsed = Number(raw);
+        return Number.isNaN(parsed) ? defaultValue : parsed;
     }
 }

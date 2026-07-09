@@ -19,6 +19,7 @@ const defaultOptions: ThrottleOptions = {
 
 const makeContext = (headers: Record<string, string> = { 'x-user-id': '42' }): ExecutionContext =>
     ({
+        getType: () => 'http',
         getHandler: jest.fn(),
         getClass: jest.fn(),
         switchToHttp: () => ({
@@ -35,6 +36,18 @@ const makeConfigService = (values: Record<string, string> = {}): ConfigService =
 describe('ThrottleGuard', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+    });
+
+    it('HTTP 컨텍스트가 아니면 통과시키고 rate limiter를 호출하지 않는다', async () => {
+        const wsContext = {
+            getType: () => 'ws',
+            getHandler: jest.fn(),
+            getClass: jest.fn(),
+        } as unknown as ExecutionContext;
+        const guard = new ThrottleGuard(makeReflector(defaultOptions), mockRateLimiter as unknown as RedisRateLimiter, makeConfigService());
+
+        await expect(guard.canActivate(wsContext)).resolves.toBe(true);
+        expect(mockRateLimiter.tryAcquire).not.toHaveBeenCalled();
     });
 
     it('데코레이터 메타데이터가 없으면 통과시키고 rate limiter를 호출하지 않는다', async () => {
@@ -68,5 +81,15 @@ describe('ThrottleGuard', () => {
         await guard.canActivate(makeContext());
 
         expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:msgrate:42', 10_000, 5);
+    });
+
+    it('환경설정 값이 숫자로 파싱되지 않으면 default 값으로 폴백한다', async () => {
+        mockRateLimiter.tryAcquire.mockResolvedValue(true);
+        const configService = makeConfigService({ CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS: 'not-a-number' });
+        const guard = new ThrottleGuard(makeReflector(defaultOptions), mockRateLimiter as unknown as RedisRateLimiter, configService);
+
+        await guard.canActivate(makeContext());
+
+        expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:msgrate:42', 10_000, 20);
     });
 });
