@@ -191,7 +191,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         const targetUserIds = [...memberIdSet].filter((id) => id !== msg.authorId);
 
-        if (msg.parentMessageId == null) {
+        if (msg.parentMessageId == null && !msg.notificationRetryCount) {
             await this.unreadCounterService.incrementIfPresent(msg.channelId, targetUserIds);
         }
 
