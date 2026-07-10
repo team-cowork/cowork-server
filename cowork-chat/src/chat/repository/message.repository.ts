@@ -359,19 +359,40 @@ export class MessageRepository {
     }
 
     /**
-     * `PENDING` 상태인 메시지 하나를 원자적으로 `PROCESSING`으로 전환하고 반환합니다.
+     * `PENDING` 상태인 메시지를 최대 `batchSize`개까지 원자적으로 `PROCESSING`으로 전환하고 반환합니다.
      *
-     * 아웃박스(outbox) 패턴에서 알림 워커가 중복 처리 없이 하나의 메시지를 점유하기 위해
-     * `findOneAndUpdate`로 조회와 상태 변경을 단일 원자 연산으로 수행합니다.
+     * 아웃박스(outbox) 패턴에서 알림 워커가 배치 전체를 한 번에 점유하기 위한 3단계 연산입니다:
+     * 1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
+     * 2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
+     *    그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
+     * 3. 이번 호출에서 실제로 점유한 문서만 `processingStartedAt` 타임스탬프로 구분해 조회
      *
-     * @returns 상태가 `PROCESSING`으로 전환된 {@link NotificationMessage}. 처리할 메시지가 없으면 `null`
+     * 단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
+     * 고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
+     *
+     * @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
+     * @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
-    findOnePendingAndMarkProcessing(): Promise<NotificationMessage | null> {
-        return this.messageModel.findOneAndUpdate(
-            { notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
-            { sort: { createdAt: 1 }, new: true },
-        ).lean();
+    async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
+        const candidates = await this.messageModel
+            .find({ notificationStatus: 'PENDING' })
+            .sort({ createdAt: 1 })
+            .limit(batchSize)
+            .select('_id')
+            .lean();
+        if (candidates.length === 0) return [];
+
+        const ids = candidates.map((c) => c._id);
+        const processingStartedAt = new Date();
+        await this.messageModel.updateMany(
+            { _id: { $in: ids }, notificationStatus: 'PENDING' },
+            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt } },
+        );
+
+        return this.messageModel
+            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt })
+            .sort({ createdAt: 1 })
+            .lean();
     }
 
     /**
