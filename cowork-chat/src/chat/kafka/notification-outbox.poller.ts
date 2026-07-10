@@ -105,12 +105,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
 
         // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
-        const msgs: NotificationMessage[] = [];
-        for (let i = 0; i < BATCH_SIZE; i++) {
-            const msg = await this.messageRepository.findOnePendingAndMarkProcessing();
-            if (!msg) break;
-            msgs.push(msg);
-        }
+        const msgs = await this.messageRepository.findPendingAndMarkProcessing(BATCH_SIZE);
         if (msgs.length === 0) return;
 
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
