@@ -16,8 +16,7 @@ services:
       - "127.0.0.1:9094:9094"
 
   vault:
-    ports:
-      - "127.0.0.1:8200:8200"
+    ports: []
 
   cowork-config:
     ports:
