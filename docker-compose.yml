@@ -638,7 +638,7 @@ services:
       GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
       GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY}
     ports:
-      - "8089:8084"
+      - "${COWORK_PROJECT_HOST_PORT:-8089}:8084"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
