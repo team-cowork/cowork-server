@@ -71,6 +71,11 @@ curl -s http://127.0.0.1:18089/actuator/health
 기존 `location` 블록들 사이에 아래를 추가한다:
 
 ```nginx
+# 끝에 슬래시 없이 /cowork/project로 들어온 요청은 308로 리다이렉트해 404를 방지한다
+location = /cowork/project {
+    return 308 $scheme://$http_host$request_uri/;
+}
+
 location /cowork/project/ {
     proxy_pass         http://127.0.0.1:18089/;
     proxy_http_version 1.1;
@@ -78,6 +83,9 @@ location /cowork/project/ {
     proxy_set_header   X-Real-IP         $remote_addr;
     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header   X-Forwarded-Proto $scheme;
+    # 애플리케이션이 만드는 리다이렉트/링크가 /cowork/project 접두사를 유지하도록 전달.
+    # Spring Boot에서 인식하려면 server.forward-headers-strategy=framework 설정이 필요하다.
+    proxy_set_header   X-Forwarded-Prefix /cowork/project;
 }
 ```
 
