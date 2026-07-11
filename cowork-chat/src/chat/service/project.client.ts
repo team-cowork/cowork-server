@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
 import { BaseHttpClient } from './base-http-client';
 import { ProjectMemberCache } from './project-member.cache';
+import { ProjectRepoCache } from './project-repo.cache';
 
 /**
  * GitHub 저장소 연동 정보.
@@ -28,6 +29,7 @@ export class ProjectClient extends BaseHttpClient {
     constructor(
         private readonly configService: ConfigService,
         private readonly memberCache: ProjectMemberCache,
+        private readonly repoCache: ProjectRepoCache,
     ) {
         super();
         this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
@@ -44,18 +46,28 @@ export class ProjectClient extends BaseHttpClient {
      * @param projectId - 조회할 프로젝트의 ID
      * @returns GitHub 저장소 정보, 존재하지 않거나 파싱 불가 시 `null`
      * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
+     *
+     * 조회 결과(저장소 정보 없음 포함)는 Redis에 30초 TTL로 캐싱된다.
+     * Redis 조회 실패 시에는 캐시 미스로 간주해 항상 project-service로 폴백한다.
      */
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
+        const cached = await this.repoCache.get(projectId);
+        if (cached !== undefined) return cached;
+
         try {
             const res = await this.fetchWithRetry(`${this.projectServiceUrl}/projects/${projectId}`, {}, 5000);
-            if (res.status === 404) return null;
+            if (res.status === 404) {
+                await this.repoCache.set(projectId, null);
+                return null;
+            }
             if (!res.ok) {
                 throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
             }
             const body = await this.readJsonBody<{ teamId?: number | null; githubRepoUrl?: string | null }>(res);
             const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
-            if (!repoInfo || typeof body.teamId !== 'number') return null;
-            return { teamId: body.teamId, ...repoInfo };
+            const result = (!repoInfo || typeof body.teamId !== 'number') ? null : { teamId: body.teamId, ...repoInfo };
+            await this.repoCache.set(projectId, result);
+            return result;
         } catch (err) {
             this.logger.error(`Failed to call project-service projectId=${projectId}`, err);
             throw err;
