@@ -43,6 +43,9 @@ cp .env.example .env
 #                                    # 쓰이지 않지만 base 기본값(9094)이 막혀 있으면 지정 필요
 #   COWORK_CONFIG_HOST_PORT=18761   # cowork-config(Eureka) 호스트 포트. base 기본값(8761)이
 #                                    # 막혀 있으면 지정 필요
+#   COWORK_PROJECT_HOST_PORT=18089  # cowork-project 호스트 포트. base 기본값(8089)이
+#                                    # 막혀 있으면 지정 필요 — nginx location의 proxy_pass와
+#                                    # 반드시 같은 값을 써야 한다
 
 docker compose \
   -f docker-compose.yml \
@@ -59,7 +62,7 @@ mongodb, elasticsearch, gateway 등)는 project의 의존성이 아니므로 뜨
 
 ```bash
 docker compose ps
-curl -s http://127.0.0.1:8089/actuator/health
+curl -s http://127.0.0.1:18089/actuator/health
 ```
 
 ## nginx 설정
@@ -69,7 +72,7 @@ curl -s http://127.0.0.1:8089/actuator/health
 
 ```nginx
 location /cowork/project/ {
-    proxy_pass         http://127.0.0.1:8089/;
+    proxy_pass         http://127.0.0.1:18089/;
     proxy_http_version 1.1;
     proxy_set_header   Host              $host;
     proxy_set_header   X-Real-IP         $remote_addr;
