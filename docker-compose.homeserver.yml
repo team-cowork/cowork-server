@@ -1,0 +1,28 @@
+# 홈서버(맥 미니) 단독 배포용 오버라이드.
+# cowork-project만 독립 환경으로 띄울 때 사용한다.
+# 사용: docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.homeserver.yml up -d --build cowork-project
+#
+# 이 서버에는 다른 프로젝트들이 이미 mysql(3306), redis(6379), minio(9000-9001) 등을
+# 호스트 포트로 점유하고 있어, cowork용 인프라 컨테이너는 충돌을 피하도록 포트를 옮기고
+# 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은 nginx가
+# cowork-project 포트(8089)만 리버스 프록시한다.
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:3307:3306"
+
+  kafka:
+    ports:
+      - "127.0.0.1:9094:9094"
+
+  vault:
+    ports:
+      - "127.0.0.1:8200:8200"
+
+  cowork-config:
+    ports:
+      - "127.0.0.1:8761:8761"
+
+  cowork-project:
+    ports:
+      - "127.0.0.1:8089:8084"
