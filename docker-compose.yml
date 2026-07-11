@@ -422,7 +422,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
     ports:
-      - "8761:8761"
+      - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
