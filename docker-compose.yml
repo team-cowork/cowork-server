@@ -8,7 +8,7 @@ services:
       MYSQL_USER: ${MYSQL_USER}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
-      - "3306:3306"
+      - "${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sh:/docker-entrypoint-initdb.d/init.sh
@@ -70,7 +70,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     ports:
-      - "9094:9094"
+      - "${KAFKA_EXTERNAL_HOST_PORT:-9094}:9094"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:
@@ -422,7 +422,7 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
     ports:
-      - "8761:8761"
+      - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
@@ -638,7 +638,7 @@ services:
       GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
       GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY}
     ports:
-      - "8089:8084"
+      - "${COWORK_PROJECT_HOST_PORT:-8089}:8084"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
