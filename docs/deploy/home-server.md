@@ -91,3 +91,25 @@ nginx -s reload
 적용되면 `https://kimtaeeun.site/cowork/project/`로 접근할 수 있다.
 (Cloudflare가 플렉시블 모드로 HTTPS를 종단하므로 서버 입장에서는 HTTP 80 포트로만
 요청이 들어온다.)
+
+## 재부팅 시 자동 기동
+
+이 홈서버는 재부팅 후 Docker Desktop이 컨테이너를 자동으로 재개하지 않아서,
+`~/Library/LaunchAgents/site.kimtaeeun.docker-startup.plist`가 로그인 시
+`~/Downloads/docker-startup.sh`를 실행해 앱별 컨테이너를 순서대로 `docker start`
+하는 방식으로 운영되고 있다. cowork도 같은 방식으로 등록해뒀다:
+
+```bash
+# cowork-project (독립 배포, ~/Downloads/cowork)
+# vault는 dev 모드라 재시작하면 저장된 시크릿이 날아가므로 vault-init을 매번 다시 돌린다.
+/usr/local/bin/docker start cowork-mysql cowork-vault cowork-kafka
+sleep 30
+/usr/local/bin/docker start cowork-vault-init
+sleep 10
+/usr/local/bin/docker start cowork-config
+sleep 15
+/usr/local/bin/docker start cowork-project
+```
+
+새 서비스를 이 홈서버에 추가로 배포한다면 이 스크립트에도 같은 패턴으로 추가해야
+재부팅 후에도 살아난다.
