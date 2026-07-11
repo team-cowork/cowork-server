@@ -70,7 +70,7 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     ports:
-      - "9094:9094"
+      - "${KAFKA_EXTERNAL_HOST_PORT:-9094}:9094"
     volumes:
       - kafka_data:/var/lib/kafka/data
     healthcheck:

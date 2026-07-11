@@ -7,6 +7,12 @@
 # 환경변수로 포트를 뺄 수 있게 해뒀으니 .env에 MYSQL_HOST_PORT=3307 처럼 지정한다
 # (docker compose가 ports 목록을 파일 간에 병합(추가)하는 방식이라, 여기서 포트를
 # 다시 매핑하면 base 설정이 사라지는 게 아니라 두 매핑이 겹쳐 충돌한다).
+# kafka의 EXTERNAL 리스너 호스트 포트(9094)도 같은 이유로 KAFKA_EXTERNAL_HOST_PORT
+# 환경변수로 뺐다 — 이 홈서버에서는 9094가 lsof/docker 어디에도 안 잡히는데도
+# Docker Desktop 내부적으로 계속 "address already in use"가 나서(재현되는 좀비
+# 포트) .env에서 다른 값(예: 19094)으로 지정한다. 우리 배포에서는 project/config가
+# kafka와 내부 네트워크(kafka:9092)로만 통신하므로 EXTERNAL 리스너를 호스트에 열
+# 필요 자체가 없다.
 # 그 외 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은
 # nginx가 cowork-project 포트(8089)만 리버스 프록시한다.
 #
@@ -16,8 +22,6 @@
 # vault ports를 직접 수정해야 한다.
 services:
   kafka:
-    ports:
-      - "127.0.0.1:9094:9094"
     environment:
       # 단일 노드 KRaft(broker+controller 겸용)라 controller quorum voter는
       # 결국 자기 자신이다. 서비스명(kafka)으로 자기 자신을 가리키면 컨테이너가
