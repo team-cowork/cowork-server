@@ -39,6 +39,8 @@ cp .env.example .env
 #   VAULT_HOST=cowork-vault, VAULT_PORT=8200, VAULT_SCHEME=http, VAULT_TOKEN=dev-root-token
 #   GITHUB_APP_SERVICE_URL / GITHUB_APP_INTERNAL_API_KEY (연동 안 하면 임의 값)
 #   MYSQL_HOST_PORT=3307  # 호스트에 이미 3306을 쓰는 mysql이 있으면 반드시 겹치지 않는 값으로 지정
+#   KAFKA_EXTERNAL_HOST_PORT=19094  # kafka EXTERNAL 리스너용 호스트 포트. 이 배포에서는
+#                                    # 쓰이지 않지만 base 기본값(9094)이 막혀 있으면 지정 필요
 
 docker compose \
   -f docker-compose.yml \
