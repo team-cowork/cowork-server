@@ -6,6 +6,11 @@
 # 호스트 포트로 점유하고 있어, cowork용 인프라 컨테이너는 충돌을 피하도록 포트를 옮기고
 # 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은 nginx가
 # cowork-project 포트(8089)만 리버스 프록시한다.
+#
+# 참고: docker compose는 ports 목록을 파일 간에 병합(추가)하므로, base
+# docker-compose.yml의 vault 포트(0.0.0.0:8200)는 이 오버라이드로 제거할 수 없다.
+# 홈서버가 라우터 NAT 뒤에 있고 80/443만 포워딩되어 있어 LAN 밖에서는 접근 불가하지만,
+# 완전히 막고 싶다면 base 파일의 vault ports를 직접 수정해야 한다.
 services:
   mysql:
     ports:
@@ -14,9 +19,9 @@ services:
   kafka:
     ports:
       - "127.0.0.1:9094:9094"
-
-  vault:
-    ports: []
+    healthcheck:
+      start_period: 90s
+      retries: 10
 
   cowork-config:
     ports:
