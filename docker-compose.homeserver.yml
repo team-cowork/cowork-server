@@ -3,19 +3,18 @@
 # 사용: docker compose -f docker-compose.yml -f docker-compose.override.yml -f docker-compose.homeserver.yml up -d --build cowork-project
 #
 # 이 서버에는 다른 프로젝트들이 이미 mysql(3306), redis(6379), minio(9000-9001) 등을
-# 호스트 포트로 점유하고 있어, cowork용 인프라 컨테이너는 충돌을 피하도록 포트를 옮기고
-# 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은 nginx가
-# cowork-project 포트(8089)만 리버스 프록시한다.
+# 호스트 포트로 점유하고 있다. mysql은 docker-compose.yml에서 MYSQL_HOST_PORT
+# 환경변수로 포트를 뺄 수 있게 해뒀으니 .env에 MYSQL_HOST_PORT=3307 처럼 지정한다
+# (docker compose가 ports 목록을 파일 간에 병합(추가)하는 방식이라, 여기서 포트를
+# 다시 매핑하면 base 설정이 사라지는 게 아니라 두 매핑이 겹쳐 충돌한다).
+# 그 외 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은
+# nginx가 cowork-project 포트(8089)만 리버스 프록시한다.
 #
-# 참고: docker compose는 ports 목록을 파일 간에 병합(추가)하므로, base
-# docker-compose.yml의 vault 포트(0.0.0.0:8200)는 이 오버라이드로 제거할 수 없다.
-# 홈서버가 라우터 NAT 뒤에 있고 80/443만 포워딩되어 있어 LAN 밖에서는 접근 불가하지만,
-# 완전히 막고 싶다면 base 파일의 vault ports를 직접 수정해야 한다.
+# 참고: 같은 이유로 base docker-compose.yml의 vault 포트(0.0.0.0:8200)도 이
+# 오버라이드로는 제거할 수 없다. 홈서버가 라우터 NAT 뒤에 있고 80/443만
+# 포워딩되어 있어 LAN 밖에서는 접근 불가하지만, 완전히 막고 싶다면 base 파일의
+# vault ports를 직접 수정해야 한다.
 services:
-  mysql:
-    ports:
-      - "127.0.0.1:3307:3306"
-
   kafka:
     ports:
       - "127.0.0.1:9094:9094"

@@ -38,6 +38,7 @@ cp .env.example .env
 #   JWT_SECRET, DATAGSM_CLIENT_ID
 #   VAULT_HOST=cowork-vault, VAULT_PORT=8200, VAULT_SCHEME=http, VAULT_TOKEN=dev-root-token
 #   GITHUB_APP_SERVICE_URL / GITHUB_APP_INTERNAL_API_KEY (연동 안 하면 임의 값)
+#   MYSQL_HOST_PORT=3307  # 호스트에 이미 3306을 쓰는 mysql이 있으면 반드시 겹치지 않는 값으로 지정
 
 docker compose \
   -f docker-compose.yml \
