@@ -12,7 +12,8 @@
 # Docker Desktop 내부적으로 계속 "address already in use"가 나서(재현되는 좀비
 # 포트) .env에서 다른 값(예: 19094)으로 지정한다. 우리 배포에서는 project/config가
 # kafka와 내부 네트워크(kafka:9092)로만 통신하므로 EXTERNAL 리스너를 호스트에 열
-# 필요 자체가 없다.
+# 필요 자체가 없다. cowork-config의 Eureka 포트(8761)도 이 홈서버에서 같은 좀비
+# 포트 증상이 나서 COWORK_CONFIG_HOST_PORT 환경변수로 뺐다.
 # 그 외 외부에 노출할 필요가 없는 포트는 127.0.0.1에만 바인딩한다. 공개 진입점은
 # nginx가 cowork-project 포트(8089)만 리버스 프록시한다.
 #
@@ -34,10 +35,6 @@ services:
       timeout: 30s
       start_period: 120s
       retries: 10
-
-  cowork-config:
-    ports:
-      - "127.0.0.1:8761:8761"
 
   cowork-project:
     ports:
