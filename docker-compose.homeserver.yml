@@ -19,7 +19,9 @@ services:
     ports:
       - "127.0.0.1:9094:9094"
     healthcheck:
-      start_period: 90s
+      interval: 20s
+      timeout: 30s
+      start_period: 120s
       retries: 10
 
   cowork-config:
