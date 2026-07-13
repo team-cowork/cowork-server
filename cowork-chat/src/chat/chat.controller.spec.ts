@@ -10,6 +10,7 @@ import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
 import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
+import { ThrottleGuard } from '../common/guard/throttle.guard';
 
 const mockMessageId = new Types.ObjectId().toString();
 const userId = 42;
@@ -66,7 +67,10 @@ describe('ChatController', () => {
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
                 { provide: ProjectClient, useValue: mockProjectClient },
             ],
-        }).compile();
+        })
+            .overrideGuard(ThrottleGuard)
+            .useValue({ canActivate: () => true })
+            .compile();
 
         controller = module.get<ChatController>(ChatController);
         jest.clearAllMocks();
