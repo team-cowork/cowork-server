@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ProjectRepoCache } from '../service/project-repo.cache';
 
 interface ProjectEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -24,6 +25,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
+        private readonly projectRepoCache: ProjectRepoCache,
     ) {}
 
     setSocketServer(io: Server) {
@@ -84,6 +86,10 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
         const room = `team:${event.teamId}`;
         const { eventType, ...payload } = event;
+
+        if (eventType === 'UPDATED' || eventType === 'DELETED') {
+            void this.projectRepoCache.invalidate(event.projectId);
+        }
 
         if (eventType === 'CREATED') {
             this.io.to(room).emit('project:created', payload);
