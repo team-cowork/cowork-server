@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ChannelMetaCache } from '../service/channel-meta.cache';
 
 interface ChannelEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -26,6 +27,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
+        private readonly channelMetaCache: ChannelMetaCache,
     ) {}
 
     setSocketServer(io: Server) {
@@ -86,6 +88,10 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
         const room = `team:${event.teamId}`;
         const { eventType, ...payload } = event;
+
+        if (eventType === 'UPDATED' || eventType === 'DELETED') {
+            void this.channelMetaCache.invalidate(event.channelId);
+        }
 
         if (eventType === 'CREATED') {
             this.io.to(room).emit('channel:created', payload);
