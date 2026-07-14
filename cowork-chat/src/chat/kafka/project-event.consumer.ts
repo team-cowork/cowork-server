@@ -77,11 +77,12 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private handleEvent(event: ProjectEvent) {
-        if (!this.io) {
-            throw new Error('Socket.IO server is not initialized yet');
-        }
         if (!event || !event.eventType || !event.teamId) {
             this.logger.warn('Invalid project event payload: ' + JSON.stringify(event));
+            return;
+        }
+        if (!this.io) {
+            this.logger.warn(`Socket.IO server not initialized yet, dropping project event (projectId=${event.projectId})`);
             return;
         }
         const room = `team:${event.teamId}`;
