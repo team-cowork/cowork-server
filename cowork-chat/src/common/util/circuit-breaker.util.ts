@@ -32,7 +32,11 @@ export class CircuitBreakerUtil {
         }
 
         // HALF_OPEN: 동시에 여러 probe가 나가지 않도록 하나만 허용한다.
-        return !entry.halfOpenProbeInFlight && (entry.halfOpenProbeInFlight = true);
+        if (entry.halfOpenProbeInFlight) {
+            return false;
+        }
+        entry.halfOpenProbeInFlight = true;
+        return true;
     }
 
     /** 요청 성공을 기록한다. HALF_OPEN이었다면 CLOSED로 복구한다. */
