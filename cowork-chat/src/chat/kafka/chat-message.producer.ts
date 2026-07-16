@@ -37,7 +37,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             clientId: 'cowork-chat',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer();
+        this.producer = kafka.producer({ idempotent: true });
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
@@ -61,6 +61,11 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
         if (this.isConnected) {
             await this.producer.disconnect();
         }
+    }
+
+    /** Kafka producer 연결 상태를 확인한다 (readiness 체크용). */
+    isReady(): boolean {
+        return this.isConnected;
     }
 
     /**
