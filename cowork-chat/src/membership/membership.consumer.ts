@@ -68,17 +68,25 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     { $set: { teamId: teamId ?? null, role, channelType } },
                     { upsert: true },
                 );
-                this.io?.to(`chat:${channelId}`).emit('member:joined', { channelId, teamId, userId, role });
+                this.broadcast(channelId, 'member:joined', { channelId, teamId, userId, role });
             } else if (eventType === 'LEAVE') {
                 await this.memberModel.deleteOne({ channelId, userId });
-                this.io?.to(`chat:${channelId}`).emit('member:left', { channelId, teamId, userId });
+                this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
             } else if (eventType === 'ROLE_CHANGE') {
                 await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId: teamId ?? null, role, channelType } });
-                this.io?.to(`chat:${channelId}`).emit('member:role:updated', { channelId, teamId, userId, role });
+                this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
             }
         } catch (err) {
             this.logger.error(`Failed to handle membership event [${eventType}]`, err);
             throw err;
         }
+    }
+
+    private broadcast(channelId: number, event: string, payload: unknown): void {
+        if (!this.io) {
+            this.logger.warn(`Socket.IO server not initialized yet, dropping ${event} event (channelId=${channelId})`);
+            return;
+        }
+        this.io.to(`chat:${channelId}`).emit(event, payload);
     }
 }
