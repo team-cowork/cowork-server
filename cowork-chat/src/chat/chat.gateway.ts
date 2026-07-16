@@ -52,6 +52,10 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 @WebSocketGateway({
     namespace: '/chat',
     path: '/ws/chat',
+    connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000,
+        skipMiddlewares: true,
+    },
     cors: {
         origin: true, // Gateway에서 이미 제어되지만, 필요시 ConfigService로 주입 가능
         methods: ['GET', 'POST'],
