@@ -151,7 +151,11 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             });
 
             this.logger.log(`message saved messageId=${saved._id.toString()} channelId=${event.channelId}`);
-            this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+            if (!this.io) {
+                this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
+            } else {
+                this.io.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+            }
             void this.channelMemberRepository
                 .updateLastRead(event.channelId, event.authorId, saved._id)
                 .catch((err) => this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
