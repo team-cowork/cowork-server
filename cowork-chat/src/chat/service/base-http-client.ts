@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { CircuitBreakerUtil } from '../../common/util/circuit-breaker.util';
 
 /**
  * 마이크로서비스 간 HTTP 통신을 위한 추상 기반 클라이언트.
@@ -23,6 +24,7 @@ export abstract class BaseHttpClient {
      * @param timeoutMs - 단일 시도의 타임아웃(ms)
      * @param maxRetries - 최대 재시도 횟수 (기본 2 → 최대 3회 시도)
      * @returns fetch Response
+     * @throws 회로가 OPEN 상태여서 요청이 차단된 경우
      * @throws 마지막 시도에서도 네트워크/타임아웃 에러가 발생한 경우
      */
     protected async fetchWithRetry(
@@ -31,6 +33,10 @@ export abstract class BaseHttpClient {
         timeoutMs: number,
         maxRetries = 2,
     ): Promise<Response> {
+        if (!CircuitBreakerUtil.canRequest(this.serviceName)) {
+            throw new Error(`${this.serviceName} 회로가 열려있어 요청이 차단되었습니다 (circuit breaker OPEN)`);
+        }
+
         for (let attempt = 0; attempt <= maxRetries; attempt++) {
             if (attempt > 0) {
                 await new Promise<void>((resolve) => setTimeout(resolve, 100 * 2 ** (attempt - 1)));
@@ -40,12 +46,20 @@ export abstract class BaseHttpClient {
             try {
                 res = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
             } catch (err) {
-                if (attempt === maxRetries) throw err;
+                if (attempt === maxRetries) {
+                    CircuitBreakerUtil.onFailure(this.serviceName);
+                    throw err;
+                }
                 continue;
             }
             if (res.status >= 500 && attempt < maxRetries) {
                 void res.body?.cancel().catch((err) => this.logger.warn(`${this.serviceName} response body cancel failed: ${String(err)}`));
                 continue;
+            }
+            if (res.status >= 500) {
+                CircuitBreakerUtil.onFailure(this.serviceName);
+            } else {
+                CircuitBreakerUtil.onSuccess(this.serviceName);
             }
             return res;
         }
