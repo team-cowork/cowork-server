@@ -36,6 +36,15 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         this.client?.disconnect();
     }
 
+    /** Redis 연결 상태를 확인한다. PING 실패 시 `false`를 반환한다 (readiness 체크용, fail-open 대상 아님). */
+    async ping(): Promise<boolean> {
+        try {
+            return (await this.client.ping()) === 'PONG';
+        } catch {
+            return false;
+        }
+    }
+
     /**
      * `key`에 대해 `windowMs` 시간창 내 `maxRequests` 한도를 초과하지 않았는지 검사하고, 소비한다.
      * 만료된 항목 제거·개수 확인·항목 추가·TTL 갱신을 하나의 Redis 트랜잭션(MULTI/EXEC)으로 처리해
