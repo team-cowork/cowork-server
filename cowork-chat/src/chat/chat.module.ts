@@ -97,5 +97,6 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         RedisRateLimiter,
         ThrottleGuard,
     ],
+    exports: [RedisRateLimiter, ChatMessageProducer],
 })
 export class ChatModule {}
