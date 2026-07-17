@@ -4,6 +4,8 @@ dependencies:
   - bom: io.vertx:vertx-stack-depchain:5.1.1
   - io.vertx:vertx-core
   - io.vertx:vertx-web
+  # Amper does not currently package vertx-web's required auth-common transitive dependency.
+  - io.vertx:vertx-auth-common
   - io.vertx:vertx-lang-kotlin
   - io.vertx:vertx-lang-kotlin-coroutines
   - io.vertx:vertx-config
@@ -12,8 +14,7 @@ dependencies:
   - io.vertx:vertx-kafka-client
   - io.vertx:vertx-service-discovery
   - io.vertx:vertx-micrometer-metrics
-  - com.ongres.scram:client:2.1
-  - io.micrometer:micrometer-registry-prometheus-simpleclient:1.17.0
+  - io.micrometer:micrometer-registry-prometheus:1.17.0
   - com.netflix.eureka:eureka-client:2.0.6
   - org.flywaydb:flyway-core:12.8.1
   - org.flywaydb:flyway-database-postgresql:12.8.1
