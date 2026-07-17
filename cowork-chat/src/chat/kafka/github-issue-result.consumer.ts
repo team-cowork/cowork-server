@@ -129,12 +129,16 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     /**
      * Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
      *
-     * Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 조용히 무시된다.
+     * Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
      *
      * @param channelId - 브로드캐스트 대상 채널 ID
      * @param message - 전송할 메시지 객체
      */
     private notifyClient(channelId: number, message: unknown): void {
-        this.io?.to(`chat:${channelId}`).emit('message', message);
+        if (!this.io) {
+            this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
+            return;
+        }
+        this.io.to(`chat:${channelId}`).emit('message', message);
     }
 }
