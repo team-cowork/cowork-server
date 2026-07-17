@@ -27,6 +27,7 @@ dependencyManagement {
 
 dependencies {
     implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.restclient)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.spring.boot.starter.data.jpa)
@@ -37,6 +38,7 @@ dependencies {
     implementation(libs.jackson.module.kotlin)
 
     implementation(libs.mysql.connector.j)
+    implementation(libs.spring.boot.flyway)
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
     implementation(libs.kotlin.reflect)
