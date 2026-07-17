@@ -106,6 +106,7 @@ export VAULT_TOKEN=...
 export CONFIG_GIT_URI=https://github.com/your-org/cowork-config-repo.git
 export LIVEKIT_API_KEY=...
 export LIVEKIT_API_SECRET=...
+export LIVEKIT_WS_URL=wss://livekit.example.com
 export DISCORD_WEBHOOK_URL=...
 
 # 렌더링 단계에서 필수 변수와 병합 결과를 먼저 검증
@@ -118,7 +119,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps --all
 ```
 
-`docker-compose.prod.yml`은 12개 애플리케이션 이미지를 모두 `${REGISTRY}/<service>:${IMAGE_TAG}`로 교체하고, LiveKit 클라우드 설정 및 RTC UDP 포트 범위를 적용한다. 태그에는 `latest` 대신 릴리스 버전이나 커밋 SHA를 사용한다.
+`docker-compose.prod.yml`은 12개 애플리케이션 이미지를 모두 `${REGISTRY}/<service>:${IMAGE_TAG}`로 교체하고, LiveKit 클라우드 설정과 host network를 적용한다. 태그에는 `latest` 대신 릴리스 버전이나 커밋 SHA를 사용한다.
 
 `kafka-init`, `vault-init`, `minio-init`, `alertmanager-config-init`, `prometheus-external-target-writer`는 성공 후 종료되는 일회성 작업이다. 이 때문에 Compose 버전에 따라 `up --wait`가 성공한 init 컨테이너도 종료로 판정해 0이 아닌 코드를 반환할 수 있으므로, `ps --all`에서 `Exited (0)`인지 확인한다.
 
@@ -211,13 +212,15 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 |---------------------|-------------------------------------------|-------------------------------------------------------|
 | LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | 운영 오버레이가 `livekit-cloud.yaml`을 명시적으로 마운트 |
 | LiveKit 키           | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
-| LiveKit RTC         | `7881/tcp`                                | `50000-60000/udp`를 호스트와 클라우드 방화벽에 개방               |
+| LiveKit RTC         | `7881/tcp`                                | Linux host network 사용, `7880/tcp`, `7881/tcp`, `50000-60000/udp`를 방화벽에 개방 |
 | DB 비밀번호             | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
 | Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
 | MinIO               | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
 | `ELASTICSEARCH_URL` | `http://elasticsearch:9200`               | `.env`에서 관리형 ES 클러스터 주소로 교체 (Vault 경유 주입)             |
 
-운영 오버레이는 단일 호스트 Compose 배포를 위한 최소 기준이다. 고가용성 클라우드 환경에서는 MySQL/PostgreSQL/MongoDB/Kafka/Redis/Elasticsearch/Vault/오브젝트 스토리지를 관리형 또는 별도 클러스터로 분리하고, 공인 포트 노출 대신 사설 네트워크·TLS·보안 그룹을 적용해야 한다. Kafka는 자동 토픽 생성을 끈 상태이므로 운영 파티션 수와 복제 계수(`KAFKA_TOPIC_PARTITIONS`, `KAFKA_TOPIC_REPLICATION_FACTOR`)를 클러스터 크기에 맞춰 지정한다.
+운영 오버레이는 Linux 단일 호스트 Compose 배포를 위한 최소 기준이다. LiveKit은 대규모 UDP 포트 매핑에 따른 Docker 프록시/NAT 비용을 피하기 위해 host network를 사용하며, `cowork-voice`는 `host.docker.internal`의 host-gateway 매핑으로 LiveKit API에 접근한다. `LIVEKIT_WS_URL`에는 외부 클라이언트가 접속할 수 있는 TLS URL을 지정한다.
+
+고가용성 클라우드 환경에서는 MySQL/PostgreSQL/MongoDB/Kafka/Redis/Elasticsearch/Vault/오브젝트 스토리지를 관리형 또는 별도 클러스터로 분리하고, 공인 포트 노출 대신 사설 네트워크·TLS·보안 그룹을 적용해야 한다. Kafka는 자동 토픽 생성을 끈 상태이므로 운영 파티션 수와 복제 계수(`KAFKA_TOPIC_PARTITIONS`, `KAFKA_TOPIC_REPLICATION_FACTOR`)를 클러스터 크기에 맞춰 지정한다.
 
 ### Vault 시크릿 배포 구조
 
@@ -293,7 +296,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - 로컬 기본 키는 `.env`의 `devkey` / `devsecret`이며 LiveKit 컨테이너와 `cowork-voice`가 동일 값을 공유한다.
 - `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `MONGODB_URI`는 Vault `secret/cowork-voice`에서 내려온다.
 - Redis 연결은 Config Server 기준 `redis:6379`를 사용한다.
-- 운영 오버레이는 `livekit-cloud.yaml`을 직접 마운트하고 `50000-60000/udp`를 publish한다. 클라우드 방화벽에도 같은 UDP 범위를 열어야 한다.
+- 운영 오버레이는 `livekit-cloud.yaml`을 직접 마운트하고 Linux host network를 사용한다. Docker `ports`로 RTC 범위를 publish하지 않으므로 호스트와 클라우드 방화벽에 `7880/tcp`, `7881/tcp`, `50000-60000/udp`를 직접 열어야 한다.
 
 `cowork-preference`:
 - Amper 패키징에서 `vertx-web`의 런타임 클래스가 빠지지 않도록 `vertx-auth-common`을 명시적 의존성으로 둔다.
