@@ -59,7 +59,7 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
             clientId: 'cowork-chat-notification',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer();
+        this.producer = kafka.producer({ idempotent: true });
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`Notification trigger producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
