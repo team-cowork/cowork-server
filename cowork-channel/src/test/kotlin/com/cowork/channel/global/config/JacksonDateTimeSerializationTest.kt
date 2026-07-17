@@ -8,15 +8,16 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import tools.jackson.databind.json.JsonMapper
 import java.time.LocalDateTime
 
-class JacksonDateTimeSerializationTest : StringSpec({
-    "serializes LocalDateTime as an ISO-8601 string with the Boot 4 defaults" {
-        ApplicationContextRunner()
-            .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration::class.java))
-            .run { context ->
-                val jsonMapper = context.getBean(JsonMapper::class.java)
-                val value = LocalDateTime.of(2026, 7, 17, 13, 2, 3)
+class JacksonDateTimeSerializationTest :
+    StringSpec({
+        "serializes LocalDateTime as an ISO-8601 string with the Boot 4 defaults" {
+            ApplicationContextRunner()
+                .withConfiguration(AutoConfigurations.of(JacksonAutoConfiguration::class.java))
+                .run { context ->
+                    val jsonMapper = context.getBean(JsonMapper::class.java)
+                    val value = LocalDateTime.of(2026, 7, 17, 13, 2, 3)
 
-                jsonMapper.writeValueAsString(value) shouldBe "\"2026-07-17T13:02:03\""
-            }
-    }
-})
+                    jsonMapper.writeValueAsString(value) shouldBe "\"2026-07-17T13:02:03\""
+                }
+        }
+    })
