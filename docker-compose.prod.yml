@@ -6,7 +6,7 @@
 #   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
 #   SPRING_PROFILES_ACTIVE=prod
 #   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI
-#   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, DISCORD_WEBHOOK_URL
+#   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
 services:
   cowork-config:
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
@@ -63,6 +63,13 @@ services:
     image: ${REGISTRY:?REGISTRY is required}/cowork-voice:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      # Host-networked LiveKit is not attached to the Compose network. Keep the
+      # server-to-server API on the host gateway and return the public WSS URL
+      # to clients.
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://host.docker.internal:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   cowork-project:
     image: ${REGISTRY:?REGISTRY is required}/cowork-project:${IMAGE_TAG:?IMAGE_TAG is required}
@@ -80,6 +87,9 @@ services:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}
 
   livekit:
+    # LiveKit recommends host networking for production Docker deployments.
+    # It avoids allocating a docker-proxy/NAT rule for every RTC UDP port.
+    network_mode: host
     environment:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
@@ -88,7 +98,7 @@ services:
       # Service-level environment variables cannot change Compose host-path
       # interpolation, so replace the common volume explicitly by mount target.
       - ./docker/livekit/livekit-cloud.yaml:/etc/livekit.yaml:ro
-    ports:
-      # LiveKit media must reach the host directly; open the same UDP range in
-      # the cloud firewall/security group.
-      - "50000-60000:50000-60000/udp"
+    # Host networking exposes LiveKit's listeners directly. Remove the common
+    # Compose port mappings and open 7880/tcp, 7881/tcp, 50000-60000/udp in
+    # the host/cloud firewall instead.
+    ports: !reset []
