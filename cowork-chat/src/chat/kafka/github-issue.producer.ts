@@ -36,7 +36,7 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
             clientId: 'cowork-chat-github',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer();
+        this.producer = kafka.producer({ idempotent: true });
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`GitHub issue producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
