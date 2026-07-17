@@ -16,7 +16,8 @@ import { getOptionalConfig, getRequiredConfig } from './common/config/config.uti
 
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
-const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH]);
+const HEALTH_READY_PATH = '/health/ready';
+const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_READY_PATH]);
 
 @Module({
     imports: [
