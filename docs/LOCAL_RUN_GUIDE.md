@@ -9,6 +9,7 @@
 - 2026-05-02 (`cowork-user` Elixir 전환, Flyway 자동 실행, healthcheck 검증 반영)
 - 2026-05-11 (Elasticsearch 검색 인덱싱 추가, 로컬 배포 고려 사항 보완)
 - 2026-05-26 (ACCOUNT_CREDENTIAL_ENCRYPTION_KEY·ACCOUNT_SHARE_OAUTH_STATE_SECRET 누락 보완, cowork-chat cold-start 경쟁 조건 주의사항 추가, Docker Desktop 재시작 후 Vault 복구 절차 및 gateway 401 원인 추가)
+- 2026-07-17 (전체 38개 서비스 cold-start 검증, Kafka 토픽 초기화·Alertmanager 설정 생성·운영 오버레이 보완)
 
 검증 기준:
 - `docker-compose.yml`
@@ -34,7 +35,7 @@
 | `cowork-project`       | `8089` | Spring Boot                          | 정상 |
 | `cowork-roadmap`       | `8088` | Spring Boot (WebFlux + R2DBC)        | 정상 |
 
-인프라 (DB, 브로커, 모니터링 등) 17개 컨테이너도 동일하게 올라간다.
+DB, 브로커, 모니터링, exporter, 일회성 init 작업을 포함해 총 38개 서비스(애플리케이션 12개 + 지원 서비스 26개)가 동일하게 올라간다.
 
 ## 2. 사전 준비
 
@@ -57,9 +58,10 @@ cp .env.example .env
 |-------------------------|----------------------------------|---------------------------------------|
 | `LIVEKIT_API_KEY`                    | `devkey`                    | 로컬 LiveKit / voice 기본값                |
 | `LIVEKIT_API_SECRET`                 | `devsecret`                 | 로컬 LiveKit / voice 기본값                |
-| `LIVEKIT_CONFIG_FILE`                | `livekit.yaml`              | 클라우드·운영 환경에서 `livekit-cloud.yaml`로 변경 |
+| `LIVEKIT_CONFIG_FILE`                | `livekit.yaml`              | 로컬에서 다른 LiveKit 설정 파일을 시험할 때만 변경 |
 | `OAUTH2_GOOGLE_*`                    | 비어 있음                       | Google OAuth2 사용 시                    |
 | `OAUTH2_GITHUB_*`                    | 비어 있음                       | GitHub OAuth2 사용 시                    |
+| `DISCORD_WEBHOOK_URL`                | 비어 있음                       | 로컬은 no-op receiver 사용, `prod`에서는 필수 |
 | `MINIO_PUBLIC_ENDPOINT`              | `http://__LOCAL_IP__:9000`  | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정       |
 | `ELASTICSEARCH_URL`                  | `http://elasticsearch:9200` | 운영 환경에서 관리형 ES 클러스터 주소로 변경            |
 | `ACCOUNT_CREDENTIAL_ENCRYPTION_KEY`  | 비어 있음                       | **필수** — `openssl rand -base64 32`로 생성, 없으면 vault-init이 빈 값으로 시드 |
@@ -99,9 +101,26 @@ docker compose up -d --build cowork-user
 export REGISTRY=ghcr.io/your-org
 export IMAGE_TAG=v1.2.3
 export SPRING_PROFILES_ACTIVE=prod
+export VAULT_HOST=vault.example.com
+export VAULT_TOKEN=...
+export CONFIG_GIT_URI=https://github.com/your-org/cowork-config-repo.git
+export LIVEKIT_API_KEY=...
+export LIVEKIT_API_SECRET=...
+export DISCORD_WEBHOOK_URL=...
 
+# 렌더링 단계에서 필수 변수와 병합 결과를 먼저 검증
+docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+# 전체 기동
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+# 장기 실행 서비스의 healthy 상태와 init 작업의 Exited (0) 상태를 함께 확인
+docker compose -f docker-compose.yml -f docker-compose.prod.yml ps --all
 ```
+
+`docker-compose.prod.yml`은 12개 애플리케이션 이미지를 모두 `${REGISTRY}/<service>:${IMAGE_TAG}`로 교체하고, LiveKit 클라우드 설정 및 RTC UDP 포트 범위를 적용한다. 태그에는 `latest` 대신 릴리스 버전이나 커밋 SHA를 사용한다.
+
+`kafka-init`, `vault-init`, `minio-init`, `alertmanager-config-init`, `prometheus-external-target-writer`는 성공 후 종료되는 일회성 작업이다. 이 때문에 Compose 버전에 따라 `up --wait`가 성공한 init 컨테이너도 종료로 판정해 0이 아닌 코드를 반환할 수 있으므로, `ps --all`에서 `Exited (0)`인지 확인한다.
 
 ### 상태 / 로그
 
@@ -132,8 +151,10 @@ Docker Compose가 아래 의존 관계를 따라 자동으로 기동한다. Spri
 
 ```
 infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
+  ├─ kafka → kafka-init (필수 토픽 생성)
   ├─ vault → vault-init (시크릿 시드)
   ├─ minio → minio-init (버킷 생성)
+  ├─ alertmanager-config-init → alertmanager
   └─ cowork-config (Config Server + Eureka)
        ├─ cowork-gateway
        ├─ cowork-authorization
@@ -148,12 +169,13 @@ infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
 
 ## 7. 빌드 구조
 
-### JVM/Elixir 서비스 (config, gateway, channel, team, preference, user)
+### JVM/Elixir 서비스 (config, gateway, channel, team, project, roadmap, preference, user)
 
 - 빌드 컨텍스트: 프로젝트 루트 (`.`)
 - `cowork-user`는 Mix release로 빌드
 - `cowork-user`는 컨테이너 시작 시 `docker-entrypoint.sh`에서 `flyway migrate`를 먼저 실행한 뒤 Elixir release를 기동
-- 나머지 JVM 서비스는 각 서비스별 Gradle 빌드 사용
+- `cowork-project`는 Maven, `cowork-preference`는 Kotlin Toolchain(Amper), 나머지 JVM 서비스는 Gradle 빌드를 사용
+- Gradle 기반 로컬 Docker 빌드는 공용 BuildKit Gradle 캐시를 사용하므로 후속 서비스 빌드에서 의존성을 재다운로드하지 않는다.
 
 ### Go 서비스 (authorization, notification, voice)
 
@@ -187,12 +209,15 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 | 항목                  | 로컬 값                                      | 운영 변경 사항                                              |
 |---------------------|-------------------------------------------|-------------------------------------------------------|
-| LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | `.env`에서 `LIVEKIT_CONFIG_FILE=livekit-cloud.yaml`로 변경 |
+| LiveKit config      | `livekit.yaml` (`use_external_ip: false`) | 운영 오버레이가 `livekit-cloud.yaml`을 명시적으로 마운트 |
 | LiveKit 키           | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                         |
+| LiveKit RTC         | `7881/tcp`                                | `50000-60000/udp`를 호스트와 클라우드 방화벽에 개방               |
 | DB 비밀번호             | `1234`                                    | 강도 높은 비밀번호로 교체                                        |
 | Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                            |
 | MinIO               | 로컬 컨테이너                                   | S3 호환 엔드포인트로 변경                                       |
 | `ELASTICSEARCH_URL` | `http://elasticsearch:9200`               | `.env`에서 관리형 ES 클러스터 주소로 교체 (Vault 경유 주입)             |
+
+운영 오버레이는 단일 호스트 Compose 배포를 위한 최소 기준이다. 고가용성 클라우드 환경에서는 MySQL/PostgreSQL/MongoDB/Kafka/Redis/Elasticsearch/Vault/오브젝트 스토리지를 관리형 또는 별도 클러스터로 분리하고, 공인 포트 노출 대신 사설 네트워크·TLS·보안 그룹을 적용해야 한다. Kafka는 자동 토픽 생성을 끈 상태이므로 운영 파티션 수와 복제 계수(`KAFKA_TOPIC_PARTITIONS`, `KAFKA_TOPIC_REPLICATION_FACTOR`)를 클러스터 크기에 맞춰 지정한다.
 
 ### Vault 시크릿 배포 구조
 
@@ -268,6 +293,12 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - 로컬 기본 키는 `.env`의 `devkey` / `devsecret`이며 LiveKit 컨테이너와 `cowork-voice`가 동일 값을 공유한다.
 - `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `MONGODB_URI`는 Vault `secret/cowork-voice`에서 내려온다.
 - Redis 연결은 Config Server 기준 `redis:6379`를 사용한다.
+- 운영 오버레이는 `livekit-cloud.yaml`을 직접 마운트하고 `50000-60000/udp`를 publish한다. 클라우드 방화벽에도 같은 UDP 범위를 열어야 한다.
+
+`cowork-preference`:
+- Amper 패키징에서 `vertx-web`의 런타임 클래스가 빠지지 않도록 `vertx-auth-common`을 명시적 의존성으로 둔다.
+- Vert.x 5는 SCRAM 클라이언트를 기본 포함하므로 구버전 `com.ongres.scram:client`를 별도로 추가하지 않는다. 중복되면 PostgreSQL 로그에 `expected SASL response`가 반복되고 쿼리가 모두 실패할 수 있다.
+- `/health`와 `/metrics`가 응답하지 않으면 `NoClassDefFoundError: SecurityAudit` 로그와 패키징된 의존성을 먼저 확인한다.
 
 `cowork-notification`:
 - `docker/secrets/firebase-credentials.json`이 없으면 기동 자체가 실패한다.
@@ -280,7 +311,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - 데이터 볼륨: `es_data` — `docker compose down -v` 실행 시 인덱스가 삭제되며, 다음 기동 시 `cowork-chat`이 자동으로 `chat_messages` 인덱스를 재생성함
 - `cowork-chat`이 healthy 상태가 될 때까지 `depends_on`으로 보장; ES healthcheck는 최대 150초(interval 15s × retries 10) 대기
 
-`cowork-chat` (Elasticsearch 관련):
+`cowork-chat`:
 - Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
 - `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
 - `ELASTICSEARCH_URL`은 Vault `secret/cowork-chat`을 통해 Config Server → 앱 순서로 주입된다. 로컬 기본값은 `http://elasticsearch:9200`이며, 운영 환경에서는 `.env`의 `ELASTICSEARCH_URL`을 실제 클러스터 주소로 교체하면 vault-init이 해당 값을 시드한다.
@@ -288,7 +319,13 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 - **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
 - **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
 - ES 기동이 느릴 경우(`start_period: 60s`): `docker compose logs -f elasticsearch`로 상태 확인 후 `cowork-chat` 재시작
-- **cold-start Kafka 경쟁 조건**: `cowork-chat`의 Kafka consumer는 모듈 초기화 시 `subscribe()`를 호출한다. 최초 `docker compose up` 시 다른 서비스가 Kafka 토픽을 아직 생성하지 않은 상태라면 `UNKNOWN_TOPIC_OR_PARTITION` 오류로 NestJS 초기화가 실패하고 HTTP 서버가 열리지 않는다. `process.exit(1)` 처리로 컨테이너가 자동 재시작되며, 1~2회 재시작 후 토픽이 모두 생성되면 정상 기동된다. 수동으로 해결하려면 `docker compose restart cowork-chat`을 실행하면 된다.
+- `kafka-init`이 모든 필수 토픽을 만든 뒤 Config Server와 앱이 기동하므로 최초 실행 시 `UNKNOWN_TOPIC_OR_PARTITION` 재시작에 의존하지 않는다.
+- GraphQL nullable union 필드는 `@Field(() => String, { nullable: true })`처럼 런타임 타입을 명시해야 스키마 생성 단계에서 실패하지 않는다.
+
+`alertmanager`:
+- 로컬에서 `DISCORD_WEBHOOK_URL`이 비어 있으면 `alertmanager-config-init`이 no-op receiver 설정을 생성한다.
+- `local` 이외 프로파일에서는 webhook이 없으면 init 컨테이너가 실패해 알림이 조용히 유실되는 배포를 막는다.
+- webhook은 생성된 제한 권한 파일로 전달하며 Alertmanager 설정에는 비밀값을 직접 기록하지 않는다.
 
 `MINIO_PUBLIC_ENDPOINT`:
 - `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
