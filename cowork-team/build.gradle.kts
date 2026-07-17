@@ -21,8 +21,10 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
         mavenBom(libs.awspring.cloud.bom.get().toString())
+        // Keep the repository-wide Spring Cloud train authoritative. The AWS BOM also manages
+        // Spring Cloud and otherwise downgrades Commons to a version that rejects Spring Boot 4.1.
+        mavenBom(libs.spring.cloud.dependencies.get().toString())
     }
 }
 
@@ -37,6 +39,7 @@ dependencies {
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.mysql.connector.j)
+    implementation(libs.spring.boot.flyway)
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
     implementation(libs.kotlin.reflect)
