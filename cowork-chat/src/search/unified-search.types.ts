@@ -44,7 +44,7 @@ export class SearchChannelItem {
     @Field({ description: 'DEFAULT | FILE_SHARE 등' })
     viewType!: string;
 
-    @Field({ nullable: true, description: '채널 설명 (없으면 null)' })
+    @Field(() => String, { nullable: true, description: '채널 설명 (없으면 null)' })
     description?: string | null;
 
     @Field({ description: '비공개 채널 여부' })
@@ -56,7 +56,7 @@ export class UnifiedSearchResult {
     @Field(() => [SearchMessageItem], { description: 'Elasticsearch 메시지 검색 결과 (최신순)' })
     messages!: SearchMessageItem[];
 
-    @Field({ nullable: true, description: '다음 페이지 커서. 마지막 페이지이면 null' })
+    @Field(() => String, { nullable: true, description: '다음 페이지 커서. 마지막 페이지이면 null' })
     messageNextCursor?: string | null;
 
     @Field(() => [SearchChannelItem], { description: '채널명 키워드 검색 결과' })
