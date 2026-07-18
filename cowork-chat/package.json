@@ -19,6 +19,7 @@
   "type": "commonjs",
   "dependencies": {
     "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
     "@elastic/elasticsearch": "^9.4.2",
     "@nestjs/apollo": "^13.4.2",
     "@nestjs/common": "^11.1.27",
@@ -67,5 +68,19 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1"
+  },
+  "overrides": {
+    "@nestjs/graphql": {
+      "ws": "8.21.1"
+    },
+    "engine.io": {
+      "ws": "8.21.1"
+    },
+    "engine.io-client": {
+      "ws": "8.21.1"
+    },
+    "socket.io-adapter": {
+      "ws": "8.21.1"
+    }
   }
 }

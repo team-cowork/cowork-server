@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: noop
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+# Local development must remain observable even when no external notification
+# endpoint is configured. Non-local deployments fail in alertmanager-config-init
+# instead of silently selecting this receiver.
+receivers:
+  - name: noop
