@@ -9,7 +9,8 @@ import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Duration
 import java.time.Instant
 
@@ -18,7 +19,11 @@ class TeamLifecycleSyncPublisher(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val lockingTaskExecutor: LockingTaskExecutor,
+    transactionManager: PlatformTransactionManager,
 ) {
+    private val readOnlyTransaction = TransactionTemplate(transactionManager).apply {
+        isReadOnly = true
+    }
 
     fun publishTeamSnapshot(actorUserId: Long, members: List<TeamMember>) {
         if (members.isEmpty()) return
@@ -45,7 +50,6 @@ class TeamLifecycleSyncPublisher(
     }
 
     @EventListener(ApplicationReadyEvent::class)
-    @Transactional(readOnly = true)
     fun publishAllSnapshots() {
         val lockConfig = LockConfiguration(
             Instant.now(),
@@ -53,7 +57,11 @@ class TeamLifecycleSyncPublisher(
             Duration.ofMinutes(10),
             Duration.ZERO,
         )
-        lockingTaskExecutor.executeWithLock(Runnable { doPublishAll() }, lockConfig)
+        lockingTaskExecutor.executeWithLock(Runnable { publishAllInReadOnlyTransaction() }, lockConfig)
+    }
+
+    private fun publishAllInReadOnlyTransaction() {
+        readOnlyTransaction.executeWithoutResult { doPublishAll() }
     }
 
     private fun doPublishAll() {
