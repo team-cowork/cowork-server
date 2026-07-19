@@ -1,5 +1,5 @@
 // @title           Cowork Voice API
-// @version         20260623.0
+// @version         20260719.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
@@ -28,6 +28,7 @@ import (
 
 	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
+	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
@@ -107,11 +108,24 @@ func main() {
 	roomHandler := roomdomain.NewHandler(roomSvc)
 	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, outboxRepo)
 
+	// live: 방송형(1:N) 라이브. 세션은 Mongo 직행(캐시 미적용), 이벤트는 동일 outbox 경유
+	liveMongoRepo := mongoinfra.NewMongoLiveSessionRepository(db)
+	liveLKRoom := lkinfra.NewLiveKitLiveRoom(
+		livekitClient,
+		cfg.LiveKitAPIKey,
+		cfg.LiveKitAPISecret,
+		cfg.LiveKitTokenTTLSecs,
+	)
+	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelClient, liveLKRoom, outboxRepo, cfg.LiveKitWsURL)
+	liveHandler := livedomain.NewHandler(liveSvc)
+	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom, outboxRepo)
+
 	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
 	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
 	outboxRelay.Start()
 	webhookHandler := webhookdomain.NewHandler(
 		webhookSvc,
+		liveWebhookSvc,
 		auth.NewSimpleKeyProvider(cfg.LiveKitAPIKey, cfg.LiveKitAPISecret),
 	)
 
@@ -134,6 +148,10 @@ func main() {
 		r.Post("/voice/channels/{channel_id}/leave", roomHandler.Leave)
 		r.Get("/voice/channels/{channel_id}/participants", roomHandler.Participants)
 		r.Get("/voice/sessions/{session_id}", roomHandler.GetSession)
+		r.Post("/live/channels/{channel_id}/start", liveHandler.Start)
+		r.Post("/live/channels/{channel_id}/join", liveHandler.Join)
+		r.Post("/live/channels/{channel_id}/leave", liveHandler.Leave)
+		r.Get("/live/channels/{channel_id}", liveHandler.Status)
 	})
 
 	srv := &http.Server{

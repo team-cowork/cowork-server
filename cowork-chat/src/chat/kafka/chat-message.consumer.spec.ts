@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { DicoshotService } from 'dicoshot-nest';
 import { ChatMessageConsumer } from './chat-message.consumer';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
@@ -25,6 +26,10 @@ const mockElasticsearchService = {
     indexMessage: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockDicoshotService = {
+    sendCustom: jest.fn().mockResolvedValue(true),
+};
+
 describe('ChatMessageConsumer', () => {
     let consumer: ChatMessageConsumer;
 
@@ -34,6 +39,7 @@ describe('ChatMessageConsumer', () => {
             mockChannelMemberRepository as unknown as ChannelMemberRepository,
             mockConfigService as unknown as ConfigService,
             mockElasticsearchService as unknown as ElasticsearchService,
+            mockDicoshotService as unknown as DicoshotService,
         );
         jest.clearAllMocks();
     });

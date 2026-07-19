@@ -13,6 +13,57 @@ definitions:
         example: 404
         type: integer
     type: object
+  internal_domain_live_room.JoinResponse:
+    properties:
+      host_user_id:
+        example: 1
+        type: integer
+      livekit_url:
+        example: wss://livekit.example.com
+        type: string
+      room_name:
+        example: live-42-550e8400
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiJ9...
+        type: string
+    type: object
+  internal_domain_live_room.StartResponse:
+    properties:
+      livekit_url:
+        example: wss://livekit.example.com
+        type: string
+      room_name:
+        example: live-42-550e8400
+        type: string
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiJ9...
+        type: string
+    type: object
+  internal_domain_live_room.StatusResponse:
+    properties:
+      host_user_id:
+        example: 1
+        type: integer
+      live:
+        example: true
+        type: boolean
+      session_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      started_at:
+        example: "2024-01-01T00:00:00Z"
+        type: string
+      viewer_count:
+        example: 3
+        type: integer
+    type: object
   internal_domain_voice_room.JoinResponse:
     properties:
       livekit_url:
@@ -74,9 +125,135 @@ definitions:
 info:
   contact: {}
   description: 음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
-  title: cowork Voice API
-  version: "1.0"
+  title: Cowork Voice API
+  version: "20260623.0"
 paths:
+  /live/channels/{channel_id}:
+    get:
+      description: 채널의 현재 라이브 진행 여부와 시청자 수를 반환합니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_live_room.StatusResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 라이브 상태 조회
+      tags:
+      - live
+  /live/channels/{channel_id}/join:
+    post:
+      description: 진행 중인 라이브에 시청자로 참여합니다. subscribe 전용 토큰을 받습니다. 호스트가 재입장하면 publish
+        권한 토큰이 재발급됩니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_live_room.JoinResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "403":
+          description: 채널 멤버가 아님
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "404":
+          description: 진행 중인 라이브 없음
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 라이브 시청 참여
+      tags:
+      - live
+  /live/channels/{channel_id}/leave:
+    post:
+      description: 라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자 전원이 퇴장 처리됩니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      responses:
+        "204":
+          description: 퇴장 성공
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "404":
+          description: 진행 중인 라이브 없음
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 라이브 퇴장
+      tags:
+      - live
+  /live/channels/{channel_id}/start:
+    post:
+      description: 채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유) 토큰을 받습니다.
+        채널당 동시 라이브는 1개입니다.
+      parameters:
+      - description: 채널 ID
+        in: path
+        name: channel_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/internal_domain_live_room.StartResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "403":
+          description: 채널 멤버가 아님
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "409":
+          description: 이미 라이브 진행 중
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error'
+      security:
+      - BearerAuth: []
+      summary: 라이브 방송 시작
+      tags:
+      - live
   /voice/channels/{channel_id}/join:
     post:
       description: 채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새로 생성됩니다.
@@ -112,7 +289,8 @@ paths:
       - voice
   /voice/channels/{channel_id}/leave:
     post:
-      description: 채널에서 퇴장합니다. 마지막 참여자가 나가면 방이 자동으로 삭제됩니다.
+      description: 채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로
+        세션이 종료됩니다.
       parameters:
       - description: 채널 ID
         in: path

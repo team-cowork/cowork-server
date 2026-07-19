@@ -1,4 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { UserRole } from '../enum/user-role.enum';
 
 export class RequestContextUtil {
     static getUserId(headers: Record<string, string | string[] | undefined>): number {
@@ -13,6 +14,6 @@ export class RequestContextUtil {
     static getUserRole(headers: Record<string, string | string[] | undefined>): string {
         const raw = headers['x-user-role'];
         const value = Array.isArray(raw) ? raw[0] : raw;
-        return value ?? 'ROLE_USER';
+        return value ?? UserRole.USER;
     }
 }
