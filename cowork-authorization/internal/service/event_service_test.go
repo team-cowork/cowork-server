@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/cowork/authorization/internal/config"
@@ -17,16 +18,16 @@ const testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789ab
 var errTest = errors.New("test error")
 
 type fakePublisher struct {
-	calls   int
-	lastKey string
-	lastVal []byte
-	err     error
+	calls  int
+	keys   []string
+	values [][]byte
+	err    error
 }
 
 func (f *fakePublisher) Publish(_ context.Context, key string, value []byte) error {
 	f.calls++
-	f.lastKey = key
-	f.lastVal = value
+	f.keys = append(f.keys, key)
+	f.values = append(f.values, value)
 	return f.err
 }
 
@@ -90,30 +91,44 @@ func TestVerifySignature_NoSecretConfigured(t *testing.T) {
 	}
 }
 
-func TestResolveStudentRole(t *testing.T) {
-	tests := []struct {
-		event  string
-		status string
-		want   string
-	}{
-		{"student.graduated", "", "GRADUATE"},
-		{"student.withdrawn", "", "WITHDRAWN"},
-		{"student.status_changed", "STUDENT_COUNCIL", "STUDENT_COUNCIL"},
-	}
-	for _, tt := range tests {
-		if got := resolveStudentRole(tt.event, tt.status); got != tt.want {
-			t.Errorf("resolveStudentRole(%q, %q) = %q, want %q", tt.event, tt.status, got, tt.want)
-		}
-	}
-}
-
-func envelope(t *testing.T, id, event, email, status string) []byte {
+func envelope(t *testing.T, id, event string, objects ...string) []byte {
 	t.Helper()
+	oldItems := make([]map[string]any, 0, len(objects))
+	newItems := make([]map[string]any, 0, len(objects))
+	for i, object := range objects {
+		oldItems = append(oldItems, map[string]any{
+			"index":  i,
+			"object": json.RawMessage(object),
+		})
+		newItems = append(newItems, map[string]any{
+			"index":  i,
+			"object": json.RawMessage(object),
+		})
+	}
+
 	body, err := json.Marshal(WebhookEvent{
 		ID:    id,
 		Event: event,
-		Data:  json.RawMessage(`{"student_id":1,"name":"홍길동","email":"` + email + `","status":"` + status + `"}`),
+		Data:  mustMarshalRaw(t, map[string]any{"old": oldItems, "new": newItems}),
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body
+}
+
+func studentObject(studentID int64, email, role string) string {
+	return fmt.Sprintf(
+		`{"student_id":%d,"name":"홍길동","email":"%s","sex":"MAN","student_number":2105,"major":"SW_DEVELOPMENT","specialty":null,"role":"%s","github_id":"hong"}`,
+		studentID,
+		email,
+		role,
+	)
+}
+
+func mustMarshalRaw(t *testing.T, value any) json.RawMessage {
+	t.Helper()
+	body, err := json.Marshal(value)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,7 +140,7 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	store := &fakeStore{}
 	svc := newTestService(pub, store)
 
-	body := envelope(t, "evt_1", "student.status_changed", "s24080@gsm.hs.kr", "STUDENT_COUNCIL")
+	body := envelope(t, "evt_1", "student.updated", studentObject(1, "s24080@gsm.hs.kr", "STUDENT_COUNCIL"))
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
 		t.Fatalf("ProcessEvent() error = %v", err)
 	}
@@ -136,16 +151,46 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	if store.markCalls != 1 {
 		t.Errorf("MarkProcessed should be called once after publish, got %d", store.markCalls)
 	}
-	if pub.lastKey != "1" {
-		t.Errorf("publish key = %q, want student_id", pub.lastKey)
+	if pub.keys[0] != "1" {
+		t.Errorf("publish key = %q, want student_id", pub.keys[0])
 	}
 
 	var msg userSyncMessage
-	if err := json.Unmarshal(pub.lastVal, &msg); err != nil {
+	if err := json.Unmarshal(pub.values[0], &msg); err != nil {
 		t.Fatal(err)
 	}
-	if msg.EventType != "student.status_changed" || msg.StudentRole != "STUDENT_COUNCIL" || msg.DataGSMRefID != 1 {
+	if msg.EventType != "student.updated" || msg.StudentRole != "STUDENT_COUNCIL" || msg.DataGSMRefID != 1 {
 		t.Errorf("unexpected sync message: %+v", msg)
+	}
+	if msg.StudentNumber == nil || *msg.StudentNumber != 2105 || msg.GithubID == nil || *msg.GithubID != "hong" {
+		t.Errorf("student fields not mapped: %+v", msg)
+	}
+}
+
+func TestProcessEvent_PublishesOneMessagePerStudentObject(t *testing.T) {
+	pub := &fakePublisher{}
+	store := &fakeStore{}
+	svc := newTestService(pub, store)
+
+	body := envelope(
+		t,
+		"evt_batch",
+		"student.updated",
+		studentObject(1, "s24080@gsm.hs.kr", "GRADUATE"),
+		studentObject(2, "s24081@gsm.hs.kr", "GRADUATE"),
+	)
+	if err := svc.ProcessEvent(context.Background(), body); err != nil {
+		t.Fatalf("ProcessEvent() error = %v", err)
+	}
+
+	if pub.calls != 2 {
+		t.Fatalf("publish calls = %d, want 2", pub.calls)
+	}
+	if pub.keys[0] != "1" || pub.keys[1] != "2" {
+		t.Errorf("publish keys = %v, want [1 2]", pub.keys)
+	}
+	if store.markCalls != 1 {
+		t.Errorf("MarkProcessed should be called once for the envelope, got %d", store.markCalls)
 	}
 }
 
@@ -153,7 +198,7 @@ func TestProcessEvent_UnsupportedEventSkipped(t *testing.T) {
 	pub := &fakePublisher{}
 	svc := newTestService(pub, &fakeStore{})
 
-	body := envelope(t, "evt_2", "club.created", "x@gsm.hs.kr", "")
+	body := envelope(t, "evt_2", "club.updated", `{"club_id":1,"name":"더모먼트"}`)
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
 		t.Fatalf("ProcessEvent() error = %v", err)
 	}
@@ -166,7 +211,7 @@ func TestProcessEvent_DuplicateSkipped(t *testing.T) {
 	pub := &fakePublisher{}
 	svc := newTestService(pub, &fakeStore{exists: true})
 
-	body := envelope(t, "evt_3", "student.graduated", "x@gsm.hs.kr", "")
+	body := envelope(t, "evt_3", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
 		t.Fatalf("ProcessEvent() error = %v", err)
 	}
@@ -181,8 +226,8 @@ func TestProcessEvent_MissingStudentID(t *testing.T) {
 
 	body, err := json.Marshal(WebhookEvent{
 		ID:    "evt_4",
-		Event: "student.graduated",
-		Data:  json.RawMessage(`{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr"}`),
+		Event: "student.updated",
+		Data:  json.RawMessage(`{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT"}}]}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -217,7 +262,7 @@ func TestProcessEvent_MarkErrorAfterPublishIsNonFatal(t *testing.T) {
 	store := &fakeStore{markErr: errTest}
 	svc := newTestService(pub, store)
 
-	body := envelope(t, "evt_5", "student.graduated", "x@gsm.hs.kr", "")
+	body := envelope(t, "evt_5", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
 		t.Errorf("ProcessEvent() should not fail when mark fails after publish, got %v", err)
 	}
@@ -231,7 +276,7 @@ func TestProcessEvent_PublishErrorReturnsError(t *testing.T) {
 	store := &fakeStore{}
 	svc := newTestService(pub, store)
 
-	body := envelope(t, "evt_6", "student.graduated", "x@gsm.hs.kr", "")
+	body := envelope(t, "evt_6", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	err := svc.ProcessEvent(context.Background(), body)
 	if err == nil {
 		t.Error("ProcessEvent() expected error when publish fails")
@@ -248,7 +293,7 @@ func TestProcessEvent_ExistsErrorReturnsError(t *testing.T) {
 	pub := &fakePublisher{}
 	svc := newTestService(pub, &fakeStore{existsErr: errTest})
 
-	body := envelope(t, "evt_7", "student.graduated", "x@gsm.hs.kr", "")
+	body := envelope(t, "evt_7", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	if err := svc.ProcessEvent(context.Background(), body); err == nil {
 		t.Error("ProcessEvent() expected error when Exists fails")
 	}

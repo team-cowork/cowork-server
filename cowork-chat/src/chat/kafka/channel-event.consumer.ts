@@ -2,7 +2,10 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ChannelMetaCache } from '../service/channel-meta.cache';
 
 interface ChannelEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -21,7 +24,11 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     private consumer!: Consumer;
     private io?: Server;
 
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
+        private readonly channelMetaCache: ChannelMetaCache,
+    ) {}
 
     setSocketServer(io: Server) {
         this.io = io;
@@ -44,15 +51,24 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                             const event = JSON.parse(message.value.toString()) as ChannelEvent;
                             this.handleEvent(event);
                         } catch (err) {
-                            this.logger.error('채널 이벤트 Kafka 메시지 처리 중 예외 발생', err);
+                            this.logger.error('Exception while processing channel.event Kafka message', err);
                             if (!(err instanceof SyntaxError)) throw err;
                         }
                     }
                     return Promise.resolve();
                 },
             })
-            .catch((err) => {
-                this.logger.error('채널 이벤트 Kafka consumer 실행 실패', err);
+            .catch(async (err) => {
+                this.logger.error('channel.event Kafka consumer failed', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 channel.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'channel.event', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: channel.event');
@@ -63,15 +79,20 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private handleEvent(event: ChannelEvent) {
-        if (!this.io) {
-            throw new Error('Socket.IO server is not initialized yet');
-        }
         if (!event || !event.eventType || !event.teamId) {
-            this.logger.warn('유효하지 않은 채널 이벤트 페이로드입니다: ' + JSON.stringify(event));
+            this.logger.warn('Invalid channel event payload: ' + JSON.stringify(event));
+            return;
+        }
+        if (!this.io) {
+            this.logger.warn(`Socket.IO server not initialized yet, dropping channel event (channelId=${event.channelId})`);
             return;
         }
         const room = `team:${event.teamId}`;
         const { eventType, ...payload } = event;
+
+        if (eventType === 'UPDATED' || eventType === 'DELETED') {
+            void this.channelMetaCache.invalidate(event.channelId);
+        }
 
         if (eventType === 'CREATED') {
             this.io.to(room).emit('channel:created', payload);
