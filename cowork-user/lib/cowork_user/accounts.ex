@@ -20,6 +20,7 @@ defmodule CoworkUser.Accounts do
   @display_name_cache_ttl_seconds 60
   @display_name_not_found_ttl_seconds 30
   @not_found_marker "__not_found__"
+  @max_raw_csv_tokens 1000
 
   @doc """
   여러 사용자의 표시 이름(name/nickname)만 일괄 조회한다.
@@ -252,27 +253,37 @@ defmodule CoworkUser.Accounts do
   end
 
   @doc """
-  DataGSM webhook에서 전달된 student 라이프사이클 이벤트를 반영한다.
+  DataGSM webhook에서 전달된 student.updated 이벤트를 반영한다.
 
   전체 upsert(`upsert_user_from_sync_event/1`)와 달리 불변인 `datagsm_student_id`로 기존
-  account를 찾아 `student_role`만 부분 갱신한다. 이메일은 변경될 수 있어 조인 키로 쓰지 않는다.
-  접속 상태(status)나 학번/전공 등 다른 필드는 보존한다.
+  account를 찾아 학생 정보를 부분 갱신한다. 이메일은 변경될 수 있어 조인 키로 쓰지 않는다.
+  접속 상태(status)는 Cowork 내부 상태이므로 보존한다.
   cowork에 아직 가입(로그인)하지 않은 사용자(account 없음)는 갱신 대상이 없으므로 skip한다.
   """
-  def apply_student_event(%{"datagsm_student_id" => student_id, "student_role" => student_role})
-      when is_integer(student_id) and is_binary(student_role) and student_role != "" do
-    case Repo.get_by(Account, datagsm_student_id: student_id) do
-      nil ->
-        {:skip, :account_not_found}
+  def apply_student_event(%{"datagsm_student_id" => student_id} = event) when is_integer(student_id) do
+    student_role = Map.get(event, "student_role") || Map.get(event, "role")
 
-      account ->
-        account
-        |> Account.student_role_changeset(%{student_role: student_role})
-        |> Repo.update()
-        |> case do
-          {:ok, _} -> :ok
-          {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
-        end
+    if blank?(student_role) do
+      {:error, :invalid_student_event}
+    else
+      case Repo.get_by(Account, datagsm_student_id: student_id) do
+        nil ->
+          {:skip, :account_not_found}
+
+        account ->
+          attrs =
+            event
+            |> Map.put("student_role", student_role)
+            |> student_event_account_attrs()
+
+          account
+          |> Account.datagsm_sync_changeset(attrs)
+          |> Repo.update()
+          |> case do
+            {:ok, _} -> :ok
+            {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
+          end
+      end
     end
   rescue
     exception in [Ecto.ConstraintError] -> {:error, {:validation, Exception.message(exception)}}
@@ -358,7 +369,7 @@ defmodule CoworkUser.Accounts do
       github: Map.get(attrs, "github_id"),
       description: Map.get(attrs, "account_description"),
       student_role: Map.get(attrs, "student_role") || Map.get(attrs, "role"),
-      student_number: Map.get(attrs, "student_number") || build_student_number(attrs),
+      student_number: normalize_student_number(Map.get(attrs, "student_number")) || build_student_number(attrs),
       datagsm_student_id: Map.get(attrs, "datagsm_student_id"),
       major: Map.get(attrs, "major"),
       specialty: Map.get(attrs, "specialty"),
@@ -366,18 +377,75 @@ defmodule CoworkUser.Accounts do
     }
   end
 
+  defp student_event_account_attrs(event) do
+    mappings = [
+      {"name", :name},
+      {"email", :email},
+      {"sex", :sex},
+      {"github_id", :github},
+      {"student_role", :student_role},
+      {"major", :major},
+      {"specialty", :specialty}
+    ]
+
+    Enum.reduce(mappings, %{}, fn {key, field}, acc ->
+      if Map.has_key?(event, key) do
+        Map.put(acc, field, Map.get(event, key))
+      else
+        acc
+      end
+    end)
+    |> maybe_put_student_number(event)
+  end
+
+  defp maybe_put_student_number(attrs, event) do
+    cond do
+      not is_nil(Map.get(event, "student_number")) ->
+        Map.put(attrs, :student_number, normalize_student_number(Map.get(event, "student_number")))
+
+      has_student_number_parts?(event) ->
+        Map.put(attrs, :student_number, build_student_number(event))
+
+      Map.has_key?(event, "student_number") ->
+        Map.put(attrs, :student_number, nil)
+
+      true ->
+        attrs
+    end
+  end
+
   defp build_student_number(attrs) do
     with {:ok, grade} <- get_int(attrs, "grade"),
-         {:ok, class_number} <- get_int(attrs, "class_number"),
-         {:ok, student_number_in_class} <- get_int(attrs, "student_number_in_class") do
+         {:ok, class_number} <- get_int(attrs, "class_number", "class_num"),
+         {:ok, student_number_in_class} <- get_int(attrs, "student_number_in_class", "number") do
       "#{grade}#{class_number}#{student_number_in_class |> Integer.to_string() |> String.pad_leading(2, "0")}"
     else
       _ -> nil
     end
   end
 
-  defp get_int(map, key) do
-    case Map.get(map, key) do
+  defp has_student_number_parts?(event) do
+    Map.has_key?(event, "grade") and
+      (Map.has_key?(event, "class_number") or Map.has_key?(event, "class_num")) and
+      (Map.has_key?(event, "student_number_in_class") or Map.has_key?(event, "number"))
+  end
+
+  defp normalize_student_number(nil), do: nil
+  defp normalize_student_number(value) when is_integer(value), do: Integer.to_string(value)
+  defp normalize_student_number(value) when is_binary(value), do: value
+  defp normalize_student_number(value), do: to_string(value)
+
+  defp get_int(map, key), do: get_int(map, key, nil)
+
+  defp get_int(map, key, fallback_key) do
+    value =
+      case Map.fetch(map, key) do
+        {:ok, value} -> value
+        :error when is_binary(fallback_key) -> Map.get(map, fallback_key)
+        :error -> nil
+      end
+
+    case value do
       nil -> {:error, :missing}
       value when is_integer(value) -> {:ok, value}
       value when is_binary(value) ->
@@ -532,7 +600,7 @@ defmodule CoworkUser.Accounts do
 
   defp maybe_user_ids(query, nil), do: query
 
-  defp maybe_user_ids(query, []), do: from [_p, a] in query, where: false
+  defp maybe_user_ids(query, []), do: from([_p, a] in query, where: false)
 
   defp maybe_user_ids(query, ids) when is_list(ids) do
     from [_p, a] in query, where: a.id in ^ids
@@ -549,11 +617,14 @@ defmodule CoworkUser.Accounts do
   쉼표로 구분된 정수 ID 목록 문자열을 파싱한다.
 
   유효하지 않은 토큰(빈 문자열, 0 이하, 정수가 아닌 값)은 무시한다.
+  원본 토큰 수가 #{@max_raw_csv_tokens}개를 넘으면 초과분은 파싱하지 않고 버린다
+  (`ids=1,1,1,...`처럼 중복 토큰을 대량으로 보내 `split`/`Integer.parse`을
+  불필요하게 반복시키는 것을 방지).
   `user_ids` 검색 필터(`maybe_user_ids/2`)와 `GET /users/batch`(router의 `parse_ids/1`)가 공유한다.
   """
   def parse_int_csv(ids_str) when is_binary(ids_str) do
     ids_str
-    |> String.split(",")
+    |> String.split(",", parts: @max_raw_csv_tokens + 1)
     |> Enum.flat_map(fn s ->
       case Integer.parse(String.trim(s)) do
         {n, ""} when n > 0 -> [n]

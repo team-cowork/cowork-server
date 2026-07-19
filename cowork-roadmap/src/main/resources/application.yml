@@ -1,0 +1,51 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: cowork-roadmap
+  config:
+    import: "optional:configserver:http://localhost:8761"
+  # Runtime queries go through R2DBC (reactive). With an R2DBC ConnectionFactory present, Spring Boot's
+  # JDBC DataSourceAutoConfiguration backs off, so Flyway builds its own JDBC DataSource from spring.flyway.url.
+  r2dbc:
+    url: ${SPRING_R2DBC_URL:r2dbc:mysql://localhost:3306/cowork_roadmap?serverZoneId=Asia/Seoul}
+    username: ${MYSQL_USER:cowork}
+    password: ${MYSQL_PASSWORD:}
+  flyway:
+    enabled: true
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
+    user: ${MYSQL_USER:cowork}
+    password: ${MYSQL_PASSWORD:}
+    locations: classpath:db/migration
+
+team-service:
+  base-url: ${TEAM_SERVICE_URL:lb://cowork-team}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+    metadata-map:
+      prometheus.scrape: "true"
+      prometheus.path: /actuator/prometheus
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, refresh, busrefresh, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

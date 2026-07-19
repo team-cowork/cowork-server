@@ -130,6 +130,7 @@ Client Response
 | `user-service` | `/api/users/**` | `cowork-user` | O | O | O |
 | `team-service` | `/api/teams/**` | `cowork-team` | O | - | - |
 | `project-service` | `/api/projects/**` | `cowork-project` | O | - | - |
+| `roadmap-service` | `/api/roadmaps/**` | `cowork-roadmap` | O | - | - |
 | `channel-service` | `/api/channels/**` | `cowork-channel` | O | - | - |
 | `chat-service` | `/api/chats/**` | `cowork-chat` | O | - | - |
 

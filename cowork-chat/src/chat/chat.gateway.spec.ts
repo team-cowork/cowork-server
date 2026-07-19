@@ -8,22 +8,29 @@ import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer'
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
+};
+
+const mockRateLimiter = {
+    tryAcquire: jest.fn().mockResolvedValue(true),
 };
 
 const mockJwtService = {
     verifyAsync: jest.fn(),
 };
 
-const mockSocket = (authToken?: string) => ({
+const mockSocket = (authToken?: string, headers: Record<string, string> = {}) => ({
     id: 'socket-1',
-    handshake: { auth: { token: authToken } },
+    handshake: { auth: { token: authToken }, headers },
     data: {} as Record<string, unknown>,
+    rooms: new Set<string>(),
     join: jest.fn(),
     leave: jest.fn(),
     emit: jest.fn(),
+    to: jest.fn(() => ({ emit: jest.fn() })),
     disconnect: jest.fn(),
 });
 
@@ -57,7 +64,7 @@ describe('ChatGateway', () => {
 
     beforeEach(async () => {
         jest.clearAllMocks();
-        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'ROLE_USER' });
+        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'MEMBER' });
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -70,6 +77,7 @@ describe('ChatGateway', () => {
                 { provide: MembershipConsumer, useValue: mockMembershipConsumer },
                 { provide: ConfigService, useValue: mockConfigService },
                 { provide: JwtService, useValue: mockJwtService },
+                { provide: RedisRateLimiter, useValue: mockRateLimiter },
             ],
         }).compile();
 
@@ -77,19 +85,36 @@ describe('ChatGateway', () => {
     });
 
     describe('handleConnection', () => {
-        it('유효한 JWT 토큰으로 연결 시 client.data에 userId가 저장되고 전용 룸에 join한다', async () => {
+        it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
+            const client = mockSocket(undefined, { 'x-user-id': '7', 'x-user-role': 'ADMIN' });
+            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(client.data.userId).toBe(7);
+            expect(client.data.userRole).toBe('ADMIN');
+            expect(client.join).toHaveBeenCalledWith('user:7');
+            expect(mockJwtService.verifyAsync).not.toHaveBeenCalled();
+            expect(client.disconnect).not.toHaveBeenCalled();
+        });
+
+        it('X-User-Id 헤더가 유효하지 않으면 exception 이벤트를 emit하고 disconnect된다', async () => {
+            const client = mockSocket(undefined, { 'x-user-id': 'not-a-number' });
+            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: X-User-Id 헤더가 유효하지 않습니다' });
+            expect(client.disconnect).toHaveBeenCalled();
+        });
+
+        it('헤더가 없으면 auth.token의 JWT를 직접 검증해 연결한다', async () => {
             const client = mockSocket('valid-token');
             await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.data.userId).toBe(42);
-            expect(client.data.userRole).toBe('ROLE_USER');
+            expect(client.data.userRole).toBe('MEMBER');
             expect(client.join).toHaveBeenCalledWith('user:42');
             expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('토큰 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
+        it('헤더도 토큰도 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             const client = mockSocket(undefined);
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 토큰이 전달되지 않았습니다' });
+            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 인증 정보가 전달되지 않았습니다' });
             expect(client.disconnect).toHaveBeenCalled();
         });
 
@@ -131,6 +156,35 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             gateway.handleLeave(client as unknown as ChatSocket, { channelId: 1 });
             expect(client.leave).toHaveBeenCalledWith('chat:1');
+        });
+    });
+
+    describe('typing rate limit', () => {
+        it('룸에 참여한 상태에서 typing:start를 호출하면 같은 룸에 typing 이벤트를 릴레이한다', async () => {
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+            client.rooms.add('chat:1');
+            const emit = jest.fn();
+            client.to = jest.fn(() => ({ emit }));
+
+            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:typingrate:42', expect.any(Number), expect.any(Number));
+            expect(client.to).toHaveBeenCalledWith('chat:1');
+            expect(emit).toHaveBeenCalledWith('typing', { channelId: 1, userId: 42, isTyping: true });
+        });
+
+        it('rate limiter가 한도 초과를 반환하면 typing 이벤트를 조용히 무시한다', async () => {
+            mockRateLimiter.tryAcquire.mockResolvedValueOnce(false);
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+            client.rooms.add('chat:1');
+            const emit = jest.fn();
+            client.to = jest.fn(() => ({ emit }));
+
+            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(emit).not.toHaveBeenCalled();
         });
     });
 });

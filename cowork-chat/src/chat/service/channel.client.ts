@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
 import { BaseHttpClient } from './base-http-client';
+import { ChannelMetaCache } from './channel-meta.cache';
 
 /**
  * channel-service로부터 반환되는 채널 기본 정보.
@@ -23,7 +24,10 @@ export class ChannelClient extends BaseHttpClient {
     protected readonly serviceName = 'channel-service';
     private readonly channelServiceUrl: string;
 
-    constructor(private readonly configService: ConfigService) {
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly metaCache: ChannelMetaCache,
+    ) {
         super();
         this.channelServiceUrl = getRequiredConfig(this.configService, 'CHANNEL_SERVICE_URL').replace(/\/$/, '');
     }
@@ -36,6 +40,10 @@ export class ChannelClient extends BaseHttpClient {
      * 응답 본문의 `id`와 `viewType` 필드 타입을 직접 검증하며,
      * 형식이 맞지 않으면 예외를 던진다.
      *
+     * `viewType`은 자주 바뀌지 않으므로 Redis에 30초 TTL로 캐싱된다(채널 ID 단위).
+     * 캐시는 호출자의 접근 권한과 무관한 채널 자체의 메타데이터만 담으므로,
+     * 캐시 적중 시에도 접근 권한 검증에는 영향을 주지 않는다(호출부에서 별도 멤버십 검증 필요).
+     *
      * @param channelId - 조회할 채널의 ID
      * @param userId - 요청을 수행하는 사용자의 ID (`X-User-Id` 헤더로 전달됨)
      * @returns 채널 ID와 뷰 타입이 포함된 {@link ChannelInfo}
@@ -43,10 +51,16 @@ export class ChannelClient extends BaseHttpClient {
      * @throws {Error} 응답 본문의 형식이 올바르지 않은 경우
      */
     async getChannel(channelId: number, userId: number): Promise<ChannelInfo> {
-        const res = await fetch(`${this.channelServiceUrl}/channels/${channelId}`, {
-            headers: { 'X-User-Id': String(userId) },
-            signal: AbortSignal.timeout(3000),
-        });
+        const cachedViewType = await this.metaCache.get(channelId);
+        if (cachedViewType !== null) {
+            return { id: channelId, viewType: cachedViewType };
+        }
+
+        const res = await this.fetchWithRetry(
+            `${this.channelServiceUrl}/channels/${channelId}`,
+            { headers: { 'X-User-Id': String(userId) } },
+            3000,
+        );
 
         if (!res.ok) {
             const message = await this.readErrorMessage(res);
@@ -57,6 +71,8 @@ export class ChannelClient extends BaseHttpClient {
         if (typeof body.id !== 'number' || typeof body.viewType !== 'string') {
             throw new Error('channel-service 응답 형식이 올바르지 않습니다');
         }
+
+        await this.metaCache.set(channelId, body.viewType);
 
         return {
             id: body.id,

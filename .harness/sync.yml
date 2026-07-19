@@ -8,6 +8,7 @@ overrides:
   claude/hooks/dispatcher: true
   claude/settings: true
   claude/hooks/ktlint: true
+  claude/hooks/spotless: true
   claude/hooks/command-guard: true
   claude/hooks/logging: true
   claude/hooks/secret-guard: true
@@ -17,6 +18,7 @@ overrides:
   codex/hooks/command-guard: true
   codex/hooks/logging: true
   codex/hooks/ktlint: true
+  codex/hooks/spotless: true
   codex/hooks/secret-guard: true
 
 branch_prefix: harness-sync/

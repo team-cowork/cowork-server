@@ -6,6 +6,16 @@ import { Message, MessageDocument } from '../schema/message.schema';
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
 
+/** {@link MessageRow}에 필요한 필드만 남기는 프로젝션. `editHistory` 등 클라이언트 미사용 필드 전송을 막는다. */
+const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
+    $project: {
+        _id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1,
+        content: 1, type: 1, attachments: 1, parentMessageId: 1,
+        isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
+        reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
+    },
+};
+
 /** 한 번에 조회하는 최대 파일 첨부 항목 수 */
 const FILE_ATTACHMENT_LIMIT = 100;
 
@@ -179,6 +189,7 @@ export class MessageRepository {
             { $sort: { _id: -1 } },
             { $limit: MESSAGE_FETCH_LIMIT },
             ...lookupStages,
+            MESSAGE_ROW_PROJECTION,
         ]);
     }
 
@@ -348,19 +359,40 @@ export class MessageRepository {
     }
 
     /**
-     * `PENDING` 상태인 메시지 하나를 원자적으로 `PROCESSING`으로 전환하고 반환합니다.
+     * `PENDING` 상태인 메시지를 최대 `batchSize`개까지 원자적으로 `PROCESSING`으로 전환하고 반환합니다.
      *
-     * 아웃박스(outbox) 패턴에서 알림 워커가 중복 처리 없이 하나의 메시지를 점유하기 위해
-     * `findOneAndUpdate`로 조회와 상태 변경을 단일 원자 연산으로 수행합니다.
+     * 아웃박스(outbox) 패턴에서 알림 워커가 배치 전체를 한 번에 점유하기 위한 3단계 연산입니다:
+     * 1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
+     * 2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
+     *    그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
+     * 3. 이번 호출에서 실제로 점유한 문서만 `processingStartedAt` 타임스탬프로 구분해 조회
      *
-     * @returns 상태가 `PROCESSING`으로 전환된 {@link NotificationMessage}. 처리할 메시지가 없으면 `null`
+     * 단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
+     * 고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
+     *
+     * @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
+     * @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
-    findOnePendingAndMarkProcessing(): Promise<NotificationMessage | null> {
-        return this.messageModel.findOneAndUpdate(
-            { notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: new Date() } },
-            { sort: { createdAt: 1 }, new: true },
-        ).lean();
+    async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
+        const candidates = await this.messageModel
+            .find({ notificationStatus: 'PENDING' })
+            .sort({ createdAt: 1 })
+            .limit(batchSize)
+            .select('_id')
+            .lean();
+        if (candidates.length === 0) return [];
+
+        const ids = candidates.map((c) => c._id);
+        const processingStartedAt = new Date();
+        await this.messageModel.updateMany(
+            { _id: { $in: ids }, notificationStatus: 'PENDING' },
+            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt } },
+        );
+
+        return this.messageModel
+            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt })
+            .sort({ createdAt: 1 })
+            .lean();
     }
 
     /**
@@ -421,6 +453,7 @@ export class MessageRepository {
                     mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
                 },
             },
+            MESSAGE_ROW_PROJECTION,
         ]);
     }
 
@@ -444,12 +477,10 @@ export class MessageRepository {
     /**
      * 메시지에 이모지 반응을 추가합니다.
      *
-     * 동시 요청 경합을 처리하기 위해 최대 3단계의 upsert를 순차적으로 시도합니다.
-     * 1. 이미 동일 이모지 항목이 존재하고 사용자가 미반응인 경우: `$addToSet`으로 userId 추가
-     * 2. 이미 반응한 경우(`alreadyReacted` 확인): `-1` 즉시 반환
-     * 3. 이모지 항목이 없는 경우: `$push`로 새 reaction 항목 생성
-     * 4. 동시 요청으로 항목이 생성된 경우: 1번 로직 재시도
-     * 5. 재시도 후에도 실패하면 메시지 존재 여부를 확인하여 `-1` 또는 `null` 반환
+     * "이모지 항목 생성"과 "userId 추가"를 집계 파이프라인 업데이트 하나로 원자적으로 처리합니다.
+     * MongoDB는 단일 도큐먼트에 대한 업데이트를 원자적으로 실행하므로 별도의 재시도 로직이 필요 없습니다.
+     * `new: false`로 업데이트 이전 상태를 반환받아, 추가 조회 없이 "이미 반응했는지"와 "추가 후 카운트"를
+     * 같은 요청 안에서 계산합니다.
      *
      * @param channelId - 메시지가 속한 채널의 식별자 (채널 귀속 검증용)
      * @param messageId - 반응을 추가할 메시지의 ObjectId 문자열
@@ -461,54 +492,53 @@ export class MessageRepository {
      *   - `null`: 메시지가 존재하지 않는 경우
      */
     async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
-        const updated = await this.messageModel.findOneAndUpdate(
-            {
-                _id: messageId,
-                channelId,
-                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
-            },
-            { $addToSet: { 'reactions.$[elem].userIds': userId } },
-            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
+        const before = await this.messageModel.findOneAndUpdate(
+            { _id: messageId, channelId },
+            [
+                {
+                    $set: {
+                        reactions: {
+                            $cond: [
+                                { $in: [emoji, { $ifNull: ['$reactions.emoji', []] }] },
+                                {
+                                    $map: {
+                                        input: '$reactions',
+                                        as: 'r',
+                                        in: {
+                                            $cond: [
+                                                { $eq: ['$$r.emoji', emoji] },
+                                                {
+                                                    emoji: '$$r.emoji',
+                                                    userIds: {
+                                                        $cond: [
+                                                            { $in: [userId, '$$r.userIds'] },
+                                                            '$$r.userIds',
+                                                            { $concatArrays: ['$$r.userIds', [userId]] },
+                                                        ],
+                                                    },
+                                                },
+                                                '$$r',
+                                            ],
+                                        },
+                                    },
+                                },
+                                { $concatArrays: [{ $ifNull: ['$reactions', []] }, [{ emoji, userIds: [userId] }]] },
+                            ],
+                        },
+                    },
+                },
+            ],
+            { new: false },
         ).lean() as ReactionDoc | null;
 
-        if (updated) {
-            return updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
-        }
+        if (!before) return null;
 
-        const alreadyReacted = await this.messageModel.exists({
-            _id: messageId,
-            channelId,
-            reactions: { $elemMatch: { emoji, userIds: userId } },
-        });
-        if (alreadyReacted) return -1;
+        const reactions = before.reactions ?? [];
+        const existing = reactions.find(r => r.emoji === emoji);
+        const userIds = existing?.userIds ?? [];
+        if (userIds.includes(userId)) return -1;
 
-        const newDoc = await this.messageModel.findOneAndUpdate(
-            { _id: messageId, channelId, 'reactions.emoji': { $ne: emoji } },
-            { $push: { reactions: { emoji, userIds: [userId] } } },
-            { new: true },
-        ).lean() as ReactionDoc | null;
-
-        if (newDoc) {
-            return newDoc.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 1;
-        }
-
-        // 동시 요청으로 emoji 항목이 생성된 경우 재시도
-        const retryUpdated = await this.messageModel.findOneAndUpdate(
-            {
-                _id: messageId,
-                channelId,
-                reactions: { $elemMatch: { emoji, userIds: { $ne: userId } } },
-            },
-            { $addToSet: { 'reactions.$[elem].userIds': userId } },
-            { arrayFilters: [{ 'elem.emoji': emoji }], new: true },
-        ).lean() as ReactionDoc | null;
-
-        if (retryUpdated) {
-            return retryUpdated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
-        }
-
-        const messageExists = await this.messageModel.exists({ _id: messageId, channelId });
-        return messageExists ? -1 : null;
+        return userIds.length + 1;
     }
 
     /**

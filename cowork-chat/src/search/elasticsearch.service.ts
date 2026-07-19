@@ -97,9 +97,9 @@ export class ElasticsearchService implements OnModuleInit {
             };
             await this.client.indices.create(params);
 
-            this.logger.log(`인덱스 생성 완료: ${INDEX}`);
+            this.logger.log(`Index created: ${INDEX}`);
         } catch (err) {
-            this.logger.error('ES 인덱스 생성 실패', err);
+            this.logger.error('Failed to create ES index', err);
         }
     }
 
@@ -111,7 +111,7 @@ export class ElasticsearchService implements OnModuleInit {
                 document: doc,
             });
         } catch (err) {
-            this.logger.error(`ES 메시지 인덱싱 실패 id=${doc.messageId}`, err);
+            this.logger.error(`Failed to index ES message id=${doc.messageId}`, err);
         }
     }
 
@@ -124,7 +124,7 @@ export class ElasticsearchService implements OnModuleInit {
             });
         } catch (err) {
             if (this.isNotFoundError(err)) return;
-            this.logger.error(`ES 메시지 업데이트 실패 id=${messageId}`, err);
+            this.logger.error(`Failed to update ES message id=${messageId}`, err);
         }
     }
 
@@ -137,7 +137,7 @@ export class ElasticsearchService implements OnModuleInit {
             });
         } catch (err) {
             if (this.isNotFoundError(err)) return;
-            this.logger.error(`ES 메시지 핀 상태 업데이트 실패 id=${messageId}`, err);
+            this.logger.error(`Failed to update ES message pin status id=${messageId}`, err);
         }
     }
 
@@ -146,7 +146,7 @@ export class ElasticsearchService implements OnModuleInit {
             await this.client.delete({ index: INDEX, id: messageId });
         } catch (err) {
             if (this.isNotFoundError(err)) return;
-            this.logger.error(`ES 메시지 삭제 실패 id=${messageId}`, err);
+            this.logger.error(`Failed to delete ES message id=${messageId}`, err);
         }
     }
 

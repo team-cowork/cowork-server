@@ -13,7 +13,8 @@ cowork-server는 Spring Cloud Gateway에서 전 서비스의 OpenAPI 스펙을 *
           ├─ /v3/api-docs/authorization  →  cowork-authorization  /swagger/doc.json  (swaggo)
           ├─ /v3/api-docs/user           →  cowork-user           /v3/api-docs       (Elixir)
           ├─ /v3/api-docs/voice          →  cowork-voice          /swagger/doc.json  (swaggo)
-          └─ /v3/api-docs/chat           →  cowork-chat           /api-json          (@nestjs/swagger)
+          ├─ /v3/api-docs/chat           →  cowork-chat           /api-json          (@nestjs/swagger)
+          └─ /v3/api-docs/roadmap        →  cowork-roadmap        /v3/api-docs       (springdoc-webflux)
 ```
 
 Gateway는 각 서비스의 API 스펙을 프록시로 제공하고, Swagger UI의 드롭다운으로 서비스를 전환할 수 있습니다.
@@ -86,6 +87,7 @@ http://localhost:8080/swagger-ui.html
 | `authorization` | cowork-authorization |
 | `voice` | cowork-voice |
 | `chat` | cowork-chat |
+| `roadmap` | cowork-roadmap |
 
 > **인증 없이** 접근 가능합니다. Gateway Security 설정에서 `/swagger-ui/**`, `/v3/api-docs/**` 경로를 permitAll 처리했습니다.
 

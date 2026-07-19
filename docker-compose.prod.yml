@@ -5,39 +5,100 @@
 #   REGISTRY     - 컨테이너 레지스트리 주소 (예: ghcr.io/your-org)
 #   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
 #   SPRING_PROFILES_ACTIVE=prod
+#   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI
+#   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
 services:
   cowork-config:
-    image: ${REGISTRY}/cowork-config:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      VAULT_HOST: ${VAULT_HOST:?VAULT_HOST is required}
+      VAULT_PORT: ${VAULT_PORT:-8200}
+      VAULT_TOKEN: ${VAULT_TOKEN:?VAULT_TOKEN is required}
+      CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
+      CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
+      CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
 
   cowork-gateway:
-    image: ${REGISTRY}/cowork-gateway:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-gateway:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   cowork-authorization:
-    image: ${REGISTRY}/cowork-authorization:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-authorization:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      APP_PROFILE: prod
 
   cowork-preference:
-    image: ${REGISTRY}/cowork-preference:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-preference:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   cowork-user:
-    image: ${REGISTRY}/cowork-user:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-user:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      APP_PROFILE: prod
 
   cowork-team:
-    image: ${REGISTRY}/cowork-team:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-team:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   cowork-channel:
-    image: ${REGISTRY}/cowork-channel:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-channel:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
 
   cowork-notification:
-    image: ${REGISTRY}/cowork-notification:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-notification:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      APP_PROFILE: prod
 
   cowork-chat:
-    image: ${REGISTRY}/cowork-chat:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-chat:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      APP_PROFILE: prod
 
   cowork-voice:
-    image: ${REGISTRY}/cowork-voice:${IMAGE_TAG}
+    image: ${REGISTRY:?REGISTRY is required}/cowork-voice:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
-      LIVEKIT_CONFIG_FILE: livekit-cloud.yaml
+      APP_PROFILE: prod
+      # Host-networked LiveKit is not attached to the Compose network. Keep the
+      # server-to-server API on the host gateway and return the public WSS URL
+      # to clients.
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://host.docker.internal:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  cowork-project:
+    image: ${REGISTRY:?REGISTRY is required}/cowork-project:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+  cowork-roadmap:
+    image: ${REGISTRY:?REGISTRY is required}/cowork-roadmap:${IMAGE_TAG:?IMAGE_TAG is required}
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+
+  alertmanager-config-init:
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}
 
   livekit:
+    # LiveKit recommends host networking for production Docker deployments.
+    # It avoids allocating a docker-proxy/NAT rule for every RTC UDP port.
+    network_mode: host
     environment:
-      LIVEKIT_CONFIG_FILE: livekit-cloud.yaml
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}
+      LIVEKIT_USE_EXTERNAL_IP: "true"
+    volumes:
+      # Service-level environment variables cannot change Compose host-path
+      # interpolation, so replace the common volume explicitly by mount target.
+      - ./docker/livekit/livekit-cloud.yaml:/etc/livekit.yaml:ro
+    # Host networking exposes LiveKit's listeners directly. Remove the common
+    # Compose port mappings and open 7880/tcp, 7881/tcp, 50000-60000/udp in
+    # the host/cloud firewall instead.
+    ports: !reset []

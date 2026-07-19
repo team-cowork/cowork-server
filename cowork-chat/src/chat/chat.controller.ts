@@ -32,6 +32,7 @@ import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create
 import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
+import { Throttle } from '../common/decorator/throttle.decorator';
 import { AddReactionDto } from './dto/add-reaction.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
 import { EMOJI_REGEX } from './util/emoji';
@@ -133,9 +134,18 @@ export class ChatController {
      */
     @Post('messages')
     @HttpCode(HttpStatus.CREATED)
+    @Throttle({
+        key: 'chat:msgrate',
+        windowMsConfigKey: 'CHAT_MESSAGE_RATE_LIMIT_WINDOW_MS',
+        maxRequestsConfigKey: 'CHAT_MESSAGE_RATE_LIMIT_MAX_REQUESTS',
+        defaultWindowMs: 10_000,
+        defaultMaxRequests: 20,
+        message: '짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.',
+    })
     @ApiOperation({ summary: '메시지 전송 (Kafka 비동기)' })
     @ApiResponse({ status: 201, type: SendMessageResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
+    @ApiResponse({ status: 429, description: '메시지 전송 요청이 너무 많음' })
     async sendMessage(
         @Param('channelId', ParseIntPipe) channelId: number,
         @Body() dto: SendMessageDto,

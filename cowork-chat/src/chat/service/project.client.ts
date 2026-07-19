@@ -1,6 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getRequiredConfig } from '../../common/config/config.util';
+import { BaseHttpClient } from './base-http-client';
+import { ProjectMemberCache } from './project-member.cache';
+import { ProjectRepoCache } from './project-repo.cache';
 
 /**
  * GitHub 저장소 연동 정보.
@@ -18,11 +21,17 @@ export interface GithubRepoInfo {
  * 말미 슬래시는 자동으로 제거된다.
  */
 @Injectable()
-export class ProjectClient {
-    private readonly logger = new Logger(ProjectClient.name);
+export class ProjectClient extends BaseHttpClient {
+    protected readonly logger = new Logger(ProjectClient.name);
+    protected readonly serviceName = 'project-service';
     private readonly projectServiceUrl: string;
 
-    constructor(private readonly configService: ConfigService) {
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly memberCache: ProjectMemberCache,
+        private readonly repoCache: ProjectRepoCache,
+    ) {
+        super();
         this.projectServiceUrl = getRequiredConfig(this.configService, 'PROJECT_SERVICE_URL').replace(/\/$/, '');
     }
 
@@ -37,22 +46,30 @@ export class ProjectClient {
      * @param projectId - 조회할 프로젝트의 ID
      * @returns GitHub 저장소 정보, 존재하지 않거나 파싱 불가 시 `null`
      * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
+     *
+     * 조회 결과(저장소 정보 없음 포함)는 Redis에 30초 TTL로 캐싱된다.
+     * Redis 조회 실패 시에는 캐시 미스로 간주해 항상 project-service로 폴백한다.
      */
     async getGithubRepoInfo(projectId: number): Promise<GithubRepoInfo | null> {
+        const cached = await this.repoCache.get(projectId);
+        if (cached !== undefined) return cached;
+
         try {
-            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}`, {
-                signal: AbortSignal.timeout(5000),
-            });
-            if (res.status === 404) return null;
+            const res = await this.fetchWithRetry(`${this.projectServiceUrl}/projects/${projectId}`, {}, 5000);
+            if (res.status === 404) {
+                await this.repoCache.set(projectId, null);
+                return null;
+            }
             if (!res.ok) {
                 throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
             }
-            const body = await res.json() as { teamId?: number | null; githubRepoUrl?: string | null };
+            const body = await this.readJsonBody<{ teamId?: number | null; githubRepoUrl?: string | null }>(res);
             const repoInfo = this.parseRepoUrl(body.githubRepoUrl);
-            if (!repoInfo || typeof body.teamId !== 'number') return null;
-            return { teamId: body.teamId, ...repoInfo };
+            const result = (!repoInfo || typeof body.teamId !== 'number') ? null : { teamId: body.teamId, ...repoInfo };
+            await this.repoCache.set(projectId, result);
+            return result;
         } catch (err) {
-            this.logger.error(`프로젝트 서비스 호출 오류 projectId=${projectId}`, err);
+            this.logger.error(`Failed to call project-service projectId=${projectId}`, err);
             throw err;
         }
     }
@@ -64,22 +81,39 @@ export class ProjectClient {
      * project-service가 404를 반환하면 멤버가 아닌 것으로 간주하여 `false`를 반환한다.
      * 그 외 HTTP 오류 및 네트워크 오류는 예외로 전파한다.
      *
+     * 동일 `(projectId, userId)` 조합의 결과는 Redis에 30초 TTL로 캐싱된다.
+     * Redis 조회 실패 시에는 캐시 미스로 간주해 항상 project-service로 폴백한다.
+     *
      * @param projectId - 확인할 프로젝트의 ID
      * @param userId - 확인할 사용자의 ID (`X-User-Id` 헤더로 전달됨)
      * @returns 멤버이면 `true`, 404이면 `false`
      * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
      */
     async isMember(projectId: number, userId: number): Promise<boolean> {
+        const cached = await this.memberCache.get(projectId, userId);
+        if (cached !== null) return cached;
+
         try {
-            const res = await fetch(`${this.projectServiceUrl}/projects/${projectId}/members/me`, {
-                headers: { 'X-User-Id': String(userId) },
-                signal: AbortSignal.timeout(3000),
-            });
-            if (res.status === 404) return false;
-            if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
-            return true;
+            const res = await this.fetchWithRetry(
+                `${this.projectServiceUrl}/projects/${projectId}/members/me`,
+                { headers: { 'X-User-Id': String(userId) } },
+                3000,
+            );
+            try {
+                if (res.status === 404) {
+                    await this.memberCache.set(projectId, userId, false);
+                    return false;
+                }
+                if (!res.ok) throw new Error(`project-service 오류: ${res.status}`);
+                await this.memberCache.set(projectId, userId, true);
+                return true;
+            } finally {
+                void res.body?.cancel().catch((err: unknown) => {
+                    this.logger.warn(`Failed to cancel response body projectId=${projectId} userId=${userId}`, err);
+                });
+            }
         } catch (err) {
-            this.logger.error(`project-service 멤버 확인 오류 projectId=${projectId} userId=${userId}`, err);
+            this.logger.error(`Failed to check membership in project-service projectId=${projectId} userId=${userId}`, err);
             throw err;
         }
     }

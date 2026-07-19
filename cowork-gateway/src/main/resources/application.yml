@@ -64,6 +64,8 @@ springdoc:
         url: /v3/api-docs/voice
       - name: chat
         url: /v3/api-docs/chat
+      - name: roadmap
+        url: /v3/api-docs/roadmap
     urls-primary-name: user
   api-docs:
     enabled: false

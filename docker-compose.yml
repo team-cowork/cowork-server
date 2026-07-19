@@ -66,7 +66,10 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      # Topics are provisioned explicitly by kafka-init so cold starts do not
+      # depend on broker auto-creation timing. This also matches production
+      # clusters where automatic topic creation is normally disabled.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     ports:
@@ -79,13 +82,56 @@ services:
       timeout: 10s
       retries: 5
 
+  kafka-init:
+    image: apache/kafka:4.3.0
+    container_name: cowork-kafka-init
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_TOPIC_PARTITIONS: ${KAFKA_TOPIC_PARTITIONS:-1}
+      KAFKA_TOPIC_REPLICATION_FACTOR: ${KAFKA_TOPIC_REPLICATION_FACTOR:-1}
+      KAFKA_TOPICS: >-
+        springCloudBus
+        user.data.sync
+        user.lifecycle
+        team.lifecycle
+        channel.member.event
+        channel.event
+        project.event
+        chat.message
+        github.issue.create
+        github.issue.result
+        notification.trigger
+        voice.event
+        preference.status.changed
+        preference.team.setting.changed
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        for topic in $${KAFKA_TOPICS}; do
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:9092 \
+            --create \
+            --if-not-exists \
+            --topic "$${topic}" \
+            --partitions "$${KAFKA_TOPIC_PARTITIONS}" \
+            --replication-factor "$${KAFKA_TOPIC_REPLICATION_FACTOR}"
+        done
+
   kafka-ui:
-    image: provectuslabs/kafka-ui:latest
+    # The project does not publish immutable release tags consistently; pin the
+    # verified multi-architecture image digest instead of following latest.
+    image: provectuslabs/kafka-ui@sha256:8f2ff02d64b0a7a2b71b6b3b3148b85f66d00ec20ad40c30bdcd415d46d31818
     container_name: cowork-kafka-ui
     restart: unless-stopped
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       KAFKA_CLUSTERS_0_NAME: cowork-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -160,7 +206,7 @@ services:
       "
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     container_name: cowork-minio
     restart: unless-stopped
     environment:
@@ -179,7 +225,7 @@ services:
       retries: 5
 
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     container_name: cowork-minio-init
     restart: "no"
     depends_on:
@@ -235,7 +281,7 @@ services:
       retries: 5
 
   livekit:
-    image: livekit/livekit-server:latest
+    image: livekit/livekit-server:v1.13.3
     container_name: cowork-livekit
     restart: unless-stopped
     environment:
@@ -246,7 +292,7 @@ services:
       - "7880:7880"
       - "7881:7881"
     volumes:
-      - ./docker/livekit/${LIVEKIT_CONFIG_FILE:-livekit.yaml}:/etc/livekit.yaml
+      - ./docker/livekit/${LIVEKIT_CONFIG_FILE:-livekit.yaml}:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
     healthcheck:
       test: [ "CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1" ]
@@ -266,7 +312,10 @@ services:
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3100/ready || exit 1"]
+      # The official Loki image is distroless and does not contain /bin/sh or wget.
+      # Container liveness is provided by Docker; validate the loaded config without
+      # depending on utilities that are absent from the production image.
+      test: ["CMD", "/usr/bin/loki", "-verify-config", "-config.file=/etc/loki/local-config.yaml"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -295,10 +344,41 @@ services:
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
 
+  # TODO: 임시 변통 - 홈서버 등 Eureka 미등록 외부 호스트를 Prometheus가 스크랩/probe할 수 있도록
+  # EXTERNAL_HOST_URL 환경변수를 기반으로 file_sd 대상 json을 생성한다. Prometheus는 원래
+  # config.expand-env 같은 환경변수 치환 기능이 없어 file_sd 파일을 미리 만들어두는 방식으로 우회한다.
+  # ExternalRouteConfig(gateway)를 제거할 때 이 서비스와 sd/blackbox, sd/external-home-metrics.json도 함께 정리할 것.
+  prometheus-external-target-writer:
+    image: busybox:1.36
+    container_name: cowork-prometheus-external-target-writer
+    environment:
+      EXTERNAL_HOST_URL: ${EXTERNAL_HOST_URL:-}
+      EXTERNAL_HOST_NAME: ${EXTERNAL_HOST_NAME:-external}
+      EXTERNAL_HOST_HEALTH_PATH: ${EXTERNAL_HOST_HEALTH_PATH:-/health}
+    volumes:
+      - ./cowork-monitoring/prometheus/sd:/sd
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /sd/blackbox
+        if [ -n "$$EXTERNAL_HOST_URL" ]; then
+          url_trimmed="$${EXTERNAL_HOST_URL%/}"
+          host_port="$${url_trimmed#*://}"
+          printf '[{"targets":["%s%s"],"labels":{}}]\n' "$$url_trimmed" "$$EXTERNAL_HOST_HEALTH_PATH" > /sd/blackbox/external-home.json
+          printf '[{"targets":["%s"],"labels":{"service":"%s","__metrics_path__":"/actuator/prometheus"}}]\n' "$$host_port" "$$EXTERNAL_HOST_NAME" > /sd/external-home-metrics.json
+        else
+          printf '[]\n' > /sd/blackbox/external-home.json
+          printf '[]\n' > /sd/external-home-metrics.json
+        fi
+    restart: "no"
+
   prometheus:
     image: prom/prometheus:v3.12.0
     container_name: cowork-prometheus
     restart: unless-stopped
+    depends_on:
+      prometheus-external-target-writer:
+        condition: service_completed_successfully
     ports:
       - "9090:9090"
     volumes:
@@ -313,19 +393,56 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  alertmanager-config-init:
+    image: busybox:1.36
+    container_name: cowork-alertmanager-config-init
+    restart: "no"
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+    volumes:
+      - ./cowork-monitoring/alertmanager/alertmanager.yml:/source/alertmanager.yml:ro
+      - ./cowork-monitoring/alertmanager/alertmanager-noop.yml:/source/alertmanager-noop.yml:ro
+      - alertmanager_config:/generated
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        rm -f /generated/alertmanager.yml /generated/discord-webhook-url
+
+        if [ -n "$${DISCORD_WEBHOOK_URL}" ]; then
+          cp /source/alertmanager.yml /generated/alertmanager.yml
+          printf '%s' "$${DISCORD_WEBHOOK_URL}" > /generated/discord-webhook-url
+          chown 65534:65534 /generated/discord-webhook-url
+          chmod 0400 /generated/discord-webhook-url
+        elif [ "$${SPRING_PROFILES_ACTIVE}" = "local" ]; then
+          cp /source/alertmanager-noop.yml /generated/alertmanager.yml
+        else
+          echo "DISCORD_WEBHOOK_URL is required outside the local profile" >&2
+          exit 1
+        fi
+
+        chmod 0444 /generated/alertmanager.yml
+
   alertmanager:
     image: prom/alertmanager:v0.33.0
     container_name: cowork-alertmanager
     restart: unless-stopped
+    depends_on:
+      alertmanager-config-init:
+        condition: service_completed_successfully
     ports:
       - "9093:9093"
     volumes:
-      - ./cowork-monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    environment:
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - alertmanager_config:/etc/alertmanager/generated:ro
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--config.expand-env=true'
+      - '--config.file=/etc/alertmanager/generated/alertmanager.yml'
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   grafana:
     image: grafana/grafana:13.0.2
@@ -415,6 +532,8 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       vault-init:
         condition: service_completed_successfully
     environment:
@@ -447,6 +566,11 @@ services:
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       REDIS_HOST: redis
+      # TODO: 임시 - 홈서버 등 Eureka 미등록 외부 호스트 연동. ExternalRouteConfig 제거 시 함께 삭제할 것
+      EXTERNAL_HOST_URL: ${EXTERNAL_HOST_URL:-}
+      EXTERNAL_HOST_NAME: ${EXTERNAL_HOST_NAME:-external}
+      EXTERNAL_HOST_HEALTH_PATH: ${EXTERNAL_HOST_HEALTH_PATH:-/health}
+      EXTERNAL_HOST_DOCS_PATH: ${EXTERNAL_HOST_DOCS_PATH:-/v3/api-docs}
     ports:
       - "8080:8080"
     volumes:
@@ -635,14 +759,42 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
-      GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
-      GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY}
+      GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL:-}
+      GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY:-}
     ports:
       - "${COWORK_PROJECT_HOST_PORT:-8089}:8084"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
+  cowork-roadmap:
+    image: cowork-roadmap:local
+    container_name: cowork-roadmap
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://cowork-config:8761"
+      SPRING_R2DBC_URL: "r2dbc:mysql://mysql:3306/cowork_roadmap?serverZoneId=Asia/Seoul"
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://cowork-config:8761/eureka/
+    ports:
+      - "8088:8088"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -745,3 +897,4 @@ volumes:
   loki_data:
   cowork_logs:
   promtail_positions:
+  alertmanager_config:
