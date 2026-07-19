@@ -13,6 +13,7 @@ import { UserClient } from './service/user.client';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { BlockService } from '../block/block.service';
+import { UnreadCounterService } from './service/unread-counter.service';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -104,6 +105,13 @@ const mockChatGateway = {
     },
 };
 
+const mockUnreadCounterService = {
+    getMany: jest.fn(),
+    setMany: jest.fn().mockResolvedValue(undefined),
+    set: jest.fn().mockResolvedValue(undefined),
+    incrementIfPresent: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -122,6 +130,7 @@ describe('ChatService', () => {
                 { provide: UserClient, useValue: mockUserClient },
                 { provide: BlockService, useValue: mockBlockService },
                 { provide: ChatGateway, useValue: mockChatGateway },
+                { provide: UnreadCounterService, useValue: mockUnreadCounterService },
             ],
         }).compile();
 
@@ -261,6 +270,22 @@ describe('ChatService', () => {
         it('DM이 없으면 빈 배열을 반환한다', async () => {
             mockChannelMemberRepository.findDmMemberships.mockResolvedValue([]);
             await expect(service.getMyDms(42)).resolves.toEqual([]);
+        });
+
+        it('캐시에 전부 있으면 MongoDB 재계산 없이 캐시 값을 사용한다', async () => {
+            mockChannelMemberRepository.findDmMemberships.mockResolvedValue([
+                { channelId: 1, lastReadMessageId: null },
+            ]);
+            mockChannelMemberRepository.findOtherDmMembers.mockResolvedValue(new Map([[1, 7]]));
+            mockMessageRepository.findLastMessages.mockResolvedValue(new Map([
+                [1, { messageId: 'a', authorId: 7, content: '안녕', type: 'TEXT', createdAt: new Date('2026-01-01') }],
+            ]));
+            mockUnreadCounterService.getMany.mockResolvedValueOnce({ hits: new Map([[1, 4]]), misses: [] });
+
+            const result = await service.getMyDms(42);
+
+            expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
+            expect(result[0].unreadCount).toBe(4);
         });
     });
 
@@ -422,7 +447,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(msg);
 
-            await service.editMessage(ctx({ userRole: 'ROLE_ADMIN' }), { content: '관리자 수정' });
+            await service.editMessage(ctx({ userRole: 'ADMIN' }), { content: '관리자 수정' });
 
             expect(msg.save).toHaveBeenCalled();
         });
@@ -539,7 +564,7 @@ describe('ChatService', () => {
             mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             await expect(
-                service.deleteMessage(ctx({ userRole: 'ROLE_ADMIN' })),
+                service.deleteMessage(ctx({ userRole: 'ADMIN' })),
             ).resolves.toBeDefined();
         });
 
@@ -591,6 +616,7 @@ describe('ChatService', () => {
                 expect.any(Types.ObjectId),
             );
             expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, expect.any(Types.ObjectId));
+            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, 3);
         });
 
         it('user:{userId} 룸으로 channel:unread:updated 이벤트를 emit한다', async () => {
@@ -650,15 +676,71 @@ describe('ChatService', () => {
             ]);
             expect(result).toEqual([{ channelId: 3, unreadCount: 10 }]);
         });
+
+        it('캐시에 전부 있으면 MongoDB 재계산 없이 캐시 값을 사용한다', async () => {
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([
+                { channelId: 1, lastReadMessageId: null },
+                { channelId: 2, lastReadMessageId: null },
+            ]);
+            mockUnreadCounterService.getMany.mockResolvedValueOnce({
+                hits: new Map([[1, 5], [2, 0]]),
+                misses: [],
+            });
+
+            const result = await service.getTeamUnread(10, 42);
+
+            expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
+            expect(result).toEqual([
+                { channelId: 1, unreadCount: 5 },
+                { channelId: 2, unreadCount: 0 },
+            ]);
+        });
+
+        it('일부만 캐시 미스면 미스 채널만 MongoDB로 재계산하고 캐시를 채운다', async () => {
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([
+                { channelId: 1, lastReadMessageId: null },
+                { channelId: 2, lastReadMessageId: null },
+            ]);
+            mockUnreadCounterService.getMany.mockResolvedValueOnce({
+                hits: new Map([[1, 5]]),
+                misses: [2],
+            });
+            mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[2, 7]]));
+
+            const result = await service.getTeamUnread(10, 42);
+
+            expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
+                { channelId: 2, lastReadMessageId: null },
+            ]);
+            expect(mockUnreadCounterService.setMany).toHaveBeenCalledWith(42, new Map([[2, 7]]));
+            expect(result).toEqual([
+                { channelId: 1, unreadCount: 5 },
+                { channelId: 2, unreadCount: 7 },
+            ]);
+        });
     });
 
     describe('saveSystemMessage', () => {
         it('시스템 메시지는 clientMessageId 없이 저장한다', async () => {
             mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
+            mockChannelMemberRepository.findByChannelId.mockResolvedValue([]);
 
             await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 100);
 
             expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith(10, 1, '이슈가 생성됐어요', 100, 0);
+        });
+
+        it('채널 멤버(SYSTEM_AUTHOR_ID 제외)의 안읽음 수를 증가시킨다', async () => {
+            mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
+            mockChannelMemberRepository.findByChannelId.mockResolvedValue([
+                { userId: 7 },
+                { userId: 9 },
+                { userId: 0 },
+            ]);
+
+            await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 100);
+
+            expect(mockUnreadCounterService.incrementIfPresent).toHaveBeenCalledWith(1, [7, 9]);
         });
     });
 });

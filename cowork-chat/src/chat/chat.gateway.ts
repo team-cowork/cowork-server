@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Logger, UseFilters } from '@nestjs/common';
 import {
     WebSocketGateway,
     WebSocketServer,
@@ -20,6 +20,13 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
+import { getOptionalConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
+
+const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
+const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
+const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 
 export interface ChatSocketData {
     userId: number;
@@ -31,14 +38,24 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 /**
  * `/chat` 네임스페이스의 WebSocket 게이트웨이.
  *
- * 연결 시 `auth.token`(JWT)을 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
+ * 연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
+ * 헤더가 없으면 `auth.token`(JWT)을 직접 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
  * 인증 실패 시 `exception` 이벤트를 emit하고 소켓을 즉시 끊는다.
  * `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
  * Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
+ *
+ * `app.useGlobalFilters()`로 등록한 전역 필터는 WebSocket Gateway 예외를 감지하지 못하므로
+ * (Nest `@nestjs/websockets`의 `ExceptionFiltersContext`는 전역 필터 메타데이터를 조회하지 않음),
+ * `GlobalExceptionFilter`를 클래스 레벨에 별도로 바인딩한다.
  */
+@UseFilters(GlobalExceptionFilter)
 @WebSocketGateway({
     namespace: '/chat',
-    path: '/chat-ws',
+    path: '/ws/chat',
+    connectionStateRecovery: {
+        maxDisconnectionDuration: 2 * 60 * 1000,
+        skipMiddlewares: true,
+    },
     cors: {
         origin: true, // Gateway에서 이미 제어되지만, 필요시 ConfigService로 주입 가능
         methods: ['GET', 'POST'],
@@ -50,6 +67,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     @WebSocketServer() server!: Server;
 
+    private readonly typingRateLimitWindowMs: number;
+    private readonly typingRateLimitMaxRequests: number;
+
     constructor(
         @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
@@ -60,7 +80,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly membershipConsumer: MembershipConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
-    ) {}
+        private readonly rateLimiter: RedisRateLimiter,
+    ) {
+        this.typingRateLimitWindowMs = Number(
+            getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
+        );
+        this.typingRateLimitMaxRequests = Number(
+            getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
+        );
+    }
 
     /**
      * Socket.IO 서버 초기화 후 호출된다.
@@ -77,34 +105,58 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     * 클라이언트 연결 시 JWT를 검증하고 `client.data`에 인증 정보를 설정한다.
-     * `auth.token`이 없거나 유효하지 않으면 `exception` 이벤트 후 소켓을 끊는다.
+     * 클라이언트 연결 시 인증 정보를 확인해 `client.data`에 설정한다.
+     * Gateway가 `X-User-Id`/`X-User-Role` 헤더를 주입한 경우 이를 신뢰하고,
+     * 헤더가 없으면(Gateway 미경유 등) `auth.token`의 JWT를 직접 검증하는 기존 방식으로 대체한다.
+     * 두 방식 모두 실패하면 `exception` 이벤트 후 소켓을 끊는다.
      *
      * @param client - 연결된 Socket.IO 소켓
      */
     async handleConnection(client: ChatSocket) {
         try {
-            const token = client.handshake.auth?.token as string | undefined;
-            if (!token) {
-                throw new Error('토큰이 전달되지 않았습니다');
-            }
-
-            const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
-            const userId = Number(payload.sub);
-            if (isNaN(userId) || userId <= 0) {
-                throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
-            }
+            const { userId, userRole } = await this.resolveIdentity(client);
 
             client.data.userId = userId;
-            client.data.userRole = payload.role ?? UserRole.USER;
+            client.data.userRole = userRole;
             this.joinRoom(client, `user:${userId}`);
-            this.logger.log(`연결됨: ${client.id} (userId=${userId})`);
+            this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
-            this.logger.warn(`인증 실패로 연결 거부: ${client.id} - ${message}`);
+            this.logger.warn(`Auth failed, rejecting connection: ${client.id} - ${message}`);
             client.emit('exception', { message: '인증 실패: ' + message });
             client.disconnect();
         }
+    }
+
+    /**
+     * Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
+     * 없으면 `auth.token`의 JWT를 직접 검증해 사용자 정보를 확인한다.
+     */
+    private async resolveIdentity(client: ChatSocket): Promise<{ userId: number; userRole: string }> {
+        const rawUserId = client.handshake.headers['x-user-id'];
+        const headerUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
+        if (typeof headerUserId === 'string') {
+            const userId = Number(headerUserId);
+            if (isNaN(userId) || userId <= 0) {
+                throw new Error('X-User-Id 헤더가 유효하지 않습니다');
+            }
+            const rawUserRole = client.handshake.headers['x-user-role'];
+            const headerUserRole = Array.isArray(rawUserRole) ? rawUserRole[0] : rawUserRole;
+            const userRole = typeof headerUserRole === 'string' && headerUserRole ? headerUserRole : UserRole.USER;
+            return { userId, userRole };
+        }
+
+        const token = client.handshake.auth?.token as string | undefined;
+        if (!token) {
+            throw new Error('인증 정보가 전달되지 않았습니다');
+        }
+
+        const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
+        const userId = Number(payload.sub);
+        if (isNaN(userId) || userId <= 0) {
+            throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
+        }
+        return { userId, userRole: payload.role ?? UserRole.USER };
     }
 
     /**
@@ -113,7 +165,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param client - 연결 해제된 Socket.IO 소켓
      */
     handleDisconnect(client: ChatSocket) {
-        this.logger.log(`연결 해제: ${client.id}`);
+        this.logger.log(`Disconnected: ${client.id}`);
     }
 
     /**
@@ -149,21 +201,28 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     /**
      * `typing:start` / `typing:stop` 이벤트 핸들러.
      * 같은 채널 룸의 다른 참여자에게 `typing` 이벤트를 릴레이한다.
+     * 사용자별 시간창 내 호출 한도를 초과하면 조용히 무시한다(별도 에러 emit 없음).
      */
     @SubscribeMessage('typing:start')
-    handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        this.relayTyping(client, payload, true);
+    async handleTypingStart(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        await this.relayTyping(client, payload, true);
     }
 
     @SubscribeMessage('typing:stop')
-    handleTypingStop(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        this.relayTyping(client, payload, false);
+    async handleTypingStop(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        await this.relayTyping(client, payload, false);
     }
 
-    private relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
+    private async relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
         if (!payload || typeof payload.channelId !== 'number') return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
+        const allowed = await this.rateLimiter.tryAcquire(
+            `${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
+            this.typingRateLimitWindowMs,
+            this.typingRateLimitMaxRequests,
+        );
+        if (!allowed) return;
         client.to(room).emit('typing', {
             channelId: payload.channelId,
             userId: client.data.userId,
@@ -203,10 +262,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     private joinRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`방 참여 실패 (room=${room}): ${String(err)}`));
+        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`Failed to join room (room=${room}): ${String(err)}`));
     }
 
     private leaveRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`방 퇴장 실패 (room=${room}): ${String(err)}`));
+        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`Failed to leave room (room=${room}): ${String(err)}`));
     }
 }

@@ -3,11 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Types } from 'mongoose';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { MessageRepository } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * Kafka `chat.message` 토픽을 구독하여 채팅 메시지를 처리하는 컨슈머.
@@ -28,6 +30,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly configService: ConfigService,
         private readonly elasticsearchService: ElasticsearchService,
+        private readonly dicoshot: DicoshotService,
     ) {}
 
     /**
@@ -65,13 +68,22 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                         const event = JSON.parse(message.value.toString()) as ChatMessageEvent;
                         await this.handleMessageEvent(event);
                     } catch (err) {
-                        this.logger.error('Kafka 메시지 처리 중 예외 발생', err);
+                        this.logger.error('Exception while processing Kafka message', err);
                         if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
-            .catch((err) => {
-                this.logger.error('chat.message Kafka consumer 실행 실패', err);
+            .catch(async (err) => {
+                this.logger.error('chat.message Kafka consumer failed', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 chat.message consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'chat.message', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: chat.message');
@@ -139,10 +151,14 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             });
 
             this.logger.log(`message saved messageId=${saved._id.toString()} channelId=${event.channelId}`);
-            this.io?.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+            if (!this.io) {
+                this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
+            } else {
+                this.io.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+            }
             void this.channelMemberRepository
                 .updateLastRead(event.channelId, event.authorId, saved._id)
-                .catch((err) => this.logger.warn(`lastReadMessageId 업데이트 실패 channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
+                .catch((err) => this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${err}`));
 
             if (event.projectId && event.teamId != null) {
                 void this.elasticsearchService.indexMessage({
@@ -160,10 +176,10 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             }
         } catch (err) {
             if (typeof err === 'object' && err !== null && 'code' in err && err.code === 11000) {
-                this.logger.warn(`중복 메시지 감지, 스킵합니다 (clientMessageId: ${event.clientMessageId})`);
+                this.logger.warn(`Duplicate message detected, skipping (clientMessageId: ${event.clientMessageId})`);
                 return;
             }
-            this.logger.error('메시지 저장 실패 — offset 미커밋으로 Kafka 재전달 예정', err);
+            this.logger.error('Failed to save message — Kafka will redeliver (offset not committed)', err);
             throw err;
         }
     }

@@ -1,7 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
+import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * 알림 트리거 Kafka 이벤트 페이로드.
@@ -47,16 +49,28 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
      */
     private connectPromise?: Promise<void>;
 
-    constructor(private readonly configService: ConfigService) {}
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
+    ) {}
 
     onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-notification',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer();
+        this.producer = kafka.producer({ idempotent: true });
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`Notification trigger producer bootstrap connect failed: ${this.formatError(error)}`);
+            void this.dicoshot.sendCustom({
+                title: '🔴 Kafka Producer 연결 실패',
+                description: 'cowork-chat의 notification.trigger producer가 부트스트랩 연결에 실패했습니다.',
+                color: 'danger',
+                fields: [
+                    { name: 'Topic', value: 'notification.trigger', inline: true },
+                    ...buildErrorFields(error),
+                ],
+            }).catch(() => {});
         });
     }
 

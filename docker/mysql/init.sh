@@ -8,6 +8,7 @@ mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<-EOSQL
     CREATE DATABASE IF NOT EXISTS cowork_project DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     CREATE DATABASE IF NOT EXISTS cowork_channel DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     CREATE DATABASE IF NOT EXISTS cowork_notification DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS cowork_roadmap DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
     CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'%' IDENTIFIED BY '${MYSQL_PASSWORD}';
 
@@ -17,6 +18,7 @@ mysql -u root -p"${MYSQL_ROOT_PASSWORD}" <<-EOSQL
     GRANT ALL PRIVILEGES ON cowork_project.* TO '${MYSQL_USER}'@'%';
     GRANT ALL PRIVILEGES ON cowork_channel.* TO '${MYSQL_USER}'@'%';
     GRANT ALL PRIVILEGES ON cowork_notification.* TO '${MYSQL_USER}'@'%';
+    GRANT ALL PRIVILEGES ON cowork_roadmap.* TO '${MYSQL_USER}'@'%';
 
     FLUSH PRIVILEGES;
 EOSQL

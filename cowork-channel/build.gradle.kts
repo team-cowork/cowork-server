@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260623.0"
+version = "20260719.0"
 
 java {
     toolchain {
@@ -27,6 +27,7 @@ dependencyManagement {
 
 dependencies {
     implementation(libs.spring.boot.starter.web)
+    implementation(libs.spring.boot.starter.restclient)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.spring.boot.starter.data.jpa)
@@ -37,6 +38,7 @@ dependencies {
     implementation(libs.jackson.module.kotlin)
 
     implementation(libs.mysql.connector.j)
+    implementation(libs.spring.boot.flyway)
     implementation(libs.flyway.core)
     implementation(libs.flyway.mysql)
     implementation(libs.kotlin.reflect)
@@ -53,6 +55,8 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
+    testImplementation("io.kotest:kotest-runner-junit5-jvm:5.9.1")
+    testImplementation("io.kotest:kotest-assertions-core-jvm:5.9.1")
 }
 
 kotlin {
