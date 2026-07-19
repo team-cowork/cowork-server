@@ -2,9 +2,11 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
+import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
  * Kafka `github.issue.result` 토픽을 구독하여 GitHub 이슈 생성 결과를 처리하는 컨슈머.
@@ -21,6 +23,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     constructor(
         private readonly chatService: ChatService,
         private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
     ) {}
 
     /**
@@ -58,12 +61,24 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
                         const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
                         await this.handleResultEvent(event);
                     } catch (err) {
-                        this.logger.error('이슈 결과 처리 중 오류 발생', err);
+                        this.logger.error('Failed to process issue result event', err);
                         if (!(err instanceof SyntaxError)) throw err;
                     }
                 },
             })
-            .catch((err) => this.logger.error('github.issue.result Kafka consumer 실행 실패', err));
+            .catch(async (err) => {
+                this.logger.error('github.issue.result Kafka consumer failed', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 github.issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'github.issue.result', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: github.issue.result');
     }
 
@@ -114,12 +129,16 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     /**
      * Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
      *
-     * Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 조용히 무시된다.
+     * Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
      *
      * @param channelId - 브로드캐스트 대상 채널 ID
      * @param message - 전송할 메시지 객체
      */
     private notifyClient(channelId: number, message: unknown): void {
-        this.io?.to(`chat:${channelId}`).emit('message', message);
+        if (!this.io) {
+            this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
+            return;
+        }
+        this.io.to(`chat:${channelId}`).emit('message', message);
     }
 }

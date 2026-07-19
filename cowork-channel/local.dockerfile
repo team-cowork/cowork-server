@@ -10,7 +10,9 @@ COPY cowork-channel/src cowork-channel/src
 COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
 COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
 COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
-RUN chmod +x gradlew && ./gradlew :cowork-channel:bootJar -x test --no-daemon
+COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
+RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
+    chmod +x gradlew && ./gradlew :cowork-channel:bootJar -x test --no-daemon
 
 FROM eclipse-temurin:25-jre-alpine
 RUN addgroup -S app && adduser -S app -G app

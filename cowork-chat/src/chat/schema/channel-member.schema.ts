@@ -50,5 +50,11 @@ export const ChannelMemberSchema = SchemaFactory.createForClass(ChannelMember);
  */
 ChannelMemberSchema.index({ channelId: 1, userId: 1 }, { unique: true });
 
-/** 특정 사용자가 속한 모든 채널을 빠르게 조회하기 위한 단일 필드 인덱스 */
-ChannelMemberSchema.index({ userId: 1 });
+/**
+ * 사용자 단위·팀 단위 멤버십 조회를 함께 커버하는 복합 인덱스 (`userId`, `teamId`).
+ * - `userId` 단독 조회(`findChannelIdsByUser`, `findDmMemberships`)는 선두 필드(prefix)로 처리된다.
+ * - `{ teamId, userId }` 조회(`existsByTeam`, `findMembersByTeam`)는 두 필드가 모두 동등 조건이므로
+ *   필드 순서와 무관하게 이 인덱스를 사용한다.
+ * 단일 `{ userId }` 인덱스를 별도로 두지 않아 쓰기·저장 비용을 절감한다.
+ */
+ChannelMemberSchema.index({ userId: 1, teamId: 1 });

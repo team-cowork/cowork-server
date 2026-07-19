@@ -10,10 +10,11 @@ import { ProjectClient } from './service/project.client';
 import { MinioService } from '../storage/minio.service';
 import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
+import { ThrottleGuard } from '../common/guard/throttle.guard';
 
 const mockMessageId = new Types.ObjectId().toString();
 const userId = 42;
-const userRole = 'ROLE_USER';
+const userRole = 'MEMBER';
 
 const mockChatService = {
     checkMembership: jest.fn(),
@@ -66,7 +67,10 @@ describe('ChatController', () => {
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
                 { provide: ProjectClient, useValue: mockProjectClient },
             ],
-        }).compile();
+        })
+            .overrideGuard(ThrottleGuard)
+            .useValue({ canActivate: () => true })
+            .compile();
 
         controller = module.get<ChatController>(ChatController);
         jest.clearAllMocks();
@@ -134,7 +138,7 @@ describe('ChatController', () => {
             const result = await controller.sendMessage(1, dto, userId, userRole);
 
             expect(mockChatService.sendMessage).toHaveBeenCalledWith(
-                { channelId: 1, userId: 42, userRole: 'ROLE_USER' },
+                { channelId: 1, userId: 42, userRole: 'MEMBER' },
                 dto,
             );
             expect(result).toEqual({ queued: true });
@@ -349,7 +353,7 @@ describe('ChatController', () => {
             const result = await controller.editMessage(1, mockMessageId, { content: '수정됨' }, userId, userRole);
 
             expect(mockChatService.editMessage).toHaveBeenCalledWith(
-                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ROLE_USER' },
+                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER' },
                 { content: '수정됨' },
             );
             expect(result).toBe(updated);
@@ -401,7 +405,7 @@ describe('ChatController', () => {
             const result = await controller.deleteMessage(1, mockMessageId, userId, userRole);
 
             expect(mockChatService.deleteMessage).toHaveBeenCalledWith(
-                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ROLE_USER' },
+                { channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER' },
             );
             expect(result).toEqual({ channelId: 1, messageId: mockMessageId });
         });

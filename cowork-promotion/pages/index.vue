@@ -25,6 +25,7 @@ const techCategories: { label: string; items: TechItem[] }[] = [
                 color: "#7F52FF",
                 positions: ["Server", "Desktop App Client"],
             },
+            { name: "Java", color: "#ED8B00", positions: ["Server"] },
             {
                 name: "TypeScript",
                 color: "#3178C6",
@@ -158,9 +159,11 @@ const positionOrder = [
     "Mobile App Client",
     "Cloud",
     "Design",
-];
+] as const;
 
-const positionConfig: Record<string, { color: string; description: string }> = {
+type PositionName = (typeof positionOrder)[number];
+
+const positionConfig: Record<PositionName, { color: string; description: string }> = {
     Server: {
         color: "#8B5CF6",
         description:
@@ -207,7 +210,7 @@ const positionTechsMap = computed<Record<string, string[]>>(() => {
 });
 
 interface PositionGroup {
-    name: string;
+    name: PositionName;
     color: string;
     description: string;
     techs: string[];

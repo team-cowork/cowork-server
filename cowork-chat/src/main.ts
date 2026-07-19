@@ -9,6 +9,7 @@ import { Logger as PinoLogger } from 'nestjs-pino';
 import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
+import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -22,12 +23,13 @@ async function bootstrap() {
     debugStartup('config server properties loaded');
 
     debugStartup('creating Nest application');
-    const { ChatModule } = await import('./chat/chat.module');
-    const app = await NestFactory.create<NestExpressApplication>(ChatModule, { bufferLogs: true });
+    const { AppModule } = await import('./app.module');
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
     app.setGlobalPrefix('chat', { exclude: ['health'] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
 
     const config = new DocumentBuilder()
@@ -49,6 +51,19 @@ async function bootstrap() {
             '## 파일 목록\n' +
             '`GET /channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
             '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n' +
+            '## 통합 검색 (GraphQL)\n' +
+            '`POST /chat/graphql` — 메시지(Elasticsearch)와 채널(channel-service)을 단일 요청으로 병렬 검색.\n\n' +
+            '```graphql\n' +
+            'query {\n' +
+            '  unifiedSearch(teamId: 1, q: "배포") {\n' +
+            '    messages { messageId channelId content highlight createdAt }\n' +
+            '    messageNextCursor\n' +
+            '    channels { id name type isPrivate }\n' +
+            '  }\n' +
+            '}\n' +
+            '```\n\n' +
+            '선택 인자: `channelId`, `authorId`, `type`, `hasFile`, `before`, `limit`\n\n' +
+            'GraphQL Playground: `/chat/graphql` (GET)\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
             'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +

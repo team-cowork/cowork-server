@@ -28,7 +28,7 @@ jobs:
             const title = context.payload.pull_request.title;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'chat', 'voice', 'promotion',
+              'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion',
               'config', 'notification', 'preference', 'ci/cd', 'monitoring'
             ];
 
@@ -143,6 +143,8 @@ jobs:
               - 'cowork-project/**'
             cowork-channel:
               - 'cowork-channel/**'
+            cowork-roadmap:
+              - 'cowork-roadmap/**'
       - name: Build Service Matrix
         id: build-matrix
         run: |
@@ -156,13 +158,14 @@ jobs:
               {"service":"cowork-team","build":"gradle","working-directory":"."},
               {"service":"cowork-project","build":"gradle","working-directory":"."},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
+              {"service":"cowork-roadmap","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
               {"service":"cowork-channel","build":"gradle","working-directory":"."}
             ]}'
-            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-project, cowork-channel, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
+            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-team, cowork-project, cowork-channel, cowork-roadmap, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
           else
             MATRIX='{"include":[]}'
             SERVICES=""
@@ -187,6 +190,9 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-project }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-project"
+            [ "${{ steps.filter.outputs.cowork-roadmap }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-roadmap","build":"gradle","working-directory":"."}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-roadmap"
             [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
@@ -284,7 +290,7 @@ jobs:
           otp-version: ${{ matrix.otp-version }}
       - name: Cache Elixir Dependencies
         if: matrix.build == 'elixir'
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ${{ matrix.working-directory }}/deps
