@@ -1,6 +1,6 @@
 {
   "name": "cowork-chat",
-  "version": "20260623.0.0",
+  "version": "20260719.0.0",
   "description": "채팅 서비스.",
   "main": "index.js",
   "scripts": {
@@ -18,10 +18,14 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@apollo/server": "^5.5.1",
+    "@as-integrations/express5": "^1.1.2",
     "@elastic/elasticsearch": "^9.4.2",
+    "@nestjs/apollo": "^13.4.2",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.27",
+    "@nestjs/graphql": "^13.4.2",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/microservices": "^11.1.27",
     "@nestjs/mongoose": "^11.0.4",
@@ -32,7 +36,9 @@
     "@willsoto/nestjs-prometheus": "^6.1.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "dicoshot-nest": "^0.3.0",
     "dotenv": "^17.4.2",
+    "graphql": "^16.14.2",
     "ioredis": "^5.11.1",
     "kafkajs": "^2.2.4",
     "mime-types": "^3.0.2",
@@ -62,5 +68,19 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1"
+  },
+  "overrides": {
+    "@nestjs/graphql": {
+      "ws": "8.21.1"
+    },
+    "engine.io": {
+      "ws": "8.21.1"
+    },
+    "engine.io-client": {
+      "ws": "8.21.1"
+    },
+    "socket.io-adapter": {
+      "ws": "8.21.1"
+    }
   }
 }

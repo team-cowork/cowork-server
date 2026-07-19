@@ -4,12 +4,18 @@ import { MessageRepository } from './message.repository';
 
 const mockAggregate = jest.fn();
 const mockCountDocuments = jest.fn();
+const mockFindOneAndUpdate = jest.fn();
 
 const mockMessageModel = {
     aggregate: mockAggregate,
     countDocuments: mockCountDocuments,
+    findOneAndUpdate: mockFindOneAndUpdate,
     collection: { name: 'messages' },
 };
+
+function mockFindOneAndUpdateResult(result: unknown) {
+    mockFindOneAndUpdate.mockReturnValue({ lean: () => Promise.resolve(result) });
+}
 
 type AggregatePipelineStage = Record<string, unknown>;
 
@@ -102,6 +108,54 @@ describe('MessageRepository', () => {
             expect(pipeline[4].$addFields).toEqual({
                 mentionedMessage: { $arrayElemAt: ['$mentionedMessage', 0] },
             });
+        });
+    });
+
+    describe('addReaction', () => {
+        it('메시지가 존재하지 않으면 null을 반환한다', async () => {
+            mockFindOneAndUpdateResult(null);
+
+            const result = await repository.addReaction(1, new Types.ObjectId().toString(), 'A', 1);
+
+            expect(result).toBeNull();
+        });
+
+        it('반응이 없던 메시지에 처음 반응하면 1을 반환한다', async () => {
+            mockFindOneAndUpdateResult({ reactions: [] });
+
+            const result = await repository.addReaction(1, new Types.ObjectId().toString(), 'A', 1);
+
+            expect(result).toBe(1);
+        });
+
+        it('이미 다른 사용자가 반응한 이모지에 반응하면 기존 카운트 + 1을 반환한다', async () => {
+            mockFindOneAndUpdateResult({ reactions: [{ emoji: 'A', userIds: [2, 3] }] });
+
+            const result = await repository.addReaction(1, new Types.ObjectId().toString(), 'A', 1);
+
+            expect(result).toBe(3);
+        });
+
+        it('이미 동일 사용자가 반응한 이모지면 -1을 반환한다', async () => {
+            mockFindOneAndUpdateResult({ reactions: [{ emoji: 'A', userIds: [1, 2] }] });
+
+            const result = await repository.addReaction(1, new Types.ObjectId().toString(), 'A', 1);
+
+            expect(result).toBe(-1);
+        });
+
+        it('findOneAndUpdate를 new: false 옵션으로 단일 호출한다', async () => {
+            mockFindOneAndUpdateResult({ reactions: [] });
+            const messageId = new Types.ObjectId().toString();
+
+            await repository.addReaction(1, messageId, 'A', 1);
+
+            expect(mockFindOneAndUpdate).toHaveBeenCalledTimes(1);
+            expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
+                { _id: messageId, channelId: 1 },
+                expect.any(Array),
+                { new: false },
+            );
         });
     });
 

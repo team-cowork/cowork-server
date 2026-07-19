@@ -65,4 +65,20 @@ defmodule CoworkUser.Accounts.Account do
     |> cast(attrs, [:student_role, :last_modified_by])
     |> validate_required([:student_role])
   end
+
+  def datagsm_sync_changeset(account, attrs) do
+    account
+    |> cast(attrs, [
+      :name,
+      :email,
+      :sex,
+      :github,
+      :student_role,
+      :student_number,
+      :major,
+      :specialty,
+      :last_modified_by
+    ])
+    |> validate_required([:student_role])
+  end
 end
