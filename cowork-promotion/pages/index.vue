@@ -45,8 +45,11 @@ const techCategories: { label: string; items: TechItem[] }[] = [
         label: "Frontend",
         items: [
             { name: "React", color: "#61DAFB", positions: ["Web Client"] },
+            { name: "Next.js", color: "#000000", positions: ["Web Client"] },
+            { name: "Tailwind CSS", color: "#06B6D4", positions: ["Web Client"] },
+            { name: "TanStack Query", color: "#FF4154", positions: ["Web Client"] },
+            { name: "Axios", color: "#5A29E4", positions: ["Web Client"] },
             { name: "Vue.js", color: "#4FC08D", positions: [] },
-            { name: "Rsbuild", color: "#FF3E00", positions: ["Web Client"] },
             {
                 name: "Flutter",
                 color: "#02569B",
@@ -83,7 +86,7 @@ const techCategories: { label: string; items: TechItem[] }[] = [
         label: "Database",
         items: [
             { name: "MySQL", color: "#4479A1", positions: ["Server"] },
-            { name: "PostgreSQL", color: "#336791", positions: [] },
+            { name: "PostgreSQL", color: "#336791", positions: ["Server"] },
             { name: "MongoDB", color: "#47A248", positions: ["Server"] },
             { name: "Redis", color: "#DC382D", positions: ["Server"] },
             { name: "Elasticsearch", color: "#005571", positions: ["Server"] },
