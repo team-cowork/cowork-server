@@ -46,16 +46,8 @@ const techCategories: { label: string; items: TechItem[] }[] = [
         items: [
             { name: "React", color: "#61DAFB", positions: ["Web Client"] },
             { name: "Next.js", color: "#000000", positions: ["Web Client"] },
-            {
-                name: "Tailwind CSS",
-                color: "#06B6D4",
-                positions: ["Web Client"],
-            },
-            {
-                name: "TanStack Query",
-                color: "#FF4154",
-                positions: ["Web Client"],
-            },
+            { name: "Tailwind CSS", color: "#06B6D4", positions: ["Web Client"] },
+            { name: "TanStack Query", color: "#FF4154", positions: ["Web Client"] },
             { name: "Axios", color: "#5A29E4", positions: ["Web Client"] },
             { name: "Vue.js", color: "#4FC08D", positions: [] },
             {
