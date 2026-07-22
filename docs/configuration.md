@@ -45,7 +45,7 @@
 | `secret/cowork-user`          | MySQL username/password, Phoenix `SECRET_KEY_BASE`    |
 | `secret/cowork-voice`         | MongoDB URI, LiveKit key/secret                       |
 
-로컬에서는 `vault-init`이 `.env`의 인프라 계정·애플리케이션 시크릿을 위 경로에 기록한다. 즉 `.env`는 로컬 Vault를 채우기 위한 bootstrap 입력이지 애플리케이션이 직접 읽는 설정 소스가 아니다. 운영에서는 `vault-init`을 실행하지 않고 외부 Vault를 사전에 준비한다.
+로컬에서는 `vault-init`이 `.env`의 인프라 계정·애플리케이션 시크릿을 위 경로에 기록한다. `.env`는 로컬 Vault와 Config Server를 준비하는 bootstrap 입력이며, 애플리케이션 컨테이너는 이 파일을 직접 설정 소스로 사용하지 않는다. 운영에서는 `vault-init`을 실행하지 않고 외부 Vault를 사전에 준비한다.
 
 Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Grafana, Alertmanager 같은 인프라·서드파티 컨테이너는 배포 환경의 secret을 Compose로 직접 받는다. 같은 값이 애플리케이션에도 필요하면 로컬 `vault-init` 또는 운영 배포 절차가 Vault에 따로 기록한다.
 
