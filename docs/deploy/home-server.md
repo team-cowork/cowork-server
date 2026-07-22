@@ -35,15 +35,14 @@ git clone https://github.com/team-cowork/cowork-server.git .
 cp .env.example .env
 # .env를 열어 아래 값을 채운다 (다른 프로젝트와 겹치지 않는 값 사용):
 #   MYSQL_ROOT_PASSWORD, MYSQL_USER, MYSQL_PASSWORD
-#   JWT_SECRET, DATAGSM_CLIENT_ID
 #   VAULT_HOST=cowork-vault, VAULT_PORT=8200, VAULT_SCHEME=http, VAULT_TOKEN=dev-root-token
-#   GITHUB_APP_SERVICE_URL / GITHUB_APP_INTERNAL_API_KEY (연동 안 하면 임의 값)
+#   GITHUB_APP_INTERNAL_API_KEY (GitHub App 연동 시에만 설정; URL은 운영 Config Git에서 관리)
 #   MYSQL_HOST_PORT=3307  # 호스트에 이미 3306을 쓰는 mysql이 있으면 반드시 겹치지 않는 값으로 지정
 #   KAFKA_EXTERNAL_HOST_PORT=19094  # kafka EXTERNAL 리스너용 호스트 포트. 이 배포에서는
 #                                    # 쓰이지 않지만 base 기본값(9094)이 막혀 있으면 지정 필요
 #   COWORK_CONFIG_HOST_PORT=18761   # cowork-config(Eureka) 호스트 포트. base 기본값(8761)이
 #                                    # 막혀 있으면 지정 필요
-#   COWORK_PROJECT_HOST_PORT=18089  # cowork-project 호스트 포트. base 기본값(8089)이
+#   COWORK_PROJECT_HOST_PORT=18089  # cowork-project 호스트 포트. base 기본값(8084)이
 #                                    # 막혀 있으면 지정 필요 — nginx location의 proxy_pass와
 #                                    # 반드시 같은 값을 써야 한다
 
@@ -83,11 +82,10 @@ location /cowork/project/ {
     proxy_set_header   X-Real-IP         $remote_addr;
     proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
     proxy_set_header   X-Forwarded-Proto $scheme;
-    # 애플리케이션이 만드는 리다이렉트/링크가 /cowork/project 접두사를 유지하도록 전달.
-    # Spring Boot에서 인식하려면 server.forward-headers-strategy=framework 설정이 필요하다.
-    proxy_set_header   X-Forwarded-Prefix /cowork/project;
 }
 ```
+
+현재 `cowork-project`에는 `server.forward-headers-strategy` 설정이 없으므로 `X-Forwarded-Prefix`에 의존하지 않는다. 외부 접두사를 포함한 절대 redirect/link 생성이 필요해지면 애플리케이션 설정과 nginx 헤더를 함께 추가한다.
 
 적용 전 반드시 문법 검증 후 reload한다:
 

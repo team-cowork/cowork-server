@@ -107,11 +107,7 @@ func fetchFromConfigServer() (map[string]string, error) {
 
 	flatMap, err := client.Fetch(ctx)
 	if err != nil {
-		if profile == "prod" {
-			return nil, fmt.Errorf("config server unreachable in prod profile: %w", err)
-		}
-		slog.Warn("config server unavailable, falling back to env vars only", "err", err)
-		return map[string]string{}, nil
+		return nil, fmt.Errorf("config server unreachable for profile %s: %w", profile, err)
 	}
 
 	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))

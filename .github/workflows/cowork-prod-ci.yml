@@ -317,14 +317,23 @@ jobs:
         working-directory: ${{ matrix.working-directory }}
         run: |
           npm ci
+          npm test --if-present
           npm run build
       - name: Build & Test (Elixir)
         if: matrix.build == 'elixir'
         working-directory: ${{ matrix.working-directory }}
+        env:
+          MIX_ENV: test
+          SECRET_KEY_BASE: ci-test-secret-key-base-ci-test-secret-key-base-ci-test-secret-key-base
+          DB_HOST: localhost
+          DB_PORT: '3306'
+          DB_NAME: cowork_test
+          DB_USERNAME: cowork
+          DB_PASSWORD: cowork
         run: |
           mix deps.get
           mix deps.compile
-          mix compile
+          mix test --no-start
 
   notify:
     runs-on: ubuntu-latest
