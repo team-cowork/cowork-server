@@ -538,7 +538,7 @@ services:
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
     ports:
-      - "127.0.0.1:${COWORK_CONFIG_HOST_PORT:-8761}:8761"
+      - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:

@@ -24,7 +24,6 @@ services:
       CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
       CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
       CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
-    ports: !reset []
 
   vault:
     profiles: [local-vault]
