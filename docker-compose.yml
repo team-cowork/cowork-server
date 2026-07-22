@@ -538,7 +538,7 @@ services:
       MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
     ports:
-      - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
+      - "127.0.0.1:${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
@@ -713,6 +713,8 @@ services:
       - "${COWORK_PROJECT_HOST_PORT:-8084}:8084"
     volumes:
       - cowork_logs:/var/log/cowork
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
       interval: 10s
