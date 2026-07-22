@@ -73,5 +73,5 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 - `VAULT_HOST`, `VAULT_TOKEN`, `CONFIG_GIT_URI`는 Config Server 부트스트랩 값으로 배포 환경에서 주입한다.
 - 운영 Config Git에는 시크릿 값을 커밋하지 않는다.
 - 필수 시크릿이 없을 때 기본 개발 키로 대체하지 않는다.
-- 분산 배포 모듈의 Config Server/Eureka 접근을 위해 현재 `8761` 포트를 모든 인터페이스에 공개한다. 인증과 네트워크 제한은 `docs/20260723_TODO.md` 완료 전까지 남아 있는 보안 부채다.
+- 분산 배포 모듈의 Config Server/Eureka 접근을 위해 현재 `8761` 포트를 모든 인터페이스에 공개한다. 인증과 네트워크 제한은 [Config Server 접근 보호 TODO](./todo/08-security/config-server-access-control.md)로 관리한다.
 - Config Server와 Vault를 우회하는 서비스 직접 포트는 운영 외부망에 공개하지 않는다.
