@@ -82,6 +82,7 @@ openssl rand -base64 32
 | `LIVEKIT_CONFIG_FILE`              | `livekit.yaml`              | 로컬에서 다른 LiveKit 설정 파일을 시험할 때만 변경     |
 | `*_ACCOUNT_SHARE_CLIENT_ID/SECRET` | 비어 있음                   | channel의 GitHub·Notion·Jira 등 OAuth provider 사용 시 |
 | `DISCORD_WEBHOOK_URL`              | 비어 있음                   | 로컬은 no-op receiver 사용, `prod`에서는 필수          |
+| `MINIO_INTERNAL_ENDPOINT`          | 실행 방식에 따라 자동 선택  | 외부 오브젝트 스토리지의 내부 접근 주소를 사용할 때    |
 | `MINIO_PUBLIC_ENDPOINT`            | `http://__LOCAL_IP__:9000`  | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정    |
 | `ELASTICSEARCH_URL`                | `http://elasticsearch:9200` | 운영 환경에서 관리형 ES 클러스터 주소로 변경           |
 | `GITHUB_APP_INTERNAL_API_KEY`      | 비어 있음                   | GitHub App 연동 시 양쪽에 같은 키 설정                 |
@@ -362,6 +363,10 @@ Loki는 기동되지만 현재 모든 애플리케이션의 파일 로그를 수
 - `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
 - `docker compose up`를 직접 치면 이 치환이 적용되지 않으므로, 모바일 앱·외부 기기 업로드 테스트는 스크립트 경로를 사용해야 한다.
 - 같은 머신에서만 테스트한다면 `http://localhost:9000`으로 충분하다.
+
+`MINIO_INTERNAL_ENDPOINT`:
+- `.env`에서 지정하지 않으면 Compose 컨테이너는 `http://minio:9000`, 호스트 실행 스크립트는 `http://localhost:9000`을 사용한다.
+- 외부 오브젝트 스토리지를 사용하는 경우에만 `.env`에서 모든 실행 환경이 접근할 수 있는 내부 주소로 재정의한다.
 
 Flyway 경고:
 - MySQL 컨테이너가 `9.7.1`이라 Flyway 로그에 버전 불일치 경고가 뜬다.

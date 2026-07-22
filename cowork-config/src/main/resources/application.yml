@@ -8,6 +8,8 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
     group:
       local: composite
+      dev: composite
+      prod: composite
 
   cloud:
     bus:
@@ -117,7 +119,7 @@ spring:
           - type: vault
             host: ${VAULT_HOST}
             port: ${VAULT_PORT:8200}
-            scheme: ${VAULT_SCHEME:https}
+            scheme: https
             authentication: TOKEN
             token: ${VAULT_TOKEN}
             kv-version: 2
