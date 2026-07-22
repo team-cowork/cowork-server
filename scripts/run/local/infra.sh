@@ -8,8 +8,15 @@ REQUIRED_VARS=(
   MYSQL_ROOT_PASSWORD
   MYSQL_USER
   MYSQL_PASSWORD
+  POSTGRES_USER
+  POSTGRES_PASSWORD
   MONGO_ROOT_USERNAME
   MONGO_ROOT_PASSWORD
+  JWT_SECRET
+  SECRET_KEY_BASE
+  DATAGSM_CLIENT_ID
+  ACCOUNT_CREDENTIAL_ENCRYPTION_KEY
+  ACCOUNT_SHARE_OAUTH_STATE_SECRET
 )
 
 CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis cowork-minio)
@@ -76,6 +83,12 @@ validate_env() {
       echo "  - $var"
     done
     echo "Check your .env file at $PROJECT_ROOT/.env"
+    exit 1
+  fi
+
+  if [ ! -f "$PROJECT_ROOT/docker/secrets/firebase-credentials.json" ]; then
+    echo "ERROR: Firebase credential file is missing:"
+    echo "  - $PROJECT_ROOT/docker/secrets/firebase-credentials.json"
     exit 1
   fi
 }

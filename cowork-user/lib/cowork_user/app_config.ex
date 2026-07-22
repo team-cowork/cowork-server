@@ -1,5 +1,11 @@
 defmodule CoworkUser.AppConfig do
-  @enforce_keys [:port, :eureka_server_url, :eureka_app_name, :eureka_instance_host, :eureka_instance_id]
+  @enforce_keys [
+    :port,
+    :eureka_server_url,
+    :eureka_app_name,
+    :eureka_instance_host,
+    :eureka_instance_id
+  ]
   defstruct [
     :port,
     :eureka_server_url,
@@ -25,7 +31,8 @@ defmodule CoworkUser.AppConfig do
     :max_file_size_bytes,
     :allowed_content_types,
     :redis_host,
-    :redis_port
+    :redis_port,
+    :team_service_url
   ]
 
   @persistent_key {__MODULE__, :config}
@@ -53,7 +60,10 @@ defmodule CoworkUser.AppConfig do
     port = lookup(remote, ["PORT", "SERVER_PORT", "server_port"], "8082") |> String.to_integer()
     app_name = lookup(remote, ["EUREKA_APP_NAME", "eureka_app_name"], "cowork-user")
     instance_host = lookup(remote, ["EUREKA_INSTANCE_HOST", "eureka_instance_host"], "localhost")
-    instance_port = lookup(remote, ["EUREKA_INSTANCE_PORT", "eureka_instance_port"], Integer.to_string(port)) |> String.to_integer()
+
+    instance_port =
+      lookup(remote, ["EUREKA_INSTANCE_PORT", "eureka_instance_port"], Integer.to_string(port))
+      |> String.to_integer()
 
     %__MODULE__{
       port: port,
@@ -68,48 +78,100 @@ defmodule CoworkUser.AppConfig do
         ),
       eureka_app_name: app_name,
       eureka_instance_host: instance_host,
-      eureka_instance_id: lookup(remote, ["EUREKA_INSTANCE_ID"], "#{instance_host}:#{app_name}:#{instance_port}"),
+      eureka_instance_id:
+        lookup(remote, ["EUREKA_INSTANCE_ID"], "#{instance_host}:#{app_name}:#{instance_port}"),
       eureka_instance_port: instance_port,
       config_server_url: System.get_env("APP_CONFIG_URL"),
       config_profile: System.get_env("APP_PROFILE", "local"),
-      kafka_bootstrap_servers: lookup(remote, ["KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"], "localhost:9094"),
+      kafka_bootstrap_servers:
+        lookup(remote, ["KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"], "localhost:9094"),
       kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC"], "user.data.sync"),
       kafka_group_id: lookup(remote, ["KAFKA_GROUP_ID", "kafka_group_id"], "cowork-user"),
       kafka_enabled: lookup(remote, ["KAFKA_ENABLED"], "true") == "true",
       minio_region: lookup(remote, ["MINIO_REGION", "minio_region"], "ap-northeast-2"),
-      minio_internal_endpoint: lookup(remote, ["MINIO_INTERNAL_ENDPOINT", "minio_internal_endpoint"], "http://localhost:9000"),
-      minio_public_endpoint: lookup(remote, ["MINIO_PUBLIC_ENDPOINT", "minio_public_endpoint"], "http://localhost:9000"),
+      minio_internal_endpoint:
+        lookup(
+          remote,
+          ["MINIO_INTERNAL_ENDPOINT", "minio_internal_endpoint"],
+          "http://localhost:9000"
+        ),
+      minio_public_endpoint:
+        lookup(
+          remote,
+          ["MINIO_PUBLIC_ENDPOINT", "minio_public_endpoint"],
+          "http://localhost:9000"
+        ),
       minio_access_key: lookup(remote, ["MINIO_ACCESS_KEY", "minio_access_key"], ""),
       minio_secret_key: lookup(remote, ["MINIO_SECRET_KEY", "minio_secret_key"], ""),
       minio_bucket: lookup(remote, ["MINIO_BUCKET", "minio_bucket"], "cowork-bucket"),
-      minio_path_style: lookup(remote, ["MINIO_PATH_STYLE_ACCESS_ENABLED", "minio_path_style_access_enabled"], "true") == "true",
-      presigned_put_expiry_minutes: lookup(remote, ["MINIO_PRESIGNED_PUT_EXPIRY_MINUTES", "minio_presigned_put_expiry_minutes"], "5") |> String.to_integer(),
-      presigned_get_expiry_minutes: lookup(remote, ["MINIO_PRESIGNED_GET_EXPIRY_MINUTES", "minio_presigned_get_expiry_minutes"], "15") |> String.to_integer(),
-      max_file_size_bytes: lookup(remote, ["MINIO_MAX_FILE_SIZE_BYTES", "minio_max_file_size_bytes"], "5242880") |> String.to_integer(),
-      allowed_content_types: parse_csv_or_list(lookup(remote, ["MINIO_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp")),
+      minio_path_style:
+        lookup(
+          remote,
+          ["MINIO_PATH_STYLE_ACCESS_ENABLED", "minio_path_style_access_enabled"],
+          "true"
+        ) == "true",
+      presigned_put_expiry_minutes:
+        lookup(
+          remote,
+          ["MINIO_PRESIGNED_PUT_EXPIRY_MINUTES", "minio_presigned_put_expiry_minutes"],
+          "5"
+        )
+        |> String.to_integer(),
+      presigned_get_expiry_minutes:
+        lookup(
+          remote,
+          ["MINIO_PRESIGNED_GET_EXPIRY_MINUTES", "minio_presigned_get_expiry_minutes"],
+          "15"
+        )
+        |> String.to_integer(),
+      max_file_size_bytes:
+        lookup(remote, ["MINIO_MAX_FILE_SIZE_BYTES", "minio_max_file_size_bytes"], "5242880")
+        |> String.to_integer(),
+      allowed_content_types:
+        parse_csv_or_list(
+          lookup(remote, ["MINIO_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp")
+        ),
       redis_host: lookup(remote, ["REDIS_HOST", "redis_host"], "localhost"),
-      redis_port: lookup(remote, ["REDIS_PORT", "redis_port"], "6379") |> String.to_integer()
+      redis_port: lookup(remote, ["REDIS_PORT", "redis_port"], "6379") |> String.to_integer(),
+      team_service_url:
+        lookup(remote, ["TEAM_SERVICE_URL", "team_service_url"], "http://localhost:8085")
     }
   end
 
   defp fetch_from_config_server do
-    with url when is_binary(url) and url != "" <- System.get_env("APP_CONFIG_URL"),
-         profile <- System.get_env("APP_PROFILE", "local"),
-         {:ok, response} <- Req.get(url: "#{String.trim_trailing(url, "/")}/cowork-user/#{profile}"),
-         {:ok, merged} <- merge_property_sources(response.body) do
-      merged
-    else
-      _ -> %{}
+    case System.get_env("APP_CONFIG_URL") do
+      url when is_binary(url) and url != "" ->
+        profile = System.get_env("APP_PROFILE", "local")
+
+        case Req.get(url: "#{String.trim_trailing(url, "/")}/cowork-user/#{profile}") do
+          {:ok, %{status: 200, body: body}} ->
+            case merge_property_sources(body) do
+              {:ok, merged} -> merged
+              {:error, reason} -> raise "invalid Config Server response: #{inspect(reason)}"
+            end
+
+          {:ok, %{status: status}} ->
+            raise "Config Server returned HTTP #{status} for cowork-user/#{profile}"
+
+          {:error, reason} ->
+            raise "Config Server unavailable for cowork-user/#{profile}: #{inspect(reason)}"
+        end
+
+      _ ->
+        %{}
     end
   end
 
-  defp merge_property_sources(%{"propertySources" => property_sources}) when is_list(property_sources) do
+  defp merge_property_sources(%{"propertySources" => property_sources})
+       when is_list(property_sources) do
     merged =
       property_sources
       |> Enum.reverse()
       |> Enum.reduce(%{}, fn
         %{"source" => source}, acc when is_map(source) ->
-          Enum.reduce(source, acc, fn {key, value}, inner -> Map.put(inner, key, stringify(value)) end)
+          Enum.reduce(source, acc, fn {key, value}, inner ->
+            Map.put(inner, key, stringify(value))
+          end)
 
         _, acc ->
           acc
