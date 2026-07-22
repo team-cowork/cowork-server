@@ -1,6 +1,11 @@
 jwt:
   secret: ${JWT_SECRET}
 
+eureka:
+  client:
+    service-url:
+      defaultZone: http://cowork-config:8761/eureka/
+
 cowork:
   swagger-ui:
     primary-name: user
@@ -23,10 +28,12 @@ cowork:
         url: /v3/api-docs/preference
 
 spring:
+  kafka:
+    bootstrap-servers: kafka:9092
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: redis
+      port: 6379
 
   cloud:
     gateway:

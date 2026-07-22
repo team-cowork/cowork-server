@@ -76,7 +76,36 @@ private fun loadConfig(): JsonObject {
 
     log.info("Fetching config from {} profile={}", configServerUrl, profile)
     val serverConfig = fetchFromConfigServer(configServerUrl, profile)
-    return resolveJsonObject(serverConfig)
+    return applyEnvironmentOverrides(resolveJsonObject(serverConfig))
+}
+
+private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
+    val mappings =
+        mapOf(
+            "PORT" to "server.port",
+            "POSTGRES_HOST" to "preference.db.host",
+            "POSTGRES_PORT" to "preference.db.port",
+            "POSTGRES_DATABASE" to "preference.db.database",
+            "POSTGRES_SCHEMA" to "preference.db.schema",
+            "POSTGRES_USER" to "preference.db.username",
+            "POSTGRES_PASSWORD" to "preference.db.password",
+            "POSTGRES_POOL_SIZE" to "preference.db.pool-size",
+            "REDIS_HOST" to "preference.redis.host",
+            "REDIS_PORT" to "preference.redis.port",
+            "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
+            "EUREKA_URL" to "eureka.url",
+            "EUREKA_ENABLED" to "eureka.enabled",
+            "EUREKA_APP_NAME" to "eureka.app-name",
+            "EUREKA_INSTANCE_HOST" to "eureka.instance.host",
+            "EUREKA_INSTANCE_ID" to "eureka.instance.id",
+        )
+
+    mappings.forEach { (environmentKey, configKey) ->
+        System.getenv(environmentKey)?.takeIf(String::isNotBlank)?.let { value ->
+            setNested(config, configKey, value)
+        }
+    }
+    return config
 }
 
 private fun fetchFromConfigServer(baseUrl: String, profile: String): JsonObject {
