@@ -37,6 +37,11 @@ const docTemplate = `{
         },
         "/notifications/stream": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다.",
                 "produces": [
                     "text/event-stream"
@@ -79,6 +84,11 @@ const docTemplate = `{
         },
         "/notifications/tokens": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "사용자의 디바이스 FCM 토큰을 등록합니다",
                 "consumes": [
                     "application/json"
@@ -102,7 +112,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/token.registerTokenRequest"
+                            "$ref": "#/definitions/internal_domain_token.registerTokenRequest"
                         }
                     }
                 ],
@@ -133,6 +143,11 @@ const docTemplate = `{
         },
         "/notifications/tokens/{token}": {
             "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "사용자의 디바이스 FCM 토큰을 삭제합니다",
                 "tags": [
                     "tokens"
@@ -188,7 +203,7 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "token.registerTokenRequest": {
+        "internal_domain_token.registerTokenRequest": {
             "type": "object",
             "properties": {
                 "platform": {
@@ -199,12 +214,20 @@ const docTemplate = `{
                 }
             }
         }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "description": "\"Bearer {access_token}\" 형식으로 Gateway에 전달하세요.",
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0",
+	Version:          "20260719.0",
 	Host:             "",
 	BasePath:         "/",
 	Schemes:          []string{},
