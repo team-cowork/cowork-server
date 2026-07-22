@@ -96,4 +96,4 @@ X-User-Id: <JWT subject>
 X-User-Role: <JWT role>
 ```
 
-서비스의 Swagger UI를 직접 호출하면 Gateway를 거치지 않으므로, 문서에 노출된 `X-User-Id`와 `X-User-Role` 헤더를 테스트 목적에 맞게 직접 입력해야 한다. 운영 환경에서는 하위 서비스에 직접 접근할 수 있는 경로를 노출하지 않는다.
+서비스의 Swagger UI를 직접 호출하면 Gateway를 거치지 않으므로, 문서에 노출된 `X-User-Id`와 `X-User-Role` 헤더를 테스트 목적에 맞게 직접 입력해야 한다. 단, `cowork-authorization`과 `cowork-voice`의 정적 명세는 Gateway 경로인 `/api`를 `basePath`로 사용하므로 직접 Swagger UI에서는 명세 조회만 가능하며 `Try it out`은 Gateway 통합 Swagger를 사용한다. 운영 환경에서는 하위 서비스에 직접 접근할 수 있는 경로를 노출하지 않는다.
