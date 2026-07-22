@@ -1,5 +1,7 @@
 # MongoDB Schema (cowork-chat)
 
+`cowork-chat`이 MongoDB에 저장하는 `messages`와 `channel_members` collection의 도큐먼트 구조 및 인덱스 설계 문서입니다.
+
 소스: `src/chat/schema/message.schema.ts`, `src/chat/schema/channel-member.schema.ts`.
 공통 컨벤션(스키마 옵션, 인덱스 정의 방식 등)은 서비스 루트 `README.md`의 "Mongoose 스키마 컨벤션" 절 참고.
 
@@ -66,7 +68,7 @@
 }
 ```
 
-| 인덱스 | 목적 |
-|---|---|
-| `channelId` + `userId` (unique) | 동일 사용자의 중복 가입 방지 |
-| `userId` + `teamId` | 사용자 단위/팀 단위 멤버십 조회 공용 (prefix로 `userId` 단독 조회도 커버) |
+| 인덱스                          | 목적                                                                      |
+|---------------------------------|---------------------------------------------------------------------------|
+| `channelId` + `userId` (unique) | 동일 사용자의 중복 가입 방지                                              |
+| `userId` + `teamId`             | 사용자 단위/팀 단위 멤버십 조회 공용 (prefix로 `userId` 단독 조회도 커버) |
