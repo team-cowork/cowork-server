@@ -70,7 +70,7 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 				if s.checkUnregistered(r.Error) {
 					invalid = append(invalid, batch[j])
 				} else {
-					slog.Warn("fcm send failed for token", "err", r.Error, "token", batch[j])
+					slog.Warn("fcm send failed", "err", r.Error, "batch_index", j)
 				}
 			}
 		}

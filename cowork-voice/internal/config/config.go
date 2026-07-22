@@ -36,7 +36,10 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	flatMap := fetchFromConfigServer()
+	flatMap, err := fetchFromConfigServer()
+	if err != nil {
+		return nil, err
+	}
 
 	mongoURI, err := requireConfig(flatMap, "MONGODB_URI")
 	if err != nil {
@@ -90,7 +93,7 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_MESSAGE_TIMEOUT_MS: %w", err)
 	}
 
-	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", lookup(flatMap, "PORT", "8084")))
+	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", lookup(flatMap, "PORT", "8089")))
 	if err != nil {
 		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
 	}
@@ -101,7 +104,7 @@ func Load() (*AppConfig, error) {
 	}
 
 	cfg := &AppConfig{
-		Port:                        lookup(flatMap, "PORT", "8084"),
+		Port:                        lookup(flatMap, "PORT", "8089"),
 		MongoDBURI:                  mongoURI,
 		MongoDBDB:                   mongoDB,
 		RedisAddr:                   lookup(flatMap, "REDIS_ADDR", "localhost:6379"),
@@ -128,10 +131,10 @@ func Load() (*AppConfig, error) {
 	return cfg, nil
 }
 
-func fetchFromConfigServer() map[string]string {
+func fetchFromConfigServer() (map[string]string, error) {
 	configURL := os.Getenv("APP_CONFIG_URL")
 	if configURL == "" {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 
 	profile := getEnv("APP_PROFILE", "local")
@@ -142,12 +145,11 @@ func fetchFromConfigServer() map[string]string {
 
 	flatMap, err := client.Fetch(ctx)
 	if err != nil {
-		slog.Warn("config server unavailable, falling back to env vars only", "err", err)
-		return map[string]string{}
+		return nil, fmt.Errorf("config server unreachable for profile %s: %w", profile, err)
 	}
 
 	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))
-	return flatMap
+	return flatMap, nil
 }
 
 func getEnv(key, fallback string) string {
