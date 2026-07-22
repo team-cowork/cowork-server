@@ -2,6 +2,10 @@
 // @version        20260719.0
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
 // @BasePath       /
+// @securityDefinitions.apikey BearerAuth
+// @in             header
+// @name           Authorization
+// @description    "Bearer {access_token}" 형식으로 Gateway에 전달하세요.
 package main
 
 import (
