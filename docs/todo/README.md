@@ -5,6 +5,8 @@
 ## 진행 중
 
 - cleanup: [외부 호스트 임시 연동 설정 제거](./07-cleanup/external-host-temp-integration.md)
+- security: [Config Server 접근 보호](./08-security/config-server-access-control.md)
+- configuration: [외부 Config Git 제거 및 prod native 전환](./09-configuration/remove-external-config-git.md)
 
 ## 새 TODO 작성 규칙
 
