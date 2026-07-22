@@ -6,10 +6,16 @@ kafka:
   group-id: cowork-notification
 
 fcm:
-  credentials-file: /etc/secrets/firebase-credentials.json
+  credentials-file: /run/secrets/firebase-credentials.json
 
 preference:
   service-url: http://cowork-preference:9001
+
+team:
+  service-url: http://cowork-team:8085
+
+user:
+  service-url: http://cowork-user:8082
 
 eureka:
   server-url: http://cowork-config:8761/eureka
