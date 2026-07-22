@@ -2,7 +2,7 @@ defmodule CoworkUser.TeamClient do
   def get_member_ids(team_id) do
     case Integer.parse(to_string(team_id)) do
       {id, ""} when id > 0 ->
-        url = System.get_env("COWORK_TEAM_URL", "http://localhost:8080")
+        url = CoworkUser.AppConfig.load().team_service_url
 
         case Req.get(url: "#{url}/teams/#{id}/members", receive_timeout: 5_000) do
           {:ok, %{status: 200, body: members}} when is_list(members) ->
