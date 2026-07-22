@@ -5,19 +5,31 @@
 #   REGISTRY     - 컨테이너 레지스트리 주소 (예: ghcr.io/your-org)
 #   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
 #   SPRING_PROFILES_ACTIVE=prod
-#   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI
+#   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI (외부 Vault/Config Git은 배포 전에 준비)
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
 services:
   cowork-config:
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
+    depends_on: !override
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: prod
       VAULT_HOST: ${VAULT_HOST:?VAULT_HOST is required}
       VAULT_PORT: ${VAULT_PORT:-8200}
+      VAULT_SCHEME: https
       VAULT_TOKEN: ${VAULT_TOKEN:?VAULT_TOKEN is required}
       CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
       CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
       CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
+
+  vault:
+    profiles: [local-vault]
+
+  vault-init:
+    profiles: [local-vault]
 
   cowork-gateway:
     image: ${REGISTRY:?REGISTRY is required}/cowork-gateway:${IMAGE_TAG:?IMAGE_TAG is required}

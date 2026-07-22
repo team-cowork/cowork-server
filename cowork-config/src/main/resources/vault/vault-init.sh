@@ -1,49 +1,81 @@
 #!/bin/sh
-# Vault 개발 서버 초기화 스크립트
-# 사용: docker compose up vault 후 실행
-# VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=dev-root-token sh vault-init.sh
+set -eu
 
-export VAULT_ADDR=${VAULT_ADDR:-http://localhost:8200}
-export VAULT_TOKEN=${VAULT_TOKEN:-dev-root-token}
+: "${VAULT_ADDR:?VAULT_ADDR is required}"
+: "${VAULT_TOKEN:?VAULT_TOKEN is required}"
 
-echo "=== Vault KV v2 활성화 ==="
-vault secrets enable -version=2 -path=secret kv 2>/dev/null || echo "이미 활성화됨"
+JWT_SECRET=${JWT_SECRET:-}
+SECRET_KEY_BASE=${SECRET_KEY_BASE:-}
+MYSQL_USER=${MYSQL_USER:-}
+MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
+POSTGRES_USER=${POSTGRES_USER:-}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+MONGO_ROOT_USERNAME=${MONGO_ROOT_USERNAME:-}
+MONGO_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD:-}
+DATAGSM_CLIENT_ID=${DATAGSM_CLIENT_ID:-}
+ACCOUNT_CREDENTIAL_ENCRYPTION_KEY=${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY:-}
+ACCOUNT_SHARE_OAUTH_STATE_SECRET=${ACCOUNT_SHARE_OAUTH_STATE_SECRET:-}
+MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-minioadmin}
+LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret}
 
-echo ""
-echo "=== 공통 시크릿 (application) ==="
+vault secrets enable -version=2 -path=secret kv >/dev/null 2>&1 || true
+
 vault kv put secret/application \
-  jwt.secret="local-dev-jwt-secret-must-be-at-least-256bits-for-hs256-algorithm"
+  JWT_SECRET="${JWT_SECRET}" \
+  MYSQL_USER="${MYSQL_USER}" \
+  MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
+  POSTGRES_USER="${POSTGRES_USER}" \
+  POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+  MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY}" \
+  MINIO_SECRET_KEY="${MINIO_SECRET_KEY}" >/dev/null
 
-echo ""
-echo "=== cowork-gateway 시크릿 ==="
-# gateway는 공통 application 경로에서 jwt.secret을 가져오므로 별도 불필요
-# 추가 필요 시:
-# vault kv put secret/cowork-gateway \
-#   some.other.secret="value"
+vault kv put secret/cowork-gateway \
+  jwt.secret="${JWT_SECRET}" >/dev/null
 
-echo ""
-echo "=== cowork-user 시크릿 ==="
-vault kv put secret/cowork-user \
-  spring.datasource.password="user-db-password" \
-  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
+vault kv put secret/cowork-authorization \
+  DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local" \
+  DATAGSM_CLIENT_ID="${DATAGSM_CLIENT_ID}" \
+  DATAGSM_WEBHOOK_SECRET="${DATAGSM_WEBHOOK_SECRET:-}" \
+  JWT_SECRET="${JWT_SECRET}" >/dev/null
 
-echo ""
-echo "=== cowork-team 시크릿 ==="
-vault kv put secret/cowork-team \
-  spring.datasource.password="team-db-password" \
-  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_team?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
-
-echo ""
-echo "=== cowork-channel 시크릿 ==="
-vault kv put secret/cowork-channel \
-  spring.datasource.password="channel-db-password" \
-  spring.datasource.url="jdbc:mysql://localhost:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
-
-echo ""
-echo "=== cowork-notification 시크릿 ==="
 vault kv put secret/cowork-notification \
-  db.dsn="cowork:notification-db-password@tcp(cowork-mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local"
+  db.dsn="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local" >/dev/null
 
-echo ""
-echo "=== 완료. 확인: ==="
-vault kv list secret/
+vault kv put secret/cowork-preference \
+  preference.db.username="${POSTGRES_USER}" \
+  preference.db.password="${POSTGRES_PASSWORD}" >/dev/null
+
+vault kv put secret/cowork-user \
+  DB_USERNAME="${MYSQL_USER}" \
+  DB_PASSWORD="${MYSQL_PASSWORD}" \
+  SECRET_KEY_BASE="${SECRET_KEY_BASE}" >/dev/null
+
+vault kv put secret/cowork-project \
+  github-app.internal-api-key="${GITHUB_APP_INTERNAL_API_KEY:-}" >/dev/null
+
+vault kv put secret/cowork-voice \
+  MONGODB_URI="mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin" \
+  LIVEKIT_API_KEY="${LIVEKIT_API_KEY}" \
+  LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET}" >/dev/null
+
+vault kv put secret/cowork-chat \
+  MONGODB_URI="mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin" \
+  DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" >/dev/null
+
+vault kv put secret/cowork-channel \
+  ACCOUNT_CREDENTIAL_ENCRYPTION_KEY="${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}" \
+  ACCOUNT_SHARE_OAUTH_STATE_SECRET="${ACCOUNT_SHARE_OAUTH_STATE_SECRET}" \
+  GITHUB_ACCOUNT_SHARE_CLIENT_ID="${GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}" \
+  GITHUB_ACCOUNT_SHARE_CLIENT_SECRET="${GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}" \
+  NOTION_ACCOUNT_SHARE_CLIENT_ID="${NOTION_ACCOUNT_SHARE_CLIENT_ID:-}" \
+  NOTION_ACCOUNT_SHARE_CLIENT_SECRET="${NOTION_ACCOUNT_SHARE_CLIENT_SECRET:-}" \
+  JIRA_ACCOUNT_SHARE_CLIENT_ID="${JIRA_ACCOUNT_SHARE_CLIENT_ID:-}" \
+  JIRA_ACCOUNT_SHARE_CLIENT_SECRET="${JIRA_ACCOUNT_SHARE_CLIENT_SECRET:-}" \
+  GOOGLE_ACCOUNT_SHARE_CLIENT_ID="${GOOGLE_ACCOUNT_SHARE_CLIENT_ID:-}" \
+  GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET="${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:-}" \
+  FACEBOOK_ACCOUNT_SHARE_CLIENT_ID="${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}" \
+  FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET="${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}" >/dev/null
+
+echo "Vault secrets initialized."
