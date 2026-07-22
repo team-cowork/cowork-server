@@ -19,11 +19,12 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       VAULT_HOST: ${VAULT_HOST:?VAULT_HOST is required}
       VAULT_PORT: ${VAULT_PORT:-8200}
-      VAULT_SCHEME: ${VAULT_SCHEME:-https}
+      VAULT_SCHEME: https
       VAULT_TOKEN: ${VAULT_TOKEN:?VAULT_TOKEN is required}
       CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
       CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
       CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
+    ports: !reset []
 
   vault:
     profiles: [local-vault]
