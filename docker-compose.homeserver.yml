@@ -14,7 +14,7 @@
 # kafka와 내부 네트워크(kafka:9092)로만 통신하므로 EXTERNAL 리스너를 호스트에 열
 # 필요 자체가 없다. cowork-config의 Eureka 포트(8761)도 이 홈서버에서 같은 좀비
 # 포트 증상이 나서 COWORK_CONFIG_HOST_PORT 환경변수로 뺐다. cowork-project의
-# 포트(8089)도 마찬가지라 COWORK_PROJECT_HOST_PORT로 뺐다 — 이건 nginx가 실제로
+# 포트(8084)도 마찬가지라 COWORK_PROJECT_HOST_PORT로 뺐다 — 이건 nginx가 실제로
 # 리버스 프록시할 포트이므로 .env에 지정한 값(예: 18089)을 nginx location의
 # proxy_pass 대상과 반드시 맞춰야 한다.
 #
