@@ -17,6 +17,7 @@ SERVICE_COMMAND=(
    export KAFKA_BROKERS="${KAFKA_BROKERS:-${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}}"
    export KAFKA_TOPIC_NOTIFICATION="${KAFKA_TOPIC_NOTIFICATION:-notification.trigger}"
    export KAFKA_GROUP_ID="${KAFKA_GROUP_ID:-cowork-notification}"
+   export FCM_CREDENTIALS_FILE="${FCM_CREDENTIALS_FILE:-../docker/secrets/firebase-credentials.json}"
    exec go run ./cmd/server/'
 )
 
