@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  token.registerTokenRequest:
+  internal_domain_token.registerTokenRequest:
     properties:
       platform:
         type: string
@@ -11,7 +11,7 @@ info:
   contact: {}
   description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
   title: cowork-notification API
-  version: "1.0"
+  version: "20260719.0"
 paths:
   /health:
     get:
@@ -52,6 +52,8 @@ paths:
           description: SSE not supported
           schema:
             type: string
+      security:
+      - BearerAuth: []
       summary: SSE 알림 스트림 구독
       tags:
       - notifications
@@ -72,7 +74,7 @@ paths:
         name: request
         required: true
         schema:
-          $ref: '#/definitions/token.registerTokenRequest'
+          $ref: '#/definitions/internal_domain_token.registerTokenRequest'
       responses:
         "201":
           description: Created
@@ -88,6 +90,8 @@ paths:
           description: 내부 서버 오류
           schema:
             type: string
+      security:
+      - BearerAuth: []
       summary: FCM 토큰 등록
       tags:
       - tokens
@@ -125,7 +129,15 @@ paths:
           description: 내부 서버 오류
           schema:
             type: string
+      security:
+      - BearerAuth: []
       summary: FCM 토큰 삭제
       tags:
       - tokens
+securityDefinitions:
+  BearerAuth:
+    description: '"Bearer {access_token}" 형식으로 Gateway에 전달하세요.'
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"
