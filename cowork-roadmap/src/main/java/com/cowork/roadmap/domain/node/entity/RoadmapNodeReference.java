@@ -11,7 +11,6 @@ import lombok.Getter;
 
 /** 노드에 딸린 관련 자료 링크. */
 @Getter
-@Builder(toBuilder = true)
 @Table("tb_roadmap_node_references")
 public class RoadmapNodeReference extends TimestampEntity {
 
@@ -29,4 +28,13 @@ public class RoadmapNodeReference extends TimestampEntity {
 
     @Column("position")
     private final Integer position;
+
+    @Builder(toBuilder = true)
+    public RoadmapNodeReference(Long id, Long nodeId, String title, String url, Integer position) {
+        this.id = id;
+        this.nodeId = nodeId;
+        this.title = title;
+        this.url = url;
+        this.position = position;
+    }
 }
