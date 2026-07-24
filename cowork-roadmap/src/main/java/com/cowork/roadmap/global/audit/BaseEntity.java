@@ -18,4 +18,9 @@ public abstract class BaseEntity extends TimestampEntity {
 
     @Column("last_modified_by")
     private Long lastModifiedBy;
+
+    public void copyAuditFrom(BaseEntity source) {
+        super.copyAuditFrom(source);
+        this.setCreatedBy(source.getCreatedBy());
+    }
 }
