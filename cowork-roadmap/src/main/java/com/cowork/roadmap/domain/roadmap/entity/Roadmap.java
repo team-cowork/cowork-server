@@ -6,6 +6,11 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.cowork.roadmap.global.audit.BaseEntity;
 
+import lombok.Getter;
+import lombok.Setter;
+
+@Getter
+@Setter
 @Table("tb_roadmaps")
 public class Roadmap extends BaseEntity {
 
@@ -29,60 +34,4 @@ public class Roadmap extends BaseEntity {
 
     @Column("owner_project_id")
     private Long ownerProjectId;
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public void setCategory(String category) {
-        this.category = category;
-    }
-
-    public String getScope() {
-        return scope;
-    }
-
-    public void setScope(String scope) {
-        this.scope = scope;
-    }
-
-    public Long getOwnerTeamId() {
-        return ownerTeamId;
-    }
-
-    public void setOwnerTeamId(Long ownerTeamId) {
-        this.ownerTeamId = ownerTeamId;
-    }
-
-    public Long getOwnerProjectId() {
-        return ownerProjectId;
-    }
-
-    public void setOwnerProjectId(Long ownerProjectId) {
-        this.ownerProjectId = ownerProjectId;
-    }
 }
