@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -51,7 +53,11 @@ class CreateNodeReferenceServiceTest {
         when(referenceRepository.countByNodeId(5L)).thenReturn(Mono.just(3L));
         when(referenceRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNodeReference ref = invocation.getArgument(0);
-            return Mono.just(ref.toBuilder().id(100L).build());
+            RoadmapNodeReference saved = ref.toBuilder().id(100L).build();
+            // 실제 R2DBC save()는 @CreatedDate/@LastModifiedDate auditing이 채운 값을 돌려준다.
+            saved.setCreatedAt(LocalDateTime.now());
+            saved.setUpdatedAt(LocalDateTime.now());
+            return Mono.just(saved);
         });
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");

@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -43,7 +45,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.countByRoadmapIdAndParentIdIsNull(10L)).thenReturn(Mono.just(2L));
         when(nodeRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            return Mono.just(node.toBuilder().id(100L).build());
+            return Mono.just(simulateSaved(node, 100L));
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "내용", null, null);
@@ -64,7 +66,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.countByRoadmapIdAndParentId(10L, 50L)).thenReturn(Mono.just(1L));
         when(nodeRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            return Mono.just(node.toBuilder().id(101L).build());
+            return Mono.just(simulateSaved(node, 101L));
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
@@ -114,5 +116,17 @@ class CreateRoadmapNodeServiceTest {
 
     private static RoadmapNode node(Long id, Long roadmapId) {
         return RoadmapNode.builder().id(id).roadmapId(roadmapId).build();
+    }
+
+    // toBuilder()는 상속 필드(createdBy/lastModifiedBy/createdAt/updatedAt)를 인식하지 못해
+    // 누락시키므로,
+    // 실제 R2DBC save() 후 auditing이 채운 값을 보존한 엔티티가 반환되는 동작을 흉내낸다.
+    private static RoadmapNode simulateSaved(RoadmapNode node, Long id) {
+        RoadmapNode saved = node.toBuilder().id(id).build();
+        saved.setCreatedBy(node.getCreatedBy());
+        saved.setLastModifiedBy(node.getLastModifiedBy());
+        saved.setCreatedAt(LocalDateTime.now());
+        saved.setUpdatedAt(LocalDateTime.now());
+        return saved;
     }
 }
