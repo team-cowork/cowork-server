@@ -13,7 +13,6 @@ import lombok.Getter;
 
 /** 온보딩 과제: 로드맵(또는 특정 노드)을 팀/프로젝트 멤버에게 부여한다. */
 @Getter
-@Builder(toBuilder = true)
 @Table("tb_roadmap_assignments")
 public class RoadmapAssignment extends TimestampEntity {
 
@@ -46,4 +45,27 @@ public class RoadmapAssignment extends TimestampEntity {
 
     @Column("due_date")
     private final LocalDateTime dueDate;
+
+    @Builder(toBuilder = true)
+    public RoadmapAssignment(Long id,
+            Long roadmapId,
+            Long nodeId,
+            String scope,
+            Long teamId,
+            Long projectId,
+            Long assigneeUserId,
+            Long assignedBy,
+            String status,
+            LocalDateTime dueDate) {
+        this.id = id;
+        this.roadmapId = roadmapId;
+        this.nodeId = nodeId;
+        this.scope = scope;
+        this.teamId = teamId;
+        this.projectId = projectId;
+        this.assigneeUserId = assigneeUserId;
+        this.assignedBy = assignedBy;
+        this.status = status;
+        this.dueDate = dueDate;
+    }
 }
