@@ -54,6 +54,11 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.reactor.test)
+
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 }
 
 // Spotless Java formatter configuration.
