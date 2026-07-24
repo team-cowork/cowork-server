@@ -159,7 +159,7 @@ Chunked 응답도 수집 후 실제 크기를 확인해 래핑한다. SSE는 JSO
 
 ### 임시 외부 호스트 연동
 
-`EXTERNAL_HOST_URL`이 비어 있지 않으면 `ExternalRouteConfig`가 Eureka 미등록 호스트의 API, health, OpenAPI 경로를 Gateway에 추가한다. 기본값은 빈 문자열이라 비활성화된다. 제거 범위는 `docs/todo/07-cleanup/external-host-temp-integration.md`에 기록되어 있다.
+`EXTERNAL_HOST_URL`이 비어 있지 않으면 `ExternalRouteConfig`가 Eureka 미등록 호스트의 API, health, OpenAPI 경로를 Gateway에 추가한다. 기본값은 빈 문자열이라 비활성화된다. 제거 범위는 `docs/todo/items/07-cleanup/external-host-temp-integration.md`에 기록되어 있다.
 
 ## 기동 순서와 주요 환경 변수
 
@@ -173,12 +173,12 @@ Redis
       → cowork-gateway 및 도메인 서비스
 ```
 
-| 서비스         | 변수                                                           | 로컬 기본값 또는 용도        |
-|----------------|----------------------------------------------------------------|------------------------------|
-| config         | `SPRING_PROFILES_ACTIVE`                                       | Compose 기본 `local`         |
-| config         | `VAULT_HOST`, `VAULT_PORT`, `VAULT_SCHEME`, `VAULT_TOKEN`      | Vault 연결                   |
-| config         | `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD` | `prod` Git 백엔드            |
-| Config Server  | Kafka, Redis, Eureka와 Gateway route                            | native/Git 일반 설정         |
-| gateway        | `EXTERNAL_HOST_*`                                              | 선택적 외부 호스트 임시 연동 |
+| 서비스        | 변수                                                           | 로컬 기본값 또는 용도        |
+|---------------|----------------------------------------------------------------|------------------------------|
+| config        | `SPRING_PROFILES_ACTIVE`                                       | Compose 기본 `local`         |
+| config        | `VAULT_HOST`, `VAULT_PORT`, `VAULT_SCHEME`, `VAULT_TOKEN`      | Vault 연결                   |
+| config        | `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD` | `prod` Git 백엔드            |
+| Config Server | Kafka, Redis, Eureka와 Gateway route                           | native/Git 일반 설정         |
+| gateway       | `EXTERNAL_HOST_*`                                              | 선택적 외부 호스트 임시 연동 |
 
 JWT secret은 `vault-init`이 `secret/cowork-gateway`의 `jwt.secret`으로 기록하고 Config Server가 Gateway에 전달한다. 빈 값이면 Gateway 설정 바인딩 검증 단계에서 기동에 실패한다.
