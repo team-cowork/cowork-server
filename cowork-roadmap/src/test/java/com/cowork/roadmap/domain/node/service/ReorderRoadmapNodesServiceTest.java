@@ -54,19 +54,16 @@ class ReorderRoadmapNodesServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId, Long parentId) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        node.setParentId(parentId);
-        node.setPosition(0);
-        node.setTitle("node" + id);
-        return node;
+        return RoadmapNode.builder()
+                .id(id)
+                .roadmapId(roadmapId)
+                .parentId(parentId)
+                .position(0)
+                .title("node" + id)
+                .build();
     }
 }

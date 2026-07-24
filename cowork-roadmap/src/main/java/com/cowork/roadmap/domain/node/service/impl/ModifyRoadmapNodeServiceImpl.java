@@ -3,6 +3,7 @@ package com.cowork.roadmap.domain.node.service.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.presentation.data.request.UpdateNodeReqDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
@@ -38,20 +39,19 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
                 .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                         .flatMap(
                                 roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
-                                    if (request.title() != null) {
-                                        node.setTitle(request.title());
-                                    }
-                                    if (request.content() != null) {
-                                        node.setContent(request.content());
-                                    }
-                                    if (request.sourceUrl() != null) {
-                                        node.setSourceUrl(request.sourceUrl());
-                                    }
-                                    if (request.sourceTitle() != null) {
-                                        node.setSourceTitle(request.sourceTitle());
-                                    }
-                                    node.setLastModifiedBy(userId);
-                                    return nodeRepository.save(node);
+                                    RoadmapNode updated = node.toBuilder()
+                                            .title(request.title() != null ? request.title() : node.getTitle())
+                                            .content(request.content() != null ? request.content() : node.getContent())
+                                            .sourceUrl(request.sourceUrl() != null
+                                                    ? request.sourceUrl()
+                                                    : node.getSourceUrl())
+                                            .sourceTitle(request.sourceTitle() != null
+                                                    ? request.sourceTitle()
+                                                    : node.getSourceTitle())
+                                            .build();
+                                    updated.copyAuditFrom(node);
+                                    updated.setLastModifiedBy(userId);
+                                    return nodeRepository.save(updated);
                                 }))
                                         .flatMap(saved -> nodeLookupSupport.loadReferences(saved.getId())
                                                 .map(refs -> NodeResDto.of(saved, refs)))));

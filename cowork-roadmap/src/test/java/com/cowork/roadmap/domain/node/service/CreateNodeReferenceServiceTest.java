@@ -51,8 +51,7 @@ class CreateNodeReferenceServiceTest {
         when(referenceRepository.countByNodeId(5L)).thenReturn(Mono.just(3L));
         when(referenceRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNodeReference ref = invocation.getArgument(0);
-            ref.setId(100L);
-            return Mono.just(ref);
+            return Mono.just(ref.toBuilder().id(100L).build());
         });
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
@@ -76,16 +75,10 @@ class CreateNodeReferenceServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        return node;
+        return RoadmapNode.builder().id(id).roadmapId(roadmapId).build();
     }
 }
