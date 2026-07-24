@@ -40,11 +40,12 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
                         .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                                 .then(Mono.defer(() -> referenceRepository.countByNodeId(nodeId)))
                                 .flatMap(count -> {
-                                    RoadmapNodeReference ref = new RoadmapNodeReference();
-                                    ref.setNodeId(nodeId);
-                                    ref.setTitle(request.title());
-                                    ref.setUrl(request.url());
-                                    ref.setPosition(count.intValue());
+                                    RoadmapNodeReference ref = RoadmapNodeReference.builder()
+                                            .nodeId(nodeId)
+                                            .title(request.title())
+                                            .url(request.url())
+                                            .position(count.intValue())
+                                            .build();
                                     return referenceRepository.save(ref).map(NodeReferenceResDto::from);
                                 })));
     }

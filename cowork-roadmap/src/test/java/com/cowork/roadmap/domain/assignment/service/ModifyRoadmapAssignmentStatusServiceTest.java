@@ -54,14 +54,14 @@ class ModifyRoadmapAssignmentStatusServiceTest {
     }
 
     private static RoadmapAssignment assignment(Long id, Long assigneeUserId, Long assignedBy) {
-        RoadmapAssignment assignment = new RoadmapAssignment();
-        assignment.setId(id);
-        assignment.setRoadmapId(1L);
-        assignment.setScope(RoadmapScope.TEAM.name());
-        assignment.setTeamId(5L);
-        assignment.setAssigneeUserId(assigneeUserId);
-        assignment.setAssignedBy(assignedBy);
-        assignment.setStatus(AssignmentStatus.ASSIGNED.name());
-        return assignment;
+        return RoadmapAssignment.builder()
+                .id(id)
+                .roadmapId(1L)
+                .scope(RoadmapScope.TEAM.name())
+                .teamId(5L)
+                .assigneeUserId(assigneeUserId)
+                .assignedBy(assignedBy)
+                .status(AssignmentStatus.ASSIGNED.name())
+                .build();
     }
 }
