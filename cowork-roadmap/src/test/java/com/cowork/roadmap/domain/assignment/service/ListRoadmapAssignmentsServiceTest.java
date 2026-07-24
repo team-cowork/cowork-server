@@ -76,22 +76,18 @@ class ListRoadmapAssignmentsServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.TEAM.name());
-        roadmap.setOwnerTeamId(5L);
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
     }
 
     private static RoadmapAssignment assignment(Long id) {
-        RoadmapAssignment assignment = new RoadmapAssignment();
-        assignment.setId(id);
-        assignment.setRoadmapId(10L);
-        assignment.setScope(RoadmapScope.TEAM.name());
-        assignment.setTeamId(5L);
-        assignment.setAssigneeUserId(100L);
-        assignment.setAssignedBy(200L);
-        assignment.setStatus(AssignmentStatus.ASSIGNED.name());
-        return assignment;
+        return RoadmapAssignment.builder()
+                .id(id)
+                .roadmapId(10L)
+                .scope(RoadmapScope.TEAM.name())
+                .teamId(5L)
+                .assigneeUserId(100L)
+                .assignedBy(200L)
+                .status(AssignmentStatus.ASSIGNED.name())
+                .build();
     }
 }
