@@ -19,6 +19,7 @@ public abstract class BaseEntity extends TimestampEntity {
     @Column("last_modified_by")
     private Long lastModifiedBy;
 
+    /** lastModifiedBy는 호출자가 setLastModifiedBy()로 새로 갱신하므로 일부러 복사 대상에서 제외한다. */
     public void copyAuditFrom(BaseEntity source) {
         super.copyAuditFrom(source);
         this.setCreatedBy(source.getCreatedBy());
