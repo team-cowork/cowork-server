@@ -62,9 +62,10 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
                             List<Long> ordered = request.orderedNodeIds();
                             for (int i = 0; i < ordered.size(); i++) {
                                 RoadmapNode node = byId.get(ordered.get(i));
-                                node.setPosition(i);
-                                node.setLastModifiedBy(userId);
-                                updated.add(node);
+                                RoadmapNode reordered = node.toBuilder().position(i).build();
+                                reordered.copyAuditFrom(node);
+                                reordered.setLastModifiedBy(userId);
+                                updated.add(reordered);
                             }
                             return nodeRepository.saveAll(updated).then();
                         }));
