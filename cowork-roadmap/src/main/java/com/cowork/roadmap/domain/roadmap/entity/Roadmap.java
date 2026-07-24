@@ -10,7 +10,6 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder(toBuilder = true)
 @Table("tb_roadmaps")
 public class Roadmap extends BaseEntity {
 
@@ -34,4 +33,21 @@ public class Roadmap extends BaseEntity {
 
     @Column("owner_project_id")
     private final Long ownerProjectId;
+
+    @Builder(toBuilder = true)
+    public Roadmap(Long id,
+            String title,
+            String description,
+            String category,
+            String scope,
+            Long ownerTeamId,
+            Long ownerProjectId) {
+        this.id = id;
+        this.title = title;
+        this.description = description;
+        this.category = category;
+        this.scope = scope;
+        this.ownerTeamId = ownerTeamId;
+        this.ownerProjectId = ownerProjectId;
+    }
 }

@@ -11,7 +11,6 @@ import lombok.Getter;
 
 /** 로드맵 트리의 노드. 노드 1개 = 문서 1개(제목/내용/원본 정보) + 관련자료 N개. */
 @Getter
-@Builder(toBuilder = true)
 @Table("tb_roadmap_nodes")
 public class RoadmapNode extends BaseEntity {
 
@@ -38,4 +37,23 @@ public class RoadmapNode extends BaseEntity {
 
     @Column("position")
     private final Integer position;
+
+    @Builder(toBuilder = true)
+    public RoadmapNode(Long id,
+            Long roadmapId,
+            Long parentId,
+            String title,
+            String content,
+            String sourceUrl,
+            String sourceTitle,
+            Integer position) {
+        this.id = id;
+        this.roadmapId = roadmapId;
+        this.parentId = parentId;
+        this.title = title;
+        this.content = content;
+        this.sourceUrl = sourceUrl;
+        this.sourceTitle = sourceTitle;
+        this.position = position;
+    }
 }
