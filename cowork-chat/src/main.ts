@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import { Logger as PinoLogger } from 'nestjs-pino';
@@ -10,6 +11,7 @@ import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
 import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
+import { RedisIoAdapter } from './common/adapter/redis-io.adapter';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -31,6 +33,12 @@ async function bootstrap() {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
+
+    debugStartup('connecting Socket.IO Redis adapter');
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis(app.get(ConfigService));
+    app.useWebSocketAdapter(redisIoAdapter);
+    debugStartup('Socket.IO Redis adapter connected');
 
     const config = new DocumentBuilder()
         .setTitle('Cowork Chat API')
