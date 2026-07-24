@@ -78,9 +78,6 @@ class ListRoadmapsServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 }

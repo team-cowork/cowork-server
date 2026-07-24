@@ -3,6 +3,7 @@ package com.cowork.roadmap.domain.node.service.impl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.presentation.data.request.NodeReferenceReqDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
@@ -42,9 +43,12 @@ public class ModifyNodeReferenceServiceImpl implements ModifyNodeReferenceServic
                         .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                                         .then(Mono.defer(() -> {
-                                            ref.setTitle(request.title());
-                                            ref.setUrl(request.url());
-                                            return referenceRepository.save(ref).map(NodeReferenceResDto::from);
+                                            RoadmapNodeReference updated = ref.toBuilder()
+                                                    .title(request.title())
+                                                    .url(request.url())
+                                                    .build();
+                                            updated.copyAuditFrom(ref);
+                                            return referenceRepository.save(updated).map(NodeReferenceResDto::from);
                                         })))));
     }
 }
