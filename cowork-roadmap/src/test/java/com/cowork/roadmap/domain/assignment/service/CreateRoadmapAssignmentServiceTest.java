@@ -49,13 +49,8 @@ class CreateRoadmapAssignmentServiceTest {
     @Test
     void createAssignment_nodeNotInRoadmap_failsWithBadRequest() {
         CreateAssignmentReqDto request = new CreateAssignmentReqDto(1L, 99L, RoadmapScope.TEAM, 5L, null, 42L, null);
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(1L);
-        roadmap.setScope(RoadmapScope.TEAM.name());
-        roadmap.setOwnerTeamId(5L);
-        RoadmapNode node = new RoadmapNode();
-        node.setId(99L);
-        node.setRoadmapId(2L);
+        Roadmap roadmap = Roadmap.builder().id(1L).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
+        RoadmapNode node = RoadmapNode.builder().id(99L).roadmapId(2L).build();
         when(roadmapRepository.findById(1L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireReadable(any(), any(), any())).thenReturn(Mono.empty());
         when(accessGuard.requireTeamManagerOrAdmin(any(), any(), any())).thenReturn(Mono.empty());

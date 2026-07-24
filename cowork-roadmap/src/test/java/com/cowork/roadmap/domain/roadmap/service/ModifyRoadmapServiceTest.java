@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
@@ -36,7 +37,9 @@ class ModifyRoadmapServiceTest {
         Roadmap roadmap = roadmap(10L, "원제목", "원설명", "원카테고리");
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(roadmapRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        ArgumentCaptor<Roadmap> savedCaptor = ArgumentCaptor.forClass(Roadmap.class);
+        when(roadmapRepository.save(savedCaptor.capture()))
+                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
         UpdateRoadmapReqDto request = new UpdateRoadmapReqDto("새제목", null, null);
 
@@ -46,7 +49,7 @@ class ModifyRoadmapServiceTest {
             assertThat(response.category()).isEqualTo("원카테고리");
         }).verifyComplete();
 
-        assertThat(roadmap.getLastModifiedBy()).isEqualTo(7L);
+        assertThat(savedCaptor.getValue().getLastModifiedBy()).isEqualTo(7L);
     }
 
     @Test
@@ -62,12 +65,12 @@ class ModifyRoadmapServiceTest {
     }
 
     private static Roadmap roadmap(Long id, String title, String description, String category) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        roadmap.setTitle(title);
-        roadmap.setDescription(description);
-        roadmap.setCategory(category);
-        return roadmap;
+        return Roadmap.builder()
+                .id(id)
+                .scope(RoadmapScope.GLOBAL.name())
+                .title(title)
+                .description(description)
+                .category(category)
+                .build();
     }
 }

@@ -43,8 +43,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.countByRoadmapIdAndParentIdIsNull(10L)).thenReturn(Mono.just(2L));
         when(nodeRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            node.setId(100L);
-            return Mono.just(node);
+            return Mono.just(node.toBuilder().id(100L).build());
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "내용", null, null);
@@ -65,8 +64,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.countByRoadmapIdAndParentId(10L, 50L)).thenReturn(Mono.just(1L));
         when(nodeRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            node.setId(101L);
-            return Mono.just(node);
+            return Mono.just(node.toBuilder().id(101L).build());
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
@@ -111,16 +109,10 @@ class CreateRoadmapNodeServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        return node;
+        return RoadmapNode.builder().id(id).roadmapId(roadmapId).build();
     }
 }
