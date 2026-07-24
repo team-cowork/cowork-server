@@ -6,36 +6,36 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.cowork.roadmap.global.audit.BaseEntity;
 
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
 
 /** 로드맵 트리의 노드. 노드 1개 = 문서 1개(제목/내용/원본 정보) + 관련자료 N개. */
 @Getter
-@Setter
+@Builder(toBuilder = true)
 @Table("tb_roadmap_nodes")
 public class RoadmapNode extends BaseEntity {
 
     @Id
-    private Long id;
+    private final Long id;
 
     @Column("roadmap_id")
-    private Long roadmapId;
+    private final Long roadmapId;
 
     @Column("parent_id")
-    private Long parentId;
+    private final Long parentId;
 
     @Column("title")
-    private String title;
+    private final String title;
 
     @Column("content")
-    private String content;
+    private final String content;
 
     @Column("source_url")
-    private String sourceUrl;
+    private final String sourceUrl;
 
     @Column("source_title")
-    private String sourceTitle;
+    private final String sourceTitle;
 
     @Column("position")
-    private Integer position;
+    private final Integer position;
 }

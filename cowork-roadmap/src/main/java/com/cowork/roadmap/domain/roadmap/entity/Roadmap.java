@@ -6,32 +6,32 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.cowork.roadmap.global.audit.BaseEntity;
 
+import lombok.Builder;
 import lombok.Getter;
-import lombok.Setter;
 
 @Getter
-@Setter
+@Builder(toBuilder = true)
 @Table("tb_roadmaps")
 public class Roadmap extends BaseEntity {
 
     @Id
-    private Long id;
+    private final Long id;
 
     @Column("title")
-    private String title;
+    private final String title;
 
     @Column("description")
-    private String description;
+    private final String description;
 
     @Column("category")
-    private String category;
+    private final String category;
 
     @Column("scope")
-    private String scope;
+    private final String scope;
 
     @Column("owner_team_id")
-    private Long ownerTeamId;
+    private final Long ownerTeamId;
 
     @Column("owner_project_id")
-    private Long ownerProjectId;
+    private final Long ownerProjectId;
 }
