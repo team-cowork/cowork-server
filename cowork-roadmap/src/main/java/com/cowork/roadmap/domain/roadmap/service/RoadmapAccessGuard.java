@@ -9,6 +9,7 @@ import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.global.client.TeamClient;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
@@ -17,16 +18,13 @@ import team.themoment.sdk.exception.ExpectedException;
  * cowork-team의 팀 역할을 조회해 판정한다.
  */
 @Component
+@RequiredArgsConstructor
 public class RoadmapAccessGuard {
 
     private static final String ROLE_ADMIN = "ADMIN";
     private static final Set<String> TEAM_MANAGER_ROLES = Set.of("OWNER", "ADMIN");
 
     private final TeamClient teamClient;
-
-    public RoadmapAccessGuard(TeamClient teamClient) {
-        this.teamClient = teamClient;
-    }
 
     /** 로드맵 생성 권한. GLOBAL은 ADMIN, 커스텀은 소유 팀의 OWNER/ADMIN만 허용. */
     public Mono<Void> requireCreatable(Long userId, String userRole, RoadmapScope scope, Long ownerTeamId) {

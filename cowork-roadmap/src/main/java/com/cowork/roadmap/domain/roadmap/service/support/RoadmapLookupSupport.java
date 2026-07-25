@@ -6,17 +6,15 @@ import org.springframework.stereotype.Component;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Component
+@RequiredArgsConstructor
 public class RoadmapLookupSupport {
 
     private final RoadmapRepository roadmapRepository;
-
-    public RoadmapLookupSupport(RoadmapRepository roadmapRepository) {
-        this.roadmapRepository = roadmapRepository;
-    }
 
     public Mono<Roadmap> findRoadmapOrThrow(Long roadmapId) {
         return roadmapRepository.findById(roadmapId)
