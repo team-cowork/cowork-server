@@ -46,6 +46,38 @@ describe('RedisIoAdapter', () => {
 
             await expect(adapter.connectToRedis(configWithoutPort)).resolves.toBeUndefined();
         });
+
+        it('Redis 클라이언트에서 error 이벤트가 발생하면 예외를 던지지 않고 in-memory로 폴백한다', async () => {
+            mockOnce.mockImplementation((event: string, cb: (err?: Error) => void) => {
+                if (event === 'error') cb(new Error('connection refused'));
+            });
+            const fakeServer = { adapter: jest.fn() };
+            jest.spyOn(IoAdapter.prototype, 'createIOServer').mockReturnValue(fakeServer);
+
+            const adapter = new RedisIoAdapter({} as never);
+            await expect(adapter.connectToRedis(mockConfigService)).resolves.toBeUndefined();
+            adapter.createIOServer(0);
+
+            expect(fakeServer.adapter).not.toHaveBeenCalled();
+        });
+
+        it('READY_TIMEOUT_MS 내에 준비되지 않으면 부팅을 막지 않고 in-memory로 폴백한다', async () => {
+            jest.useFakeTimers();
+            mockOnce.mockImplementation(() => {
+                // ready/error 둘 다 발생하지 않는 상황(Redis 미응답)을 시뮬레이션
+            });
+            const fakeServer = { adapter: jest.fn() };
+            jest.spyOn(IoAdapter.prototype, 'createIOServer').mockReturnValue(fakeServer);
+
+            const adapter = new RedisIoAdapter({} as never);
+            const connectPromise = adapter.connectToRedis(mockConfigService);
+            await jest.advanceTimersByTimeAsync(5_000);
+            await expect(connectPromise).resolves.toBeUndefined();
+            adapter.createIOServer(0);
+
+            expect(fakeServer.adapter).not.toHaveBeenCalled();
+            jest.useRealTimers();
+        });
     });
 
     describe('createIOServer', () => {
