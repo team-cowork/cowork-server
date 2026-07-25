@@ -19,23 +19,17 @@ import com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesService {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public ReorderRoadmapNodesServiceImpl(RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional

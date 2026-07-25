@@ -11,22 +11,16 @@ import com.cowork.roadmap.domain.roadmap.service.ModifyRoadmapService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 @Service
+@RequiredArgsConstructor
 public class ModifyRoadmapServiceImpl implements ModifyRoadmapService {
 
     private final RoadmapRepository roadmapRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport lookupSupport;
-
-    public ModifyRoadmapServiceImpl(RoadmapRepository roadmapRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport lookupSupport) {
-        this.roadmapRepository = roadmapRepository;
-        this.accessGuard = accessGuard;
-        this.lookupSupport = lookupSupport;
-    }
 
     @Override
     @Transactional
