@@ -8,6 +8,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -49,7 +50,8 @@ class ModifyRoadmapNodeServiceTest {
         when(nodeRepository.findById(5L)).thenReturn(Mono.just(node));
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
+        when(nodeRepository.save(savedCaptor.capture())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
         when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(Flux.empty());
 
         UpdateNodeReqDto request = new UpdateNodeReqDto("새제목", null, null, null);
@@ -59,7 +61,7 @@ class ModifyRoadmapNodeServiceTest {
             assertThat(response.content()).isEqualTo("원내용");
         }).verifyComplete();
 
-        assertThat(node.getLastModifiedBy()).isEqualTo(7L);
+        assertThat(savedCaptor.getValue().getLastModifiedBy()).isEqualTo(7L);
     }
 
     @Test
@@ -75,19 +77,10 @@ class ModifyRoadmapNodeServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId, String title, String content) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        node.setTitle(title);
-        node.setContent(content);
-        node.setPosition(0);
-        return node;
+        return RoadmapNode.builder().id(id).roadmapId(roadmapId).title(title).content(content).position(0).build();
     }
 }
