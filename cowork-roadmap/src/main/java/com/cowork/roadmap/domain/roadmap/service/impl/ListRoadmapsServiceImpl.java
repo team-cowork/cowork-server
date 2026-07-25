@@ -9,16 +9,14 @@ import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDt
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.ListRoadmapsService;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
 @Service
+@RequiredArgsConstructor
 public class ListRoadmapsServiceImpl implements ListRoadmapsService {
 
     private final RoadmapRepository roadmapRepository;
-
-    public ListRoadmapsServiceImpl(RoadmapRepository roadmapRepository) {
-        this.roadmapRepository = roadmapRepository;
-    }
 
     @Override
     @Transactional(readOnly = true)
