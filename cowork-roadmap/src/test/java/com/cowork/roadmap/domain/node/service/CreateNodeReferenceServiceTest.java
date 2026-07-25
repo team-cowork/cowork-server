@@ -7,6 +7,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -51,8 +53,11 @@ class CreateNodeReferenceServiceTest {
         when(referenceRepository.countByNodeId(5L)).thenReturn(Mono.just(3L));
         when(referenceRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNodeReference ref = invocation.getArgument(0);
-            ref.setId(100L);
-            return Mono.just(ref);
+            RoadmapNodeReference saved = ref.toBuilder().id(100L).build();
+            // 실제 R2DBC save()는 @CreatedDate/@LastModifiedDate auditing이 채운 값을 돌려준다.
+            saved.setCreatedAt(LocalDateTime.now());
+            saved.setUpdatedAt(LocalDateTime.now());
+            return Mono.just(saved);
         });
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
@@ -76,16 +81,10 @@ class CreateNodeReferenceServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        return node;
+        return RoadmapNode.builder().id(id).roadmapId(roadmapId).build();
     }
 }
