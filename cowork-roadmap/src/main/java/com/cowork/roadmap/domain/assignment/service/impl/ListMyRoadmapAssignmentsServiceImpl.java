@@ -7,16 +7,14 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.assignment.service.ListMyRoadmapAssignmentsService;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
 @Service
+@RequiredArgsConstructor
 public class ListMyRoadmapAssignmentsServiceImpl implements ListMyRoadmapAssignmentsService {
 
     private final RoadmapAssignmentRepository assignmentRepository;
-
-    public ListMyRoadmapAssignmentsServiceImpl(RoadmapAssignmentRepository assignmentRepository) {
-        this.assignmentRepository = assignmentRepository;
-    }
 
     @Override
     @Transactional(readOnly = true)
