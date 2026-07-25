@@ -33,12 +33,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Tag(name = "로드맵 노드", description = "로드맵 노드(문서)와 관련자료 구성 API")
 @RestController
 @RequestMapping("/roadmaps")
+@RequiredArgsConstructor
 public class RoadmapNodeController {
 
     private final CreateRoadmapNodeService createRoadmapNodeService;
@@ -50,26 +52,6 @@ public class RoadmapNodeController {
     private final CreateNodeReferenceService createNodeReferenceService;
     private final ModifyNodeReferenceService modifyNodeReferenceService;
     private final DeleteNodeReferenceService deleteNodeReferenceService;
-
-    public RoadmapNodeController(CreateRoadmapNodeService createRoadmapNodeService,
-            ReorderRoadmapNodesService reorderRoadmapNodesService,
-            QueryRoadmapNodeService queryRoadmapNodeService,
-            ModifyRoadmapNodeService modifyRoadmapNodeService,
-            DeleteRoadmapNodeService deleteRoadmapNodeService,
-            ListNodeReferencesService listNodeReferencesService,
-            CreateNodeReferenceService createNodeReferenceService,
-            ModifyNodeReferenceService modifyNodeReferenceService,
-            DeleteNodeReferenceService deleteNodeReferenceService) {
-        this.createRoadmapNodeService = createRoadmapNodeService;
-        this.reorderRoadmapNodesService = reorderRoadmapNodesService;
-        this.queryRoadmapNodeService = queryRoadmapNodeService;
-        this.modifyRoadmapNodeService = modifyRoadmapNodeService;
-        this.deleteRoadmapNodeService = deleteRoadmapNodeService;
-        this.listNodeReferencesService = listNodeReferencesService;
-        this.createNodeReferenceService = createNodeReferenceService;
-        this.modifyNodeReferenceService = modifyNodeReferenceService;
-        this.deleteNodeReferenceService = deleteNodeReferenceService;
-    }
 
     @Operation(summary = "노드 생성")
     @PostMapping("/{roadmapId}/nodes")
