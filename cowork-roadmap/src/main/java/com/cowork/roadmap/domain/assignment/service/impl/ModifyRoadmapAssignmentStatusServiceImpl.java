@@ -36,8 +36,9 @@ public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAs
             if (!allowed) {
                 return Mono.error(new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN));
             }
-            assignment.setStatus(request.status().name());
-            return assignmentRepository.save(assignment).map(AssignmentResDto::from);
+            RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
+            updated.copyAuditFrom(assignment);
+            return assignmentRepository.save(updated).map(AssignmentResDto::from);
         });
     }
 
