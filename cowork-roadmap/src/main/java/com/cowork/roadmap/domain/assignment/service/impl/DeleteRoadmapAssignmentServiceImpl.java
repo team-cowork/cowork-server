@@ -9,22 +9,18 @@ import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentReposito
 import com.cowork.roadmap.domain.assignment.service.DeleteRoadmapAssignmentService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignmentService {
 
     private static final String ROLE_ADMIN = "ADMIN";
 
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapAccessGuard accessGuard;
-
-    public DeleteRoadmapAssignmentServiceImpl(RoadmapAssignmentRepository assignmentRepository,
-            RoadmapAccessGuard accessGuard) {
-        this.assignmentRepository = assignmentRepository;
-        this.accessGuard = accessGuard;
-    }
 
     @Override
     @Transactional

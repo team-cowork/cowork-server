@@ -15,26 +15,18 @@ import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignmentService {
 
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public CreateRoadmapAssignmentServiceImpl(RoadmapAssignmentRepository assignmentRepository,
-            RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.assignmentRepository = assignmentRepository;
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional
