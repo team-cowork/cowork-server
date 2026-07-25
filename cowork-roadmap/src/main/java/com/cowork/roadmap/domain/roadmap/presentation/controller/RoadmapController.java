@@ -29,12 +29,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Tag(name = "로드맵", description = "전공/포지션별 로드맵 생성·조회·구성 API")
 @RestController
 @RequestMapping("/roadmaps")
+@RequiredArgsConstructor
 public class RoadmapController {
 
     private final CreateRoadmapService createRoadmapService;
@@ -43,20 +45,6 @@ public class RoadmapController {
     private final QueryRoadmapTreeService queryRoadmapTreeService;
     private final ModifyRoadmapService modifyRoadmapService;
     private final DeleteRoadmapService deleteRoadmapService;
-
-    public RoadmapController(CreateRoadmapService createRoadmapService,
-            ListRoadmapsService listRoadmapsService,
-            QueryRoadmapService queryRoadmapService,
-            QueryRoadmapTreeService queryRoadmapTreeService,
-            ModifyRoadmapService modifyRoadmapService,
-            DeleteRoadmapService deleteRoadmapService) {
-        this.createRoadmapService = createRoadmapService;
-        this.listRoadmapsService = listRoadmapsService;
-        this.queryRoadmapService = queryRoadmapService;
-        this.queryRoadmapTreeService = queryRoadmapTreeService;
-        this.modifyRoadmapService = modifyRoadmapService;
-        this.deleteRoadmapService = deleteRoadmapService;
-    }
 
     @Operation(summary = "로드맵 생성")
     @PostMapping

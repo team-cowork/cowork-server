@@ -12,19 +12,16 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.CreateRoadmapService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class CreateRoadmapServiceImpl implements CreateRoadmapService {
 
     private final RoadmapRepository roadmapRepository;
     private final RoadmapAccessGuard accessGuard;
-
-    public CreateRoadmapServiceImpl(RoadmapRepository roadmapRepository, RoadmapAccessGuard accessGuard) {
-        this.roadmapRepository = roadmapRepository;
-        this.accessGuard = accessGuard;
-    }
 
     @Override
     @Transactional

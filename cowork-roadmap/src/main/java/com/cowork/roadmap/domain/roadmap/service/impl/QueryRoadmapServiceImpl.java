@@ -8,18 +8,15 @@ import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 @Service
+@RequiredArgsConstructor
 public class QueryRoadmapServiceImpl implements QueryRoadmapService {
 
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport lookupSupport;
-
-    public QueryRoadmapServiceImpl(RoadmapAccessGuard accessGuard, RoadmapLookupSupport lookupSupport) {
-        this.accessGuard = accessGuard;
-        this.lookupSupport = lookupSupport;
-    }
 
     @Override
     @Transactional(readOnly = true)
