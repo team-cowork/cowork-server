@@ -63,10 +63,6 @@ class QueryRoadmapServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.TEAM.name());
-        roadmap.setOwnerTeamId(5L);
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
     }
 }

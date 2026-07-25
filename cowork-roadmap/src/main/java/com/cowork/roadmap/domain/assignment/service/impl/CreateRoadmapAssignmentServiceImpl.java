@@ -51,17 +51,17 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
                         .then(accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId()))
                         .then(validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId()))
                         .then(Mono.defer(() -> {
-                            RoadmapAssignment assignment = new RoadmapAssignment();
-                            assignment.setRoadmapId(request.roadmapId());
-                            assignment.setNodeId(request.nodeId());
-                            assignment.setScope(request.scope().name());
-                            assignment.setTeamId(request.teamId());
-                            assignment
-                                    .setProjectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null);
-                            assignment.setAssigneeUserId(request.assigneeUserId());
-                            assignment.setAssignedBy(userId);
-                            assignment.setStatus(AssignmentStatus.ASSIGNED.name());
-                            assignment.setDueDate(request.dueDate());
+                            RoadmapAssignment assignment = RoadmapAssignment.builder()
+                                    .roadmapId(request.roadmapId())
+                                    .nodeId(request.nodeId())
+                                    .scope(request.scope().name())
+                                    .teamId(request.teamId())
+                                    .projectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null)
+                                    .assigneeUserId(request.assigneeUserId())
+                                    .assignedBy(userId)
+                                    .status(AssignmentStatus.ASSIGNED.name())
+                                    .dueDate(request.dueDate())
+                                    .build();
                             return assignmentRepository.save(assignment).map(AssignmentResDto::from);
                         })));
     }
