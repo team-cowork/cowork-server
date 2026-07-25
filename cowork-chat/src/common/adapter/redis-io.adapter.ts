@@ -6,6 +6,16 @@ import { createAdapter } from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../config/config.util';
 
+const READY_TIMEOUT_MS = 5_000;
+
+function timeout(ms: number): { promise: Promise<never>; cancel: () => void } {
+    let timer: NodeJS.Timeout;
+    const promise = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Redis ready timeout after ${ms}ms`)), ms);
+    });
+    return { promise, cancel: () => clearTimeout(timer) };
+}
+
 /**
  * Socket.IO 기본(in-memory) adapter는 room 브로드캐스트를 단일 프로세스 범위로만 처리한다.
  *
@@ -26,6 +36,11 @@ export class RedisIoAdapter extends IoAdapter {
     /**
      * Redis pub/sub 클라이언트 두 개를 생성하고 준비될 때까지 대기한다.
      * `createIOServer`가 호출되기 전에 반드시 완료되어야 한다.
+     *
+     * ioredis는 기본 `retryStrategy`가 무한 재시도이고 `ready`는 접속 성공 후에만 발생하므로,
+     * 타임아웃 없이 대기하면 Redis가 부팅 시점에 응답하지 않을 때 `bootstrap()` 전체가 멈춘다
+     * (HTTP 서버 미기동, health 엔드포인트 미응답, Eureka 미등록으로 이어짐).
+     * `READY_TIMEOUT_MS` 내에 준비되지 않으면 예외를 던지지 않고 in-memory adapter로 폴백한다.
      */
     async connectToRedis(configService: ConfigService): Promise<void> {
         const host = getRequiredConfig(configService, ['REDIS_HOST', 'redis.host']);
@@ -36,13 +51,29 @@ export class RedisIoAdapter extends IoAdapter {
         pubClient.on('error', (err: unknown) => this.logger.error(`Redis pub client error: ${err instanceof Error ? err.message : String(err)}`));
         subClient.on('error', (err: unknown) => this.logger.error(`Redis sub client error: ${err instanceof Error ? err.message : String(err)}`));
 
-        await Promise.all([
-            new Promise<void>((resolve) => pubClient.once('ready', resolve)),
-            new Promise<void>((resolve) => subClient.once('ready', resolve)),
+        const ready = Promise.all([
+            new Promise<void>((resolve, reject) => {
+                pubClient.once('ready', resolve);
+                pubClient.once('error', reject);
+            }),
+            new Promise<void>((resolve, reject) => {
+                subClient.once('ready', resolve);
+                subClient.once('error', reject);
+            }),
         ]);
 
-        this.adapterConstructor = createAdapter(pubClient, subClient);
-        this.logger.log(`Socket.IO Redis adapter connected (${host}:${port})`);
+        const { promise: timeoutPromise, cancel: cancelTimeout } = timeout(READY_TIMEOUT_MS);
+        try {
+            await Promise.race([ready, timeoutPromise]);
+            this.adapterConstructor = createAdapter(pubClient, subClient);
+            this.logger.log(`Socket.IO Redis adapter connected (${host}:${port})`);
+        } catch (err: unknown) {
+            this.logger.warn(
+                `Redis adapter 준비 실패 — in-memory adapter로 폴백 (단일 인스턴스에서만 브로드캐스트 정상): ${err instanceof Error ? err.message : String(err)}`,
+            );
+        } finally {
+            cancelTimeout();
+        }
     }
 
     createIOServer(port: number, options?: ServerOptions): Server {
