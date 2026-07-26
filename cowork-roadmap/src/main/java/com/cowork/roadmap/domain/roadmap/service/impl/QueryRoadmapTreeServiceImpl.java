@@ -20,25 +20,17 @@ import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 @Service
+@RequiredArgsConstructor
 public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapNodeReferenceRepository referenceRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport lookupSupport;
-
-    public QueryRoadmapTreeServiceImpl(RoadmapNodeRepository nodeRepository,
-            RoadmapNodeReferenceRepository referenceRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport lookupSupport) {
-        this.nodeRepository = nodeRepository;
-        this.referenceRepository = referenceRepository;
-        this.accessGuard = accessGuard;
-        this.lookupSupport = lookupSupport;
-    }
 
     @Override
     @Transactional(readOnly = true)
