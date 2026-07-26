@@ -1,7 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
+import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ProjectMemberCache } from '../service/project-member.cache';
 
 interface ProjectMemberEvent {
@@ -22,6 +24,7 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
 
     constructor(
         private readonly configService: ConfigService,
+        private readonly dicoshot: DicoshotService,
         private readonly projectMemberCache: ProjectMemberCache,
     ) {}
 
@@ -49,7 +52,19 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
                     return Promise.resolve();
                 },
             })
-            .catch((err) => this.logger.error('project.member.event Kafka consumer failed', err));
+            .catch(async (err) => {
+                this.logger.error('project.member.event Kafka consumer failed', err);
+                await this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Consumer 중단',
+                    description: 'cowork-chat의 project.member.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    color: 'danger',
+                    fields: [
+                        { name: 'Topic', value: 'project.member.event', inline: true },
+                        ...buildErrorFields(err),
+                    ],
+                }).catch(() => {});
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: project.member.event');
     }
 
@@ -58,7 +73,7 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
     }
 
     private handleEvent(event: ProjectMemberEvent) {
-        if (!event || !event.eventType || !event.projectId || !event.userId) {
+        if (!event || !event.eventType || typeof event.projectId !== 'number' || typeof event.userId !== 'number') {
             this.logger.warn('Invalid project member event payload: ' + JSON.stringify(event));
             return;
         }
