@@ -11,20 +11,16 @@ import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceRe
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Component
+@RequiredArgsConstructor
 public class RoadmapNodeLookupSupport {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapNodeReferenceRepository referenceRepository;
-
-    public RoadmapNodeLookupSupport(RoadmapNodeRepository nodeRepository,
-            RoadmapNodeReferenceRepository referenceRepository) {
-        this.nodeRepository = nodeRepository;
-        this.referenceRepository = referenceRepository;
-    }
 
     public Mono<RoadmapNode> findNodeOrThrow(Long nodeId) {
         return nodeRepository.findById(nodeId)
