@@ -25,12 +25,14 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Tag(name = "로드맵 과제", description = "온보딩 과제 출제·진도 관리 API")
 @RestController
 @RequestMapping("/roadmaps")
+@RequiredArgsConstructor
 public class RoadmapAssignmentController {
 
     private final CreateRoadmapAssignmentService createRoadmapAssignmentService;
@@ -38,18 +40,6 @@ public class RoadmapAssignmentController {
     private final ListRoadmapAssignmentsService listRoadmapAssignmentsService;
     private final ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService;
     private final DeleteRoadmapAssignmentService deleteRoadmapAssignmentService;
-
-    public RoadmapAssignmentController(CreateRoadmapAssignmentService createRoadmapAssignmentService,
-            ListMyRoadmapAssignmentsService listMyRoadmapAssignmentsService,
-            ListRoadmapAssignmentsService listRoadmapAssignmentsService,
-            ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService,
-            DeleteRoadmapAssignmentService deleteRoadmapAssignmentService) {
-        this.createRoadmapAssignmentService = createRoadmapAssignmentService;
-        this.listMyRoadmapAssignmentsService = listMyRoadmapAssignmentsService;
-        this.listRoadmapAssignmentsService = listRoadmapAssignmentsService;
-        this.modifyRoadmapAssignmentStatusService = modifyRoadmapAssignmentStatusService;
-        this.deleteRoadmapAssignmentService = deleteRoadmapAssignmentService;
-    }
 
     @Operation(summary = "과제 출제")
     @PostMapping("/assignments")
