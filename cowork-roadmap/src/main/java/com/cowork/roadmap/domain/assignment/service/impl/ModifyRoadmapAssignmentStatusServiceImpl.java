@@ -10,19 +10,17 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusService;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAssignmentStatusService {
 
     private static final String ROLE_ADMIN = "ADMIN";
 
     private final RoadmapAssignmentRepository assignmentRepository;
-
-    public ModifyRoadmapAssignmentStatusServiceImpl(RoadmapAssignmentRepository assignmentRepository) {
-        this.assignmentRepository = assignmentRepository;
-    }
 
     @Override
     @Transactional
