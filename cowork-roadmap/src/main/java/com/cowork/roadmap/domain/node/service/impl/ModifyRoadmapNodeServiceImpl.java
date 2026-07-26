@@ -12,25 +12,17 @@ import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 @Service
+@RequiredArgsConstructor
 public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
     private final RoadmapNodeLookupSupport nodeLookupSupport;
-
-    public ModifyRoadmapNodeServiceImpl(RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport,
-            RoadmapNodeLookupSupport nodeLookupSupport) {
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-        this.nodeLookupSupport = nodeLookupSupport;
-    }
 
     @Override
     @Transactional
