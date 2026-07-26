@@ -5,9 +5,11 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.support.ProjectEnumParser
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
 import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,6 +20,7 @@ class AddProjectMemberServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectEnumParser: ProjectEnumParser,
+    private val projectMemberEventPublisher: ProjectMemberEventPublisher,
 ) : AddProjectMemberService {
 
     @Transactional
@@ -45,6 +48,8 @@ class AddProjectMemberServiceImpl(
                 role = role,
             ),
         )
+
+        afterCommit { projectMemberEventPublisher.publishAdded(projectId, request.userId) }
 
         return ProjectMemberResDto.of(member)
     }

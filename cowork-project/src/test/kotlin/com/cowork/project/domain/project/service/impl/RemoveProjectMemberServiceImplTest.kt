@@ -1,15 +1,13 @@
 package com.cowork.project.domain.project.service.impl
 
-import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.service.support.ProjectEnumParser
+import com.cowork.project.domain.project.service.support.ProjectMemberLookupSupport
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
-import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -24,7 +22,7 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
-class AddProjectMemberServiceImplTest {
+class RemoveProjectMemberServiceImplTest {
 
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
@@ -32,9 +30,17 @@ class AddProjectMemberServiceImplTest {
     private val projectMemberEventPublisher = mockk<ProjectMemberEventPublisher>(relaxed = true)
     private val projectAccessGuard =
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+    private val projectMemberLookupSupport = ProjectMemberLookupSupport(projectMemberRepository)
 
-    private val service =
-        AddProjectMemberServiceImpl(projectMemberRepository, projectAccessGuard, ProjectEnumParser(), projectMemberEventPublisher)
+    private val service = RemoveProjectMemberServiceImpl(
+        projectMemberRepository,
+        projectAccessGuard,
+        projectMemberLookupSupport,
+        projectMemberEventPublisher,
+    )
+
+    private fun project(id: Long = 1L, teamId: Long = 100L) =
+        Project(id = id, teamId = teamId, name = "p", description = null, position = 0, createdBy = 1L)
 
     @BeforeEach
     fun setUp() {
@@ -46,37 +52,50 @@ class AddProjectMemberServiceImplTest {
         TransactionSynchronizationManager.clear()
     }
 
-    private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
-        Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
-
     @Test
-    fun `addMember는 추가 대상이 팀 멤버 아니면 BAD_REQUEST`() {
+    fun `removeMember는 다른 프로젝트의 멤버면 BAD_REQUEST`() {
         val proj = project()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 1L) } returns
             ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
+        every { projectMemberRepository.findById(5L) } returns
+            Optional.of(ProjectMember(id = 5L, projectId = 999L, userId = 50L, role = ProjectMemberRole.EDITOR))
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+            service.execute(1L, 1L, 5L)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        verify(exactly = 0) { projectMemberEventPublisher.publishRemoved(any(), any()) }
     }
 
     @Test
-    fun `addMember는 성공 시 트랜잭션 커밋 후 멤버 추가 이벤트를 발행한다`() {
+    fun `removeMember는 OWNER 제거 시도 시 BAD_REQUEST`() {
         val proj = project()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 1L) } returns
             ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns null
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns
-            TeamMembership(teamId = 100L, userId = 50L, role = "MEMBER")
-        every { projectMemberRepository.save(any()) } answers { firstArg() }
+        every { projectMemberRepository.findById(5L) } returns
+            Optional.of(ProjectMember(id = 5L, projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER))
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, 5L)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        verify(exactly = 0) { projectMemberEventPublisher.publishRemoved(any(), any()) }
+    }
+
+    @Test
+    fun `removeMember는 성공 시 트랜잭션 커밋 후 멤버 제거 이벤트를 발행한다`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 1L) } returns
+            ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
+        every { projectMemberRepository.findById(5L) } returns
+            Optional.of(ProjectMember(id = 5L, projectId = 1L, userId = 50L, role = ProjectMemberRole.EDITOR))
         TransactionSynchronizationManager.clear() // 동기화 비활성화 상태로 afterCommit이 즉시 실행되게 함
 
-        service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+        service.execute(1L, 1L, 5L)
 
-        verify { projectMemberEventPublisher.publishAdded(1L, 50L) }
+        verify { projectMemberEventPublisher.publishRemoved(1L, 50L) }
     }
 }
