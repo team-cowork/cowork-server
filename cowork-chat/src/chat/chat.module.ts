@@ -18,6 +18,7 @@ import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
+import { ProjectMemberEventConsumer } from './kafka/project-member-event.consumer';
 import { ProjectClient } from './service/project.client';
 import { ProjectMemberCache } from './service/project-member.cache';
 import { ProjectRepoCache } from './service/project-repo.cache';
@@ -85,6 +86,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         GithubIssueResultConsumer,
         ChannelEventConsumer,
         ProjectEventConsumer,
+        ProjectMemberEventConsumer,
         ProjectClient,
         ProjectMemberCache,
         ProjectRepoCache,

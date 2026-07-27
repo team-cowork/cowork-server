@@ -12,9 +12,8 @@ cowork-server MSA 모노레포 개발 지침서입니다.
 4. [서비스 간 통신](#4-서비스-간-통신)
 5. [인증 / 인가](#5-인증--인가)
 6. [환경 변수 및 설정 관리](#6-환경-변수-및-설정-관리)
-7. [코딩 컨벤션](#7-코딩-컨벤션)
-8. [Git 브랜치 전략](#8-git-브랜치-전략)
-9. [로컬 개발 환경 실행 순서](#9-로컬-개발-환경-실행-순서)
+7. [로컬 개발 환경 실행 순서](#7-로컬-개발-환경-실행-순서)
+8. [Swagger / 모니터링](#8-swagger--모니터링)
 
 ---
 
@@ -54,7 +53,10 @@ cowork-server/
 
 1. 루트에 `cowork-{name}/` 디렉터리 생성
 2. `settings.gradle.kts`에 `include("cowork-{name}")` 추가
-3. `cowork-{name}/build.gradle.kts` 작성 (기존 모듈 참고)
+3. 빌드 도구의 단일 진실 공급원을 정하고 기존 모듈을 참고해 설정
+   - Gradle: config, gateway, channel, team, roadmap
+   - Maven: project (`pom.xml`, Gradle 파일은 위임 wrapper)
+   - Kotlin Toolchain(Amper): preference (`module.yaml`, Gradle 파일은 위임 wrapper)
 4. `cowork-{name}/README.md` 작성 (스택, 역할, 포트, DB 명시)
 5. `.gitignore` 추가 (Gradle 기반 템플릿 사용)
 6. MySQL 사용 시 [DB 스키마 관리](#3-db-스키마-관리) 절차 따르기
@@ -73,8 +75,7 @@ cowork-server/
 
 ### Spring Boot 서비스 (Flyway)
 
-MySQL을 사용하는 Spring Boot 서비스는 **Flyway**로 스키마를 관리합니다.<br>
-`ddl-auto`는 반드시 `none`으로 설정합니다.
+MySQL을 사용하는 Spring Boot 서비스(channel, team, project, roadmap)는 **Flyway**로 스키마를 관리합니다. JPA 서비스는 `ddl-auto: none`을 사용하고, roadmap은 R2DBC 쿼리와 JDBC Flyway를 함께 사용합니다.
 
 **파일 위치**
 
@@ -110,6 +111,10 @@ cowork-{name}/
     └── V2__add_column.sql
 ```
 
+### Elixir 서비스 (cowork-user)
+
+`cowork-user`는 동일한 `src/main/resources/db/migration/` SQL을 사용합니다. 컨테이너 시작 시 `docker-entrypoint.sh`가 Flyway CLI로 migration을 적용한 뒤 Mix release를 실행합니다.
+
 ### 파일 네이밍 규칙
 
 ```
@@ -139,7 +144,7 @@ team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
 
 ### MongoDB 서비스 (cowork-chat, cowork-voice)
 
-Flyway를 사용하지 않습니다. 스키마 정의는 각 서비스의 `schema/` 디렉터리에 문서로 관리합니다.
+Flyway를 사용하지 않습니다. `cowork-chat`은 Mongoose schema와 `schema/message.schema.md`를 함께 관리합니다. `cowork-voice`의 컬렉션 구조는 Go 모델·repository가 현재 구현 기준이며, 구조 변경 시 별도 `schema/` 문서를 추가해 저장 형식을 명시합니다.
 
 ### PostgreSQL 서비스 (cowork-preference)
 
@@ -152,8 +157,9 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 ### 동기 통신 (REST)
 
 - 클라이언트 → Gateway → 각 서비스 경로로만 호출합니다.
-- 서비스 간 내부 호출은 **OpenFeign** 또는 **WebClient**를 사용합니다.
-- Gateway의 Eureka 로드밸런싱을 통해 라우팅합니다. (`lb://cowork-{name}`)
+- Gateway는 Eureka의 `lb://cowork-{name}` 대상으로 라우팅합니다.
+- 서비스 간 내부 호출은 런타임에 맞는 OpenFeign, WebClient, RestClient 또는 HTTP client를 사용합니다.
+- Eureka 이름을 쓰는 호출과 Config Server/환경 변수의 고정 URL을 쓰는 호출이 함께 있으므로 대상 서비스의 기존 client 패턴을 따릅니다.
 
 ### 비동기 통신 (Kafka)
 
@@ -161,12 +167,19 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 | 토픽 | Producer | Consumer | 용도 |
 |---|---|---|---|
-| `chat.message` | cowork-chat | cowork-chat | 메시지 저장 |
+| `user.data.sync` | cowork-authorization | cowork-user | 인증 사용자 데이터 동기화 |
+| `team.lifecycle` | cowork-team | cowork-channel, cowork-project | 팀·멤버 생명주기 동기화 |
+| `user.lifecycle` | 현재 저장소 내 producer 없음 | cowork-channel, cowork-project | 사용자 삭제 동기화 계약 |
+| `channel.event` | cowork-channel | cowork-chat | 채널 메타데이터 동기화 |
 | `channel.member.event` | cowork-channel | cowork-chat | 채널 멤버십 동기화 |
-| `notification.trigger` | 모든 서비스 | cowork-notification | 알림 발송 (FCM + SSE) |
-| `team.lifecycle` | cowork-team | cowork-channel, cowork-project | 팀 생성/삭제 동기화 |
-| `user.lifecycle` | cowork-user | cowork-channel, cowork-project | 유저 데이터 동기화 |
-| `preference.team.setting.changed` | cowork-preference | 관련 서비스 | 팀 설정 변경 |
+| `project.event` | cowork-project | cowork-chat | 프로젝트 메타데이터 동기화 |
+| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 캐시 무효화 |
+| `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
+| `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
+| `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
+| `voice.event` | cowork-voice | 연동 서비스 | 음성 세션 이벤트 |
+| `preference.status.changed` | cowork-preference | 연동 서비스 | 사용자 상태 변경 |
+| `preference.team.setting.changed` | cowork-preference | 연동 서비스 | 팀 설정 변경 |
 
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
 
@@ -197,13 +210,16 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 ## 6. 환경 변수 및 설정 관리
 
+전체 공급 경로와 서비스별 부트스트랩 기준은 [`docs/configuration.md`](configuration.md)를 따릅니다.
+
 ### 원칙
 
 | 종류 | 관리 방법 |
 |---|---|
-| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault (로컬) / GitHub Secrets (CI/CD) |
-| 서비스별 일반 설정 | `cowork-config` Config Server |
-| 로컬 전용 설정 | `application-local.yml` (`.gitignore` 처리됨) |
+| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입 |
+| 서비스별 일반 설정 | `cowork-config` Config Server (`local`/`dev`: classpath, `prod`: Git) |
+| 저장소 공통 로컬 설정 | `cowork-config/src/main/resources/configs/*-local.yml` |
+| 개발자 머신별 값 | 루트 `.env` 또는 gitignored 로컬 override |
 
 ### Vault (로컬 개발)
 
@@ -212,11 +228,12 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 - Vault UI: `http://localhost:8200` (토큰: `dev-root-token`)
 - 시크릿 경로: `secret/application` (공통), `secret/cowork-{name}` (서비스별)
-  - 현재 vault-init이 자동 주입하는 서비스: `cowork-authorization`, `cowork-notification`, `cowork-voice`, `cowork-chat`
+  - 자동 주입 경로: gateway, authorization, notification, preference, user, project, voice, chat, channel
+  - team·roadmap은 `secret/application`의 공통 DB/MinIO 값을 사용합니다.
 
 ### application.yml 작성 원칙
 
-민감한 값은 반드시 환경변수로 주입합니다.
+민감한 값은 Vault에서 주입하고 Config 파일에는 placeholder 또는 property 이름만 둡니다.
 
 ```yaml
 # 올바른 예
@@ -232,12 +249,16 @@ spring:
     password: mypassword123
 ```
 
-### Spring Config Client (Go / Elixir 서비스)
+### Spring Config Client (비-Spring 서비스)
 
-Go 서비스와 Elixir 서비스도 `cowork-config` Config Server에서 설정을 받아옵니다.<br>
-각 서비스의 config 패키지(`internal/config/springconfig/`)에 구현된 HTTP 클라이언트를 사용합니다.
+Go, Elixir, NestJS, Vert.x 서비스도 `cowork-config`에서 설정을 받아옵니다. 구현 위치는 런타임마다 다릅니다.
 
-### Flyway + JPA 설정 (Spring Boot 서비스 공통)
+- Go: `internal/config/`
+- Elixir user: `CoworkUser.AppConfig`
+- NestJS chat: 시작 단계의 Config Server loader
+- Vert.x preference: `AppConfig`
+
+### Flyway + JPA 설정 (JPA 서비스 예시)
 
 ```yaml
 spring:
@@ -262,7 +283,7 @@ cp .env.example .env
 
 ### 2단계 — 인프라 기동 (Docker Compose)
 
-루트의 `docker-compose.yml`로 모든 인프라를 한 번에 띄웁니다.
+루트의 `docker-compose.yml`과 자동 병합되는 `docker-compose.override.yml`로 인프라와 애플리케이션을 함께 띄웁니다.
 
 ```bash
 # 전체 기동
@@ -276,7 +297,7 @@ docker compose up -d mysql mongodb kafka
 
 | 서비스 | 호스트 포트 | 비고 |
 |---|---|---|
-| MySQL | 3306 | 서비스별 DB 자동 생성 (6개) |
+| MySQL | 3306 | 서비스별 DB 자동 생성 (7개) |
 | PostgreSQL | 5432 | cowork-preference 전용 |
 | MongoDB | 27017 | cowork-chat, cowork-voice |
 | Kafka | 9094 | 호스트 접근용 (컨테이너 간: 9092) |
@@ -285,14 +306,14 @@ docker compose up -d mysql mongodb kafka
 | MinIO | 9000 | S3 호환 오브젝트 스토리지 |
 | MinIO Console | 9002 | 브라우저 UI |
 | Elasticsearch | 9200 | 채팅 메시지 검색 (cowork-chat) |
-| Redis | 6379 | cowork-gateway (세션), cowork-voice |
+| Redis | 6379 | Gateway rate limit, chat·voice·preference |
 | LiveKit | 7880 | 음성 서버 |
 | Prometheus | 9090 | 메트릭 수집 |
 | Grafana | 3001 | 모니터링 대시보드 |
 | Loki | 3100 | 로그 수집 |
 
 MySQL 최초 기동 시 `docker/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다
-(`cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`, `cowork_notification`).<br>
+(`cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`, `cowork_notification`, `cowork_roadmap`).<br>
 볼륨이 이미 존재하면 init 스크립트는 재실행되지 않습니다. 초기화가 필요하면 볼륨을 삭제하세요.
 
 ```bash
@@ -318,8 +339,10 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 ```
 1. cowork-config   (Eureka + Config Server — 가장 먼저 기동)
 2. cowork-gateway  (Config Server에 등록 후 기동)
-3. 비즈니스 서비스  (authorization, user, team, project, channel, preference, notification, chat, voice — 순서 무관)
+3. 비즈니스 서비스  (authorization, user, team, project, roadmap, channel, preference, notification, chat, voice)
 ```
+
+Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. 직접 실행할 때는 voice가 channel·LiveKit·Redis·MongoDB에, notification이 user·team·preference에 의존한다는 점을 함께 확인합니다.
 
 **서비스 포트 정보**
 
@@ -330,13 +353,13 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 | cowork-authorization | 8081 | Go |
 | cowork-user | 8082 | Elixir |
 | cowork-channel | 8083 | Kotlin (Spring Boot) |
-| cowork-voice | 8084 | Go |
+| cowork-voice | 8089 | Go |
 | cowork-team | 8085 | Kotlin (Spring Boot) |
 | cowork-notification | 8086 | Go |
 | cowork-chat | 8087 | NestJS (TypeScript) |
-| cowork-project | 8089 | Kotlin (Spring Boot) |
+| cowork-project | 8084 | Kotlin (Spring Boot, Maven) |
 | cowork-roadmap | 8088 | Java (Spring Boot WebFlux + R2DBC) |
-| cowork-preference | 9001 | Kotlin (Vert.x) |
+| cowork-preference | 9001 | Kotlin (Vert.x, Kotlin Toolchain/Amper) |
 
 ### Makefile 명령어
 
@@ -349,17 +372,11 @@ make init-logs # 로그 디렉터리 초기화
 
 ---
 
-## Swagger / 모니터링
+## 8. Swagger / 모니터링
 
 ### Swagger (Gateway 경유)
 
-Gateway는 서비스별 OpenAPI 문서를 아래 경로로 프록시합니다.
-
-- `/v3/api-docs/{service}` (예: `/v3/api-docs/channel`)
-
-지원 서비스: `authorization`, `user`, `team`, `channel`, `voice`, `chat`, `notification`, `preference`
-
-로컬에서 Swagger UI는 `http://localhost:8080` (cowork-gateway)에서 확인합니다.
+Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시합니다. 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다. 프로파일별 지원 서비스와 직접 접속 주소는 `docs/api-documentation.md`를 기준으로 합니다.
 
 ### Prometheus / Grafana
 
@@ -367,3 +384,5 @@ Gateway는 서비스별 OpenAPI 문서를 아래 경로로 프록시합니다.
 
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
+
+Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 `docs/grafana-logging-spec.md`를 참고합니다.

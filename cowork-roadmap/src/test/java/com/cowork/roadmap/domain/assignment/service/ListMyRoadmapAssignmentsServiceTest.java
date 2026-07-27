@@ -41,14 +41,14 @@ class ListMyRoadmapAssignmentsServiceTest {
     }
 
     private static RoadmapAssignment assignment(Long id, Long assigneeUserId) {
-        RoadmapAssignment assignment = new RoadmapAssignment();
-        assignment.setId(id);
-        assignment.setRoadmapId(1L);
-        assignment.setScope(RoadmapScope.TEAM.name());
-        assignment.setTeamId(5L);
-        assignment.setAssigneeUserId(assigneeUserId);
-        assignment.setAssignedBy(200L);
-        assignment.setStatus(AssignmentStatus.ASSIGNED.name());
-        return assignment;
+        return RoadmapAssignment.builder()
+                .id(id)
+                .roadmapId(1L)
+                .scope(RoadmapScope.TEAM.name())
+                .teamId(5L)
+                .assigneeUserId(assigneeUserId)
+                .assignedBy(200L)
+                .status(AssignmentStatus.ASSIGNED.name())
+                .build();
     }
 }
