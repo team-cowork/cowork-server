@@ -1,13 +1,15 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis, { Result } from 'ioredis';
+import Redis, { ChainableCommander, ClientContext, Result } from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
 
-declare module 'ioredis' {
-    interface RedisCommander<Context> {
-        incrementIfPresentScript(key: string, field: string): Result<number, Context>;
-    }
+// this.client/pipeline에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
+// 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
+interface WithIncrementIfPresentScript<Context extends ClientContext = { type: 'default' }> {
+    incrementIfPresentScript(key: string, field: string): Result<number, Context>;
 }
+type UnreadCounterRedis = Redis & WithIncrementIfPresentScript;
+type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{ type: 'pipeline' }>;
 
 // KEYS[1]=key ARGV[1]=field — 필드가 이미 존재할 때만 1 증가시킨다
 const INCREMENT_IF_PRESENT_SCRIPT = `
@@ -39,7 +41,7 @@ export interface UnreadCacheResult {
 @Injectable()
 export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(UnreadCounterService.name);
-    private client!: Redis;
+    private client!: UnreadCounterRedis;
 
     constructor(private readonly configService: ConfigService) {}
 
@@ -53,7 +55,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             lazyConnect: true,
             enableOfflineQueue: false,
             maxRetriesPerRequest: 0,
-        });
+        }) as UnreadCounterRedis;
         this.client.defineCommand('incrementIfPresentScript', { numberOfKeys: 1, lua: INCREMENT_IF_PRESENT_SCRIPT });
         this.client.on('error', (err: unknown) => {
             this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
@@ -137,7 +139,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
         if (userIds.length === 0) return;
         try {
             const field = String(channelId);
-            const pipeline = this.client.pipeline();
+            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
             for (const userId of userIds) {
                 pipeline.incrementIfPresentScript(this.key(userId), field);
             }
