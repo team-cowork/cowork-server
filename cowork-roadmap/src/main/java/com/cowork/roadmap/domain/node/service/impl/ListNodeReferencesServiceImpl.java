@@ -10,25 +10,17 @@ import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
 @Service
+@RequiredArgsConstructor
 public class ListNodeReferencesServiceImpl implements ListNodeReferencesService {
 
     private final RoadmapNodeReferenceRepository referenceRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
     private final RoadmapNodeLookupSupport nodeLookupSupport;
-
-    public ListNodeReferencesServiceImpl(RoadmapNodeReferenceRepository referenceRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport,
-            RoadmapNodeLookupSupport nodeLookupSupport) {
-        this.referenceRepository = referenceRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-        this.nodeLookupSupport = nodeLookupSupport;
-    }
 
     @Override
     @Transactional(readOnly = true)
