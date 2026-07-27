@@ -4,13 +4,13 @@ import { UnreadCounterService } from './unread-counter.service';
 const mockHmget = jest.fn();
 const mockPipelineExec = jest.fn().mockResolvedValue(undefined);
 const mockPipeline = {
-    hexists: jest.fn().mockReturnThis(),
-    hincrby: jest.fn().mockReturnThis(),
+    incrementIfPresentScript: jest.fn().mockReturnThis(),
     hset: jest.fn().mockReturnThis(),
     expire: jest.fn().mockReturnThis(),
     exec: mockPipelineExec,
 };
 const mockPipelineFn = jest.fn(() => mockPipeline);
+const mockDefineCommand = jest.fn();
 const mockConnect = jest.fn().mockResolvedValue(undefined);
 const mockDisconnect = jest.fn();
 const mockOn = jest.fn();
@@ -18,6 +18,7 @@ const mockOn = jest.fn();
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     hmget: mockHmget,
     pipeline: mockPipelineFn,
+    defineCommand: mockDefineCommand,
     connect: mockConnect,
     disconnect: mockDisconnect,
     on: mockOn,
@@ -120,26 +121,15 @@ describe('UnreadCounterService', () => {
             expect(mockPipelineFn).not.toHaveBeenCalled();
         });
 
-        it('캐시 필드가 존재하는 유저만 증가시킨다', async () => {
-            mockPipelineExec.mockResolvedValue([[null, 1], [null, 0], [null, 1]]);
+        it('유저별로 incrementIfPresentScript를 파이프라인에 담아 한 번에 실행한다', async () => {
+            mockPipelineExec.mockResolvedValue([[null, 1], [null, -1], [null, 2]]);
 
             await service.incrementIfPresent(10, [1, 2, 3]);
 
-            expect(mockPipeline.hexists).toHaveBeenCalledWith('unread:1', '10');
-            expect(mockPipeline.hexists).toHaveBeenCalledWith('unread:2', '10');
-            expect(mockPipeline.hexists).toHaveBeenCalledWith('unread:3', '10');
-            expect(mockPipeline.hincrby).toHaveBeenCalledWith('unread:1', '10', 1);
-            expect(mockPipeline.hincrby).toHaveBeenCalledWith('unread:3', '10', 1);
-            expect(mockPipeline.hincrby).not.toHaveBeenCalledWith('unread:2', '10', 1);
-        });
-
-        it('아무도 캐시에 없으면 증가 파이프라인을 만들지 않는다', async () => {
-            mockPipelineExec.mockResolvedValue([[null, 0], [null, 0]]);
-
-            await service.incrementIfPresent(10, [1, 2]);
-
-            expect(mockPipelineFn).toHaveBeenCalledTimes(1);
-            expect(mockPipeline.hincrby).not.toHaveBeenCalled();
+            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:1', '10');
+            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:2', '10');
+            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:3', '10');
+            expect(mockPipelineExec).toHaveBeenCalledTimes(1);
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
@@ -147,6 +137,13 @@ describe('UnreadCounterService', () => {
 
             await expect(service.incrementIfPresent(10, [1, 2])).resolves.toBeUndefined();
         });
+    });
+
+    it('onModuleInit 시 incrementIfPresentScript Lua 스크립트를 등록한다', () => {
+        expect(mockDefineCommand).toHaveBeenCalledWith(
+            'incrementIfPresentScript',
+            expect.objectContaining({ numberOfKeys: 1, lua: expect.any(String) as unknown }),
+        );
     });
 
     it('onModuleDestroy 호출 시 클라이언트 연결을 해제한다', () => {
