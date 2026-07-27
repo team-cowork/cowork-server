@@ -1,8 +1,28 @@
-새로운 투두 발생 시 하위 디렉터리 생성 후 세부 사항 파일 작성
-Example:
-- docs/todo/01-urgent/01-write-post.md
-- docs/todo/02-management/02-update-readme.md
-- docs/todo/03-messaging/03-fix-bug.md
-.
-.
-.
+# 서버 TODO
+
+현재 남아 있는 코드베이스 작업을 우선순위·범주별로 `items/` 아래 하위 디렉터리에서 관리한다. 완료한 세부 문서는 삭제하거나 완료 기록 문서로 옮기고, 이 목록에서도 제거한다.
+
+## 구성
+
+- `items/{순번}-{범주}/{작업명}.md` — 개별 작업 세부 명세
+- `{YYYYMMDD}_TODO.md` — 특정 시점 점검 세션의 요약 스냅샷 (아래 세부 문서로 링크)
+
+## 진행 중
+
+- cleanup: [외부 호스트 임시 연동 설정 제거](./items/07-cleanup/external-host-temp-integration.md)
+- security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
+- configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
+
+## 점검 스냅샷
+
+- [20260723](./20260723_TODO.md) — Config Server 운영 구성 점검
+- [20260712](./20260712_TODO.md) — 홈서버 단독 배포에 따른 외부 호스트 임시 연동 정리
+- [20260526](./20260526_TODO.md) — 클라이언트 계약 기준 기능 점검 (전체 완료)
+
+## 새 TODO 작성 규칙
+
+```text
+docs/todo/items/{순번}-{범주}/{작업명}.md
+```
+
+예: `docs/todo/items/01-urgent/write-post.md`

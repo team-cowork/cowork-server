@@ -14,23 +14,17 @@ import com.cowork.roadmap.domain.node.service.CreateRoadmapNodeService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public CreateRoadmapNodeServiceImpl(RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional
@@ -40,14 +34,15 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
                         .then(validateParent(roadmapId, request.parentId()))
                         .then(nextPosition(roadmapId, request.parentId()))
                         .flatMap(position -> {
-                            RoadmapNode node = new RoadmapNode();
-                            node.setRoadmapId(roadmapId);
-                            node.setParentId(request.parentId());
-                            node.setTitle(request.title());
-                            node.setContent(request.content());
-                            node.setSourceUrl(request.sourceUrl());
-                            node.setSourceTitle(request.sourceTitle());
-                            node.setPosition(position);
+                            RoadmapNode node = RoadmapNode.builder()
+                                    .roadmapId(roadmapId)
+                                    .parentId(request.parentId())
+                                    .title(request.title())
+                                    .content(request.content())
+                                    .sourceUrl(request.sourceUrl())
+                                    .sourceTitle(request.sourceTitle())
+                                    .position(position)
+                                    .build();
                             node.setCreatedBy(userId);
                             node.setLastModifiedBy(userId);
                             return nodeRepository.save(node).map(saved -> NodeResDto.of(saved, List.of()));

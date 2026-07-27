@@ -1,203 +1,99 @@
 # API 문서화 가이드
 
-cowork-server는 Spring Cloud Gateway에서 전 서비스의 OpenAPI 스펙을 **단일 Swagger UI**로 집계합니다.
+`cowork-server`는 로컬 프로파일에서 Spring Cloud Gateway가 8개 서비스의 OpenAPI 문서를 하나의 Swagger UI로 집계한다. 이 문서는 2026-07-23의 Gateway 라우팅과 각 서비스 구현을 기준으로 한다.
 
----
+## 통합 Swagger UI
 
-## 전체 구조
+로컬 Compose를 실행한 뒤 아래 주소로 접속한다.
 
-```
-브라우저
-  └─ http://localhost:8080/swagger-ui.html
-          │
-          ├─ /v3/api-docs/authorization  →  cowork-authorization  /swagger/doc.json  (swaggo)
-          ├─ /v3/api-docs/user           →  cowork-user           /v3/api-docs       (Elixir)
-          ├─ /v3/api-docs/voice          →  cowork-voice          /swagger/doc.json  (swaggo)
-          ├─ /v3/api-docs/chat           →  cowork-chat           /api-json          (@nestjs/swagger)
-          └─ /v3/api-docs/roadmap        →  cowork-roadmap        /v3/api-docs       (springdoc-webflux)
-```
-
-Gateway는 각 서비스의 API 스펙을 프록시로 제공하고, Swagger UI의 드롭다운으로 서비스를 전환할 수 있습니다.
-
----
-
-## 1. 사전 준비 — Go 서비스 문서 생성
-
-Go 서비스(`cowork-authorization`, `cowork-voice`)는 **`swag init`으로 `docs/` 패키지를 생성**해야 빌드가 가능합니다.  
-최초 1회, 또는 API 어노테이션을 수정할 때마다 실행합니다.
-
-```bash
-# swag CLI 및 의존성 설치 + docs/ 생성 (최초 1회)
-cd cowork-authorization && make setup
-cd cowork-voice && make setup
-```
-
-`make setup` 실행 순서:
-
-| 단계 | 명령 | 설명 |
-|------|------|------|
-| 1 | `go install swag@latest` | `~/go/bin/swag` CLI 설치 |
-| 2 | `go get swaggo/...` | swaggo 패키지 다운로드 및 `go.sum` 갱신 |
-| 3 | `swag init` | 어노테이션을 파싱하여 `docs/` 생성 |
-| 4 | `go mod tidy` | 불필요한 의존성 정리 |
-
-이후 API 어노테이션을 변경했을 때는 `make swagger-gen`만 다시 실행하면 됩니다.
-
-```bash
-make swagger-gen   # docs/ 재생성만
-```
-
----
-
-## 2. NestJS 서비스 의존성 설치
-
-```bash
-cd cowork-chat && npm install
-```
-
----
-
-## 3. 서비스 기동 순서
-
-```
-[1] docker-compose up -d          # MySQL, Redis, Kafka, Vault, MongoDB
-[2] cowork-config  (포트 8761)    # Config Server + Eureka (가장 먼저)
-[3] cowork-user    (포트 8082)    # Elixir
-[4] cowork-authorization          # Go / Gin
-[5] cowork-voice                  # Go / Chi
-[6] cowork-chat    (포트 3000)    # NestJS
-[7] cowork-gateway (포트 8080)    # 마지막
-```
-
----
-
-## 4. Swagger UI 접속 — 통합 뷰
-
-게이트웨이가 실행된 후 브라우저에서 접속합니다.
-
-```
+```text
 http://localhost:8080/swagger-ui.html
 ```
 
-상단 드롭다운 (`Select a definition`)에서 서비스를 선택합니다.
+`cowork-config/src/main/resources/configs/cowork-gateway-local.yml`에 등록된 문서는 다음과 같다.
 
-| 항목 | 서비스 |
-|------|--------|
-| `user` (기본 선택) | cowork-user |
-| `authorization` | cowork-authorization |
-| `voice` | cowork-voice |
-| `chat` | cowork-chat |
-| `roadmap` | cowork-roadmap |
+| Swagger 항목    | 대상 서비스            | Gateway 문서 경로            | 서비스 원본 경로    |
+|-----------------|------------------------|------------------------------|---------------------|
+| `authorization` | `cowork-authorization` | `/v3/api-docs/authorization` | `/swagger/doc.json` |
+| `user`          | `cowork-user`          | `/v3/api-docs/user`          | `/v3/api-docs`      |
+| `team`          | `cowork-team`          | `/v3/api-docs/team`          | `/v3/api-docs`      |
+| `channel`       | `cowork-channel`       | `/v3/api-docs/channel`       | `/v3/api-docs`      |
+| `voice`         | `cowork-voice`         | `/v3/api-docs/voice`         | `/swagger/doc.json` |
+| `chat`          | `cowork-chat`          | `/v3/api-docs/chat`          | `/api-json`         |
+| `notification`  | `cowork-notification`  | `/v3/api-docs/notification`  | `/swagger/doc.json` |
+| `preference`    | `cowork-preference`    | `/v3/api-docs/preference`    | `/swagger/doc.json` |
 
-> **인증 없이** 접근 가능합니다. Gateway Security 설정에서 `/swagger-ui/**`, `/v3/api-docs/**` 경로를 permitAll 처리했습니다.
+Swagger UI와 `/v3/api-docs/**`는 Gateway에서 인증 없이 접근할 수 있다.
 
----
+`cowork-roadmap` 문서 프록시는 현재 `dev` Gateway 설정에만 있고 로컬 통합 UI에는 등록되지 않았다. `cowork-project`는 서비스 자체 문서를 제공하지만 Gateway 문서 프록시는 없다. 두 서비스는 아래 직접 접속 주소를 사용한다.
 
-## 5. 서비스별 직접 접속
+## 서비스별 직접 접속
 
-게이트웨이 없이 각 서비스 Swagger UI에 직접 접근할 수 있습니다.
+| 서비스                 | Swagger UI                                 | OpenAPI 문서                             |
+|------------------------|--------------------------------------------|------------------------------------------|
+| `cowork-authorization` | `http://localhost:8081/swagger/index.html` | `http://localhost:8081/swagger/doc.json` |
+| `cowork-user`          | `http://localhost:8082/swagger-ui.html`    | `http://localhost:8082/v3/api-docs`      |
+| `cowork-channel`       | `http://localhost:8083/swagger-ui.html`    | `http://localhost:8083/v3/api-docs`      |
+| `cowork-voice`         | `http://localhost:8089/swagger/index.html` | `http://localhost:8089/swagger/doc.json` |
+| `cowork-team`          | `http://localhost:8085/swagger-ui.html`    | `http://localhost:8085/v3/api-docs`      |
+| `cowork-notification`  | `http://localhost:8086/swagger/index.html` | `http://localhost:8086/swagger/doc.json` |
+| `cowork-chat`          | `http://localhost:8087/api`                | `http://localhost:8087/api-json`         |
+| `cowork-roadmap`       | `http://localhost:8088/swagger-ui.html`    | `http://localhost:8088/v3/api-docs`      |
+| `cowork-project`       | `http://localhost:8084/swagger-ui.html`    | `http://localhost:8084/v3/api-docs`      |
+| `cowork-preference`    | 별도 UI 없음                               | `http://localhost:9001/swagger/doc.json` |
 
-### cowork-user (Elixir)
+Compose 기본 구성에서는 `cowork-project`는 `8084`, `cowork-voice`는 `8089`를 컨테이너와 호스트에서 동일하게 사용한다.
 
-```
-http://localhost:8082/swagger-ui.html    # UI
-http://localhost:8082/v3/api-docs        # OpenAPI JSON
-```
+## 문서 생성과 갱신
 
-### cowork-authorization (Go / Gin)
+### Go 서비스
 
-```
-http://localhost:{PORT}/swagger/index.html  # UI
-http://localhost:{PORT}/swagger/doc.json    # OpenAPI JSON
-```
-
-### cowork-voice (Go / Chi)
-
-```
-http://localhost:{PORT}/swagger/index.html  # UI
-http://localhost:{PORT}/swagger/doc.json    # OpenAPI JSON
-```
-
-### cowork-chat (NestJS)
-
-```
-http://localhost:3000/api        # Swagger UI (HTTP stub + WebSocket 설명)
-http://localhost:3000/api-json   # OpenAPI JSON
-```
-
----
-
-## 6. WebSocket 문서 — cowork-chat
-
-`cowork-chat`은 HTTP REST 엔드포인트 없이 **Socket.io WebSocket**만 사용합니다.  
-Swagger UI(`/api`)에는 WebSocket 이벤트 설명이 마크다운 형식으로 표시됩니다.
-
-정식 WebSocket 이벤트 명세는 **AsyncAPI 2.6 포맷**으로 제공됩니다.
-
-```
-http://localhost:3000/asyncapi.json
-```
-
-이 JSON을 [AsyncAPI Studio](https://studio.asyncapi.com)에 붙여넣으면 시각적으로 확인할 수 있습니다.
-
-### Socket.io 이벤트 요약
-
-| 방향 | 이벤트 | 페이로드 | 설명 |
-|------|--------|---------|------|
-| Client → Server | `message` | `MessagePayload` | 채널에 메시지 전송 |
-| Server → Client | `message` | `MessagePayload` | 채널 멤버 전체 브로드캐스트 |
-
-**MessagePayload**
-
-```json
-{
-  "channelId": "42",
-  "content":   "안녕하세요!"
-}
-```
-
----
-
-## 7. Try it out 사용 시 주의사항
-
-Swagger UI의 **Try it out** 기능으로 실제 API를 호출할 때 주의할 점입니다.
-
-### 인증이 필요한 엔드포인트
-
-Gateway를 통해 호출할 경우 JWT Bearer 토큰이 필요합니다.  
-Swagger UI 우측 상단 **Authorize** 버튼 → `BearerAuth` → `Bearer <access_token>` 입력.
-
-> `X-User-Id`, `X-User-Role` 헤더는 Gateway가 JWT에서 자동으로 주입하므로 직접 입력하지 않아도 됩니다. (`@Parameter(hidden = true)` 처리됨)
-
-### 서비스 직접 호출 vs Gateway 경유
-
-| 방법 | URL 예시 | 인증 |
-|------|---------|------|
-| Gateway 경유 | `http://localhost:8080/api/users/me` | JWT 필요 |
-| 서비스 직접 | `http://localhost:8082/users/me` | `X-User-Id` 헤더 수동 입력 |
-
-서비스별 Swagger UI에서 직접 호출할 경우 `X-User-Id` 헤더를 수동으로 입력해야 합니다.
-
----
-
-## 8. API 어노테이션 수정 방법
-
-### Elixir (cowork-user)
-
-`CoworkUser.OpenAPI` 모듈을 수정한 뒤 서비스를 재기동하면 자동 반영됩니다.
-
-### Go 서비스 (cowork-authorization, cowork-voice)
-
-핸들러 파일의 주석 어노테이션 (`// @Summary`, `// @Param` 등) 수정 후:
+`cowork-authorization`, `cowork-notification`, `cowork-voice`는 swaggo로 문서를 생성한다. 핸들러 어노테이션을 변경한 뒤 해당 서비스에서 실행한다.
 
 ```bash
-make swagger-gen   # docs/ 재생성
-go build ./...     # 빌드 확인
+make swagger-gen
+go build ./...
 ```
 
-swaggo 어노테이션 전체 문법은 [swaggo/swag 공식 문서](https://github.com/swaggo/swag#declarative-comments-format)를 참고하세요.
+최초 설정이 필요하면 루트에서 세 서비스를 한 번에 준비할 수 있다.
 
-### NestJS (cowork-chat)
+```bash
+make setup
+```
 
-`@ApiProperty()`, `@ApiOperation()` 등 수정 후 서비스를 재기동하면 자동 반영됩니다.  
-WebSocket 이벤트가 변경되면 `public/asyncapi.json`도 함께 수정합니다.
+생성되는 `docs/docs.go`, `docs/swagger.json`, `docs/swagger.yaml`도 API 변경과 함께 커밋한다.
+
+### Spring Boot 서비스
+
+`cowork-team`, `cowork-channel`, `cowork-project`, `cowork-roadmap`은 springdoc과 코드의 OpenAPI 어노테이션을 사용한다. 코드를 다시 빌드하고 서비스를 재기동하면 문서가 반영된다.
+
+### Elixir 서비스
+
+`cowork-user/lib/cowork_user/open_api.ex`의 `CoworkUser.OpenAPI` 명세를 수정하고 서비스를 재기동한다.
+
+### NestJS 서비스
+
+`cowork-chat`은 `@nestjs/swagger` 어노테이션에서 OpenAPI 문서를 생성한다. REST API, GraphQL, Socket.IO를 함께 제공하므로 "WebSocket 전용 서비스"가 아니다.
+
+AsyncAPI 문서는 정적 파일 `cowork-chat/public/asyncapi.json`으로 관리하며 직접 접속 주소는 다음과 같다.
+
+```text
+http://localhost:8087/asyncapi.json
+```
+
+Socket.IO 이벤트를 변경하면 핸들러뿐 아니라 이 파일도 함께 갱신한다.
+
+### Vert.x 서비스
+
+`cowork-preference`는 `src/main/resources/openapi.json`을 정적으로 제공한다. 라우터나 DTO를 변경할 때 이 파일을 수동으로 함께 갱신한다.
+
+## Try it out과 인증
+
+Gateway를 통한 비공개 API 호출에는 JWT Bearer 토큰이 필요하다. `Authorize`에서 토큰을 설정하면 Gateway가 검증한 뒤 아래 헤더를 하위 서비스에 덮어쓴다.
+
+```text
+X-User-Id: <JWT subject>
+X-User-Role: <JWT role>
+```
+
+서비스의 Swagger UI를 직접 호출하면 Gateway를 거치지 않으므로, 문서에 노출된 `X-User-Id`와 `X-User-Role` 헤더를 테스트 목적에 맞게 직접 입력해야 한다. 단, `cowork-authorization`과 `cowork-voice`의 정적 명세는 Gateway 경로인 `/api`를 `basePath`로 사용하므로 직접 Swagger UI에서는 명세 조회만 가능하며 `Try it out`은 Gateway 통합 Swagger를 사용한다. 운영 환경에서는 하위 서비스에 직접 접근할 수 있는 경로를 노출하지 않는다.

@@ -28,7 +28,10 @@ type AppConfig struct {
 }
 
 func Load() (*AppConfig, error) {
-	flatMap := fetchFromConfigServer()
+	flatMap, err := fetchFromConfigServer()
+	if err != nil {
+		return nil, err
+	}
 
 	cfg := &AppConfig{
 		Port:                 lookup(flatMap, "server.port", "8086"),
@@ -58,10 +61,10 @@ func Load() (*AppConfig, error) {
 	return validate(cfg)
 }
 
-func fetchFromConfigServer() map[string]string {
+func fetchFromConfigServer() (map[string]string, error) {
 	configURL := os.Getenv("APP_CONFIG_URL")
 	if configURL == "" {
-		return map[string]string{}
+		return map[string]string{}, nil
 	}
 
 	profile := getEnv("APP_PROFILE", "dev")
@@ -72,12 +75,11 @@ func fetchFromConfigServer() map[string]string {
 
 	flatMap, err := client.Fetch(ctx)
 	if err != nil {
-		slog.Warn("config server unavailable, falling back to env vars only", "err", err)
-		return map[string]string{}
+		return nil, fmt.Errorf("config server unreachable for profile %s: %w", profile, err)
 	}
 
 	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))
-	return flatMap
+	return flatMap, nil
 }
 
 func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {

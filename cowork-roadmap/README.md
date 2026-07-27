@@ -30,23 +30,23 @@
 
 ## 주요 엔드포인트 (Gateway 기준 `/api/roadmaps/**`)
 
-| 메서드 | 경로 | 설명 |
-| --- | --- | --- |
-| POST | `/roadmaps` | 로드맵 생성 |
-| GET | `/roadmaps?scope=&category=&teamId=&projectId=` | 로드맵 목록 |
-| GET | `/roadmaps/{id}` | 로드맵 메타 |
-| GET | `/roadmaps/{id}/tree` | 트리 전체(노드+관련자료 중첩) |
-| PATCH/DELETE | `/roadmaps/{id}` | 수정/삭제 |
-| POST | `/roadmaps/{id}/nodes` | 노드 생성 |
-| PUT | `/roadmaps/{id}/nodes/reorder` | 형제 노드 순서 변경 |
-| GET/PATCH/DELETE | `/roadmaps/nodes/{nodeId}` | 노드 상세/수정/삭제(서브트리) |
-| GET/POST | `/roadmaps/nodes/{nodeId}/references` | 관련자료 목록/추가 |
-| PATCH/DELETE | `/roadmaps/references/{refId}` | 관련자료 수정/삭제 |
-| POST | `/roadmaps/assignments` | 과제 출제 |
-| GET | `/roadmaps/assignments/me` | 내 과제 목록 |
-| GET | `/roadmaps/{id}/assignments` | 로드맵별 과제 |
-| PATCH | `/roadmaps/assignments/{id}/status` | 진행 상태 변경 |
-| DELETE | `/roadmaps/assignments/{id}` | 과제 삭제 |
+| 메서드           | 경로                                            | 설명                          |
+|------------------|-------------------------------------------------|-------------------------------|
+| POST             | `/roadmaps`                                     | 로드맵 생성                   |
+| GET              | `/roadmaps?scope=&category=&teamId=&projectId=` | 로드맵 목록                   |
+| GET              | `/roadmaps/{id}`                                | 로드맵 메타                   |
+| GET              | `/roadmaps/{id}/tree`                           | 트리 전체(노드+관련자료 중첩) |
+| PATCH/DELETE     | `/roadmaps/{id}`                                | 수정/삭제                     |
+| POST             | `/roadmaps/{id}/nodes`                          | 노드 생성                     |
+| PUT              | `/roadmaps/{id}/nodes/reorder`                  | 형제 노드 순서 변경           |
+| GET/PATCH/DELETE | `/roadmaps/nodes/{nodeId}`                      | 노드 상세/수정/삭제(서브트리) |
+| GET/POST         | `/roadmaps/nodes/{nodeId}/references`           | 관련자료 목록/추가            |
+| PATCH/DELETE     | `/roadmaps/references/{refId}`                  | 관련자료 수정/삭제            |
+| POST             | `/roadmaps/assignments`                         | 과제 출제                     |
+| GET              | `/roadmaps/assignments/me`                      | 내 과제 목록                  |
+| GET              | `/roadmaps/{id}/assignments`                    | 로드맵별 과제                 |
+| PATCH            | `/roadmaps/assignments/{id}/status`             | 진행 상태 변경                |
+| DELETE           | `/roadmaps/assignments/{id}`                    | 과제 삭제                     |
 
 ## 실행
 
@@ -55,3 +55,13 @@
 ```
 
 Config → Gateway 기동 후 실행한다(서비스 기동 순서 참고).
+
+## 설정 공급
+
+| 공급원        | 설정                                             |
+|---------------|--------------------------------------------------|
+| Compose       | `SPRING_CONFIG_IMPORT`, `SPRING_PROFILES_ACTIVE` |
+| Config Server | 포트, R2DBC/Flyway URL, Eureka, Team 서비스 URL  |
+| Vault         | MySQL 계정과 비밀번호                            |
+
+Compose에서는 Config Server 조회가 필수입니다. `local`과 `dev` 프로파일 모두 `cowork-config/src/main/resources/configs/`에 정의되어 있습니다.

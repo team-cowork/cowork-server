@@ -34,6 +34,7 @@ type registerTokenRequest struct {
 //	@Failure		400	{string}	string	"잘못된 요청"
 //	@Failure		401	{string}	string	"인증 실패"
 //	@Failure		500	{string}	string	"내부 서버 오류"
+//	@Security		BearerAuth
 //	@Router			/notifications/tokens [post]
 func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromContext(r.Context())
@@ -76,6 +77,7 @@ func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 //	@Failure		401	{string}	string	"인증 실패"
 //	@Failure		404	{string}	string	"토큰 없음"
 //	@Failure		500	{string}	string	"내부 서버 오류"
+//	@Security		BearerAuth
 //	@Router			/notifications/tokens/{token} [delete]
 func (h *Handler) DeleteToken(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := middleware.AccountIDFromContext(r.Context())
