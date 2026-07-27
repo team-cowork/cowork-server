@@ -3,6 +3,7 @@ package com.cowork.roadmap.global.client;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 /**
@@ -10,13 +11,10 @@ import reactor.core.publisher.Mono;
  * /teams/{teamId}/members 응답에서 요청자의 팀 역할을 조회한다.
  */
 @Component
+@RequiredArgsConstructor
 public class TeamClient {
 
     private final WebClient teamWebClient;
-
-    public TeamClient(WebClient teamWebClient) {
-        this.teamWebClient = teamWebClient;
-    }
 
     /**
      * 팀 멤버의 역할(OWNER/ADMIN/MEMBER)을 반환한다. 멤버가 아니면 empty.

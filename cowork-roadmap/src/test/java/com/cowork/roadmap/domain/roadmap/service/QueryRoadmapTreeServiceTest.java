@@ -66,31 +66,26 @@ class QueryRoadmapTreeServiceTest {
     }
 
     private static Roadmap roadmap(Long id, RoadmapScope scope) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setTitle("roadmap");
-        roadmap.setCategory("Flutter");
-        roadmap.setScope(scope.name());
-        return roadmap;
+        return Roadmap.builder().id(id).title("roadmap").category("Flutter").scope(scope.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId, Long parentId, int position, String title) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        node.setParentId(parentId);
-        node.setPosition(position);
-        node.setTitle(title);
-        return node;
+        return RoadmapNode.builder()
+                .id(id)
+                .roadmapId(roadmapId)
+                .parentId(parentId)
+                .position(position)
+                .title(title)
+                .build();
     }
 
     private static RoadmapNodeReference reference(Long id, Long nodeId, String title) {
-        RoadmapNodeReference ref = new RoadmapNodeReference();
-        ref.setId(id);
-        ref.setNodeId(nodeId);
-        ref.setTitle(title);
-        ref.setUrl("https://example.com");
-        ref.setPosition(0);
-        return ref;
+        return RoadmapNodeReference.builder()
+                .id(id)
+                .nodeId(nodeId)
+                .title(title)
+                .url("https://example.com")
+                .position(0)
+                .build();
     }
 }
