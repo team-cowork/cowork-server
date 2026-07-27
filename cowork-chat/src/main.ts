@@ -3,6 +3,7 @@ import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { Logger, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import { Logger as PinoLogger } from 'nestjs-pino';
@@ -10,6 +11,7 @@ import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
 import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
+import { RedisIoAdapter } from './common/adapter/redis-io.adapter';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -32,6 +34,12 @@ async function bootstrap() {
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
 
+    debugStartup('connecting Socket.IO Redis adapter');
+    const redisIoAdapter = new RedisIoAdapter(app);
+    await redisIoAdapter.connectToRedis(app.get(ConfigService));
+    app.useWebSocketAdapter(redisIoAdapter);
+    debugStartup('Socket.IO Redis adapter connected');
+
     const config = new DocumentBuilder()
         .setTitle('Cowork Chat API')
         .setDescription(
@@ -41,10 +49,12 @@ async function bootstrap() {
             '|--------|------|------|\n' +
             '| `join` | C→S | 채널 room 참가 |\n' +
             '| `leave` | C→S | 채널 room 퇴장 |\n' +
-            '| `message` | C→S | 메시지 전송 (Kafka 비동기) |\n' +
+            '| `join:team` / `leave:team` | C→S | 팀 room 참가/퇴장 |\n' +
+            '| `typing:start` / `typing:stop` | C→S | 타이핑 상태 변경 |\n' +
             '| `message` | S→C | 새 메시지 수신 |\n' +
-            '| `message:edited` | S→C | 메시지 수정됨 |\n' +
-            '| `message:deleted` | S→C | 메시지 삭제됨 |\n\n' +
+            '| `message:*` | S→C | 수정·삭제·고정·반응 변경 |\n' +
+            '| `member:*` / `channel:*` / `project:*` | S→C | 멤버십·채널·프로젝트 변경 |\n\n' +
+            '메시지 작성은 REST 요청 후 `chat.message` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/asyncapi.json`\n\n' +
             '## 메시지 검색\n' +
             '`GET /projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n' +
             '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n' +
@@ -66,13 +76,14 @@ async function bootstrap() {
             'GraphQL Playground: `/chat/graphql` (GET)\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
-            'WebSocket: Socket.io handshake의 `auth.token`에 JWT Bearer 토큰 전달.\n' +
+            'WebSocket: Gateway가 `/ws/chat`에서 JWT를 검증하고 같은 사용자 헤더를 주입합니다.\n' +
+            'Gateway 헤더가 없는 로컬 개발 연결에만 `auth.token` fallback을 사용합니다.\n' +
             '```js\n' +
             'io(url, { auth: { token: "<JWT>" } })\n' +
             '```\n' +
             '인증 실패 시 서버는 `exception` 이벤트를 emit한 후 연결을 끊습니다.',
         )
-        .setVersion('1.0')
+        .setVersion('20260719.0')
         .build();
 
     const document = SwaggerModule.createDocument(app, config);

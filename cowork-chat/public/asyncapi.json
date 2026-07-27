@@ -2,40 +2,61 @@
   "asyncapi": "2.6.0",
   "info": {
     "title": "cowork Chat WebSocket API",
-    "version": "1.0.0",
-    "description": "Socket.io 기반 실시간 채팅 서비스 이벤트 명세"
+    "version": "20260719.0",
+    "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message Kafka 흐름을 사용합니다."
   },
   "servers": {
-    "development": {
-      "url": "{host}:{port}",
+    "gateway": {
+      "url": "{host}/ws/chat",
       "protocol": "ws",
-      "description": "개발 서버",
+      "description": "Gateway WebSocket 진입점",
       "variables": {
         "host": {
-          "default": "localhost"
-        },
-        "port": {
-          "default": "8087"
+          "default": "localhost:8080"
         }
       }
     }
   },
   "channels": {
-    "/": {
-      "description": "Socket.io 기본 네임스페이스",
-      "subscribe": {
-        "summary": "서버 → 클라이언트 이벤트",
+    "/chat": {
+      "description": "Socket.IO namespace /chat (path /ws/chat)",
+      "publish": {
+        "summary": "클라이언트 → 서버 room·typing 이벤트",
         "message": {
           "oneOf": [
-            { "$ref": "#/components/messages/MessageBroadcast" }
+            { "$ref": "#/components/messages/JoinChannel" },
+            { "$ref": "#/components/messages/LeaveChannel" },
+            { "$ref": "#/components/messages/TypingStart" },
+            { "$ref": "#/components/messages/TypingStop" },
+            { "$ref": "#/components/messages/JoinTeam" },
+            { "$ref": "#/components/messages/LeaveTeam" }
           ]
         }
       },
-      "publish": {
-        "summary": "클라이언트 → 서버 이벤트",
+      "subscribe": {
+        "summary": "서버 → 클라이언트 채팅·멤버십·팀 이벤트",
         "message": {
           "oneOf": [
-            { "$ref": "#/components/messages/SendMessage" }
+            { "$ref": "#/components/messages/Message" },
+            { "$ref": "#/components/messages/MessageEdited" },
+            { "$ref": "#/components/messages/MessageDeleted" },
+            { "$ref": "#/components/messages/MessagePinned" },
+            { "$ref": "#/components/messages/MessageUnpinned" },
+            { "$ref": "#/components/messages/ReactionAdded" },
+            { "$ref": "#/components/messages/ReactionRemoved" },
+            { "$ref": "#/components/messages/Typing" },
+            { "$ref": "#/components/messages/UnreadUpdated" },
+            { "$ref": "#/components/messages/MemberJoined" },
+            { "$ref": "#/components/messages/MemberLeft" },
+            { "$ref": "#/components/messages/MemberRoleUpdated" },
+            { "$ref": "#/components/messages/ChannelCreated" },
+            { "$ref": "#/components/messages/ChannelUpdated" },
+            { "$ref": "#/components/messages/ChannelDeleted" },
+            { "$ref": "#/components/messages/ProjectCreated" },
+            { "$ref": "#/components/messages/ProjectUpdated" },
+            { "$ref": "#/components/messages/ProjectDeleted" },
+            { "$ref": "#/components/messages/Error" },
+            { "$ref": "#/components/messages/Exception" }
           ]
         }
       }
@@ -43,35 +64,136 @@
   },
   "components": {
     "messages": {
-      "SendMessage": {
-        "name": "message",
-        "title": "채팅 메시지 전송",
-        "summary": "클라이언트가 채널에 메시지를 전송합니다.",
-        "payload": { "$ref": "#/components/schemas/MessagePayload" }
-      },
-      "MessageBroadcast": {
-        "name": "message",
-        "title": "채팅 메시지 브로드캐스트",
-        "summary": "서버가 같은 채널의 모든 멤버에게 메시지를 브로드캐스트합니다.",
-        "payload": { "$ref": "#/components/schemas/MessagePayload" }
-      }
+      "JoinChannel": { "name": "join", "title": "채널 room 참가", "payload": { "$ref": "#/components/schemas/ChannelTarget" } },
+      "LeaveChannel": { "name": "leave", "title": "채널 room 퇴장", "payload": { "$ref": "#/components/schemas/ChannelTarget" } },
+      "TypingStart": { "name": "typing:start", "title": "타이핑 시작", "payload": { "$ref": "#/components/schemas/ChannelTarget" } },
+      "TypingStop": { "name": "typing:stop", "title": "타이핑 종료", "payload": { "$ref": "#/components/schemas/ChannelTarget" } },
+      "JoinTeam": { "name": "join:team", "title": "팀 room 참가", "payload": { "$ref": "#/components/schemas/TeamTarget" } },
+      "LeaveTeam": { "name": "leave:team", "title": "팀 room 퇴장", "payload": { "$ref": "#/components/schemas/TeamTarget" } },
+      "Message": { "name": "message", "title": "새 메시지", "payload": { "$ref": "#/components/schemas/MessageDocument" } },
+      "MessageEdited": { "name": "message:edited", "title": "메시지 수정", "payload": { "$ref": "#/components/schemas/MessageMutation" } },
+      "MessageDeleted": { "name": "message:deleted", "title": "메시지 삭제", "payload": { "$ref": "#/components/schemas/MessageMutation" } },
+      "MessagePinned": { "name": "message:pinned", "title": "메시지 고정", "payload": { "$ref": "#/components/schemas/MessageMutation" } },
+      "MessageUnpinned": { "name": "message:unpinned", "title": "메시지 고정 해제", "payload": { "$ref": "#/components/schemas/MessageMutation" } },
+      "ReactionAdded": { "name": "message:reaction:added", "title": "반응 추가", "payload": { "$ref": "#/components/schemas/ReactionMutation" } },
+      "ReactionRemoved": { "name": "message:reaction:removed", "title": "반응 제거", "payload": { "$ref": "#/components/schemas/ReactionMutation" } },
+      "Typing": { "name": "typing", "title": "타이핑 상태", "payload": { "$ref": "#/components/schemas/TypingState" } },
+      "UnreadUpdated": { "name": "channel:unread:updated", "title": "미읽 수 변경", "payload": { "$ref": "#/components/schemas/UnreadState" } },
+      "MemberJoined": { "name": "member:joined", "title": "채널 멤버 참가", "payload": { "$ref": "#/components/schemas/MembershipEvent" } },
+      "MemberLeft": { "name": "member:left", "title": "채널 멤버 퇴장", "payload": { "$ref": "#/components/schemas/MembershipEvent" } },
+      "MemberRoleUpdated": { "name": "member:role:updated", "title": "채널 멤버 역할 변경", "payload": { "$ref": "#/components/schemas/MembershipEvent" } },
+      "ChannelCreated": { "name": "channel:created", "title": "채널 생성", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
+      "ChannelUpdated": { "name": "channel:updated", "title": "채널 수정", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
+      "ChannelDeleted": { "name": "channel:deleted", "title": "채널 삭제", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
+      "ProjectCreated": { "name": "project:created", "title": "프로젝트 생성", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
+      "ProjectUpdated": { "name": "project:updated", "title": "프로젝트 수정", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
+      "ProjectDeleted": { "name": "project:deleted", "title": "프로젝트 삭제", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
+      "Error": { "name": "error", "title": "요청 오류", "payload": { "$ref": "#/components/schemas/ErrorPayload" } },
+      "Exception": { "name": "exception", "title": "연결 인증 실패", "payload": { "$ref": "#/components/schemas/ErrorPayload" } }
     },
     "schemas": {
-      "MessagePayload": {
+      "ChannelTarget": {
         "type": "object",
-        "required": ["channelId", "content"],
+        "required": ["channelId"],
+        "properties": { "channelId": { "type": "integer", "format": "int64", "example": 42 } }
+      },
+      "TeamTarget": {
+        "type": "object",
+        "required": ["teamId"],
+        "properties": { "teamId": { "type": "integer", "format": "int64", "example": 7 } }
+      },
+      "MessageDocument": {
+        "type": "object",
+        "required": ["_id", "channelId", "authorId", "content", "type"],
         "properties": {
-          "channelId": {
-            "type": "string",
-            "description": "메시지를 전송할 채널 ID",
-            "example": "42"
-          },
-          "content": {
-            "type": "string",
-            "description": "메시지 내용",
-            "example": "안녕하세요!"
-          }
+          "_id": { "type": "string", "description": "MongoDB ObjectId" },
+          "teamId": { "type": "integer", "format": "int64", "nullable": true },
+          "projectId": { "type": "integer", "format": "int64", "nullable": true },
+          "channelId": { "type": "integer", "format": "int64" },
+          "authorId": { "type": "integer", "format": "int64" },
+          "content": { "type": "string" },
+          "type": { "type": "string", "enum": ["TEXT", "FILE", "SYSTEM"] },
+          "attachments": { "type": "array", "items": { "type": "object" } },
+          "parentMessageId": { "type": "string", "nullable": true },
+          "mentions": { "type": "array", "items": { "type": "integer", "format": "int64" } },
+          "isEdited": { "type": "boolean" },
+          "isPinned": { "type": "boolean" },
+          "reactions": { "type": "array", "items": { "type": "object" } },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": true
+      },
+      "MessageMutation": {
+        "type": "object",
+        "required": ["messageId"],
+        "properties": {
+          "messageId": { "type": "string" },
+          "channelId": { "type": "integer", "format": "int64" },
+          "content": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "ReactionMutation": {
+        "type": "object",
+        "required": ["messageId", "channelId", "emoji", "userId", "count"],
+        "properties": {
+          "messageId": { "type": "string" },
+          "channelId": { "type": "integer", "format": "int64" },
+          "emoji": { "type": "string" },
+          "userId": { "type": "integer", "format": "int64" },
+          "count": { "type": "integer" }
         }
+      },
+      "TypingState": {
+        "type": "object",
+        "required": ["channelId", "userId", "isTyping"],
+        "properties": {
+          "channelId": { "type": "integer", "format": "int64" },
+          "userId": { "type": "integer", "format": "int64" },
+          "isTyping": { "type": "boolean" }
+        }
+      },
+      "UnreadState": {
+        "type": "object",
+        "required": ["channelId", "unreadCount"],
+        "properties": {
+          "channelId": { "type": "integer", "format": "int64" },
+          "unreadCount": { "type": "integer" }
+        }
+      },
+      "MembershipEvent": {
+        "type": "object",
+        "required": ["channelId", "userId"],
+        "properties": {
+          "channelId": { "type": "integer", "format": "int64" },
+          "teamId": { "type": "integer", "format": "int64", "nullable": true },
+          "userId": { "type": "integer", "format": "int64" },
+          "role": { "type": "string" }
+        }
+      },
+      "ChannelEvent": {
+        "type": "object",
+        "required": ["channelId", "teamId"],
+        "properties": {
+          "channelId": { "type": "integer", "format": "int64" },
+          "teamId": { "type": "integer", "format": "int64" }
+        },
+        "additionalProperties": true
+      },
+      "ProjectEvent": {
+        "type": "object",
+        "required": ["projectId", "teamId"],
+        "properties": {
+          "projectId": { "type": "integer", "format": "int64" },
+          "teamId": { "type": "integer", "format": "int64" }
+        },
+        "additionalProperties": true
+      },
+      "ErrorPayload": {
+        "type": "object",
+        "required": ["message"],
+        "properties": { "message": { "type": "string" } }
       }
     }
   }

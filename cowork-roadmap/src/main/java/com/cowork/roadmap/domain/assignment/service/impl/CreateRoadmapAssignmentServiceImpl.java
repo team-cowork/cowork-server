@@ -15,26 +15,18 @@ import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignmentService {
 
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public CreateRoadmapAssignmentServiceImpl(RoadmapAssignmentRepository assignmentRepository,
-            RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.assignmentRepository = assignmentRepository;
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional
@@ -51,17 +43,17 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
                         .then(accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId()))
                         .then(validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId()))
                         .then(Mono.defer(() -> {
-                            RoadmapAssignment assignment = new RoadmapAssignment();
-                            assignment.setRoadmapId(request.roadmapId());
-                            assignment.setNodeId(request.nodeId());
-                            assignment.setScope(request.scope().name());
-                            assignment.setTeamId(request.teamId());
-                            assignment
-                                    .setProjectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null);
-                            assignment.setAssigneeUserId(request.assigneeUserId());
-                            assignment.setAssignedBy(userId);
-                            assignment.setStatus(AssignmentStatus.ASSIGNED.name());
-                            assignment.setDueDate(request.dueDate());
+                            RoadmapAssignment assignment = RoadmapAssignment.builder()
+                                    .roadmapId(request.roadmapId())
+                                    .nodeId(request.nodeId())
+                                    .scope(request.scope().name())
+                                    .teamId(request.teamId())
+                                    .projectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null)
+                                    .assigneeUserId(request.assigneeUserId())
+                                    .assignedBy(userId)
+                                    .status(AssignmentStatus.ASSIGNED.name())
+                                    .dueDate(request.dueDate())
+                                    .build();
                             return assignmentRepository.save(assignment).map(AssignmentResDto::from);
                         })));
     }

@@ -12,25 +12,17 @@ import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 
 @Service
+@RequiredArgsConstructor
 public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceService {
 
     private final RoadmapNodeReferenceRepository referenceRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
     private final RoadmapNodeLookupSupport nodeLookupSupport;
-
-    public CreateNodeReferenceServiceImpl(RoadmapNodeReferenceRepository referenceRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport,
-            RoadmapNodeLookupSupport nodeLookupSupport) {
-        this.referenceRepository = referenceRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-        this.nodeLookupSupport = nodeLookupSupport;
-    }
 
     @Override
     @Transactional
@@ -40,11 +32,12 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
                         .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                                 .then(Mono.defer(() -> referenceRepository.countByNodeId(nodeId)))
                                 .flatMap(count -> {
-                                    RoadmapNodeReference ref = new RoadmapNodeReference();
-                                    ref.setNodeId(nodeId);
-                                    ref.setTitle(request.title());
-                                    ref.setUrl(request.url());
-                                    ref.setPosition(count.intValue());
+                                    RoadmapNodeReference ref = RoadmapNodeReference.builder()
+                                            .nodeId(nodeId)
+                                            .title(request.title())
+                                            .url(request.url())
+                                            .position(count.intValue())
+                                            .build();
                                     return referenceRepository.save(ref).map(NodeReferenceResDto::from);
                                 })));
     }

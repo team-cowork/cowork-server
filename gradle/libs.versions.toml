@@ -20,6 +20,7 @@ logstash-logback = "9.0"
 mockk = "1.14.3"
 shedlock = "7.7.0"
 jetbrains-annotations = "26.1.0"
+lombok = "1.18.46"
 
 [libraries]
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
@@ -91,6 +92,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
 shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }

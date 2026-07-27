@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260719.0"
+version = "20260727.0"
 
 java {
     toolchain {
@@ -54,6 +54,11 @@ dependencies {
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.reactor.test)
+
+    compileOnly(libs.lombok)
+    annotationProcessor(libs.lombok)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 }
 
 // Spotless Java formatter configuration.

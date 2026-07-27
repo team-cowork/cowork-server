@@ -21,6 +21,7 @@ const keepaliveInterval = 30 * time.Second
 //	@Success		200	{string}	string	"data: {type, title, body, channelId, teamId}"
 //	@Failure		401	{string}	string	"인증 실패"
 //	@Failure		500	{string}	string	"SSE not supported"
+//	@Security		BearerAuth
 //	@Router			/notifications/stream [get]
 func streamHandler(w http.ResponseWriter, r *http.Request) {} //nolint:unused
 

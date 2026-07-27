@@ -6,62 +6,35 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.cowork.roadmap.global.audit.TimestampEntity;
 
+import lombok.Builder;
+import lombok.Getter;
+
 /** 노드에 딸린 관련 자료 링크. */
+@Getter
 @Table("tb_roadmap_node_references")
 public class RoadmapNodeReference extends TimestampEntity {
 
     @Id
-    private Long id;
+    private final Long id;
 
     @Column("node_id")
-    private Long nodeId;
+    private final Long nodeId;
 
     @Column("title")
-    private String title;
+    private final String title;
 
     @Column("url")
-    private String url;
+    private final String url;
 
     @Column("position")
-    private Integer position;
+    private final Integer position;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
+    @Builder(toBuilder = true)
+    public RoadmapNodeReference(Long id, Long nodeId, String title, String url, Integer position) {
         this.id = id;
-    }
-
-    public Long getNodeId() {
-        return nodeId;
-    }
-
-    public void setNodeId(Long nodeId) {
         this.nodeId = nodeId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
         this.title = title;
-    }
-
-    public String getUrl() {
-        return url;
-    }
-
-    public void setUrl(String url) {
         this.url = url;
-    }
-
-    public Integer getPosition() {
-        return position;
-    }
-
-    public void setPosition(Integer position) {
         this.position = position;
     }
 }
