@@ -30,7 +30,7 @@
 ## 이벤트와 의존성
 
 - Kafka consume: `team.lifecycle`, `user.lifecycle`
-- Kafka produce: `project.event`
+- Kafka produce: `project.event`, `project.member.event`
 - HTTP: `cowork-user`, GitHub App 중계 서비스
 - MySQL, Eureka, Config Server
 
