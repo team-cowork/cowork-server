@@ -1,7 +1,21 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import Redis, { Result } from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
+
+declare module 'ioredis' {
+    interface RedisCommander<Context> {
+        incrementIfPresentScript(key: string, field: string): Result<number, Context>;
+    }
+}
+
+// KEYS[1]=key ARGV[1]=field — 필드가 이미 존재할 때만 1 증가시킨다
+const INCREMENT_IF_PRESENT_SCRIPT = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+    return redis.call('HINCRBY', KEYS[1], ARGV[1], 1)
+end
+return -1
+`;
 
 const KEY_PREFIX = 'unread:';
 const TTL_SECONDS = 86_400;
@@ -40,6 +54,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             enableOfflineQueue: false,
             maxRetriesPerRequest: 0,
         });
+        this.client.defineCommand('incrementIfPresentScript', { numberOfKeys: 1, lua: INCREMENT_IF_PRESENT_SCRIPT });
         this.client.on('error', (err: unknown) => {
             this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
         });
@@ -115,24 +130,18 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     /**
      * 새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
      * 필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
+     * 유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮겨, 기존의 HEXISTS 파이프라인 →
+     * (JS에서 필터링) → HINCRBY 파이프라인이라는 2회 왕복을 1회 파이프라인 왕복으로 줄인다.
      */
     async incrementIfPresent(channelId: number, userIds: number[]): Promise<void> {
         if (userIds.length === 0) return;
         try {
             const field = String(channelId);
-            const existsPipeline = this.client.pipeline();
+            const pipeline = this.client.pipeline();
             for (const userId of userIds) {
-                existsPipeline.hexists(this.key(userId), field);
+                pipeline.incrementIfPresentScript(this.key(userId), field);
             }
-            const existsResults = await existsPipeline.exec();
-            const presentUserIds = userIds.filter((_, i) => existsResults?.[i]?.[1] === 1);
-            if (presentUserIds.length === 0) return;
-
-            const incrPipeline = this.client.pipeline();
-            for (const userId of presentUserIds) {
-                incrPipeline.hincrby(this.key(userId), field, 1);
-            }
-            await incrPipeline.exec();
+            await pipeline.exec();
         } catch (err) {
             this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, err);
         }
