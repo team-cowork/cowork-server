@@ -49,7 +49,7 @@ class AddProjectMemberServiceImpl(
             ),
         )
 
-        afterCommit { projectMemberEventPublisher.publishAdded(projectId, request.userId) }
+        afterCommit { projectMemberEventPublisher.publishAdded(projectId, member.userId) }
 
         return ProjectMemberResDto.of(member)
     }
