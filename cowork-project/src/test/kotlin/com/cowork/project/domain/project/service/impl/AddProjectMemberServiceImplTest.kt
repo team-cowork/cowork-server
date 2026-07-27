@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.transaction.support.TransactionSynchronizationUtils
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -73,10 +74,12 @@ class AddProjectMemberServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns
             TeamMembership(teamId = 100L, userId = 50L, role = "MEMBER")
         every { projectMemberRepository.save(any()) } answers { firstArg() }
-        TransactionSynchronizationManager.clear() // 동기화 비활성화 상태로 afterCommit이 즉시 실행되게 함
 
         service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+        verify(exactly = 0) { projectMemberEventPublisher.publishAdded(any(), any()) }
 
-        verify { projectMemberEventPublisher.publishAdded(1L, 50L) }
+        TransactionSynchronizationUtils.triggerAfterCommit()
+
+        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(1L, 50L) }
     }
 }
