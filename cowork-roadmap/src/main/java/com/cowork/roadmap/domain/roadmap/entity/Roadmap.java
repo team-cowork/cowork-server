@@ -6,83 +6,48 @@ import org.springframework.data.relational.core.mapping.Table;
 
 import com.cowork.roadmap.global.audit.BaseEntity;
 
+import lombok.Builder;
+import lombok.Getter;
+
+@Getter
 @Table("tb_roadmaps")
 public class Roadmap extends BaseEntity {
 
     @Id
-    private Long id;
+    private final Long id;
 
     @Column("title")
-    private String title;
+    private final String title;
 
     @Column("description")
-    private String description;
+    private final String description;
 
     @Column("category")
-    private String category;
+    private final String category;
 
     @Column("scope")
-    private String scope;
+    private final String scope;
 
     @Column("owner_team_id")
-    private Long ownerTeamId;
+    private final Long ownerTeamId;
 
     @Column("owner_project_id")
-    private Long ownerProjectId;
+    private final Long ownerProjectId;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
+    @Builder(toBuilder = true)
+    public Roadmap(Long id,
+            String title,
+            String description,
+            String category,
+            String scope,
+            Long ownerTeamId,
+            Long ownerProjectId) {
         this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
         this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getCategory() {
-        return category;
-    }
-
-    public void setCategory(String category) {
         this.category = category;
-    }
-
-    public String getScope() {
-        return scope;
-    }
-
-    public void setScope(String scope) {
         this.scope = scope;
-    }
-
-    public Long getOwnerTeamId() {
-        return ownerTeamId;
-    }
-
-    public void setOwnerTeamId(Long ownerTeamId) {
         this.ownerTeamId = ownerTeamId;
-    }
-
-    public Long getOwnerProjectId() {
-        return ownerProjectId;
-    }
-
-    public void setOwnerProjectId(Long ownerProjectId) {
         this.ownerProjectId = ownerProjectId;
     }
 }
