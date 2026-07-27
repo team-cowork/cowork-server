@@ -63,4 +63,15 @@ export class ProjectMemberCache implements OnModuleInit, OnModuleDestroy {
             this.logger.warn(`Redis set failed [projectId=${projectId}, userId=${userId}]`, err);
         }
     }
+
+    /**
+     * 프로젝트 멤버 추가/제거 이벤트 수신 시 캐시를 무효화한다.
+     */
+    async invalidate(projectId: number, userId: number): Promise<void> {
+        try {
+            await this.client.del(`${KEY_PREFIX}${projectId}:${userId}`);
+        } catch (err) {
+            this.logger.warn(`Redis invalidate failed [projectId=${projectId}, userId=${userId}]`, err);
+        }
+    }
 }
