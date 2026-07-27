@@ -25,6 +25,10 @@ interface ProjectMemberRepository :
         projectIds: List<Long>,
     ): List<ProjectMember>
 
+    fun findAllByProjectIdIn(projectIds: List<Long>): List<ProjectMember>
+
+    fun findAllByUserId(userId: Long): List<ProjectMember>
+
     fun deleteAllByUserId(userId: Long)
 
     fun deleteAllByUserIdAndProjectIdIn(userId: Long, projectIds: List<Long>)
