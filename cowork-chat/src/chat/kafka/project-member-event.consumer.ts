@@ -39,17 +39,16 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
 
         void this.consumer
             .run({
-                eachMessage: ({ message }): Promise<void> => {
+                eachMessage: async ({ message }): Promise<void> => {
                     if (message.value) {
                         try {
                             const event = JSON.parse(message.value.toString()) as ProjectMemberEvent;
-                            this.handleEvent(event);
+                            await this.handleEvent(event);
                         } catch (err) {
                             this.logger.error('Exception while processing project.member.event Kafka message', err);
                             if (!(err instanceof SyntaxError)) throw err;
                         }
                     }
-                    return Promise.resolve();
                 },
             })
             .catch(async (err) => {
@@ -72,11 +71,12 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
         await this.consumer.disconnect();
     }
 
-    private handleEvent(event: ProjectMemberEvent) {
+    private async handleEvent(event: ProjectMemberEvent): Promise<void> {
+        // eventType 값과 무관하게 무효화한다. 무해하며 향후 이벤트 타입이 늘어도 안전하다.
         if (!event || !event.eventType || typeof event.projectId !== 'number' || typeof event.userId !== 'number') {
             this.logger.warn('Invalid project member event payload: ' + JSON.stringify(event));
             return;
         }
-        void this.projectMemberCache.invalidate(event.projectId, event.userId);
+        await this.projectMemberCache.invalidate(event.projectId, event.userId);
     }
 }

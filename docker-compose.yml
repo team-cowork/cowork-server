@@ -100,6 +100,7 @@ services:
         channel.member.event
         channel.event
         project.event
+        project.member.event
         chat.message
         github.issue.create
         github.issue.result
