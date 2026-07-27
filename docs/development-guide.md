@@ -173,6 +173,7 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 | `channel.event` | cowork-channel | cowork-chat | 채널 메타데이터 동기화 |
 | `channel.member.event` | cowork-channel | cowork-chat | 채널 멤버십 동기화 |
 | `project.event` | cowork-project | cowork-chat | 프로젝트 메타데이터 동기화 |
+| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 캐시 무효화 |
 | `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
 | `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
 | `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
