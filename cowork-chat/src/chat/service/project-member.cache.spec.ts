@@ -3,6 +3,7 @@ import { ProjectMemberCache } from './project-member.cache';
 
 const mockGet = jest.fn();
 const mockSet = jest.fn().mockResolvedValue(undefined);
+const mockDel = jest.fn().mockResolvedValue(undefined);
 const mockConnect = jest.fn().mockResolvedValue(undefined);
 const mockDisconnect = jest.fn();
 const mockOn = jest.fn();
@@ -10,6 +11,7 @@ const mockOn = jest.fn();
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     get: mockGet,
     set: mockSet,
+    del: mockDel,
     connect: mockConnect,
     disconnect: mockDisconnect,
     on: mockOn,
@@ -77,6 +79,20 @@ describe('ProjectMemberCache', () => {
             mockSet.mockRejectedValue(new Error('connection lost'));
 
             await expect(cache.set(5, 42, true)).resolves.toBeUndefined();
+        });
+    });
+
+    describe('invalidate', () => {
+        it('캐시 키를 삭제한다', async () => {
+            await cache.invalidate(5, 42);
+
+            expect(mockDel).toHaveBeenCalledWith('project:member:5:42');
+        });
+
+        it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
+            mockDel.mockRejectedValue(new Error('connection lost'));
+
+            await expect(cache.invalidate(5, 42)).resolves.toBeUndefined();
         });
     });
 
