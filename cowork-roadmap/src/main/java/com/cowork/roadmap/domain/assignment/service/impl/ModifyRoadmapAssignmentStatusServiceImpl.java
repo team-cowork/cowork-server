@@ -10,19 +10,17 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusService;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAssignmentStatusService {
 
     private static final String ROLE_ADMIN = "ADMIN";
 
     private final RoadmapAssignmentRepository assignmentRepository;
-
-    public ModifyRoadmapAssignmentStatusServiceImpl(RoadmapAssignmentRepository assignmentRepository) {
-        this.assignmentRepository = assignmentRepository;
-    }
 
     @Override
     @Transactional
@@ -36,8 +34,9 @@ public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAs
             if (!allowed) {
                 return Mono.error(new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN));
             }
-            assignment.setStatus(request.status().name());
-            return assignmentRepository.save(assignment).map(AssignmentResDto::from);
+            RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
+            updated.copyAuditFrom(assignment);
+            return assignmentRepository.save(updated).map(AssignmentResDto::from);
         });
     }
 

@@ -64,26 +64,20 @@ class ListNodeReferencesServiceTest {
     }
 
     private static Roadmap roadmap(Long id) {
-        Roadmap roadmap = new Roadmap();
-        roadmap.setId(id);
-        roadmap.setScope(RoadmapScope.GLOBAL.name());
-        return roadmap;
+        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
     private static RoadmapNode node(Long id, Long roadmapId) {
-        RoadmapNode node = new RoadmapNode();
-        node.setId(id);
-        node.setRoadmapId(roadmapId);
-        return node;
+        return RoadmapNode.builder().id(id).roadmapId(roadmapId).build();
     }
 
     private static RoadmapNodeReference reference(Long id, Long nodeId) {
-        RoadmapNodeReference ref = new RoadmapNodeReference();
-        ref.setId(id);
-        ref.setNodeId(nodeId);
-        ref.setTitle("ref" + id);
-        ref.setUrl("https://example.com");
-        ref.setPosition(0);
-        return ref;
+        return RoadmapNodeReference.builder()
+                .id(id)
+                .nodeId(nodeId)
+                .title("ref" + id)
+                .url("https://example.com")
+                .position(0)
+                .build();
     }
 }
