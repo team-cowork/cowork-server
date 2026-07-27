@@ -71,7 +71,7 @@
 
 ## Kafka 토픽
 - Produce: `chat.message`(전송 요청 발행 → 자기 자신이 consume해 저장·브로드캐스트), `notification.trigger`(아웃박스 폴러), `github.issue.create`
-- Consume: `chat.message`, `github.issue.result`, `channel.event`, `project.event`, `channel.member.event`(멤버십 동기화)
+- Consume: `chat.message`, `github.issue.result`, `channel.event`, `project.event`, `channel.member.event`(멤버십 동기화), `project.member.event`(프로젝트 멤버십 캐시 무효화)
 
 ## 의존 서비스
 - HTTP: `cowork-channel`, `cowork-user`, `cowork-project` (표시 이름·채널 정보·프로젝트 멤버십 조회)
