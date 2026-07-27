@@ -19,23 +19,17 @@ import com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesService {
 
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public ReorderRoadmapNodesServiceImpl(RoadmapNodeRepository nodeRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.nodeRepository = nodeRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional
@@ -62,9 +56,10 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
                             List<Long> ordered = request.orderedNodeIds();
                             for (int i = 0; i < ordered.size(); i++) {
                                 RoadmapNode node = byId.get(ordered.get(i));
-                                node.setPosition(i);
-                                node.setLastModifiedBy(userId);
-                                updated.add(node);
+                                RoadmapNode reordered = node.toBuilder().position(i).build();
+                                reordered.copyAuditFrom(node);
+                                reordered.setLastModifiedBy(userId);
+                                updated.add(reordered);
                             }
                             return nodeRepository.saveAll(updated).then();
                         }));

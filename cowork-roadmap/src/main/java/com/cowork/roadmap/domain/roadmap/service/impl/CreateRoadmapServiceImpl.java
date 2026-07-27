@@ -12,19 +12,16 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.CreateRoadmapService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
+@RequiredArgsConstructor
 public class CreateRoadmapServiceImpl implements CreateRoadmapService {
 
     private final RoadmapRepository roadmapRepository;
     private final RoadmapAccessGuard accessGuard;
-
-    public CreateRoadmapServiceImpl(RoadmapRepository roadmapRepository, RoadmapAccessGuard accessGuard) {
-        this.roadmapRepository = roadmapRepository;
-        this.accessGuard = accessGuard;
-    }
 
     @Override
     @Transactional
@@ -38,13 +35,14 @@ public class CreateRoadmapServiceImpl implements CreateRoadmapService {
         }
 
         return accessGuard.requireCreatable(userId, userRole, scope, request.ownerTeamId()).then(Mono.defer(() -> {
-            Roadmap roadmap = new Roadmap();
-            roadmap.setTitle(request.title());
-            roadmap.setDescription(request.description());
-            roadmap.setCategory(request.category());
-            roadmap.setScope(scope.name());
-            roadmap.setOwnerTeamId(scope == RoadmapScope.GLOBAL ? null : request.ownerTeamId());
-            roadmap.setOwnerProjectId(scope == RoadmapScope.PROJECT ? request.ownerProjectId() : null);
+            Roadmap roadmap = Roadmap.builder()
+                    .title(request.title())
+                    .description(request.description())
+                    .category(request.category())
+                    .scope(scope.name())
+                    .ownerTeamId(scope == RoadmapScope.GLOBAL ? null : request.ownerTeamId())
+                    .ownerProjectId(scope == RoadmapScope.PROJECT ? request.ownerProjectId() : null)
+                    .build();
             roadmap.setCreatedBy(userId);
             roadmap.setLastModifiedBy(userId);
             return roadmapRepository.save(roadmap).map(RoadmapResDto::from);

@@ -6,7 +6,7 @@ FROM debian:bookworm-20240926-slim
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl curl wget ca-certificates default-mysql-client default-jre-headless libstdc++6 libncurses5 locales \
+    && apt-get install -y --no-install-recommends openssl curl wget jq ca-certificates default-mysql-client default-jre-headless libstdc++6 libncurses5 locales \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r app && useradd -r -g app app \
     && mkdir -p /var/log/cowork/user && chown -R app:app /var/log/cowork

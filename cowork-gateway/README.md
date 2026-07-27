@@ -1,24 +1,50 @@
 # cowork-gateway
 
 ## 역할
-API Gateway. 모든 외부 요청의 단일 진입점.
-- JWT 검증 및 `X-User-Id`, `X-User-Role` 헤더 하위 서비스 전달
-- Eureka 기반 로드밸런싱 (`lb://cowork-{service}`)
-- Redis 기반 레이트리밋
-- CORS 전역 설정
 
-## `/ws/{module}` 인증
-브라우저의 WebSocket 핸드셰이크는 커스텀 `Authorization` 헤더를 실을 수 없어, `/ws/**`(예: `cowork-chat`의 `/ws/chat`)는 기본 보안 체인과 분리된 전용 `SecurityWebFilterChain`(`SecurityConfig.wsSecurityWebFilterChain`)에서 별도로 처리한다. 이 체인은 `WsJwtServerAuthenticationConverter`로 `Authorization` 헤더(네이티브 앱) 또는 쿠키(`cowork_ws_token`, `cowork-authorization`이 로그인/리프레시 시 발급, 브라우저)에서 JWT를 추출해 검증하고, 검증 성공 시 다른 요청과 동일하게 `X-User-Id`/`X-User-Role` 헤더를 주입한다. 기본 체인의 `JwtServerAuthenticationConverter`는 이 예외를 몰라도 되도록 `Authorization` 헤더만 처리하는 단순한 형태로 유지한다.
-쿠키 자동 첨부를 악용한 웹소켓 CSRF를 막기 위해 같은 체인에 연결된 `WsOriginFilter`가 `Origin` 헤더를 `app.ws.allowed-origins` 설정값과 대조한다(`Origin` 헤더가 없는 네이티브 앱 요청은 통과). 컨버터·필터·설정 모두 `/ws/**` 전체에 재사용되므로, 다른 모듈이 웹소켓이 필요해지면 `/ws/{module}` 라우트만 추가하면 된다.
+외부 요청의 유일한 진입점인 Reactive API Gateway입니다.
+
+- JWT 검증 후 `X-User-Id`와 `X-User-Role`을 하위 서비스에 전달
+- Eureka 기반 `lb://cowork-{service}` 라우팅과 경로 재작성
+- Redis 기반 요청 속도 제한
+- Resilience4j Circuit Breaker·Retry와 공통 fallback 응답
+- JSON 응답을 `CommonApiResponse` 형식으로 래핑
+- 서비스별 OpenAPI를 모은 Swagger UI 제공
+- CORS를 전역에서 처리
+- Config Bus를 통한 라우팅·보안 설정 갱신
+
+하위 서비스는 JWT를 다시 검증하지 않고 Gateway가 전달한 사용자 헤더를 신뢰합니다. 운영 환경에서는 Gateway를 우회하는 서비스 경로를 외부에 노출하지 않습니다.
+
+## WebSocket 인증 (`/ws/{module}`)
+
+`/ws/**` 요청은 전용 보안 체인에서 `Authorization` 헤더(네이티브 앱) 또는 `cowork_ws_token` 쿠키(브라우저)를 검증합니다. 검증 후 REST와 같은 사용자 헤더를 주입하며, `WsOriginFilter`가 쿠키 자동 첨부를 악용한 WebSocket CSRF를 막기 위해 `Origin`을 `app.ws.allowed-origins`와 비교합니다.
+
+현재 채팅은 Gateway path `/ws/chat`, Socket.IO namespace `/chat`을 사용합니다.
 
 ## 스택
+
 - Spring Boot 4 / Kotlin / Java 25
-- Spring Cloud Gateway (Reactive)
-- Spring Security + JWT (jjwt)
-- Redis (레이트리밋)
+- Spring Cloud Gateway, Eureka, Config Client, Config Bus(Kafka)
+- Spring Security + JJWT
+- Redis, Resilience4j
 
-## 포트
-`8080`
+## 포트와 엔드포인트
 
-## 의존성
-- Eureka Client, Config Client
+- 포트: `8080`
+- Health: `/actuator/health`
+- Prometheus: `/actuator/prometheus`
+- 통합 Swagger UI: `/swagger-ui.html`
+
+라우트의 기준 파일은 `cowork-config/src/main/resources/configs/cowork-gateway-{profile}.yml`입니다. 임시 외부 호스트 프록시는 `EXTERNAL_HOST_URL`이 설정된 경우에만 `/api/external/**`로 활성화됩니다.
+
+## 주요 환경 변수
+
+Compose는 Config Server 접속에 필요한 부트스트랩 값만 직접 주입합니다.
+
+| 공급원 | 설정 |
+|---|---|
+| Compose | `SPRING_CONFIG_IMPORT`, `SPRING_PROFILES_ACTIVE`, 임시 `EXTERNAL_HOST_*` override |
+| Config Server | 라우트, Redis, Kafka, Eureka, circuit breaker, Swagger 집계 |
+| Vault | `jwt.secret` |
+
+Compose에서는 Config Server 연결이 필수이며 조회에 실패하면 기동하지 않습니다.

@@ -25,10 +25,9 @@ export class ChannelSearchClient extends BaseHttpClient {
 
     async searchChannels(teamId: number, q: string, userId: number): Promise<ChannelSearchItem[]> {
         const url = `${this.channelServiceUrl}/search/channels?teamId=${teamId}&q=${encodeURIComponent(q)}`;
-        const res = await fetch(url, {
+        const res = await this.fetchWithRetry(url, {
             headers: { 'X-User-Id': String(userId) },
-            signal: AbortSignal.timeout(3000),
-        });
+        }, 3000);
 
         if (!res.ok) {
             const message = await this.readErrorMessage(res);

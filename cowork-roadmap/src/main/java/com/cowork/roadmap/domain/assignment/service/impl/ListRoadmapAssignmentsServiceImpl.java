@@ -9,22 +9,16 @@ import com.cowork.roadmap.domain.assignment.service.ListRoadmapAssignmentsServic
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Flux;
 
 @Service
+@RequiredArgsConstructor
 public class ListRoadmapAssignmentsServiceImpl implements ListRoadmapAssignmentsService {
 
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapAccessGuard accessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-
-    public ListRoadmapAssignmentsServiceImpl(RoadmapAssignmentRepository assignmentRepository,
-            RoadmapAccessGuard accessGuard,
-            RoadmapLookupSupport roadmapLookupSupport) {
-        this.assignmentRepository = assignmentRepository;
-        this.accessGuard = accessGuard;
-        this.roadmapLookupSupport = roadmapLookupSupport;
-    }
 
     @Override
     @Transactional(readOnly = true)

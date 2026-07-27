@@ -8,6 +8,8 @@ spring:
     active: ${SPRING_PROFILES_ACTIVE:dev}
     group:
       local: composite
+      dev: composite
+      prod: composite
 
   cloud:
     bus:
@@ -50,6 +52,10 @@ spring:
   cloud:
     config:
       server:
+        overrides:
+          MINIO_INTERNAL_ENDPOINT: ${MINIO_INTERNAL_ENDPOINT:http://minio:9000}
+          MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+          MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
         composite:
           - type: vault
             host: ${VAULT_HOST:localhost}
@@ -83,6 +89,10 @@ spring:
   cloud:
     config:
       server:
+        overrides:
+          MINIO_INTERNAL_ENDPOINT: ${MINIO_INTERNAL_ENDPOINT:http://minio:9000}
+          MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+          MINIO_PUBLIC_BASE_URL: ${MINIO_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
         composite:
           - type: vault
             host: ${VAULT_HOST:localhost}
