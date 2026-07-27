@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import org.springframework.transaction.support.TransactionSynchronizationUtils
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -92,10 +93,12 @@ class RemoveProjectMemberServiceImplTest {
             ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
         every { projectMemberRepository.findById(5L) } returns
             Optional.of(ProjectMember(id = 5L, projectId = 1L, userId = 50L, role = ProjectMemberRole.EDITOR))
-        TransactionSynchronizationManager.clear() // 동기화 비활성화 상태로 afterCommit이 즉시 실행되게 함
 
         service.execute(1L, 1L, 5L)
+        verify(exactly = 0) { projectMemberEventPublisher.publishRemoved(any(), any()) }
 
-        verify { projectMemberEventPublisher.publishRemoved(1L, 50L) }
+        TransactionSynchronizationUtils.triggerAfterCommit()
+
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 50L) }
     }
 }
