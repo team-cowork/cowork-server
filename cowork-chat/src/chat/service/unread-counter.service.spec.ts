@@ -2,9 +2,9 @@ import { ConfigService } from '@nestjs/config';
 import { UnreadCounterService } from './unread-counter.service';
 
 const mockHmget = jest.fn();
+const mockIncrementIfPresentScript = jest.fn().mockResolvedValue(1);
 const mockPipelineExec = jest.fn().mockResolvedValue(undefined);
 const mockPipeline = {
-    incrementIfPresentScript: jest.fn().mockReturnThis(),
     hset: jest.fn().mockReturnThis(),
     expire: jest.fn().mockReturnThis(),
     exec: mockPipelineExec,
@@ -17,6 +17,7 @@ const mockOn = jest.fn();
 
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     hmget: mockHmget,
+    incrementIfPresentScript: mockIncrementIfPresentScript,
     pipeline: mockPipelineFn,
     defineCommand: mockDefineCommand,
     connect: mockConnect,
@@ -118,22 +119,18 @@ describe('UnreadCounterService', () => {
         it('userIds가 비어 있으면 아무것도 하지 않는다', async () => {
             await service.incrementIfPresent(10, []);
 
-            expect(mockPipelineFn).not.toHaveBeenCalled();
+            expect(mockIncrementIfPresentScript).not.toHaveBeenCalled();
         });
 
-        it('유저별로 incrementIfPresentScript를 파이프라인에 담아 한 번에 실행한다', async () => {
-            mockPipelineExec.mockResolvedValue([[null, 1], [null, -1], [null, 2]]);
-
+        it('대상 유저 전체를 한 번에 넘겨 단일 스크립트 호출로 실행한다', async () => {
             await service.incrementIfPresent(10, [1, 2, 3]);
 
-            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:1', '10');
-            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:2', '10');
-            expect(mockPipeline.incrementIfPresentScript).toHaveBeenCalledWith('unread:3', '10');
-            expect(mockPipelineExec).toHaveBeenCalledTimes(1);
+            expect(mockIncrementIfPresentScript).toHaveBeenCalledTimes(1);
+            expect(mockIncrementIfPresentScript).toHaveBeenCalledWith('10', 'unread:1', 'unread:2', 'unread:3');
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
-            mockPipelineExec.mockRejectedValue(new Error('connection lost'));
+            mockIncrementIfPresentScript.mockRejectedValueOnce(new Error('connection lost'));
 
             await expect(service.incrementIfPresent(10, [1, 2])).resolves.toBeUndefined();
         });
@@ -142,7 +139,7 @@ describe('UnreadCounterService', () => {
     it('onModuleInit 시 incrementIfPresentScript Lua 스크립트를 등록한다', () => {
         expect(mockDefineCommand).toHaveBeenCalledWith(
             'incrementIfPresentScript',
-            expect.objectContaining({ numberOfKeys: 1, lua: expect.any(String) as unknown }),
+            expect.objectContaining({ numberOfKeys: 0, lua: expect.any(String) as unknown }),
         );
     });
 
