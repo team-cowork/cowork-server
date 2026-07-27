@@ -6,6 +6,6 @@ RUN apk --no-cache add ca-certificates tzdata && \
 WORKDIR /app
 COPY --chown=app:app cowork-voice /usr/local/bin/cowork-voice
 USER app
-EXPOSE 8084
-ENV PORT=8084
+EXPOSE 8089
+ENV PORT=8089
 CMD ["cowork-voice"]

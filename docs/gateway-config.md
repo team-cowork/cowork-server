@@ -1,296 +1,184 @@
-# cowork-gateway & cowork-config 서비스 분석
+# cowork-config와 cowork-gateway 구성
+
+이 문서는 2026-07-23의 `application.yml`, Config Server 설정, Gateway 보안·필터 코드를 기준으로 한다. 로컬 Compose의 기본 프로파일은 `local`이다.
 
 ## cowork-config
 
-### 개요
+`cowork-config`는 포트 `8761`에서 Config Server, Eureka Server, Spring Cloud Bus를 함께 제공한다.
 
-`cowork-config`는 **Config Server + Eureka Server를 단일 프로세스에서 겸임**하는 서비스입니다.
+### 설정 백엔드
 
-```kotlin
-@EnableConfigServer   // Spring Cloud Config Server
-@EnableEurekaServer   // Netflix Eureka Service Registry
-class CoworkConfigApplication
+| 프로파일 | 설정 백엔드 우선순위          | 용도                             |
+|----------|-------------------------------|----------------------------------|
+| `local`  | Vault → `classpath:/configs/` | 로컬 Compose 기본값              |
+| `dev`    | Vault → `classpath:/configs/` | 개발 배포                        |
+| `native` | `classpath:/configs/`         | Vault 없이 일반 설정만 확인할 때 |
+| `prod`   | Vault → Git 저장소            | 운영 배포                        |
+
+Vault는 KV v2의 `secret/application` 공통 경로와 `secret/{application}` 서비스 경로를 읽는다. `prod`의 Git 백엔드는 `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD`로 설정한다.
+
+### 로컬 Vault 초기화
+
+`docker-compose.yml`의 일회성 `vault-init` 서비스가 `cowork-config/src/main/resources/vault/vault-init.sh`를 read-only로 마운트해 시크릿을 기록한다.
+
+```bash
+docker compose up vault-init
 ```
 
-포트 `8761`에서 실행되며, MSA 전체 서비스가 이 서버를 **가장 먼저** 띄워야 합니다.
+현재 시드하는 경로는 다음과 같다.
 
----
+| Vault 경로                    | 주요 값                                  |
+|-------------------------------|------------------------------------------|
+| `secret/application`          | JWT, MySQL/PostgreSQL, MinIO credential  |
+| `secret/cowork-gateway`       | JWT 검증 키                              |
+| `secret/cowork-authorization` | DB DSN, DataGSM, JWT                     |
+| `secret/cowork-channel`       | AccountShare 암호화·OAuth 값             |
+| `secret/cowork-chat`          | MongoDB, Discord webhook                 |
+| `secret/cowork-notification`  | DB DSN                                   |
+| `secret/cowork-preference`    | PostgreSQL 계정                          |
+| `secret/cowork-project`       | GitHub App 내부 키                       |
+| `secret/cowork-user`          | MySQL 계정, Phoenix `SECRET_KEY_BASE`    |
+| `secret/cowork-voice`         | MongoDB, LiveKit                         |
 
-### Config Server 기능
+Vault dev 서버는 메모리 기반이다. Docker Desktop이나 Vault 컨테이너를 재시작해 데이터가 사라졌다면 `vault-init`을 다시 실행하고 Vault 값을 시작 시 읽는 서비스를 재시작한다.
 
-설정을 여러 백엔드에서 **우선순위 순서대로** 조회하는 Composite 방식을 사용합니다.
+### Eureka와 Config Bus
 
-#### dev 프로필 (기본)
+`cowork-config` 자체는 Eureka에 등록하지 않으며, self-preservation을 끄고 5초 간격으로 만료 인스턴스를 제거한다. 설정 갱신 이벤트는 Kafka를 사용하는 Spring Cloud Bus로 전달한다.
 
+```text
+POST /actuator/busrefresh
 ```
-요청 → [1] Vault (민감 정보) → [2] classpath:/configs/ (일반 설정)
-```
-
-| 백엔드 | 역할 | 경로 |
-|--------|------|------|
-| Vault KV v2 | DB 비밀번호, JWT secret 등 민감 값 | `secret/{application}` |
-| native (classpath) | 라우팅, Eureka, 공통 설정 | `classpath:/configs/` |
-
-#### prod 프로필
-
-```
-요청 → [1] Vault (민감 정보) → [2] Git 레포 (일반 설정)
-```
-
-native 대신 **Git 레포지토리**에서 설정을 불러옵니다. `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD` 환경 변수로 지정합니다.
-
----
-
-### Vault 초기화
-
-`vault-init.sh` 스크립트로 로컬 개발 환경을 초기화합니다.
-
-```sh
-VAULT_ADDR=http://localhost:8200 VAULT_TOKEN=dev-root-token sh vault-init.sh
-```
-
-스크립트가 설정하는 시크릿:
-
-| Vault 경로 | 저장 값 |
-|-----------|---------|
-| `secret/application` | `jwt.secret` (공통, 전 서비스 공유) |
-| `secret/cowork-user` | DB URL + 비밀번호 |
-| `secret/cowork-authorization` | DB URL + 비밀번호 |
-
-> `jwt.secret`은 `secret/application`에 **한 번만** 저장하고, gateway를 포함한 모든 서비스가 공통 경로에서 주입받습니다.
-
----
-
-### Eureka Server 기능
-
-`cowork-config`가 Eureka Server를 내장하므로, **별도 Eureka 서비스 없이** 서비스 디스커버리를 제공합니다.
-
-```yaml
-eureka:
-  client:
-    register-with-eureka: false   # 자기 자신은 등록 안 함
-    fetch-registry: false
-  server:
-    enable-self-preservation: false
-    eviction-interval-timer-in-ms: 5000  # 5초마다 dead 인스턴스 제거
-```
-
----
-
-### Spring Cloud Bus
-
-Kafka를 통해 **설정 변경을 전 서비스에 브로드캐스트**합니다.
-
-```
-POST /actuator/busrefresh  →  Kafka  →  모든 서비스 설정 자동 갱신
-```
-
----
 
 ## cowork-gateway
 
-### 개요
+`cowork-gateway`는 포트 `8080`의 WebFlux 기반 단일 외부 진입점이다. 일반 HTTP 요청은 JWT 인증 후 Eureka의 `lb://cowork-{service}` 대상으로 라우팅하고, 인증 정보를 하위 서비스 헤더에 덮어쓴다.
 
-`cowork-gateway`는 포트 `8080`에서 실행되는 **WebFlux 기반 Reactive API Gateway**입니다. 모든 외부 요청의 단일 진입점으로, JWT 인증 → 라우팅 → 응답 래핑까지 처리합니다.
-
----
-
-### 요청 처리 흐름
-
-```
-Client Request
-    │
-    ▼
-[SecurityConfig] JWT 검증 (Bearer Token)
-    │  인증 실패 → 401
-    ▼
-[AuthHeaderMutatingFilter] X-User-Id, X-User-Role 헤더 주입
-    │
-    ▼
-[Spring Cloud Gateway] 라우팅 (Eureka lb://)
-    │  ├─ CircuitBreaker (Resilience4j)
-    │  ├─ Retry (GET 요청)
-    │  └─ RateLimiter (Redis)
-    ▼
-[ApiResponseWrapperFilter] 응답을 CommonApiResponse로 래핑
-    │
-    ▼
-Client Response
+```text
+Client
+  → SecurityConfig / JWT 검증
+  → AuthHeaderMutatingFilter / X-User-Id, X-User-Role 주입
+  → Gateway route / RewritePath, StripPrefix, PrefixPath, Retry, RateLimit
+  → ApiResponseWrapperFilter / JSON 응답 래핑
+  → Client
 ```
 
----
+WebSocket `/ws/**`는 별도 보안 체인을 사용한다. 브라우저 핸드셰이크 제약 때문에 쿠키 기반 JWT 변환과 Origin 검사를 적용한다.
 
-### 라우팅 구성 (`cowork-gateway-dev.yml`)
+### local 프로파일 라우팅
 
-모든 라우트는 `StripPrefix=1`으로 `/api` 접두사를 제거 후 하위 서비스로 전달합니다.
+로컬 Compose에서 사용하는 `cowork-gateway-local.yml`의 주요 경로는 다음과 같다.
 
-| 라우트 ID | 경로 | 대상 서비스 | CB | Retry | RateLimit |
-|----------|------|------------|:--:|:-----:|:---------:|
-| `authorization-service` | `/api/auth/**` | `cowork-authorization` | O | - | O |
-| `user-service` | `/api/users/**` | `cowork-user` | O | O | O |
-| `team-service` | `/api/teams/**` | `cowork-team` | O | - | - |
-| `project-service` | `/api/projects/**` | `cowork-project` | O | - | - |
-| `roadmap-service` | `/api/roadmaps/**` | `cowork-roadmap` | O | - | - |
-| `channel-service` | `/api/channels/**` | `cowork-channel` | O | - | - |
-| `chat-service` | `/api/chats/**` | `cowork-chat` | O | - | - |
+| 외부 경로                   | 대상              | 변환 또는 비고                                               |
+|-----------------------------|-------------------|--------------------------------------------------------------|
+| `/api/auth/**`              | authorization     | `/api` 제거, 10/20 rate limit                                |
+| `/api/events/datagsm`       | authorization     | 공개 HMAC webhook                                            |
+| `/api/users/**`             | user              | `/api` 제거, GET retry, 20/40 rate limit                     |
+| `/api/teams/*/projects/**`  | project           | 일반 team 라우트보다 먼저 매칭                               |
+| `/api/teams/**`             | team              | `/api` 제거, 20/40 rate limit                                |
+| `/api/projects/**`          | project 또는 chat | 메시지 검색 경로는 chat으로 우선 라우팅                      |
+| `/api/channels/**`          | channel 또는 chat | 메시지·파일·GitHub·slash-command 경로는 chat으로 우선 라우팅 |
+| `/api/search/messages`      | chat              | `/chat` 접두사 추가                                          |
+| `/api/search/channels`      | channel           | `/api` 제거                                                  |
+| `/api/chats/**`             | chat              | legacy 경로, `/chat/**`로 rewrite                            |
+| `/ws/chat/**`               | chat WebSocket    | 10/20 rate limit                                             |
+| `/api/dms`                  | channel 또는 chat | POST 생성은 channel, 나머지는 chat                           |
+| `/api/block/**`             | chat              | `/chat` 접두사 추가                                          |
+| `/api/preferences/**`       | preference        | `/api` 제거                                                  |
+| `/api/voice/webhook`        | voice             | 공개 webhook                                                 |
+| `/api/voice/**`             | voice             | `/api` 제거, 10/20 rate limit                                |
+| `/api/notifications/stream` | notification      | SSE 응답 타임아웃 비활성화                                   |
+| `/api/notifications/**`     | notification      | `/api` 제거                                                  |
 
-> `authorization-service`는 Retry를 적용하지 않습니다. 로그인·회원가입 등 대부분의 auth 엔드포인트는 POST로 idempotent하지 않아 재시도가 적합하지 않기 때문입니다.
->
-> Rate Limiter는 브루트포스·크리덴셜 스터핑 방어를 위해 `user-service`(20/40)보다 엄격한 초당 10개 / 순간 최대 20개로 설정하였습니다.
+`dev` 설정에는 위 경로 외에 `/api/roadmaps/**` 라우트와 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker가 있다. 반면 `local` 설정은 Circuit Breaker를 붙이지 않는다. 프로파일 간 차이를 수정할 때 두 파일을 모두 검토한다.
 
----
+### JWT와 공개 경로
 
-### JWT 인증
+Gateway만 JWT를 검증한다. 검증 후 아래 헤더를 기존 클라이언트 값과 무관하게 덮어쓴다.
 
-`JwtServerAuthenticationConverter`가 `Authorization: Bearer <token>` 헤더에서 토큰을 추출하고 검증합니다.
-
-```kotlin
-// Claims 추출
-val userId = claims.subject
-val role   = claims.get("role", String::class.java) ?: "ROLE_USER"
+```text
+X-User-Id: <JWT subject>
+X-User-Role: <JWT role>
 ```
 
-검증 완료 후 `JwtReactiveAuthenticationManager`는 Authentication 객체를 그대로 통과시킵니다 (검증은 Converter에서 이미 완료).
+현재 인증 없이 허용되는 경로는 다음과 같다.
 
-**인증 통과 후**, `AuthHeaderMutatingFilter`가 SecurityContext에서 정보를 꺼내 하위 서비스 요청에 헤더를 **덮어씁니다** (외부 조작 방지):
+- 모든 `OPTIONS` 요청
+- `GET /api/auth/signin`, `GET /api/auth/callback`
+- `POST /api/auth/token`, `POST /api/auth/refresh`
+- `/actuator/**`, `/api/health`, `/fallback`
+- `/swagger-ui.html`, `/swagger-ui/**`, `/webjars/**`, `/v3/api-docs/**`
+- `POST /api/voice/webhook`
+- `POST /api/events/datagsm`
+- `GET /api/channels/oauth/callback/**`
 
-```
-X-User-Id: <userId from JWT>
-X-User-Role: <role from JWT>
-```
+하위 서비스는 JWT를 다시 파싱하지 않는다. 운영에서는 Gateway를 우회하는 서비스 포트를 외부에 노출하지 않는다.
 
-**인증 없이 허용되는 경로:**
-- `POST /api/auth/**`
-- `/actuator/**`
-- `/fallback`
+### Retry, Rate Limit, Circuit Breaker
 
----
+`user-service` GET 요청은 `BAD_GATEWAY`, `SERVICE_UNAVAILABLE` 응답에 최대 3회 재시도한다. backoff는 100ms에서 시작해 최대 500ms까지 2배로 증가한다.
 
-### Circuit Breaker (Resilience4j)
+Redis Token Bucket의 로컬 설정은 다음과 같다.
 
-```yaml
-resilience4j:
-  circuitbreaker:
-    instances:
-      defaultCB:
-        slidingWindowSize: 10              # 최근 10개 요청 기준
-        failureRateThreshold: 50           # 실패율 50% 초과 시 OPEN
-        waitDurationInOpenState: 10s       # 10초 후 HALF-OPEN
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
-```
+| 라우트                               | replenishRate | burstCapacity |
+|--------------------------------------|--------------:|--------------:|
+| authorization, chat WebSocket, voice |            10 |            20 |
+| user, team, channel                  |            20 |            40 |
 
-서킷이 OPEN되면 `/fallback` 엔드포인트로 포워딩되어 503 응답을 반환합니다:
+키는 인증된 요청이면 `X-User-Id`, 미인증 요청이면 클라이언트 IP다.
 
-```json
-{
-  "status": "SERVICE_UNAVAILABLE",
-  "code": 503,
-  "message": "서비스가 일시적으로 응답하지 않습니다. 잠시 후 다시 시도해주세요."
-}
-```
+`dev`의 `defaultCB`는 최근 10개 요청에서 실패율 50%를 기준으로 열리고 10초 후 half-open으로 전환한다. fallback은 `/fallback`에서 HTTP 503을 반환한다.
 
----
+### JSON 응답 래핑
 
-### Retry (user-service만 적용)
-
-```yaml
-retries: 3
-statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
-methods: GET            # GET만 재시도 (idempotent 보장)
-backoff:
-  firstBackoff: 100ms
-  maxBackoff: 500ms
-  factor: 2             # 지수 백오프: 100ms → 200ms → 400ms
-```
-
----
-
-### Rate Limiting
-
-Redis Token Bucket 알고리즘 기반. 서비스별로 다른 수치를 적용합니다.
-
-| 서비스 | replenishRate | burstCapacity | 비고 |
-|--------|:------------:|:-------------:|------|
-| `authorization-service` | 10 | 20 | 브루트포스·크리덴셜 스터핑 방어를 위해 엄격하게 설정 |
-| `user-service` | 20 | 40 | 일반 API 수준 |
-
-**Rate Limit 키 전략 (`userKeyResolver`):**
-- 인증된 요청 → `X-User-Id` 기준 (사용자별 제한), `AuthHeaderMutatingFilter`가 JWT에서 추출한 값으로 덮어쓰므로 헤더 위조 불가
-- 미인증 요청 → 클라이언트 IP 기준 (fallback)
-
----
-
-### 응답 통일화 (`ApiResponseWrapperFilter`)
-
-모든 JSON 응답을 `CommonApiResponse<T>` 포맷으로 래핑합니다.
+`ApiResponseWrapperFilter`는 JSON 응답을 `CommonApiResponse<T>`로 통일한다.
 
 ```json
 {
   "status": "OK",
   "code": 200,
   "message": "OK",
-  "data": { ... }
+  "data": {}
 }
 ```
 
-**래핑 예외 조건:**
-- `/actuator/**`, `/fallback` 경로
-- JSON이 아닌 Content-Type
-- `Content-Length` 헤더가 없는 응답 (Chunked Transfer-Encoding 등 — 크기 불명으로 버퍼링 불가)
-- Content-Length > 1MB (OOM 방지)
-- 이미 `CommonApiResponse` 형태인 응답 (중복 래핑 방지)
+다음 응답은 래핑하지 않는다.
 
----
+- actuator, fallback, Swagger/OpenAPI 경로
+- JSON이 아닌 응답
+- 1 MiB를 초과하는 응답
+- 이미 `code`, `status`, `message` 필드를 가진 응답
 
-### CORS 설정 (dev)
+Chunked 응답도 수집 후 실제 크기를 확인해 래핑한다. SSE는 JSON 응답이 아니므로 그대로 전달된다.
 
-```yaml
-allowedOrigins: "http://localhost:3000"
-allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
-allowedHeaders: "*"
-allowCredentials: true
-maxAge: 3600
+### CORS와 Swagger
+
+`local`과 `dev`의 CORS 허용 origin은 현재 `http://localhost:3000`이다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 credential을 허용한다.
+
+로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인한다. 등록 서비스와 원본 문서 경로는 `docs/api-documentation.md`를 참고한다.
+
+### 임시 외부 호스트 연동
+
+`EXTERNAL_HOST_URL`이 비어 있지 않으면 `ExternalRouteConfig`가 Eureka 미등록 호스트의 API, health, OpenAPI 경로를 Gateway에 추가한다. 기본값은 빈 문자열이라 비활성화된다. 제거 범위는 `docs/todo/items/07-cleanup/external-host-temp-integration.md`에 기록되어 있다.
+
+## 기동 순서와 주요 환경 변수
+
+Compose의 `depends_on`이 아래 순서를 보장한다.
+
+```text
+Kafka + kafka-init
+Vault + vault-init
+Redis
+  → cowork-config
+      → cowork-gateway 및 도메인 서비스
 ```
 
----
+| 서비스        | 변수                                                           | 로컬 기본값 또는 용도        |
+|---------------|----------------------------------------------------------------|------------------------------|
+| config        | `SPRING_PROFILES_ACTIVE`                                       | Compose 기본 `local`         |
+| config        | `VAULT_HOST`, `VAULT_PORT`, `VAULT_SCHEME`, `VAULT_TOKEN`      | Vault 연결                   |
+| config        | `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD` | `prod` Git 백엔드            |
+| Config Server | Kafka, Redis, Eureka와 Gateway route                           | native/Git 일반 설정         |
+| gateway       | `EXTERNAL_HOST_*`                                              | 선택적 외부 호스트 임시 연동 |
 
-## 배포 순서 및 의존 관계
-
-```
-[1] Vault         → 시크릿 저장소 (가장 먼저 실행)
-[2] Kafka         → Config Bus, 이벤트 스트리밍
-[3] Redis         → Gateway Rate Limiter
-[4] cowork-config → Config Server + Eureka (포트 8761)
-[5] 각 도메인 서비스 → Config에서 설정 fetch, Eureka 등록
-[6] cowork-gateway → Config에서 라우팅/JWT 설정 fetch (포트 8080)
-```
-
-> `cowork-config`가 Config Server와 Eureka Server를 겸하므로, **절대 가장 먼저** 기동해야 합니다. gateway의 `fail-fast: true` 설정으로 인해 config 서버 미기동 시 gateway가 즉시 시작 실패합니다.
-
----
-
-## 환경 변수 요약
-
-### cowork-config
-
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `SPRING_PROFILES_ACTIVE` | `dev` | `dev` / `prod` |
-| `VAULT_HOST` | `localhost` | Vault 호스트 |
-| `VAULT_PORT` | `8200` | Vault 포트 |
-| `VAULT_TOKEN` | `dev-root-token` | Vault 인증 토큰 |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka 주소 |
-| `CONFIG_GIT_URI` | — | prod 전용, 설정 Git 레포 URL |
-| `CONFIG_GIT_USERNAME` | — | prod 전용 |
-| `CONFIG_GIT_PASSWORD` | — | prod 전용 |
-
-### cowork-gateway
-
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Config Bus용 Kafka |
-| `REDIS_HOST` | `localhost` | Rate Limiter용 Redis |
-| `REDIS_PORT` | `6379` | Redis 포트 |
-
-> `jwt.secret`은 환경 변수가 아닌 **Vault `secret/application`** 경로에서 자동 주입됩니다.
+JWT secret은 `vault-init`이 `secret/cowork-gateway`의 `jwt.secret`으로 기록하고 Config Server가 Gateway에 전달한다. 빈 값이면 Gateway 설정 바인딩 검증 단계에서 기동에 실패한다.
