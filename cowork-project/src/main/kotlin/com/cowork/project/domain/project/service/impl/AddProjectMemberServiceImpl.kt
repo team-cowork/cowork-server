@@ -29,8 +29,7 @@ class AddProjectMemberServiceImpl(
         projectAccessGuard.teamRoleOf(project.teamId, request.userId)
             ?: throw ExpectedException("추가 대상이 팀 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
 
-        val role = request.role
-        if (role == ProjectMemberRole.OWNER) {
+        if (request.role == ProjectMemberRole.OWNER) {
             throw ExpectedException("OWNER 역할은 멤버 추가로 부여할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
@@ -43,7 +42,7 @@ class AddProjectMemberServiceImpl(
             ProjectMember(
                 projectId = projectId,
                 userId = request.userId,
-                role = role,
+                role = request.role,
             ),
         )
 
