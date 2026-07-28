@@ -1,7 +1,6 @@
 package com.cowork.project.domain.projectMember.presentation.data.response
 
 import com.cowork.project.domain.projectMember.entity.ProjectMember
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
@@ -12,8 +11,8 @@ data class ProjectMemberResDto(
     val projectId: Long,
     @Schema(description = "사용자 ID", example = "42")
     val userId: Long,
-    @Schema(description = "역할", example = "EDITOR")
-    val role: ProjectMemberRole,
+    @Schema(description = "역할", example = "EDITOR", allowableValues = ["OWNER", "EDITOR", "VIEWER"])
+    val role: String,
     @Schema(description = "참여 일시")
     val joinedAt: LocalDateTime,
 ) {
@@ -22,7 +21,7 @@ data class ProjectMemberResDto(
             id = member.id,
             projectId = member.projectId,
             userId = member.userId,
-            role = member.role,
+            role = member.role.name,
             joinedAt = member.joinedAt,
         )
     }
