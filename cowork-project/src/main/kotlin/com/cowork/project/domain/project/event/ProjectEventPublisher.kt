@@ -11,18 +11,18 @@ private const val TOPIC = "project.event"
 class ProjectEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
     private val log = LoggerFactory.getLogger(ProjectEventPublisher::class.java)
 
-    fun publishCreated(project: Project) = publish("CREATED", project)
-    fun publishUpdated(project: Project) = publish("UPDATED", project)
-    fun publishDeleted(project: Project) = publish("DELETED", project)
+    fun publishCreated(project: Project) = publish(ProjectEventType.CREATED, project)
+    fun publishUpdated(project: Project) = publish(ProjectEventType.UPDATED, project)
+    fun publishDeleted(project: Project) = publish(ProjectEventType.DELETED, project)
 
-    private fun publish(eventType: String, project: Project) {
+    private fun publish(eventType: ProjectEventType, project: Project) {
         val event = ProjectEvent(
             eventType = eventType,
             projectId = project.id,
             teamId = project.teamId,
             name = project.name,
             description = project.description,
-            status = project.status.name,
+            status = project.status,
         )
         kafkaTemplate.send(TOPIC, project.teamId.toString(), event)
             .whenComplete { result, ex ->
