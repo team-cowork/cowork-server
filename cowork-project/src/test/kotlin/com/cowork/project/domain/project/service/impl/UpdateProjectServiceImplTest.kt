@@ -7,6 +7,7 @@ import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.domain.project.service.support.ProjectEnumParser
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -29,7 +30,7 @@ class UpdateProjectServiceImplTest {
     private val projectAccessGuard =
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard)
+    private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard, ProjectEnumParser())
 
     private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
