@@ -1,6 +1,7 @@
 package com.cowork.project.domain.project.presentation.data.response
 
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.entity.ProjectStatus
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
@@ -13,8 +14,8 @@ data class ProjectDetailResDto(
     val name: String,
     @Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")
     val description: String?,
-    @Schema(description = "프로젝트 상태", example = "ACTIVE", allowableValues = ["ACTIVE", "ARCHIVED"])
-    val status: String,
+    @Schema(description = "프로젝트 상태", example = "ACTIVE")
+    val status: ProjectStatus,
     @Schema(description = "팀 내 프로젝트 정렬 순서", example = "0")
     val position: Int,
     @Schema(description = "생성자 사용자 ID", example = "1")
@@ -34,7 +35,7 @@ data class ProjectDetailResDto(
             teamId = project.teamId,
             name = project.name,
             description = project.description,
-            status = project.status.name,
+            status = project.status,
             position = project.position,
             createdBy = project.createdBy,
             createdAt = project.createdAt,
