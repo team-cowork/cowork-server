@@ -2,7 +2,6 @@ package com.cowork.project.domain.project.service.impl
 
 import com.cowork.project.domain.project.service.AddProjectMemberService
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.service.support.ProjectEnumParser
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
@@ -19,7 +18,6 @@ import team.themoment.sdk.exception.ExpectedException
 class AddProjectMemberServiceImpl(
     private val projectMemberRepository: ProjectMemberRepository,
     private val projectAccessGuard: ProjectAccessGuard,
-    private val projectEnumParser: ProjectEnumParser,
     private val projectMemberEventPublisher: ProjectMemberEventPublisher,
 ) : AddProjectMemberService {
 
@@ -31,7 +29,7 @@ class AddProjectMemberServiceImpl(
         projectAccessGuard.teamRoleOf(project.teamId, request.userId)
             ?: throw ExpectedException("추가 대상이 팀 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
 
-        val role = projectEnumParser.parseRole(request.role)
+        val role = request.role
         if (role == ProjectMemberRole.OWNER) {
             throw ExpectedException("OWNER 역할은 멤버 추가로 부여할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
