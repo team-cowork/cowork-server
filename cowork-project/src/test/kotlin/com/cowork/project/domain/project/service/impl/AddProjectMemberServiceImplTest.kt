@@ -5,7 +5,6 @@ import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.service.support.ProjectEnumParser
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
@@ -35,7 +34,7 @@ class AddProjectMemberServiceImplTest {
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
     private val service =
-        AddProjectMemberServiceImpl(projectMemberRepository, projectAccessGuard, ProjectEnumParser(), projectMemberEventPublisher)
+        AddProjectMemberServiceImpl(projectMemberRepository, projectAccessGuard, projectMemberEventPublisher)
 
     @BeforeEach
     fun setUp() {
@@ -59,7 +58,7 @@ class AddProjectMemberServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+            service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = ProjectMemberRole.EDITOR))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
     }
@@ -75,7 +74,7 @@ class AddProjectMemberServiceImplTest {
             TeamMembership(teamId = 100L, userId = 50L, role = "MEMBER")
         every { projectMemberRepository.save(any()) } answers { firstArg() }
 
-        service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = "EDITOR"))
+        service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = ProjectMemberRole.EDITOR))
         verify(exactly = 0) { projectMemberEventPublisher.publishAdded(any(), any()) }
 
         TransactionSynchronizationUtils.triggerAfterCommit()
