@@ -1,30 +1,34 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redis, { ClientContext, Result } from 'ioredis';
+import Redis, { ChainableCommander, ClientContext, Result } from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
 
-// this.client에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로 확장하면
-// defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
+// this.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
+// 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
 interface WithIncrementIfPresentScript<Context extends ClientContext = { type: 'default' }> {
     incrementIfPresentScript(field: string, ...keys: string[]): Result<number, Context>;
 }
 type UnreadCounterRedis = Redis & WithIncrementIfPresentScript;
+type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{ type: 'pipeline' }>;
 
 // ARGV[1]=field ARGV[2..]=유저별 unread:{userId} 해시 키 — 필드가 이미 존재하는 키에 대해서만 1 증가시킨다.
 // 대상 키 개수가 호출마다 달라져 KEYS 대신 ARGV로 넘긴다(numberOfKeys 고정 0 — 단일 노드 Redis라
 // 클러스터 슬롯 라우팅 대상이 아니라 안전하다).
 const INCREMENT_IF_PRESENT_SCRIPT = `
 local field = ARGV[1]
+local incremented = 0
 for i = 2, #ARGV do
     if redis.call('HEXISTS', ARGV[i], field) == 1 then
         redis.call('HINCRBY', ARGV[i], field, 1)
+        incremented = incremented + 1
     end
 end
-return 1
+return incremented
 `;
 
 const KEY_PREFIX = 'unread:';
 const TTL_SECONDS = 86_400;
+const INCREMENT_CHUNK_SIZE = 100;
 
 export interface UnreadCacheResult {
     hits: Map<number, number>;
@@ -136,15 +140,20 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     /**
      * 새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
      * 필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
-     * 유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮기고, 대상 유저 전체를 한 번에 넘겨
-     * 단일 스크립트 호출로 처리한다 — 유저 수만큼 EVALSHA를 반복하지 않는다.
+     * 유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮기되, 유저 간 원자성이 필요 없는 연산이라
+     * `INCREMENT_CHUNK_SIZE` 단위로 잘라 파이프라인에 담는다 — 채널 멤버가 수천 명이어도 스크립트
+     * 한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      */
     async incrementIfPresent(channelId: number, userIds: number[]): Promise<void> {
         if (userIds.length === 0) return;
         try {
             const field = String(channelId);
             const keys = userIds.map((userId) => this.key(userId));
-            await this.client.incrementIfPresentScript(field, ...keys);
+            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+            for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
+                pipeline.incrementIfPresentScript(field, ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
+            }
+            await pipeline.exec();
         } catch (err) {
             this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, err);
         }
