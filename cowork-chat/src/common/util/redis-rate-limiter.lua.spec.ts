@@ -43,13 +43,13 @@ describe('RedisRateLimiter (Lua 스크립트 실동작 검증)', () => {
 
     it('윈도우 시간이 지나면 다시 허용된다', async () => {
         for (let i = 0; i < 5; i++) {
-            await limiter.tryAcquire('rl:lua:3', 40, 5);
+            await limiter.tryAcquire('rl:lua:3', 150, 5);
         }
-        await expect(limiter.tryAcquire('rl:lua:3', 40, 5)).resolves.toBe(false);
+        await expect(limiter.tryAcquire('rl:lua:3', 150, 5)).resolves.toBe(false);
 
-        await new Promise((resolve) => setTimeout(resolve, 60));
+        await new Promise((resolve) => setTimeout(resolve, 250));
 
-        await expect(limiter.tryAcquire('rl:lua:3', 40, 5)).resolves.toBe(true);
+        await expect(limiter.tryAcquire('rl:lua:3', 150, 5)).resolves.toBe(true);
     });
 
     it('서로 다른 key는 독립적으로 카운트된다', async () => {
