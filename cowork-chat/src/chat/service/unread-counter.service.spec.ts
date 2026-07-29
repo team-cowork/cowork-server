@@ -2,11 +2,12 @@ import { ConfigService } from '@nestjs/config';
 import { UnreadCounterService } from './unread-counter.service';
 
 const mockHmget = jest.fn();
-const mockIncrementIfPresentScript = jest.fn().mockResolvedValue(1);
+const mockIncrementIfPresentScript = jest.fn().mockReturnThis();
 const mockPipelineExec = jest.fn().mockResolvedValue(undefined);
 const mockPipeline = {
     hset: jest.fn().mockReturnThis(),
     expire: jest.fn().mockReturnThis(),
+    incrementIfPresentScript: mockIncrementIfPresentScript,
     exec: mockPipelineExec,
 };
 const mockPipelineFn = jest.fn(() => mockPipeline);
@@ -17,7 +18,6 @@ const mockOn = jest.fn();
 
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
     hmget: mockHmget,
-    incrementIfPresentScript: mockIncrementIfPresentScript,
     pipeline: mockPipelineFn,
     defineCommand: mockDefineCommand,
     connect: mockConnect,
@@ -119,18 +119,43 @@ describe('UnreadCounterService', () => {
         it('userIds가 비어 있으면 아무것도 하지 않는다', async () => {
             await service.incrementIfPresent(10, []);
 
-            expect(mockIncrementIfPresentScript).not.toHaveBeenCalled();
+            expect(mockPipelineFn).not.toHaveBeenCalled();
         });
 
-        it('대상 유저 전체를 한 번에 넘겨 단일 스크립트 호출로 실행한다', async () => {
+        it('청크 크기 이하면 파이프라인에 스크립트 호출 한 번만 담아 실행한다', async () => {
             await service.incrementIfPresent(10, [1, 2, 3]);
 
             expect(mockIncrementIfPresentScript).toHaveBeenCalledTimes(1);
             expect(mockIncrementIfPresentScript).toHaveBeenCalledWith('10', 'unread:1', 'unread:2', 'unread:3');
+            expect(mockPipelineExec).toHaveBeenCalledTimes(1);
+        });
+
+        it('유저 수가 청크 크기를 넘으면 여러 스크립트 호출로 나눠 파이프라인 한 번에 담아 실행한다', async () => {
+            const userIds = Array.from({ length: 250 }, (_, i) => i + 1);
+
+            await service.incrementIfPresent(10, userIds);
+
+            expect(mockIncrementIfPresentScript).toHaveBeenCalledTimes(3);
+            expect(mockIncrementIfPresentScript).toHaveBeenNthCalledWith(
+                1,
+                '10',
+                ...userIds.slice(0, 100).map((id) => `unread:${id}`),
+            );
+            expect(mockIncrementIfPresentScript).toHaveBeenNthCalledWith(
+                2,
+                '10',
+                ...userIds.slice(100, 200).map((id) => `unread:${id}`),
+            );
+            expect(mockIncrementIfPresentScript).toHaveBeenNthCalledWith(
+                3,
+                '10',
+                ...userIds.slice(200, 250).map((id) => `unread:${id}`),
+            );
+            expect(mockPipelineExec).toHaveBeenCalledTimes(1);
         });
 
         it('Redis 오류가 발생해도 예외를 던지지 않는다', async () => {
-            mockIncrementIfPresentScript.mockRejectedValueOnce(new Error('connection lost'));
+            mockPipelineExec.mockRejectedValueOnce(new Error('connection lost'));
 
             await expect(service.incrementIfPresent(10, [1, 2])).resolves.toBeUndefined();
         });
