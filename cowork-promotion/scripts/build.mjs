@@ -1,5 +1,10 @@
-import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import {
+    bundleJavaScript,
+    inlineJson,
+    replaceBundleMarker,
+} from "./lib/bundle.mjs";
 import { parseContent } from "./lib/content.mjs";
 import {
     generatePositionStates,
@@ -12,7 +17,13 @@ const projectDirectory = new URL("../", import.meta.url);
 const sourceDirectory = new URL("../src/", import.meta.url);
 const htmlDirectory = new URL("html/", sourceDirectory);
 const outputDirectory = new URL("../public/", import.meta.url);
-const outputDataDirectory = new URL("data/", outputDirectory);
+const stylesheetPaths = [
+    "css/showcase.css",
+    "css/base.css",
+    "css/utilities.css",
+    "css/components.css",
+    "css/responsive.css",
+];
 
 function projectUrl(path) {
     return new URL(path, projectDirectory);
@@ -27,16 +38,29 @@ function outputUrl(path) {
 }
 
 export async function build() {
-    const [sourceHtml, techStackSource, teamSource] = await Promise.all([
+    const [
+        sourceHtml,
+        techStackSource,
+        teamSource,
+        featureStateSource,
+        logoSource,
+        scriptBundle,
+        stylesheetSources,
+    ] = await Promise.all([
         composeTemplate(new URL("index.html", htmlDirectory), htmlDirectory),
         readFile(projectUrl("data/tech-stacks.yaml"), "utf8"),
         readFile(projectUrl("data/team-members.xml"), "utf8"),
+        readFile(projectUrl("data/feature-states.json"), "utf8"),
+        readFile(projectUrl("logo.svg"), "utf8"),
+        bundleJavaScript(sourceUrl("js/main.js"), sourceUrl("js/")),
+        Promise.all(stylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8"))),
     ]);
     const { team, techStacks } = parseContent({
         teamXml: teamSource,
         techStackYaml: techStackSource,
     });
     const positionStates = generatePositionStates(techStacks.positions, team);
+    const featureStates = JSON.parse(featureStateSource);
     const generatedHtml = replaceGeneratedRegion(
         replaceGeneratedRegion(
             replaceGeneratedRegion(
@@ -50,31 +74,42 @@ export async function build() {
         "position-initial",
         positionStates[0].sceneInnerHTML,
     );
+    const inlineStyles = stylesheetSources
+        .map(
+            (source, index) =>
+                `/* ${stylesheetPaths[index]} */\n${source.replace(/<\/style/gi, "<\\/style")}`,
+        )
+        .join("\n");
+    const stateData = [
+        ["/data/feature-states.json", featureStates],
+        ["/data/position-states.json", positionStates],
+    ]
+        .map(
+            ([url, states]) =>
+                `<script type="application/json" data-state-url="${url}">${inlineJson(states)}</script>`,
+        )
+        .join("\n    ");
+    const logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(logoSource).toString("base64")}`;
+    const bundledHtml = replaceBundleMarker(
+        replaceBundleMarker(
+            replaceBundleMarker(generatedHtml, "styles", `<style>${inlineStyles}</style>`),
+            "state-data",
+            stateData,
+        ),
+        "script",
+        `<script type="module">\n${scriptBundle}</script>`,
+    ).replace('href="/logo.svg"', `href="${logoDataUrl}"`);
 
     await rm(outputDirectory, { recursive: true, force: true });
-    await mkdir(outputDataDirectory, { recursive: true });
-
-    await Promise.all([
-        writeFile(outputUrl("index.html"), generatedHtml),
-        cp(sourceUrl("css/"), outputUrl("css/"), { recursive: true }),
-        cp(sourceUrl("js/"), outputUrl("js/"), { recursive: true }),
-        cp(projectUrl("logo.svg"), outputUrl("logo.svg")),
-        cp(
-            projectUrl("data/feature-states.json"),
-            new URL("feature-states.json", outputDataDirectory),
-        ),
-        writeFile(
-            new URL("position-states.json", outputDataDirectory),
-            `${JSON.stringify(positionStates, null, 2)}\n`,
-        ),
-    ]);
+    await mkdir(outputDirectory, { recursive: true });
+    await writeFile(outputUrl("index.html"), bundledHtml);
 
     const summary = {
         teamMembers: team.length,
         techGroups: techStacks.categories.length,
     };
     console.log(
-        `Static promotion site built in public/ (${summary.techGroups} tech groups, ${summary.teamMembers} team members).`,
+        `Single-file promotion site built in public/ (${summary.techGroups} tech groups, ${summary.teamMembers} team members).`,
     );
     return summary;
 }
