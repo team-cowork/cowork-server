@@ -9,6 +9,7 @@ cowork 제품을 소개하는 바닐라 HTML 기반 정적 프로모션 웹사�
 - HTML
 - CSS
 - JavaScript ES modules
+- 단일 HTML 프로덕션 번들
 - YAML / XML 빌드 데이터
 - Server-Sent Events 기반 개발용 라이브 리로드
 - npm(`package-lock.json`)
@@ -49,7 +50,9 @@ HTML은 `<!-- @include ... -->` 지시문을 빌드 시 조합합니다. 클라�
 - `data/team-members.xml`: 팀원의 이름, GitHub 계정, 기수, 포지션, 강조 색상
 - `data/feature-states.json`: 기능 소개 스크롤 장면
 
-`npm run build`는 YAML/XML을 검증하고 기술 스택, 포지션 장면, 팀원 마키 마크업을 생성합니다. 생성된 `public/`은 순수 HTML/CSS/JavaScript만 포함하므로 런타임 YAML/XML 파서나 API 호출이 필요하지 않습니다.
+`npm run build`는 YAML/XML을 검증하고 기술 스택, 포지션 장면, 팀원 마키 마크업을 생성합니다. 분리된 CSS·JavaScript 모듈·상태 JSON·로고는 `public/index.html` 하나에 인라인되므로 런타임 YAML/XML 파서나 동일 출처의 추가 정적 파일 요청이 필요하지 않습니다.
+
+GitHub 아바타와 저장소 언어 그래프, Google Fonts처럼 외부에서 최신 상태를 공급받는 미디어는 빌드에 고정하지 않고 외부 요청으로 유지합니다.
 
 개발 서버의 SSE 엔드포인트와 새로고침 스크립트는 `--watch` 모드의 HTML 응답에만 주입됩니다. `public/index.html`과 Vercel 배포 결과에는 개발용 코드가 들어가지 않습니다.
 
