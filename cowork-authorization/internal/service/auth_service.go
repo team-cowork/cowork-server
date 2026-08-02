@@ -108,7 +108,11 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		return nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
-	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "")
+	role := "MEMBER"
+	if userInfo.Role == "ADMIN" {
+		role = "ADMIN"
+	}
+	return s.issueTokenPair(userID, userInfo.Email, role, st.Role, "")
 }
 
 func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
@@ -134,7 +138,7 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 	if rt.DeviceInfo != nil {
 		deviceInfo = *rt.DeviceInfo
 	}
-	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo)
+	return s.issueTokenPair(rt.UserID, rt.Email, rt.Role, rt.GsmRole, deviceInfo)
 }
 
 func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
@@ -167,6 +171,7 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 		UserID:    userID,
 		TokenHash: refreshHash,
 		Email:     email,
+		Role:      role,
 		GsmRole:   gsmRole,
 		ExpiresAt: time.Now().Add(s.tokenSvc.RefreshExpire()),
 	}
