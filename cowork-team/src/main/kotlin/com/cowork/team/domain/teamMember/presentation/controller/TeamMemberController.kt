@@ -43,9 +43,15 @@ class TeamMemberController(
     ): List<TeamMemberResponse> = inviteTeamMembersService.execute(userId, teamId, request)
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+    )
     @GetMapping
-    fun getMembers(@PathVariable teamId: Long): List<TeamMemberResponse> = queryTeamMembersService.execute(teamId)
+    fun getMembers(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+    ): List<TeamMemberResponse> = queryTeamMembersService.execute(userId, teamId)
 
     @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
