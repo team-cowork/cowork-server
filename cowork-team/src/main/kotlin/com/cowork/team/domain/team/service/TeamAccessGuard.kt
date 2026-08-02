@@ -19,6 +19,12 @@ class TeamAccessGuard(
         ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
+    fun requireMemberExists(teamId: Long, userId: Long) {
+        if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
+            throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
     fun requireRole(teamId: Long, userId: Long, vararg roles: TeamRole): TeamMember =
         teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, userId, roles.toList())
             ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
