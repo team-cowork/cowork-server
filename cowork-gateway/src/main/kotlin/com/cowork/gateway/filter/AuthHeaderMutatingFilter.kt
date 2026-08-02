@@ -51,7 +51,19 @@ class AuthHeaderMutatingFilter :
                         c
                     }
             }
-            .switchIfEmpty(chain.filter(exchange))
+            .switchIfEmpty(
+                Mono.defer {
+                    // 인증되지 않은 요청(permitAll 라우트 포함)이 클라이언트가 실은
+                    // X-User-Id/X-User-Role을 그대로 들고 다운스트림에 도달하지 못하도록 항상 제거
+                    val strippedRequest = exchange.request.mutate()
+                        .headers { h ->
+                            h.remove("X-User-Id")
+                            h.remove("X-User-Role")
+                        }
+                        .build()
+                    chain.filter(exchange.mutate().request(strippedRequest).build())
+                },
+            )
 
     companion object {
         private const val MDC_USER_ID = "userId"
