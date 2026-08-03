@@ -108,7 +108,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		return nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
-	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "")
+	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "", "")
 }
 
 func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
@@ -126,15 +126,11 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 		return nil, fmt.Errorf("refresh token expired")
 	}
 
-	if err := s.refreshTokenRepo.DeleteByHash(hash); err != nil {
-		return nil, fmt.Errorf("failed to delete old refresh token: %w", err)
-	}
-
 	var deviceInfo string
 	if rt.DeviceInfo != nil {
 		deviceInfo = *rt.DeviceInfo
 	}
-	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo)
+	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo, hash)
 }
 
 func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
@@ -152,7 +148,10 @@ func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
 	return s.refreshTokenRepo.DeleteByHash(hash)
 }
 
-func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo string) (*TokenPair, error) {
+// issueTokenPair는 액세스/리프레시 토큰을 새로 발급한다.
+// replaceHash가 주어지면(토큰 갱신) 기존 리프레시 토큰 삭제와 신규 토큰 저장을 하나의 트랜잭션으로 처리해
+// 저장 실패 시 세션이 소실되는 것을 방지한다.
+func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo, replaceHash string) (*TokenPair, error) {
 	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -174,7 +173,11 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 		rt.DeviceInfo = &deviceInfo
 	}
 
-	if err := s.refreshTokenRepo.Create(rt); err != nil {
+	if replaceHash != "" {
+		if err := s.refreshTokenRepo.ReplaceInTransaction(replaceHash, rt); err != nil {
+			return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
+		}
+	} else if err := s.refreshTokenRepo.Create(rt); err != nil {
 		return nil, fmt.Errorf("failed to store refresh token: %w", err)
 	}
 
