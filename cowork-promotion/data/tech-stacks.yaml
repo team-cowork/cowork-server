@@ -1,0 +1,132 @@
+categories:
+  - name: Language
+    items:
+      - { name: Kotlin, color: "#7f52ff" }
+      - { name: Java, color: "#ed8b00" }
+      - { name: TypeScript, color: "#3178c6" }
+      - { name: JavaScript, color: "#f7df1e" }
+      - { name: Go, color: "#00add8" }
+      - { name: Elixir, color: "#4b275f" }
+      - { name: Dart, color: "#0175c2" }
+
+  - name: Frontend
+    items:
+      - { name: React, color: "#61dafb" }
+      - { name: Next.js, color: "#000000" }
+      - { name: Tailwind CSS, color: "#06b6d4" }
+      - { name: TanStack Query, color: "#ff4154" }
+      - { name: Axios, color: "#5a29e4" }
+      - { name: Vue.js, color: "#4fc08d" }
+      - { name: Flutter, color: "#02569b" }
+      - { name: Kotlin Multiplatform, color: "#7f52ff" }
+
+  - name: Backend
+    items:
+      - { name: Spring Boot, color: "#6db33f" }
+      - { name: Spring Cloud Gateway, color: "#6db33f" }
+      - { name: Eureka, color: "#6db33f" }
+      - { name: OpenFeign, color: "#6db33f" }
+      - { name: Vert.x, color: "#2c3e50" }
+      - { name: Node.js, color: "#339933" }
+      - { name: NestJS, color: "#e0234e" }
+      - { name: Gin, color: "#00add8" }
+      - { name: Chi, color: "#00add8" }
+      - { name: Phoenix, color: "#fd4f00" }
+      - { name: LiveKit, color: "#ff5c93" }
+
+  - name: Database
+    items:
+      - { name: MySQL, color: "#4479a1" }
+      - { name: PostgreSQL, color: "#336791" }
+      - { name: MongoDB, color: "#47a248" }
+      - { name: Redis, color: "#dc382d" }
+      - { name: Elasticsearch, color: "#005571" }
+      - { name: Flyway, color: "#cc0200" }
+
+  - name: Messaging
+    items:
+      - { name: Apache Kafka, color: "#231f20" }
+
+  - name: Infrastructure
+    items:
+      - { name: Docker, color: "#2496ed" }
+      - { name: Grafana, color: "#f46800" }
+      - { name: Prometheus, color: "#e6522c" }
+      - { name: Vault, color: "#0fc75e" }
+
+  - name: Design
+    items:
+      - { name: Figma, color: "#f24e1e" }
+
+  - name: Build Tools
+    items:
+      - { name: Maven, color: "#c71c36" }
+      - { name: Gradle, color: "#02303a" }
+      - { name: Amper, color: "#1f6feb" }
+
+positions:
+  Server:
+    color: "#8b5cf6"
+    description: 서비스의 핵심 비즈니스 로직과 API를 설계하고 구현합니다. MSA 구조 위에서 각 도메인 서비스를 담당합니다.
+    technologies:
+      - Kotlin
+      - Java
+      - TypeScript
+      - Go
+      - Elixir
+      - Spring Boot
+      - Spring Cloud Gateway
+      - Eureka
+      - OpenFeign
+      - Vert.x
+      - Node.js
+      - NestJS
+      - Gin
+      - Chi
+      - Phoenix
+      - LiveKit
+      - MySQL
+      - PostgreSQL
+      - MongoDB
+      - Redis
+      - Elasticsearch
+      - Flyway
+      - Apache Kafka
+      - Maven
+      - Gradle
+      - Amper
+  Web Client:
+    color: "#eab308"
+    description: 웹 브라우저 환경의 사용자 인터페이스를 개발합니다. MFE 아키텍처로 확장 가능한 프론트엔드를 구성합니다.
+    technologies:
+      - TypeScript
+      - React
+      - Next.js
+      - Tailwind CSS
+      - TanStack Query
+      - Axios
+  Desktop App Client:
+    color: "#0ea5e9"
+    description: 데스크탑 환경에 최적화된 협업 클라이언트를 개발합니다. 네이티브에 가까운 성능과 경험을 제공합니다.
+    technologies:
+      - Kotlin
+      - Kotlin Multiplatform
+  Mobile App Client:
+    color: "#f43f5e"
+    description: 모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.
+    technologies:
+      - Dart
+      - Flutter
+  Cloud:
+    color: "#f97316"
+    description: 서비스 인프라를 설계하고 운영합니다. 안정적인 배포 파이프라인과 모니터링 체계를 구축합니다.
+    technologies:
+      - Docker
+      - Grafana
+      - Prometheus
+      - Vault
+  Design:
+    color: "#14b8a6"
+    description: cowork의 시각적 아이덴티티를 정의합니다. 사용자 중심의 UI/UX 디자인으로 직관적인 경험을 만듭니다.
+    technologies:
+      - Figma
