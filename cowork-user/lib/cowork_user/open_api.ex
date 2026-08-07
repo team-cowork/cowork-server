@@ -28,6 +28,14 @@ defmodule CoworkUser.OpenAPI do
           get: %{summary: "사용자 조회", parameters: [path_user_id()], responses: responses(user_schema())},
           put: %{summary: "사용자 upsert", parameters: [path_user_id()], requestBody: json_body(upsert_schema()), responses: responses(user_schema())}
         },
+        "/users/{user_id}/status" => %{
+          patch: %{
+            summary: "사용자 상태 설정 (내부 서비스 호출용, 예: 로그인/로그아웃 시 접속 상태 갱신)",
+            parameters: [path_user_id()],
+            requestBody: json_body(update_status_schema()),
+            responses: responses(user_schema())
+          }
+        },
         "/users/search" => %{
           get: %{
             summary: "사용자 검색",
