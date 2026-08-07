@@ -137,6 +137,16 @@ defmodule CoworkUser.Router do
     end
   end
 
+  patch "/users/:user_id/status" do
+    with {:ok, user_id} <- parse_integer(user_id, "user_id"),
+         {:ok, profile} <- Accounts.update_my_status(user_id, conn.body_params) do
+      JSON.send(conn, 200, profile)
+    else
+      {:error, :not_found} -> JSON.error(conn, 404, "사용자를 찾을 수 없습니다.")
+      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
+    end
+  end
+
   match _ do
     JSON.error(conn, 404, "요청한 경로를 찾을 수 없습니다.")
   end
