@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -101,6 +102,7 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
 		DataGSMStudentID:     &studentID,
+		Status:               "online",
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
@@ -137,7 +139,7 @@ func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) 
 	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo)
 }
 
-func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
+func (s *AuthService) Logout(ctx context.Context, userID int64, rawRefreshToken string) error {
 	hash := HashToken(rawRefreshToken)
 	rt, err := s.refreshTokenRepo.FindByHash(hash)
 	if err != nil {
@@ -149,7 +151,15 @@ func (s *AuthService) Logout(userID int64, rawRefreshToken string) error {
 	if rt.UserID != userID {
 		return fmt.Errorf("token does not belong to user")
 	}
-	return s.refreshTokenRepo.DeleteByHash(hash)
+	if err := s.refreshTokenRepo.DeleteByHash(hash); err != nil {
+		return err
+	}
+
+	if err := s.userClient.UpdateStatus(ctx, userID, "offline"); err != nil {
+		log.Printf("failed to set user %d offline on logout: %v", userID, err)
+	}
+
+	return nil
 }
 
 func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo string) (*TokenPair, error) {
