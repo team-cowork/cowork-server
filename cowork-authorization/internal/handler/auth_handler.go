@@ -128,7 +128,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	userID := c.GetInt64(userIDKey)
-	if err := h.authSvc.Logout(userID, req.RefreshToken); err != nil {
+	if err := h.authSvc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
