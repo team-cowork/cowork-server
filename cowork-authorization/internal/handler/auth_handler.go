@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cowork/authorization/internal/service"
@@ -23,12 +22,11 @@ const (
 )
 
 type AuthHandler struct {
-	authSvc  *service.AuthService
-	tokenSvc *service.TokenService
+	authSvc *service.AuthService
 }
 
-func NewAuthHandler(authSvc *service.AuthService, tokenSvc *service.TokenService) *AuthHandler {
-	return &AuthHandler{authSvc: authSvc, tokenSvc: tokenSvc}
+func NewAuthHandler(authSvc *service.AuthService) *AuthHandler {
+	return &AuthHandler{authSvc: authSvc}
 }
 
 // setWsCookie는 access token을 웹소켓 전용 httpOnly 쿠키로도 내려준다.
@@ -137,30 +135,17 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func (h *AuthHandler) AuthMiddleware() gin.HandlerFunc {
+// RequireUserID는 Gateway가 전달한 X-User-Id 헤더를 신뢰한다.
+// cowork-gateway만 JWT를 검증하므로, 다운스트림 서비스인 이곳에서는 JWT를 직접 파싱/검증하지 않는다.
+func RequireUserID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid authorization header"})
-			return
-		}
-
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := h.tokenSvc.ValidateAccessToken(tokenStr)
+		userID, err := strconv.ParseInt(c.GetHeader("X-User-Id"), 10, 64)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
-			return
-		}
-
-		userID, err := strconv.ParseInt(claims.Subject, 10, 64)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid token subject"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid X-User-Id header"})
 			return
 		}
 
 		c.Set(userIDKey, userID)
-		c.Set("email", claims.Email)
-		c.Set("role", claims.Role)
 		c.Next()
 	}
 }
