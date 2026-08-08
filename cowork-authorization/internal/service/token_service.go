@@ -43,24 +43,6 @@ func (s *TokenService) GenerateAccessToken(userID int64, email, role, gsmRole st
 	return token.SignedString([]byte(s.cfg.JWTSecret))
 }
 
-func (s *TokenService) ValidateAccessToken(tokenStr string) (*Claims, error) {
-	token, err := jwt.ParseWithClaims(tokenStr, &Claims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
-		}
-		return []byte(s.cfg.JWTSecret), nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	claims, ok := token.Claims.(*Claims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
-	}
-	return claims, nil
-}
-
 func (s *TokenService) GenerateRefreshToken() (rawToken, tokenHash string, err error) {
 	b := make([]byte, 32)
 	if _, err = rand.Read(b); err != nil {
