@@ -88,7 +88,7 @@ func main() {
 	defer func() { _ = kafkaProducer.Close() }()
 	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
 
-	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
+	authHandler := handler.NewAuthHandler(authSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
@@ -106,7 +106,7 @@ func main() {
 	{
 		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
-		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
+		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 	}
 
 	events := router.Group("/events")
