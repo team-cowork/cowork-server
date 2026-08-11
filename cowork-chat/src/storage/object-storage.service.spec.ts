@@ -1,32 +1,37 @@
 import { BadRequestException, HttpException, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Minio from 'minio';
-import { MinioService } from './minio.service';
+import { S3Client } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { ObjectStorageService } from './object-storage.service';
 
-const mockMinioClient = {
-    presignedPutObject: jest.fn(),
-    statObject: jest.fn(),
-    removeObject: jest.fn(),
+jest.mock('@aws-sdk/s3-request-presigner', () => ({
+    getSignedUrl: jest.fn(),
+}));
+
+const mockS3Client = {
+    send: jest.fn(),
 };
+
+const mockGetSignedUrl = getSignedUrl as jest.Mock;
 
 const createConfigService = (overrides: Record<string, string> = {}) => ({
     get: jest.fn((key: string) => ({
-        'minio.endpoint': 'http://localhost:9000',
-        'minio.accessKey': 'admin',
-        'minio.secretKey': 'password123',
-        'minio.bucket': 'cowork-chat',
+        'object-storage.endpoint': 'http://localhost:9000',
+        'object-storage.accessKey': 'admin',
+        'object-storage.secretKey': 'password123',
+        'object-storage.bucket': 'cowork-chat',
         ...overrides,
     })[key]),
 }) as unknown as ConfigService;
 
-describe('MinioService', () => {
+describe('ObjectStorageService', () => {
     beforeEach(() => {
         jest.clearAllMocks();
-        mockMinioClient.presignedPutObject.mockResolvedValue('http://localhost:9000/upload-url');
+        mockGetSignedUrl.mockResolvedValue('http://localhost:9000/upload-url');
     });
 
     it('허용된 파일 타입과 100MB 이하 파일이면 presigned URL을 발급한다', async () => {
-        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
+        const service = new ObjectStorageService(mockS3Client as unknown as S3Client, createConfigService());
 
         const result = await service.createPresignedUpload({
             channelId: 1,
@@ -36,16 +41,21 @@ describe('MinioService', () => {
             size: 104857600,
         });
 
-        expect(mockMinioClient.presignedPutObject).toHaveBeenCalledWith(
-            'cowork-chat',
-            expect.stringMatching(/^chat-files\/1\/42\/.+\.mp4$/),
-            600,
+        expect(mockGetSignedUrl).toHaveBeenCalledWith(
+            mockS3Client,
+            expect.objectContaining({
+                input: expect.objectContaining({
+                    Bucket: 'cowork-chat',
+                    Key: expect.stringMatching(/^chat-files\/1\/42\/.+\.mp4$/) as unknown as string,
+                }) as unknown,
+            }),
+            { expiresIn: 600 },
         );
         expect(result.fileUrl).toContain('/cowork-chat/chat-files/1/42/');
     });
 
     it('허용되지 않은 파일 타입이면 BadRequestException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
+        const service = new ObjectStorageService(mockS3Client as unknown as S3Client, createConfigService());
 
         await expect(service.createPresignedUpload({
             channelId: 1,
@@ -57,7 +67,7 @@ describe('MinioService', () => {
     });
 
     it('100MB를 초과하면 PayloadTooLargeException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService());
+        const service = new ObjectStorageService(mockS3Client as unknown as S3Client, createConfigService());
 
         await expect(service.createPresignedUpload({
             channelId: 1,
@@ -69,9 +79,9 @@ describe('MinioService', () => {
     });
 
     it('짧은 시간에 업로드 URL을 너무 많이 발급하면 TooManyRequestsException을 던진다', async () => {
-        const service = new MinioService(mockMinioClient as unknown as Minio.Client, createConfigService({
-            'minio.chatUploadRateLimitMaxRequests': '2',
-            'minio.chatUploadRateLimitWindowMs': '60000',
+        const service = new ObjectStorageService(mockS3Client as unknown as S3Client, createConfigService({
+            'object-storage.chatUploadRateLimitMaxRequests': '2',
+            'object-storage.chatUploadRateLimitWindowMs': '60000',
         }));
 
         const request = {
