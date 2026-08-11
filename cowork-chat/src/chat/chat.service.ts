@@ -12,7 +12,7 @@ import { MessageDocument } from './schema/message.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
-import { MinioService } from '../storage/minio.service';
+import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
@@ -63,7 +63,7 @@ export class ChatService {
         private readonly messageRepository: MessageRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly elasticsearchService: ElasticsearchService,
-        private readonly minioService: MinioService,
+        private readonly objectStorageService: ObjectStorageService,
         private readonly chatMessageProducer: ChatMessageProducer,
         private readonly githubIssueProducer: GithubIssueProducer,
         private readonly projectClient: ProjectClient,
@@ -118,7 +118,7 @@ export class ChatService {
     }
 
     /**
-     * MinIO presigned 업로드 URL을 생성한다.
+     * 오브젝트 스토리지 presigned 업로드 URL을 생성한다.
      * 반환된 `uploadUrl`에 PUT 요청 시 `headers`를 함께 전송해야 한다.
      *
      * @param ctx - 채널·사용자 컨텍스트
@@ -130,7 +130,7 @@ export class ChatService {
         dto: CreateFileUploadUrlRequestDto,
     ): Promise<CreateFileUploadUrlResponseDto> {
         await this.checkMembership(ctx.channelId, ctx.userId);
-        const upload = await this.minioService.createPresignedUpload({
+        const upload = await this.objectStorageService.createPresignedUpload({
             channelId: ctx.channelId,
             userId: ctx.userId,
             filename: dto.filename,
@@ -147,7 +147,7 @@ export class ChatService {
     }
 
     /**
-     * 클라이언트가 업로드한 파일을 MinIO에서 검증하고 공개 URL을 반환한다.
+     * 클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 공개 URL을 반환한다.
      *
      * @param ctx - 채널·사용자 컨텍스트
      * @param dto - 검증할 objectKey
@@ -155,7 +155,7 @@ export class ChatService {
      */
     async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<string> {
         await this.checkMembership(ctx.channelId, ctx.userId);
-        return this.minioService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
+        return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
     }
 
     /**
@@ -197,8 +197,8 @@ export class ChatService {
     }
 
     /**
-     * 파일이 포함된 메시지와 MinIO 오브젝트를 삭제한다.
-     * MinIO 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
+     * 파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
+     * 오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
      * projectId가 있으면 Elasticsearch에서도 비동기로 제거한다.
      * 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
      *
@@ -222,14 +222,14 @@ export class ChatService {
         await Promise.all(
             message.attachments.map(async (attachment) => {
                 try {
-                    const objectKey = this.minioService.extractObjectKey(attachment.url);
+                    const objectKey = this.objectStorageService.extractObjectKey(attachment.url);
                     if (!objectKey.startsWith(`chat-files/${ctx.channelId}/`)) {
                         this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
                         return;
                     }
-                    await this.minioService.removeObject(objectKey);
+                    await this.objectStorageService.removeObject(objectKey);
                 } catch (error) {
-                    this.logger.warn(`Failed to delete MinIO file [url=${attachment.url}]`, error);
+                    this.logger.warn(`Failed to delete object storage file [url=${attachment.url}]`, error);
                 }
             }),
         );
@@ -259,7 +259,7 @@ export class ChatService {
 
         if (dto.attachments?.length) {
             for (const attachment of dto.attachments) {
-                this.minioService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
+                this.objectStorageService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
             }
         }
 
