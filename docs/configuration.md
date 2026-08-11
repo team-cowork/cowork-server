@@ -34,7 +34,7 @@
 
 | 경로                          | 주요 값                                               |
 |-------------------------------|-------------------------------------------------------|
-| `secret/application`          | 공통 DB 계정, JWT, MinIO credential                   |
+| `secret/application`          | 공통 DB 계정, JWT, SeaweedFS credential                |
 | `secret/cowork-gateway`       | `jwt.secret`                                          |
 | `secret/cowork-authorization` | DB DSN, DataGSM ID/webhook key, JWT                   |
 | `secret/cowork-channel`       | credential 암호화 키, OAuth state/provider credential |
