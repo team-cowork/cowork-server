@@ -18,17 +18,17 @@ defmodule CoworkUser.AppConfigTest do
     "KAFKA_TOPIC_USER_SYNC",
     "KAFKA_GROUP_ID",
     "KAFKA_ENABLED",
-    "MINIO_REGION",
-    "MINIO_INTERNAL_ENDPOINT",
-    "MINIO_PUBLIC_ENDPOINT",
-    "MINIO_ACCESS_KEY",
-    "MINIO_SECRET_KEY",
-    "MINIO_BUCKET",
-    "MINIO_PATH_STYLE_ACCESS_ENABLED",
-    "MINIO_PRESIGNED_PUT_EXPIRY_MINUTES",
-    "MINIO_PRESIGNED_GET_EXPIRY_MINUTES",
-    "MINIO_MAX_FILE_SIZE_BYTES",
-    "MINIO_ALLOWED_CONTENT_TYPES",
+    "S3_REGION",
+    "S3_INTERNAL_ENDPOINT",
+    "S3_PUBLIC_ENDPOINT",
+    "S3_ACCESS_KEY",
+    "S3_SECRET_KEY",
+    "S3_BUCKET",
+    "S3_PATH_STYLE_ACCESS_ENABLED",
+    "S3_PRESIGNED_PUT_EXPIRY_MINUTES",
+    "S3_PRESIGNED_GET_EXPIRY_MINUTES",
+    "S3_MAX_FILE_SIZE_BYTES",
+    "S3_ALLOWED_CONTENT_TYPES",
     "REDIS_HOST",
     "REDIS_PORT",
     "TEAM_SERVICE_URL"
@@ -60,7 +60,7 @@ defmodule CoworkUser.AppConfigTest do
     assert config.config_profile == "local"
     assert config.eureka_server_url == "http://localhost:8761/eureka"
     assert config.kafka_bootstrap_servers == "localhost:9094"
-    assert config.minio_internal_endpoint == "http://localhost:9000"
+    assert config.s3_internal_endpoint == "http://localhost:9000"
     assert config.redis_host == "localhost"
     assert config.redis_port == 6379
     assert config.team_service_url == "http://localhost:8085"
@@ -72,7 +72,7 @@ defmodule CoworkUser.AppConfigTest do
       "APP_PROFILE" => "dev",
       "EUREKA_INSTANCE_HOST" => "user.internal",
       "KAFKA_ENABLED" => "false",
-      "MINIO_ALLOWED_CONTENT_TYPES" => "image/png, application/pdf",
+      "S3_ALLOWED_CONTENT_TYPES" => "image/png, application/pdf",
       "REDIS_PORT" => "6380"
     })
 
