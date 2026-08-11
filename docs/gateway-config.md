@@ -29,7 +29,7 @@ docker compose up vault-init
 
 | Vault 경로                    | 주요 값                                  |
 |-------------------------------|------------------------------------------|
-| `secret/application`          | JWT, MySQL/PostgreSQL, MinIO credential  |
+| `secret/application`          | JWT, MySQL/PostgreSQL, SeaweedFS credential |
 | `secret/cowork-gateway`       | JWT 검증 키                              |
 | `secret/cowork-authorization` | DB DSN, DataGSM, JWT                     |
 | `secret/cowork-channel`       | AccountShare 암호화·OAuth 값             |
