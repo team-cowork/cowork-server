@@ -5,7 +5,7 @@ defmodule CoworkUser.Accounts do
   alias Ecto.Multi
   alias CoworkUser.Accounts.{Account, Profile, ProfileRole}
   alias CoworkUser.Repo
-  alias CoworkUser.Storage.Minio
+  alias CoworkUser.Storage.ObjectStorage
   alias CoworkUser.TeamClient
 
   def get_my_profile(user_id), do: get_user_profile(user_id)
@@ -117,11 +117,11 @@ defmodule CoworkUser.Accounts do
   end
 
   def generate_presigned_url(user_id, %{"content_type" => content_type}) do
-    object_key = Minio.build_object_key(user_id, content_type)
+    object_key = ObjectStorage.build_object_key(user_id, content_type)
 
     with %Profile{} <- load_profile(user_id),
-         :ok <- Minio.validate_content_type(content_type),
-         {:ok, upload_url} <- Minio.presigned_put_url(object_key, content_type) do
+         :ok <- ObjectStorage.validate_content_type(content_type),
+         {:ok, upload_url} <- ObjectStorage.presigned_put_url(object_key, content_type) do
 
       {:ok,
        %{
@@ -138,13 +138,13 @@ defmodule CoworkUser.Accounts do
 
   def confirm_upload(user_id, %{"object_key" => object_key}) do
     with %Profile{} = profile <- load_profile(user_id),
-         :ok <- Minio.verify_upload(user_id, object_key),
+         :ok <- ObjectStorage.verify_upload(user_id, object_key),
          previous_key = profile.profile_image_key,
          {:ok, _} <-
            profile
            |> Profile.changeset(%{profile_image_key: object_key, last_modified_by: user_id})
            |> Repo.update() do
-      if previous_key && previous_key != object_key, do: Minio.delete_object(previous_key)
+      if previous_key && previous_key != object_key, do: ObjectStorage.delete_object(previous_key)
       :ok
     else
       nil -> {:error, :not_found}
@@ -161,7 +161,7 @@ defmodule CoworkUser.Accounts do
            profile
            |> Profile.changeset(%{profile_image_key: nil, last_modified_by: user_id})
            |> Repo.update() do
-      if previous_key, do: Minio.delete_object(previous_key)
+      if previous_key, do: ObjectStorage.delete_object(previous_key)
       :ok
     else
       nil -> {:error, :not_found}
@@ -657,7 +657,7 @@ defmodule CoworkUser.Accounts do
       case profile.profile_image_key do
         nil -> nil
         key ->
-          case Minio.presigned_get_url(key) do
+          case ObjectStorage.presigned_get_url(key) do
             {:ok, url} -> url
             {:error, _reason} -> nil
           end
