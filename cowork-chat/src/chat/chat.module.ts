@@ -34,7 +34,7 @@ import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { MembershipModule } from '../membership/membership.module';
 import { BlockModule } from '../block/block.module';
-import { MinioModule } from '../storage/minio.module';
+import { ObjectStorageModule } from '../storage/object-storage.module';
 import { SearchModule } from '../search/search.module';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
@@ -69,7 +69,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         }),
         MembershipModule,
         BlockModule,
-        MinioModule,
+        ObjectStorageModule,
         SearchModule,
     ],
     controllers: [ChatController, DmController, ProjectMessageController, TeamUnreadController, TeamSearchController],

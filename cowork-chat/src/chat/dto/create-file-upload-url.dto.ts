@@ -21,7 +21,7 @@ export class CreateFileUploadUrlRequestDto {
 }
 
 export class CreateFileUploadUrlResponseDto {
-    @ApiProperty({ description: 'MinIO object key' })
+    @ApiProperty({ description: 'S3 object key' })
     objectKey!: string;
 
     @ApiProperty({ description: '클라이언트가 PUT 업로드에 사용할 presigned URL' })
