@@ -1,4 +1,4 @@
-defmodule CoworkUser.Storage.Minio do
+defmodule CoworkUser.Storage.ObjectStorage do
   alias CoworkUser.AppConfig
 
   def validate_content_type(content_type) do
@@ -20,7 +20,7 @@ defmodule CoworkUser.Storage.Minio do
     ExAws.S3.presigned_url(
       config,
       :put,
-      AppConfig.load().minio_bucket,
+      AppConfig.load().s3_bucket,
       object_key,
       expires_in: AppConfig.load().presigned_put_expiry_minutes * 60,
       headers: [{"content-type", content_type}]
@@ -34,7 +34,7 @@ defmodule CoworkUser.Storage.Minio do
     ExAws.S3.presigned_url(
       config,
       :get,
-      AppConfig.load().minio_bucket,
+      AppConfig.load().s3_bucket,
       object_key,
       expires_in: AppConfig.load().presigned_get_expiry_minutes * 60
     )
@@ -43,7 +43,7 @@ defmodule CoworkUser.Storage.Minio do
 
   def verify_upload(user_id, object_key) do
     if String.starts_with?(object_key, "profiles/#{user_id}/") do
-      case ExAws.S3.head_object(AppConfig.load().minio_bucket, object_key) |> ExAws.request(s3_config(:internal)) do
+      case ExAws.S3.head_object(AppConfig.load().s3_bucket, object_key) |> ExAws.request(s3_config(:internal)) do
         {:ok, %{headers: headers}} ->
           content_length =
             headers
@@ -73,7 +73,7 @@ defmodule CoworkUser.Storage.Minio do
   def delete_object(nil), do: :ok
 
   def delete_object(object_key) do
-    ExAws.S3.delete_object(AppConfig.load().minio_bucket, object_key)
+    ExAws.S3.delete_object(AppConfig.load().s3_bucket, object_key)
     |> ExAws.request(s3_config(:internal))
 
     :ok
@@ -81,17 +81,17 @@ defmodule CoworkUser.Storage.Minio do
 
   defp s3_config(mode) do
     config = AppConfig.load()
-    endpoint = if mode == :public, do: config.minio_public_endpoint, else: config.minio_internal_endpoint
+    endpoint = if mode == :public, do: config.s3_public_endpoint, else: config.s3_internal_endpoint
     uri = URI.parse(endpoint)
 
     %{
-      region: config.minio_region,
-      access_key_id: config.minio_access_key,
-      secret_access_key: config.minio_secret_key,
+      region: config.s3_region,
+      access_key_id: config.s3_access_key,
+      secret_access_key: config.s3_secret_key,
       scheme: "#{uri.scheme}://",
       host: uri.host,
       port: uri.port,
-      s3: %{path_style: config.minio_path_style}
+      s3: %{path_style: config.s3_path_style}
     }
   end
 
