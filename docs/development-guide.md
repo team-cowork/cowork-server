@@ -229,7 +229,7 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 - Vault UI: `http://localhost:8200` (토큰: `dev-root-token`)
 - 시크릿 경로: `secret/application` (공통), `secret/cowork-{name}` (서비스별)
   - 자동 주입 경로: gateway, authorization, notification, preference, user, project, voice, chat, channel
-  - team·roadmap은 `secret/application`의 공통 DB/MinIO 값을 사용합니다.
+  - team·roadmap은 `secret/application`의 공통 DB/SeaweedFS 값을 사용합니다.
 
 ### application.yml 작성 원칙
 
@@ -303,8 +303,8 @@ docker compose up -d mysql mongodb kafka
 | Kafka | 9094 | 호스트 접근용 (컨테이너 간: 9092) |
 | Kafka UI | 8090 | 브라우저에서 토픽/메시지 확인 |
 | Vault | 8200 | 시크릿 관리 (토큰: `dev-root-token`) |
-| MinIO | 9000 | S3 호환 오브젝트 스토리지 |
-| MinIO Console | 9002 | 브라우저 UI |
+| SeaweedFS | 9000 | S3 호환 오브젝트 스토리지 |
+| SeaweedFS Console | 9002 | 브라우저 UI |
 | Elasticsearch | 9200 | 채팅 메시지 검색 (cowork-chat) |
 | Redis | 6379 | Gateway rate limit, chat·voice·preference |
 | LiveKit | 7880 | 음성 서버 |
