@@ -17,7 +17,7 @@ user/preference는 이미 다른 환경에 배포되어 있지만 그쪽 Kafka/E
 
 - 홈서버에는 이미 여러 프로젝트가 `~/Downloads/<프로젝트명>` 구조로 배포되어 있고,
   각각 독립된 Docker 컨테이너로 떠 있다.
-- 호스트 포트 3306(mysql), 6379(redis), 8080, 9000-9001(minio) 등이 이미 다른
+- 호스트 포트 3306(mysql), 6379(redis), 8080, 9000-9001(seaweedfs) 등이 이미 다른
   컨테이너에서 사용 중이므로, cowork용 컨테이너는 포트를 옮겨서 띄운다
   (`docker-compose.homeserver.yml` 참고).
 - nginx는 `/opt/homebrew/etc/nginx/servers/kimtaeeun.conf` 한 파일에 경로별로
@@ -54,7 +54,7 @@ docker compose \
 ```
 
 `cowork-project`가 `depends_on`으로 필요한 `mysql`, `kafka`, `vault`, `vault-init`,
-`cowork-config`까지 자동으로 함께 기동된다. 다른 서비스(postgres, redis, minio,
+`cowork-config`까지 자동으로 함께 기동된다. 다른 서비스(postgres, redis, seaweedfs,
 mongodb, elasticsearch, gateway 등)는 project의 의존성이 아니므로 뜨지 않는다.
 
 확인:

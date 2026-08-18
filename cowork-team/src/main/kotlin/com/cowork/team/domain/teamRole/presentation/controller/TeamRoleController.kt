@@ -43,15 +43,27 @@ class TeamRoleController(
 ) {
 
     @Operation(summary = "역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponse(responseCode = "200", description = "조회 성공")
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+    )
     @GetMapping("/roles")
-    fun getRoles(@PathVariable teamId: Long): List<TeamRoleResponse> = queryTeamRolesService.execute(teamId)
+    fun getRoles(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+    ): List<TeamRoleResponse> = queryTeamRolesService.execute(userId, teamId)
 
     @Operation(summary = "멤버 역할 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponse(responseCode = "200", description = "조회 성공")
-    @GetMapping("/members/{userId}/roles")
-    fun getMemberRoles(@PathVariable teamId: Long, @PathVariable userId: Long): List<TeamRoleResponse> =
-        queryMemberRolesService.execute(teamId, userId)
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+    )
+    @GetMapping("/members/{targetUserId}/roles")
+    fun getMemberRoles(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+        @PathVariable targetUserId: Long,
+    ): List<TeamRoleResponse> = queryMemberRolesService.execute(userId, teamId, targetUserId)
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
