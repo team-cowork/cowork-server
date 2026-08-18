@@ -1,5 +1,6 @@
 package com.cowork.project.domain.project.presentation.data.request
 
+import com.cowork.project.domain.project.entity.ProjectStatus
 import io.swagger.v3.oas.annotations.media.Schema
 
 data class UpdateProjectReqDto(
@@ -7,6 +8,6 @@ data class UpdateProjectReqDto(
     val name: String? = null,
     @Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")
     val description: String? = null,
-    @Schema(description = "프로젝트 상태", example = "ARCHIVED", allowableValues = ["ACTIVE", "ARCHIVED"])
-    val status: String? = null,
+    @Schema(description = "프로젝트 상태", example = "ARCHIVED")
+    val status: ProjectStatus? = null,
 )
