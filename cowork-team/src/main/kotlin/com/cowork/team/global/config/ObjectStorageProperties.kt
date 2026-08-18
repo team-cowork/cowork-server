@@ -2,8 +2,8 @@ package com.cowork.team.global.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 
-@ConfigurationProperties(prefix = "minio")
-data class MinioProperties(
+@ConfigurationProperties(prefix = "object-storage")
+data class ObjectStorageProperties(
     val bucket: String,
     val publicBaseUrl: String,
     val presignedPutExpiryMinutes: Long = 10,
