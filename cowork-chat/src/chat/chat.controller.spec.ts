@@ -7,7 +7,7 @@ import { ChatGateway } from './chat.gateway';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
-import { MinioService } from '../storage/minio.service';
+import { ObjectStorageService } from '../storage/object-storage.service';
 import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
 import { ThrottleGuard } from '../common/guard/throttle.guard';
@@ -43,7 +43,7 @@ const mockProjectClient = {
     getGithubRepoInfo: jest.fn(),
 };
 
-const mockMinioService = {
+const mockObjectStorageService = {
     createPresignedUpload: jest.fn(),
 };
 
@@ -63,7 +63,7 @@ describe('ChatController', () => {
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatGateway, useValue: mockChatGateway },
                 { provide: ChatMessageProducer, useValue: mockProducer },
-                { provide: MinioService, useValue: mockMinioService },
+                { provide: ObjectStorageService, useValue: mockObjectStorageService },
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
                 { provide: ProjectClient, useValue: mockProjectClient },
             ],
@@ -77,7 +77,7 @@ describe('ChatController', () => {
     });
 
     describe('createFileUploadUrl', () => {
-        it('멤버십 검증 후 MinIO presigned URL을 발급한다', async () => {
+        it('멤버십 검증 후 오브젝트 스토리지 presigned URL을 발급한다', async () => {
             mockChatService.createFileUploadUrl.mockResolvedValue({
                 objectKey: 'chat-files/1/42/file.png',
                 uploadUrl: 'http://localhost:9000/upload',

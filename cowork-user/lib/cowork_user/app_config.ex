@@ -19,13 +19,13 @@ defmodule CoworkUser.AppConfig do
     :kafka_topic,
     :kafka_group_id,
     :kafka_enabled,
-    :minio_region,
-    :minio_internal_endpoint,
-    :minio_public_endpoint,
-    :minio_access_key,
-    :minio_secret_key,
-    :minio_bucket,
-    :minio_path_style,
+    :s3_region,
+    :s3_internal_endpoint,
+    :s3_public_endpoint,
+    :s3_access_key,
+    :s3_secret_key,
+    :s3_bucket,
+    :s3_path_style,
     :presigned_put_expiry_minutes,
     :presigned_get_expiry_minutes,
     :max_file_size_bytes,
@@ -88,48 +88,48 @@ defmodule CoworkUser.AppConfig do
       kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC"], "user.data.sync"),
       kafka_group_id: lookup(remote, ["KAFKA_GROUP_ID", "kafka_group_id"], "cowork-user"),
       kafka_enabled: lookup(remote, ["KAFKA_ENABLED"], "true") == "true",
-      minio_region: lookup(remote, ["MINIO_REGION", "minio_region"], "ap-northeast-2"),
-      minio_internal_endpoint:
+      s3_region: lookup(remote, ["S3_REGION", "s3_region"], "ap-northeast-2"),
+      s3_internal_endpoint:
         lookup(
           remote,
-          ["MINIO_INTERNAL_ENDPOINT", "minio_internal_endpoint"],
+          ["S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"],
           "http://localhost:9000"
         ),
-      minio_public_endpoint:
+      s3_public_endpoint:
         lookup(
           remote,
-          ["MINIO_PUBLIC_ENDPOINT", "minio_public_endpoint"],
+          ["S3_PUBLIC_ENDPOINT", "s3_public_endpoint"],
           "http://localhost:9000"
         ),
-      minio_access_key: lookup(remote, ["MINIO_ACCESS_KEY", "minio_access_key"], ""),
-      minio_secret_key: lookup(remote, ["MINIO_SECRET_KEY", "minio_secret_key"], ""),
-      minio_bucket: lookup(remote, ["MINIO_BUCKET", "minio_bucket"], "cowork-bucket"),
-      minio_path_style:
+      s3_access_key: lookup(remote, ["S3_ACCESS_KEY", "s3_access_key"], ""),
+      s3_secret_key: lookup(remote, ["S3_SECRET_KEY", "s3_secret_key"], ""),
+      s3_bucket: lookup(remote, ["S3_BUCKET", "s3_bucket"], "cowork-bucket"),
+      s3_path_style:
         lookup(
           remote,
-          ["MINIO_PATH_STYLE_ACCESS_ENABLED", "minio_path_style_access_enabled"],
+          ["S3_PATH_STYLE_ACCESS_ENABLED", "s3_path_style_access_enabled"],
           "true"
         ) == "true",
       presigned_put_expiry_minutes:
         lookup(
           remote,
-          ["MINIO_PRESIGNED_PUT_EXPIRY_MINUTES", "minio_presigned_put_expiry_minutes"],
+          ["S3_PRESIGNED_PUT_EXPIRY_MINUTES", "s3_presigned_put_expiry_minutes"],
           "5"
         )
         |> String.to_integer(),
       presigned_get_expiry_minutes:
         lookup(
           remote,
-          ["MINIO_PRESIGNED_GET_EXPIRY_MINUTES", "minio_presigned_get_expiry_minutes"],
+          ["S3_PRESIGNED_GET_EXPIRY_MINUTES", "s3_presigned_get_expiry_minutes"],
           "15"
         )
         |> String.to_integer(),
       max_file_size_bytes:
-        lookup(remote, ["MINIO_MAX_FILE_SIZE_BYTES", "minio_max_file_size_bytes"], "5242880")
+        lookup(remote, ["S3_MAX_FILE_SIZE_BYTES", "s3_max_file_size_bytes"], "5242880")
         |> String.to_integer(),
       allowed_content_types:
         parse_csv_or_list(
-          lookup(remote, ["MINIO_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp")
+          lookup(remote, ["S3_ALLOWED_CONTENT_TYPES"], "image/jpeg,image/png,image/webp")
         ),
       redis_host: lookup(remote, ["REDIS_HOST", "redis_host"], "localhost"),
       redis_port: lookup(remote, ["REDIS_PORT", "redis_port"], "6379") |> String.to_integer(),

@@ -82,8 +82,8 @@ openssl rand -base64 32
 | `LIVEKIT_CONFIG_FILE`              | `livekit.yaml`              | 로컬에서 다른 LiveKit 설정 파일을 시험할 때만 변경     |
 | `*_ACCOUNT_SHARE_CLIENT_ID/SECRET` | 비어 있음                   | channel의 GitHub·Notion·Jira 등 OAuth provider 사용 시 |
 | `DISCORD_WEBHOOK_URL`              | 비어 있음                   | 로컬은 no-op receiver 사용, `prod`에서는 필수          |
-| `MINIO_INTERNAL_ENDPOINT`          | 실행 방식에 따라 자동 선택  | 외부 오브젝트 스토리지의 내부 접근 주소를 사용할 때    |
-| `MINIO_PUBLIC_ENDPOINT`            | `http://__LOCAL_IP__:9000`  | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정    |
+| `S3_INTERNAL_ENDPOINT`             | 실행 방식에 따라 자동 선택  | 외부 오브젝트 스토리지의 내부 접근 주소를 사용할 때    |
+| `S3_PUBLIC_ENDPOINT`               | `http://__LOCAL_IP__:9000`  | 모바일 앱·외부 기기에서 파일 접근 시 실제 IP로 수정    |
 | `ELASTICSEARCH_URL`                | `http://elasticsearch:9200` | 운영 환경에서 관리형 ES 클러스터 주소로 변경           |
 | `GITHUB_APP_INTERNAL_API_KEY`      | 비어 있음                   | GitHub App 연동 시 양쪽에 같은 키 설정                 |
 
@@ -107,7 +107,7 @@ Firebase 관련:
 
 ```bash
 # 전체 기동
-# __LOCAL_IP__가 들어간 MinIO 공개 주소를 현재 LAN IP로 자동 치환한다.
+# __LOCAL_IP__가 들어간 SeaweedFS 공개 주소를 현재 LAN IP로 자동 치환한다.
 ./scripts/run/local/infra.sh start
 
 # 앱 서비스는 필요할 때 개별 재기동
@@ -143,7 +143,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml ps --all
 
 `docker-compose.prod.yml`은 12개 애플리케이션 이미지를 모두 `${REGISTRY}/<service>:${IMAGE_TAG}`로 교체하고, LiveKit 클라우드 설정과 host network를 적용한다. 태그에는 `latest` 대신 릴리스 버전이나 커밋 SHA를 사용한다.
 
-`kafka-init`, `vault-init`, `minio-init`, `alertmanager-config-init`, `prometheus-external-target-writer`는 성공 후 종료되는 일회성 작업이다. 이 때문에 Compose 버전에 따라 `up --wait`가 성공한 init 컨테이너도 종료로 판정해 0이 아닌 코드를 반환할 수 있으므로, `ps --all`에서 `Exited (0)`인지 확인한다.
+`kafka-init`, `vault-init`, `seaweedfs-init`, `alertmanager-config-init`, `prometheus-external-target-writer`는 성공 후 종료되는 일회성 작업이다. 이 때문에 Compose 버전에 따라 `up --wait`가 성공한 init 컨테이너도 종료로 판정해 0이 아닌 코드를 반환할 수 있으므로, `ps --all`에서 `Exited (0)`인지 확인한다.
 
 ### 상태 / 로그
 
@@ -176,7 +176,7 @@ Docker Compose가 아래 의존 관계를 따라 자동으로 기동한다. Spri
 infra (MySQL, Kafka, Redis, Mongo, Postgres, ...)
   ├─ kafka → kafka-init (필수 토픽 생성)
   ├─ vault → vault-init (시크릿 시드)
-  ├─ minio → minio-init (버킷 생성)
+  ├─ seaweedfs → seaweedfs-init (버킷 생성)
   ├─ alertmanager-config-init → alertmanager
   └─ cowork-config (Config Server + Eureka)
        ├─ cowork-gateway
@@ -222,7 +222,7 @@ Docker Compose 내부에서 서비스는 컨테이너 이름으로 통신한다.
 | `localhost:27017`             | `mongodb:27017`           |
 | `localhost:9094` (Kafka 외부) | `kafka:9092` (Kafka 내부) |
 | `localhost:6379`              | `redis:6379`              |
-| `localhost:9000`              | `minio:9000`              |
+| `localhost:9000`              | `seaweedfs:9000`          |
 | `localhost:9200`              | `elasticsearch:9200`      |
 | `localhost:8761`              | `cowork-config:8761`      |
 
@@ -237,7 +237,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | LiveKit RTC         | `7881/tcp`                                | Linux host network 사용, `7880/tcp`, `7881/tcp`, `50000-60000/udp`를 방화벽에 개방 |
 | DB 비밀번호         | `.env`의 개발용 값                        | 운영용 강한 비밀번호로 교체                                                        |
 | Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                                                     |
-| MinIO               | 로컬 컨테이너                             | S3 호환 엔드포인트로 변경                                                          |
+| SeaweedFS           | 로컬 컨테이너                             | S3 호환 엔드포인트로 변경                                                          |
 | Elasticsearch       | `http://elasticsearch:9200`               | 운영 Config Git에서 관리형 ES 클러스터 주소로 변경                                |
 
 운영 오버레이는 Linux 단일 호스트 Compose 배포를 위한 최소 기준이다. LiveKit은 대규모 UDP 포트 매핑에 따른 Docker 프록시/NAT 비용을 피하기 위해 host network를 사용하며, `cowork-voice`는 `host.docker.internal`의 host-gateway 매핑으로 LiveKit API에 접근한다. `LIVEKIT_WS_URL`에는 외부 클라이언트가 접속할 수 있는 TLS URL을 지정한다.
@@ -263,7 +263,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | `JWT_SECRET`                                       | gateway, authorization, chat |
 | `MYSQL_USER`, `MYSQL_PASSWORD`                     | MySQL 기반 서비스와 DSN 생성 |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`               | preference                  |
-| `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY`             | team, user, chat            |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY`                   | team, user, chat            |
 
 추가로 서비스별 Vault 경로도 같이 시드된다.
 
@@ -290,7 +290,7 @@ Compose는 `SPRING_PROFILES_ACTIVE` 값을 Spring 서비스와 비-Spring 서비
 | Kafka UI                    | `http://localhost:8090`                      |
 | Prometheus                  | `http://localhost:9090`                      |
 | Grafana                     | `http://localhost:3001`                      |
-| MinIO Console               | `http://localhost:9002`                      |
+| SeaweedFS Console            | `http://localhost:9002`                      |
 | Vault                       | `http://localhost:8200`                      |
 | Elasticsearch 클러스터 상태 | `http://localhost:9200/_cluster/health`      |
 | chat_messages 인덱스 확인   | `http://localhost:9200/chat_messages/_count` |
@@ -345,7 +345,7 @@ Loki는 기동되지만 현재 모든 애플리케이션의 파일 로그를 수
 
 `cowork-chat`:
 - Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
-- `MONGODB_URI`는 Vault `secret/cowork-chat`, MinIO 자격증명은 `secret/application`에서 공급된다.
+- `MONGODB_URI`는 Vault `secret/cowork-chat`, SeaweedFS 자격증명은 `secret/application`에서 공급된다.
 - `ELASTICSEARCH_URL`은 Config Server 일반 설정으로 공급된다. 로컬 기본값은 `http://elasticsearch:9200`이며 운영에서는 Config Git의 값을 실제 클러스터 주소로 변경한다.
 - **인덱싱 대상**: `projectId`가 있는 메시지만 ES에 인덱싱된다. DM·비프로젝트 채널 메시지는 인덱싱되지 않는다.
 - **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
@@ -359,13 +359,13 @@ Loki는 기동되지만 현재 모든 애플리케이션의 파일 로그를 수
 - `local` 이외 프로파일에서는 webhook이 없으면 init 컨테이너가 실패해 알림이 조용히 유실되는 배포를 막는다.
 - webhook은 생성된 제한 권한 파일로 전달하며 Alertmanager 설정에는 비밀값을 직접 기록하지 않는다.
 
-`MINIO_PUBLIC_ENDPOINT`:
+`S3_PUBLIC_ENDPOINT`:
 - `scripts/run/local/infra.sh`와 `scripts/run/local/*.sh`는 `.env`의 `__LOCAL_IP__`를 현재 LAN IP로 자동 치환한다.
 - `docker compose up`를 직접 치면 이 치환이 적용되지 않으므로, 모바일 앱·외부 기기 업로드 테스트는 스크립트 경로를 사용해야 한다.
 - 같은 머신에서만 테스트한다면 `http://localhost:9000`으로 충분하다.
 
-`MINIO_INTERNAL_ENDPOINT`:
-- `.env`에서 지정하지 않으면 Compose 컨테이너는 `http://minio:9000`, 호스트 실행 스크립트는 `http://localhost:9000`을 사용한다.
+`S3_INTERNAL_ENDPOINT`:
+- `.env`에서 지정하지 않으면 Compose 컨테이너는 `http://seaweedfs:9000`, 호스트 실행 스크립트는 `http://localhost:9000`을 사용한다.
 - 외부 오브젝트 스토리지를 사용하는 경우에만 `.env`에서 모든 실행 환경이 접근할 수 있는 내부 주소로 재정의한다.
 
 Flyway 경고:
