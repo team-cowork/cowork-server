@@ -51,7 +51,7 @@ export class ChatController {
     constructor(private readonly chatService: ChatService) {}
 
     /**
-     * 채팅 첨부파일을 업로드하기 위한 MinIO presigned URL을 발급한다.
+     * 채팅 첨부파일을 업로드하기 위한 오브젝트 스토리지 presigned URL을 발급한다.
      * 반환된 `uploadUrl`에 PUT 요청을 보낼 때 `headers`를 함께 전송해야 한다.
      *
      * @param channelId - 업로드 대상 채널 ID
@@ -61,7 +61,7 @@ export class ChatController {
      */
     @Post('files/presigned-url')
     @HttpCode(HttpStatus.CREATED)
-    @ApiOperation({ summary: '채팅 첨부파일 업로드용 MinIO presigned URL 발급' })
+    @ApiOperation({ summary: '채팅 첨부파일 업로드용 오브젝트 스토리지 presigned URL 발급' })
     @ApiResponse({ status: 201, type: CreateFileUploadUrlResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createFileUploadUrl(
@@ -73,7 +73,7 @@ export class ChatController {
     }
 
     /**
-     * 클라이언트가 presigned URL로 파일 업로드를 완료한 후 MinIO에서 실제 업로드 여부를 검증한다.
+     * 클라이언트가 presigned URL로 파일 업로드를 완료한 후 오브젝트 스토리지에서 실제 업로드 여부를 검증한다.
      * 파일이 아직 업로드되지 않았으면 409, 크기 제한 초과이면 413을 반환한다.
      *
      * @param channelId - 채널 ID
@@ -276,8 +276,8 @@ export class ChatController {
     }
 
     /**
-     * 파일이 포함된 메시지와 MinIO 오브젝트를 함께 삭제한다.
-     * MinIO 삭제 실패는 경고 로그만 남기고 메시지 삭제는 계속 진행한다.
+     * 파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 함께 삭제한다.
+     * 오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 메시지 삭제는 계속 진행한다.
      * 삭제 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 브로드캐스트한다.
      * ADMIN은 타인 파일도 삭제할 수 있다.
      *
