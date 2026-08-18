@@ -2,7 +2,6 @@ package com.cowork.project.domain.project.service.impl
 
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
-import com.cowork.project.domain.project.service.support.ProjectEnumParser
 import com.cowork.project.domain.project.service.support.ProjectMemberLookupSupport
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleReqDto
@@ -16,7 +15,6 @@ import team.themoment.sdk.exception.ExpectedException
 class UpdateProjectMemberRoleServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectMemberLookupSupport: ProjectMemberLookupSupport,
-    private val projectEnumParser: ProjectEnumParser,
 ) : UpdateProjectMemberRoleService {
 
     @Transactional
@@ -34,15 +32,14 @@ class UpdateProjectMemberRoleServiceImpl(
             throw ExpectedException("해당 프로젝트의 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val role = projectEnumParser.parseRole(request.role)
-        if (role == ProjectMemberRole.OWNER) {
+        if (request.role == ProjectMemberRole.OWNER) {
             throw ExpectedException("OWNER 역할은 역할 변경으로 부여할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
         if (member.role == ProjectMemberRole.OWNER) {
             throw ExpectedException("OWNER의 역할은 변경할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        member.updateRole(role)
+        member.updateRole(request.role)
 
         return ProjectMemberResDto.of(member)
     }

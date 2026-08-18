@@ -1,5 +1,5 @@
 // @title           Cowork Authorization API
-// @version         20260727.0
+// @version         20260818.0
 // @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
 // @BasePath        /api
 // @securityDefinitions.apikey BearerAuth
@@ -88,7 +88,7 @@ func main() {
 	defer func() { _ = kafkaProducer.Close() }()
 	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
 
-	authHandler := handler.NewAuthHandler(authSvc, tokenSvc)
+	authHandler := handler.NewAuthHandler(authSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
 
 	router := gin.New()
@@ -106,7 +106,7 @@ func main() {
 	{
 		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
-		auth.POST("/signout", authHandler.AuthMiddleware(), authHandler.Logout)
+		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 	}
 
 	events := router.Group("/events")
