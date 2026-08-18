@@ -19,7 +19,7 @@ REQUIRED_VARS=(
   ACCOUNT_SHARE_OAUTH_STATE_SECRET
 )
 
-CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis cowork-minio)
+CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis cowork-seaweedfs)
 
 load_env() {
   if [ ! -f "$PROJECT_ROOT/.env" ]; then
@@ -35,18 +35,18 @@ load_env() {
   local ip
   ip="$(detect_local_ip || true)"
   if [ -n "$ip" ]; then
-    if [ -n "${MINIO_PUBLIC_ENDPOINT:-}" ] && [[ "$MINIO_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
-      export MINIO_PUBLIC_ENDPOINT="${MINIO_PUBLIC_ENDPOINT/__LOCAL_IP__/$ip}"
+    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      export S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT/__LOCAL_IP__/$ip}"
     fi
-    if [ -n "${MINIO_PUBLIC_BASE_URL:-}" ] && [[ "$MINIO_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
-      export MINIO_PUBLIC_BASE_URL="${MINIO_PUBLIC_BASE_URL/__LOCAL_IP__/$ip}"
+    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      export S3_PUBLIC_BASE_URL="${S3_PUBLIC_BASE_URL/__LOCAL_IP__/$ip}"
     fi
   else
-    if [ -n "${MINIO_PUBLIC_ENDPOINT:-}" ] && [[ "$MINIO_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
-      echo "WARN: failed to detect local IP; MINIO_PUBLIC_ENDPOINT still contains __LOCAL_IP__"
+    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; S3_PUBLIC_ENDPOINT still contains __LOCAL_IP__"
     fi
-    if [ -n "${MINIO_PUBLIC_BASE_URL:-}" ] && [[ "$MINIO_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
-      echo "WARN: failed to detect local IP; MINIO_PUBLIC_BASE_URL still contains __LOCAL_IP__"
+    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; S3_PUBLIC_BASE_URL still contains __LOCAL_IP__"
     fi
   fi
 }

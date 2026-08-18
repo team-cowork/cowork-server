@@ -1,23 +1,15 @@
 import { ConfigService } from '@nestjs/config';
 import { RedisRateLimiter } from './redis-rate-limiter';
 
-const mockExec = jest.fn();
-const mockZrem = jest.fn().mockResolvedValue(undefined);
-const mockPipeline = {
-    zremrangebyscore: jest.fn().mockReturnThis(),
-    zcard: jest.fn().mockReturnThis(),
-    zadd: jest.fn().mockReturnThis(),
-    pexpire: jest.fn().mockReturnThis(),
-    exec: mockExec,
-};
-const mockMulti = jest.fn(() => mockPipeline);
+const mockTryAcquireScript = jest.fn();
+const mockDefineCommand = jest.fn();
 const mockConnect = jest.fn().mockResolvedValue(undefined);
 const mockDisconnect = jest.fn();
 const mockOn = jest.fn();
 
 jest.mock('ioredis', () => jest.fn().mockImplementation(() => ({
-    multi: mockMulti,
-    zrem: mockZrem,
+    tryAcquireScript: mockTryAcquireScript,
+    defineCommand: mockDefineCommand,
     connect: mockConnect,
     disconnect: mockDisconnect,
     on: mockOn,
@@ -41,32 +33,35 @@ describe('RedisRateLimiter', () => {
         limiter.onModuleInit();
     });
 
-    it('한도 내 요청이면 true를 반환하고 방금 추가한 항목을 제거하지 않는다', async () => {
-        mockExec.mockResolvedValue([
-            [null, 0],
-            [null, 1],
-            [null, 1],
-            [null, 1],
-        ]);
-
-        await expect(limiter.tryAcquire('chat:msgrate:42', 10_000, 5)).resolves.toBe(true);
-        expect(mockZrem).not.toHaveBeenCalled();
+    it('onModuleInit 시 tryAcquireScript Lua 스크립트를 등록한다', () => {
+        expect(mockDefineCommand).toHaveBeenCalledWith(
+            'tryAcquireScript',
+            expect.objectContaining({ numberOfKeys: 1, lua: expect.any(String) as unknown }),
+        );
     });
 
-    it('시간창 내 개수가 한도 이상이면 false를 반환하고 방금 추가한 항목을 제거한다', async () => {
-        mockExec.mockResolvedValue([
-            [null, 0],
-            [null, 5],
-            [null, 1],
-            [null, 1],
-        ]);
+    it('한도 내 요청이면 true를 반환한다', async () => {
+        mockTryAcquireScript.mockResolvedValue(1);
+
+        await expect(limiter.tryAcquire('chat:msgrate:42', 10_000, 5)).resolves.toBe(true);
+        expect(mockTryAcquireScript).toHaveBeenCalledWith(
+            'chat:msgrate:42',
+            expect.any(Number),
+            expect.any(Number),
+            expect.any(String),
+            10_000,
+            5,
+        );
+    });
+
+    it('시간창 내 개수가 한도 이상이면 false를 반환한다', async () => {
+        mockTryAcquireScript.mockResolvedValue(0);
 
         await expect(limiter.tryAcquire('chat:msgrate:42', 10_000, 5)).resolves.toBe(false);
-        expect(mockZrem).toHaveBeenCalledWith('chat:msgrate:42', expect.any(String));
     });
 
     it('Redis 오류가 발생하면 fail-open으로 true를 반환한다', async () => {
-        mockExec.mockRejectedValue(new Error('connection lost'));
+        mockTryAcquireScript.mockRejectedValue(new Error('connection lost'));
 
         await expect(limiter.tryAcquire('chat:msgrate:42', 10_000, 5)).resolves.toBe(true);
     });
