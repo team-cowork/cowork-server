@@ -4,7 +4,7 @@ import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGateway } from './chat.gateway';
 import { ElasticsearchService } from '../search/elasticsearch.service';
-import { MinioService } from '../storage/minio.service';
+import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { ProjectClient } from './service/project.client';
@@ -72,7 +72,7 @@ const mockElasticsearchService = {
     searchMessages: jest.fn(),
 };
 
-const mockMinioService = {
+const mockObjectStorageService = {
     createPresignedUpload: jest.fn(),
     confirmUpload: jest.fn(),
     assertOwnedAttachmentUrl: jest.fn(),
@@ -122,7 +122,7 @@ describe('ChatService', () => {
                 { provide: MessageRepository, useValue: mockMessageRepository },
                 { provide: ChannelMemberRepository, useValue: mockChannelMemberRepository },
                 { provide: ElasticsearchService, useValue: mockElasticsearchService },
-                { provide: MinioService, useValue: mockMinioService },
+                { provide: ObjectStorageService, useValue: mockObjectStorageService },
                 { provide: ChatMessageProducer, useValue: mockChatMessageProducer },
                 { provide: GithubIssueProducer, useValue: mockGithubIssueProducer },
                 { provide: ProjectClient, useValue: mockProjectClient },
@@ -196,24 +196,24 @@ describe('ChatService', () => {
 
         it('첨부파일이 있으면 각 url의 소유권을 검증한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
-            mockMinioService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
+            mockObjectStorageService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
             const attachments = [
-                { name: 'a.png', url: 'http://minio/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png' },
+                { name: 'a.png', url: 'http://object-storage/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png' },
             ];
 
             await service.sendMessage(ctx, { content: 'hi', attachments });
 
-            expect(mockMinioService.assertOwnedAttachmentUrl).toHaveBeenCalledWith(attachments[0].url, 1, 42);
+            expect(mockObjectStorageService.assertOwnedAttachmentUrl).toHaveBeenCalledWith(attachments[0].url, 1, 42);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
         it('소유하지 않은 첨부파일 url이면 검증에서 던진 예외가 전파되고 발행되지 않는다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
-            mockMinioService.assertOwnedAttachmentUrl.mockImplementation(() => {
+            mockObjectStorageService.assertOwnedAttachmentUrl.mockImplementation(() => {
                 throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
             });
             const attachments = [
-                { name: 'a.png', url: 'http://minio/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png' },
+                { name: 'a.png', url: 'http://object-storage/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png' },
             ];
 
             await expect(service.sendMessage(ctx, { content: 'hi', attachments })).rejects.toThrow(BadRequestException);

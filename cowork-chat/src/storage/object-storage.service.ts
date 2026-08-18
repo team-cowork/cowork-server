@@ -12,11 +12,17 @@ import {
     PayloadTooLargeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as Minio from 'minio';
+import {
+    DeleteObjectCommand,
+    HeadObjectCommand,
+    PutObjectCommand,
+    S3Client,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as mime from 'mime-types';
 import { randomUUID } from 'crypto';
-import { MINIO_CLIENT } from './minio.constants';
-import { buildMinioConfig, MinioConfig } from './minio.config';
+import { S3_CLIENT } from './object-storage.constants';
+import { buildObjectStorageConfig, ObjectStorageConfig } from './object-storage.config';
 
 export interface PresignedUpload {
     objectKey: string;
@@ -25,19 +31,24 @@ export interface PresignedUpload {
     expiresInSeconds: number;
 }
 
+function isNotFoundError(error: unknown): boolean {
+    const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    return err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404;
+}
+
 @Injectable()
-export class MinioService implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(MinioService.name);
-    private readonly config: MinioConfig;
+export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(ObjectStorageService.name);
+    private readonly config: ObjectStorageConfig;
     private readonly uploadRateLimitBuckets = new Map<number, number[]>();
     private cleanupTimer?: ReturnType<typeof setInterval>;
     private isCleaningUpRateLimitEntries = false;
 
     constructor(
-        @Inject(MINIO_CLIENT) private readonly minioClient: Minio.Client,
+        @Inject(S3_CLIENT) private readonly s3Client: S3Client,
         configService: ConfigService,
     ) {
-        this.config = buildMinioConfig(configService);
+        this.config = buildObjectStorageConfig(configService);
         this.validateCredentials();
     }
 
@@ -75,10 +86,10 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
         this.validateFileSize(params.size);
 
         const objectKey = this.buildObjectKey(params.channelId, params.userId, params.filename, params.contentType);
-        const uploadUrl = await this.minioClient.presignedPutObject(
-            this.config.bucket,
-            objectKey,
-            this.config.presignedPutExpirySeconds,
+        const uploadUrl = await getSignedUrl(
+            this.s3Client,
+            new PutObjectCommand({ Bucket: this.config.bucket, Key: objectKey }),
+            { expiresIn: this.config.presignedPutExpirySeconds },
         );
 
         return {
@@ -95,20 +106,20 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
             throw new BadRequestException('유효하지 않은 objectKey입니다');
         }
 
-        let stat: Awaited<ReturnType<Minio.Client['statObject']>>;
+        let contentLength: number | undefined;
         try {
-            stat = await this.minioClient.statObject(this.config.bucket, objectKey);
+            const stat = await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
+            contentLength = stat.ContentLength;
         } catch (error) {
-            const code = (error as { code?: string }).code;
-            if (code === 'NoSuchKey' || code === 'NotFound') {
+            if (isNotFoundError(error)) {
                 throw new ConflictException('S3에 파일이 없습니다. 업로드를 먼저 완료하세요');
             }
-            this.logger.error(`MinIO statObject failed [key=${objectKey}]`, error);
+            this.logger.error(`S3 HeadObject failed [key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 확인 중 오류가 발생했습니다');
         }
 
-        if (stat.size > this.config.maxFileSizeBytes) {
-            await this.minioClient.removeObject(this.config.bucket, objectKey);
+        if ((contentLength ?? 0) > this.config.maxFileSizeBytes) {
+            await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
             throw new PayloadTooLargeException('파일 크기가 허용 한도를 초과했습니다');
         }
 
@@ -117,20 +128,19 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
 
     async objectExists(objectKey: string): Promise<boolean> {
         try {
-            await this.minioClient.statObject(this.config.bucket, objectKey);
+            await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
             return true;
         } catch (error) {
-            const code = (error as { code?: string }).code;
-            if (code === 'NoSuchKey' || code === 'NotFound') {
+            if (isNotFoundError(error)) {
                 return false;
             }
-            this.logger.error(`MinIO statObject failed [bucket=${this.config.bucket}, key=${objectKey}]`, error);
+            this.logger.error(`S3 HeadObject failed [bucket=${this.config.bucket}, key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
         }
     }
 
     async removeObject(objectKey: string): Promise<void> {
-        await this.minioClient.removeObject(this.config.bucket, objectKey);
+        await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
     }
 
     extractObjectKey(fileUrl: string): string {
@@ -161,7 +171,7 @@ export class MinioService implements OnModuleInit, OnModuleDestroy {
 
     private validateCredentials(): void {
         if (!this.config.accessKey || !this.config.secretKey) {
-            throw new Error('MinIO 접근 키 설정이 필요합니다 (MINIO_ACCESS_KEY, MINIO_SECRET_KEY)');
+            throw new Error('오브젝트 스토리지 접근 키 설정이 필요합니다 (S3_ACCESS_KEY, S3_SECRET_KEY)');
         }
     }
 
