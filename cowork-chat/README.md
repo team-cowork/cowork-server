@@ -4,7 +4,7 @@
 채팅 서비스.
 - Socket.io(`/chat` 네임스페이스) 기반 실시간 메시지 송수신·타이핑 알림
 - 채널 메시지 CRUD, 고정, 이모지 반응, 스레드(답글)
-- MinIO presigned URL 기반 첨부파일 업로드, `FILE_SHARE` 채널 파일 목록 조회
+- SeaweedFS(S3 호환) presigned URL 기반 첨부파일 업로드, `FILE_SHARE` 채널 파일 목록 조회
 - DM 목록/숨기기, 사용자 차단(Redis)
 - 팀 단위 미읽 메시지 카운트
 - Elasticsearch 기반 메시지 전문 검색(프로젝트/팀 단위) 및 GraphQL 통합 검색(메시지+채널)
@@ -17,7 +17,7 @@
 - MongoDB (Mongoose)
 - KafkaJS
 - Elasticsearch, Redis(ioredis) — 검색 색인, 차단 목록·레이트리밋
-- MinIO — 첨부파일 저장
+- SeaweedFS(S3 호환) + `@aws-sdk/client-s3`/`@aws-sdk/s3-request-presigner` — 첨부파일 저장
 
 ## 포트 & 진입점
 - 포트: `8087`
@@ -75,7 +75,7 @@
 
 ## 의존 서비스
 - HTTP: `cowork-channel`, `cowork-user`, `cowork-project` (표시 이름·채널 정보·프로젝트 멤버십 조회)
-- MongoDB, Elasticsearch(검색 색인), Redis(차단 목록·레이트리밋), MinIO(첨부파일)
+- MongoDB, Elasticsearch(검색 색인), Redis(차단 목록·레이트리밋), SeaweedFS(첨부파일)
 - Discord Webhook(선택) — 알림/에러 알림
 
 ## 환경 변수
@@ -83,7 +83,7 @@
 | 공급원 | 설정 |
 |---|---|
 | Compose | `APP_CONFIG_URL`, `APP_PROFILE` |
-| Config Server | 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, 서비스 URL, MinIO endpoint/정책, rate limit |
-| Vault | `MONGODB_URI`, `JWT_SECRET`, Discord webhook, MinIO access/secret key |
+| Config Server | 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, 서비스 URL, S3(SeaweedFS) endpoint/정책, rate limit |
+| Vault | `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3(SeaweedFS) access/secret key |
 
 Config Server가 내려준 값은 비어 있는 `process.env`에만 채워지므로 직접 환경변수가 최우선입니다. Compose 기동에서는 Config Server 조회 실패 시 즉시 종료합니다.
