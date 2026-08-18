@@ -14,9 +14,9 @@
 
 | 설정 종류 | 목표 공급원 | 예시 |
 |---|---|---|
-| 시크릿 | Vault | DB 자격 증명, JWT 키, OAuth client secret, LiveKit·MinIO 자격 증명 |
+| 시크릿 | Vault | DB 자격 증명, JWT 키, OAuth client secret, LiveKit·SeaweedFS 자격 증명 |
 | 버전 관리할 일반 설정 | `cowork-config` classpath native | 포트, topic 이름, timeout, 기능 제한값, 고정된 provider endpoint |
-| 배포 토폴로지 공유값 | 배포 환경 또는 배포별 native 값 | Kafka·Redis·DB·MinIO·Elasticsearch 주소, 서비스 간 endpoint |
+| 배포 토폴로지 공유값 | 배포 환경 또는 배포별 native 값 | Kafka·Redis·DB·SeaweedFS·Elasticsearch 주소, 서비스 간 endpoint |
 | 인스턴스별 값 | 각 Config Client의 환경변수 | Eureka instance host/port, 인스턴스마다 다른 공개 URL |
 
 ## 사전 확인이 필요한 외부 상태
@@ -37,21 +37,21 @@
 |---|---|
 | `cowork-authorization` | DataGSM endpoint, Kafka, JWT 만료 시간, Eureka instance, user service URL |
 | `cowork-channel` | MySQL, Kafka, Eureka, AccountShare callback/redirect와 provider endpoint |
-| `cowork-chat` | Elasticsearch, MongoDB, Kafka, Redis, MinIO, 서비스 URL, Eureka, 업로드 제한 |
+| `cowork-chat` | Elasticsearch, MongoDB, Kafka, Redis, SeaweedFS, 서비스 URL, Eureka, 업로드 제한 |
 | `cowork-gateway` | 전체 route, CORS, Redis, Kafka, Eureka, Swagger, circuit breaker |
 | `cowork-notification` | Kafka, Firebase 파일 경로, preference/team/user URL, Eureka instance |
 | `cowork-preference` | PostgreSQL, Redis, Kafka, Eureka instance |
 | `cowork-project` | MySQL, Kafka, Eureka, GitHub App service URL |
 | `cowork-roadmap` | R2DBC·Flyway MySQL, Eureka, team service URL |
-| `cowork-team` | MySQL, Kafka, MinIO 내부·공개 endpoint, Eureka |
-| `cowork-user` | MySQL, Kafka, Redis, MinIO, team service URL, Eureka instance |
+| `cowork-team` | MySQL, Kafka, SeaweedFS 내부·공개 endpoint, Eureka |
+| `cowork-user` | MySQL, Kafka, Redis, SeaweedFS, team service URL, Eureka instance |
 | `cowork-voice` | MongoDB, Redis, LiveKit API·WebSocket, Kafka, channel service URL, Eureka instance |
 
 공통 `configs/application.yml`에 있는 Kafka와 Eureka localhost 기본값도 prod에서 실수로 사용되지 않도록 함께 점검한다.
 
 ## 분산 배포 주소 규칙
 
-모든 컨테이너가 같은 Docker network나 인스턴스에 있지 않으므로 `mysql`, `kafka`, `redis`, `cowork-config`, `cowork-*`, `minio`, `elasticsearch`, `host.docker.internal` 같은 Compose 전용 hostname을 prod 기본값으로 고정하지 않는다.
+모든 컨테이너가 같은 Docker network나 인스턴스에 있지 않으므로 `mysql`, `kafka`, `redis`, `cowork-config`, `cowork-*`, `seaweedfs`, `elasticsearch`, `host.docker.internal` 같은 Compose 전용 hostname을 prod 기본값으로 고정하지 않는다.
 
 - 모든 인스턴스가 공유하는 endpoint는 배포 환경의 명시적인 값으로 공급한다.
 - Eureka instance host/port처럼 인스턴스마다 달라지는 값은 Config Server 공통 응답이 아니라 해당 Config Client 환경변수에서 override한다.

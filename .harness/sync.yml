@@ -12,7 +12,6 @@ overrides:
   claude/hooks/command-guard: true
   claude/hooks/logging: true
   claude/hooks/secret-guard: true
-
   codex/hooks/dispatcher: true
   codex/hooks-json: true
   codex/hooks/command-guard: true
@@ -20,6 +19,18 @@ overrides:
   codex/hooks/ktlint: true
   codex/hooks/spotless: true
   codex/hooks/secret-guard: true
+  claude/skills/nextjs-fsd-architecture: false
+  claude/skills/nextjs-package-boundaries: false
+  claude/skills/nextjs-turborepo-fsd: false
+  claude/skills/tailwind-shadcn: false
+  claude/skills/tanstack-query-zod: false
+  claude/agents/frontend-convention-validator: false
+  codex/skills/nextjs-fsd-architecture: false
+  codex/skills/nextjs-package-boundaries: false
+  codex/skills/nextjs-turborepo-fsd: false
+  codex/skills/tailwind-shadcn: false
+  codex/skills/tanstack-query-zod: false
+  codex/agents/frontend-convention-validator: false
 
 branch_prefix: harness-sync/
 base_branch: develop

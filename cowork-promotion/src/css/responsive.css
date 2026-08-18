@@ -1,0 +1,41 @@
+@media (min-width: 640px) {
+    .sm\:inset-5 {
+        inset: 1.25rem;
+    }
+    .sm\:grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .sm\:flex-row {
+        flex-direction: row;
+    }
+    .sm\:p-5 {
+        padding: 1.25rem;
+    }
+}
+@media (min-width: 768px) {
+    .md\:gap-12 {
+        gap: 3rem;
+    }
+}
+@media (min-width: 1024px) {
+    .lg\:col-span-2 {
+        grid-column: span 2 / span 2;
+    }
+    .lg\:col-start-2 {
+        grid-column-start: 2;
+    }
+    .lg\:grid-cols-2 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lg\:grid-cols-6 {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .lg\:text-6xl {
+        font-size: 3.75rem;
+        line-height: 1;
+    }
+    .lg\:text-lg {
+        font-size: 1.125rem;
+        line-height: 1.75rem;
+    }
+}
