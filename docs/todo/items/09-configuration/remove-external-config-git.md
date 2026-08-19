@@ -56,7 +56,7 @@
 - 모든 인스턴스가 공유하는 endpoint는 배포 환경의 명시적인 값으로 공급한다.
 - Eureka instance host/port처럼 인스턴스마다 달라지는 값은 Config Server 공통 응답이 아니라 해당 Config Client 환경변수에서 override한다.
 - Config Server process의 환경변수는 모든 client에 같은 값으로 해석될 수 있으므로 인스턴스별 값 공급원으로 사용하지 않는다.
-- 공개 URL과 내부 service URL을 분리하고, 홈서버를 포함한 실제 외부 네트워크 경로로 도달 가능한지 확인한다.
+- 공개 URL과 내부 service URL을 분리하고, 실제 외부 네트워크 경로로 도달 가능한지 확인한다.
 - 필수 prod endpoint에는 localhost나 Compose hostname fallback을 두지 않거나, 기동 시 잘못된 fallback 사용을 검출한다.
 
 ## 런타임별 주의 사항
@@ -95,7 +95,6 @@ Spring Config Client와 자체 구현 Config Client의 placeholder 및 우선순
 - `docs/gateway-config.md`
 - `docs/local-run-guide.md`
 - `docs/development-guide.md`
-- `docs/deploy/home-server.md`
 
 GitHub Actions workflow와 `.env.example`에는 현재 `CONFIG_GIT_*` 직접 참조가 없지만, 실제 배포 인스턴스의 저장소 외부 env 파일은 별도로 확인해야 한다.
 
@@ -116,7 +115,7 @@ Git backend는 Config Server image를 다시 빌드하지 않고도 설정 commi
 - 시크릿 key가 native 파일이나 Git tracked 파일에 값으로 기록되지 않았는지 검사한다.
 - `docker compose -f docker-compose.yml -f docker-compose.prod.yml config`가 `CONFIG_GIT_*` 없이 성공하는지 확인한다.
 - Spring Boot, Go, NestJS, Vert.x, Elixir에서 각각 대표 Config Client 기동 테스트를 수행한다.
-- 중앙 Config Server와 다른 인스턴스 또는 홈서버에 배치한 서비스가 외부 네트워크를 통해 설정 조회, Eureka 등록, 의존 서비스 호출을 정상 수행하는지 확인한다.
+- 중앙 Config Server와 다른 인스턴스에 배치한 서비스가 외부 네트워크를 통해 설정 조회, Eureka 등록, 의존 서비스 호출을 정상 수행하는지 확인한다.
 - 설정 변경, Config Server image rollback, Vault 장애 시 동작을 staging에서 검증한다.
 
 ## 완료 조건

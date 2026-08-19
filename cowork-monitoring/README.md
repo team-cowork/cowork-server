@@ -32,7 +32,7 @@
 - `alertmanager/`: 운영 알림과 로컬 noop 설정
 - `blackbox/`: probe 설정
 
-전체 스택은 루트 `docker-compose.yml`에서 기동합니다. 외부 호스트 모니터링은 `EXTERNAL_HOST_URL`이 있을 때 초기화 컨테이너가 Prometheus file SD 파일을 생성하는 임시 경로입니다.
+전체 스택은 루트 `docker-compose.yml`에서 기동합니다.
 
 ## 설정 공급
 
