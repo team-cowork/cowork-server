@@ -6,7 +6,7 @@
 
 ## 문제
 
-`cowork-config`는 한 프로세스와 포트 `8761`에서 Config Server와 Eureka Server를 함께 제공한다. 여러 인스턴스와 홈서버에 분산 배포된 모듈이 접근할 수 있도록 포트를 모든 네트워크 인터페이스에 공개했지만, 현재 Config API에는 요청 인증이 없다.
+`cowork-config`는 한 프로세스와 포트 `8761`에서 Config Server와 Eureka Server를 함께 제공한다. 여러 인스턴스에 분산 배포된 모듈이 접근할 수 있도록 포트를 모든 네트워크 인터페이스에 공개했지만, 현재 Config API에는 요청 인증이 없다.
 
 Config Server는 Vault에서 조회한 데이터베이스 비밀번호, JWT·세션 서명키, OAuth 자격 증명, SeaweedFS 자격 증명 등을 각 서비스에 전달한다. 따라서 포트에 도달할 수 있는 사용자가 `/{application}/{profile}` 형식의 Config API로 다른 서비스의 설정과 시크릿을 조회할 수 있다.
 
