@@ -35,6 +35,9 @@ class Project(
     @Column(name = "github_repo_url", length = 512)
     var githubRepoUrl: String? = null,
 
+    @Column(name = "github_webhook_channel_id")
+    var githubWebhookChannelId: Long? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
@@ -65,5 +68,13 @@ class Project(
 
     fun unlinkGithubRepo() {
         githubRepoUrl = null
+    }
+
+    fun setGithubWebhookChannel(channelId: Long) {
+        githubWebhookChannelId = channelId
+    }
+
+    fun clearGithubWebhookChannel() {
+        githubWebhookChannelId = null
     }
 }
