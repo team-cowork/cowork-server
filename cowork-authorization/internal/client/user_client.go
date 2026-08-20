@@ -33,10 +33,15 @@ type UpsertUserRequest struct {
 	Role                 string  `json:"role"`
 	GithubID             *string `json:"github_id"`
 	DataGSMStudentID     *int64  `json:"datagsm_student_id"`
+	Status               string  `json:"status"`
 }
 
 type upsertUserResponse struct {
 	ID int64 `json:"id"`
+}
+
+type UpdateStatusRequest struct {
+	Status string `json:"status"`
 }
 
 // Upsert calls PUT {baseURL}/users/{userId} to upsert user profile.
@@ -76,4 +81,32 @@ func (c *UserClient) Upsert(ctx context.Context, userId int64, req UpsertUserReq
 	}
 
 	return result.ID, nil
+}
+
+// UpdateStatus calls PATCH {baseURL}/users/{userId}/status to update the user's presence status.
+func (c *UserClient) UpdateStatus(ctx context.Context, userId int64, status string) error {
+	body, err := json.Marshal(UpdateStatusRequest{Status: status})
+	if err != nil {
+		return fmt.Errorf("failed to marshal update status request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/users/%d/status", c.baseURL, userId)
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("failed to create update status request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("update status request failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("update status returned non-2xx status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
 }
