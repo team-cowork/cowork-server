@@ -1,6 +1,5 @@
 package com.cowork.gateway.controller
 
-import com.cowork.gateway.config.ExternalHostProperties
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.http.MediaType
@@ -12,7 +11,6 @@ import tools.jackson.databind.ObjectMapper
 @EnableConfigurationProperties(CoworkSwaggerUiProperties::class)
 class SwaggerUiController(
     private val swaggerUiProperties: CoworkSwaggerUiProperties,
-    private val externalHostProperties: ExternalHostProperties,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -21,7 +19,7 @@ class SwaggerUiController(
         produces = [MediaType.TEXT_HTML_VALUE],
     )
     fun swaggerUi(): String {
-        val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls + externalHostSwaggerUrl())
+        val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls)
         val primaryNameJson = objectMapper.writeValueAsString(swaggerUiProperties.primaryName)
 
         return """
@@ -59,18 +57,6 @@ class SwaggerUiController(
             </body>
             </html>
         """.trimIndent()
-    }
-
-    // TODO: 임시 - 홈서버 등 외부 호스트의 OpenAPI 문서를 Swagger UI 탭에 포함. ExternalRouteConfig 제거 시 함께 삭제할 것
-    private fun externalHostSwaggerUrl(): List<CoworkSwaggerUiProperties.SwaggerUrl> {
-        if (externalHostProperties.url.isBlank()) return emptyList()
-
-        return listOf(
-            CoworkSwaggerUiProperties.SwaggerUrl(
-                name = externalHostProperties.name,
-                url = "/v3/api-docs/${externalHostProperties.name}",
-            ),
-        )
     }
 }
 
