@@ -2,20 +2,25 @@ package com.cowork.project.domain.project.presentation.controller
 
 import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
 import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
+import com.cowork.project.domain.project.presentation.data.request.SetProjectGithubWebhookChannelReqDto
 import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
+import com.cowork.project.domain.project.presentation.data.response.ProjectGithubWebhookTargetResDto
 import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.service.AddProjectMemberService
+import com.cowork.project.domain.project.service.ClearProjectGithubWebhookChannelService
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.DeleteProjectService
 import com.cowork.project.domain.project.service.LinkGithubRepoService
 import com.cowork.project.domain.project.service.QueryMyProjectsService
+import com.cowork.project.domain.project.service.QueryProjectGithubWebhookTargetService
 import com.cowork.project.domain.project.service.QueryProjectMemberService
 import com.cowork.project.domain.project.service.QueryProjectMembersService
 import com.cowork.project.domain.project.service.QueryProjectService
 import com.cowork.project.domain.project.service.QueryProjectTeamIdService
 import com.cowork.project.domain.project.service.QueryProjectsByTeamIdService
 import com.cowork.project.domain.project.service.RemoveProjectMemberService
+import com.cowork.project.domain.project.service.SetProjectGithubWebhookChannelService
 import com.cowork.project.domain.project.service.UnlinkGithubRepoService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
 import com.cowork.project.domain.project.service.UpdateProjectService
@@ -52,6 +57,9 @@ class ProjectController(
     private val queryProjectMemberService: QueryProjectMemberService,
     private val queryProjectTeamIdService: QueryProjectTeamIdService,
     private val removeProjectMemberService: RemoveProjectMemberService,
+    private val setProjectGithubWebhookChannelService: SetProjectGithubWebhookChannelService,
+    private val clearProjectGithubWebhookChannelService: ClearProjectGithubWebhookChannelService,
+    private val queryProjectGithubWebhookTargetService: QueryProjectGithubWebhookTargetService,
 ) {
 
     @Operation(summary = "프로젝트 생성", security = [SecurityRequirement(name = "BearerAuth")])
@@ -130,6 +138,49 @@ class ProjectController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
     ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(unlinkGithubRepoService.execute(userId, projectId))
+
+    @Operation(summary = "GitHub 알림 채널 설정", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "설정 성공"),
+        ApiResponse(responseCode = "400", description = "이 프로젝트 소속 채널이 아님"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @PutMapping("/{projectId}/github-webhook-channel")
+    fun setGithubWebhookChannel(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @RequestBody request: SetProjectGithubWebhookChannelReqDto,
+    ): ResponseEntity<ProjectDetailResDto> =
+        ResponseEntity.ok(setProjectGithubWebhookChannelService.execute(userId, projectId, request))
+
+    @Operation(summary = "GitHub 알림 채널 해제", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "해제 성공"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+    )
+    @DeleteMapping("/{projectId}/github-webhook-channel")
+    fun clearGithubWebhookChannel(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+    ): ResponseEntity<ProjectDetailResDto> =
+        ResponseEntity.ok(clearProjectGithubWebhookChannelService.execute(userId, projectId))
+
+    @Operation(
+        summary = "GitHub 웹훅 알림 대상 조회 (내부 서비스용)",
+        description = "owner/repo에 연결된 프로젝트의 GitHub 알림 채널을 조회한다. cowork-chat이 사용한다.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "404", description = "연결된 프로젝트가 없거나 알림 채널이 설정되지 않음"),
+    )
+    @GetMapping("/github-webhook-target")
+    fun getGithubWebhookTarget(
+        @RequestParam owner: String,
+        @RequestParam repo: String,
+    ): ResponseEntity<ProjectGithubWebhookTargetResDto> =
+        ResponseEntity.ok(queryProjectGithubWebhookTargetService.execute(owner, repo))
 
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
