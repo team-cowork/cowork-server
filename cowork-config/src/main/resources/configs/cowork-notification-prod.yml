@@ -1,0 +1,27 @@
+# db.dsn은 Vault secret/cowork-notification 에서 주입됨
+# Go 런타임은 원격 문자열의 ${ENV}를 해석하지 않으며, 중첩 키는 Config Server overrides로도
+# 덮어쓸 수 없으므로 리터럴 값만 사용한다.
+
+kafka:
+  brokers: kafka:9092
+  topic: notification.trigger
+  group-id: cowork-notification
+
+fcm:
+  credentials-file: /run/secrets/firebase-credentials.json
+
+preference:
+  service-url: http://cowork-preference:9001
+
+team:
+  service-url: http://cowork-team:8085
+
+user:
+  service-url: http://cowork-user:8082
+
+eureka:
+  server-url: http://cowork-config:8761/eureka
+  app-name: cowork-notification
+  instance:
+    host: cowork-notification
+    port: 8086
