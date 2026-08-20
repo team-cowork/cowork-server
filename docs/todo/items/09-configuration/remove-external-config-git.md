@@ -2,7 +2,45 @@
 
 - **서비스**: cowork-config, Config Client 11개, 배포 인프라
 - **우선순위**: 🟠 중간
-- **결론**: 제거 가능하지만 현재 `CONFIG_GIT_*`만 삭제하면 prod 일반 설정이 사라지므로, 아래 이관과 검증을 먼저 완료해야 함
+- **결론**: Git backend 제거와 `cowork-*-prod.yml` 11개 추가 완료. 외부 Git 원본과의 key 대조 및 staging 검증이 남아 있음
+
+## 진행 상태 (2026-08-20)
+
+| 단계 | 상태 |
+|---|---|
+| 1. 외부 Git·운영 env property inventory | ❌ 미수행 (외부 저장소 접근 불가) |
+| 2. key 분류 (native / Vault / topology / client env) | ✅ 완료 |
+| 3. `cowork-*-prod.yml` 11개 추가 | ✅ 완료 |
+| 4. 런타임별 placeholder·우선순위 보완 | ✅ 완료 |
+| 5. prod composite Git → native 교체 | ✅ 완료 |
+| 6. `CONFIG_GIT_*` 제거 | ✅ 완료 |
+| 7. 문서 갱신 | ✅ 완료 |
+| 8. staging 검증 후 단계적 전환 | ❌ 미수행 |
+| 9. 외부 Git 저장소·자격 증명 폐기 | ❌ 미수행 |
+
+1번을 수행하지 못했으므로 **기존 외부 Git이 공급하던 key 중 누락된 것이 있을 수 있다.** `*-prod.yml`은 각 서비스의 `-dev.yml`을 기준으로 작성했다. 외부 저장소 접근이 가능해지면 key set을 대조해야 한다.
+
+### placeholder 처리 규칙 (검증 결과)
+
+Config Server는 native 설정의 `${...}`를 **해석하지 않고 그대로 클라이언트에 전달한다.** 따라서 런타임별로 사용 방식이 다르다.
+
+| 구분 | 서비스 | 규칙 |
+|---|---|---|
+| Spring | gateway, channel, project, roadmap, team, preference | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}` 사용 가능. 기본값이 없는 이름은 Config Server `overrides`에 등록해 응답에 포함시켜야 한다. |
+| 비Spring | authorization, notification, voice (Go), chat (NestJS), user (Elixir) | 원격 문자열의 placeholder를 해석하지 않는다. **리터럴 값만 사용한다.** 배포 환경에서 바꿔야 하는 값은 `overrides`에 같은 키 이름으로 등록하거나 해당 컨테이너의 환경변수로 덮어쓴다. |
+
+`overrides`에 등록된 flat 키는 Spring 클라이언트의 placeholder 해석 소스가 되는 동시에, 비Spring 클라이언트가 키 이름으로 직접 읽는 값이 된다. 현재 등록 대상은 `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL`, `LIVEKIT_URL`, `LIVEKIT_WS_URL`이다.
+
+### 검증 완료 항목
+
+Config Server를 `native` 프로파일로 기동하고 prod와 동일한 `overrides`를 주입해 `GET /cowork-{service}/prod` 11개 응답을 확인했다.
+
+- 11개 모두 `cowork-{service}-prod.yml`이 propertySources에 로드됨
+- 비Spring 5개 서비스 응답에 미해결 placeholder 없음
+- Spring 6개 서비스의 남은 placeholder는 전부 기본값 보유·`overrides` 제공·Vault 제공 중 하나로 해석 가능
+- 공통 `application.yml`의 `spring.kafka.bootstrap-servers`는 비Spring 서비스가 읽지 않는 키이므로 무해 (각각 `KAFKA_BOOTSTRAP_SERVERS`, `kafka.brokers`, `KAFKA_BROKERS`, `kafka_bootstrap_servers`를 사용)
+
+Vault 연결이 필요한 시크릿 해석과 각 서비스 실제 기동 테스트는 8번에서 수행한다.
 
 ## 현재 구조와 제거 조건
 

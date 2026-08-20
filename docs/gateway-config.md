@@ -13,9 +13,9 @@
 | `local`  | Vault → `classpath:/configs/` | 로컬 Compose 기본값              |
 | `dev`    | Vault → `classpath:/configs/` | 개발 배포                        |
 | `native` | `classpath:/configs/`         | Vault 없이 일반 설정만 확인할 때 |
-| `prod`   | Vault → Git 저장소            | 운영 배포                        |
+| `prod`   | Vault → `classpath:/configs/` | 운영 배포                        |
 
-Vault는 KV v2의 `secret/application` 공통 경로와 `secret/{application}` 서비스 경로를 읽는다. `prod`의 Git 백엔드는 `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD`로 설정한다.
+Vault는 KV v2의 `secret/application` 공통 경로와 `secret/{application}` 서비스 경로를 읽는다.
 
 ### 로컬 Vault 초기화
 
@@ -173,7 +173,6 @@ Redis
 |---------------|----------------------------------------------------------------|------------------------------|
 | config        | `SPRING_PROFILES_ACTIVE`                                       | Compose 기본 `local`         |
 | config        | `VAULT_HOST`, `VAULT_PORT`, `VAULT_SCHEME`, `VAULT_TOKEN`      | Vault 연결                   |
-| config        | `CONFIG_GIT_URI`, `CONFIG_GIT_USERNAME`, `CONFIG_GIT_PASSWORD` | `prod` Git 백엔드            |
-| Config Server | Kafka, Redis, Eureka와 Gateway route                           | native/Git 일반 설정         |
+| Config Server | Kafka, Redis, Eureka와 Gateway route                           | native 일반 설정             |
 
 JWT secret은 `vault-init`이 `secret/cowork-gateway`의 `jwt.secret`으로 기록하고 Config Server가 Gateway에 전달한다. 빈 값이면 Gateway 설정 바인딩 검증 단계에서 기동에 실패한다.
