@@ -125,7 +125,6 @@ export IMAGE_TAG=v1.2.3
 export SPRING_PROFILES_ACTIVE=prod
 export VAULT_HOST=vault.example.com
 export VAULT_TOKEN=...
-export CONFIG_GIT_URI=https://github.com/your-org/cowork-config-repo.git
 export LIVEKIT_API_KEY=...
 export LIVEKIT_API_SECRET=...
 export LIVEKIT_WS_URL=wss://livekit.example.com
@@ -238,7 +237,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | DB 비밀번호         | `.env`의 개발용 값                        | 운영용 강한 비밀번호로 교체                                                        |
 | Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                                                     |
 | SeaweedFS           | 로컬 컨테이너                             | S3 호환 엔드포인트로 변경                                                          |
-| Elasticsearch       | `http://elasticsearch:9200`               | 운영 Config Git에서 관리형 ES 클러스터 주소로 변경                                |
+| Elasticsearch       | `http://elasticsearch:9200`               | `cowork-chat-prod.yml`에서 관리형 ES 클러스터 주소로 변경                          |
 
 운영 오버레이는 Linux 단일 호스트 Compose 배포를 위한 최소 기준이다. LiveKit은 대규모 UDP 포트 매핑에 따른 Docker 프록시/NAT 비용을 피하기 위해 host network를 사용하며, `cowork-voice`는 `host.docker.internal`의 host-gateway 매핑으로 LiveKit API에 접근한다. `LIVEKIT_WS_URL`에는 외부 클라이언트가 접속할 수 있는 TLS URL을 지정한다.
 
@@ -346,7 +345,7 @@ Loki는 기동되지만 현재 모든 애플리케이션의 파일 로그를 수
 `cowork-chat`:
 - Docker Compose 로컬 실행 시 시작 전에 Config Server에서 설정을 받아 `process.env`에 로드한다.
 - `MONGODB_URI`는 Vault `secret/cowork-chat`, SeaweedFS 자격증명은 `secret/application`에서 공급된다.
-- `ELASTICSEARCH_URL`은 Config Server 일반 설정으로 공급된다. 로컬 기본값은 `http://elasticsearch:9200`이며 운영에서는 Config Git의 값을 실제 클러스터 주소로 변경한다.
+- `ELASTICSEARCH_URL`은 Config Server 일반 설정으로 공급된다. 로컬 기본값은 `http://elasticsearch:9200`이며 운영에서는 `cowork-chat-prod.yml`의 값을 실제 클러스터 주소로 변경한다.
 - **인덱싱 대상**: `projectId`가 있는 메시지만 ES에 인덱싱된다. DM·비프로젝트 채널 메시지는 인덱싱되지 않는다.
 - **인덱스 자동 생성**: 앱 기동 시 `OnModuleInit`에서 `chat_messages` 인덱스가 없으면 자동 생성한다. nori 분석기와 `createdAt` + `messageId` 복합 정렬이 기본 설정된다.
 - **커서 형식**: 검색 페이지네이션의 `nextCursor`는 ES `sort` 배열(`[createdAt, messageId]`)을 `base64(JSON.stringify(...))` 인코딩한 불투명 문자열이다. 이전 방식(messageId 단순 문자열)과 **호환되지 않으므로** 기존 커서를 가진 클라이언트는 재조회가 필요하다.
