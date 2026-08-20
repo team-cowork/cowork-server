@@ -25,7 +25,7 @@ class LinkGithubRepoServiceImplTest {
     private val projectAccessGuard =
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private val service = LinkGithubRepoServiceImpl(projectMemberRepository, projectAccessGuard)
+    private val service = LinkGithubRepoServiceImpl(projectRepository, projectMemberRepository, projectAccessGuard)
 
     private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
@@ -36,10 +36,29 @@ class LinkGithubRepoServiceImplTest {
         every { projectRepository.findById(1L) } returns Optional.of(proj)
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+        every {
+            projectRepository.existsByTeamIdAndGithubRepoUrlAndIdNot(100L, "https://github.com/my-org/my-repo", 1L)
+        } returns false
 
         val response = service.execute(99L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
 
         assertEquals("https://github.com/my-org/my-repo", response.githubRepoUrl)
+    }
+
+    @Test
+    fun `linkGithubRepo는 팀 내 다른 프로젝트가 이미 연결한 레포면 CONFLICT`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+        every {
+            projectRepository.existsByTeamIdAndGithubRepoUrlAndIdNot(100L, "https://github.com/my-org/my-repo", 1L)
+        } returns true
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(99L, 1L, LinkGithubRepoReqDto("https://github.com/my-org/my-repo"))
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
     }
 
     @Test
