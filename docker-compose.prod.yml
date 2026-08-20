@@ -5,8 +5,15 @@
 #   REGISTRY     - 컨테이너 레지스트리 주소 (예: ghcr.io/your-org)
 #   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
 #   SPRING_PROFILES_ACTIVE=prod
-#   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI (외부 Vault/Config Git은 배포 전에 준비)
+#   VAULT_HOST, VAULT_TOKEN (외부 Vault는 배포 전에 준비)
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
+#   S3_PUBLIC_ENDPOINT, S3_PUBLIC_BASE_URL - 클라이언트가 접근 가능한 오브젝트 스토리지 공개 주소
+#   PUBLIC_WEB_ORIGIN - 웹 클라이언트 origin (CORS·OAuth redirect)
+#   PUBLIC_API_BASE_URL - 외부에 노출되는 Gateway base URL (OAuth callback)
+#   GITHUB_APP_SERVICE_URL - GitHub App 연동 서비스 주소
+#
+# 위 값들은 cowork-config가 native prod 설정의 placeholder를 해석할 때 사용하므로
+# Config Server 컨테이너에 주입되어야 한다.
 services:
   cowork-config:
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
@@ -21,9 +28,14 @@ services:
       VAULT_PORT: ${VAULT_PORT:-8200}
       VAULT_SCHEME: https
       VAULT_TOKEN: ${VAULT_TOKEN:?VAULT_TOKEN is required}
-      CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
-      CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
-      CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
+      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?S3_PUBLIC_ENDPOINT is required}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:?S3_PUBLIC_BASE_URL is required}
+      PUBLIC_WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN:?PUBLIC_WEB_ORIGIN is required}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
+      GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL:?GITHUB_APP_SERVICE_URL is required}
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
 
   vault:
     profiles: [local-vault]
