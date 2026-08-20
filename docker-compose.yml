@@ -356,41 +356,10 @@ services:
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
 
-  # TODO: 임시 변통 - 홈서버 등 Eureka 미등록 외부 호스트를 Prometheus가 스크랩/probe할 수 있도록
-  # EXTERNAL_HOST_URL 환경변수를 기반으로 file_sd 대상 json을 생성한다. Prometheus는 원래
-  # config.expand-env 같은 환경변수 치환 기능이 없어 file_sd 파일을 미리 만들어두는 방식으로 우회한다.
-  # ExternalRouteConfig(gateway)를 제거할 때 이 서비스와 sd/blackbox, sd/external-home-metrics.json도 함께 정리할 것.
-  prometheus-external-target-writer:
-    image: busybox:1.36
-    container_name: cowork-prometheus-external-target-writer
-    environment:
-      EXTERNAL_HOST_URL: ${EXTERNAL_HOST_URL:-}
-      EXTERNAL_HOST_NAME: ${EXTERNAL_HOST_NAME:-external}
-      EXTERNAL_HOST_HEALTH_PATH: ${EXTERNAL_HOST_HEALTH_PATH:-/health}
-    volumes:
-      - ./cowork-monitoring/prometheus/sd:/sd
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mkdir -p /sd/blackbox
-        if [ -n "$$EXTERNAL_HOST_URL" ]; then
-          url_trimmed="$${EXTERNAL_HOST_URL%/}"
-          host_port="$${url_trimmed#*://}"
-          printf '[{"targets":["%s%s"],"labels":{}}]\n' "$$url_trimmed" "$$EXTERNAL_HOST_HEALTH_PATH" > /sd/blackbox/external-home.json
-          printf '[{"targets":["%s"],"labels":{"service":"%s","__metrics_path__":"/actuator/prometheus"}}]\n' "$$host_port" "$$EXTERNAL_HOST_NAME" > /sd/external-home-metrics.json
-        else
-          printf '[]\n' > /sd/blackbox/external-home.json
-          printf '[]\n' > /sd/external-home-metrics.json
-        fi
-    restart: "no"
-
   prometheus:
     image: prom/prometheus:v3.12.0
     container_name: cowork-prometheus
     restart: unless-stopped
-    depends_on:
-      prometheus-external-target-writer:
-        condition: service_completed_successfully
     ports:
       - "9090:9090"
     volumes:
@@ -578,11 +547,6 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
-      # TODO: 임시 - 홈서버 등 Eureka 미등록 외부 호스트 연동. ExternalRouteConfig 제거 시 함께 삭제할 것
-      EXTERNAL_HOST_URL: ${EXTERNAL_HOST_URL:-}
-      EXTERNAL_HOST_NAME: ${EXTERNAL_HOST_NAME:-external}
-      EXTERNAL_HOST_HEALTH_PATH: ${EXTERNAL_HOST_HEALTH_PATH:-/health}
-      EXTERNAL_HOST_DOCS_PATH: ${EXTERNAL_HOST_DOCS_PATH:-/v3/api-docs}
     ports:
       - "8080:8080"
     volumes:

@@ -35,16 +35,16 @@
 - Prometheus: `/actuator/prometheus`
 - 통합 Swagger UI: `/swagger-ui.html`
 
-라우트의 기준 파일은 `cowork-config/src/main/resources/configs/cowork-gateway-{profile}.yml`입니다. 임시 외부 호스트 프록시는 `EXTERNAL_HOST_URL`이 설정된 경우에만 `/api/external/**`로 활성화됩니다.
+라우트의 기준 파일은 `cowork-config/src/main/resources/configs/cowork-gateway-{profile}.yml`입니다.
 
 ## 주요 환경 변수
 
 Compose는 Config Server 접속에 필요한 부트스트랩 값만 직접 주입합니다.
 
-| 공급원 | 설정 |
-|---|---|
-| Compose | `SPRING_CONFIG_IMPORT`, `SPRING_PROFILES_ACTIVE`, 임시 `EXTERNAL_HOST_*` override |
+| 공급원        | 설정                                                        |
+|---------------|-------------------------------------------------------------|
+| Compose       | `SPRING_CONFIG_IMPORT`, `SPRING_PROFILES_ACTIVE`            |
 | Config Server | 라우트, Redis, Kafka, Eureka, circuit breaker, Swagger 집계 |
-| Vault | `jwt.secret` |
+| Vault         | `jwt.secret`                                                |
 
 Compose에서는 Config Server 연결이 필수이며 조회에 실패하면 기동하지 않습니다.
