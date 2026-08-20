@@ -1,0 +1,357 @@
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+  cloud:
+    gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "${PUBLIC_WEB_ORIGIN}"
+            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: authorization-service
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: authorization-webhook
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/events/datagsm
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: user-service
+          uri: lb://cowork-user
+          predicates:
+            - Path=/api/users/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: project-team-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/teams/*/projects/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: team-service
+          uri: lb://cowork-team
+          predicates:
+            - Path=/api/teams/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/projects/*/messages/search
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service-team-search
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/search/messages
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service-search
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/search/channels
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: project-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/projects/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: roadmap-service
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/api/roadmaps/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service-legacy
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chats/**
+          filters:
+            - RewritePath=/api/chats/?(?<segment>.*), /chat/$\{segment}
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/ws/chat/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        # DM 채널 열기(멱등 생성)는 channel 서비스가 담당
+        - id: dm-open
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/dms
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        # DM 목록 조회/숨기기는 chat 서비스가 담당
+        - id: dm-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/dms, /api/dms/**
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        # 사용자 차단 (DM 수신 거부)
+        - id: block-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/block, /api/block/**
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: voice-service-webhook
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/webhook
+            - Method=POST
+          filters:
+            - StripPrefix=1
+
+        - id: voice-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: authorization-service-docs
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/v3/api-docs/authorization
+          filters:
+            - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
+
+        - id: user-service-docs
+          uri: lb://cowork-user
+          predicates:
+            - Path=/v3/api-docs/user
+          filters:
+            - RewritePath=/v3/api-docs/user, /v3/api-docs
+
+        - id: voice-service-docs
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/v3/api-docs/voice
+          filters:
+            - RewritePath=/v3/api-docs/voice, /swagger/doc.json
+
+        - id: chat-service-docs
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/v3/api-docs/chat
+          filters:
+            - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: notification-service-sse
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/stream
+          filters:
+            - StripPrefix=1
+          metadata:
+            response-timeout: -1  # SSE는 타임아웃 없음
+
+        - id: notification-service
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notifications/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: roadmap-service-docs
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/v3/api-docs/roadmap
+          filters:
+            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
+
+# jwt.secret은 Vault secret/application 에서 주입됨 (여기서 정의하지 않음)
+
+app:
+  ws:
+    allowed-origins:
+      - "${PUBLIC_WEB_ORIGIN}"
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      defaultCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
