@@ -42,4 +42,4 @@
 | Config Server | 앱 포트, MySQL URL, Kafka, Eureka, GitHub App 서비스 URL |
 | Vault | MySQL 계정, `github-app.internal-api-key` |
 
-`local`/`dev` 설정은 Config 저장소에 포함되어 있으며 운영값은 외부 Config Git과 Vault에 등록해야 합니다.
+`local`/`dev` 설정은 Config 저장소에 포함되어 있으며 운영 시크릿은 Vault에 등록해야 합니다.
