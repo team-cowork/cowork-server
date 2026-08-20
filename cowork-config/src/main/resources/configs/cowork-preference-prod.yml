@@ -1,0 +1,23 @@
+server:
+  port: 9001
+
+preference:
+  db:
+    host: ${POSTGRES_HOST:postgres}
+    port: ${POSTGRES_PORT:5432}
+    database: cowork_preference
+    schema: preference
+    username: ${POSTGRES_USER}
+    password: ${POSTGRES_PASSWORD}
+    pool-size: 10
+  redis:
+    host: ${REDIS_HOST:redis}
+    port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+eureka:
+  url: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  app-name: ${EUREKA_APP_NAME:cowork-preference}
+  instance:
+    host: ${PREFERENCE_INSTANCE_HOST:cowork-preference}

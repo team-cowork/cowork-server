@@ -1,0 +1,26 @@
+# MONGODB_URI, JWT_SECRET, DISCORD_WEBHOOK_URL은 Vault secret/cowork-chat 에서 주입됨
+# NestJS 런타임은 원격 문자열의 ${ENV}를 해석하지 않는다.
+# S3_* 는 Config Server overrides가 같은 키 이름으로 덮어쓰므로 여기 값은 사용되지 않는다.
+PORT: 8087
+NODE_ENV: production
+ELASTICSEARCH_URL: http://elasticsearch:9200
+MONGODB_DIRECT_CONNECTION: false
+MONGODB_SERVER_SELECTION_TIMEOUT_MS: 5000
+MONGODB_CONNECT_TIMEOUT_MS: 5000
+KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+PROJECT_SERVICE_URL: http://cowork-project:8084
+CHANNEL_SERVICE_URL: http://cowork-channel:8083
+USER_SERVICE_URL: http://cowork-user:8082
+REDIS_HOST: redis
+REDIS_PORT: 6379
+EUREKA_ENABLED: true
+EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+EUREKA_APP_NAME: cowork-chat
+EUREKA_INSTANCE_HOST: cowork-chat
+EUREKA_LEASE_RENEWAL_SECONDS: 30
+S3_INTERNAL_ENDPOINT: http://seaweedfs:9000
+S3_BUCKET: cowork-bucket
+S3_CHAT_MAX_FILE_SIZE_BYTES: 104857600
+S3_CHAT_ALLOWED_CONTENT_TYPES: video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/ogg,audio/wav,audio/mp4,image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain
+S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS: 60000
+S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS: 20
