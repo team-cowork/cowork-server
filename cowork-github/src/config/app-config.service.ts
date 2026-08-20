@@ -77,6 +77,10 @@ export class AppConfigService {
     return this.configService.getOrThrow<string>('INTERNAL_API_KEY');
   }
 
+  get githubWebhookSecret(): string {
+    return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
+  }
+
   private getNumber(key: string, fallback: number): number {
     return Number(this.configService.get(key) ?? fallback);
   }
