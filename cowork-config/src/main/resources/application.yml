@@ -115,6 +115,15 @@ spring:
   cloud:
     config:
       server:
+        overrides:
+          S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
+          S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
+          S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
+          PUBLIC_WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN}
+          PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
+          GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
+          LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
+          LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
         composite:
           - type: vault
             host: ${VAULT_HOST}
@@ -126,10 +135,5 @@ spring:
             backend: secret
             profile-separator: "/"
             default-context: application
-          - type: git
-            uri: ${CONFIG_GIT_URI}
-            username: ${CONFIG_GIT_USERNAME}
-            password: ${CONFIG_GIT_PASSWORD}
-            default-label: main
-            clone-on-start: true
-            force-pull: true
+          - type: native
+            search-locations: classpath:/configs/
