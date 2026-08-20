@@ -50,6 +50,20 @@ export class GithubAuthService {
     return data.token;
   }
 
+  async getInstallationAccountLogin(installationId: number): Promise<string> {
+    const jwt = this.generateJwt();
+    const { data } = await this.requestGithub<{ account: { login: string } }>(
+      () =>
+        firstValueFrom(
+          this.httpService.get<{ account: { login: string } }>(
+            `${GITHUB_API}/app/installations/${installationId}`,
+            { headers: { ...GITHUB_HEADERS, Authorization: `Bearer ${jwt}` } },
+          ),
+        ),
+    );
+    return data.account.login;
+  }
+
   private async resolveInstallationId(owner: string): Promise<number> {
     const cachedInMemory = this.getCachedInstallationId(owner);
     if (cachedInMemory) return cachedInMemory;

@@ -140,4 +140,32 @@ describe('GithubAuthService', () => {
       new GithubClientError('Forbidden', 403),
     );
   });
+
+  it('installation의 계정 login을 조회한다', async () => {
+    httpService.get.mockReturnValue(
+      of({ data: { account: { login: 'my-org' } } }),
+    );
+
+    const login = await service.getInstallationAccountLogin(42);
+
+    expect(login).toBe('my-org');
+    expect(httpService.get).toHaveBeenCalledWith(
+      'https://api.github.com/app/installations/42',
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'Bearer mock-jwt',
+        }) as unknown,
+      }),
+    );
+  });
+
+  it('installation 계정 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
+    httpService.get.mockReturnValueOnce(
+      throwError(() => createAxiosError(404, 'Installation not found')),
+    );
+
+    await expect(service.getInstallationAccountLogin(42)).rejects.toEqual(
+      new GithubClientError('Installation not found', 404),
+    );
+  });
 });
