@@ -21,6 +21,10 @@ interface ProjectRepository :
 
     fun findByTeamId(teamId: Long, pageable: Pageable): Page<Project>
 
+    fun existsByTeamIdAndGithubRepoUrlAndIdNot(teamId: Long, githubRepoUrl: String, id: Long): Boolean
+
+    fun findByGithubRepoUrl(githubRepoUrl: String): Project?
+
     @Query("SELECT COALESCE(MAX(p.position), -1) FROM Project p WHERE p.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
