@@ -28,6 +28,8 @@ data class ProjectDetailResDto(
     val memberCount: Long,
     @field:Schema(description = "연결된 GitHub 레포지토리 URL", example = "https://github.com/my-org/my-repo")
     val githubRepoUrl: String?,
+    @field:Schema(description = "GitHub 알림을 수신할 채널 ID", example = "10")
+    val githubWebhookChannelId: Long?,
 ) {
     companion object {
         fun of(project: Project, memberCount: Long): ProjectDetailResDto = ProjectDetailResDto(
@@ -42,6 +44,7 @@ data class ProjectDetailResDto(
             updatedAt = project.updatedAt,
             memberCount = memberCount,
             githubRepoUrl = project.githubRepoUrl,
+            githubWebhookChannelId = project.githubWebhookChannelId,
         )
     }
 }
