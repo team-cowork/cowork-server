@@ -1,9 +1,11 @@
-import { Controller, Get, Header, Query } from '@nestjs/common';
+import { Controller, Get, Header, Logger, Query } from '@nestjs/common';
 import { GithubAuthService } from '../../auth/github-auth.service';
 import { TeamGithubProducer } from '../kafka/team-github.producer';
 
 @Controller('github/setup')
 export class GithubSetupController {
+  private readonly logger = new Logger(GithubSetupController.name);
+
   constructor(
     private readonly authService: GithubAuthService,
     private readonly producer: TeamGithubProducer,
@@ -16,11 +18,11 @@ export class GithubSetupController {
     @Query('setup_action') setupAction: string,
     @Query('state') state?: string,
   ): Promise<string> {
-    if (!installationIdRaw) {
+    const installationId = Number(installationIdRaw);
+    if (!installationIdRaw || !Number.isInteger(installationId)) {
       return this.page('설치 정보를 확인할 수 없습니다. 다시 시도해주세요.');
     }
 
-    const installationId = Number(installationIdRaw);
     if (setupAction === 'delete') {
       return this.page('GitHub 앱 연동이 해제되었습니다. 이 창을 닫아주세요.');
     }
@@ -34,11 +36,19 @@ export class GithubSetupController {
           installationId,
           orgLogin,
         });
+      } else {
+        this.logger.warn(
+          `Setup callback missing state, cannot correlate to a team [installationId=${installationId}]`,
+        );
       }
       return this.page(
         'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
       );
-    } catch {
+    } catch (error) {
+      this.logger.error(
+        `Failed to process setup callback [installationId=${installationId}]`,
+        error instanceof Error ? error.stack : String(error),
+      );
       return this.page(
         'GitHub 연동 처리 중 오류가 발생했습니다. cowork에서 다시 시도해주세요.',
       );
