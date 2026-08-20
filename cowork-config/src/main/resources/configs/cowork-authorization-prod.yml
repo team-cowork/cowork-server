@@ -1,0 +1,15 @@
+# DB_DSN, DATAGSM_CLIENT_ID, DATAGSM_WEBHOOK_SECRET, JWT_SECRET은 Vault secret/cowork-authorization 에서 주입됨
+# Go 런타임은 원격 문자열의 ${ENV}를 해석하지 않으므로 리터럴 값만 사용한다.
+# 배포 환경에서 바꿔야 하는 값은 Config Server overrides 또는 이 서비스의 환경변수로 덮어쓴다.
+PORT: 8081
+DATAGSM_TOKEN_URL: https://oauth.authorization.datagsm.kr/v1/oauth/token
+DATAGSM_USERINFO_URL: https://oauth.resource.datagsm.kr/userinfo
+KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+KAFKA_TOPIC_USER_SYNC: user.data.sync
+JWT_ACCESS_EXPIRE: 30m
+JWT_REFRESH_EXPIRE: 2160h
+EUREKA_SERVER_URL: http://cowork-config:8761/eureka
+EUREKA_APP_NAME: cowork-authorization
+EUREKA_INSTANCE_HOST: cowork-authorization
+EUREKA_INSTANCE_PORT: 8081
+USER_SERVICE_URL: http://cowork-user:8082
