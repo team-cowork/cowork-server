@@ -26,9 +26,9 @@
 |----------|------------------------------------------|
 | `local`  | Vault + classpath `configs/*-local.yml`  |
 | `dev`    | Vault + classpath `configs/*-dev.yml`    |
-| `prod`   | 외부 Vault + `CONFIG_GIT_URI` Git 저장소 |
+| `prod`   | 외부 Vault + classpath `configs/*-prod.yml` |
 
-`local`과 `dev`에는 Gateway와 모든 backend business service의 설정 파일이 존재해야 한다. `prod` 설정은 배포 전 외부 Config Git과 Vault에 동일한 application 이름으로 등록한다.
+`local`과 `dev`에는 Gateway와 모든 backend business service의 설정 파일이 존재해야 한다. `prod` 설정도 같은 classpath 경로에 두고, 시크릿만 배포 전 Vault에 동일한 application 이름으로 등록한다.
 
 ## Vault 경로
 
@@ -62,7 +62,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 ## 변경 절차
 
 1. 일반 설정은 `cowork-config/src/main/resources/configs/cowork-{service}-{profile}.yml`에 추가한다.
-2. 시크릿은 코드나 Config Git에 값을 넣지 않고 Vault key 이름만 정의한다.
+2. 시크릿은 코드에 값을 넣지 않고 Vault key 이름만 정의한다.
 3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `vault-init.sh` 저장 경로를 함께 갱신한다.
 4. 파일형 credential은 read-only Docker secret 또는 배포 secret volume을 사용한다.
 5. 모듈 README의 설정 공급 표를 함께 갱신한다.
@@ -70,8 +70,9 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 ## 운영 체크
 
-- `VAULT_HOST`, `VAULT_TOKEN`, `CONFIG_GIT_URI`는 Config Server 부트스트랩 값으로 배포 환경에서 주입한다.
-- 운영 Config Git에는 시크릿 값을 커밋하지 않는다.
+- `VAULT_HOST`, `VAULT_TOKEN`은 Config Server 부트스트랩 값으로 배포 환경에서 주입한다.
+- native 설정 파일에는 시크릿 값을 커밋하지 않는다.
+- `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`은 클라이언트가 도달 가능한 주소로 배포 환경에서 주입한다. 미주입 시 Config Server가 기동에 실패한다.
 - 필수 시크릿이 없을 때 기본 개발 키로 대체하지 않는다.
 - 분산 배포 모듈의 Config Server/Eureka 접근을 위해 현재 `8761` 포트를 모든 인터페이스에 공개한다. 인증과 네트워크 제한은 [Config Server 접근 보호 TODO](./todo/items/08-security/config-server-access-control.md)로 관리한다.
 - Config Server와 Vault를 우회하는 서비스 직접 포트는 운영 외부망에 공개하지 않는다.
