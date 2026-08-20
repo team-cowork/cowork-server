@@ -1,5 +1,7 @@
 package com.cowork.project.global.config
 
+import com.cowork.project.global.consumer.TeamGithubConnectedPayload
+import com.cowork.project.global.consumer.TeamGithubDisconnectedPayload
 import com.cowork.project.global.consumer.TeamLifecyclePayload
 import com.cowork.project.global.consumer.UserLifecyclePayload
 import org.apache.kafka.clients.consumer.ConsumerConfig
@@ -63,4 +65,14 @@ class KafkaConsumerConfig(
     @Bean
     fun userLifecycleListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, UserLifecyclePayload> =
         listenerContainerFactory(UserLifecyclePayload::class.java)
+
+    @Bean
+    fun teamGithubConnectedListenerContainerFactory():
+        ConcurrentKafkaListenerContainerFactory<String, TeamGithubConnectedPayload> =
+        listenerContainerFactory(TeamGithubConnectedPayload::class.java)
+
+    @Bean
+    fun teamGithubDisconnectedListenerContainerFactory():
+        ConcurrentKafkaListenerContainerFactory<String, TeamGithubDisconnectedPayload> =
+        listenerContainerFactory(TeamGithubDisconnectedPayload::class.java)
 }
