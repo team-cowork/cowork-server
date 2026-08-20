@@ -62,13 +62,6 @@ scrape_configs:
           - http://host.docker.internal:8088/actuator/health
           - http://host.docker.internal:8089/health
           - http://host.docker.internal:9001/health
-    file_sd_configs:
-      # TODO: 임시 변통 - 홈서버 등 EXTERNAL_HOST_URL 환경변수로 지정한 외부 호스트 헬스체크 대상.
-      # sd/blackbox/external-home.json은 prometheus-external-target-writer가 기동 시 생성한다.
-      # ExternalRouteConfig(gateway)를 제거할 때 이 설정과 writer 서비스도 함께 정리할 것.
-      - files:
-          - /etc/prometheus/sd/blackbox/*.json
-        refresh_interval: 30s
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target
