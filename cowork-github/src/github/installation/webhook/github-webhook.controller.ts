@@ -15,6 +15,8 @@ import { GithubWebhookSignatureGuard } from './github-webhook-signature.guard';
 @Controller('github/webhooks')
 @UseGuards(GithubWebhookSignatureGuard)
 export class GithubWebhookController {
+  private static readonly DISCONNECT_ACTIONS = new Set(['deleted', 'suspend']);
+
   private readonly logger = new Logger(GithubWebhookController.name);
 
   constructor(
@@ -46,7 +48,13 @@ export class GithubWebhookController {
   private async handleInstallation(
     payload: GithubWebhookPayload,
   ): Promise<void> {
-    if (payload?.action !== 'deleted') return; // 'created'는 state가 없어 상관관계를 지을 수 없음 — setup 콜백에서만 처리
+    // 'created'는 state가 없어 상관관계를 지을 수 없음 — setup 콜백에서만 처리
+    if (
+      !payload?.action ||
+      !GithubWebhookController.DISCONNECT_ACTIONS.has(payload.action)
+    ) {
+      return;
+    }
     if (!payload.installation) return;
     await this.producer.send('team.github.disconnected', {
       installationId: payload.installation.id,
@@ -80,7 +88,7 @@ export class GithubWebhookController {
   ): string {
     if (eventName === 'push') {
       const commitCount = payload.commits?.length ?? 0;
-      const ref = (payload.ref ?? '').replace('refs/heads/', '');
+      const ref = (payload.ref ?? '').replace(/^refs\/(heads|tags)\//, '');
       const pusher = payload.pusher?.name ?? 'unknown';
       return `📦 ${pusher}님이 ${ref}에 커밋 ${commitCount}개를 푸시했습니다.`;
     }
