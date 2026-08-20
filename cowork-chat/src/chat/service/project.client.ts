@@ -15,6 +15,15 @@ export interface GithubRepoInfo {
 }
 
 /**
+ * GitHub 저장소 이벤트를 게시할 대상(팀/프로젝트/알림 채널) 정보.
+ */
+export interface GithubWebhookTarget {
+    teamId: number;
+    projectId: number;
+    channelId: number;
+}
+
+/**
  * project-service와 HTTP 통신하는 클라이언트.
  *
  * 환경변수 `PROJECT_SERVICE_URL`을 베이스 URL로 사용하며,
@@ -114,6 +123,35 @@ export class ProjectClient extends BaseHttpClient {
             }
         } catch (err) {
             this.logger.error(`Failed to check membership in project-service projectId=${projectId} userId=${userId}`, err);
+            throw err;
+        }
+    }
+
+    /**
+     * `owner`/`repo`에 연결된 프로젝트의 GitHub 알림 대상 채널 정보를 조회한다.
+     *
+     * - 연결된 프로젝트가 없거나 알림 채널이 지정되지 않은 경우 (404) `null`을 반환한다.
+     * - 위 조건 외의 네트워크/HTTP 오류는 예외로 전파한다.
+     *
+     * 이벤트 발생 빈도가 낮아 별도 캐싱 없이 매번 실시간 조회한다.
+     *
+     * @param owner - GitHub 저장소 소유자
+     * @param repo - GitHub 저장소 이름
+     * @returns GitHub 알림 대상 정보, 연결된 프로젝트/채널이 없으면 `null`
+     * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
+     */
+    async getGithubWebhookTarget(owner: string, repo: string): Promise<GithubWebhookTarget | null> {
+        try {
+            const res = await this.fetchWithRetry(
+                `${this.projectServiceUrl}/projects/github-webhook-target?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
+                {},
+                5000,
+            );
+            if (res.status === 404) return null;
+            if (!res.ok) throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
+            return await this.readJsonBody<GithubWebhookTarget>(res);
+        } catch (err) {
+            this.logger.error(`Failed to resolve github webhook target owner=${owner} repo=${repo}`, err);
             throw err;
         }
     }
