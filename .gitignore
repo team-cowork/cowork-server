@@ -61,9 +61,6 @@ logs/
 .run/
 screenlog.*
 
-### Generated monitoring discovery ###
-/cowork-monitoring/prometheus/sd/external-home-metrics.json
-
 ### LLM Outputs ###
 PR_BODY.md
 SPEC.md
