@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -152,7 +151,7 @@ func (s *AuthService) Logout(ctx context.Context, userID int64, rawRefreshToken 
 	}
 
 	if err := s.userClient.UpdateStatus(ctx, userID, "offline"); err != nil {
-		log.Printf("failed to set user %d offline on logout: %v", userID, err)
+		return fmt.Errorf("failed to set user %d offline on logout: %w", userID, err)
 	}
 
 	return nil
