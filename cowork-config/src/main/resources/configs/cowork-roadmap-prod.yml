@@ -1,0 +1,20 @@
+server:
+  port: 8088
+
+spring:
+  r2dbc:
+    url: r2dbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_roadmap?serverZoneId=Asia/Seoul
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+  flyway:
+    url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    user: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+
+team-service:
+  base-url: lb://cowork-team
