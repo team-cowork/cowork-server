@@ -64,4 +64,4 @@ Config → Gateway 기동 후 실행한다(서비스 기동 순서 참고).
 | Config Server | 포트, R2DBC/Flyway URL, Eureka, Team 서비스 URL  |
 | Vault         | MySQL 계정과 비밀번호                            |
 
-Compose에서는 Config Server 조회가 필수입니다. `local`과 `dev` 프로파일 모두 `cowork-config/src/main/resources/configs/`에 정의되어 있습니다.
+Compose에서는 Config Server 조회가 필수입니다. `local`과 `prod` 프로파일 모두 `cowork-config/src/main/resources/configs/`에 정의되어 있습니다.
