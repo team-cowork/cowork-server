@@ -1,8 +1,9 @@
+# db.dsn은 Vault secret/cowork-notification 에서 주입됨
+# Go 런타임은 원격 문자열의 ${ENV}를 해석하지 않으며, 중첩 키는 Config Server overrides로도
+# 덮어쓸 수 없으므로 리터럴 값만 사용한다.
+
 server:
   port: 8086
-
-db:
-  dsn: ${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local
 
 kafka:
   brokers: kafka:9092
