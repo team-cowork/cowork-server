@@ -140,18 +140,20 @@ export class ProjectClient extends BaseHttpClient {
      * @returns GitHub 알림 대상 정보, 연결된 프로젝트/채널이 없으면 `null`
      * @throws {Error} 404 이외의 HTTP 오류 또는 네트워크 오류 발생 시
      */
-    async getGithubWebhookTarget(owner: string, repo: string): Promise<GithubWebhookTarget | null> {
+    /**
+     * 서로 다른 팀이 같은 레포를 연결할 수 있어 0개 이상의 대상을 반환할 수 있다.
+     */
+    async getGithubWebhookTargets(owner: string, repo: string): Promise<GithubWebhookTarget[]> {
         try {
             const res = await this.fetchWithRetry(
                 `${this.projectServiceUrl}/projects/github-webhook-target?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
                 {},
                 5000,
             );
-            if (res.status === 404) return null;
             if (!res.ok) throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
-            return await this.readJsonBody<GithubWebhookTarget>(res);
+            return await this.readJsonBody<GithubWebhookTarget[]>(res);
         } catch (err) {
-            this.logger.error(`Failed to resolve github webhook target owner=${owner} repo=${repo}`, err);
+            this.logger.error(`Failed to resolve github webhook targets owner=${owner} repo=${repo}`, err);
             throw err;
         }
     }

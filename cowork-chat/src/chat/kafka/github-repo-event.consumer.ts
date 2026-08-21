@@ -95,19 +95,18 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
     /**
      * GitHub 저장소 활동 이벤트를 처리한다.
      *
-     * 저장소에 연결된 프로젝트의 GitHub 알림 채널이 없으면 무시한다.
-     * 있으면 `summary`를 SYSTEM 메시지로 MongoDB에 저장하고,
-     * Socket.IO `chat:{channelId}` 룸에 `message` 이벤트를 브로드캐스트한다.
+     * 서로 다른 팀이 같은 레포를 연결할 수 있으므로, 알림 채널이 설정된 대상 전부(0개 이상)에
+     * `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
      *
      * @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
      */
     private async handleRepoEvent(event: GithubRepoEvent): Promise<void> {
-        const target = await this.projectClient.getGithubWebhookTarget(event.owner, event.repo);
-        if (!target) return;
+        const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
-        const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, event.summary, target.projectId);
-
-        this.notifyClient(target.channelId, saved.toObject());
+        for (const target of targets) {
+            const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, event.summary, target.projectId);
+            this.notifyClient(target.channelId, saved.toObject());
+        }
     }
 
     /**
