@@ -5,6 +5,8 @@ import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class TeamGithubInstallationConsumer(
@@ -18,13 +20,27 @@ class TeamGithubInstallationConsumer(
         groupId = "cowork-team.github-connected",
         containerFactory = "teamGithubConnectedListenerContainerFactory",
     )
+    @Transactional
     fun consumeConnected(payload: TeamGithubConnectedPayload) {
         val (teamId, _) = try {
             teamGithubStateSupport.verifyState(payload.state)
-        } catch (e: Exception) {
-            log.warn("잘못된 state, 무시: {}", e.message)
+        } catch (e: ExpectedException) {
+            log.warn("team.github.connected state 검증 실패로 이벤트를 무시합니다: {}", e.message)
             return
         }
+        // 이미 다른 팀이 연결해둔 installation이면 탈취를 막기 위해 무시한다.
+        val ownedByOtherTeam = teamRepository.findByGithubInstallationId(payload.installationId)
+            ?.takeIf { it.id != teamId }
+        if (ownedByOtherTeam != null) {
+            log.warn(
+                "installation {}는 이미 다른 팀(teamId={})에 연결되어 있어 teamId={} 연결을 무시합니다",
+                payload.installationId,
+                ownedByOtherTeam.id,
+                teamId,
+            )
+            return
+        }
+
         val team = teamRepository.findById(teamId).orElse(null) ?: run {
             log.warn("team.github.connected: team {} 없음", teamId)
             return
