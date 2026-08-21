@@ -22,10 +22,26 @@ class Team(
 
     @Column(name = "owner_id", nullable = false)
     val ownerId: Long,
+
+    @Column(name = "github_installation_id")
+    var githubInstallationId: Long? = null,
+
+    @Column(name = "github_org_login", length = 255)
+    var githubOrgLogin: String? = null,
 ) : BaseEntity() {
     fun update(name: String?, description: String?, iconUrl: String?) {
         name?.let { this.name = it }
         description?.let { this.description = it }
         iconUrl?.let { this.iconUrl = it }
+    }
+
+    fun connectGithub(installationId: Long, orgLogin: String) {
+        this.githubInstallationId = installationId
+        this.githubOrgLogin = orgLogin
+    }
+
+    fun disconnectGithub() {
+        this.githubInstallationId = null
+        this.githubOrgLogin = null
     }
 }

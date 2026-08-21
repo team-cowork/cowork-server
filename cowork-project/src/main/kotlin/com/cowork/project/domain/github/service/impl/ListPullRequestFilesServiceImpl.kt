@@ -16,8 +16,8 @@ class ListPullRequestFilesServiceImpl(
 ) : ListPullRequestFilesService {
 
     @Transactional(readOnly = true)
-    override fun execute(userId: Long, projectId: Long, prNumber: Int): List<GithubPullRequestFileResDto> {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId)
+    override fun execute(userId: Long, projectId: Long, repoId: Long, prNumber: Int): List<GithubPullRequestFileResDto> {
+        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
         return callExecutor.execute { githubAppClient.listPullRequestFiles(repo.owner, repo.repo, prNumber) }
     }
 }
