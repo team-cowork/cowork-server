@@ -18,8 +18,8 @@ class ApprovePullRequestServiceImpl(
 ) : ApprovePullRequestService {
 
     @Transactional(readOnly = true)
-    override fun execute(userId: Long, projectId: Long, prNumber: Int): GithubApproveResultResDto {
-        val repo = repoAccessResolver.resolveForModify(userId, projectId)
+    override fun execute(userId: Long, projectId: Long, repoId: Long, prNumber: Int): GithubApproveResultResDto {
+        val repo = repoAccessResolver.resolveForModify(userId, projectId, repoId)
         val githubUsername = usernameResolver.resolve(userId)
         return callExecutor.execute {
             githubAppClient.approvePullRequest(
