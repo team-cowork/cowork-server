@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 레포지토리의 PR 조회/머지/승인 API")
 @RestController
-@RequestMapping("/projects/{projectId}/github/pulls/{prNumber}")
+@RequestMapping("/projects/{projectId}/github-repos/{repoId}/pulls/{prNumber}")
 class GithubPullRequestController(
     private val queryPullRequestDetailService: QueryPullRequestDetailService,
     private val listPullRequestFilesService: ListPullRequestFilesService,
@@ -43,8 +43,9 @@ class GithubPullRequestController(
     fun getDetail(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): GithubPullRequestResDto = queryPullRequestDetailService.execute(userId, projectId, prNumber)
+    ): GithubPullRequestResDto = queryPullRequestDetailService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(summary = "PR 파일 변경 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -58,8 +59,9 @@ class GithubPullRequestController(
     fun getFiles(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): List<GithubPullRequestFileResDto> = listPullRequestFilesService.execute(userId, projectId, prNumber)
+    ): List<GithubPullRequestFileResDto> = listPullRequestFilesService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(summary = "PR 머지 (squash)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -74,8 +76,9 @@ class GithubPullRequestController(
     fun merge(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): GithubMergeResultResDto = mergePullRequestService.execute(userId, projectId, prNumber)
+    ): GithubMergeResultResDto = mergePullRequestService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(summary = "PR 승인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -89,6 +92,7 @@ class GithubPullRequestController(
     fun approve(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): GithubApproveResultResDto = approvePullRequestService.execute(userId, projectId, prNumber)
+    ): GithubApproveResultResDto = approvePullRequestService.execute(userId, projectId, repoId, prNumber)
 }
