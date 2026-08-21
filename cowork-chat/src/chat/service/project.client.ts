@@ -146,11 +146,16 @@ export class ProjectClient extends BaseHttpClient {
     async getGithubWebhookTargets(owner: string, repo: string): Promise<GithubWebhookTarget[]> {
         try {
             const res = await this.fetchWithRetry(
-                `${this.projectServiceUrl}/projects/github-webhook-target?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
+                `${this.projectServiceUrl}/internal/projects/github-webhook-target?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`,
                 {},
                 5000,
             );
-            if (!res.ok) throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
+            if (!res.ok) {
+                await res.body?.cancel().catch((err: unknown) => {
+                    this.logger.warn(`Failed to cancel response body owner=${owner} repo=${repo}`, err);
+                });
+                throw new Error(`프로젝트 서비스 응답 오류: ${res.status}`);
+            }
             return await this.readJsonBody<GithubWebhookTarget[]>(res);
         } catch (err) {
             this.logger.error(`Failed to resolve github webhook targets owner=${owner} repo=${repo}`, err);

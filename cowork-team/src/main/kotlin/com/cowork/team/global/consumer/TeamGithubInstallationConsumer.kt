@@ -45,6 +45,20 @@ class TeamGithubInstallationConsumer(
             log.warn("team.github.connected: team {} 없음", teamId)
             return
         }
+
+        // 이미 다른 installation이 연결된 팀이면, 명시적 해제 없이 조용히 교체되지 않도록 거부한다.
+        val currentInstallationId = team.githubInstallationId
+        if (currentInstallationId != null && currentInstallationId != payload.installationId) {
+            log.warn(
+                "team {}는 이미 installation {}에 연결되어 있어 installation {} 연결 요청을 무시합니다. " +
+                    "먼저 연결 해제가 필요합니다.",
+                teamId,
+                currentInstallationId,
+                payload.installationId,
+            )
+            return
+        }
+
         team.connectGithub(payload.installationId, payload.orgLogin)
         teamRepository.save(team)
     }

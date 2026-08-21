@@ -1,14 +1,14 @@
 package com.cowork.project.domain.project.service.impl
 
+import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.project.presentation.data.response.ProjectGithubWebhookTargetResDto
-import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.QueryProjectGithubWebhookTargetService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryProjectGithubWebhookTargetServiceImpl(
-    private val projectRepository: ProjectRepository,
+    private val projectGithubRepoRepository: ProjectGithubRepoRepository,
 ) : QueryProjectGithubWebhookTargetService {
 
     /**
@@ -18,10 +18,14 @@ class QueryProjectGithubWebhookTargetServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(owner: String, repo: String): List<ProjectGithubWebhookTargetResDto> {
         val githubRepoUrl = "https://github.com/$owner/$repo"
-        return projectRepository.findAllByGithubRepoUrl(githubRepoUrl)
-            .mapNotNull { project ->
-                project.githubWebhookChannelId?.let { channelId ->
-                    ProjectGithubWebhookTargetResDto(teamId = project.teamId, projectId = project.id, channelId = channelId)
+        return projectGithubRepoRepository.findAllByGithubRepoUrl(githubRepoUrl)
+            .mapNotNull { repoLink ->
+                repoLink.githubWebhookChannelId?.let { channelId ->
+                    ProjectGithubWebhookTargetResDto(
+                        teamId = repoLink.teamId,
+                        projectId = repoLink.projectId,
+                        channelId = channelId,
+                    )
                 }
             }
     }
