@@ -37,7 +37,7 @@ class ApprovePullRequestServiceImplTest :
             describe("approvePullRequest 메서드는") {
                 context("수정 권한이 있고 GitHub 계정이 연동된 경우") {
                     it("수정 권한으로 레포를 해석하고 githubUsername을 담아 승인을 요청한다") {
-                        every { repoAccessResolver.resolveForModify(7L, 1L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
                         every { usernameResolver.resolve(7L) } returns "octocat"
                         val expected = mockk<GithubApproveResultResDto>()
                         every {
@@ -51,10 +51,10 @@ class ApprovePullRequestServiceImplTest :
                             )
                         } returns expected
 
-                        val result = service.execute(7L, 1L, 5)
+                        val result = service.execute(7L, 1L, 5L, 5)
 
                         result shouldBe expected
-                        verify { repoAccessResolver.resolveForModify(7L, 1L) }
+                        verify { repoAccessResolver.resolveForModify(7L, 1L, 5L) }
                     }
                 }
             }
