@@ -1,23 +1,24 @@
 ---
 paths:
   - "**/db/migration/**/*.sql"
+  - "**/*Entity.kt"
   - "**/*Entity.java"
+  - "**/*Repository.kt"
   - "**/*Repository.java"
+  - "**/*.schema.ts"
 ---
 
 # Database Rules
 
-- Never modify committed Flyway migration files (`V{n}__*.sql`). Add a new version file instead.
-- All table names require the `tb_` prefix.
-  - Index: `idx_tb_{table}_{column}`
-  - Unique key: `uq_tb_{table}_{column}`
-  - FK constraint: `fk_tb_{table}_{target}`
-- Never add real FK constraints across services. Reference another service's ID via a column `COMMENT` indicating the source.
-  ```sql
-  -- correct
-  team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
-  ```
-- Flyway migration file naming: `V{n}__{snake_case_description}.sql` (e.g. `V2__add_github_id.sql`)
-- MongoDB services (`cowork-chat`, `cowork-voice`) do not use Flyway. Manage schema definitions in each service's `schema/` directory.
-- Do not remove or transform the `_id` field from Mongoose documents sent to the client.
-- Set `versionKey: false` in the schema to exclude the `__v` key.
+See CLAUDE.md for the table-naming and cross-service-FK conventions. This file covers the details that only apply to specific file types.
+
+## Migrations (`V{n}__*.sql`)
+
+- Never edit a committed migration — Flyway validates checksums, and the Go services' migration runner tracks applied scripts the same way. Add a new version file.
+- Name new files `V{n}__{snake_case_description}.sql`, e.g. `V2__add_github_id.sql`.
+- Pick `{n}` by looking at the highest existing version **in that service only** — version sequences are per-service, not global.
+
+## Mongoose Schemas (`cowork-chat`)
+
+- Keep `_id` on documents returned to clients; never strip or rename it.
+- Set `versionKey: false` in `@Schema(...)` so `__v` is not serialized.
