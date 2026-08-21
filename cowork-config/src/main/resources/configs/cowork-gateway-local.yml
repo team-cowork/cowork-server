@@ -57,7 +57,7 @@ spring:
         - id: chat-service
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/pins, /api/channels/*/pins/**, /api/channels/*/read, /api/channels/*/github/issues, /api/channels/*/slash-commands
           filters:
             - StripPrefix=1
             - PrefixPath=/chat
@@ -65,7 +65,7 @@ spring:
         - id: channel-service
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/channels/**, /api/teams/*/channels/**, /api/teams/*/channels
+            - Path=/api/channels/**
           filters:
             - StripPrefix=1
             - name: RequestRateLimiter
@@ -124,6 +124,22 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: chat-service-team-unread
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/teams/*/unread
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+
+        - id: team-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/teams/*/channels, /api/teams/*/channels/**
+          filters:
+            - StripPrefix=1
+
         - id: team-service
           uri: lb://cowork-team
           predicates:
@@ -160,6 +176,13 @@ spring:
           predicates:
             - Path=/api/search/channels
             - Method=GET
+          filters:
+            - StripPrefix=1
+
+        - id: project-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/projects/*/channels, /api/projects/*/channels/**
           filters:
             - StripPrefix=1
 
@@ -220,6 +243,13 @@ spring:
           uri: lb://cowork-preference
           predicates:
             - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+
+        - id: live-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/live/**
           filters:
             - StripPrefix=1
 
