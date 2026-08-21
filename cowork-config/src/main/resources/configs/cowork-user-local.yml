@@ -1,3 +1,6 @@
+# DB_USERNAME, DB_PASSWORD, SECRET_KEY_BASE는 Vault secret/cowork-user 에서 주입됨
+# Elixir 런타임은 원격 문자열의 ${ENV}를 해석하지 않는다.
+# s3_* 는 Config Server overrides의 대문자 키(S3_*)가 우선 조회되므로 그 값이 사용된다.
 server_port: 8082
 
 DB_HOST: mysql
@@ -14,10 +17,6 @@ kafka_bootstrap_servers: kafka:9092
 kafka_group_id: cowork-user
 
 s3_region: us-east-1
-s3_internal_endpoint: ${S3_INTERNAL_ENDPOINT}
-s3_public_endpoint: ${S3_PUBLIC_ENDPOINT}
-s3_access_key: ${S3_ACCESS_KEY}
-s3_secret_key: ${S3_SECRET_KEY}
 s3_path_style_access_enabled: true
 
 redis_host: redis
