@@ -34,14 +34,14 @@ class ListPullRequestFilesServiceImplTest :
             describe("listPullRequestFiles 메서드는") {
                 context("조회 권한이 있는 경우") {
                     it("읽기 권한으로 레포를 해석해 PR 파일 목록을 조회한다") {
-                        every { repoAccessResolver.resolveForRead(7L, 1L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
                         val expected = listOf(mockk<GithubPullRequestFileResDto>())
                         every { githubAppClient.listPullRequestFiles("my-org", "my-repo", 5) } returns expected
 
-                        val result = service.execute(7L, 1L, 5)
+                        val result = service.execute(7L, 1L, 5L, 5)
 
                         result shouldBe expected
-                        verify { repoAccessResolver.resolveForRead(7L, 1L) }
+                        verify { repoAccessResolver.resolveForRead(7L, 1L, 5L) }
                     }
                 }
             }
