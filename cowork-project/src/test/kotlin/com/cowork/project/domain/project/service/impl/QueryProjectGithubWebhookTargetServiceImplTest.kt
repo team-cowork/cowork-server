@@ -5,10 +5,8 @@ import com.cowork.project.domain.project.repository.ProjectRepository
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.springframework.http.HttpStatus
-import team.themoment.sdk.exception.ExpectedException
 
 class QueryProjectGithubWebhookTargetServiceImplTest {
 
@@ -27,33 +25,48 @@ class QueryProjectGithubWebhookTargetServiceImplTest {
 
     @Test
     fun `getWebhookTarget은 알림 채널이 설정된 프로젝트가 있으면 대상 정보를 반환`() {
-        every { projectRepository.findByGithubRepoUrl("https://github.com/my-org/my-repo") } returns project()
+        every { projectRepository.findAllByGithubRepoUrl("https://github.com/my-org/my-repo") } returns
+            listOf(project())
 
         val result = service.execute("my-org", "my-repo")
 
-        assertEquals(100L, result.teamId)
-        assertEquals(1L, result.projectId)
-        assertEquals(10L, result.channelId)
+        assertEquals(1, result.size)
+        assertEquals(100L, result[0].teamId)
+        assertEquals(1L, result[0].projectId)
+        assertEquals(10L, result[0].channelId)
     }
 
     @Test
-    fun `getWebhookTarget은 연결된 프로젝트가 없으면 NOT_FOUND`() {
-        every { projectRepository.findByGithubRepoUrl("https://github.com/my-org/my-repo") } returns null
+    fun `getWebhookTarget은 연결된 프로젝트가 없으면 빈 목록`() {
+        every { projectRepository.findAllByGithubRepoUrl("https://github.com/my-org/my-repo") } returns emptyList()
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute("my-org", "my-repo")
-        }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        val result = service.execute("my-org", "my-repo")
+
+        assertTrue(result.isEmpty())
     }
 
     @Test
-    fun `getWebhookTarget은 알림 채널이 설정되지 않았으면 NOT_FOUND`() {
-        every { projectRepository.findByGithubRepoUrl("https://github.com/my-org/my-repo") } returns
-            project(channelId = null)
+    fun `getWebhookTarget은 알림 채널이 설정되지 않은 프로젝트는 제외`() {
+        every { projectRepository.findAllByGithubRepoUrl("https://github.com/my-org/my-repo") } returns
+            listOf(project(channelId = null))
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute("my-org", "my-repo")
-        }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        val result = service.execute("my-org", "my-repo")
+
+        assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `getWebhookTarget은 서로 다른 팀이 같은 레포를 연결해도 알림 채널이 설정된 것만 전부 반환`() {
+        every { projectRepository.findAllByGithubRepoUrl("https://github.com/my-org/my-repo") } returns
+            listOf(
+                project(id = 1L, teamId = 100L, channelId = 10L),
+                project(id = 2L, teamId = 200L, channelId = null),
+                project(id = 3L, teamId = 300L, channelId = 30L),
+            )
+
+        val result = service.execute("my-org", "my-repo")
+
+        assertEquals(2, result.size)
+        assertEquals(setOf(100L, 300L), result.map { it.teamId }.toSet())
     }
 }
