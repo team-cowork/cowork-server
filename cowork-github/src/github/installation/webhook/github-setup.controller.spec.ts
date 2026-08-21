@@ -50,12 +50,13 @@ describe('GithubSetupController', () => {
     });
   });
 
-  it('state가 없으면 이벤트를 발행하지 않는다', async () => {
+  it('state가 없으면 이벤트를 발행하지 않고 연결 실패 안내 페이지를 반환한다', async () => {
     authService.getInstallationAccountLogin.mockResolvedValue('my-org');
 
-    await controller.handle('42', 'install');
+    const result = await controller.handle('42', 'install');
 
     expect(producer.send).not.toHaveBeenCalled();
+    expect(result).toContain('cowork 팀과 연결하지 못했습니다');
   });
 
   it('계정 조회 실패 시 에러 안내 페이지를 반환한다', async () => {
