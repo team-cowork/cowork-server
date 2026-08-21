@@ -35,7 +35,7 @@ github-app:
 
 # cowork-team과 동일한 값(env: TEAM_GITHUB_STATE_SECRET)이 배포돼야 서로 발급한 state를 검증할 수 있다.
 team-github:
-  state-secret: ${TEAM_GITHUB_STATE_SECRET:}
+  state-secret: ${TEAM_GITHUB_STATE_SECRET}
 
 feign:
   client:
@@ -43,6 +43,9 @@ feign:
       github-app:
         connect-timeout: 3000
         read-timeout: 10000
+      cowork-channel:
+        connect-timeout: 2000
+        read-timeout: 3000
 
 eureka:
   client:
