@@ -5,6 +5,8 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { IssueResultProducer } from '../src/github/kafka/issue-result.producer';
 import { PullRequestResultProducer } from '../src/github/pull-request/kafka/pull-request-result.producer';
+import { TeamGithubProducer } from '../src/github/installation/kafka/team-github.producer';
+import { RepoEventProducer } from '../src/github/installation/kafka/repo-event.producer';
 import { applyTestEnv, restoreTestEnv } from './support/test-env';
 
 describe('AppController (e2e)', () => {
@@ -20,6 +22,10 @@ describe('AppController (e2e)', () => {
       .overrideProvider(IssueResultProducer)
       .useValue({ send: jest.fn() })
       .overrideProvider(PullRequestResultProducer)
+      .useValue({ send: jest.fn() })
+      .overrideProvider(TeamGithubProducer)
+      .useValue({ send: jest.fn() })
+      .overrideProvider(RepoEventProducer)
       .useValue({ send: jest.fn() })
       .compile();
 
