@@ -112,6 +112,30 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: chat-service-team-unread
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/teams/*/unread
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: team-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/teams/*/channels, /api/teams/*/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: team-service
           uri: lb://cowork-team
           predicates:
@@ -161,6 +185,17 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: project-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/projects/*/channels, /api/projects/*/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
@@ -197,7 +232,7 @@ spring:
         - id: chat-service
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/pins, /api/channels/*/pins/**, /api/channels/*/read, /api/channels/*/github/issues, /api/channels/*/slash-commands
           filters:
             - StripPrefix=1
             - PrefixPath=/chat
@@ -260,6 +295,17 @@ spring:
           uri: lb://cowork-preference
           predicates:
             - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: live-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/live/**
           filters:
             - StripPrefix=1
             - name: CircuitBreaker
