@@ -8,12 +8,10 @@
 
 ### 설정 백엔드
 
-| 프로파일 | 설정 백엔드 우선순위          | 용도                             |
-|----------|-------------------------------|----------------------------------|
-| `local`  | Vault → `classpath:/configs/` | 로컬 Compose 기본값              |
-| `dev`    | Vault → `classpath:/configs/` | 개발 배포                        |
-| `native` | `classpath:/configs/`         | Vault 없이 일반 설정만 확인할 때 |
-| `prod`   | Vault → `classpath:/configs/` | 운영 배포                        |
+| 프로파일 | 설정 백엔드 우선순위          | 용도                |
+|----------|-------------------------------|---------------------|
+| `local`  | Vault → `classpath:/configs/` | 로컬 Compose 기본값 |
+| `prod`   | Vault → `classpath:/configs/` | 운영 배포           |
 
 Vault는 KV v2의 `secret/application` 공통 경로와 `secret/{application}` 서비스 경로를 읽는다.
 
@@ -77,6 +75,7 @@ WebSocket `/ws/**`는 별도 보안 체인을 사용한다. 브라우저 핸드�
 | `/api/teams/*/projects/**`  | project           | 일반 team 라우트보다 먼저 매칭                               |
 | `/api/teams/**`             | team              | `/api` 제거, 20/40 rate limit                                |
 | `/api/projects/**`          | project 또는 chat | 메시지 검색 경로는 chat으로 우선 라우팅                      |
+| `/api/roadmaps/**`          | roadmap           | `/api` 제거                                                  |
 | `/api/channels/**`          | channel 또는 chat | 메시지·파일·GitHub·slash-command 경로는 chat으로 우선 라우팅 |
 | `/api/search/messages`      | chat              | `/chat` 접두사 추가                                          |
 | `/api/search/channels`      | channel           | `/api` 제거                                                  |
@@ -90,7 +89,7 @@ WebSocket `/ws/**`는 별도 보안 체인을 사용한다. 브라우저 핸드�
 | `/api/notifications/stream` | notification      | SSE 응답 타임아웃 비활성화                                   |
 | `/api/notifications/**`     | notification      | `/api` 제거                                                  |
 
-`dev` 설정에는 위 경로 외에 `/api/roadmaps/**` 라우트와 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker가 있다. 반면 `local` 설정은 Circuit Breaker를 붙이지 않는다. 프로파일 간 차이를 수정할 때 두 파일을 모두 검토한다.
+두 프로파일의 route id 집합은 동일하다. 차이는 `prod`가 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker를 붙이는 반면 `local`은 붙이지 않는다는 점, 그리고 통합 Swagger UI 목록(`cowork.swagger-ui`)이 `local`에만 있다는 점이다. 라우트를 추가·변경할 때는 두 파일을 모두 수정한다.
 
 ### JWT와 공개 경로
 
@@ -127,7 +126,7 @@ Redis Token Bucket의 로컬 설정은 다음과 같다.
 
 키는 인증된 요청이면 `X-User-Id`, 미인증 요청이면 클라이언트 IP다.
 
-`dev`의 `defaultCB`는 최근 10개 요청에서 실패율 50%를 기준으로 열리고 10초 후 half-open으로 전환한다. fallback은 `/fallback`에서 HTTP 503을 반환한다.
+`prod`의 `defaultCB`는 최근 10개 요청에서 실패율 50%를 기준으로 열리고 10초 후 half-open으로 전환한다. fallback은 `/fallback`에서 HTTP 503을 반환한다.
 
 ### JSON 응답 래핑
 
@@ -153,7 +152,7 @@ Chunked 응답도 수집 후 실제 크기를 확인해 래핑한다. SSE는 JSO
 
 ### CORS와 Swagger
 
-`local`과 `dev`의 CORS 허용 origin은 현재 `http://localhost:3000`이다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 credential을 허용한다.
+`local`의 CORS 허용 origin은 `http://localhost:3000`이고, `prod`는 `PUBLIC_WEB_ORIGIN`을 사용한다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 credential을 허용한다.
 
 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인한다. 등록 서비스와 원본 문서 경로는 `docs/api-documentation.md`를 참고한다.
 

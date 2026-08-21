@@ -26,6 +26,7 @@ fun main() {
     System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory")
     val config = loadConfig()
     val appConfig = AppConfig.from(config)
+    requireDbCredentials(appConfig)
 
     runFlyway(appConfig)
 
@@ -70,6 +71,20 @@ fun main() {
     }
 }
 
+private fun requireDbCredentials(appConfig: AppConfig) {
+    val missing = listOfNotNull(
+        "preference.db.username".takeIf { appConfig.db.username.isBlank() },
+        "preference.db.password".takeIf { appConfig.db.password.isBlank() },
+    )
+    if (missing.isNotEmpty()) {
+        log.error(
+            "Required config resolved to empty: {}. Check Vault secret/cowork-preference. Aborting startup.",
+            missing.joinToString(", "),
+        )
+        System.exit(1)
+    }
+}
+
 private fun loadConfig(): JsonObject {
     val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
     val profile = System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
@@ -93,7 +108,7 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "REDIS_HOST" to "preference.redis.host",
             "REDIS_PORT" to "preference.redis.port",
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
-            "EUREKA_URL" to "eureka.url",
+            "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",
             "EUREKA_INSTANCE_HOST" to "eureka.instance.host",
