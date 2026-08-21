@@ -15,16 +15,18 @@ cowork:
         url: /v3/api-docs/team
       - name: channel
         url: /v3/api-docs/channel
-      - name: voice
-        url: /v3/api-docs/voice
+      - name: project
+        url: /v3/api-docs/project
+      - name: roadmap
+        url: /v3/api-docs/roadmap
       - name: chat
         url: /v3/api-docs/chat
+      - name: voice
+        url: /v3/api-docs/voice
       - name: notification
         url: /v3/api-docs/notification
       - name: preference
         url: /v3/api-docs/preference
-      - name: roadmap
-        url: /v3/api-docs/roadmap
 
 spring:
   kafka:
@@ -323,6 +325,20 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
+        - id: project-service-docs
+          uri: lb://cowork-project
+          predicates:
+            - Path=/v3/api-docs/project
+          filters:
+            - RewritePath=/v3/api-docs/project, /v3/api-docs
+
+        - id: roadmap-service-docs
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/v3/api-docs/roadmap
+          filters:
+            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
+
         - id: notification-service-sse
           uri: lb://cowork-notification
           predicates:
@@ -345,13 +361,6 @@ spring:
             - Path=/v3/api-docs/notification
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
-
-        - id: roadmap-service-docs
-          uri: lb://cowork-roadmap
-          predicates:
-            - Path=/v3/api-docs/roadmap
-          filters:
-            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
 # jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
 
