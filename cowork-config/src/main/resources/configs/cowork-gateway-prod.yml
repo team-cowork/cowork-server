@@ -3,6 +3,29 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
 
+cowork:
+  swagger-ui:
+    primary-name: user
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: team
+        url: /v3/api-docs/team
+      - name: channel
+        url: /v3/api-docs/channel
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: chat
+        url: /v3/api-docs/chat
+      - name: notification
+        url: /v3/api-docs/notification
+      - name: preference
+        url: /v3/api-docs/preference
+      - name: roadmap
+        url: /v3/api-docs/roadmap
+
 spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
@@ -331,6 +354,13 @@ spring:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: channel-service-docs
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/v3/api-docs/channel
+          filters:
+            - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
         - id: roadmap-service-docs
           uri: lb://cowork-roadmap
