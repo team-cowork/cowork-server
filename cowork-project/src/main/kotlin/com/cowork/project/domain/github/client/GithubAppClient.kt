@@ -5,6 +5,7 @@ import com.cowork.project.domain.github.presentation.data.response.GithubMergeRe
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestSummaryResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubRepoSummaryResDto
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -18,6 +19,9 @@ import org.springframework.web.bind.annotation.RequestParam
     configuration = [GithubAppClientConfig::class],
 )
 interface GithubAppClient {
+
+    @GetMapping("/api/orgs/{org}/repos")
+    fun listOrgRepos(@PathVariable org: String): List<GithubRepoSummaryResDto>
 
     @GetMapping("/api/repos/{owner}/{repo}/pulls")
     fun listPullRequests(

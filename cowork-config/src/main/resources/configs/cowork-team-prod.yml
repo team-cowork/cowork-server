@@ -24,6 +24,10 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
 
+team-github:
+  state-secret: ${TEAM_GITHUB_STATE_SECRET}
+  app-slug: ${GITHUB_APP_SLUG}
+
 object-storage:
   public-endpoint: ${S3_PUBLIC_ENDPOINT}
   public-base-url: ${S3_PUBLIC_BASE_URL}

@@ -5,6 +5,7 @@ import { ChatGateway, ChatSocket } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
@@ -47,6 +48,10 @@ const mockGithubIssueResultConsumer = {
     setSocketServer: jest.fn(),
 };
 
+const mockGithubRepoEventConsumer = {
+    setSocketServer: jest.fn(),
+};
+
 const mockChannelEventConsumer = {
     setSocketServer: jest.fn(),
 };
@@ -72,6 +77,7 @@ describe('ChatGateway', () => {
                 { provide: ChatService, useValue: mockChatService },
                 { provide: ChatMessageConsumer, useValue: mockConsumer },
                 { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
+                { provide: GithubRepoEventConsumer, useValue: mockGithubRepoEventConsumer },
                 { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
                 { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
                 { provide: MembershipConsumer, useValue: mockMembershipConsumer },

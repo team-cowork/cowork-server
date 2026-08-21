@@ -28,6 +28,12 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+    consumer:
+      auto-offset-reset: earliest
+
+team-github:
+  state-secret: ${TEAM_GITHUB_STATE_SECRET}
+  app-slug: ${GITHUB_APP_SLUG}
 
 eureka:
   client:
