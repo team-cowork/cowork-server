@@ -69,7 +69,7 @@ defmodule CoworkUser.AppConfigTest do
   test "environment variables override defaults" do
     System.put_env(%{
       "PORT" => "9082",
-      "APP_PROFILE" => "dev",
+      "APP_PROFILE" => "prod",
       "EUREKA_INSTANCE_HOST" => "user.internal",
       "KAFKA_ENABLED" => "false",
       "S3_ALLOWED_CONTENT_TYPES" => "image/png, application/pdf",
@@ -79,7 +79,7 @@ defmodule CoworkUser.AppConfigTest do
     config = AppConfig.load()
 
     assert config.port == 9082
-    assert config.config_profile == "dev"
+    assert config.config_profile == "prod"
     assert config.eureka_instance_host == "user.internal"
     assert config.eureka_instance_id == "user.internal:cowork-user:9082"
     refute config.kafka_enabled
