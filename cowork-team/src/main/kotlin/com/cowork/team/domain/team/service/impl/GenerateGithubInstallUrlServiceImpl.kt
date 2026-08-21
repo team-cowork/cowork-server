@@ -16,6 +16,10 @@ class GenerateGithubInstallUrlServiceImpl(
     private val teamGithubProperties: TeamGithubProperties,
 ) : GenerateGithubInstallUrlService {
 
+    init {
+        require(teamGithubProperties.appSlug.isNotBlank()) { "team-github.app-slug must not be empty" }
+    }
+
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): GithubInstallUrlResponse {
         // 팀 전체에 영향을 주는 GitHub 연동은 연결 해제(OWNER/ADMIN)와 동일한 권한을 요구한다.

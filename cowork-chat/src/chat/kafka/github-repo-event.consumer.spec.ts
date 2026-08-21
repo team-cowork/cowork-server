@@ -130,6 +130,42 @@ describe('GithubRepoEventConsumer', () => {
         });
     });
 
+    describe('summary가 비어있는 경우', () => {
+        it('빈 문자열이면 저장/조회 없이 스킵한다', async () => {
+            const event: GithubRepoEvent = {
+                owner: 'my-org',
+                repo: 'backend',
+                eventType: 'push',
+                action: 'push',
+                summary: '   ',
+            };
+
+            await callHandleRepoEvent(event);
+
+            expect(mockGetGithubWebhookTargets).not.toHaveBeenCalled();
+            expect(mockSaveSystemMessage).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('summary가 Message.content 길이 제한을 초과하는 경우', () => {
+        it('25000자로 잘라서 저장한다', async () => {
+            mockGetGithubWebhookTargets.mockResolvedValue([{ teamId: 1, projectId: 100, channelId: 5 }]);
+            mockSaveSystemMessage.mockResolvedValue({ toObject: mockToObject.mockReturnValue({}) });
+
+            const event: GithubRepoEvent = {
+                owner: 'my-org',
+                repo: 'backend',
+                eventType: 'push',
+                action: 'push',
+                summary: 'a'.repeat(30000),
+            };
+
+            await callHandleRepoEvent(event);
+
+            expect(mockSaveSystemMessage).toHaveBeenCalledWith(1, 5, 'a'.repeat(25000), 100);
+        });
+    });
+
     describe('WebSocket 서버 미설정', () => {
         it('io가 없어도 메시지 저장은 정상 처리된다', async () => {
             const consumerWithoutIo = new GithubRepoEventConsumer(
