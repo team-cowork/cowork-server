@@ -1,14 +1,10 @@
 server:
   port: 9001
 
-spring:
-  application:
-    name: cowork-preference
-
 preference:
   db:
     host: ${POSTGRES_HOST:postgres}
-    port: 5432
+    port: ${POSTGRES_PORT:5432}
     database: cowork_preference
     schema: preference
     username: ${POSTGRES_USER}
@@ -21,7 +17,7 @@ preference:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
 eureka:
-  url: ${EUREKA_URL:http://cowork-config:8761/eureka/}
+  url: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
   app-name: ${EUREKA_APP_NAME:cowork-preference}
   instance:
     host: ${EUREKA_INSTANCE_HOST:cowork-preference}
