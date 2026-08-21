@@ -34,6 +34,18 @@ class TeamGithubInstallationConsumer(
             return
         }
 
+        val ownedByOtherTeam = teamGithubInstallationRepository.findByInstallationId(payload.installationId)
+            ?.takeIf { it.teamId != teamId }
+        if (ownedByOtherTeam != null) {
+            log.warn(
+                "installation {}는 이미 다른 팀(teamId={})에 연결되어 있어 teamId={} 연결을 무시합니다",
+                payload.installationId,
+                ownedByOtherTeam.teamId,
+                teamId,
+            )
+            return
+        }
+
         val existing = teamGithubInstallationRepository.findById(teamId).orElse(null)
         if (existing != null) {
             existing.update(installationId = payload.installationId, orgLogin = payload.orgLogin)
