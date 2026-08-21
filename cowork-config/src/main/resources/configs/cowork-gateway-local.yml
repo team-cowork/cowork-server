@@ -1,6 +1,3 @@
-jwt:
-  secret: ${JWT_SECRET}
-
 eureka:
   client:
     service-url:
@@ -309,6 +306,8 @@ spring:
             - Path=/v3/api-docs/notification
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
+# jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
 
 app:
   ws:
