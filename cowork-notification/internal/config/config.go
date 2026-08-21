@@ -67,7 +67,7 @@ func fetchFromConfigServer() (map[string]string, error) {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnv("APP_PROFILE", "dev")
+	profile := getEnv("APP_PROFILE", "local")
 	client := springconfig.NewClient(configURL, "cowork-notification", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
