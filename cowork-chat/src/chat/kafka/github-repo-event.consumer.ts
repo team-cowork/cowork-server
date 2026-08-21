@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
+import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
@@ -8,6 +9,9 @@ import { ProjectClient } from '../service/project.client';
 import { GithubRepoEvent } from './event/github-repo.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+
+/** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
+const MESSAGE_CONTENT_MAX_LENGTH = 25000;
 
 /**
  * Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
@@ -65,7 +69,8 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
                         await this.handleRepoEvent(event);
                     } catch (err) {
                         this.logger.error('Failed to process repo event', err);
-                        if (!(err instanceof SyntaxError)) throw err;
+                        // 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
+                        if (!(err instanceof SyntaxError) && !(err instanceof mongoose.Error.ValidationError)) throw err;
                     }
                 },
             })
@@ -101,12 +106,28 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      * @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
      */
     private async handleRepoEvent(event: GithubRepoEvent): Promise<void> {
+        const summary = this.sanitizeSummary(event.summary);
+        if (summary === null) {
+            this.logger.warn(`Skipping repo event with empty summary owner=${event.owner} repo=${event.repo}`);
+            return;
+        }
+
         const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
         for (const target of targets) {
-            const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, event.summary, target.projectId);
+            const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary, target.projectId);
             this.notifyClient(target.channelId, saved.toObject());
         }
+    }
+
+    /**
+     * `Message.content`는 required + maxlength 25000이다. 빈 값은 저장 자체를 스킵하고(`null` 반환),
+     * 초과분은 잘라서 ValidationError로 인한 무한 재전달을 막는다.
+     */
+    private sanitizeSummary(summary: string): string | null {
+        const trimmed = summary?.trim();
+        if (!trimmed) return null;
+        return trimmed.length > MESSAGE_CONTENT_MAX_LENGTH ? trimmed.slice(0, MESSAGE_CONTENT_MAX_LENGTH) : trimmed;
     }
 
     /**
