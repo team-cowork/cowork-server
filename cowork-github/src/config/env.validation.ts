@@ -22,4 +22,5 @@ export const envValidationSchema = Joi.object({
     .default(1000),
   GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
   INTERNAL_API_KEY: Joi.string().trim().required(),
+  GITHUB_WEBHOOK_SECRET: Joi.string().trim().required(),
 });
