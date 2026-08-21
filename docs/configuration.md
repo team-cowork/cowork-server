@@ -4,37 +4,36 @@
 
 ## 공급 원칙
 
-| 종류                     | 공급원                                | 예시                                                    |
-|--------------------------|---------------------------------------|---------------------------------------------------------|
-| 부트스트랩               | Docker Compose 또는 실행 환경         | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
-| 인프라 부트스트랩 시크릿 | 배포 secret store → Compose           | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
-| 일반 설정                | Config Server native/Git              | 서비스 포트, 내부 URL, Kafka topic, timeout, 기능 정책  |
-| 애플리케이션 시크릿      | Vault                                 | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
-| 파일형 시크릿            | Docker secret 또는 배포 secret volume | Firebase 서비스 계정 JSON                               |
+| 종류                     | 공급원                                 | 예시                                                    |
+|--------------------------|----------------------------------------|---------------------------------------------------------|
+| 부트스트랩               | Docker Compose 또는 실행 환경          | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
+| 인프라 부트스트랩 시크릿 | 배포 secret store → Compose            | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
+| 일반 설정                | Config Server native (`configs/*.yml`) | 서비스 포트, 내부 URL, Kafka topic, timeout, 기능 정책  |
+| 애플리케이션 시크릿      | Vault                                  | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
+| 파일형 시크릿            | Docker secret 또는 배포 secret volume  | Firebase 서비스 계정 JSON                               |
 
 애플리케이션 설정 우선순위는 다음과 같다.
 
 ```text
-직접 환경변수 > Vault 서비스 경로 > Vault 공통 경로 > native/Git > 애플리케이션 기본값
+직접 환경변수 > Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native `configs/` > 애플리케이션 기본값
 ```
 
 직접 환경변수 override는 로컬 단독 실행과 긴급 운영 override 용도다. Compose 애플리케이션 서비스에는 Config Server 접속값과 프로파일만 기본 주입한다.
 
 ## 프로파일
 
-| 프로파일 | Config Server backend                    |
-|----------|------------------------------------------|
-| `local`  | Vault + classpath `configs/*-local.yml`  |
-| `dev`    | Vault + classpath `configs/*-dev.yml`    |
+| 프로파일 | Config Server backend                       |
+|----------|---------------------------------------------|
+| `local`  | Vault + classpath `configs/*-local.yml`     |
 | `prod`   | 외부 Vault + classpath `configs/*-prod.yml` |
 
-`local`과 `dev`에는 Gateway와 모든 backend business service의 설정 파일이 존재해야 한다. `prod` 설정도 같은 classpath 경로에 두고, 시크릿만 배포 전 Vault에 동일한 application 이름으로 등록한다.
+프로파일은 `local`과 `prod` 둘뿐이다. Gateway와 모든 backend business service는 두 프로파일 파일을 모두 가져야 하며, Config Server는 정의되지 않은 프로파일에 대해 아무 설정도 내려주지 않는다. 시크릿은 배포 전 Vault에 동일한 application 이름으로 등록한다.
 
 ## Vault 경로
 
 | 경로                          | 주요 값                                               |
 |-------------------------------|-------------------------------------------------------|
-| `secret/application`          | 공통 DB 계정, JWT, SeaweedFS credential                |
+| `secret/application`          | 공통 DB 계정, JWT, SeaweedFS credential               |
 | `secret/cowork-gateway`       | `jwt.secret`                                          |
 | `secret/cowork-authorization` | DB DSN, DataGSM ID/webhook key, JWT                   |
 | `secret/cowork-channel`       | credential 암호화 키, OAuth state/provider credential |
