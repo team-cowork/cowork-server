@@ -124,9 +124,24 @@ definitions:
     type: object
 info:
   contact: {}
-  description: 음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
+  description: |-
+    음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
+
+    ## 미디어 연결 (LiveKit)
+    이 서비스는 WebSocket을 직접 제공하지 않습니다. 아래 REST 엔드포인트가 LiveKit 접속
+    토큰을 발급하고, 클라이언트는 응답의 `livekit_url`(wss)로 **LiveKit 서버에 직접 연결**합니다.
+    이 연결은 Gateway를 경유하지 않습니다.
+
+    | 구분 | 입장 | 발급 토큰 권한 |
+    |------|------|----------------|
+    | `voice` — 상시 음성 채널 | `POST /voice/channels/{channel_id}/join` | 전원 publish + subscribe |
+    | `live` — 라이브 방송 | `POST /live/channels/{channel_id}/start` (호스트) | publish (마이크·화면공유) |
+    | | `POST /live/channels/{channel_id}/join` (시청자) | subscribe 전용 |
+
+    응답의 `room_name`이 LiveKit room 식별자이며, `session_id`로 서버 측 세션을 조회합니다.
+    참가자 입퇴장은 LiveKit이 `POST /voice/webhook`으로 통보하고 서버가 세션 상태를 갱신합니다.
   title: Cowork Voice API
-  version: "20260719.0"
+  version: "20260820.0"
 paths:
   /live/channels/{channel_id}:
     get:
