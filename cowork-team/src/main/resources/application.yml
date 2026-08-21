@@ -32,8 +32,8 @@ spring:
       auto-offset-reset: earliest
 
 team-github:
-  state-secret: ${TEAM_GITHUB_STATE_SECRET:}
-  app-slug: ${GITHUB_APP_SLUG:}
+  state-secret: ${TEAM_GITHUB_STATE_SECRET}
+  app-slug: ${GITHUB_APP_SLUG}
 
 eureka:
   client:
