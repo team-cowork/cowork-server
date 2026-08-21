@@ -22,6 +22,7 @@ class TeamGithubInstallationConsumerTest {
     @Test
     fun `consumeConnected는 기존 설치가 없으면 새로 생성한다`() {
         every { teamGithubStateVerifier.verifyState("valid-state") } returns 100L
+        every { teamGithubInstallationRepository.findByInstallationId(1L) } returns null
         every { teamGithubInstallationRepository.findById(100L) } returns Optional.empty()
         every { teamGithubInstallationRepository.save(any()) } answers { firstArg() }
 
@@ -38,12 +39,25 @@ class TeamGithubInstallationConsumerTest {
     fun `consumeConnected는 기존 설치가 있으면 갱신한다`() {
         val existing = TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "old-org")
         every { teamGithubStateVerifier.verifyState("valid-state") } returns 100L
+        every { teamGithubInstallationRepository.findByInstallationId(2L) } returns null
         every { teamGithubInstallationRepository.findById(100L) } returns Optional.of(existing)
 
         consumer.consumeConnected(TeamGithubConnectedPayload("valid-state", installationId = 2L, orgLogin = "new-org"))
 
         assertEquals(2L, existing.installationId)
         assertEquals("new-org", existing.orgLogin)
+        verify(exactly = 0) { teamGithubInstallationRepository.save(any()) }
+    }
+
+    @Test
+    fun `consumeConnected는 installation이 이미 다른 팀에 연결돼 있으면 무시한다`() {
+        val ownedByOtherTeam = TeamGithubInstallation(teamId = 200L, installationId = 1L, orgLogin = "other-org")
+        every { teamGithubStateVerifier.verifyState("valid-state") } returns 100L
+        every { teamGithubInstallationRepository.findByInstallationId(1L) } returns ownedByOtherTeam
+
+        consumer.consumeConnected(TeamGithubConnectedPayload("valid-state", installationId = 1L, orgLogin = "my-org"))
+
+        verify(exactly = 0) { teamGithubInstallationRepository.findById(any()) }
         verify(exactly = 0) { teamGithubInstallationRepository.save(any()) }
     }
 
