@@ -24,6 +24,10 @@ class TeamGithubStateVerifier(
     private val objectMapper: ObjectMapper,
 ) {
 
+    init {
+        require(teamGithubProperties.stateSecret.isNotBlank()) { "team-github.state-secret must not be empty" }
+    }
+
     // state = base64url(json_payload).base64url(hmac-sha256)
     // payload: { teamId, userId, nonce, exp }
     fun verifyState(state: String): Long {
