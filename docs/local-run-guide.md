@@ -235,7 +235,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | LiveKit 키          | `devkey` / `devsecret`                    | 실제 키/시크릿으로 교체                                                            |
 | LiveKit RTC         | `7881/tcp`                                | Linux host network 사용, `7880/tcp`, `7881/tcp`, `50000-60000/udp`를 방화벽에 개방 |
 | DB 비밀번호         | `.env`의 개발용 값                        | 운영용 강한 비밀번호로 교체                                                        |
-| Spring profile      | `local`                                   | `dev` 또는 `prod` (Vault 연동)                                                     |
+| Spring profile      | `local`                                   | `prod` (외부 Vault 연동)                                                           |
 | SeaweedFS           | 로컬 컨테이너                             | S3 호환 엔드포인트로 변경                                                          |
 | Elasticsearch       | `http://elasticsearch:9200`               | `cowork-chat-prod.yml`에서 관리형 ES 클러스터 주소로 변경                          |
 
@@ -245,7 +245,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 
 ### Vault 시크릿 배포 구조
 
-`local`과 `dev`는 Config Server의 Vault + native(classpath) composite를 사용하고, `prod`는 Vault + Git composite를 사용한다. Spring Boot 이외 애플리케이션도 Config Server HTTP 응답에서 같은 값을 읽는다.
+`local`과 `prod` 모두 Config Server의 Vault + native(classpath) composite를 사용한다. `local`은 Compose의 인메모리 Vault를, `prod`는 외부 Vault를 읽는다. Spring Boot 이외 애플리케이션도 Config Server HTTP 응답에서 같은 값을 읽는다.
 
 | 서비스 유형                                   | 공급 흐름                      |
 |-----------------------------------------------|--------------------------------|
@@ -278,7 +278,7 @@ Kafka는 외부 접근용(`9094`)과 컨테이너 내부용(`9092`) 리스너가
 | `secret/cowork-user`          | `DB_USERNAME`, `DB_PASSWORD`, `SECRET_KEY_BASE`        |
 | `secret/cowork-voice`         | `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` |
 
-Compose는 `SPRING_PROFILES_ACTIVE` 값을 Spring 서비스와 비-Spring 서비스의 `APP_PROFILE`에 함께 전달한다. `local`과 `dev` 모두 Vault composite이며, Config Server의 `VAULT_HOST`는 Compose가 `cowork-vault`로 설정한다.
+Compose는 `SPRING_PROFILES_ACTIVE` 값을 Spring 서비스와 비-Spring 서비스의 `APP_PROFILE`에 함께 전달한다. Config Server의 `VAULT_HOST`는 Compose가 `cowork-vault`로 설정한다.
 
 ## 10. 자주 쓰는 확인 포인트
 
@@ -300,7 +300,7 @@ Loki는 기동되지만 현재 모든 애플리케이션의 파일 로그를 수
 ## 11. 알려진 주의사항
 
 `cowork-config`:
-- `local`/`dev`는 Vault + native, `prod`는 외부 Vault + Git composite 모드로 동작한다.
+- `local`은 Compose Vault + native, `prod`는 외부 Vault + native composite 모드로 동작한다.
 - `vault-init` 완료 후 기동하도록 `depends_on`이 설정돼 있다. `VAULT_HOST=cowork-vault`는 docker-compose에 이미 설정돼 있다.
 
 `cowork-gateway`:
