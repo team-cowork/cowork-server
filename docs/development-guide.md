@@ -217,7 +217,7 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 | 종류 | 관리 방법 |
 |---|---|
 | DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입 |
-| 서비스별 일반 설정 | `cowork-config` Config Server (`local`/`dev`: classpath, `prod`: Git) |
+| 서비스별 일반 설정 | `cowork-config` Config Server (`local`/`prod` 모두 classpath `configs/`) |
 | 저장소 공통 로컬 설정 | `cowork-config/src/main/resources/configs/*-local.yml` |
 | 개발자 머신별 값 | 루트 `.env` 또는 gitignored 로컬 override |
 
