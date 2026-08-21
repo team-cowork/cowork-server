@@ -15,7 +15,7 @@ import { GithubWebhookSignatureGuard } from './github-webhook-signature.guard';
 @Controller('github/webhooks')
 @UseGuards(GithubWebhookSignatureGuard)
 export class GithubWebhookController {
-  private static readonly DISCONNECT_ACTIONS = new Set(['deleted', 'suspend']);
+  private static readonly DISCONNECT_ACTIONS = new Set(['deleted']);
 
   private readonly logger = new Logger(GithubWebhookController.name);
 
@@ -49,6 +49,7 @@ export class GithubWebhookController {
     payload: GithubWebhookPayload,
   ): Promise<void> {
     // 'created'는 state가 없어 상관관계를 지을 수 없음 — setup 콜백에서만 처리
+    // 'suspend'는 일시 중단일 뿐이라 연동을 끊지 않음 — 'unsuspend' 시 별도 이벤트 없이 API 호출이 다시 성공하며 자연히 복구됨
     if (
       !payload?.action ||
       !GithubWebhookController.DISCONNECT_ACTIONS.has(payload.action)
