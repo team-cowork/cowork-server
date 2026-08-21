@@ -1,5 +1,7 @@
 package com.cowork.project.domain.project.service.impl
 
+import com.cowork.project.domain.github.entity.ProjectGithubRepo
+import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -18,27 +20,34 @@ import java.util.Optional
 
 class ClearProjectGithubWebhookChannelServiceImplTest {
 
+    private val projectGithubRepoRepository = mockk<ProjectGithubRepoRepository>(relaxed = true)
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
 
-    private val service = ClearProjectGithubWebhookChannelServiceImpl(projectMemberRepository, projectAccessGuard)
+    private val service = ClearProjectGithubWebhookChannelServiceImpl(projectGithubRepoRepository, projectAccessGuard)
 
     private fun project(id: Long = 1L, teamId: Long = 100L) =
-        Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L).apply {
-            setGithubWebhookChannel(10L)
+        Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L)
+
+    private fun repoLink(id: Long = 5L, projectId: Long = 1L, teamId: Long = 100L) =
+        ProjectGithubRepo(id = id, projectId = projectId, teamId = teamId, githubRepoUrl = "https://github.com/my-org/my-repo").apply {
+            setWebhookChannel(10L)
         }
 
     @Test
     fun `clearGithubWebhookChannel은 githubWebhookChannelId를 null로 초기화`() {
         val proj = project()
+        val link = repoLink()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
             ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+        every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns link
+        every { projectGithubRepoRepository.save(any<ProjectGithubRepo>()) } answers { firstArg() }
 
-        val response = service.execute(99L, 1L)
+        val response = service.execute(99L, 1L, 5L)
 
         assertEquals(null, response.githubWebhookChannelId)
     }
@@ -52,8 +61,22 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(50L, 1L)
+            service.execute(50L, 1L, 5L)
         }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
+    @Test
+    fun `clearGithubWebhookChannel은 등록된 레포가 없으면 NOT_FOUND`() {
+        val proj = project()
+        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+        every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns null
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(99L, 1L, 5L)
+        }
+        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
     }
 }
