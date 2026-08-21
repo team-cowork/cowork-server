@@ -22,10 +22,11 @@ http://localhost:8080/swagger-ui.html
 | `chat`          | `cowork-chat`          | `/v3/api-docs/chat`          | `/api-json`         |
 | `notification`  | `cowork-notification`  | `/v3/api-docs/notification`  | `/swagger/doc.json` |
 | `preference`    | `cowork-preference`    | `/v3/api-docs/preference`    | `/swagger/doc.json` |
+| `roadmap`       | `cowork-roadmap`       | `/v3/api-docs/roadmap`       | `/v3/api-docs`      |
 
 Swagger UI와 `/v3/api-docs/**`는 Gateway에서 인증 없이 접근할 수 있다.
 
-`cowork-roadmap` 문서 프록시는 현재 `dev` Gateway 설정에만 있고 로컬 통합 UI에는 등록되지 않았다. `cowork-project`는 서비스 자체 문서를 제공하지만 Gateway 문서 프록시는 없다. 두 서비스는 아래 직접 접속 주소를 사용한다.
+`cowork-project`는 서비스 자체 문서를 제공하지만 Gateway 문서 프록시가 없어 아래 직접 접속 주소를 사용한다.
 
 ## 서비스별 직접 접속
 
