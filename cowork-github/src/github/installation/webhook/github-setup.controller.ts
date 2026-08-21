@@ -30,17 +30,20 @@ export class GithubSetupController {
     try {
       const orgLogin =
         await this.authService.getInstallationAccountLogin(installationId);
-      if (state) {
-        await this.producer.send('team.github.connected', {
-          state,
-          installationId,
-          orgLogin,
-        });
-      } else {
+      if (!state) {
         this.logger.warn(
           `Setup callback missing state, cannot correlate to a team [installationId=${installationId}]`,
         );
+        return this.page(
+          'GitHub App 설치는 완료되었지만 cowork 팀과 연결하지 못했습니다. cowork에서 다시 연동을 시도해주세요.',
+        );
       }
+
+      await this.producer.send('team.github.connected', {
+        state,
+        installationId,
+        orgLogin,
+      });
       return this.page(
         'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
       );

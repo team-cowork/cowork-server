@@ -48,6 +48,15 @@ describe('GithubWebhookController', () => {
     expect(producer.send).not.toHaveBeenCalled();
   });
 
+  it('installation.suspend 이벤트는 연동을 끊지 않는다', async () => {
+    await controller.handle('installation', {
+      action: 'suspend',
+      installation: { id: 42 },
+    });
+
+    expect(producer.send).not.toHaveBeenCalled();
+  });
+
   it('push 이벤트는 github.repo.event를 발행한다', async () => {
     await controller.handle('push', {
       ref: 'refs/heads/main',
