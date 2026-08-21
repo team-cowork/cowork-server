@@ -13,14 +13,14 @@ type ConsumerWithPrivates = Omit<GithubRepoEventConsumer, 'handleRepoEvent'> & {
 
 const mockToObject = jest.fn();
 const mockSaveSystemMessage = jest.fn();
-const mockGetGithubWebhookTarget = jest.fn();
+const mockGetGithubWebhookTargets = jest.fn();
 
 const mockChatService = {
     saveSystemMessage: mockSaveSystemMessage,
 };
 
 const mockProjectClient = {
-    getGithubWebhookTarget: mockGetGithubWebhookTarget,
+    getGithubWebhookTargets: mockGetGithubWebhookTargets,
 };
 
 const mockEmit = jest.fn();
@@ -61,8 +61,8 @@ describe('GithubRepoEventConsumer', () => {
     const callHandleRepoEvent = (event: GithubRepoEvent) => (consumer as unknown as ConsumerWithPrivates).handleRepoEvent(event);
 
     describe('GitHub 알림 채널이 지정되지 않은 경우', () => {
-        it('project-service가 webhook target을 찾지 못하면(null) 아무 것도 하지 않는다', async () => {
-            mockGetGithubWebhookTarget.mockResolvedValue(null);
+        it('project-service가 대상을 하나도 찾지 못하면(빈 배열) 아무 것도 하지 않는다', async () => {
+            mockGetGithubWebhookTargets.mockResolvedValue([]);
 
             const event: GithubRepoEvent = {
                 owner: 'my-org',
@@ -74,7 +74,7 @@ describe('GithubRepoEventConsumer', () => {
 
             await callHandleRepoEvent(event);
 
-            expect(mockGetGithubWebhookTarget).toHaveBeenCalledWith('my-org', 'backend');
+            expect(mockGetGithubWebhookTargets).toHaveBeenCalledWith('my-org', 'backend');
             expect(mockSaveSystemMessage).not.toHaveBeenCalled();
             expect(mockTo).not.toHaveBeenCalled();
             expect(mockEmit).not.toHaveBeenCalled();
@@ -83,7 +83,7 @@ describe('GithubRepoEventConsumer', () => {
 
     describe('GitHub 알림 채널이 지정된 경우', () => {
         it('SYSTEM 메시지를 저장하고 WebSocket으로 브로드캐스트한다', async () => {
-            mockGetGithubWebhookTarget.mockResolvedValue({ teamId: 1, projectId: 100, channelId: 5 });
+            mockGetGithubWebhookTargets.mockResolvedValue([{ teamId: 1, projectId: 100, channelId: 5 }]);
             const savedDoc = { toObject: mockToObject.mockReturnValue({ content: 'main 브랜치에 새 커밋이 푸시됐어요' }) };
             mockSaveSystemMessage.mockResolvedValue(savedDoc);
 
@@ -97,10 +97,36 @@ describe('GithubRepoEventConsumer', () => {
 
             await callHandleRepoEvent(event);
 
-            expect(mockGetGithubWebhookTarget).toHaveBeenCalledWith('my-org', 'backend');
+            expect(mockGetGithubWebhookTargets).toHaveBeenCalledWith('my-org', 'backend');
             expect(mockSaveSystemMessage).toHaveBeenCalledWith(1, 5, 'main 브랜치에 새 커밋이 푸시됐어요', 100);
             expect(mockTo).toHaveBeenCalledWith('chat:5');
             expect(mockEmit).toHaveBeenCalledWith('message', expect.anything());
+        });
+    });
+
+    describe('서로 다른 팀이 같은 레포를 연결한 경우', () => {
+        it('알림 채널이 설정된 대상 전부에 메시지를 저장하고 브로드캐스트한다', async () => {
+            mockGetGithubWebhookTargets.mockResolvedValue([
+                { teamId: 1, projectId: 100, channelId: 5 },
+                { teamId: 2, projectId: 200, channelId: 7 },
+            ]);
+            mockSaveSystemMessage.mockResolvedValue({ toObject: mockToObject.mockReturnValue({}) });
+
+            const event: GithubRepoEvent = {
+                owner: 'my-org',
+                repo: 'backend',
+                eventType: 'push',
+                action: 'push',
+                summary: 'main 브랜치에 새 커밋이 푸시됐어요',
+            };
+
+            await callHandleRepoEvent(event);
+
+            expect(mockSaveSystemMessage).toHaveBeenCalledTimes(2);
+            expect(mockSaveSystemMessage).toHaveBeenNthCalledWith(1, 1, 5, expect.any(String), 100);
+            expect(mockSaveSystemMessage).toHaveBeenNthCalledWith(2, 2, 7, expect.any(String), 200);
+            expect(mockTo).toHaveBeenCalledWith('chat:5');
+            expect(mockTo).toHaveBeenCalledWith('chat:7');
         });
     });
 
@@ -112,7 +138,7 @@ describe('GithubRepoEventConsumer', () => {
                 { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
                 { sendCustom: jest.fn().mockResolvedValue(true) } as unknown as DicoshotService,
             );
-            mockGetGithubWebhookTarget.mockResolvedValue({ teamId: 1, projectId: 100, channelId: 5 });
+            mockGetGithubWebhookTargets.mockResolvedValue([{ teamId: 1, projectId: 100, channelId: 5 }]);
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
 
             await expect(
