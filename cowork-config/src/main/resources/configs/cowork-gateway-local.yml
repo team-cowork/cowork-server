@@ -23,6 +23,8 @@ cowork:
         url: /v3/api-docs/notification
       - name: preference
         url: /v3/api-docs/preference
+      - name: roadmap
+        url: /v3/api-docs/roadmap
 
 spring:
   kafka:
@@ -168,6 +170,13 @@ spring:
           filters:
             - StripPrefix=1
 
+        - id: roadmap-service
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/api/roadmaps/**
+          filters:
+            - StripPrefix=1
+
         - id: chat-service-ws
           uri: lb:ws://cowork-chat
           predicates:
@@ -306,6 +315,13 @@ spring:
             - Path=/v3/api-docs/notification
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
+        - id: roadmap-service-docs
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/v3/api-docs/roadmap
+          filters:
+            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
 # jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
 
