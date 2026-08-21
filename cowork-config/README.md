@@ -11,15 +11,16 @@
 
 ## 설정 소스
 
-| 프로파일        | 설정 소스                                           |
-|-----------------|-----------------------------------------------------|
-| `local` / `dev` | Vault + `src/main/resources/configs/`의 native 설정 |
-| `native`        | `src/main/resources/configs/`만 사용                |
-| `prod`          | Vault + `src/main/resources/configs/`의 native 설정 |
+| 프로파일 | 설정 소스                                                  |
+|----------|------------------------------------------------------------|
+| `local`  | Compose 인메모리 Vault + `src/main/resources/configs/`      |
+| `prod`   | 외부 Vault + `src/main/resources/configs/`                 |
 
 비밀 값은 Vault에서, 비밀이 아닌 공통 값은 native 설정에서 공급합니다.
 
-`local`과 `dev`에는 Gateway와 10개 business service의 프로파일 파일이 모두 존재합니다. Config Client가 적용하는 우선순위는 `직접 환경변수 > Vault > native/Git > 애플리케이션 기본값`입니다.
+프로파일은 `local`과 `prod` 둘뿐이며, 각 프로파일에 Gateway와 10개 business service의 설정 파일이 모두 존재합니다. Config Client가 적용하는 우선순위는 `직접 환경변수 > overrides > Vault > native > 애플리케이션 기본값`입니다.
+
+Config Server는 응답 문자열의 `${VAR}`를 해석하지 않습니다. Go·NestJS·Elixir 서비스는 클라이언트에서도 해석하지 않으므로 해당 서비스 설정에는 리터럴 값을 쓰고 Vault나 `overrides`로 덮어씁니다.
 
 ## 스택
 
@@ -37,8 +38,7 @@
 ## 의존성
 
 - Kafka: Config Bus
-- Vault: `local`, `dev`, `prod` 프로파일
-- Git 설정 저장소: `prod` 프로파일
+- Vault: `local`, `prod` 프로파일
 
 이 서비스가 준비된 뒤 Gateway와 비즈니스 서비스를 기동합니다.
 
@@ -46,7 +46,7 @@
 
 | 변수                                                             | 설명                           |
 |------------------------------------------------------------------|--------------------------------|
-| `SPRING_PROFILES_ACTIVE`                                         | 설정 소스 프로파일(기본 `dev`) |
+| `SPRING_PROFILES_ACTIVE`                                         | 설정 소스 프로파일(기본 `local`) |
 | `KAFKA_BOOTSTRAP_SERVERS`                                        | Config Bus Kafka 브로커        |
 | `VAULT_HOST` / `VAULT_PORT` / `VAULT_SCHEME` / `VAULT_TOKEN`     | Vault 연결 정보                |
 
