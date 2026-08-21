@@ -16,6 +16,7 @@ import { NotificationTriggerProducer } from './kafka/notification-trigger.produc
 import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
 import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectMemberEventConsumer } from './kafka/project-member-event.consumer';
@@ -84,6 +85,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         NotificationOutboxPoller,
         GithubIssueProducer,
         GithubIssueResultConsumer,
+        GithubRepoEventConsumer,
         ChannelEventConsumer,
         ProjectEventConsumer,
         ProjectMemberEventConsumer,

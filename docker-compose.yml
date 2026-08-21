@@ -104,6 +104,11 @@ services:
         chat.message
         github.issue.create
         github.issue.result
+        github.repo.event
+        team.github.connected
+        team.github.disconnected
+        team.github.connected-dlt
+        team.github.disconnected-dlt
         notification.trigger
         voice.event
         preference.status.changed
@@ -196,6 +201,8 @@ services:
       FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}
       FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}
       GITHUB_APP_INTERNAL_API_KEY: ${GITHUB_APP_INTERNAL_API_KEY:-}
+      TEAM_GITHUB_STATE_SECRET: ${TEAM_GITHUB_STATE_SECRET}
+      GITHUB_APP_SLUG: ${GITHUB_APP_SLUG}
     volumes:
       - ./cowork-config/src/main/resources/vault/vault-init.sh:/scripts/vault-init.sh:ro
     entrypoint: ["/bin/sh", "/scripts/vault-init.sh"]
