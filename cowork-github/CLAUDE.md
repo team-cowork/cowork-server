@@ -26,6 +26,44 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 | `labels`    | `string[]` |          | label list           |
 | `assignees` | `string[]` |          | assignee list        |
 
+**Topic**: `team.github.connected`
+
+**Payload** (`TeamGithubConnectedEvent`):
+
+| Field            | Type     | Required | Description                              |
+|------------------|----------|----------|-------------------------------------------|
+| `state`          | `string` | ✓        | opaque state passed through the setup URL |
+| `installationId` | `number` | ✓        | GitHub App installation ID                |
+| `orgLogin`       | `string` | ✓        | connected GitHub org login                |
+
+**Topic**: `team.github.disconnected`
+
+**Payload** (`TeamGithubDisconnectedEvent`):
+
+| Field            | Type     | Required | Description                 |
+|------------------|----------|----------|------------------------------|
+| `installationId` | `number` | ✓        | GitHub App installation ID  |
+
+**Topic**: `github.repo.event`
+
+**Payload** (`RepoEvent`):
+
+| Field       | Type     | Required | Description                              |
+|-------------|----------|----------|--------------------------------------------|
+| `owner`     | `string` | ✓        | GitHub org or user                         |
+| `repo`      | `string` | ✓        | repository name                            |
+| `eventType` | `string` | ✓        | GitHub webhook event name (push/issues/pull_request) |
+| `action`    | `string` | ✓        | webhook action (or `pushed` for push events) |
+| `summary`   | `string` | ✓        | human-readable summary for chat notification |
+
+## HTTP Endpoints
+
+| Method | Path                     | Auth                        | Description                                  |
+|--------|--------------------------|------------------------------|-----------------------------------------------|
+| GET    | `/api/orgs/:org/repos`   | `X-Internal-Api-Key`         | list repositories accessible to the installation |
+| GET    | `/github/setup`          | none (GitHub Setup URL redirect) | GitHub App installation setup callback; emits `team.github.connected` |
+| POST   | `/github/webhooks`       | `X-Hub-Signature-256` (HMAC-SHA256) | GitHub webhook receiver; emits `team.github.disconnected` / `github.repo.event` |
+
 ## Error Handling
 
 - **Invalid payload**: log and commit offset (skip)
@@ -54,6 +92,9 @@ GITHUB_ISSUE_MAX_RETRIES=3
 
 # PR 머지/승인 HTTP API 인증
 INTERNAL_API_KEY=                       # cowork 백엔드 ↔ 이 서비스 간 공유 비밀키
+
+# GitHub 웹훅 서명(X-Hub-Signature-256) 검증
+GITHUB_WEBHOOK_SECRET=                  # GitHub App 설정의 webhook secret과 동일해야 함
 ```
 
 ## Development Rules
