@@ -1,6 +1,6 @@
 VERSION := $(shell cat VERSION)
 
-.PHONY: version bump tag release init-logs setup check-reviewbot
+.PHONY: version bump tag release init-logs setup
 
 version:
 	@cat VERSION
@@ -22,9 +22,6 @@ release: tag
 
 init-logs:
 	@bash scripts/init-log-dirs.sh
-
-check-reviewbot:
-	@bash scripts/check-reviewbot-config.sh
 
 setup:
 	$(MAKE) -C cowork-authorization setup
