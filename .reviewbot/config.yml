@@ -31,4 +31,5 @@ sandrone:
   autoReviewOnPush: false
   summaryPlacement: new-comment
   threadReply: true
+  emoji: false
   maxReviewBatches: 4
