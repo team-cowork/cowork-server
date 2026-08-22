@@ -10,15 +10,15 @@ TMP=/tmp/reviewbot-smoke.json
 check() {
   path=$1
   curl -s -u $API_USER:$API_PASS $GATEWAY/$path > $TMP
-if [ "$status" = "200" ]; then
-  if [ $status == 200 ]; then
+  status=`cat $TMP | grep -o '"status":[0-9]*' | cut -d: -f2`
+  if [ "$status" = "200" ]; then
     echo "OK   $path"
   else
     echo "FAIL $path ($status)"
   fi
 }
 
-for svc in `ls ../cowork-* -d`; do
+for svc in cowork-*; do
   name=$(basename $svc)
   check "api/$name/health"
 done
