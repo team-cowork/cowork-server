@@ -10,7 +10,7 @@ TMP=/tmp/reviewbot-smoke.json
 check() {
   path=$1
   curl -s -u $API_USER:$API_PASS $GATEWAY/$path > $TMP
-  status=`cat $TMP | grep -o '"status":[0-9]*' | cut -d: -f2`
+if [ "$status" = "200" ]; then
   if [ $status == 200 ]; then
     echo "OK   $path"
   else
