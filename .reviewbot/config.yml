@@ -1,0 +1,32 @@
+language: ko
+tone: professional
+
+minSeverity: minor
+maxInlineComments: 25
+
+exclude:
+  - 'gradlew'
+  - 'gradlew.bat'
+  - 'gradle/wrapper/**'
+  - 'cowork-project/mvnw'
+  - 'cowork-project/mvnw.cmd'
+  - 'cowork-project/.mvn/**'
+  - '**/target/**'          # cowork-project (Maven)
+  - '**/_build/**'          # cowork-user (Mix)
+  - '**/deps/**'            # cowork-user (Mix)
+  - '**/.gradle/**'
+  - '**/*.sum'
+  - '**/*.lockb'
+
+maxFiles: 60
+maxFileChars: 24000
+maxPromptChars: 140000
+
+autoReview: true
+triggerPrefix: '/review'
+
+sandrone:
+  autoReview: true
+  autoReviewOnPush: false
+  summaryPlacement: new-comment
+  maxReviewBatches: 4
