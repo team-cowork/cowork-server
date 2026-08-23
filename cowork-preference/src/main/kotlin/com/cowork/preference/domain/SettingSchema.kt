@@ -11,6 +11,7 @@ object SettingSchema {
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
+    private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
     // webhook은 PUT 전체 교체 계약 — 클라이언트는 항상 객체 전체를 전송해야 하며 부분 업데이트(PATCH)는 지원하지 않음
     private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
     val NOTIFICATION_KEYS = setOf("notification")
@@ -27,6 +28,7 @@ object SettingSchema {
         ResourceType.PROJECT -> PROJECT_KEYS
         ResourceType.VOICE_CHANNEL -> VOICE_CHANNEL_KEYS
         ResourceType.TEXT_CHANNEL -> TEXT_CHANNEL_KEYS
+        ResourceType.GITHUB_REPO -> GITHUB_REPO_KEYS
     }
 
     fun filter(type: ResourceType, raw: JsonObject): JsonObject {
@@ -47,6 +49,7 @@ object SettingSchema {
     fun validate(type: ResourceType, settings: JsonObject): String? = when (type) {
         ResourceType.ACCOUNT -> validateAccount(settings)
         ResourceType.TEAM -> validateTeam(settings)
+        ResourceType.GITHUB_REPO -> validateGithubRepo(settings)
         ResourceType.PROJECT,
         ResourceType.VOICE_CHANNEL,
         ResourceType.TEXT_CHANNEL -> null
@@ -87,6 +90,13 @@ object SettingSchema {
         }
         if (settings.getBoolean("nickname_format_enforced") == true && settings.getString("nickname_format_example").isNullOrBlank()) {
             return "nickname_format_example is required when nickname_format_enforced is true"
+        }
+        return null
+    }
+
+    private fun validateGithubRepo(settings: JsonObject): String? {
+        if (settings.containsKey("label_auto_apply") && settings.getValue("label_auto_apply") !is Boolean) {
+            return "label_auto_apply must be a boolean"
         }
         return null
     }
