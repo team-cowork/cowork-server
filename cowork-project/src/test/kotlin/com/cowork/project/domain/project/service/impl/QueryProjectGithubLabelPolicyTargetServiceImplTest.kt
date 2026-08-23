@@ -3,6 +3,7 @@ package com.cowork.project.domain.project.service.impl
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.service.GithubLabelPolicyReader
+import com.cowork.project.domain.project.presentation.data.response.ProjectGithubLabelPolicyTargetResDto
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -41,10 +42,10 @@ class QueryProjectGithubLabelPolicyTargetServiceImplTest :
                         val result = service.execute("my-org", "my-repo")
 
                         result shouldBe listOf(
-                            com.cowork.project.domain.project.presentation.data.response.ProjectGithubLabelPolicyTargetResDto(
+                            ProjectGithubLabelPolicyTargetResDto(
                                 teamId = 10L, projectId = 1L, repoId = 5L, autoApply = true,
                             ),
-                            com.cowork.project.domain.project.presentation.data.response.ProjectGithubLabelPolicyTargetResDto(
+                            ProjectGithubLabelPolicyTargetResDto(
                                 teamId = 11L, projectId = 2L, repoId = 6L, autoApply = false,
                             ),
                         )
