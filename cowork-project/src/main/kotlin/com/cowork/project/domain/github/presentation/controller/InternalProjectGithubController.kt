@@ -1,6 +1,8 @@
 package com.cowork.project.domain.github.presentation.controller
 
+import com.cowork.project.domain.project.presentation.data.response.ProjectGithubLabelPolicyTargetResDto
 import com.cowork.project.domain.project.presentation.data.response.ProjectGithubWebhookTargetResDto
+import com.cowork.project.domain.project.service.QueryProjectGithubLabelPolicyTargetService
 import com.cowork.project.domain.project.service.QueryProjectGithubWebhookTargetService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/internal/projects")
 class InternalProjectGithubController(
     private val queryProjectGithubWebhookTargetService: QueryProjectGithubWebhookTargetService,
+    private val queryProjectGithubLabelPolicyTargetService: QueryProjectGithubLabelPolicyTargetService,
 ) {
 
     @Operation(
@@ -36,4 +39,18 @@ class InternalProjectGithubController(
         @RequestParam owner: String,
         @RequestParam repo: String,
     ): List<ProjectGithubWebhookTargetResDto> = queryProjectGithubWebhookTargetService.execute(owner, repo)
+
+    @Operation(
+        summary = "GitHub 이슈 라벨 자동/수동 정책 조회 (내부 서비스용)",
+        description = "owner/repo에 연결된 레포의 라벨 정책을 전부 조회한다. cowork-github-app이 사용한다. " +
+            "서로 다른 팀이 같은 레포를 연결할 수 있어 0개 이상을 반환할 수 있다.",
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공 (대상이 없으면 빈 배열)"),
+    )
+    @GetMapping("/github-repos/label-policy")
+    fun getLabelPolicy(
+        @RequestParam owner: String,
+        @RequestParam repo: String,
+    ): List<ProjectGithubLabelPolicyTargetResDto> = queryProjectGithubLabelPolicyTargetService.execute(owner, repo)
 }
