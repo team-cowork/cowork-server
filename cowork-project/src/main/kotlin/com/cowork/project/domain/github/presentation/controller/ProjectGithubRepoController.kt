@@ -119,9 +119,9 @@ class ProjectGithubRepoController(
     @Operation(summary = "라벨 자동/수동 적용 정책 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
+        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
         ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
         ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
     )
     @GetMapping("/{repoId}/label-policy")
@@ -134,9 +134,9 @@ class ProjectGithubRepoController(
     @Operation(summary = "라벨 자동/수동 적용 정책 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "변경 성공"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
+        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
         ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
     )
     @PutMapping("/{repoId}/label-policy")
