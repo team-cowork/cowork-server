@@ -76,6 +76,10 @@ fun buildRouter(
     router.get("/preferences/text-channel/:id").handler(preferenceHandler.getSettings(ResourceType.TEXT_CHANNEL))
     router.put("/preferences/text-channel/:id").handler(preferenceHandler.updateSettings(ResourceType.TEXT_CHANNEL))
 
+    // GITHUB_REPO
+    router.get("/preferences/github-repo/:id").handler(preferenceHandler.getSettings(ResourceType.GITHUB_REPO))
+    router.put("/preferences/github-repo/:id").handler(preferenceHandler.updateSettings(ResourceType.GITHUB_REPO))
+
     // Notification
     router.get("/preferences/account/:accountId/channels/:channelId/notification")
         .handler(notificationHandler::getNotification)
