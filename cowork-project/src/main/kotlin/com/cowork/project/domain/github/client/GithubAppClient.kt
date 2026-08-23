@@ -1,6 +1,8 @@
 package com.cowork.project.domain.github.client
 
 import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubLabelResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
@@ -8,6 +10,7 @@ import com.cowork.project.domain.github.presentation.data.response.GithubPullReq
 import com.cowork.project.domain.github.presentation.data.response.GithubRepoSummaryResDto
 import org.springframework.cloud.openfeign.FeignClient
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -59,4 +62,29 @@ interface GithubAppClient {
         @PathVariable number: Int,
         @RequestBody body: Map<String, String>,
     ): GithubApproveResultResDto
+
+    @GetMapping("/api/repos/{owner}/{repo}/issues")
+    fun listIssues(
+        @PathVariable owner: String,
+        @PathVariable repo: String,
+        @RequestParam state: String,
+    ): List<GithubIssueResDto>
+
+    @GetMapping("/api/repos/{owner}/{repo}/labels")
+    fun listLabels(@PathVariable owner: String, @PathVariable repo: String): List<GithubLabelResDto>
+
+    @PostMapping("/api/repos/{owner}/{repo}/issues")
+    fun createIssue(
+        @PathVariable owner: String,
+        @PathVariable repo: String,
+        @RequestBody body: Map<String, Any?>,
+    ): GithubIssueResDto
+
+    @PatchMapping("/api/repos/{owner}/{repo}/issues/{number}/labels")
+    fun updateIssueLabels(
+        @PathVariable owner: String,
+        @PathVariable repo: String,
+        @PathVariable number: Int,
+        @RequestBody body: Map<String, List<String>>,
+    ): GithubIssueResDto
 }
