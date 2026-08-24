@@ -65,6 +65,23 @@ class GithubLabelPolicyReaderTest :
                 }
             }
 
+            describe("readAutoApplyBulk 메서드는") {
+                context("일부 레포만 설정값이 저장되어 있는 경우") {
+                    it("저장된 값은 그대로, 나머지는 기본값(true)으로 반환한다") {
+                        every { preferenceClient.getGithubRepoSettingsBulk("5,6") } returns
+                            mapOf("5" to mapOf("label_auto_apply" to false))
+
+                        reader.readAutoApplyBulk(listOf(5L, 6L)) shouldBe mapOf(5L to false, 6L to true)
+                    }
+                }
+
+                context("repoId 목록이 비어있는 경우") {
+                    it("cowork-preference를 호출하지 않고 빈 맵을 반환한다") {
+                        reader.readAutoApplyBulk(emptyList()) shouldBe emptyMap()
+                    }
+                }
+            }
+
             describe("writeAutoApply 메서드는") {
                 context("응답에 저장된 값이 정상적으로 담겨오는 경우") {
                     it("저장된 값을 반환한다") {

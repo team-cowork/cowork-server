@@ -36,8 +36,8 @@ class QueryProjectGithubLabelPolicyTargetServiceImplTest :
                         )
                         every { projectGithubRepoRepository.findAllByGithubRepoUrl("https://github.com/my-org/my-repo") } returns
                             listOf(repoLinkA, repoLinkB)
-                        every { labelPolicyReader.readAutoApply(5L) } returns true
-                        every { labelPolicyReader.readAutoApply(6L) } returns false
+                        every { labelPolicyReader.readAutoApplyBulk(listOf(5L, 6L)) } returns
+                            mapOf(5L to true, 6L to false)
 
                         val result = service.execute("my-org", "my-repo")
 
