@@ -1,6 +1,7 @@
 package com.cowork.project.domain.github.service.impl
 
 import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.client.GithubAppUpdateIssueLabelsReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubIssueLabelsReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
 import com.cowork.project.domain.github.service.GithubAppCallExecutor
@@ -38,7 +39,12 @@ class UpdateGithubIssueLabelsServiceImplTest :
                         every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
                         val expected = mockk<GithubIssueResDto>()
                         every {
-                            githubAppClient.updateIssueLabels("my-org", "my-repo", 3, mapOf("labels" to listOf("bug")))
+                            githubAppClient.updateIssueLabels(
+                                "my-org",
+                                "my-repo",
+                                3,
+                                GithubAppUpdateIssueLabelsReqDto(labels = listOf("bug")),
+                            )
                         } returns expected
 
                         val result = service.execute(7L, 1L, 5L, 3, UpdateGithubIssueLabelsReqDto(labels = listOf("bug")))
