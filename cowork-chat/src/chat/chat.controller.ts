@@ -44,8 +44,8 @@ import { EMOJI_REGEX } from './util/emoji';
  * 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` / `X-User-Role` 헤더로 사용자를 식별한다.
  */
 @ApiTags('Chat')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
-@ApiHeader({ name: 'X-User-Role', description: 'Gateway 주입 유저 역할 (ADMIN | MEMBER)', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
+@ApiHeader({ name: 'X-User-Role', description: 'Gateway 자동 주입 (ADMIN | MEMBER)', required: false })
 @Controller('channels/:channelId')
 export class ChatController {
     constructor(private readonly chatService: ChatService) {}
@@ -157,7 +157,7 @@ export class ChatController {
     }
 
     /**
-     * @deprecated 신규 클라이언트는 `POST /channels/{channelId}/slash-commands`를 사용하세요.
+     * @deprecated 신규 클라이언트는 `POST /api/chat/chat/channels/{channelId}/slash-commands`를 사용하세요.
      *
      * GitHub 이슈 생성 커맨드를 Kafka로 비동기 발행한다.
      *
@@ -170,7 +170,8 @@ export class ChatController {
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({
         summary: '[Deprecated] GitHub 이슈 생성 (클라이언트 슬래시 커맨드 → Kafka 비동기)',
-        description: 'Deprecated: 신규 클라이언트는 POST /chat/channels/{channelId}/slash-commands 사용을 권장합니다.',
+        description:
+            'Deprecated: 신규 클라이언트는 POST /api/chat/chat/channels/{channelId}/slash-commands 사용을 권장합니다.',
         deprecated: true,
     })
     @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
