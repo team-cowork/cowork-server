@@ -15,16 +15,18 @@ cowork:
         url: /v3/api-docs/team
       - name: channel
         url: /v3/api-docs/channel
-      - name: voice
-        url: /v3/api-docs/voice
+      - name: project
+        url: /v3/api-docs/project
+      - name: roadmap
+        url: /v3/api-docs/roadmap
       - name: chat
         url: /v3/api-docs/chat
+      - name: voice
+        url: /v3/api-docs/voice
       - name: notification
         url: /v3/api-docs/notification
       - name: preference
         url: /v3/api-docs/preference
-      - name: roadmap
-        url: /v3/api-docs/roadmap
 
 spring:
   kafka:
@@ -112,6 +114,30 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: chat-service-team-unread
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/teams/*/unread
+            - Method=GET
+          filters:
+            - StripPrefix=1
+            - PrefixPath=/chat
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: team-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/teams/*/channels, /api/teams/*/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: team-service
           uri: lb://cowork-team
           predicates:
@@ -161,6 +187,17 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: project-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/projects/*/channels, /api/projects/*/channels/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
         - id: project-service
           uri: lb://cowork-project
           predicates:
@@ -197,7 +234,7 @@ spring:
         - id: chat-service
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/github/issues, /api/channels/*/slash-commands
+            - Path=/api/channels/*/messages/**, /api/channels/*/messages, /api/channels/*/files/**, /api/channels/*/files, /api/channels/*/pins, /api/channels/*/pins/**, /api/channels/*/read, /api/channels/*/github/issues, /api/channels/*/slash-commands
           filters:
             - StripPrefix=1
             - PrefixPath=/chat
@@ -260,6 +297,17 @@ spring:
           uri: lb://cowork-preference
           predicates:
             - Path=/api/preferences/**
+          filters:
+            - StripPrefix=1
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: live-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/live/**
           filters:
             - StripPrefix=1
             - name: CircuitBreaker
@@ -361,6 +409,13 @@ spring:
             - Path=/v3/api-docs/channel
           filters:
             - RewritePath=/v3/api-docs/channel, /v3/api-docs
+
+        - id: project-service-docs
+          uri: lb://cowork-project
+          predicates:
+            - Path=/v3/api-docs/project
+          filters:
+            - RewritePath=/v3/api-docs/project, /v3/api-docs
 
         - id: roadmap-service-docs
           uri: lb://cowork-roadmap
