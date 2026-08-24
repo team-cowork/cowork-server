@@ -1,10 +1,14 @@
 package com.cowork.project.domain.github.presentation.controller
 
 import com.cowork.project.domain.github.presentation.data.request.AddProjectGithubRepoReqDto
+import com.cowork.project.domain.github.presentation.data.request.UpdateGithubLabelPolicyReqDto
+import com.cowork.project.domain.github.presentation.data.response.GithubLabelPolicyResDto
 import com.cowork.project.domain.github.presentation.data.response.ProjectGithubRepoResDto
 import com.cowork.project.domain.github.service.AddProjectGithubRepoService
 import com.cowork.project.domain.github.service.ListProjectGithubRepoLinksService
+import com.cowork.project.domain.github.service.QueryGithubLabelPolicyService
 import com.cowork.project.domain.github.service.RemoveProjectGithubRepoService
+import com.cowork.project.domain.github.service.UpdateGithubLabelPolicyService
 import com.cowork.project.domain.project.presentation.data.request.SetProjectGithubWebhookChannelReqDto
 import com.cowork.project.domain.project.service.ClearProjectGithubWebhookChannelService
 import com.cowork.project.domain.project.service.SetProjectGithubWebhookChannelService
@@ -35,6 +39,8 @@ class ProjectGithubRepoController(
     private val removeProjectGithubRepoService: RemoveProjectGithubRepoService,
     private val setProjectGithubWebhookChannelService: SetProjectGithubWebhookChannelService,
     private val clearProjectGithubWebhookChannelService: ClearProjectGithubWebhookChannelService,
+    private val queryGithubLabelPolicyService: QueryGithubLabelPolicyService,
+    private val updateGithubLabelPolicyService: UpdateGithubLabelPolicyService,
 ) {
 
     @Operation(summary = "등록된 GitHub 레포 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -109,4 +115,35 @@ class ProjectGithubRepoController(
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
     ): ProjectGithubRepoResDto = clearProjectGithubWebhookChannelService.execute(userId, projectId, repoId)
+
+    @Operation(summary = "라벨 자동/수동 적용 정책 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
+        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
+        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
+        ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
+    )
+    @GetMapping("/{repoId}/label-policy")
+    fun getLabelPolicy(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+    ): GithubLabelPolicyResDto = queryGithubLabelPolicyService.execute(userId, projectId, repoId)
+
+    @Operation(summary = "라벨 자동/수동 적용 정책 변경", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "변경 성공"),
+        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
+        ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
+    )
+    @PutMapping("/{repoId}/label-policy")
+    fun updateLabelPolicy(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+        @RequestBody request: UpdateGithubLabelPolicyReqDto,
+    ): GithubLabelPolicyResDto = updateGithubLabelPolicyService.execute(userId, projectId, repoId, request)
 }

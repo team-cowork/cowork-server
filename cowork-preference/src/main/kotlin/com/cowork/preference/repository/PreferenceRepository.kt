@@ -15,6 +15,15 @@ class PreferenceRepository(private val pool: Pool) {
         return rows.firstOrNull()?.getJsonObject("settings")
     }
 
+    /** 여러 리소스의 설정을 한 번의 쿼리로 조회 (N+1 방지용 벌크 조회) */
+    suspend fun findSettingsForResources(resourceIds: List<Long>, resourceType: ResourceType): Map<Long, JsonObject> {
+        if (resourceIds.isEmpty()) return emptyMap()
+        val rows = pool.preparedQuery(
+            "SELECT resource_id, settings FROM resource_setting WHERE resource_id = ANY(\$1) AND resource_type = \$2::resource_type"
+        ).execute(Tuple.of(resourceIds.toTypedArray<Long>(), resourceType.name)).coAwait()
+        return rows.associate { it.getLong("resource_id") to it.getJsonObject("settings") }
+    }
+
     suspend fun upsertSettings(
         resourceId: Long,
         resourceType: ResourceType,

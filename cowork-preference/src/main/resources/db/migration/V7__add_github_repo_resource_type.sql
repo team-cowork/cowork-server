@@ -1,0 +1,1 @@
+ALTER TYPE resource_type ADD VALUE 'GITHUB_REPO';
