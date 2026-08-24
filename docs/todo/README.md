@@ -11,9 +11,11 @@
 
 - security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
 - configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
+- api: [외부 API 모듈 네임스페이스 통일](./items/10-api/public-route-namespace-migration.md)
 
 ## 점검 스냅샷
 
+- [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
 - [20260723](./20260723_TODO.md) — Config Server 운영 구성 점검
 - [20260526](./20260526_TODO.md) — 클라이언트 계약 기준 기능 점검 (전체 완료)
 
