@@ -1,6 +1,6 @@
 # cowork-config와 cowork-gateway 구성
 
-이 문서는 2026-07-23의 `application.yml`, Config Server 설정, Gateway 보안·필터 코드를 기준으로 한다. 로컬 Compose의 기본 프로파일은 `local`이다.
+이 문서는 2026-08-25의 `application.yml`, Config Server 설정, Gateway 보안·필터 코드를 기준으로 한다. 로컬 Compose의 기본 프로파일은 `local`이다.
 
 ## cowork-config
 
@@ -56,7 +56,7 @@ POST /actuator/busrefresh
 Client
   → SecurityConfig / JWT 검증
   → AuthHeaderMutatingFilter / X-User-Id, X-User-Role 주입
-  → Gateway route / RewritePath, StripPrefix, PrefixPath, Retry, RateLimit
+  → Gateway route / RewritePath, StripPrefix, Retry, RateLimit
   → ApiResponseWrapperFilter / JSON 응답 래핑
   → Client
 ```
@@ -67,29 +67,31 @@ WebSocket `/ws/**`는 별도 보안 체인을 사용한다. 브라우저 핸드�
 
 로컬 Compose에서 사용하는 `cowork-gateway-local.yml`의 주요 경로는 다음과 같다.
 
-| 외부 경로                   | 대상              | 변환 또는 비고                                               |
-|-----------------------------|-------------------|--------------------------------------------------------------|
-| `/api/auth/**`              | authorization     | `/api` 제거, 10/20 rate limit                                |
-| `/api/events/datagsm`       | authorization     | 공개 HMAC webhook                                            |
-| `/api/users/**`             | user              | `/api` 제거, GET retry, 20/40 rate limit                     |
-| `/api/teams/*/projects/**`  | project           | 일반 team 라우트보다 먼저 매칭                               |
-| `/api/teams/**`             | team              | `/api` 제거, 20/40 rate limit                                |
-| `/api/projects/**`          | project 또는 chat | 메시지 검색 경로는 chat으로 우선 라우팅                      |
-| `/api/roadmaps/**`          | roadmap           | `/api` 제거                                                  |
-| `/api/channels/**`          | channel 또는 chat | 메시지·파일·GitHub·slash-command 경로는 chat으로 우선 라우팅 |
-| `/api/search/messages`      | chat              | `/chat` 접두사 추가                                          |
-| `/api/search/channels`      | channel           | `/api` 제거                                                  |
-| `/api/chats/**`             | chat              | legacy 경로, `/chat/**`로 rewrite                            |
-| `/ws/chat/**`               | chat WebSocket    | 10/20 rate limit                                             |
-| `/api/dms`                  | channel 또는 chat | POST 생성은 channel, 나머지는 chat                           |
-| `/api/block/**`             | chat              | `/chat` 접두사 추가                                          |
-| `/api/preferences/**`       | preference        | `/api` 제거                                                  |
-| `/api/voice/webhook`        | voice             | 공개 webhook                                                 |
-| `/api/voice/**`             | voice             | `/api` 제거, 10/20 rate limit                                |
-| `/api/notifications/stream` | notification      | SSE 응답 타임아웃 비활성화                                   |
-| `/api/notifications/**`     | notification      | `/api` 제거                                                  |
+| 외부 경로                   | 대상          | 변환 또는 비고                                  |
+|-----------------------------|---------------|-------------------------------------------------|
+| `/api/auth/**`              | authorization | `/api` 제거, 10/20 rate limit                   |
+| `/api/events/datagsm`       | authorization | 공개 HMAC webhook                               |
+| `/api/users/**`             | user          | `/api` 제거, GET retry, 20/40 rate limit        |
+| `/api/teams/*/projects/**`  | project       | 일반 team 라우트보다 먼저 매칭                  |
+| `/api/teams/*/channels/**`  | channel       | 일반 team 라우트보다 먼저 매칭                  |
+| `/api/teams/**`             | team          | `/api` 제거, 20/40 rate limit                   |
+| `/api/projects/*/channels/**` | channel     | 일반 project 라우트보다 먼저 매칭               |
+| `/api/projects/**`          | project       | `/api` 제거                                     |
+| `/api/roadmaps/**`          | roadmap       | `/api` 제거                                     |
+| `/api/channels/**`          | channel       | `/api` 제거, 20/40 rate limit                   |
+| `/api/search/channels`      | channel       | `/api` 제거                                     |
+| `/api/chat/chat/**`         | chat          | `/api/chat` 제거, `/chat/**` 그대로 전달        |
+| `/api/chat/{health,graphql,asyncapi.json}` | chat | 대응하는 하위 서비스 root만 허용       |
+| `/ws/chat/**`               | chat WebSocket| 10/20 rate limit                                |
+| `POST /api/dms`             | channel       | Chat 전환 범위가 아닌 Channel 소유 API          |
+| `/api/preferences/**`       | preference    | `/api` 제거                                     |
+| `/api/live/**`              | voice         | `/api` 제거                                     |
+| `/api/voice/webhook`        | voice         | 공개 webhook                                    |
+| `/api/voice/**`             | voice         | `/api` 제거, 10/20 rate limit                   |
+| `/api/notifications/stream` | notification  | SSE 응답 타임아웃 비활성화                      |
+| `/api/notifications/**`     | notification  | `/api` 제거                                     |
 
-두 프로파일의 route id 집합은 동일하다. 차이는 `prod`가 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker를 붙이는 반면 `local`은 붙이지 않는다는 점, 그리고 통합 Swagger UI 목록(`cowork.swagger-ui`)이 `local`에만 있다는 점이다. 라우트를 추가·변경할 때는 두 파일을 모두 수정한다.
+두 프로파일의 route id와 통합 Swagger 목록은 동일하다. 차이는 `prod`가 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker를 붙이는 반면 `local`은 붙이지 않는다는 점이다. 라우트를 추가·변경할 때는 두 파일을 모두 수정한다.
 
 ### JWT와 공개 경로
 
@@ -103,10 +105,10 @@ X-User-Role: <JWT role>
 현재 인증 없이 허용되는 경로는 다음과 같다.
 
 - 모든 `OPTIONS` 요청
-- `GET /api/auth/signin`, `GET /api/auth/callback`
 - `POST /api/auth/token`, `POST /api/auth/refresh`
-- `/actuator/**`, `/api/health`, `/fallback`
+- `/actuator/**`, `/api/health`, `GET /api/chat/health`, `GET /api/chat/chat/health/ready`, `/fallback`
 - `/swagger-ui.html`, `/swagger-ui/**`, `/webjars/**`, `/v3/api-docs/**`
+- `GET /api/chat/asyncapi.json`
 - `POST /api/voice/webhook`
 - `POST /api/events/datagsm`
 - `GET /api/channels/oauth/callback/**`
@@ -144,6 +146,7 @@ Redis Token Bucket의 로컬 설정은 다음과 같다.
 다음 응답은 래핑하지 않는다.
 
 - actuator, fallback, Swagger/OpenAPI 경로
+- Chat GraphQL `/api/chat/graphql`과 AsyncAPI `/api/chat/asyncapi.json`
 - JSON이 아닌 응답
 - 1 MiB를 초과하는 응답
 - 이미 `code`, `status`, `message` 필드를 가진 응답
@@ -153,6 +156,8 @@ Chunked 응답도 수집 후 실제 크기를 확인해 래핑한다. SSE는 JSO
 ### CORS와 Swagger
 
 `local`의 CORS 허용 origin은 `http://localhost:3000`이고, `prod`는 `PUBLIC_WEB_ORIGIN`을 사용한다. 허용 method는 `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `OPTIONS`이며 credential을 허용한다.
+
+Spring Cloud Gateway 5 기준 설정 prefix인 `spring.cloud.gateway.server.webflux`를 사용한다. `globalcors.add-to-simple-url-handler-mapping: true`를 설정해 라우트 predicate가 매칭되지 않는 preflight에도 전역 CORS 구성을 적용한다.
 
 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인한다. 등록 서비스와 원본 문서 경로는 `docs/api-documentation.md`를 참고한다.
 
