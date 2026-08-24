@@ -1,6 +1,7 @@
 package com.cowork.project.domain.github.service.impl
 
 import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.client.GithubAppCreateIssueReqDto
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubIssueReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
 import com.cowork.project.domain.github.service.CreateGithubIssueService
@@ -23,10 +24,10 @@ class CreateGithubIssueServiceImpl(
             githubAppClient.createIssue(
                 repo.owner,
                 repo.repo,
-                mapOf(
-                    "title" to request.title,
-                    "body" to request.body,
-                    "labels" to listOfNotNull(request.label),
+                GithubAppCreateIssueReqDto(
+                    title = request.title,
+                    body = request.body,
+                    labels = listOfNotNull(request.label),
                 ),
             )
         }
