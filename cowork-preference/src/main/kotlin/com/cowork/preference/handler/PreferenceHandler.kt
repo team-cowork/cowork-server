@@ -26,6 +26,25 @@ class PreferenceHandler(
         }
     }
 
+    /** ?ids=1,2,3 형태의 콤마 구분 id 목록을 한 번에 조회 (N+1 방지용 벌크 조회) */
+    fun getSettingsBulk(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
+        val idsParam = ctx.request().getParam("ids")
+        val resourceIds = idsParam?.split(",")?.mapNotNull { it.trim().toLongOrNull() }.orEmpty()
+        if (idsParam.isNullOrBlank() || resourceIds.isEmpty()) {
+            ctx.response().setStatusCode(400).end(errorBody("Invalid or missing 'ids' query parameter"))
+            return@handler
+        }
+        scope.launch(ctx.vertx().dispatcher()) {
+            runCatching { service.getSettingsBulk(resourceType, resourceIds) }
+                .onSuccess { result ->
+                    val body = JsonObject()
+                    result.forEach { (id, settings) -> body.put(id.toString(), settings) }
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(body.encode())
+                }
+                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+        }
+    }
+
     fun updateSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val resourceId = ctx.pathParam("id").toLongOrNull()
         if (resourceId == null) {
