@@ -54,15 +54,15 @@ async function bootstrap() {
             '| `message` | S→C | 새 메시지 수신 |\n' +
             '| `message:*` | S→C | 수정·삭제·고정·반응 변경 |\n' +
             '| `member:*` / `channel:*` / `project:*` | S→C | 멤버십·채널·프로젝트 변경 |\n\n' +
-            '메시지 작성은 REST 요청 후 `chat.message` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/asyncapi.json`\n\n' +
+            '메시지 작성은 REST 요청 후 `chat.message` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n' +
             '## 메시지 검색\n' +
-            '`GET /projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n' +
+            '`GET /api/chat/chat/projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n' +
             '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n' +
             '## 파일 목록\n' +
-            '`GET /channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
+            '`GET /api/chat/chat/channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
             '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n' +
             '## 통합 검색 (GraphQL)\n' +
-            '`POST /chat/graphql` — 메시지(Elasticsearch)와 채널(channel-service)을 단일 요청으로 병렬 검색.\n\n' +
+            '`POST /api/chat/graphql` — 메시지(Elasticsearch)와 채널(channel-service)을 단일 요청으로 병렬 검색.\n\n' +
             '```graphql\n' +
             'query {\n' +
             '  unifiedSearch(teamId: 1, q: "배포") {\n' +
@@ -73,7 +73,7 @@ async function bootstrap() {
             '}\n' +
             '```\n\n' +
             '선택 인자: `channelId`, `authorId`, `type`, `hasFile`, `before`, `limit`\n\n' +
-            'GraphQL Playground: `/chat/graphql` (GET)\n\n' +
+            'GraphQL Playground(로컬 환경): `/api/chat/graphql` (GET)\n\n' +
             '## 인증\n' +
             'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n' +
             'WebSocket: Gateway가 `/ws/chat`에서 JWT를 검증하고 같은 사용자 헤더를 주입합니다.\n' +
@@ -83,10 +83,27 @@ async function bootstrap() {
             '```\n' +
             '인증 실패 시 서버는 `exception` 이벤트를 emit한 후 연결을 끊습니다.',
         )
-        .setVersion('20260719.0')
+        .setVersion('20260820.0')
+        .addServer('/api/chat', 'Gateway')
+        .addBearerAuth(
+            {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                description: 'Gateway에서 검증할 Cowork JWT',
+            },
+            'bearer',
+        )
+        .addSecurityRequirements('bearer')
         .build();
 
     const document = SwaggerModule.createDocument(app, config);
+    for (const path of ['/health', '/chat/health/ready']) {
+        const operation = document.paths[path]?.get;
+        if (operation) {
+            operation.security = [];
+        }
+    }
     SwaggerModule.setup('api', app, document, { jsonDocumentUrl: 'api-json' });
 
     const port = Number(requireEnv('PORT'));
