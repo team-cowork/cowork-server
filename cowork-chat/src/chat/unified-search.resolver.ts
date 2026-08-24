@@ -35,7 +35,7 @@ export class UnifiedSearchResolver {
         @Args('before', { nullable: true }) before?: string,
         @Args('limit', { type: () => Int, nullable: true }) limit?: number,
     ): Promise<UnifiedSearchResult> {
-        const userId = RequestContextUtil.getUserId(req.headers as Record<string, string | string[] | undefined>);
+        const userId = RequestContextUtil.getUserId(req.headers);
 
         const dto = plainToInstance(SearchTeamMessagesDto, { teamId, q, channelId, authorId, type, hasFile, before, limit });
         const errors = await validate(dto);
