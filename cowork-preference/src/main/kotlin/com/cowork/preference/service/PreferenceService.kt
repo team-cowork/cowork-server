@@ -20,6 +20,14 @@ class PreferenceService(
         return settings
     }
 
+    /** 여러 리소스의 설정을 한 번의 DB 조회로 반환 (호출자의 N+1 원격 호출 방지용) */
+    suspend fun getSettingsBulk(resourceType: ResourceType, resourceIds: List<Long>): Map<Long, JsonObject> {
+        if (resourceIds.isEmpty()) return emptyMap()
+        val found = repository.findSettingsForResources(resourceIds, resourceType)
+        found.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
+        return resourceIds.associateWith { found[it] ?: JsonObject() }
+    }
+
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
         val filtered = SettingSchema.filter(resourceType, raw)
         val validationTarget = validationTarget(resourceType, resourceId, filtered)
