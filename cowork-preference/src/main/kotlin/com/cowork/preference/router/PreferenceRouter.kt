@@ -77,6 +77,7 @@ fun buildRouter(
     router.put("/preferences/text-channel/:id").handler(preferenceHandler.updateSettings(ResourceType.TEXT_CHANNEL))
 
     // GITHUB_REPO
+    router.get("/preferences/github-repo").handler(preferenceHandler.getSettingsBulk(ResourceType.GITHUB_REPO))
     router.get("/preferences/github-repo/:id").handler(preferenceHandler.getSettings(ResourceType.GITHUB_REPO))
     router.put("/preferences/github-repo/:id").handler(preferenceHandler.updateSettings(ResourceType.GITHUB_REPO))
 
