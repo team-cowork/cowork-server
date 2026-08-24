@@ -77,7 +77,7 @@ interface GithubAppClient {
     fun createIssue(
         @PathVariable owner: String,
         @PathVariable repo: String,
-        @RequestBody body: Map<String, Any?>,
+        @RequestBody body: GithubAppCreateIssueReqDto,
     ): GithubIssueResDto
 
     @PatchMapping("/api/repos/{owner}/{repo}/issues/{number}/labels")
@@ -85,6 +85,6 @@ interface GithubAppClient {
         @PathVariable owner: String,
         @PathVariable repo: String,
         @PathVariable number: Int,
-        @RequestBody body: Map<String, List<String>>,
+        @RequestBody body: GithubAppUpdateIssueLabelsReqDto,
     ): GithubIssueResDto
 }

@@ -1,6 +1,7 @@
 package com.cowork.project.domain.github.service.impl
 
 import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.client.GithubAppCreateIssueReqDto
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubIssueReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
 import com.cowork.project.domain.github.service.GithubAppCallExecutor
@@ -41,10 +42,10 @@ class CreateGithubIssueServiceImplTest :
                             githubAppClient.createIssue(
                                 "my-org",
                                 "my-repo",
-                                mapOf(
-                                    "title" to "로그인 실패 버그",
-                                    "body" to "500 에러 발생",
-                                    "labels" to listOf("bug"),
+                                GithubAppCreateIssueReqDto(
+                                    title = "로그인 실패 버그",
+                                    body = "500 에러 발생",
+                                    labels = listOf("bug"),
                                 ),
                             )
                         } returns expected
@@ -67,10 +68,10 @@ class CreateGithubIssueServiceImplTest :
                             githubAppClient.createIssue(
                                 "my-org",
                                 "my-repo",
-                                mapOf(
-                                    "title" to "제목만",
-                                    "body" to null,
-                                    "labels" to emptyList<String>(),
+                                GithubAppCreateIssueReqDto(
+                                    title = "제목만",
+                                    body = null,
+                                    labels = emptyList(),
                                 ),
                             )
                         } returns expected
