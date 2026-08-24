@@ -14,7 +14,7 @@ class UpdateGithubLabelPolicyServiceImpl(
     private val labelPolicyReader: GithubLabelPolicyReader,
 ) : UpdateGithubLabelPolicyService {
 
-    @Transactional(readOnly = true)
+    @Transactional
     override fun execute(userId: Long, projectId: Long, repoId: Long, request: UpdateGithubLabelPolicyReqDto): GithubLabelPolicyResDto {
         repoAccessResolver.resolveForModify(userId, projectId, repoId)
         return GithubLabelPolicyResDto(autoApply = labelPolicyReader.writeAutoApply(repoId, request.autoApply))
