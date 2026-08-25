@@ -15,7 +15,7 @@
 // @description
 // @description     응답의 `room_name`이 LiveKit room 식별자이며, `session_id`로 서버 측 세션을 조회합니다.
 // @description     참가자 입퇴장은 LiveKit이 `POST /voice/webhook`으로 통보하고 서버가 세션 상태를 갱신합니다.
-// @BasePath        /api
+// @BasePath        /api/voice
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization

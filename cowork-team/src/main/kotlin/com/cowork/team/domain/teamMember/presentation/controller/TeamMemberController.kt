@@ -53,7 +53,7 @@ class TeamMemberController(
         @PathVariable teamId: Long,
     ): List<TeamMemberResponse> = queryTeamMembersService.execute(userId, teamId)
 
-    @Operation(summary = "멤버 여부 확인", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "멤버 여부 확인 (내부 서비스용)", hidden = true)
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "멤버 여부 반환"),
     )
