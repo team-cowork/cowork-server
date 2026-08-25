@@ -8,6 +8,7 @@ import { LabelService } from './issue/label.service';
 import { GithubController } from './github.controller';
 import { IssueResultProducer } from './kafka/issue-result.producer';
 import { InstallationModule } from './installation/installation.module';
+import { IssueHttpModule } from './issue-http/issue-http.module';
 import { PullRequestModule } from './pull-request/pull-request.module';
 
 @Module({
@@ -15,6 +16,7 @@ import { PullRequestModule } from './pull-request/pull-request.module';
     HttpModule,
     GithubAuthModule,
     PullRequestModule,
+    IssueHttpModule,
     InstallationModule,
   ],
   providers: [
