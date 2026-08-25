@@ -5,8 +5,8 @@ import { UserId } from '../common/decorator/user.decorator';
 import { UnreadCountItemDto } from './dto/unread-count-response.dto';
 
 @ApiTags('Chat')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
-@ApiHeader({ name: 'X-User-Role', description: 'Gateway 주입 유저 역할 (ADMIN | MEMBER)', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
+@ApiHeader({ name: 'X-User-Role', description: 'Gateway 자동 주입 (ADMIN | MEMBER)', required: false })
 @Controller('teams/:teamId')
 export class TeamUnreadController {
     constructor(private readonly chatService: ChatService) {}
