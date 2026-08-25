@@ -80,6 +80,7 @@ class HealthDashboardControllerTest :
                 requireNotNull(body)
                 body shouldContain "/api/health"
                 body shouldContain "REFRESH_INTERVAL_MS = 10000"
+                body shouldContain "status-indicator"
                 body shouldContain "TODO(temporary health dashboard)"
                 body shouldNotContain "https://"
                 body shouldNotContain "http://"
