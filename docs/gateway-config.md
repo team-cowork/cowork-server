@@ -67,29 +67,31 @@ WebSocket `/ws/**`는 별도 보안 체인을 사용한다. 브라우저 핸드�
 
 로컬 Compose에서 사용하는 `cowork-gateway-local.yml`의 주요 경로는 다음과 같다.
 
-| 외부 경로                   | 대상          | 변환 또는 비고                                  |
-|-----------------------------|---------------|-------------------------------------------------|
-| `/api/auth/**`              | authorization | `/api` 제거, 10/20 rate limit                   |
-| `/api/events/datagsm`       | authorization | 공개 HMAC webhook                               |
-| `/api/users/**`             | user          | `/api` 제거, GET retry, 20/40 rate limit        |
-| `/api/teams/*/projects/**`  | project       | 일반 team 라우트보다 먼저 매칭                  |
-| `/api/teams/*/channels/**`  | channel       | 일반 team 라우트보다 먼저 매칭                  |
-| `/api/teams/**`             | team          | `/api` 제거, 20/40 rate limit                   |
-| `/api/projects/*/channels/**` | channel     | 일반 project 라우트보다 먼저 매칭               |
-| `/api/projects/**`          | project       | `/api` 제거                                     |
-| `/api/roadmaps/**`          | roadmap       | `/api` 제거                                     |
-| `/api/channels/**`          | channel       | `/api` 제거, 20/40 rate limit                   |
-| `/api/search/channels`      | channel       | `/api` 제거                                     |
-| `/api/chat/chat/**`         | chat          | `/api/chat` 제거, `/chat/**` 그대로 전달        |
-| `/api/chat/{health,graphql,asyncapi.json}` | chat | 대응하는 하위 서비스 root만 허용       |
-| `/ws/chat/**`               | chat WebSocket| 10/20 rate limit                                |
-| `POST /api/dms`             | channel       | Chat 전환 범위가 아닌 Channel 소유 API          |
-| `/api/preferences/**`       | preference    | `/api` 제거                                     |
-| `/api/live/**`              | voice         | `/api` 제거                                     |
-| `/api/voice/webhook`        | voice         | 공개 webhook                                    |
-| `/api/voice/**`             | voice         | `/api` 제거, 10/20 rate limit                   |
-| `/api/notifications/stream` | notification  | SSE 응답 타임아웃 비활성화                      |
-| `/api/notifications/**`     | notification  | `/api` 제거                                     |
+| 외부 경로 | 대상 | 변환 또는 비고 |
+|---|---|---|
+| `/api/authorization/auth/**` | authorization | `/api/authorization` 제거, 10/20 rate limit |
+| `/api/authorization/events/datagsm` | authorization | 공개 HMAC webhook |
+| `/api/user/users/**` | user | `/api/user` 제거, GET retry, 20/40 rate limit |
+| `/api/team/teams/**` | team | `/api/team` 제거, 20/40 rate limit |
+| `/api/project/teams/*/projects/**` | project | `/api/project` 제거 |
+| `/api/project/projects/**` | project | `/api/project` 제거 |
+| `/api/channel/teams/*/channels/**` | channel | `/api/channel` 제거 |
+| `/api/channel/projects/*/channels/**` | channel | `/api/channel` 제거 |
+| `/api/channel/channels/**` | channel | `/api/channel` 제거, 20/40 rate limit |
+| `/api/channel/search/channels` | channel | `/api/channel` 제거 |
+| `POST /api/channel/dms` | channel | Chat의 DM 조회·삭제와 분리된 Channel 소유 API |
+| `/api/roadmap/roadmaps/**` | roadmap | `/api/roadmap` 제거 |
+| `/api/preference/preferences/**` | preference | `/api/preference` 제거 |
+| `/api/chat/chat/**` | chat | `/api/chat` 제거, `/chat/**` 그대로 전달 |
+| `/api/chat/{health,graphql,asyncapi.json}` | chat | 대응하는 하위 서비스 root만 허용 |
+| `/ws/chat/**` | chat WebSocket | namespace 정책 예외, 10/20 rate limit |
+| `/api/voice/live/**` | voice | `/api/voice` 제거 |
+| `/api/voice/voice/webhook` | voice | 공개 webhook |
+| `/api/voice/voice/**` | voice | `/api/voice` 제거, 10/20 rate limit |
+| `/api/notification/notifications/stream` | notification | SSE 응답 타임아웃 비활성화 |
+| `/api/notification/notifications/**` | notification | `/api/notification` 제거 |
+
+모든 일반 HTTP route는 `/api/{module-name}{downstream-path}`를 사용하며 Gateway가 앞의 두 세그먼트만 제거한다. 서비스 간 직접 호출, `/ws/{module}/**`, `/v3/api-docs/{module}`, 서비스 내부 health·metrics 경로는 이 변환 대상이 아니다.
 
 두 프로파일의 route id와 통합 Swagger 목록은 동일하다. 차이는 `prod`가 대부분의 HTTP 라우트에 `defaultCB` Circuit Breaker를 붙이는 반면 `local`은 붙이지 않는다는 점이다. 라우트를 추가·변경할 때는 두 파일을 모두 수정한다.
 
@@ -105,13 +107,13 @@ X-User-Role: <JWT role>
 현재 인증 없이 허용되는 경로는 다음과 같다.
 
 - 모든 `OPTIONS` 요청
-- `POST /api/auth/token`, `POST /api/auth/refresh`
+- `POST /api/authorization/auth/token`, `POST /api/authorization/auth/refresh`
 - `/actuator/**`, `/api/health`, `GET /api/chat/health`, `GET /api/chat/chat/health/ready`, `/fallback`
 - `/swagger-ui.html`, `/swagger-ui/**`, `/webjars/**`, `/v3/api-docs/**`
 - `GET /api/chat/asyncapi.json`
-- `POST /api/voice/webhook`
-- `POST /api/events/datagsm`
-- `GET /api/channels/oauth/callback/**`
+- `POST /api/voice/voice/webhook`
+- `POST /api/authorization/events/datagsm`
+- `GET /api/channel/channels/oauth/callback/**`
 
 하위 서비스는 JWT를 다시 파싱하지 않는다. 운영에서는 Gateway를 우회하는 서비스 포트를 외부에 노출하지 않는다.
 
