@@ -74,13 +74,14 @@ class SecurityConfig(
             .authorizeExchange { exchanges ->
                 exchanges
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .pathMatchers(HttpMethod.GET, "/api/auth/signin", "/api/auth/callback").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/auth/token", "/api/auth/refresh").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/api/health").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/chat/asyncapi.json").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/voice/webhook").permitAll()
                     // DataGSM webhook은 Cowork JWT가 아닌 HMAC 서명으로 인증하므로 Gateway JWT 검증을 우회한다
                     .pathMatchers(HttpMethod.POST, "/api/events/datagsm").permitAll()
