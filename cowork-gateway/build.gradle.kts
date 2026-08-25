@@ -40,6 +40,8 @@ dependencies {
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation("io.kotest:kotest-runner-junit5-jvm:5.9.1")
+    testImplementation("io.kotest:kotest-assertions-core-jvm:5.9.1")
 }
 
 kotlin {
@@ -50,4 +52,8 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty(
+        "gateway.config.dir",
+        rootProject.file("cowork-config/src/main/resources/configs").absolutePath,
+    )
 }
