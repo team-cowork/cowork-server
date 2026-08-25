@@ -124,22 +124,10 @@ h1 span {
 }
 
 .service-list {
-  position: relative;
   margin: 0;
   padding: 0;
   list-style: none;
   transition: opacity 160ms ease;
-}
-
-.service-list::before {
-  position: absolute;
-  z-index: 0;
-  top: 0;
-  bottom: 0;
-  left: 5px;
-  width: 1px;
-  background: var(--rule);
-  content: "";
 }
 
 .service-list.is-stale {
@@ -147,9 +135,8 @@ h1 span {
 }
 
 .service-row {
-  position: relative;
   display: grid;
-  grid-template-columns: 11px minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) 104px;
   align-items: center;
   gap: 18px;
   min-height: 62px;
@@ -157,13 +144,19 @@ h1 span {
 }
 
 .signal {
-  z-index: 1;
   width: 11px;
   height: 11px;
   border: 3px solid var(--paper);
   border-radius: 50%;
   background: currentColor;
   box-shadow: 0 0 0 1px currentColor;
+}
+
+.status-indicator {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
 }
 
 .service-name,
@@ -222,7 +215,12 @@ h1 span {
   }
 
   .service-row {
+    grid-template-columns: minmax(0, 1fr) 92px;
     gap: 13px;
+  }
+
+  .status-indicator {
+    gap: 10px;
   }
 
   .service-name,
