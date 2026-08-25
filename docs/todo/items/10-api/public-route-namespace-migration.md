@@ -2,7 +2,8 @@
 
 - **서비스**: cowork-gateway, cowork-config, 외부 HTTP API 모듈 10개, 웹 클라이언트·외부 provider
 - **우선순위**: 🟠 중간
-- **현재 상태**: cowork-chat 선행 전환 완료. 나머지 모듈의 Gateway·보안·OpenAPI·클라이언트 계약 전환은 미완료
+- **현재 상태**: 저장소 코드 전환 및 자동화 검증 완료. 외부 소비처·provider 운영 URL 전환과 staging 배포 검증 대기
+- **외부 소비처 담당**: 웹·모바일·자동화 클라이언트와 provider 운영 설정은 저장소 외부 작업이며 사용자가 전환한다
 
 ## 진행 상태 (2026-08-25)
 
@@ -11,10 +12,28 @@
 | 1. Gateway 경로·Swagger·Git 이력 inventory | ✅ 완료 |
 | 2. 외부 네임스페이스 정책 확정 | ✅ 완료 |
 | 3. cowork-chat HTTP·GraphQL·health·AsyncAPI 선행 전환 | ✅ 코드 완료 |
-| 4. authorization·user·team·channel·project·roadmap·voice·notification·preference 전환 | ❌ 미수행 |
-| 5. 서비스별 Gateway-facing OpenAPI 정합 | 🔄 Chat 일부 완료, 나머지 미수행 |
-| 6. 웹 클라이언트·OAuth·webhook 외부 설정 전환 | ❌ 미수행 |
-| 7. staging 원자적 배포 및 구 경로 negative 검증 | ❌ 미수행 |
+| 4. authorization·user·team·channel·project·roadmap·voice·notification·preference 전환 | ✅ 코드 완료 |
+| 5. 서비스별 Gateway-facing OpenAPI 정합 | ✅ 코드·계약 테스트 완료 |
+| 6. 저장소 내부 OAuth callback URL 생성 코드 전환 | ✅ 코드·단위 테스트 완료 |
+| 7. 웹·모바일·자동화 클라이언트와 provider 등록 URL 전환 (사용자 담당) | ⏳ 사용자 전환 대기 |
+| 8. staging 원자적 배포 및 구 경로 negative 검증 | ⏳ 외부 소비처 전환 후 수행 |
+
+## 저장소 구현 결과 (2026-08-25)
+
+- Gateway local/prod route를 모두 `/api/{module-name}{downstream-path}`와 `StripPrefix=2`로 전환하고 두 환경의 route 계약을 회귀 테스트로 고정했다.
+- Gateway JWT 공개 예외를 canonical path와 최소 HTTP method로 이동했다. 구 DataGSM 경로를 포함한 비정상 path·method가 인증 없이 통과하지 않는 보안 체인 테스트를 추가했다.
+- Spring, Go, Elixir, Vert.x 정적 명세의 Gateway-facing server/basePath, Bearer JWT, 공개·내부 operation 노출을 정합화했다. Go 생성 명세에서는 외부 route가 없는 직접 health operation을 제외했다.
+- Channel OAuth authorize·token 교환이 동일한 canonical callback URL을 사용하도록 공통화했다.
+- 중앙 Gateway·API 문서와 환경변수 설명을 새 계약에 맞췄다. 서비스 간 직접 호출 경로, WebSocket `/ws/chat/**`, 통합 문서 `/v3/api-docs/{module}`는 변경하지 않았다.
+- 모니터링과 내부 API 접근 통제는 각각 2번·3번 파생 TODO로 분리했으며 이번 완료 범위에 포함하지 않는다.
+
+### 자동화 검증
+
+- JVM Gradle: Gateway, Channel, Team, Roadmap 전체 테스트 통과
+- Project Maven: `clean test` 95개 통과
+- Go: Authorization, Voice, Notification `go test ./...` 통과
+- Elixir User: `mix test` 3개 통과
+- Preference Amper: `check` 3개 통과
 
 ## 결정된 외부 라우트 정책
 
@@ -39,6 +58,13 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - 통합 문서 프록시는 `/v3/api-docs/{module}`를 유지한다.
 - `/api/health`, `/actuator/**`, `/swagger-ui/**`, `/fallback`은 도메인 API가 아닌 Gateway·플랫폼 공용 경로로 예약한다.
 - 서비스 내부 `/metrics`와 직접 healthcheck 경로는 외부 API 정책 대상에서 제외한다. 외부에 필요한 health만 명시적 라우트로 노출한다.
+
+## 파생 TODO와 범위 경계
+
+- [Gateway canonical API 계약 모니터링](../11-monitoring/gateway-canonical-api-monitoring.md): 기존 내부 health·metrics 수집은 유지하면서 canonical Gateway 경로의 실제 도달성을 별도로 감시한다.
+- [Gateway 내부 API 외부 노출 차단](../12-security/internal-api-gateway-access-control.md): public root와 같은 하위 path에 섞인 내부 operation을 method·path 단위로 Gateway에서 차단한다.
+- 이 문서는 외부 경로 네임스페이스와 Gateway-facing OpenAPI 정합을 담당한다. 모니터링 설계와 내부 API 차단 방식의 상세 구현·완료 조건은 위 파생 TODO에서 관리한다.
+- 웹·모바일·자동화 클라이언트 endpoint와 DataGSM·OAuth provider·LiveKit의 운영 등록 URL은 사용자가 전환한다. 저장소 작업은 목표 URL과 배포 체크리스트를 제공하고, staging 전환 전에 사용자 확인을 받는다.
 
 ## Git 이력과 원인
 
@@ -125,9 +151,9 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 모듈별로 local/prod를 항상 같이 수정하고 다음을 검증한다.
 
 - predicate가 겹치는 경우 더 구체적인 root·method route에 더 작은 `order` 값을 설정해 우선순위를 높인다.
-- module별 공개 root allowlist를 사용하고 internal·metrics·서비스 직접 문서 root의 외부 접근을 negative test로 고정한다.
-- User의 `PUT /users/{id}`·`PATCH /users/{id}/status`, Team의 `GET /teams/{teamId}/members/{userId}/exists`, Project의 `GET /projects/{projectId}/team-id`는 내부 API이므로 Gateway와 Gateway-facing OpenAPI에서 제외한다.
-- public root 안에서도 operation별 외부/내부 소유권을 분류한다. root 단위 `paths-to-match`만으로 숨길 수 없는 내부 operation은 `@Hidden` 또는 OpenAPI customizer로 제외하고, 서비스 간 직접 호출은 유지한다.
+- module별 공개 root allowlist를 사용하고 `/internal`, metrics, 서비스 직접 문서 root를 새 namespace로 노출하지 않는다.
+- public root와 같은 하위 path에 섞인 내부 operation의 실제 외부 차단은 파생 [Gateway 내부 API 외부 노출 차단](../12-security/internal-api-gateway-access-control.md)에서 method·path 단위로 구현한다. `@Hidden` 또는 OpenAPI customizer는 문서 제외 수단일 뿐 접근 통제로 간주하지 않는다.
+- namespace 전환 시 내부 operation을 Gateway-facing OpenAPI에서 제외하고, 서비스 간 직접 호출 경로는 변경하지 않는다.
 - Project의 `GET /projects/{projectId}/members/me`는 내부 서비스용으로 표기되어 있지만 호출자 본인의 멤버십을 검사하므로, 웹 클라이언트 사용 여부를 확인해 공개 유지 또는 내부 전용을 결정한다.
 - public 외부 경로에서 기존 하위 경로로의 rewrite를 route test로 고정한다.
 - 이전 경로가 우연히 다른 서비스 catch-all에 매칭되지만 않게 도달 target까지 검증한다.
@@ -153,16 +179,26 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - Channel OAuth callback URL 생성 코드는 현재 bare `PUBLIC_API_BASE_URL`에 `/channels/oauth/callback/...`만 덧붙여 기존 Gateway의 `/api`도 누락할 수 있다. 목표는 `{PUBLIC_API_BASE_URL}/api/channel/channels/oauth/callback/{provider}`로 명시하고 GitHub·Notion·Jira·Google·Facebook provider 등록 URI를 같이 바꾼다.
 - DataGSM 등록 webhook을 `/api/authorization/events/datagsm`으로 바꾼다.
 - LiveKit webhook을 `/api/voice/voice/webhook`으로 바꾼다.
-- 웹 클라이언트와 모바일·자동화 소비자의 모든 endpoint를 모듈별 canonical URL로 한 번에 바꾼다.
+- 웹 클라이언트와 모바일·자동화 소비자의 모든 endpoint 및 provider 운영 등록 URL은 사용자가 모듈별 canonical URL로 전환한다.
+
+### 사용자 외부 전환 체크리스트
+
+- [ ] 웹·모바일·자동화 클라이언트의 REST base/path를 위 전체 경로 전환 표의 목표 경로로 교체
+- [ ] DataGSM webhook을 `{PUBLIC_API_BASE_URL}/api/authorization/events/datagsm`으로 교체
+- [ ] GitHub·Notion·Jira·Google·Facebook redirect URI를 `{PUBLIC_API_BASE_URL}/api/channel/channels/oauth/callback/{provider}`로 교체 (`provider`는 소문자)
+- [ ] LiveKit webhook을 `{PUBLIC_API_BASE_URL}/api/voice/voice/webhook`으로 교체
+- [ ] Gateway와 외부 소비처·provider 설정을 같은 release 창에서 배포할 수 있도록 rollback snapshot 확보
+- [ ] 사용자 전환 완료 확인 후 staging에서 canonical·구 경로 negative·CORS·JWT/public·SSE·GraphQL·OAuth 검증 수행
 
 ## 구현 순서
 
 1. 모듈별 현재 endpoint·HTTP method·downstream target·public 인증·OpenAPI path를 snapshot test로 고정한다.
 2. 해당 모듈의 Gateway local/prod route, route order, rewrite, `SecurityConfig`를 canonical URL로 교체한다.
 3. 각 런타임의 Gateway-facing Swagger/OpenAPI server·path·security를 동일 배포 단위에서 바꾼다.
-4. 서비스 간 직접 URL은 변경하지 않았음을 확인하고, 외부 클라이언트·OAuth·webhook 설정만 canonical URL로 이동한다.
-5. canonical 요청, 구 경로 negative, CORS preflight, JWT/public matcher, Swagger `Try it out`을 staging에서 검증한다.
-6. Gateway·클라이언트·provider 설정을 원자적으로 배포하고, 문제 시 이전 Gateway image와 클라이언트 version을 함께 rollback한다.
+4. 서비스 간 직접 URL은 변경하지 않았음을 확인하고, 저장소 내부 OAuth·webhook URL 생성 코드를 canonical URL로 이동한다.
+5. 사용자에게 최종 endpoint 변경표를 전달하고 웹·모바일·자동화 클라이언트와 provider 운영 등록 URL의 전환 완료를 확인한다.
+6. canonical 요청, 구 경로 negative, CORS preflight, JWT/public matcher, Swagger `Try it out`을 staging에서 검증한다.
+7. Gateway·클라이언트·provider 설정을 원자적으로 배포하고, 문제 시 이전 Gateway image와 클라이언트 version을 함께 rollback한다.
 
 모듈 권장 순서는 authorization → user → voice → notification·preference → team·project·channel·roadmap이다. team·project·channel은 현재 predicate가 서로 겹치므로 같은 release에서 전환한다.
 
@@ -188,7 +224,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - cowork-channel OAuth callback URL 생성 서비스 2개와 테스트
 - `.env.example`, `docker-compose.prod.yml`의 `PUBLIC_API_BASE_URL` 계약
 - 외부 경로 계약을 직접 설명하는 중앙 문서만 갱신하고 모듈 README에는 API 경로를 중복 기록하지 않는다.
-- 웹 클라이언트 endpoint, DataGSM webhook, OAuth provider redirect URI, 운영 LiveKit webhook 설정
+- 사용자 전달용 웹·모바일·자동화 클라이언트 endpoint, DataGSM webhook, OAuth provider redirect URI, 운영 LiveKit webhook 변경표
 
 ## 배포 영향과 rollback
 
@@ -210,6 +246,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - 구 경로가 404이거나 적어도 기존 소유 서비스에 도달하지 않는지 negative test로 검증한다.
 - 각 OpenAPI의 `server + path`, Bearer requirement, public operation을 파싱하고 통합 Swagger `Try it out`을 실행한다.
 - OAuth authorize URL과 callback URL이 provider에 등록한 canonical URI와 바이트 단위로 같은지 확인한다.
+- 사용자가 웹·모바일·자동화 클라이언트와 provider 운영 등록 URL의 전환 완료를 확인했는지 배포 체크리스트에 기록한다.
 
 ## 완료 조건
 
@@ -220,3 +257,4 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - 통합 Swagger의 모든 `Try it out`이 실제 Gateway canonical URL을 호출한다.
 - canonical·negative·CORS·JWT/public·streaming·GraphQL·OAuth 회귀 테스트가 자동화되어 통과한다.
 - 무별칭 전환과 rollback 절차가 배포 runbook에 반영된다.
+- 파생 TODO의 완료 여부는 각 문서에서 별도로 추적하며, namespace 마이그레이션 완료가 모니터링 또는 내부 API 접근 통제 완료를 대신하지 않는다.
