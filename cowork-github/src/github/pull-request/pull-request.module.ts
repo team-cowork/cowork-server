@@ -3,7 +3,7 @@ import { Module } from '@nestjs/common';
 import { AppConfigService } from '../../config/app-config.service';
 import { GithubAuthModule } from '../auth/github-auth.module';
 import { PullRequestApiClient } from './client/pull-request-api.client';
-import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
+import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { PullRequestResultProducer } from './kafka/pull-request-result.producer';
 import { PullRequestController } from './pull-request.controller';
 import { PullRequestHttpController } from './pull-request-http.controller';
