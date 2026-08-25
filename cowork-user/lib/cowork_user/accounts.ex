@@ -17,6 +17,19 @@ defmodule CoworkUser.Accounts do
     end
   end
 
+  @doc """
+  GitHub 로그인명(`tb_accounts.github`, 유니크)으로 cowork 사용자를 역조회한다.
+
+  cowork-project의 GitHub 이슈/PR 댓글 알림에서, 댓글이 달린 이슈/PR의
+  GitHub 작성자가 cowork 사용자이면 그 사람에게 알림을 보내기 위해 사용한다.
+  """
+  def get_by_github(username) do
+    case Repo.get_by(Account, github: username) do
+      nil -> {:error, :not_found}
+      account -> get_user_profile(account.id)
+    end
+  end
+
   @display_name_cache_ttl_seconds 60
   @display_name_not_found_ttl_seconds 30
   @not_found_marker "__not_found__"
