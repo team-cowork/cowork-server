@@ -18,7 +18,7 @@ import { UserId } from '../common/decorator/user.decorator';
  * 프로젝트 멤버십은 project-service에, 채널 멤버십은 MongoDB로 각각 확인한다.
  */
 @ApiTags('Chat')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
 @Controller('projects/:projectId')
 export class ProjectMessageController {
     constructor(private readonly chatService: ChatService) {}

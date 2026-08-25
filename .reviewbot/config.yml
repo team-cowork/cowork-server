@@ -1,5 +1,5 @@
 language: ko
-minSeverity: minor
+minSeverity: nit
 maxInlineComments: 25
 
 exclude:
