@@ -20,7 +20,12 @@ class GithubCommentAuthorizationSupport(
 
     fun authorize(userId: Long, projectId: Long, repoId: Long, commentId: Long): GithubRepoRef {
         val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        val isProjectModifier = runCatching { repoAccessResolver.resolveForModify(userId, projectId, repoId) }.isSuccess
+        val isProjectModifier = try {
+            repoAccessResolver.resolveForModify(userId, projectId, repoId)
+            true
+        } catch (e: ExpectedException) {
+            false
+        }
         if (isProjectModifier) return repo
 
         val requesterGithubUsername = usernameResolver.resolve(userId)
