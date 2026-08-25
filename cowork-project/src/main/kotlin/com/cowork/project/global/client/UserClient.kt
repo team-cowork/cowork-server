@@ -10,9 +10,16 @@ interface UserClient {
 
     @GetMapping("/users/{userId}")
     fun getUserProfile(@PathVariable userId: Long): UserProfileResDto
+
+    @GetMapping("/users/by-github/{githubUsername}")
+    fun getUserProfileByGithub(@PathVariable githubUsername: String): GithubAccountResDto
 }
 
 data class UserProfileResDto(
     @field:JsonProperty("github_id")
     val githubId: String?,
+)
+
+data class GithubAccountResDto(
+    val id: Long,
 )
