@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { GithubClientError } from '../github.errors';
-import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
+import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { PullRequestService } from './pull-request.service';
 
 @Controller('api/repos/:owner/:repo/pulls')
