@@ -72,7 +72,6 @@ sdk:
     group: "team"
     paths-to-match:
       - "/teams/**"
-      - "/team-members/**"
 
 spring.cloud.aws:
   region:

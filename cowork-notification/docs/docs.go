@@ -15,26 +15,6 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/health": {
-            "get": {
-                "description": "서비스 생존 여부 확인",
-                "produces": [
-                    "text/plain"
-                ],
-                "tags": [
-                    "system"
-                ],
-                "summary": "헬스 체크",
-                "responses": {
-                    "200": {
-                        "description": "ok",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
         "/notifications/stream": {
             "get": {
                 "security": [
@@ -227,9 +207,9 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "20260719.0",
+	Version:          "20260820.0",
 	Host:             "",
-	BasePath:         "/",
+	BasePath:         "/api/notification",
 	Schemes:          []string{},
 	Title:            "cowork-notification API",
 	Description:      "FCM 디바이스 토큰 관리 및 푸시 알림 서비스",
