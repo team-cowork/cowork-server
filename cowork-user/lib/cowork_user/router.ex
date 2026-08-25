@@ -128,6 +128,13 @@ defmodule CoworkUser.Router do
     end
   end
 
+  get "/users/by-github/:github_username" do
+    case Accounts.get_by_github(github_username) do
+      {:ok, profile} -> JSON.send(conn, 200, profile)
+      {:error, :not_found} -> JSON.error(conn, 404, "사용자를 찾을 수 없습니다.")
+    end
+  end
+
   put "/users/:user_id" do
     with {:ok, user_id} <- parse_integer(user_id, "user_id"),
          {:ok, profile} <- Accounts.upsert_user(user_id, conn.body_params) do
