@@ -1,7 +1,6 @@
 language: ko
 minSeverity: nit
 maxInlineComments: 25
-allowStrongTone: true
 
 exclude:
   - 'gradlew'
