@@ -42,6 +42,10 @@ class SecurityConfigTest :
                     HttpMethod.GET to "/api/channel/channels/oauth/callback/github",
                     // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
                     HttpMethod.GET to "/health",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.GET to "/health/health.css",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.GET to "/health/health.js",
                 ).forEach { (method, path) ->
                     it("$method $path 요청을 JWT 없이 허용한다") {
                         client
