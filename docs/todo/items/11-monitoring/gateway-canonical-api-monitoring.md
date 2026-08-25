@@ -3,13 +3,14 @@
 - **서비스**: cowork-gateway, cowork-monitoring, Prometheus, Blackbox Exporter, Grafana, Alertmanager
 - **우선순위**: 🟠 중간
 - **파생 원본**: [외부 API 모듈 네임스페이스 통일](../10-api/public-route-namespace-migration.md)
-- **현재 상태**: 서비스 프로세스와 내부 health·metrics는 감시하지만 canonical Gateway API의 end-to-end 도달성은 별도로 감시하지 않음
+- **선행 작업**: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./metrics-collection-recovery-and-health-dashboard-removal.md)
+- **현재 상태**: 내부 health·metrics 수집 구성이 존재하지만 실제 메트릭 수집 장애를 분석 중이며, canonical Gateway API의 end-to-end 도달성도 별도로 감시하지 않음
 
 ## 문제
 
-현재 Prometheus는 Eureka metadata의 `prometheus.path`를 사용해 각 서비스의 `/actuator/prometheus` 또는 `/metrics`를 직접 수집한다. Blackbox Exporter와 Compose healthcheck도 서비스 포트의 `/actuator/health` 또는 `/health`를 직접 호출한다.
+현재 Prometheus는 Eureka metadata의 `prometheus.path`를 사용해 각 서비스의 `/actuator/prometheus` 또는 `/metrics`를 직접 수집하도록 구성되어 있다. 다만 실제 수집 장애가 있으므로 이 문서에서는 수집이 정상이라고 전제하지 않으며, 선행 TODO에서 discovery부터 Grafana query까지 실패 구간과 근본 원인을 먼저 확인한다. Blackbox Exporter와 Compose healthcheck도 서비스 포트의 `/actuator/health` 또는 `/health`를 직접 호출한다.
 
-이 구성은 서비스 프로세스의 생존과 메트릭 수집에는 적합하지만, Gateway의 route predicate·`StripPrefix`·보안 matcher·CORS·downstream 연결이 잘못되어 canonical 외부 API가 실패해도 정상으로 표시될 수 있다. `/api/health`도 Eureka 등록 상태를 집계하므로 개별 canonical 경로의 실제 요청 성공을 보장하지 않는다.
+메트릭 수집을 복구하더라도 이 구성만으로는 Gateway의 route predicate·`StripPrefix`·보안 matcher·CORS·downstream 연결 오류를 식별할 수 없다. 따라서 canonical 외부 API가 실패해도 서비스가 정상으로 표시될 수 있다. `/api/health`도 Eureka 등록 상태를 집계하므로 개별 canonical 경로의 실제 요청 성공을 보장하지 않는다.
 
 외부 경로가 `/api/{module-name}{downstream-path}`로 전환되면 서비스 생존 모니터링과 외부 API 계약 모니터링을 분리해야 한다.
 
