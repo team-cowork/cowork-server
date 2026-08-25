@@ -136,9 +136,28 @@ func (c *Consumer) buildMessage(ctx context.Context, event NotificationTriggerEv
 		return "팀 멤버 제거", "팀에서 제거되었습니다.", true
 	case "PROJECT_TASK_ASSIGNED":
 		return "태스크 할당", "새 태스크가 할당되었습니다.", true
+	case "GITHUB_COMMENT_CREATED":
+		return c.buildGithubComment(event)
 	default:
 		return "알림", "", true
 	}
+}
+
+func (c *Consumer) buildGithubComment(event NotificationTriggerEvent) (title, body string, ok bool) {
+	repo, _ := event.Data["repo"].(string)
+	parentType, _ := event.Data["parentType"].(string)
+	commentAuthor, _ := event.Data["commentAuthor"].(string)
+	commentBody, _ := event.Data["body"].(string)
+	number := extractInt64(event.Data, "number")
+
+	parentLabel := "이슈"
+	if parentType == "PULL_REQUEST" {
+		parentLabel = "PR"
+	}
+
+	title = fmt.Sprintf("%s 댓글", parentLabel)
+	body = fmt.Sprintf("%s님이 %s #%d에 댓글을 남겼습니다: %s", commentAuthor, repo, number, truncate(commentBody, 100))
+	return title, body, true
 }
 
 func (c *Consumer) buildChatMessage(ctx context.Context, event NotificationTriggerEvent) (title, body string, ok bool) {
