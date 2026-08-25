@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException } from '@nestjs/common';
 import { InstallationListHttpController } from './installation-list-http.controller';
 import { InstallationService } from './installation.service';
-import { InternalApiKeyGuard } from '../pull-request/guards/internal-api-key.guard';
+import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { GithubClientError } from '../github.errors';
 
 describe('InstallationListHttpController', () => {
