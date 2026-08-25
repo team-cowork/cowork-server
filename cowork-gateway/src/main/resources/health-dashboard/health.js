@@ -58,12 +58,14 @@
 
   function createServiceRow(serviceId, status) {
     const row = document.createElement("li");
+    const statusIndicator = document.createElement("span");
     const signal = document.createElement("span");
     const name = document.createElement("span");
     const statusText = document.createElement("span");
     const statusClass = "status-" + status.toLowerCase();
 
     row.className = "service-row";
+    statusIndicator.className = "status-indicator";
     signal.className = "signal " + statusClass;
     signal.setAttribute("aria-hidden", "true");
     name.className = "service-name";
@@ -72,7 +74,8 @@
     statusText.className = "service-status " + statusClass;
     statusText.textContent = status;
 
-    row.append(signal, name, statusText);
+    statusIndicator.append(signal, statusText);
+    row.append(name, statusIndicator);
     return row;
   }
 
