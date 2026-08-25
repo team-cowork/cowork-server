@@ -165,7 +165,7 @@ class ProjectController(
     @Operation(
         summary = "내 멤버십 확인 (내부 서비스용)",
         description = "요청자가 해당 프로젝트 멤버이면 200, 아니면 404. 다른 서비스의 권한 검증에 사용됩니다.",
-        security = [SecurityRequirement(name = "BearerAuth")],
+        hidden = true,
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "멤버임"),
@@ -184,6 +184,7 @@ class ProjectController(
     @Operation(
         summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
         description = "프로젝트가 속한 팀 ID를 반환합니다. 서비스 간 권한 위임에 사용됩니다.",
+        hidden = true,
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),

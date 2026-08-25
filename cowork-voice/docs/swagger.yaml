@@ -1,4 +1,4 @@
-basePath: /api
+basePath: /api/voice
 definitions:
   github_com_cowork_cowork-voice_internal_apperr.Error:
     description: API 에러 응답
