@@ -4,9 +4,9 @@
         "description": "인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
         "title": "Cowork Authorization API",
         "contact": {},
-        "version": "20260719.0"
+        "version": "20260820.0"
     },
-    "basePath": "/api",
+    "basePath": "/api/authorization",
     "paths": {
         "/auth/refresh": {
             "post": {
@@ -238,26 +238,6 @@
                             "additionalProperties": {
                                 "type": "string"
                             }
-                        }
-                    }
-                }
-            }
-        },
-        "/health": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "헬스체크",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
                         }
                     }
                 }
