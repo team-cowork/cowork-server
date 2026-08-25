@@ -1,7 +1,7 @@
 // @title           Cowork Authorization API
 // @version         20260820.0
 // @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
-// @BasePath        /api
+// @BasePath        /api/authorization
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
