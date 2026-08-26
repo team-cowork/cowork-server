@@ -15,7 +15,7 @@ import { UserId } from '../common/decorator/user.decorator';
  * 프로젝트 단위 채팅 메시지 검색 컨트롤러.
  *
  * 요청자가 접근 가능한 채널 범위 내에서 Elasticsearch 전문 검색을 수행한다.
- * 프로젝트 멤버십은 project-service에, 채널 멤버십은 MongoDB로 각각 확인한다.
+ * 프로젝트·채널 멤버십은 Kafka 이벤트로 동기화한 MongoDB projection에서 확인한다.
  */
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
