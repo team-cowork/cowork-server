@@ -1,8 +1,6 @@
 groups:
   - claude
   - codex
-  - gemini
-  - copilot
 
 overrides:
   claude/hooks/dispatcher: true
