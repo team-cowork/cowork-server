@@ -14,9 +14,16 @@ defmodule CoworkUser.AppConfigTest do
     "EUREKA_INSTANCE_HOST",
     "EUREKA_INSTANCE_ID",
     "EUREKA_INSTANCE_PORT",
+    "EUREKA_USE_RUNTIME_HOSTNAME",
     "KAFKA_BOOTSTRAP_SERVERS",
     "KAFKA_TOPIC_USER_SYNC",
     "KAFKA_GROUP_ID",
+    "KAFKA_TOPIC_TEAM_MEMBER",
+    "KAFKA_GROUP_ID_TEAM_MEMBER",
+    "KAFKA_TOPIC_USER_PRESENCE",
+    "KAFKA_GROUP_ID_USER_PRESENCE",
+    "KAFKA_TOPIC_USER_PROFILE",
+    "KAFKA_PROFILE_SNAPSHOT_INTERVAL_MS",
     "KAFKA_ENABLED",
     "S3_REGION",
     "S3_INTERNAL_ENDPOINT",
@@ -30,8 +37,7 @@ defmodule CoworkUser.AppConfigTest do
     "S3_MAX_FILE_SIZE_BYTES",
     "S3_ALLOWED_CONTENT_TYPES",
     "REDIS_HOST",
-    "REDIS_PORT",
-    "TEAM_SERVICE_URL"
+    "REDIS_PORT"
   ]
 
   setup do
@@ -63,7 +69,9 @@ defmodule CoworkUser.AppConfigTest do
     assert config.s3_internal_endpoint == "http://localhost:9000"
     assert config.redis_host == "localhost"
     assert config.redis_port == 6379
-    assert config.team_service_url == "http://localhost:8085"
+    assert config.kafka_team_member_topic == "team.member.event"
+    assert config.kafka_presence_topic == "user.presence.event"
+    assert config.kafka_profile_topic == "user.profile.event"
   end
 
   test "environment variables override defaults" do
@@ -85,5 +93,16 @@ defmodule CoworkUser.AppConfigTest do
     refute config.kafka_enabled
     assert config.allowed_content_types == ["image/png", "application/pdf"]
     assert config.redis_port == 6380
+  end
+
+  test "production replicas can register with their runtime hostname" do
+    System.put_env("EUREKA_USE_RUNTIME_HOSTNAME", "true")
+
+    config = AppConfig.load()
+    {:ok, hostname} = :inet.gethostname()
+    hostname = List.to_string(hostname)
+
+    refute config.eureka_instance_host in ["localhost", "127.0.0.1"]
+    assert config.eureka_instance_id == "#{hostname}:cowork-user:8082"
   end
 end
