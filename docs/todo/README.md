@@ -12,6 +12,8 @@
 - security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
 - configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
 - api: [외부 API 모듈 네임스페이스 통일](./items/10-api/public-route-namespace-migration.md)
+- monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
+- security: [Gateway 내부 API 외부 노출 차단](./items/12-security/internal-api-gateway-access-control.md)
 
 ## 점검 스냅샷
 
