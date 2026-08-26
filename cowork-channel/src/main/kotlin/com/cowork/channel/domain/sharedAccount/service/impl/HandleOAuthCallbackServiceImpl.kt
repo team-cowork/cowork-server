@@ -39,7 +39,7 @@ class HandleOAuthCallbackServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
         val config = oAuthStateSupport.providerConfigOf(provider)
-        val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
+        val callbackUrl = oAuthProperties.callbackUrl(provider.name)
 
         val accessToken = exchangeCode(provider, config, code, callbackUrl)
         val identifier = fetchIdentifier(provider, config, accessToken)

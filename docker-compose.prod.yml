@@ -9,7 +9,7 @@
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
 #   S3_PUBLIC_ENDPOINT, S3_PUBLIC_BASE_URL - 클라이언트가 접근 가능한 오브젝트 스토리지 공개 주소
 #   PUBLIC_WEB_ORIGIN - 웹 클라이언트 origin (CORS·OAuth redirect)
-#   PUBLIC_API_BASE_URL - 외부에 노출되는 Gateway base URL (OAuth callback)
+#   PUBLIC_API_BASE_URL - 외부 Gateway origin. OAuth callback canonical path는 서비스가 덧붙임
 #   GITHUB_APP_SERVICE_URL - GitHub App 연동 서비스 주소
 #
 # 위 값들은 cowork-config가 native prod 설정의 placeholder를 해석할 때 사용하므로
