@@ -158,22 +158,65 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 - 클라이언트 → Gateway → 각 서비스 경로로만 호출합니다.
 - Gateway는 Eureka의 `lb://cowork-{name}` 대상으로 라우팅합니다.
-- 서비스 간 내부 호출은 런타임에 맞는 OpenFeign, WebClient, RestClient 또는 HTTP client를 사용합니다.
-- Eureka 이름을 쓰는 호출과 Config Server/환경 변수의 고정 URL을 쓰는 호출이 함께 있으므로 대상 서비스의 기존 client 패턴을 따릅니다.
+- 서비스 간 **조회**는 Kafka 이벤트로 로컬 read model을 구성하며, 내부 REST 조회 API를 만들지 않습니다.
+- 동기 응답에서 원격 서비스가 생성한 ID나 검증 오류가 즉시 필요한 command만 내부 REST를 허용합니다.
+- 현재 예외는 로그인 시 authorization → user 계정 upsert와 team → preference 역할 변경 command입니다.
+  직전 PR의 GitHub App 연동 HTTP는 이번 전환 대상에서 보류합니다.
 
 ### 비동기 통신 (Kafka)
 
-이벤트 기반 통신이 필요한 경우 Kafka를 사용합니다.
+서비스 간 상태 전파와 조회 모델 동기화에는 Kafka를 사용합니다. 상태 토픽은 aggregate ID 기반 key,
+UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니다.
+
+Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
+`(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록하고, partition
+assignment 때 해당 checkpoint로 seek합니다. 기동 시점에 관련된 모든 topic partition의 end offset을
+고정한 뒤 shared checkpoint가 전부 도달할 때만 readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축,
+consumer group offset 선행, 다중 replica 환경에서도 projection이 비거나 부분적인 상태를 정상 응답으로
+노출하지 않습니다. 동기화 중 projection 의존 API는 `403`이나 빈 결과 대신 `503`을 반환합니다.
+
+계약 위반 레코드는 격리 성공 후 checkpoint를 진전시킬 수 있지만, DB·MongoDB·Kafka 같은 일시적
+인프라 오류에서는 checkpoint와 consumer position을 절대 진전시키지 않습니다. Docker/Eureka는
+liveness가 아니라 각 서비스의 readiness endpoint를 트래픽 허용 기준으로 사용합니다.
+
+Kafka 토픽 이름은 배포 후 불변입니다. 숫자 offset만으로는 같은 이름의 새 토픽을 완전히
+식별할 수 없으므로 토픽을 제거한 뒤 같은 이름으로 재생성하지 않습니다. Kafka cluster/data volume을
+교체할 때는 관련 projection table과 checkpoint를 같이 재구축한 뒤에만 트래픽을 다시 엽니다.
+
+주기 snapshot의 `occurredAt`은 발행 시각이 아니라 source row의 실제 변경 시각을 재사용합니다.
+발행 시각을 새 버전으로 쓰면 삭제와 동시에 실행된 snapshot UPSERT가 tombstone보다 최신이 되어
+삭제 상태를 되살릴 수 있습니다. DB 기반 상태 변경과 Kafka 상태 이벤트는 같은 transaction에
+outbox로 적재하고, relay는 Kafka ack 이후에만 outbox 행을 제거합니다. relay 재시작에 따른 중복은
+consumer의 version/LWW 규칙으로 흡수하며 실패한 tombstone은 최대 재시도 횟수로 폐기하지 않습니다.
+
+full snapshot의 마지막에는 각 partition으로 `PROJECTION_SNAPSHOT_COMPLETED` marker를 명시적으로
+보냅니다. Consumer는 시작 시 캡처한 high-watermark뿐 아니라 모든 partition의 marker를 확인해야
+ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완료로 간주하지 않습니다. 반대로
+재구성 가능한 source snapshot이 없는 action stream은 이 barrier 대상에 넣거나 빈 marker로 위장하지
+않습니다. PostgreSQL outbox는 sequence 값이 commit 순서를 보장하지 않으므로 producer transaction을
+transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
+낮은 sequence 행을 볼 수 없습니다.
+
+이 marker 계약을 지원하지 않는 구버전에서 처음 전환할 때는 source와 consumer를 조정된 한 릴리스로
+교체합니다. 구버전 source는 새 consumer의 readiness를 열 수 없으므로 source 서비스를 먼저 실행해
+모든 partition marker를 발행시키고, dependent consumer의 readiness가 올라오기 전에는 트래픽을 열지
+않습니다. team과 preference처럼 서로의 state topic을 소비하는 서비스는 둘 다 snapshot source를 먼저
+실행해야 하며, 한쪽 readiness를 기다리느라 다른 쪽 기동을 막으면 안 됩니다.
 
 | 토픽 | Producer | Consumer | 용도 |
 |---|---|---|---|
 | `user.data.sync` | cowork-authorization | cowork-user | 인증 사용자 데이터 동기화 |
-| `team.lifecycle` | cowork-team | cowork-channel, cowork-project | 팀·멤버 생명주기 동기화 |
+| `team.lifecycle` | cowork-team | cowork-channel, cowork-project, cowork-notification | team key별 최신 생명주기 상태·삭제와 연쇄 정리 |
+| `team.member.event` | cowork-team | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-preference, cowork-chat | 버전 기반 팀 멤버십 projection |
 | `user.lifecycle` | 현재 저장소 내 producer 없음 | cowork-channel, cowork-project | 사용자 삭제 동기화 계약 |
+| `user.profile.event` | cowork-user | cowork-chat, cowork-notification | 사용자 표시 정보 projection |
+| `user.presence.event` | cowork-authorization | cowork-user | 사용자 접속 상태 projection |
 | `channel.event` | cowork-channel | cowork-chat | 채널 메타데이터 동기화 |
-| `channel.member.event` | cowork-channel | cowork-chat | 채널 멤버십 동기화 |
-| `project.event` | cowork-project | cowork-chat | 프로젝트 메타데이터 동기화 |
-| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 캐시 무효화 |
+| `channel.member.event` | cowork-channel | cowork-chat, cowork-voice | 채널 멤버십 projection |
+| `project.event` | cowork-project | cowork-channel, cowork-chat | 프로젝트 메타데이터 projection |
+| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 projection |
+| `preference.channel-notification.changed` | cowork-preference | cowork-notification | 채널 알림 설정 projection |
+| `preference.team-role.changed` | cowork-preference | cowork-team | 팀 역할·할당 projection |
 | `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
 | `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
 | `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
@@ -339,10 +382,11 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 ```
 1. cowork-config   (Eureka + Config Server — 가장 먼저 기동)
 2. cowork-gateway  (Config Server에 등록 후 기동)
-3. 비즈니스 서비스  (authorization, user, team, project, roadmap, channel, preference, notification, chat, voice)
+3. authorization
+4. user 및 나머지 비즈니스 서비스  (team, project, roadmap, channel, preference, notification, chat, voice)
 ```
 
-Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. 직접 실행할 때는 voice가 channel·LiveKit·Redis·MongoDB에, notification이 user·team·preference에 의존한다는 점을 함께 확인합니다.
+Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·Redis·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
 
 **서비스 포트 정보**
 

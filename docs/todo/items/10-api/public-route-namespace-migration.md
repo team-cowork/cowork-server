@@ -103,12 +103,9 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 | authorization | `/api/auth/**` | `/api/authorization/auth/**` | `/auth/**` |
 | authorization | `/api/events/datagsm` | `/api/authorization/events/datagsm` | `/events/datagsm` |
 | user | `/api/users/**` | `/api/user/users/**` | `/users/**` |
-| user 내부 API | `PUT /api/users/{id}`, `PATCH /api/users/{id}/status` | 외부 route 제거 | 서비스 간 직접 `/users/**`만 유지 |
+| user 내부 API | 기존 public root 내부 command | 외부 route 제거 | authorization이 서비스 내부망에서 `PUT /internal/users/{id}` 호출 |
 | team | `/api/teams/**` 중 team 소유 API | `/api/team/teams/**` | `/teams/**` |
-| team 내부 API | `GET /api/teams/{teamId}/members/{userId}/exists` | 외부 route 제거 | 서비스 간 직접 경로만 유지 |
 | project | `/api/projects/**` 중 project 소유 API | `/api/project/projects/**` | `/projects/**` |
-| project 내부 API | `GET /api/projects/{projectId}/team-id` | 외부 route 제거 | 서비스 간 직접 경로만 유지 |
-| project 분류 필요 | `GET /api/projects/{projectId}/members/me` | 공개 유지 또는 외부 route 제거 결정 | 현재는 호출자 `X-User-Id`를 검증 |
 | project | `/api/teams/{teamId}/projects/**` | `/api/project/teams/{teamId}/projects/**` | `/teams/{teamId}/projects/**` |
 | channel | `/api/channels/**` 중 channel 소유 API | `/api/channel/channels/**` | `/channels/**` |
 | channel | `/api/teams/{teamId}/channels/**` | `/api/channel/teams/{teamId}/channels/**` | `/teams/{teamId}/channels/**` |
@@ -153,8 +150,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - predicate가 겹치는 경우 더 구체적인 root·method route에 더 작은 `order` 값을 설정해 우선순위를 높인다.
 - module별 공개 root allowlist를 사용하고 `/internal`, metrics, 서비스 직접 문서 root를 새 namespace로 노출하지 않는다.
 - public root와 같은 하위 path에 섞인 내부 operation의 실제 외부 차단은 파생 [Gateway 내부 API 외부 노출 차단](../12-security/internal-api-gateway-access-control.md)에서 method·path 단위로 구현한다. `@Hidden` 또는 OpenAPI customizer는 문서 제외 수단일 뿐 접근 통제로 간주하지 않는다.
-- namespace 전환 시 내부 operation을 Gateway-facing OpenAPI에서 제외하고, 서비스 간 직접 호출 경로는 변경하지 않는다.
-- Project의 `GET /projects/{projectId}/members/me`는 내부 서비스용으로 표기되어 있지만 호출자 본인의 멤버십을 검사하므로, 웹 클라이언트 사용 여부를 확인해 공개 유지 또는 내부 전용을 결정한다.
+- namespace 전환 시 내부 operation을 Gateway-facing OpenAPI에서 제외한다. Kafka projection으로 대체된 조회 operation은 서비스에서도 제거한다.
 - public 외부 경로에서 기존 하위 경로로의 rewrite를 route test로 고정한다.
 - 이전 경로가 우연히 다른 서비스 catch-all에 매칭되지만 않게 도달 target까지 검증한다.
 - `SecurityConfig` 공개 경로를 canonical URL로 한 번에 이동한다.
@@ -170,7 +166,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - Go 서비스는 handler annotation 수정 후 `make swagger-gen`으로 `docs.go`, `swagger.json`, `swagger.yaml`을 같이 재생성한다.
 - Authorization과 Notification의 생성 명세에 포함된 직접 `/health` operation은 Gateway-facing Swagger에서 제거한다. 두 경로는 해당 모듈의 공개 route allowlist에 포함하지 않는다.
 - cowork-user의 `open_api.ex`, cowork-preference의 `openapi.json`은 정적 명세를 직접 갱신한다.
-- cowork-user 명세에 현재 누락된 공개 `GET /users/batch`를 추가하고 내부 `PUT /users/{id}`, `PATCH /users/{id}/status`는 Gateway-facing 명세에서 제외한다.
+- cowork-user 명세에 현재 누락된 공개 `GET /users/batch`를 추가하고 내부 `PUT /internal/users/{id}`는 Gateway-facing 명세에서 제외한다. 접속 상태 변경은 본인용 `PATCH /users/me/status`만 공개한다.
 - Spring 모듈은 Gateway-facing server/path customizer를 추가하고, Channel의 `sdk.swagger.paths-to-match`에 `/projects/**`, `/search/**`, `/dms`를, Project에 `/teams/**`를 포함한다.
 - 통합 Swagger `Try it out`으로 생성된 URL·Authorization header·public operation을 서비스별로 검증한다.
 
