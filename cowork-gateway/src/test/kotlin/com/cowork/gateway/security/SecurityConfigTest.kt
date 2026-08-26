@@ -40,6 +40,12 @@ class SecurityConfigTest :
                     HttpMethod.POST to "/api/authorization/events/datagsm",
                     HttpMethod.POST to "/api/voice/voice/webhook",
                     HttpMethod.GET to "/api/channel/channels/oauth/callback/github",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.GET to "/health",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.GET to "/health/health.css",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.GET to "/health/health.js",
                 ).forEach { (method, path) ->
                     it("$method $path 요청을 JWT 없이 허용한다") {
                         client
@@ -59,6 +65,8 @@ class SecurityConfigTest :
                     HttpMethod.GET to "/api/voice/voice/webhook",
                     HttpMethod.POST to "/api/channel/channels/oauth/callback/github",
                     HttpMethod.POST to "/api/events/datagsm",
+                    // TODO(temporary health dashboard): Remove this case with the temporary /health dashboard.
+                    HttpMethod.POST to "/health",
                 ).forEach { (method, path) ->
                     it("$method $path 요청에 JWT를 요구한다") {
                         client
