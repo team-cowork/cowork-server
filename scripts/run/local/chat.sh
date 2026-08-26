@@ -15,8 +15,6 @@ SERVICE_COMMAND=(
    export MONGODB_URI="${MONGODB_URI:-mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@localhost:27017/cowork_chat?authSource=admin}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export PROJECT_SERVICE_URL="${PROJECT_SERVICE_URL:-http://localhost:8084}"
-   export CHANNEL_SERVICE_URL="${CHANNEL_SERVICE_URL:-http://localhost:8083}"
-   export USER_SERVICE_URL="${USER_SERVICE_URL:-http://localhost:8082}"
    export REDIS_HOST="${REDIS_HOST:-localhost}"
    export S3_INTERNAL_ENDPOINT="${S3_INTERNAL_ENDPOINT:-http://localhost:9000}"
    export ELASTICSEARCH_URL="${ELASTICSEARCH_URL:-http://localhost:9200}"
