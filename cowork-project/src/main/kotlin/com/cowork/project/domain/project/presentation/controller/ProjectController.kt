@@ -8,10 +8,8 @@ import com.cowork.project.domain.project.service.AddProjectMemberService
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.DeleteProjectService
 import com.cowork.project.domain.project.service.QueryMyProjectsService
-import com.cowork.project.domain.project.service.QueryProjectMemberService
 import com.cowork.project.domain.project.service.QueryProjectMembersService
 import com.cowork.project.domain.project.service.QueryProjectService
-import com.cowork.project.domain.project.service.QueryProjectTeamIdService
 import com.cowork.project.domain.project.service.QueryProjectsByTeamIdService
 import com.cowork.project.domain.project.service.RemoveProjectMemberService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
@@ -44,8 +42,6 @@ class ProjectController(
     private val addProjectMemberService: AddProjectMemberService,
     private val queryProjectMembersService: QueryProjectMembersService,
     private val updateProjectMemberRoleService: UpdateProjectMemberRoleService,
-    private val queryProjectMemberService: QueryProjectMemberService,
-    private val queryProjectTeamIdService: QueryProjectTeamIdService,
     private val removeProjectMemberService: RemoveProjectMemberService,
 ) {
 
@@ -161,38 +157,6 @@ class ProjectController(
         @RequestBody request: UpdateProjectMemberRoleReqDto,
     ): ResponseEntity<ProjectMemberResDto> =
         ResponseEntity.ok(updateProjectMemberRoleService.execute(userId, projectId, memberId, request))
-
-    @Operation(
-        summary = "내 멤버십 확인 (내부 서비스용)",
-        description = "요청자가 해당 프로젝트 멤버이면 200, 아니면 404. 다른 서비스의 권한 검증에 사용됩니다.",
-        hidden = true,
-    )
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "멤버임"),
-        ApiResponse(responseCode = "404", description = "멤버 아님 또는 프로젝트 없음"),
-    )
-    @GetMapping("/{projectId}/members/me")
-    fun getMyMembership(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable projectId: Long,
-    ): ResponseEntity<Void> = if (queryProjectMemberService.execute(projectId, userId)) {
-        ResponseEntity.ok().build()
-    } else {
-        ResponseEntity.notFound().build()
-    }
-
-    @Operation(
-        summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
-        description = "프로젝트가 속한 팀 ID를 반환합니다. 서비스 간 권한 위임에 사용됩니다.",
-        hidden = true,
-    )
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
-    )
-    @GetMapping("/{projectId}/team-id")
-    fun getTeamId(@PathVariable projectId: Long): ResponseEntity<Long> =
-        ResponseEntity.ok(queryProjectTeamIdService.execute(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

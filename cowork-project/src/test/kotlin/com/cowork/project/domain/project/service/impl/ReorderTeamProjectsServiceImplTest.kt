@@ -3,11 +3,13 @@ package com.cowork.project.domain.project.service.impl
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -20,9 +22,10 @@ class ReorderTeamProjectsServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
+    private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
 
-    private val service = ReorderTeamProjectsServiceImpl(projectRepository, projectAccessGuard)
+    private val service = ReorderTeamProjectsServiceImpl(projectRepository, projectAccessGuard, projectEventPublisher)
 
     private fun project(id: Long = 1L, teamId: Long = 100L, position: Int = 0) =
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
@@ -42,6 +45,8 @@ class ReorderTeamProjectsServiceImplTest {
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
         assertEquals(0, second.position)
+        verify(exactly = 1) { projectEventPublisher.publishUpdated(second, any()) }
+        verify(exactly = 1) { projectEventPublisher.publishUpdated(first, any()) }
     }
 
     @Test
