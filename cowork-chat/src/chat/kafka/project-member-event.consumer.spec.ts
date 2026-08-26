@@ -1,66 +1,74 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { DicoshotService } from 'dicoshot-nest';
+import { mongo } from 'mongoose';
+import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectMemberEventConsumer } from './project-member-event.consumer';
-import { ProjectMemberCache } from '../service/project-member.cache';
 
-type ConsumerWithPrivates = Omit<ProjectMemberEventConsumer, 'handleEvent'> & {
-    handleEvent: (event: unknown) => Promise<void>;
+type ConsumerWithHandle = {
+    handleEvent(event: unknown, messageKey?: string): Promise<void>;
 };
 
-const mockInvalidate = jest.fn().mockResolvedValue(undefined);
-
-const mockProjectMemberCache = {
-    invalidate: mockInvalidate,
-};
+const SOURCE_VERSION = mongo.Long.fromString('1787702400000000000');
 
 describe('ProjectMemberEventConsumer', () => {
-    let consumer: ProjectMemberEventConsumer;
+    const repository = {
+        add: jest.fn().mockResolvedValue(undefined),
+        remove: jest.fn().mockResolvedValue(undefined),
+    };
+    const consumer = new ProjectMemberEventConsumer(
+        { get: jest.fn() } as never,
+        { sendCustom: jest.fn() } as never,
+        repository as unknown as ProjectMemberProjectionRepository,
+        {} as never,
+    );
+    const handle = (event: unknown, messageKey: string) =>
+        (consumer as unknown as ConsumerWithHandle).handleEvent(event, messageKey);
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                ProjectMemberEventConsumer,
-                {
-                    provide: ProjectMemberCache,
-                    useValue: mockProjectMemberCache,
-                },
-                {
-                    provide: ConfigService,
-                    useValue: { get: jest.fn().mockReturnValue('localhost:9092') },
-                },
-                {
-                    provide: DicoshotService,
-                    useValue: { sendCustom: jest.fn().mockResolvedValue(true) },
-                },
-            ],
-        }).compile();
+    beforeEach(() => jest.clearAllMocks());
 
-        consumer = module.get<ProjectMemberEventConsumer>(ProjectMemberEventConsumer);
-        jest.clearAllMocks();
+    it('ADDED 이벤트를 멤버십 projection에 idempotent upsert한다', async () => {
+        await handle({
+            eventType: 'ADDED',
+            projectId: 5,
+            userId: 42,
+            occurredAt: '2026-08-26T00:00:00',
+            snapshot: true,
+        }, '5:42');
+
+        expect(repository.add).toHaveBeenCalledWith(
+            5,
+            42,
+            new Date('2026-08-26T00:00:00Z'),
+            SOURCE_VERSION,
+        );
+        expect(repository.remove).not.toHaveBeenCalled();
     });
 
-    const callHandleEvent = (event: unknown) => (consumer as unknown as ConsumerWithPrivates).handleEvent(event);
+    it('REMOVED 이벤트를 멤버십 projection에서 삭제한다', async () => {
+        await handle({ eventType: 'REMOVED', projectId: 5, userId: 42, occurredAt: '2026-08-26T00:00:00' }, '5:42');
 
-    describe('유효한 payload', () => {
-        it('캐시를 무효화한다', async () => {
-            await callHandleEvent({ eventType: 'ADDED', projectId: 5, userId: 42 });
-
-            expect(mockInvalidate).toHaveBeenCalledWith(5, 42);
-        });
+        expect(repository.remove).toHaveBeenCalledWith(
+            5,
+            42,
+            new Date('2026-08-26T00:00:00Z'),
+            SOURCE_VERSION,
+        );
+        expect(repository.add).not.toHaveBeenCalled();
     });
 
-    describe('잘못된 payload', () => {
-        it('projectId가 숫자가 아니면 캐시를 무효화하지 않는다', async () => {
-            await callHandleEvent({ eventType: 'ADDED', projectId: '5', userId: 42 });
+    it('알 수 없는 eventType은 계약 오류로 격리 대상이 된다', async () => {
+        await expect(
+            handle({ eventType: 'UNKNOWN', projectId: 5, userId: 42, occurredAt: '2026-08-26T00:00:00' }, '5:42'),
+        ).rejects.toThrow('invalid project member event payload');
 
-            expect(mockInvalidate).not.toHaveBeenCalled();
-        });
+        expect(repository.add).not.toHaveBeenCalled();
+        expect(repository.remove).not.toHaveBeenCalled();
+    });
 
-        it('eventType이 없으면 캐시를 무효화하지 않는다', async () => {
-            await callHandleEvent({ projectId: 5, userId: 42 });
+    it('composite key가 아닌 이벤트는 계약 오류로 격리 대상이 된다', async () => {
+        await expect((consumer as unknown as ConsumerWithHandle).handleEvent(
+            { eventType: 'ADDED', projectId: 5, userId: 42, occurredAt: '2026-08-26T00:00:00' },
+            '5',
+        )).rejects.toThrow('project member event key mismatch');
 
-            expect(mockInvalidate).not.toHaveBeenCalled();
-        });
+        expect(repository.add).not.toHaveBeenCalled();
     });
 });
