@@ -4,6 +4,7 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelMember
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
@@ -11,7 +12,6 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.support.TransactionCallback
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.transaction.support.TransactionTemplate
 import team.themoment.sdk.exception.ExpectedException
 
@@ -27,6 +26,7 @@ class CreateDmServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
+    private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
     private val transactionTemplate = mockk<TransactionTemplate>()
 
@@ -34,21 +34,16 @@ class CreateDmServiceImplTest {
         CreateDmServiceImpl(
             channelRepository,
             channelMemberRepository,
+            channelEventPublisher,
             channelMembershipSyncPublisher,
             transactionTemplate,
         )
 
     @BeforeEach
     fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
         every { transactionTemplate.execute(any<TransactionCallback<Any>>()) } answers {
             firstArg<TransactionCallback<Any>>().doInTransaction(mockk(relaxed = true))
         }
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
     }
 
     private fun dmChannel(id: Long = 1L, dmKey: String = "1:2", createdBy: Long = 1L) = Channel(
@@ -89,6 +84,11 @@ class CreateDmServiceImplTest {
         assertEquals(null, result.teamId)
         assertEquals("1:2", savedChannel.captured.dmKey)
         assertEquals(listOf(2L, 1L), savedMembers.map { it.userId })
+
+        verify(exactly = 1) { channelEventPublisher.publishCreated(savedChannel.captured, any()) }
+        verify(exactly = 1) {
+            channelMembershipSyncPublisher.publishChannelSnapshot(savedChannel.captured, savedMembers, any())
+        }
     }
 
     @Test
