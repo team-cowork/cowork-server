@@ -18,7 +18,7 @@
 직접 환경변수 > Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native `configs/` > 애플리케이션 기본값
 ```
 
-직접 환경변수 override는 로컬 단독 실행과 긴급 운영 override 용도다. Compose 애플리케이션 서비스에는 Config Server 접속값과 프로파일만 기본 주입한다.
+직접 환경변수 override는 로컬 단독 실행과 긴급 운영 override 용도다. Compose 애플리케이션 서비스에는 Config Server 접속값, 프로파일, replica 식별처럼 런타임에서만 알 수 있는 값만 기본 주입한다.
 
 ## 프로파일
 
@@ -73,5 +73,6 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 - native 설정 파일에는 시크릿 값을 커밋하지 않는다.
 - `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`은 클라이언트가 도달 가능한 주소로 배포 환경에서 주입한다. 미주입 시 Config Server가 기동에 실패한다.
 - 필수 시크릿이 없을 때 기본 개발 키로 대체하지 않는다.
-- 분산 배포 모듈의 Config Server/Eureka 접근을 위해 현재 `8761` 포트를 모든 인터페이스에 공개한다. 인증과 네트워크 제한은 [Config Server 접근 보호 TODO](./todo/items/08-security/config-server-access-control.md)로 관리한다.
+- Config Server/Eureka의 `8761`은 Compose 내부망 또는 배포 플랫폼의 private control-plane network에서만 접근시킨다. 운영 Compose는 Gateway 이외의 application/infra/ops host port를 제거한다.
+- 다중 replica의 Eureka instance ID는 명시적 `EUREKA_INSTANCE_ID`가 있으면 이를 사용하고, 없으면 runtime hostname·application·port 조합으로 만든다. non-Spring 서비스는 `EUREKA_USE_RUNTIME_HOSTNAME=true`일 때 non-loopback 내부 IP를 광고하며 consumer group ID에는 replica suffix를 붙이지 않는다.
 - Config Server와 Vault를 우회하는 서비스 직접 포트는 운영 외부망에 공개하지 않는다.

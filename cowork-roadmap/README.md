@@ -18,7 +18,7 @@
 - Java 25, Spring Boot 4.1 (WebFlux), Spring Data R2DBC (`io.asyncer:r2dbc-mysql`)
 - 마이그레이션: Flyway (JDBC), 런타임 쿼리: R2DBC
 - 서비스 디스커버리/설정: Eureka + Config Server
-- 권한 검증: cowork-team 호출(`WebClient`, `lb://cowork-team`)
+- 권한 검증: Kafka `team.member.event` 기반 로컬 MySQL 투영
 - 포트: `8088`, DB: `cowork_roadmap`
 
 ## 권한 모델
@@ -27,6 +27,13 @@
 - GLOBAL 로드맵 변경: `X-User-Role=ADMIN`
 - 커스텀 로드맵은 항상 `owner_team_id`를 가지며, 변경/생성은 해당 팀의 `OWNER`/`ADMIN`(또는 생성자), 조회는 팀 멤버.
 - 과제 출제/삭제: 글로벌 ADMIN 또는 해당 팀 `OWNER`/`ADMIN`. 진행 상태 변경: 담당자/출제자/ADMIN.
+
+팀 멤버 projection 적용과 Kafka `next_offset` checkpoint는 같은 R2DBC transaction으로 저장합니다.
+consumer assignment 때 broker group offset 대신 이 checkpoint로 seek하며, 시작 시점의 topic 전체 partition
+high-watermark를 shared checkpoint가 모두 넘고 각 partition의 source snapshot completion marker를 소비하기 전에는
+`/actuator/health/readiness`와 Eureka를 열지 않습니다. 저장된 topic UUID가 현재 Kafka topic과 다르거나 checkpoint/marker가
+retention 범위 밖이면 수치 offset이 겹쳐도 fail-closed 합니다.
+이 구간의 projection 의존 요청은 잘못된 `403` 대신 `503`을 반환합니다.
 
 ## 주요 엔드포인트 (서비스 내부 경로)
 
@@ -63,7 +70,7 @@ Config → Gateway 기동 후 실행한다(서비스 기동 순서 참고).
 | 공급원        | 설정                                             |
 |---------------|--------------------------------------------------|
 | Compose       | `SPRING_CONFIG_IMPORT`, `SPRING_PROFILES_ACTIVE` |
-| Config Server | 포트, R2DBC/Flyway URL, Eureka, Team 서비스 URL  |
+| Config Server | 포트, R2DBC/Flyway URL, Kafka topic/group, Eureka |
 | Vault         | MySQL 계정과 비밀번호                            |
 
 Compose에서는 Config Server 조회가 필수입니다. `local`과 `prod` 프로파일 모두 `cowork-config/src/main/resources/configs/`에 정의되어 있습니다.
