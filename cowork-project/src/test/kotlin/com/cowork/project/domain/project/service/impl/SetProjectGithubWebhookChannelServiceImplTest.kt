@@ -33,7 +33,7 @@ class SetProjectGithubWebhookChannelServiceImplTest {
     private val channelClient = mockk<ChannelClient>()
     private val transactionTemplate = mockk<TransactionTemplate>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
 
     private val service = SetProjectGithubWebhookChannelServiceImpl(
         projectGithubRepoRepository,
@@ -51,8 +51,12 @@ class SetProjectGithubWebhookChannelServiceImplTest {
     private fun project(id: Long = 1L, teamId: Long = 100L) =
         Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L)
 
-    private fun repoLink(id: Long = 5L, projectId: Long = 1L, teamId: Long = 100L) =
-        ProjectGithubRepo(id = id, projectId = projectId, teamId = teamId, githubRepoUrl = "https://github.com/my-org/my-repo")
+    private fun repoLink(id: Long = 5L, projectId: Long = 1L, teamId: Long = 100L) = ProjectGithubRepo(
+        id = id,
+        projectId = projectId,
+        teamId = teamId,
+        githubRepoUrl = "https://github.com/my-org/my-repo",
+    )
 
     @Test
     fun `setGithubWebhookChannel은 이 프로젝트 소속 채널이면 저장`() {
