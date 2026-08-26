@@ -1,7 +1,7 @@
 package com.cowork.project.global.consumer
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import java.time.LocalDateTime
+import java.time.Instant
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class TeamLifecyclePayload(
@@ -10,6 +10,6 @@ data class TeamLifecyclePayload(
     val teamName: String? = null,
     val actorUserId: Long? = null,
     val targetUserIds: List<Long> = emptyList(),
-    val occurredAt: LocalDateTime? = null,
+    val occurredAt: Instant? = null,
     val newRole: String? = null,
 )

@@ -1,16 +1,22 @@
 package com.cowork.project.domain.project.repository
 
 import com.cowork.project.domain.project.entity.Project
+import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ProjectRepository :
     JpaRepository<Project, Long>,
     JpaSpecificationExecutor<Project> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Project p WHERE p.id > :afterId ORDER BY p.id")
+    fun findSnapshotBatch(@Param("afterId") afterId: Long, pageable: Pageable): List<Project>
 
     fun findAllByTeamId(teamId: Long): List<Project>
 
