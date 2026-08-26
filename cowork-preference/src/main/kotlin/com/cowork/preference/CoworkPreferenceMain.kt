@@ -30,31 +30,13 @@ fun main() {
 
     runFlyway(appConfig)
 
-    val eurekaRegistrar = EurekaRegistrar(
-        eurekaUrl = appConfig.eurekaUrl,
-        appName = appConfig.eurekaAppName,
-        instanceHost = appConfig.eurekaInstanceHost,
-        port = appConfig.serverPort,
-    )
-    try {
-        eurekaRegistrar.register()
-    } catch (e: Exception) {
-        log.error("Critical: Eureka registration failed", e)
-        System.exit(1)
-    }
-    eurekaRegistrar.startHeartbeat()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        eurekaRegistrar.deregister()
-    })
-
     val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
     MetricsRegistry.registry = prometheusRegistry
 
     val vertxOptions = VertxOptions().setMetricsOptions(
         MicrometerMetricsOptions()
             .setPrometheusOptions(VertxPrometheusOptions().setEnabled(true))
-            .setEnabled(true)
+            .setEnabled(true),
     )
     val vertx = Vertx.builder()
         .with(vertxOptions)
@@ -108,6 +90,8 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "REDIS_HOST" to "preference.redis.host",
             "REDIS_PORT" to "preference.redis.port",
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
+            "KAFKA_CONSUMER_GROUP_ID" to "preference.kafka.consumer-group-id",
+            "KAFKA_TOPIC_TEAM_MEMBER_EVENT" to "preference.kafka.team-member-topic",
             "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",
