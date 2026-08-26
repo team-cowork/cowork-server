@@ -34,6 +34,43 @@ class GatewayConfigBindingTest :
                     )
                 }
 
+                it("모든 외부 HTTP API를 소유 모듈 namespace로 라우팅한다") {
+                    val expectedPaths = mapOf(
+                        "authorization-service" to setOf("/api/authorization/auth/**"),
+                        "authorization-webhook" to setOf("/api/authorization/events/datagsm"),
+                        "user-service" to setOf("/api/user/users/**"),
+                        "team-service" to setOf("/api/team/teams/**"),
+                        "project-team-service" to setOf("/api/project/teams/*/projects/**"),
+                        "project-service" to setOf("/api/project/projects/**"),
+                        "team-channel-service" to setOf(
+                            "/api/channel/teams/*/channels",
+                            "/api/channel/teams/*/channels/**",
+                        ),
+                        "project-channel-service" to setOf(
+                            "/api/channel/projects/*/channels",
+                            "/api/channel/projects/*/channels/**",
+                        ),
+                        "channel-service" to setOf("/api/channel/channels/**"),
+                        "channel-service-search" to setOf("/api/channel/search/channels"),
+                        "dm-open" to setOf("/api/channel/dms"),
+                        "roadmap-service" to setOf("/api/roadmap/roadmaps/**"),
+                        "preference-service" to setOf("/api/preference/preferences/**"),
+                        "live-service" to setOf("/api/voice/live/**"),
+                        "voice-service-webhook" to setOf("/api/voice/voice/webhook"),
+                        "voice-service" to setOf("/api/voice/voice/**"),
+                        "notification-service-sse" to setOf("/api/notification/notifications/stream"),
+                        "notification-service" to setOf("/api/notification/notifications/**"),
+                    )
+
+                    expectedPaths.forEach { (routeId, paths) ->
+                        val route = gatewayProperties.routes.first { it.id == routeId }
+                        route.predicates
+                            .filter { it.name == "Path" }
+                            .flatMapTo(mutableSetOf()) { it.args.values } shouldBe paths
+                        route.filters.flatMap { it.args.values } shouldContain "2"
+                    }
+                }
+
                 it("chat HTTP API는 모듈 prefix만 제거하고 하위 서비스 path를 보존한다") {
                     val routes = gatewayProperties.routes
                     val routeIds = routes.map { it.id }
@@ -65,9 +102,18 @@ class GatewayConfigBindingTest :
                     val dmOpenRoute = gatewayProperties.routes.first { it.id == "dm-open" }
 
                     dmOpenRoute.uri.toString() shouldBe "lb://cowork-channel"
-                    dmOpenRoute.predicates.flatMap { it.args.values } shouldContain "/api/dms"
+                    dmOpenRoute.predicates.flatMap { it.args.values } shouldContain "/api/channel/dms"
                     dmOpenRoute.predicates.flatMap { it.args.values } shouldContain "POST"
-                    dmOpenRoute.filters.flatMap { it.args.values } shouldContain "1"
+                    dmOpenRoute.filters.flatMap { it.args.values } shouldContain "2"
+                }
+
+                it("더 구체적인 webhook과 SSE route를 일반 route보다 우선한다") {
+                    val voiceWebhook = gatewayProperties.routes.first { it.id == "voice-service-webhook" }
+                    val notificationSse = gatewayProperties.routes.first { it.id == "notification-service-sse" }
+
+                    voiceWebhook.order shouldBe -1
+                    notificationSse.order shouldBe -1
+                    notificationSse.metadata["response-timeout"] shouldBe -1
                 }
 
                 it("라우트 predicate와 무관하게 전역 CORS를 preflight에 적용한다") {
