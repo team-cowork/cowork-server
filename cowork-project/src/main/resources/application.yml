@@ -89,5 +89,6 @@ sdk:
     group: "project"
     paths-to-match:
       - "/projects/**"
+      - "/internal/**"
   exception:
     enabled: false
