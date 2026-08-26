@@ -38,7 +38,7 @@
 | 차단          | `/block/:targetUserId`                                     | 사용자 차단·해제·목록 조회                                    |
 | 미읽 카운트   | `/teams/:teamId/unread`                                    | 팀 내 채널별 미읽 수                                          |
 | 검색          | `/search/messages`, `/projects/:projectId/messages/search` | Elasticsearch 전문 검색 (nori 형태소 분석 + fuzzy)            |
-| 통합 검색     | `POST /graphql` (`unifiedSearch`)                          | 메시지(Elasticsearch)+채널(channel-service) 병렬 검색         |
+| 통합 검색     | `POST /graphql` (`unifiedSearch`)                          | 메시지(Elasticsearch)+Kafka 채널 projection 병렬 검색         |
 
 ### WebSocket (`/chat` namespace, Gateway path `/ws/chat`)
 | 이벤트                                                                       | 방향 | 설명                                                 |
@@ -71,10 +71,44 @@
 
 ## Kafka 토픽
 - Produce: `chat.message`(전송 요청 발행 → 자기 자신이 consume해 저장·브로드캐스트), `notification.trigger`(아웃박스 폴러), `github.issue.create`
-- Consume: `chat.message`, `github.issue.result`, `channel.event`, `project.event`, `channel.member.event`(멤버십 동기화), `project.member.event`(프로젝트 멤버십 캐시 무효화)
+- Consume: `chat.message`, `github.issue.result`, `channel.event`(채널 projection), `project.event`, `channel.member.event`(채널 멤버십 projection), `project.member.event`(프로젝트 멤버십 projection), `team.member.event`(팀 멤버십 projection), `user.profile.event`(사용자 프로필 projection)
+
+### 내부 조회 projection
+
+일반 채팅 경로는 다른 서비스의 REST API를 호출하지 않는다. MongoDB의 `channelprojections`, `channelmembers`,
+`projectprojections`, `projectmemberprojections`, `teammemberprojections`, `userprofileprojections` 컬렉션을 조회한다. 각 projection은
+표시용 `sourceOccurredAt`, ordering용 epoch-nanoseconds BSON Long `sourceVersion`, `deleted` tombstone을 보존해 중복·역순 이벤트를
+안전하게 처리한다. 같은 nanosecond이면 DELETE가 우선하며, 같은 millisecond 안의 DELETE→재가입도 원문 fraction으로 구분한다.
+GitHub App 연동에 필요한 프로젝트/GitHub 조회는 이번 전환 범위에서 제외되어 HTTP를 유지한다.
+
+| 토픽 | key | 상태 이벤트 |
+|---|---|---|
+| `channel.event` | `channelId` | `CREATED`, `UPDATED`, `DELETED` |
+| `channel.member.event` | `channelId:userId` | `JOIN`, `LEAVE` |
+| `project.event` | `projectId` | `CREATED`, `UPDATED`, `DELETED` |
+| `project.member.event` | `projectId:userId` | `ADDED`, `REMOVED` |
+| `team.member.event` | `teamId:userId` | `UPSERT`, `DELETE` |
+| `user.profile.event` | `userId` | `UPSERT`, `DELETE` |
+
+로컬과 운영의 빈 DB에서도 복구할 수 있도록 `channel.event`, `channel.member.event`,
+`project.member.event`, `team.member.event`, `user.profile.event` producer는 현재 상태 전체를 startup/주기 snapshot으로 발행해야 한다.
+토픽은 엔티티 키(`channelId`, `channelId:userId`, `projectId:userId`, `teamId:userId`, `userId`) 기준 compact 정책을 사용하고,
+consumer는 `fromBeginning: true`로 replay한다. 새 환경은 snapshot 발행 완료와 consumer lag 0을 확인한 뒤
+트래픽을 연다. producer는 snapshot outbox 뒤에 `__cowork_projection_snapshot_complete__:{partition}` marker를 각
+partition에 명시적으로 발행한다. chat readiness는 모든 partition의 marker receipt와 next offset을 같은 Mongo checkpoint
+update로 저장하고, startup high-watermark와 marker를 모두 지난 뒤에만 열린다. 따라서 신규 빈 topic도 snapshot 전에 ready로
+오판하지 않는다. 계약/JSON 오류는 원문을 `projection_quarantine_records`에 먼저 영속화한 뒤 checkpoint를 전진하며,
+Mongo 저장 실패 같은 런타임 오류는 offset을 유지해 재시도한다. 운영에서 projection DB를 복원하거나 비우는 경우 consumer
+group offset도 함께 초기화해야 한다.
+모든 이벤트의 `occurredAt`은 UTC offset이 포함된 ISO-8601 값이어야 한다. 변경 이벤트는 원본 row의 변경 시각을 사용하고,
+snapshot은 원본 변경 시각 또는 일관된 조회를 시작하기 전에 캡처한 watermark를 사용한다. snapshot을 읽은 뒤의 발행 시각을
+새로 찍으면 지연된 snapshot이 더 최신인 것으로 오인될 수 있으므로 사용하지 않는다.
+`channel.event`, `project.event`, `channel.member.event`의 startup/주기 snapshot은 `snapshot: true`를 포함해야 한다.
+consumer는 projection 상태는 반영하되 Redis 무효화나 Socket 변경 알림 같은 실시간 부수효과는 발생시키지 않는다.
 
 ## 의존 서비스
-- HTTP: `cowork-channel`, `cowork-user`, `cowork-project` (표시 이름·채널 정보·프로젝트 멤버십 조회)
+- HTTP: `cowork-project` (GitHub App 연동 조회만 유지)
+- Kafka projection producer: `cowork-channel`, `cowork-project`, `cowork-team`, `cowork-user`
 - MongoDB, Elasticsearch(검색 색인), Redis(차단 목록·레이트리밋), SeaweedFS(첨부파일)
 - Discord Webhook(선택) — 알림/에러 알림
 
