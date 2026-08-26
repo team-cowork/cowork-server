@@ -2,9 +2,7 @@ package com.cowork.project.domain.github.presentation.controller
 
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubCommentReqDto
-import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
-import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
 import com.cowork.project.domain.github.service.ApprovePullRequestService
@@ -80,38 +78,53 @@ class GithubPullRequestController(
         @PathVariable prNumber: Int,
     ): List<GithubPullRequestFileResDto> = listPullRequestFilesService.execute(userId, projectId, repoId, prNumber)
 
-    @Operation(summary = "PR 머지 (squash)", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 머지 요청 (squash, 비동기)",
+        description = "cowork-github-app에 Kafka(`github.pr.merge`)로 머지를 요청하고 결과를 기다리지 않는다 — " +
+            "이 응답은 요청이 접수됐다는 것만 의미하며, 실제 머지 성공/실패(충돌, 이미 머지됨 등)는 이 API로 확인할 수 없다. " +
+            "처리 결과는 cowork-github-app이 `github.pr.merge.result` 토픽으로 발행하지만, " +
+            "cowork-project는 현재 이 토픽을 구독하지 않는다 — 호출자에게 결과를 전달해야 한다면 " +
+            "이 토픽을 구독하는 컨슈머와 별도의 알림/조회 경로를 추가로 구현해야 한다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "머지 성공 (이미 머지된 경우 alreadyMerged=true로 멱등 응답)"),
+        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리, 머지 결과는 이 API로 확인 불가)"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
-        ApiResponse(responseCode = "403", description = "프로젝트 수정 권한 없음 또는 GitHub 레포 쓰기 권한 없음"),
+        ApiResponse(responseCode = "403", description = "프로젝트 수정 권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 PR 없음"),
-        ApiResponse(responseCode = "409", description = "머지 불가 상태 (충돌/체크 실패 등)"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
     )
     @PostMapping("/merge")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun merge(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): GithubMergeResultResDto = mergePullRequestService.execute(userId, projectId, repoId, prNumber)
+    ) = mergePullRequestService.execute(userId, projectId, repoId, prNumber)
 
-    @Operation(summary = "PR 승인", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 승인 요청 (비동기)",
+        description = "cowork-github-app에 Kafka(`github.pr.approve`)로 승인을 요청하고 결과를 기다리지 않는다 — " +
+            "이 응답은 요청이 접수됐다는 것만 의미하며, 본인 PR 승인 시도 등으로 인한 실패는 이 API로 확인할 수 없다. " +
+            "처리 결과는 cowork-github-app이 `github.pr.approve.result` 토픽으로 발행하지만, " +
+            "cowork-project는 현재 이 토픽을 구독하지 않는다 — 호출자에게 결과를 전달해야 한다면 " +
+            "이 토픽을 구독하는 컨슈머와 별도의 알림/조회 경로를 추가로 구현해야 한다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "승인 성공"),
+        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리, 승인 결과는 이 API로 확인 불가)"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
-        ApiResponse(responseCode = "403", description = "프로젝트 수정 권한 없음, GitHub 레포 쓰기 권한 없음, 또는 본인 PR 승인 시도"),
+        ApiResponse(responseCode = "403", description = "프로젝트 수정 권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 PR 없음"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
     )
     @PostMapping("/approve")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun approve(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ): GithubApproveResultResDto = approvePullRequestService.execute(userId, projectId, repoId, prNumber)
+    ) = approvePullRequestService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(summary = "PR 댓글 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
