@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -17,7 +18,25 @@ import (
 
 var migrationNamePattern = regexp.MustCompile(`^V(\d+)__(.+)\.sql$`)
 
-const migrationDir = "/app/db/migration"
+const (
+	containerMigrationDir       = "/app/db/migration"
+	localMigrationDir           = "src/main/resources/db/migration"
+	migrationLockName           = "cowork-authorization-schema-migration"
+	migrationLockWaitSeconds    = 60
+	migrationLockReleaseTimeout = 5 * time.Second
+	presenceStateBackfillQuery  = `SELECT COUNT(*)
+		 FROM (
+		     SELECT user_id,
+		            SUM(expires_at > UTC_TIMESTAMP(6)) AS expected_active_sessions
+		     FROM tb_refresh_tokens
+		     GROUP BY user_id
+		 ) AS token_user
+		 LEFT JOIN tb_user_presence_states AS presence ON presence.user_id = token_user.user_id
+		 WHERE presence.user_id IS NULL
+		    OR presence.active_session_count <> token_user.expected_active_sessions
+		    OR presence.status <>
+		       IF(token_user.expected_active_sessions > 0, 'online', 'offline')`
+)
 
 type migration struct {
 	version     int
@@ -28,12 +47,78 @@ type migration struct {
 }
 
 func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
-	if err := ensureHistoryTable(ctx, db); err != nil {
+	migrationDir, err := resolveMigrationDir()
+	if err != nil {
+		return err
+	}
+	migrations, err := loadMigrations(migrationDir)
+	if err != nil {
 		return err
 	}
 
-	migrations, err := loadMigrations(migrationDir)
+	dbName, err := parseDatabaseName(dsn)
 	if err != nil {
+		return err
+	}
+
+	return db.WithContext(ctx).Connection(func(connectionDB *gorm.DB) (err error) {
+		var acquired sql.NullInt64
+		if err := connectionDB.WithContext(ctx).
+			Raw(`SELECT GET_LOCK(?, ?)`, migrationLockName, migrationLockWaitSeconds).
+			Row().Scan(&acquired); err != nil {
+			return fmt.Errorf("failed to acquire migration lock for %s: %w", dbName, err)
+		}
+		if !acquired.Valid || acquired.Int64 != 1 {
+			return fmt.Errorf("timed out acquiring migration lock for %s", dbName)
+		}
+
+		defer func() {
+			releaseCtx, cancel := context.WithTimeout(context.Background(), migrationLockReleaseTimeout)
+			defer cancel()
+
+			var released sql.NullInt64
+			releaseErr := connectionDB.WithContext(releaseCtx).
+				Raw(`SELECT RELEASE_LOCK(?)`, migrationLockName).
+				Row().Scan(&released)
+			if err == nil && (releaseErr != nil || !released.Valid || released.Int64 != 1) {
+				if releaseErr != nil {
+					err = fmt.Errorf("failed to release migration lock for %s: %w", dbName, releaseErr)
+				} else {
+					err = fmt.Errorf("migration lock for %s was not owned by this connection", dbName)
+				}
+			}
+		}()
+
+		return migrateLocked(ctx, connectionDB, migrations, dbName)
+	})
+}
+
+func resolveMigrationDir() (string, error) {
+	if configured := strings.TrimSpace(os.Getenv("DB_MIGRATION_DIR")); configured != "" {
+		if isDirectory(configured) {
+			return configured, nil
+		}
+		return "", fmt.Errorf("configured DB_MIGRATION_DIR is not a directory: %s", configured)
+	}
+	for _, candidate := range []string{containerMigrationDir, localMigrationDir} {
+		if isDirectory(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", fmt.Errorf(
+		"database migration directory not found (checked %s and %s)",
+		containerMigrationDir,
+		localMigrationDir,
+	)
+}
+
+func isDirectory(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
+func migrateLocked(ctx context.Context, db *gorm.DB, migrations []migration, dbName string) error {
+	if err := ensureHistoryTable(ctx, db); err != nil {
 		return err
 	}
 
@@ -46,45 +131,51 @@ func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
 		return err
 	}
 
-	dbName, err := parseDatabaseName(dsn)
-	if err != nil {
-		return err
-	}
-
 	for _, m := range migrations {
 		if applied[m.versionText] {
 			continue
 		}
 
-		tx := db.WithContext(ctx).Begin()
-		if tx.Error != nil {
-			return tx.Error
+		complete, known, err := migrationSchemaComplete(ctx, db, m.version)
+		if err != nil {
+			return fmt.Errorf("failed to inspect migration %s schema: %w", m.script, err)
+		}
+		if !known {
+			return fmt.Errorf("migration %s has no schema recovery verifier", m.script)
 		}
 
-		for _, stmt := range splitSQLStatements(m.contents) {
-			if err := tx.Exec(stmt).Error; err != nil {
-				tx.Rollback()
-				return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
+		if !complete {
+			for _, stmt := range splitSQLStatements(m.contents) {
+				if err := db.WithContext(ctx).Exec(stmt).Error; err != nil && !isRecoverableMigrationError(err) {
+					return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
+				}
+			}
+
+			complete, _, err = migrationSchemaComplete(ctx, db, m.version)
+			if err != nil {
+				return fmt.Errorf("failed to verify migration %s schema: %w", m.script, err)
+			}
+			if !complete {
+				return fmt.Errorf("migration %s did not produce its expected schema", m.script)
 			}
 		}
 
-		if err := tx.Exec(
-			`INSERT INTO flyway_schema_history
-				(installed_rank, version, description, type, script, installed_by, execution_time, success)
-			 VALUES
-				((SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fh), ?, ?, 'SQL', ?, USER(), 0, TRUE)`,
-			m.versionText, m.description, m.script,
-		).Error; err != nil {
-			tx.Rollback()
+		if err := recordMigration(ctx, db, m); err != nil {
 			return fmt.Errorf("failed to record migration %s for %s: %w", m.script, dbName, err)
-		}
-
-		if err := tx.Commit().Error; err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", m.script, err)
 		}
 	}
 
 	return nil
+}
+
+func recordMigration(ctx context.Context, db *gorm.DB, m migration) error {
+	return db.WithContext(ctx).Exec(
+		`INSERT INTO flyway_schema_history
+			(installed_rank, version, description, type, script, installed_by, execution_time, success)
+		 VALUES
+			((SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fh), ?, ?, 'SQL', ?, USER(), 0, TRUE)`,
+		m.versionText, m.description, m.script,
+	).Error
 }
 
 func ensureHistoryTable(ctx context.Context, db *gorm.DB) error {
@@ -180,22 +271,75 @@ func baselineLegacySchema(ctx context.Context, db *gorm.DB, migrations []migrati
 		return nil
 	}
 
-	return insertBaselineRows(ctx, db, migrations)
+	baselineVersions := map[string]bool{"1": true, "2": true}
+	hasProcessedEvents, err := tableExists(ctx, db, "tb_processed_events")
+	if err != nil {
+		return err
+	}
+	if hasProcessedEvents {
+		baselineVersions["3"] = true
+	}
+	hasKafkaOutbox, err := tableExists(ctx, db, "tb_kafka_outbox")
+	if err != nil {
+		return err
+	}
+	if hasKafkaOutbox {
+		baselineVersions["4"] = true
+		hasPartitionID, err := columnExists(ctx, db, "tb_kafka_outbox", "partition_id")
+		if err != nil {
+			return err
+		}
+		if hasPartitionID {
+			baselineVersions["5"] = true
+		}
+	}
+	hasPresenceStates, err := tableExists(ctx, db, "tb_user_presence_states")
+	if err != nil {
+		return err
+	}
+	if hasPresenceStates {
+		complete, _, err := migrationSchemaComplete(ctx, db, 6)
+		if err != nil {
+			return err
+		}
+		if complete {
+			baselineVersions["6"] = true
+		}
+	}
+	hasPlatformRole, err := columnExists(ctx, db, "tb_refresh_tokens", "platform_role")
+	if err != nil {
+		return err
+	}
+	if hasPlatformRole {
+		baselineVersions["7"] = true
+	}
+
+	return insertBaselineRows(ctx, db, migrations, baselineVersions)
 }
 
-func insertBaselineRows(ctx context.Context, db *gorm.DB, migrations []migration) error {
+func insertBaselineRows(
+	ctx context.Context,
+	db *gorm.DB,
+	migrations []migration,
+	baselineVersions map[string]bool,
+) error {
 	tx := db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	for index, m := range migrations {
+	installedRank := 0
+	for _, m := range migrations {
+		if !baselineVersions[m.versionText] {
+			continue
+		}
+		installedRank++
 		if err := tx.Exec(
 			`INSERT INTO flyway_schema_history
 				(installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success)
 			 VALUES
 				(?, ?, ?, 'SQL', ?, USER(), ?, 0, TRUE)`,
-			index+1, m.versionText, m.description, m.script, time.Now(),
+			installedRank, m.versionText, m.description, m.script, time.Now(),
 		).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -250,6 +394,156 @@ func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool,
 		table, column,
 	).Scan(&count).Error
 	return count > 0, err
+}
+
+type tableExpectation struct {
+	name    string
+	columns []string
+	absent  bool
+}
+
+func migrationExpectations(version int) ([]tableExpectation, bool) {
+	switch version {
+	case 1:
+		return []tableExpectation{
+			{
+				name:    "tb_users",
+				columns: []string{"id", "email", "role", "is_active", "created_at", "updated_at"},
+			},
+			{
+				name: "tb_refresh_tokens",
+				columns: []string{
+					"id", "user_id", "token_hash", "device_info", "expires_at", "created_at",
+				},
+			},
+			{
+				name: "tb_oauth2_connections",
+				columns: []string{
+					"id", "user_id", "provider", "provider_user_id", "created_at",
+				},
+			},
+		}, true
+	case 2:
+		return []tableExpectation{
+			{
+				name: "tb_refresh_tokens",
+				columns: []string{
+					"id", "user_id", "token_hash", "email", "gsm_role", "device_info", "expires_at", "created_at",
+				},
+			},
+			{name: "tb_users", absent: true},
+			{name: "tb_oauth2_connections", absent: true},
+		}, true
+	case 3:
+		return []tableExpectation{
+			{name: "tb_processed_events", columns: []string{"event_id", "event_type", "created_at"}},
+		}, true
+	case 4:
+		return []tableExpectation{
+			{
+				name: "tb_kafka_outbox",
+				columns: []string{
+					"id", "topic", "event_key", "payload", "attempts", "last_error", "created_at",
+				},
+			},
+		}, true
+	case 5:
+		return []tableExpectation{
+			{
+				name: "tb_kafka_outbox",
+				columns: []string{
+					"id", "topic", "partition_id", "event_key", "payload", "attempts", "last_error", "created_at",
+				},
+			},
+		}, true
+	case 6:
+		return []tableExpectation{
+			{
+				name: "tb_user_presence_states",
+				columns: []string{
+					"user_id", "status", "active_session_count", "occurred_at", "created_at", "updated_at",
+				},
+			},
+		}, true
+	case 7:
+		return []tableExpectation{
+			{
+				name: "tb_refresh_tokens",
+				columns: []string{
+					"id", "user_id", "token_hash", "email", "gsm_role", "platform_role",
+					"device_info", "expires_at", "created_at",
+				},
+			},
+		}, true
+	default:
+		return nil, false
+	}
+}
+
+func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
+	expectations, known := migrationExpectations(version)
+	if !known {
+		return false, false, nil
+	}
+
+	for _, expectation := range expectations {
+		exists, err := tableExists(ctx, db, expectation.name)
+		if err != nil {
+			return false, true, err
+		}
+		if expectation.absent {
+			if exists {
+				return false, true, nil
+			}
+			continue
+		}
+		if !exists {
+			return false, true, nil
+		}
+
+		for _, column := range expectation.columns {
+			exists, err := columnExists(ctx, db, expectation.name, column)
+			if err != nil {
+				return false, true, err
+			}
+			if !exists {
+				return false, true, nil
+			}
+		}
+	}
+	if version == 6 {
+		complete, err := presenceStateBackfillComplete(ctx, db)
+		if err != nil {
+			return false, true, err
+		}
+		if !complete {
+			return false, true, nil
+		}
+	}
+
+	return true, true, nil
+}
+
+func presenceStateBackfillComplete(ctx context.Context, db *gorm.DB) (bool, error) {
+	var mismatched int64
+	err := db.WithContext(ctx).Raw(presenceStateBackfillQuery).Scan(&mismatched).Error
+	return mismatched == 0, err
+}
+
+func isRecoverableMigrationError(err error) bool {
+	var mysqlErr *mysqlDriver.MySQLError
+	if !errors.As(err, &mysqlErr) {
+		return false
+	}
+
+	switch mysqlErr.Number {
+	case 1050, // ER_TABLE_EXISTS_ERROR: a prior attempt completed CREATE TABLE.
+		1060, // ER_DUP_FIELDNAME: a prior attempt completed ALTER TABLE ADD COLUMN.
+		1091: // ER_CANT_DROP_FIELD_OR_KEY: a prior attempt completed DROP FOREIGN KEY.
+		return true
+	default:
+		return false
+	}
 }
 
 func parseDatabaseName(dsn string) (string, error) {

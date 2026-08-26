@@ -38,7 +38,7 @@ vault kv put secret/cowork-gateway \
   jwt.secret="${JWT_SECRET}" >/dev/null
 
 vault kv put secret/cowork-authorization \
-  DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local" \
+  DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=true&loc=UTC&time_zone=%27%2B00%3A00%27" \
   DATAGSM_CLIENT_ID="${DATAGSM_CLIENT_ID}" \
   DATAGSM_WEBHOOK_SECRET="${DATAGSM_WEBHOOK_SECRET:-}" \
   JWT_SECRET="${JWT_SECRET}" >/dev/null
