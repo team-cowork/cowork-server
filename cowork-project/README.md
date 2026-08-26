@@ -29,10 +29,20 @@
 
 ## 이벤트와 의존성
 
-- Kafka consume: `team.lifecycle`, `user.lifecycle`
+- Kafka consume: `team.lifecycle`, `team.member.event`, `user.lifecycle`
 - Kafka produce: `project.event`, `project.member.event`
 - HTTP: `cowork-user`, GitHub App 중계 서비스
 - MySQL, Eureka, Config Server
+
+### Projection 준비 상태
+
+`team.member.event`, `team.lifecycle`, `user.lifecycle` consumer는 projection 변경과 DB checkpoint를 같은 transaction으로
+커밋합니다. snapshot-backed state stream인 `team.member.event`, `team.lifecycle`의 공유 DB 전체 partition barrier와 source
+snapshot completion marker가 충족되기 전에는 projection 기반 권한 검사가 503으로 fail-closed 되고, readiness/Eureka도
+OUT_OF_SERVICE/STARTING 상태를 유지합니다. `user.lifecycle`은 producerless action-only stream이므로 durable checkpoint는
+유지하지만 readiness barrier에는 포함하지 않습니다. Kafka retention으로 checkpoint/marker가 현재 offset 범위를 벗어나거나
+저장된 Kafka topic ID와 현재 topic ID가 다르면 자동 복구 완료로 간주하지 않으므로 projection 데이터와 checkpoint/barrier를
+함께 재구성해야 합니다.
 
 ## 환경 변수
 
