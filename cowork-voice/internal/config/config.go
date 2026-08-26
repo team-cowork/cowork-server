@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"strconv"
 	"time"
@@ -25,12 +26,14 @@ type AppConfig struct {
 	LiveKitTokenTTLSecs         int64
 	KafkaBrokers                string
 	KafkaTopicVoiceEvent        string
+	KafkaTopicChannelMember     string
+	KafkaGroupIDChannelMember   string
 	KafkaMessageTimeoutMs       int
-	ChannelServiceURL           string
 	EurekaEnabled               bool
 	EurekaServerURL             string
 	EurekaAppName               string
 	EurekaInstanceHost          string
+	EurekaInstanceID            string
 	EurekaInstancePort          int
 	EurekaHeartbeatIntervalSecs int
 }
@@ -78,11 +81,6 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	channelServiceURL, err := requireConfig(flatMap, "CHANNEL_SERVICE_URL")
-	if err != nil {
-		return nil, err
-	}
-
 	ttlSecs, err := strconv.ParseInt(lookup(flatMap, "LIVEKIT_TOKEN_TTL_SECS", "3600"), 10, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid LIVEKIT_TOKEN_TTL_SECS: %w", err)
@@ -117,8 +115,9 @@ func Load() (*AppConfig, error) {
 		LiveKitTokenTTLSecs:         ttlSecs,
 		KafkaBrokers:                kafkaBrokers,
 		KafkaTopicVoiceEvent:        kafkaTopic,
+		KafkaTopicChannelMember:     lookup(flatMap, "KAFKA_TOPIC_CHANNEL_MEMBER_EVENT", "channel.member.event"),
+		KafkaGroupIDChannelMember:   lookup(flatMap, "KAFKA_GROUP_ID_CHANNEL_MEMBER", "cowork-voice.channel-member"),
 		KafkaMessageTimeoutMs:       timeoutMs,
-		ChannelServiceURL:           channelServiceURL,
 		EurekaEnabled:               lookup(flatMap, "EUREKA_ENABLED", "true") != "false",
 		EurekaServerURL:             lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
 		EurekaAppName:               lookup(flatMap, "EUREKA_APP_NAME", "cowork-voice"),
@@ -128,6 +127,9 @@ func Load() (*AppConfig, error) {
 	}
 
 	overrideFromEnv(cfg)
+	if err := configureEurekaIdentity(cfg); err != nil {
+		return nil, err
+	}
 	return cfg, nil
 }
 
@@ -220,13 +222,16 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("KAFKA_TOPIC_VOICE_EVENT"); v != "" {
 		cfg.KafkaTopicVoiceEvent = v
 	}
+	if v := os.Getenv("KAFKA_TOPIC_CHANNEL_MEMBER_EVENT"); v != "" {
+		cfg.KafkaTopicChannelMember = v
+	}
+	if v := os.Getenv("KAFKA_GROUP_ID_CHANNEL_MEMBER"); v != "" {
+		cfg.KafkaGroupIDChannelMember = v
+	}
 	if v := os.Getenv("KAFKA_MESSAGE_TIMEOUT_MS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil {
 			cfg.KafkaMessageTimeoutMs = parsed
 		}
-	}
-	if v := os.Getenv("CHANNEL_SERVICE_URL"); v != "" {
-		cfg.ChannelServiceURL = v
 	}
 	if v := os.Getenv("EUREKA_ENABLED"); v != "" {
 		cfg.EurekaEnabled = v != "false"
@@ -256,4 +261,46 @@ func overrideFromEnv(cfg *AppConfig) {
 			cfg.EurekaHeartbeatIntervalSecs = parsed
 		}
 	}
+}
+
+func configureEurekaIdentity(cfg *AppConfig) error {
+	runtimeIdentity := os.Getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
+	identityHost := cfg.EurekaInstanceHost
+	if runtimeIdentity {
+		hostname, err := os.Hostname()
+		if err != nil {
+			return fmt.Errorf("resolve runtime hostname for Eureka instance id: %w", err)
+		}
+		if hostname == "" {
+			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
+		}
+		identityHost = hostname
+		if explicitHost := os.Getenv("EUREKA_INSTANCE_HOST"); explicitHost != "" {
+			cfg.EurekaInstanceHost = explicitHost
+		} else if address := firstNonLoopbackIPv4(); address != "" {
+			cfg.EurekaInstanceHost = address
+		} else {
+			return fmt.Errorf("resolve non-loopback address for Eureka registration")
+		}
+	}
+	if explicitID := os.Getenv("EUREKA_INSTANCE_ID"); explicitID != "" {
+		cfg.EurekaInstanceID = explicitID
+	} else {
+		cfg.EurekaInstanceID = fmt.Sprintf("%s:%s:%d", identityHost, cfg.EurekaAppName, cfg.EurekaInstancePort)
+	}
+	return nil
+}
+
+func firstNonLoopbackIPv4() string {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return ""
+	}
+	for _, address := range addresses {
+		ip, _, err := net.ParseCIDR(address.String())
+		if err == nil && ip.To4() != nil && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() {
+			return ip.String()
+		}
+	}
+	return ""
 }
