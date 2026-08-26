@@ -14,11 +14,13 @@ import com.cowork.channel.global.config.OAuthProperties
 import com.cowork.channel.global.config.OAuthProviderConfig
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
+import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestClient
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -82,6 +84,7 @@ class HandleOAuthCallbackServiceImplTest {
     private val oAuthStateSupport = OAuthStateSupport(oAuthProperties, objectMapper)
 
     private val mockRestClient = mockk<RestClient>(relaxed = true)
+    private val requestBodySlot = slot<Any>()
     private val restClientBuilder = mockk<RestClient.Builder>().also {
         every { it.build() } returns mockRestClient
     }
@@ -129,7 +132,7 @@ class HandleOAuthCallbackServiceImplTest {
         every { postBodySpec.header(any(), any()) } returns postBodySpec
         every { postBodySpec.contentType(any()) } returns postBodySpec
         every { postBodySpec.accept(any()) } returns postBodySpec
-        every { postBodySpec.body(any<Any>()) } returns postBodySpec
+        every { postBodySpec.body(capture(requestBodySlot)) } returns postBodySpec
         val postResponseSpec = mockk<RestClient.ResponseSpec>()
         every { postBodySpec.retrieve() } returns postResponseSpec
         every { postResponseSpec.body(Map::class.java) } returns responseBody
@@ -219,6 +222,12 @@ class HandleOAuthCallbackServiceImplTest {
         val result = service.handleCallback("github", "auth-code", validState)
 
         assertEquals(existingAccount.id, result.id)
+        @Suppress("UNCHECKED_CAST")
+        val requestBody = requestBodySlot.captured as MultiValueMap<String, String>
+        assertEquals(
+            "https://example.com/api/channel/channels/oauth/callback/github",
+            requestBody.getFirst("redirect_uri"),
+        )
         verify(exactly = 0) { sharedAccountRepository.save(any()) }
     }
 }
