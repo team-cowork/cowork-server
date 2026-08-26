@@ -6,7 +6,6 @@ import com.cowork.project.domain.project.service.support.ProjectMemberLookupSupp
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -36,6 +35,6 @@ class RemoveProjectMemberServiceImpl(
 
         projectMemberRepository.delete(member)
 
-        afterCommit { projectMemberEventPublisher.publishRemoved(projectId, member.userId) }
+        projectMemberEventPublisher.publishRemoved(projectId, member.userId)
     }
 }
