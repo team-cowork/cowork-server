@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
@@ -17,7 +18,13 @@ import (
 
 var migrationNamePattern = regexp.MustCompile(`^V(\d+)__(.+)\.sql$`)
 
-const migrationDir = "/app/db/migration"
+const (
+	containerMigrationDir       = "/app/db/migration"
+	localMigrationDir           = "src/main/resources/db/migration"
+	migrationLockName           = "cowork-notification-schema-migration"
+	migrationLockWaitSeconds    = 60
+	migrationLockReleaseTimeout = 5 * time.Second
+)
 
 type migration struct {
 	version     int
@@ -28,12 +35,89 @@ type migration struct {
 }
 
 func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
-	if err := ensureHistoryTable(ctx, db); err != nil {
+	migrationDir, err := resolveMigrationDir()
+	if err != nil {
+		return err
+	}
+	migrations, err := loadMigrations(migrationDir)
+	if err != nil {
 		return err
 	}
 
-	migrations, err := loadMigrations(migrationDir)
+	dbName, err := parseDatabaseName(dsn)
 	if err != nil {
+		return err
+	}
+
+	return db.WithContext(ctx).Connection(func(connectionDB *gorm.DB) (err error) {
+		var acquired sql.NullInt64
+		if err := connectionDB.WithContext(ctx).
+			Raw(`SELECT GET_LOCK(?, ?)`, migrationLockName, migrationLockWaitSeconds).
+			Row().Scan(&acquired); err != nil {
+			return fmt.Errorf("failed to acquire migration lock for %s: %w", dbName, err)
+		}
+		if !acquired.Valid || acquired.Int64 != 1 {
+			return fmt.Errorf("timed out acquiring migration lock for %s", dbName)
+		}
+
+		defer func() {
+			releaseCtx, cancel := context.WithTimeout(context.Background(), migrationLockReleaseTimeout)
+			defer cancel()
+
+			var released sql.NullInt64
+			releaseErr := connectionDB.WithContext(releaseCtx).
+				Raw(`SELECT RELEASE_LOCK(?)`, migrationLockName).
+				Row().Scan(&released)
+			if err == nil && (releaseErr != nil || !released.Valid || released.Int64 != 1) {
+				if releaseErr != nil {
+					err = fmt.Errorf("failed to release migration lock for %s: %w", dbName, releaseErr)
+				} else {
+					err = fmt.Errorf("migration lock for %s was not owned by this connection", dbName)
+				}
+			}
+		}()
+
+		return migrateLocked(ctx, connectionDB, migrations, dbName)
+	})
+}
+
+func resolveMigrationDir() (string, error) {
+	candidates := migrationDirCandidates(os.Getenv("DB_MIGRATION_DIR"))
+	return firstExistingMigrationDir(candidates, func(candidate string) (bool, error) {
+		info, err := os.Stat(candidate)
+		if err != nil {
+			return false, err
+		}
+		return info.IsDir(), nil
+	})
+}
+
+func firstExistingMigrationDir(
+	candidates []string,
+	isDirectory func(string) (bool, error),
+) (string, error) {
+	for _, candidate := range candidates {
+		exists, err := isDirectory(candidate)
+		if err == nil && exists {
+			return candidate, nil
+		}
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return "", fmt.Errorf("inspect migration directory %s: %w", candidate, err)
+		}
+	}
+	return "", fmt.Errorf("migration directory not found; checked %s", strings.Join(candidates, ", "))
+}
+
+func migrationDirCandidates(override string) []string {
+	candidates := make([]string, 0, 3)
+	if override = strings.TrimSpace(override); override != "" {
+		candidates = append(candidates, override)
+	}
+	return append(candidates, containerMigrationDir, localMigrationDir)
+}
+
+func migrateLocked(ctx context.Context, db *gorm.DB, migrations []migration, dbName string) error {
+	if err := ensureHistoryTable(ctx, db); err != nil {
 		return err
 	}
 
@@ -46,45 +130,51 @@ func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
 		return err
 	}
 
-	dbName, err := parseDatabaseName(dsn)
-	if err != nil {
-		return err
-	}
-
 	for _, m := range migrations {
 		if applied[m.versionText] {
 			continue
 		}
 
-		tx := db.WithContext(ctx).Begin()
-		if tx.Error != nil {
-			return tx.Error
+		complete, known, err := migrationSchemaComplete(ctx, db, m.version)
+		if err != nil {
+			return fmt.Errorf("failed to inspect migration %s schema: %w", m.script, err)
+		}
+		if !known {
+			return fmt.Errorf("migration %s has no schema recovery verifier", m.script)
 		}
 
-		for _, stmt := range splitSQLStatements(m.contents) {
-			if err := tx.Exec(stmt).Error; err != nil {
-				tx.Rollback()
-				return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
+		if !complete {
+			for _, stmt := range splitSQLStatements(m.contents) {
+				if err := db.WithContext(ctx).Exec(stmt).Error; err != nil && !isRecoverableMigrationError(err) {
+					return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
+				}
+			}
+
+			complete, _, err = migrationSchemaComplete(ctx, db, m.version)
+			if err != nil {
+				return fmt.Errorf("failed to verify migration %s schema: %w", m.script, err)
+			}
+			if !complete {
+				return fmt.Errorf("migration %s did not produce its expected schema", m.script)
 			}
 		}
 
-		if err := tx.Exec(
-			`INSERT INTO flyway_schema_history
-				(installed_rank, version, description, type, script, installed_by, execution_time, success)
-			 VALUES
-				((SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fh), ?, ?, 'SQL', ?, USER(), 0, TRUE)`,
-			m.versionText, m.description, m.script,
-		).Error; err != nil {
-			tx.Rollback()
+		if err := recordMigration(ctx, db, m); err != nil {
 			return fmt.Errorf("failed to record migration %s for %s: %w", m.script, dbName, err)
-		}
-
-		if err := tx.Commit().Error; err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", m.script, err)
 		}
 	}
 
 	return nil
+}
+
+func recordMigration(ctx context.Context, db *gorm.DB, m migration) error {
+	return db.WithContext(ctx).Exec(
+		`INSERT INTO flyway_schema_history
+			(installed_rank, version, description, type, script, installed_by, execution_time, success)
+		 VALUES
+			((SELECT COALESCE(MAX(installed_rank), 0) + 1 FROM flyway_schema_history fh), ?, ?, 'SQL', ?, USER(), 0, TRUE)`,
+		m.versionText, m.description, m.script,
+	).Error
 }
 
 func ensureHistoryTable(ctx context.Context, db *gorm.DB) error {
@@ -159,22 +249,29 @@ func baselineLegacySchema(ctx context.Context, db *gorm.DB, migrations []migrati
 		return err
 	}
 
-	return insertBaselineRows(ctx, db, migrations)
+	return insertLegacyBaseline(ctx, db, migrations)
 }
 
-func insertBaselineRows(ctx context.Context, db *gorm.DB, migrations []migration) error {
+func insertLegacyBaseline(ctx context.Context, db *gorm.DB, migrations []migration) error {
 	tx := db.WithContext(ctx).Begin()
 	if tx.Error != nil {
 		return tx.Error
 	}
 
-	for index, m := range migrations {
+	installedRank := 0
+	for _, m := range migrations {
+		// The schema predating Flyway contained only V1. New migrations must still
+		// execute after that legacy schema is baselined.
+		if m.version != 1 {
+			continue
+		}
+		installedRank++
 		if err := tx.Exec(
 			`INSERT INTO flyway_schema_history
 				(installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success)
 			 VALUES
 				(?, ?, ?, 'SQL', ?, USER(), ?, 0, TRUE)`,
-			index+1, m.versionText, m.description, m.script, time.Now(),
+			installedRank, m.versionText, m.description, m.script, time.Now(),
 		).Error; err != nil {
 			tx.Rollback()
 			return err
@@ -219,6 +316,129 @@ func tableExists(ctx context.Context, db *gorm.DB, table string) (bool, error) {
 		table,
 	).Scan(&count).Error
 	return count > 0, err
+}
+
+func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM information_schema.columns
+		 WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?`,
+		table, column,
+	).Scan(&count).Error
+	return count > 0, err
+}
+
+type tableExpectation struct {
+	name    string
+	columns []string
+}
+
+func migrationExpectations(version int) ([]tableExpectation, bool) {
+	switch version {
+	case 1:
+		return []tableExpectation{
+			{
+				name: "tb_device_token",
+				columns: []string{
+					"id", "account_id", "token", "platform", "created_at", "updated_at",
+				},
+			},
+		}, true
+	case 2:
+		return []tableExpectation{
+			{
+				name: "tb_channel_notification_preferences",
+				columns: []string{
+					"account_id", "channel_id", "notification_enabled", "source_updated_at", "updated_at",
+				},
+			},
+			{
+				name: "tb_user_profile_projections",
+				columns: []string{
+					"user_id", "display_name", "deleted", "source_updated_at", "updated_at",
+				},
+			},
+			{
+				name: "tb_team_profile_projections",
+				columns: []string{
+					"team_id", "team_name", "deleted", "source_updated_at", "updated_at",
+				},
+			},
+		}, true
+	case 3:
+		return []tableExpectation{
+			{
+				name: "tb_projection_checkpoints",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "next_offset", "created_at", "updated_at",
+				},
+			},
+			{
+				name: "tb_projection_dead_letters",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "message_offset", "event_key", "payload", "reason", "created_at",
+				},
+			},
+		}, true
+	case 4:
+		return []tableExpectation{
+			{
+				name: "tb_projection_checkpoints",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "next_offset",
+					"snapshot_completed_offset", "snapshot_id", "snapshot_source", "snapshot_occurred_at",
+					"created_at", "updated_at",
+				},
+			},
+		}, true
+	default:
+		return nil, false
+	}
+}
+
+func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
+	expectations, known := migrationExpectations(version)
+	if !known {
+		return false, false, nil
+	}
+
+	for _, expectation := range expectations {
+		exists, err := tableExists(ctx, db, expectation.name)
+		if err != nil {
+			return false, true, err
+		}
+		if !exists {
+			return false, true, nil
+		}
+
+		for _, column := range expectation.columns {
+			exists, err := columnExists(ctx, db, expectation.name, column)
+			if err != nil {
+				return false, true, err
+			}
+			if !exists {
+				return false, true, nil
+			}
+		}
+	}
+
+	return true, true, nil
+}
+
+func isRecoverableMigrationError(err error) bool {
+	var mysqlErr *mysqlDriver.MySQLError
+	if !errors.As(err, &mysqlErr) {
+		return false
+	}
+
+	switch mysqlErr.Number {
+	case 1050, // ER_TABLE_EXISTS_ERROR: a prior attempt completed CREATE TABLE.
+		1060, // ER_DUP_FIELDNAME: a prior attempt completed ALTER TABLE ADD COLUMN.
+		1091: // ER_CANT_DROP_FIELD_OR_KEY: a prior attempt completed DROP FOREIGN KEY.
+		return true
+	default:
+		return false
+	}
 }
 
 func parseDatabaseName(dsn string) (string, error) {
