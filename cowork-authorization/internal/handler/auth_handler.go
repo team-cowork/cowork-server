@@ -150,12 +150,6 @@ func RequireUserID() gin.HandlerFunc {
 	}
 }
 
-// Health godoc
-// @Summary      헬스체크
-// @Tags         health
-// @Produce      json
-// @Success      200  {object}  map[string]interface{}
-// @Router       /health [get]
 func Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"status":    "UP",
