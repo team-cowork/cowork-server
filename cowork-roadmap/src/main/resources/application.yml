@@ -18,15 +18,20 @@ spring:
     user: ${MYSQL_USER:cowork}
     password: ${MYSQL_PASSWORD:}
     locations: classpath:db/migration
-
-team-service:
-  base-url: ${TEAM_SERVICE_URL:lb://cowork-team}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
 
 eureka:
   client:
+    healthcheck:
+      enabled: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
+    initial-status: starting
     prefer-ip-address: true
     metadata-map:
       prometheus.scrape: "true"
@@ -38,6 +43,12 @@ management:
       exposure:
         include: health, info, refresh, busrefresh, prometheus
   endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,teamMemberProjectionReadiness
     prometheus:
       enabled: true
   metrics:
