@@ -33,3 +33,5 @@ sandrone:
   threadReply: true
   emoji: false
   maxReviewBatches: 4
+  allowStrongTone: true
+  progressMessageTheme: sandrone
