@@ -51,7 +51,7 @@ export class SearchChannelItem {
     isPrivate!: boolean;
 }
 
-@ObjectType({ description: '통합 검색 결과 — 메시지(ES)와 채널(channel-service)을 병렬 조회해 반환' })
+@ObjectType({ description: '통합 검색 결과 — 메시지(ES)와 Kafka 동기화 채널 projection을 병렬 조회해 반환' })
 export class UnifiedSearchResult {
     @Field(() => [SearchMessageItem], { description: 'Elasticsearch 메시지 검색 결과 (최신순)' })
     messages!: SearchMessageItem[];
