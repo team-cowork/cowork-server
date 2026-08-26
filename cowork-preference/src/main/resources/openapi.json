@@ -6,7 +6,7 @@
     "version": "20260719.0"
   },
   "servers": [
-    { "url": "/", "description": "현재 서버" }
+    { "url": "/api/preference", "description": "Gateway" }
   ],
   "security": [{ "BearerAuth": [] }],
   "tags": [
