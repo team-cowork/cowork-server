@@ -15,7 +15,66 @@
 # 위 값들은 cowork-config가 native prod 설정의 placeholder를 해석할 때 사용하므로
 # Config Server 컨테이너에 주입되어야 한다.
 services:
+  # Production traffic enters through the Gateway (and LiveKit's dedicated
+  # host-network listeners). Databases, brokers, caches, and ops UIs stay on
+  # the private Compose network.
+  mysql:
+    ports: !reset []
+
+  postgres:
+    ports: !reset []
+
+  mongodb:
+    ports: !reset []
+
+  kafka:
+    ports: !reset []
+
+  kafka-ui:
+    ports: !reset []
+
+  seaweedfs:
+    ports: !reset []
+
+  elasticsearch:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  loki:
+    ports: !reset []
+
+  blackbox_exporter:
+    ports: !reset []
+
+  prometheus:
+    ports: !reset []
+
+  alertmanager:
+    ports: !reset []
+
+  grafana:
+    ports: !reset []
+
+  mysqld_exporter:
+    ports: !reset []
+
+  redis_exporter:
+    ports: !reset []
+
+  kafka_exporter:
+    ports: !reset []
+
+  postgres_exporter:
+    ports: !reset []
+
+  mongodb_exporter:
+    ports: !reset []
+
   cowork-config:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
     depends_on: !override
       kafka:
@@ -36,57 +95,90 @@ services:
       GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL:?GITHUB_APP_SERVICE_URL is required}
       LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
       LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
+    ports: !reset []
 
   vault:
     profiles: [local-vault]
+    ports: !reset []
 
   vault-init:
     profiles: [local-vault]
 
   cowork-gateway:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-gateway:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
 
   cowork-authorization:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-authorization:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-preference:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-preference:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-user:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-user:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-team:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-team:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-channel:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-channel:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-notification:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-notification:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-chat:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-chat:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-voice:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-voice:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
       # Host-networked LiveKit is not attached to the Compose network. Keep the
       # server-to-server API on the host gateway and return the public WSS URL
       # to clients.
@@ -94,16 +186,23 @@ services:
       LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports: !reset []
 
   cowork-project:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-project:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-roadmap:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-roadmap:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   alertmanager-config-init:
     environment:
