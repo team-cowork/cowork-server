@@ -3,6 +3,7 @@ package com.cowork.channel.domain.channel.service.impl
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import io.mockk.every
@@ -17,8 +18,9 @@ class ReorderTeamChannelsServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
+    private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
 
-    private val service = ReorderTeamChannelsServiceImpl(channelRepository, teamPermission)
+    private val service = ReorderTeamChannelsServiceImpl(channelRepository, teamPermission, channelEventPublisher)
 
     private fun channel(
         id: Long = 1L,
@@ -46,6 +48,8 @@ class ReorderTeamChannelsServiceImplTest {
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
         assertEquals(0, second.position)
+        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(second, any()) }
+        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(first, any()) }
     }
 
     @Test
