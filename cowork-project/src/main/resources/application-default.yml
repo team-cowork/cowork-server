@@ -1,0 +1,19 @@
+eureka:
+  client:
+    healthcheck:
+      enabled: true
+  instance:
+    initial-status: STARTING
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000

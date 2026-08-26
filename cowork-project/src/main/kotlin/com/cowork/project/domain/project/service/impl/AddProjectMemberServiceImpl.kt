@@ -8,7 +8,6 @@ import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
 import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -46,7 +45,7 @@ class AddProjectMemberServiceImpl(
             ),
         )
 
-        afterCommit { projectMemberEventPublisher.publishAdded(projectId, member.userId) }
+        projectMemberEventPublisher.publishAdded(projectId, member.userId)
 
         return ProjectMemberResDto.of(member)
     }
