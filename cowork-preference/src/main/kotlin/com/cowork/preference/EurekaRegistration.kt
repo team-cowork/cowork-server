@@ -32,8 +32,8 @@ class EurekaRegistration(private val config: AppConfig) {
                     .put("status", "UP")
                     .put("port", JsonObject().put("\$", config.serverPort).put("@enabled", "true"))
                     .put("securePort", JsonObject().put("\$", 443).put("@enabled", "false"))
-                    .put("healthCheckUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health")
-                    .put("statusPageUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health")
+                    .put("healthCheckUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health/ready")
+                    .put("statusPageUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health/ready")
                     .put("homePageUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/")
                     .put(
                         "dataCenterInfo",
