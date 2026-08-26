@@ -35,6 +35,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	)
 	instance.VipAddress = cfg.EurekaAppName
 	instance.SecureVipAddress = cfg.EurekaAppName
+	instance.InstanceID = cfg.EurekaInstanceID
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
 			"management.port":   fmt.Sprintf("%d", cfg.EurekaInstancePort),
@@ -61,7 +62,7 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 			case <-c.stopCh:
 				return
 			case <-ticker.C:
-				if err := c.client.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
+				if err := c.client.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceID); err != nil {
 					log.Printf("eureka heartbeat failed: %v", err)
 					if registerErr := c.Register(cfg); registerErr != nil {
 						log.Printf("eureka re-registration failed: %v", registerErr)
@@ -76,7 +77,7 @@ func (c *Client) Deregister(cfg *config.AppConfig) {
 	c.stopOnce.Do(func() {
 		close(c.stopCh)
 	})
-	if err := c.client.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
+	if err := c.client.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceID); err != nil {
 		log.Printf("failed to deregister from eureka: %v", err)
 	}
 }
