@@ -15,6 +15,8 @@ preference:
     port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    consumer-group-id: cowork-preference-team-member-projection
+    team-member-topic: team.member.event
 
 eureka:
   url: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
