@@ -13,7 +13,6 @@ import (
 	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"github.com/cowork/authorization/internal/repository"
 	"gorm.io/gorm"
 )
 
@@ -46,18 +45,42 @@ type DataGSMStudent struct {
 	IsLeaveSchool bool    `json:"isLeaveSchool"`
 }
 
+type RefreshTokenStore interface {
+	CreateSession(
+		ctx context.Context,
+		token *domain.RefreshToken,
+		occurredAt time.Time,
+		topic string,
+	) error
+	RotateSession(
+		ctx context.Context,
+		oldHash string,
+		newHash string,
+		newExpiresAt time.Time,
+		now time.Time,
+	) (*domain.RefreshToken, error)
+	RevokeSession(
+		ctx context.Context,
+		hash string,
+		userID int64,
+		occurredAt time.Time,
+		topic string,
+	) error
+}
+
 type AuthService struct {
 	cfg              *config.AppConfig
 	httpClient       *http.Client
 	userClient       *client.UserClient
-	refreshTokenRepo *repository.RefreshTokenRepository
+	refreshTokenRepo RefreshTokenStore
 	tokenSvc         *TokenService
+	now              func() time.Time
 }
 
 func NewAuthService(
 	cfg *config.AppConfig,
 	userClient *client.UserClient,
-	refreshTokenRepo *repository.RefreshTokenRepository,
+	refreshTokenRepo RefreshTokenStore,
 	tokenSvc *TokenService,
 ) *AuthService {
 	return &AuthService{
@@ -66,6 +89,9 @@ func NewAuthService(
 		userClient:       userClient,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
+		now: func() time.Time {
+			return time.Now().UTC().Truncate(time.Microsecond)
+		},
 	}
 }
 
@@ -85,6 +111,10 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	}
 
 	st := userInfo.Student
+	platformRole, err := PlatformRoleFromDataGSM(userInfo.Role)
+	if err != nil {
+		return nil, err
+	}
 	grade := st.Grade
 	classNum := st.ClassNum
 	number := st.Number
@@ -101,7 +131,6 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
 		DataGSMStudentID:     &studentID,
-		Status:               "online",
 	}
 
 	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
@@ -109,58 +138,76 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 		return nil, fmt.Errorf("failed to upsert user: %w", err)
 	}
 
-	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "", "")
+	return s.issueNewSession(ctx, userID, userInfo.Email, platformRole, st.Role, "")
 }
 
-func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
-	hash := HashToken(rawRefreshToken)
-
-	rt, err := s.refreshTokenRepo.FindByHash(hash)
+func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
+	rawRefresh, refreshHash, err := s.tokenSvc.GenerateRefreshToken()
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+	}
+
+	now := s.now().UTC().Truncate(time.Microsecond)
+	source, err := s.refreshTokenRepo.RotateSession(
+		ctx,
+		HashToken(rawRefreshToken),
+		refreshHash,
+		now.Add(s.tokenSvc.RefreshExpire()),
+		now,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			return nil, fmt.Errorf("refresh token not found")
+		case errors.Is(err, domain.ErrRefreshTokenExpired):
+			return nil, fmt.Errorf("refresh token expired")
+		default:
+			return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
 		}
-		return nil, fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
-	if time.Now().After(rt.ExpiresAt) {
-		return nil, fmt.Errorf("refresh token expired")
+	accessToken, err := s.tokenSvc.GenerateAccessToken(
+		source.UserID,
+		source.Email,
+		source.PlatformRole,
+		source.GsmRole,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
-
-	var deviceInfo string
-	if rt.DeviceInfo != nil {
-		deviceInfo = *rt.DeviceInfo
-	}
-	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo, hash)
+	return s.tokenPair(accessToken, rawRefresh), nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID int64, rawRefreshToken string) error {
-	hash := HashToken(rawRefreshToken)
-	rt, err := s.refreshTokenRepo.FindByHash(hash)
+	err := s.refreshTokenRepo.RevokeSession(
+		ctx,
+		HashToken(rawRefreshToken),
+		userID,
+		s.now().UTC().Truncate(time.Microsecond),
+		s.cfg.KafkaTopicUserPresence,
+	)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			return fmt.Errorf("refresh token not found")
+		case errors.Is(err, domain.ErrRefreshTokenOwnerMismatch):
+			return fmt.Errorf("token does not belong to user")
+		default:
+			return fmt.Errorf("failed to revoke refresh token: %w", err)
 		}
-		return fmt.Errorf("failed to find refresh token: %w", err)
-	}
-	if rt.UserID != userID {
-		return fmt.Errorf("token does not belong to user")
-	}
-	if err := s.refreshTokenRepo.DeleteByHash(hash); err != nil {
-		return err
-	}
-
-	if err := s.userClient.UpdateStatus(ctx, userID, "offline"); err != nil {
-		return fmt.Errorf("failed to set user %d offline on logout: %w", userID, err)
 	}
 
 	return nil
 }
 
-// issueTokenPair는 액세스/리프레시 토큰을 새로 발급한다.
-// replaceHash가 주어지면(토큰 갱신) 기존 리프레시 토큰 삭제와 신규 토큰 저장을 하나의 트랜잭션으로 처리해
-// 저장 실패 시 세션이 소실되는 것을 방지한다.
-func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo, replaceHash string) (*TokenPair, error) {
+func (s *AuthService) issueNewSession(
+	ctx context.Context,
+	userID int64,
+	email string,
+	role string,
+	gsmRole string,
+	deviceInfo string,
+) (*TokenPair, error) {
 	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -171,31 +218,51 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
+	occurredAt := s.now().UTC().Truncate(time.Microsecond)
 	rt := &domain.RefreshToken{
-		UserID:    userID,
-		TokenHash: refreshHash,
-		Email:     email,
-		GsmRole:   gsmRole,
-		ExpiresAt: time.Now().Add(s.tokenSvc.RefreshExpire()),
+		UserID:       userID,
+		TokenHash:    refreshHash,
+		Email:        email,
+		GsmRole:      gsmRole,
+		PlatformRole: role,
+		ExpiresAt:    occurredAt.Add(s.tokenSvc.RefreshExpire()),
 	}
 	if deviceInfo != "" {
 		rt.DeviceInfo = &deviceInfo
 	}
 
-	if replaceHash != "" {
-		if err := s.refreshTokenRepo.ReplaceInTransaction(replaceHash, rt); err != nil {
-			return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
-		}
-	} else if err := s.refreshTokenRepo.Create(rt); err != nil {
-		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	if err := s.refreshTokenRepo.CreateSession(
+		ctx,
+		rt,
+		occurredAt,
+		s.cfg.KafkaTopicUserPresence,
+	); err != nil {
+		return nil, fmt.Errorf("failed to store refresh session: %w", err)
 	}
 
+	return s.tokenPair(accessToken, rawRefresh), nil
+}
+
+// PlatformRoleFromDataGSM maps the provider's account role to the only two
+// platform-wide roles accepted by Gateway and downstream services.
+func PlatformRoleFromDataGSM(providerRole string) (string, error) {
+	switch providerRole {
+	case "ADMIN":
+		return "ADMIN", nil
+	case "USER":
+		return "MEMBER", nil
+	default:
+		return "", fmt.Errorf("unsupported DataGSM account role")
+	}
+}
+
+func (s *AuthService) tokenPair(accessToken, rawRefresh string) *TokenPair {
 	return &TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: rawRefresh,
 		TokenType:    "Bearer",
 		ExpiresIn:    int(s.cfg.JWTAccessExpire.Seconds()),
-	}, nil
+	}
 }
 
 func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (string, error) {
@@ -227,7 +294,7 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 		return "", fmt.Errorf("failed to read token response: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, respBody)
+		return "", providerStatusError("token", resp.StatusCode)
 	}
 
 	var result struct {
@@ -256,7 +323,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)
+		return nil, providerStatusError("userinfo", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -269,4 +336,8 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 		return nil, fmt.Errorf("failed to parse userinfo response: %w", err)
 	}
 	return &info, nil
+}
+
+func providerStatusError(endpoint string, status int) error {
+	return fmt.Errorf("%s endpoint returned status %d", endpoint, status)
 }
