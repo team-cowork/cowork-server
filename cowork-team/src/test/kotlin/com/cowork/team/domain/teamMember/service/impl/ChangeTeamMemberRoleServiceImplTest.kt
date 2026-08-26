@@ -3,6 +3,7 @@ package com.cowork.team.domain.teamMember.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
@@ -15,13 +16,10 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -30,24 +28,16 @@ class ChangeTeamMemberRoleServiceImplTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
+    private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
     private val teamMemberAccessGuard = TeamMemberAccessGuard(teamRepository, teamMemberRepository)
 
     private val service =
-        ChangeTeamMemberRoleServiceImpl(teamMemberRepository, teamEventPublisher, teamMemberAccessGuard)
-
-    @BeforeEach
-    fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
-    }
-
-    private fun fireAfterCommit() {
-        TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
-    }
+        ChangeTeamMemberRoleServiceImpl(
+            teamMemberRepository,
+            teamEventPublisher,
+            teamMemberEventPublisher,
+            teamMemberAccessGuard,
+        )
 
     @Test
     fun `changeRole은 OWNER 통과 시 ROLE_CHANGED 이벤트를 newRole 포함하여 lifecycle 토픽으로 발행`() {
@@ -59,16 +49,16 @@ class ChangeTeamMemberRoleServiceImplTest {
         every { teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, actorId, listOf(TeamRole.OWNER)) } returns
             TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
         every { teamRepository.findById(teamId) } returns Optional.of(team)
-        every { teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId) } returns
-            TeamMember(team = team, userId = targetUserId, role = TeamRole.MEMBER)
+        val targetMember = TeamMember(team = team, userId = targetUserId, role = TeamRole.MEMBER)
+        every { teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId) } returns targetMember
 
         val captured = slot<TeamEventPayload>()
         every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
 
         service.execute(actorId, teamId, targetUserId, ChangeRoleRequest(role = TeamRole.ADMIN))
-        fireAfterCommit()
 
         verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }
+        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(targetMember, any(), false) }
         assertEquals("ROLE_CHANGED", captured.captured.eventType)
         assertEquals(listOf(targetUserId), captured.captured.targetUserIds)
         assertEquals("ADMIN", captured.captured.newRole)
