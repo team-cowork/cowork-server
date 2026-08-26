@@ -21,12 +21,11 @@ type Client struct {
 }
 
 func New(cfg *config.AppConfig) *Client {
-	instanceID := fmt.Sprintf("%s:%s:%d", cfg.EurekaInstanceHost, cfg.EurekaAppName, cfg.EurekaInstancePort)
 	return &Client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
 		serverURL:  strings.TrimRight(cfg.EurekaServerURL, "/"),
 		appName:    cfg.EurekaAppName,
-		instanceID: instanceID,
+		instanceID: cfg.EurekaInstanceID,
 		stopCh:     make(chan struct{}),
 	}
 }
@@ -47,7 +46,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 			"status":           "UP",
 			"port":             map[string]any{"$": cfg.EurekaInstancePort, "@enabled": "true"},
 			"securePort":       map[string]any{"$": 443, "@enabled": "false"},
-			"healthCheckUrl":   fmt.Sprintf("http://%s:%d/health", cfg.EurekaInstanceHost, cfg.EurekaInstancePort),
+			"healthCheckUrl":   fmt.Sprintf("http://%s:%d/health/ready", cfg.EurekaInstanceHost, cfg.EurekaInstancePort),
 			"statusPageUrl":    fmt.Sprintf("http://%s:%d/health", cfg.EurekaInstanceHost, cfg.EurekaInstancePort),
 			"homePageUrl":      fmt.Sprintf("http://%s:%d/", cfg.EurekaInstanceHost, cfg.EurekaInstancePort),
 			"dataCenterInfo": map[string]any{
