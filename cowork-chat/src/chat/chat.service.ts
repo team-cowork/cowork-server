@@ -33,6 +33,7 @@ import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
 import { MessageRepository, MessageRow } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
+import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
 import { BlockService } from '../block/block.service';
 import {
     ChannelUserContext,
@@ -62,6 +63,7 @@ export class ChatService {
     constructor(
         private readonly messageRepository: MessageRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
+        private readonly teamMemberRepository: TeamMemberProjectionRepository,
         private readonly elasticsearchService: ElasticsearchService,
         private readonly objectStorageService: ObjectStorageService,
         private readonly chatMessageProducer: ChatMessageProducer,
@@ -87,7 +89,7 @@ export class ChatService {
     }
 
     async isTeamMember(teamId: number, userId: number): Promise<boolean> {
-        return this.channelMemberRepository.existsByTeam(teamId, userId);
+        return this.teamMemberRepository.exists(teamId, userId);
     }
 
     /**
@@ -161,7 +163,7 @@ export class ChatService {
     /**
      * FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      * FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
-     * 업로더 이름은 user-service에서 일괄 조회한다.
+     * 업로더 이름은 Kafka로 동기화된 사용자 프로필 projection에서 일괄 조회한다.
      *
      * @param ctx - 채널·사용자 컨텍스트
      * @param query - 커서, 페이지 크기
@@ -366,7 +368,7 @@ export class ChatService {
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
         const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
-        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
+        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId, ctx.userId);
         if (!repoInfo) {
             throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
         }
@@ -450,7 +452,7 @@ export class ChatService {
         dto: SearchTeamMessagesDto,
         ctx: UserContext,
     ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.channelMemberRepository.existsByTeam(teamId, ctx.userId);
+        const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
         if (!isMember) throw new ForbiddenException('팀 접근 권한이 없습니다');
 
         const memberships = await this.channelMemberRepository.findMembersByTeam(teamId, ctx.userId);
@@ -812,8 +814,8 @@ export class ChatService {
     }
 
     /**
-     * 업로더 ID 목록에 대한 표시 이름을 user-service에서 조회한다.
-     * `SYSTEM_AUTHOR_ID(0)` 이하이면 user-service 호출 없이 'System'으로 처리한다.
+     * 업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필 projection에서 조회한다.
+     * `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
      *
      * @param items - uploaderId 필드를 포함하는 아이템 배열
      * @returns uploaderId → 표시 이름 매핑
