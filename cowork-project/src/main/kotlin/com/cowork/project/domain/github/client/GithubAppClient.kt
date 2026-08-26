@@ -1,10 +1,8 @@
 package com.cowork.project.domain.github.client
 
-import com.cowork.project.domain.github.presentation.data.response.GithubApproveResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubLabelResDto
-import com.cowork.project.domain.github.presentation.data.response.GithubMergeResultResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestSummaryResDto
@@ -18,6 +16,12 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 
+/**
+ * 이슈 생성 / PR 머지·승인은 Kafka(`GithubActionCommandPublisher`)로 전환되어 여기 없다.
+ * 아래 이슈/라벨/댓글 관련 메서드는 cowork-github-app(2026-08 기준 `main`)에 대응하는 HTTP 라우트가
+ * 아직 구현되어 있지 않다 — 호출 시 404가 날 수 있다. 실제 GitHub API 연동(Octokit) 코드 자체가
+ * cowork-github-app에 없으므로, 단순 라우트 추가만으로는 못 고친다.
+ */
 @FeignClient(
     name = "github-app",
     url = "\${github-app.service-url}",
@@ -48,22 +52,6 @@ interface GithubAppClient {
         @PathVariable repo: String,
         @PathVariable number: Int,
     ): List<GithubPullRequestFileResDto>
-
-    @PostMapping("/api/repos/{owner}/{repo}/pulls/{number}/merge")
-    fun mergePullRequest(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable number: Int,
-        @RequestBody body: Map<String, String>,
-    ): GithubMergeResultResDto
-
-    @PostMapping("/api/repos/{owner}/{repo}/pulls/{number}/approve")
-    fun approvePullRequest(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable number: Int,
-        @RequestBody body: Map<String, String>,
-    ): GithubApproveResultResDto
 
     @GetMapping("/api/repos/{owner}/{repo}/issues")
     fun listIssues(
@@ -118,13 +106,6 @@ interface GithubAppClient {
 
     @GetMapping("/api/repos/{owner}/{repo}/labels")
     fun listLabels(@PathVariable owner: String, @PathVariable repo: String): List<GithubLabelResDto>
-
-    @PostMapping("/api/repos/{owner}/{repo}/issues")
-    fun createIssue(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @RequestBody body: GithubAppCreateIssueReqDto,
-    ): GithubIssueResDto
 
     @PatchMapping("/api/repos/{owner}/{repo}/issues/{number}/labels")
     fun updateIssueLabels(
