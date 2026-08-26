@@ -1,6 +1,6 @@
 package com.cowork.channel.domain.channel.event
 
-import java.time.LocalDateTime
+import java.time.Instant
 
 enum class ChannelMemberEventType { JOIN, LEAVE }
 
@@ -11,5 +11,6 @@ data class ChannelMemberEvent(
     val userId: Long,
     val role: String,
     val channelType: String,
-    val occurredAt: LocalDateTime = LocalDateTime.now(),
+    val occurredAt: Instant = Instant.now(),
+    val snapshot: Boolean = false,
 )
