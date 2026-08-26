@@ -27,7 +27,7 @@ class BuildOAuthAuthorizeUrlServiceImpl(
         teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
         val config = oAuthStateSupport.providerConfigOf(provider)
         val state = oAuthStateSupport.buildState(channelId, userId, provider)
-        val callbackUrl = "${oAuthProperties.callbackBaseUrl}/channels/oauth/callback/${provider.name.lowercase()}"
+        val callbackUrl = oAuthProperties.callbackUrl(provider.name)
 
         return when (provider) {
             AccountProvider.GITHUB ->
