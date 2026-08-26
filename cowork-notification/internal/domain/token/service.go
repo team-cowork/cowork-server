@@ -2,16 +2,17 @@ package token
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 )
 
 type Service struct {
 	repo Repository
 	fcm  FCMSender
-	pref PreferenceClient
+	pref NotificationPreferenceResolver
 }
 
-func NewService(repo Repository, fcm FCMSender, pref PreferenceClient) *Service {
+func NewService(repo Repository, fcm FCMSender, pref NotificationPreferenceResolver) *Service {
 	return &Service{repo: repo, fcm: fcm, pref: pref}
 }
 
@@ -27,52 +28,59 @@ func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) 
 	return s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn)
 }
 
-func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) error {
+func (s *Service) Notify(
+	ctx context.Context,
+	targetUserIDs []int64,
+	forcedUserIDs []int64,
+	title, body string,
+	channelID int64,
+) ([]int64, error) {
 	forcedSet := make(map[int64]bool, len(forcedUserIDs))
+	enabledIDs := make([]int64, 0, len(targetUserIDs)+len(forcedUserIDs))
 	for _, id := range forcedUserIDs {
+		if forcedSet[id] {
+			continue
+		}
 		forcedSet[id] = true
+		enabledIDs = append(enabledIDs, id)
 	}
 
 	// forcedUserIDs는 뮤트 무시하고 무조건 포함
-	enabledIDs := make([]int64, 0, len(targetUserIDs))
-	enabledIDs = append(enabledIDs, forcedUserIDs...)
+	nonForcedIDs := make([]int64, 0, len(targetUserIDs))
+	nonForcedSet := make(map[int64]bool, len(targetUserIDs))
+	for _, uid := range targetUserIDs {
+		if !forcedSet[uid] && !nonForcedSet[uid] {
+			nonForcedSet[uid] = true
+			nonForcedIDs = append(nonForcedIDs, uid)
+		}
+	}
 
 	// 나머지는 preference 확인
 	if channelID > 0 {
-		nonForcedIDs := make([]int64, 0, len(targetUserIDs))
-		for _, uid := range targetUserIDs {
-			if !forcedSet[uid] {
-				nonForcedIDs = append(nonForcedIDs, uid)
-			}
-		}
 		if len(nonForcedIDs) > 0 {
 			enabledMap, err := s.pref.AreNotificationsEnabled(ctx, nonForcedIDs, channelID)
 			if err != nil {
-				slog.Warn("batch preference check failed, defaulting to enabled", "err", err)
-				enabledIDs = append(enabledIDs, nonForcedIDs...)
-			} else {
-				for _, uid := range nonForcedIDs {
-					if enabled, ok := enabledMap[uid]; !ok || enabled {
-						enabledIDs = append(enabledIDs, uid)
-					}
+				// Fail closed. The Kafka trigger remains uncommitted and is retried;
+				// defaulting to enabled could notify an explicitly opted-out user.
+				return nil, fmt.Errorf("resolve channel notification preferences: %w", err)
+			}
+			for _, uid := range nonForcedIDs {
+				if enabled, ok := enabledMap[uid]; !ok || enabled {
+					enabledIDs = append(enabledIDs, uid)
 				}
 			}
 		}
 	} else {
-		for _, uid := range targetUserIDs {
-			if !forcedSet[uid] {
-				enabledIDs = append(enabledIDs, uid)
-			}
-		}
+		enabledIDs = append(enabledIDs, nonForcedIDs...)
 	}
 
 	if len(enabledIDs) == 0 {
-		return nil
+		return enabledIDs, nil
 	}
 
 	tokenMap, err := s.repo.FindByAccountIDs(ctx, enabledIDs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var allTokens []string
 	for _, tokens := range tokenMap {
@@ -81,17 +89,17 @@ func (s *Service) Notify(ctx context.Context, targetUserIDs []int64, forcedUserI
 		}
 	}
 	if len(allTokens) == 0 {
-		return nil
+		return enabledIDs, nil
 	}
 
 	invalidTokens, err := s.fcm.Send(ctx, allTokens, title, body, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(invalidTokens) > 0 {
 		if delErr := s.repo.DeleteByTokens(ctx, invalidTokens); delErr != nil {
 			slog.Warn("failed to bulk delete invalid tokens", "count", len(invalidTokens), "err", delErr)
 		}
 	}
-	return nil
+	return enabledIDs, nil
 }
