@@ -60,9 +60,9 @@ spring:
         - id: channel-service
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/channels/**
+            - Path=/api/channel/channels/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 20
@@ -73,9 +73,9 @@ spring:
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
-            - Path=/api/auth/**
+            - Path=/api/authorization/auth/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 10
@@ -86,16 +86,16 @@ spring:
         - id: authorization-webhook
           uri: lb://cowork-authorization
           predicates:
-            - Path=/api/events/datagsm
+            - Path=/api/authorization/events/datagsm
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: user-service
           uri: lb://cowork-user
           predicates:
-            - Path=/api/users/**
+            - Path=/api/user/users/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
             - name: Retry
               args:
                 retries: 3
@@ -115,23 +115,23 @@ spring:
         - id: project-team-service
           uri: lb://cowork-project
           predicates:
-            - Path=/api/teams/*/projects/**
+            - Path=/api/project/teams/*/projects/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: team-channel-service
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/teams/*/channels, /api/teams/*/channels/**
+            - Path=/api/channel/teams/*/channels, /api/channel/teams/*/channels/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: team-service
           uri: lb://cowork-team
           predicates:
-            - Path=/api/teams/**
+            - Path=/api/team/teams/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 20
@@ -142,31 +142,31 @@ spring:
         - id: channel-service-search
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/search/channels
+            - Path=/api/channel/search/channels
             - Method=GET
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: project-channel-service
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/projects/*/channels, /api/projects/*/channels/**
+            - Path=/api/channel/projects/*/channels, /api/channel/projects/*/channels/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: project-service
           uri: lb://cowork-project
           predicates:
-            - Path=/api/projects/**
+            - Path=/api/project/projects/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: roadmap-service
           uri: lb://cowork-roadmap
           predicates:
-            - Path=/api/roadmaps/**
+            - Path=/api/roadmap/roadmaps/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: chat-service-ws
           uri: lb:ws://cowork-chat
@@ -184,39 +184,40 @@ spring:
         - id: dm-open
           uri: lb://cowork-channel
           predicates:
-            - Path=/api/dms
+            - Path=/api/channel/dms
             - Method=POST
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: preference-service
           uri: lb://cowork-preference
           predicates:
-            - Path=/api/preferences/**
+            - Path=/api/preference/preferences/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: live-service
           uri: lb://cowork-voice
           predicates:
-            - Path=/api/live/**
+            - Path=/api/voice/live/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: voice-service-webhook
+          order: -1
           uri: lb://cowork-voice
           predicates:
-            - Path=/api/voice/webhook
+            - Path=/api/voice/voice/webhook
             - Method=POST
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: voice-service
           uri: lb://cowork-voice
           predicates:
-            - Path=/api/voice/**
+            - Path=/api/voice/voice/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 10
@@ -288,20 +289,21 @@ spring:
             - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
         - id: notification-service-sse
+          order: -1
           uri: lb://cowork-notification
           predicates:
-            - Path=/api/notifications/stream
+            - Path=/api/notification/notifications/stream
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
           metadata:
             response-timeout: -1  # SSE는 타임아웃 없음
 
         - id: notification-service
           uri: lb://cowork-notification
           predicates:
-            - Path=/api/notifications/**
+            - Path=/api/notification/notifications/**
           filters:
-            - StripPrefix=1
+            - StripPrefix=2
 
         - id: notification-service-docs
           uri: lb://cowork-notification

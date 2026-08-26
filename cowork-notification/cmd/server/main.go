@@ -1,7 +1,7 @@
 // @title          cowork-notification API
 // @version        20260820.0
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
-// @BasePath       /
+// @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
 // @in             header
 // @name           Authorization
