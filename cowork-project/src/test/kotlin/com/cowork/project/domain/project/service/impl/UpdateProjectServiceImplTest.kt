@@ -10,13 +10,10 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
 
@@ -27,7 +24,7 @@ class UpdateProjectServiceImplTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
 
     private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard)
 
@@ -36,16 +33,6 @@ class UpdateProjectServiceImplTest {
 
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
-
-    @BeforeEach
-    fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
-    }
 
     @Test
     fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
