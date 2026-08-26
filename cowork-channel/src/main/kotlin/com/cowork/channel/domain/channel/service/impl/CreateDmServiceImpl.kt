@@ -4,12 +4,12 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelMember
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.CreateDmService
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -22,6 +22,7 @@ import kotlin.math.min
 class CreateDmServiceImpl(
     private val channelRepository: ChannelRepository,
     private val channelMemberRepository: ChannelMemberRepository,
+    private val channelEventPublisher: ChannelEventPublisher,
     private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
     private val transactionTemplate: TransactionTemplate,
 ) : CreateDmService {
@@ -62,7 +63,8 @@ class CreateDmServiceImpl(
         val members = listOf(creatorId, targetUserId).map { memberId ->
             channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = memberId))
         }
-        afterCommit { channelMembershipSyncPublisher.publishChannelSnapshot(channel, members) }
+        channelEventPublisher.publishCreated(channel)
+        channelMembershipSyncPublisher.publishChannelSnapshot(channel, members)
         return ChannelResponse.of(channel)
     }
 
