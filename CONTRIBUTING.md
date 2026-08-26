@@ -1,3 +1,7 @@
+# Contributing
+
+Kotlin/Java coding conventions for this project. `CLAUDE.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
+
 ## Core Principles
 
 1. **Clarity over Cleverness**: Write code that is easy to understand and maintain
@@ -574,7 +578,3 @@ class StudentServiceImpl {
     // All methods inherit the same transaction behavior
 }
 ```
-
-## Additional Resources
-
-- Full conventions: `CONTRIBUTING.md`
