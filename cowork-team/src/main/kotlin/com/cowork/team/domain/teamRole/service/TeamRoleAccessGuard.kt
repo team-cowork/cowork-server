@@ -5,7 +5,7 @@ import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
-import com.cowork.team.global.client.PreferenceTeamRoleClient
+import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -20,7 +20,7 @@ data class ManageRoleContext(val member: TeamMember, val roles: List<TeamRoleRes
 class TeamRoleAccessGuard(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
-    private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
+    private val teamRoleProjectionReader: TeamRoleProjectionReader,
 ) {
 
     fun requireTeam(teamId: Long) {
@@ -45,7 +45,7 @@ class TeamRoleAccessGuard(
             return ManageRoleContext(member, emptyList())
         }
 
-        val roles = preferenceTeamRoleClient.getMemberRoles(teamId, userId)
+        val roles = teamRoleProjectionReader.getMemberRoles(teamId, userId)
         if (roles.any { MANAGE_ROLES_PERMISSION in it.permissions }) {
             return ManageRoleContext(member, roles)
         }
