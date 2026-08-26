@@ -29,10 +29,10 @@ dependencies {
     implementation(libs.spring.boot.starter.data.r2dbc)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.actuator)
+    implementation(libs.spring.boot.starter.kafka)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
-    implementation(libs.spring.cloud.starter.loadbalancer)
     implementation(libs.r2dbc.mysql)
 
     // Flyway runs migrations over JDBC at startup; the R2DBC driver above serves runtime queries.
