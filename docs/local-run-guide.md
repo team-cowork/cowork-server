@@ -140,6 +140,22 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps --all
 ```
 
+`user.presence.event`와 `custom_status`를 처음 도입하는 릴리스는 단일 릴리스 무중단 rolling 대상이
+아니다. V13/V14가 `tb_accounts.status` 의미를 presence 전용으로 전환하므로 다음 maintenance cutover
+순서를 지킨다.
+
+1. user API와 신규 로그인 traffic을 drain하고 구버전 cowork-user replica를 모두 종료한다.
+2. 새 cowork-authorization과 새 cowork-team snapshot source를 배포한다.
+   `user.presence.event`와 `team.member.event` 각 partition의
+   `PROJECTION_SNAPSHOT_COMPLETED` marker 발행을 모두 확인한다.
+3. 새 cowork-user를 시작해 Flyway V13/V14와 projection replay를 수행한다.
+4. `/actuator/health/readiness`가 `UP`인 것을 확인한 뒤 traffic을 다시 연다.
+
+구버전 authorization은 marker를 발행하지 않으므로 user만 먼저 교체하면 readiness가 의도대로 닫힌다.
+Compose의 user → healthy authorization 의존성과 404-only legacy command fallback은 기동/path 순서를
+보강하지만 mixed-version presence/custom-status 의미 호환을 보장하지 않는다. 무중단 전환이 필요하면
+별도 expand/dual-write/contract 2-release migration을 설계해야 한다.
+
 `docker-compose.prod.yml`은 12개 애플리케이션 이미지를 모두 `${REGISTRY}/<service>:${IMAGE_TAG}`로 교체하고, LiveKit 클라우드 설정과 host network를 적용한다. 태그에는 `latest` 대신 릴리스 버전이나 커밋 SHA를 사용한다.
 
 `kafka-init`, `vault-init`, `seaweedfs-init`, `alertmanager-config-init`, `prometheus-external-target-writer`는 성공 후 종료되는 일회성 작업이다. 이 때문에 Compose 버전에 따라 `up --wait`가 성공한 init 컨테이너도 종료로 판정해 0이 아닌 코드를 반환할 수 있으므로, `ps --all`에서 `Exited (0)`인지 확인한다.
