@@ -1,6 +1,6 @@
 # API 문서화 가이드
 
-`cowork-server`는 로컬 프로파일에서 Spring Cloud Gateway가 8개 서비스의 OpenAPI 문서를 하나의 Swagger UI로 집계한다. 이 문서는 2026-07-23의 Gateway 라우팅과 각 서비스 구현을 기준으로 한다.
+`cowork-server`는 로컬·운영 프로파일에서 Spring Cloud Gateway가 외부 HTTP API 모듈 10개의 OpenAPI 문서를 하나의 Swagger UI로 집계한다. 이 문서는 2026-08-25의 canonical module namespace와 각 서비스 구현을 기준으로 한다.
 
 ## 통합 Swagger UI
 
@@ -18,15 +18,14 @@ http://localhost:8080/swagger-ui.html
 | `user`          | `cowork-user`          | `/v3/api-docs/user`          | `/v3/api-docs`      |
 | `team`          | `cowork-team`          | `/v3/api-docs/team`          | `/v3/api-docs`      |
 | `channel`       | `cowork-channel`       | `/v3/api-docs/channel`       | `/v3/api-docs`      |
+| `project`       | `cowork-project`       | `/v3/api-docs/project`       | `/v3/api-docs`      |
 | `voice`         | `cowork-voice`         | `/v3/api-docs/voice`         | `/swagger/doc.json` |
 | `chat`          | `cowork-chat`          | `/v3/api-docs/chat`          | `/api-json`         |
 | `notification`  | `cowork-notification`  | `/v3/api-docs/notification`  | `/swagger/doc.json` |
 | `preference`    | `cowork-preference`    | `/v3/api-docs/preference`    | `/swagger/doc.json` |
 | `roadmap`       | `cowork-roadmap`       | `/v3/api-docs/roadmap`       | `/v3/api-docs`      |
 
-Swagger UI와 `/v3/api-docs/**`는 Gateway에서 인증 없이 접근할 수 있다.
-
-`cowork-project`는 서비스 자체 문서를 제공하지만 Gateway 문서 프록시가 없어 아래 직접 접속 주소를 사용한다.
+Swagger UI와 `/v3/api-docs/**`는 Gateway에서 인증 없이 접근할 수 있다. 각 문서의 Gateway server/basePath는 `/api/{module}`이고, 문서의 path는 서비스가 정의한 downstream 절대 경로를 그대로 사용한다.
 
 ## 서비스별 직접 접속
 
@@ -97,4 +96,4 @@ X-User-Id: <JWT subject>
 X-User-Role: <JWT role>
 ```
 
-서비스의 Swagger UI를 직접 호출하면 Gateway를 거치지 않으므로, 문서에 노출된 `X-User-Id`와 `X-User-Role` 헤더를 테스트 목적에 맞게 직접 입력해야 한다. 단, `cowork-authorization`과 `cowork-voice`의 정적 명세는 Gateway 경로인 `/api`를 `basePath`로 사용하므로 직접 Swagger UI에서는 명세 조회만 가능하며 `Try it out`은 Gateway 통합 Swagger를 사용한다. 운영 환경에서는 하위 서비스에 직접 접근할 수 있는 경로를 노출하지 않는다.
+서비스의 Swagger UI를 직접 호출하면 Gateway를 거치지 않으므로 Gateway용 `server`/`basePath`와 맞지 않는다. 실제 API 호출 검증은 통합 Swagger를 사용한다. 운영 환경에서는 하위 서비스에 직접 접근할 수 있는 경로를 노출하지 않는다.
