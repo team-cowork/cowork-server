@@ -12,6 +12,7 @@ import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
+import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
 import { BlockService } from '../block/block.service';
 import { UnreadCounterService } from './service/unread-counter.service';
 
@@ -62,6 +63,10 @@ const mockChannelMemberRepository = {
     setHidden: jest.fn(),
 };
 
+const mockTeamMemberRepository = {
+    exists: jest.fn(),
+};
+
 const mockBlockService = {
     isBlocked: jest.fn(),
 };
@@ -70,6 +75,7 @@ const mockElasticsearchService = {
     updateMessage: jest.fn().mockResolvedValue(undefined),
     deleteMessage: jest.fn().mockResolvedValue(undefined),
     searchMessages: jest.fn(),
+    searchTeamMessages: jest.fn(),
 };
 
 const mockObjectStorageService = {
@@ -121,6 +127,7 @@ describe('ChatService', () => {
                 ChatService,
                 { provide: MessageRepository, useValue: mockMessageRepository },
                 { provide: ChannelMemberRepository, useValue: mockChannelMemberRepository },
+                { provide: TeamMemberProjectionRepository, useValue: mockTeamMemberRepository },
                 { provide: ElasticsearchService, useValue: mockElasticsearchService },
                 { provide: ObjectStorageService, useValue: mockObjectStorageService },
                 { provide: ChatMessageProducer, useValue: mockChatMessageProducer },
@@ -147,6 +154,33 @@ describe('ChatService', () => {
         it('채널 멤버가 아니면 false를 반환한다', async () => {
             mockChannelMemberRepository.exists.mockResolvedValue(false);
             await expect(service.isMember(1, 99)).resolves.toBe(false);
+        });
+    });
+
+    describe('isTeamMember', () => {
+        it('채널 가입 여부와 무관하게 팀 멤버 projection으로 판정한다', async () => {
+            mockTeamMemberRepository.exists.mockResolvedValue(true);
+
+            await expect(service.isTeamMember(10, 42)).resolves.toBe(true);
+            expect(mockTeamMemberRepository.exists).toHaveBeenCalledWith(10, 42);
+        });
+    });
+
+    describe('searchTeamMessages', () => {
+        it('팀 멤버지만 가입 채널이 없으면 권한 오류 대신 빈 결과를 반환한다', async () => {
+            mockTeamMemberRepository.exists.mockResolvedValue(true);
+            mockChannelMemberRepository.findMembersByTeam.mockResolvedValue([]);
+
+            await expect(service.searchTeamMessages(10, { teamId: 10, q: '배포' }, { userId: 42 }))
+                .resolves.toEqual({ messages: [], nextCursor: null });
+            expect(mockElasticsearchService.searchTeamMessages).not.toHaveBeenCalled();
+        });
+
+        it('팀 멤버 projection에 없으면 검색을 거부한다', async () => {
+            mockTeamMemberRepository.exists.mockResolvedValue(false);
+
+            await expect(service.searchTeamMessages(10, { teamId: 10, q: '배포' }, { userId: 99 }))
+                .rejects.toBeInstanceOf(ForbiddenException);
         });
     });
 

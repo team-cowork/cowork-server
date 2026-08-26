@@ -7,34 +7,35 @@ import { parseEventTime } from '../../common/util/event-time.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
+import { UserProfileProjectionRepository } from '../repository/user-profile-projection.repository';
 
-interface ProjectMemberEvent {
-    eventType: 'ADDED' | 'REMOVED';
-    projectId: number;
+interface UserProfileEvent {
+    eventType: 'UPSERT' | 'DELETE';
     userId: number;
+    name: string;
+    nickname: string | null;
+    githubId: string | null;
     occurredAt: string;
-    snapshot?: boolean;
 }
 
 @Injectable()
-export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(ProjectMemberEventConsumer.name);
+export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(UserProfileEventConsumer.name);
     private consumer!: Consumer;
 
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
-        private readonly memberRepository: ProjectMemberProjectionRepository,
+        private readonly profileRepository: UserProfileProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     async onModuleInit() {
         const kafka = new Kafka({
-            clientId: 'cowork-chat-project-member-event',
+            clientId: 'cowork-chat-user-profile-event',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        const stream = PROJECTION_STREAMS.projectMember;
+        const stream = PROJECTION_STREAMS.userProfile;
         this.consumer = kafka.consumer({ groupId: stream.groupId });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
@@ -53,16 +54,16 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
                 });
             },
         }).catch(async (err) => {
-            this.logger.error('project.member.event Kafka consumer failed', err);
+            this.logger.error('user.profile.event Kafka consumer failed', err);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
-                description: 'cowork-chat의 project.member.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                description: 'cowork-chat의 user.profile.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'project.member.event', inline: true }, ...buildErrorFields(err)],
+                fields: [{ name: 'Topic', value: 'user.profile.event', inline: true }, ...buildErrorFields(err)],
             }).catch(() => {});
             process.exit(1);
         });
-        this.logger.log('Kafka projection consumer started: project.member.event');
+        this.logger.log('Kafka projection consumer started: user.profile.event');
     }
 
     async onModuleDestroy() {
@@ -70,32 +71,43 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
     }
 
     private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
-        if (!this.isProjectMemberEvent(payload)) {
-            throw new ProjectionContractError('invalid project member event payload');
+        if (!this.isUserProfileEvent(payload)) {
+            throw new ProjectionContractError('invalid user profile event payload');
         }
-        const expectedKey = `${payload.projectId}:${payload.userId}`;
-        if (messageKey !== expectedKey) {
+        if (messageKey !== String(payload.userId)) {
             throw new ProjectionContractError(
-                `project member event key mismatch [key=${messageKey ?? '<missing>'}, expected=${expectedKey}]`,
+                `user profile event key mismatch [key=${messageKey ?? '<missing>'}, userId=${payload.userId}]`,
             );
         }
         const eventTime = parseEventTime(payload.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('project member event occurredAt must be RFC3339');
+        if (!eventTime) throw new ProjectionContractError('user profile event occurredAt must be RFC3339');
         const { occurredAt, sourceVersion } = eventTime;
-        if (payload.eventType === 'ADDED') {
-            await this.memberRepository.add(payload.projectId, payload.userId, occurredAt, sourceVersion);
-        } else {
-            await this.memberRepository.remove(payload.projectId, payload.userId, occurredAt, sourceVersion);
+        if (payload.eventType === 'DELETE') {
+            await this.profileRepository.remove(payload.userId, occurredAt, sourceVersion);
+            return;
         }
+        await this.profileRepository.upsert({
+            userId: payload.userId,
+            name: payload.name,
+            nickname: payload.nickname,
+            githubId: payload.githubId,
+            occurredAt,
+            sourceVersion,
+        });
     }
 
-    private isProjectMemberEvent(payload: unknown): payload is ProjectMemberEvent {
+    private isUserProfileEvent(payload: unknown): payload is UserProfileEvent {
         if (typeof payload !== 'object' || payload === null) return false;
-        const event = payload as Partial<ProjectMemberEvent>;
-        return (event.eventType === 'ADDED' || event.eventType === 'REMOVED')
-            && typeof event.projectId === 'number'
-            && typeof event.userId === 'number'
-            && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
-            && parseEventTime(event.occurredAt) !== null;
+        const event = payload as Partial<UserProfileEvent>;
+        if ((event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
+            || typeof event.userId !== 'number'
+            || parseEventTime(event.occurredAt) === null) {
+            return false;
+        }
+        if (event.eventType === 'DELETE') return true;
+        return typeof event.name === 'string'
+            && event.name.length > 0
+            && (event.nickname === null || typeof event.nickname === 'string')
+            && (event.githubId === null || typeof event.githubId === 'string');
     }
 }
