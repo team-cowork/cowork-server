@@ -15,6 +15,7 @@ module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/a
 |---|---|---|
 | user | `PUT /users/{userId}` | authorization 사용자 동기화 |
 | user | `PATCH /users/{userId}/status` | authorization 접속 상태 동기화 |
+| user | `GET /users/by-github/{githubUsername}` | project GitHub 댓글 작성자 매핑 |
 | team | `GET /teams/{teamId}/members/{userId}/exists` | channel 팀 멤버 검증 |
 | project | `GET /projects/{projectId}/team-id` | channel 프로젝트 소유 팀 조회 |
 | project | `GET /projects/{projectId}/members/me` | chat 프로젝트 멤버십 검증; 외부 공개 필요 여부 미확정 |
