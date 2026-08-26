@@ -1,19 +1,46 @@
 package com.cowork.team.domain.team.event
 
-import com.cowork.team.domain.team.event.TeamEventPayload
-import org.slf4j.LoggerFactory
-import org.springframework.kafka.core.KafkaTemplate
+import com.cowork.team.global.outbox.OutboxWriter
+import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
+import java.time.Instant
 
 @Component
-class TeamEventPublisher(private val kafkaTemplate: KafkaTemplate<String, TeamEventPayload>) {
-    private val log = LoggerFactory.getLogger(TeamEventPublisher::class.java)
-
-    fun publishNotification(payload: TeamEventPayload) = send(Topics.NOTIFICATION_TRIGGER, payload)
+class TeamEventPublisher(private val entityManager: EntityManager, private val outboxWriter: OutboxWriter) {
+    fun publishNotification(teamId: Long, event: NotificationTriggerEvent) {
+        entityManager.flush()
+        outboxWriter.enqueue(Topics.NOTIFICATION_TRIGGER, teamId.toString(), event)
+    }
 
     fun publishLifecycle(payload: TeamEventPayload) = send(Topics.TEAM_LIFECYCLE, payload)
 
-    fun publishMemberInvited(teamId: Long, teamName: String, actorUserId: Long, targetUserIds: List<Long>) {
+    fun publishTeamSnapshot(
+        teamId: Long,
+        teamName: String,
+        actorUserId: Long,
+        targetUserIds: List<Long>,
+        occurredAt: Instant,
+    ) {
+        publishLifecycle(
+            TeamEventPayload(
+                eventType = "TEAM_UPDATED",
+                teamId = teamId,
+                teamName = teamName,
+                actorUserId = actorUserId,
+                targetUserIds = targetUserIds,
+                occurredAt = occurredAt,
+                snapshot = true,
+            ),
+        )
+    }
+
+    fun publishMemberInvited(
+        teamId: Long,
+        teamName: String,
+        actorUserId: Long,
+        targetUserIds: List<Long>,
+        occurredAt: Instant = Instant.now(),
+    ) {
         if (targetUserIds.isEmpty()) return
         publishLifecycle(
             TeamEventPayload(
@@ -22,6 +49,7 @@ class TeamEventPublisher(private val kafkaTemplate: KafkaTemplate<String, TeamEv
                 teamName = teamName,
                 actorUserId = actorUserId,
                 targetUserIds = targetUserIds.distinct(),
+                occurredAt = occurredAt,
             ),
         )
     }
@@ -44,6 +72,7 @@ class TeamEventPublisher(private val kafkaTemplate: KafkaTemplate<String, TeamEv
         actorUserId: Long,
         targetUserIds: List<Long>,
         newRole: String,
+        occurredAt: Instant = Instant.now(),
     ) {
         if (targetUserIds.isEmpty()) return
         publishLifecycle(
@@ -53,30 +82,14 @@ class TeamEventPublisher(private val kafkaTemplate: KafkaTemplate<String, TeamEv
                 teamName = teamName,
                 actorUserId = actorUserId,
                 targetUserIds = targetUserIds.distinct(),
+                occurredAt = occurredAt,
                 newRole = newRole,
             ),
         )
     }
 
     private fun send(topic: String, payload: TeamEventPayload) {
-        kafkaTemplate.send(topic, payload.teamId.toString(), payload)
-            .whenComplete { result, ex ->
-                if (ex != null) {
-                    log.error(
-                        "Kafka 이벤트 발행 실패 [topic={}, eventType={}, teamId={}]",
-                        topic,
-                        payload.eventType,
-                        payload.teamId,
-                        ex,
-                    )
-                } else {
-                    log.info(
-                        "Kafka 이벤트 발행 성공 [topic={}, eventType={}, offset={}]",
-                        topic,
-                        payload.eventType,
-                        result.recordMetadata.offset(),
-                    )
-                }
-            }
+        entityManager.flush()
+        outboxWriter.enqueue(topic, payload.teamId.toString(), payload)
     }
 }
