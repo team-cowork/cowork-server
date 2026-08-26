@@ -11,6 +11,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cowork/authorization/internal/config"
 )
@@ -69,6 +70,7 @@ type userSyncMessage struct {
 	EventType     string  `json:"event_type"`
 	EventID       string  `json:"event_id"`
 	EventIndex    int     `json:"event_index"`
+	OccurredAt    string  `json:"occurred_at"`
 	Email         string  `json:"email"`
 	Name          string  `json:"name"`
 	Sex           string  `json:"sex"`
@@ -140,6 +142,13 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	if envelope.ID == "" || envelope.Event == "" {
 		return fmt.Errorf("%w: missing id or event", ErrInvalidPayload)
 	}
+	occurredAt, err := time.Parse(time.RFC3339Nano, envelope.Timestamp)
+	if err != nil {
+		return fmt.Errorf("%w: timestamp must be RFC3339", ErrInvalidPayload)
+	}
+	// cowork-user persists this ordering token in MySQL DATETIME(6). Normalize at
+	// the producer boundary so replay comparisons use the same precision.
+	envelope.Timestamp = occurredAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 
 	if _, ok := supportedStudentEvents[envelope.Event]; !ok {
 		log.Printf("ignoring unsupported webhook event: %s", envelope.Event)
@@ -218,6 +227,7 @@ func (s *EventService) buildUserSyncMessages(envelope WebhookEvent) ([]userSyncM
 			EventType:     envelope.Event,
 			EventID:       envelope.ID,
 			EventIndex:    item.Index,
+			OccurredAt:    envelope.Timestamp,
 			Email:         student.Email,
 			Name:          student.Name,
 			Sex:           student.Sex,
