@@ -69,5 +69,8 @@ sdk:
     paths-to-match:
       - "/teams/**"
       - "/channels/**"
+      - "/projects/**"
+      - "/search/**"
+      - "/dms"
   exception:
     enabled: false

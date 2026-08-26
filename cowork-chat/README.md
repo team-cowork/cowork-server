@@ -22,7 +22,7 @@
 ## 포트 & 진입점
 - 포트: `8087`
 - 서비스 내부 전역 prefix `/chat` (단, `/health`, `/metrics`는 제외)
-- 외부 REST 요청은 Gateway의 `/api/**`를 사용하며, Gateway가 chat 전용 경로에 `/chat` prefix를 붙인다.
+- 외부 Gateway 경로 정책은 `docs/gateway-config.md`를 기준으로 한다.
 - Swagger UI: `/api` (JSON: `/api-json`)
 - Prometheus 메트릭: `/metrics`
 
