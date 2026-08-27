@@ -84,7 +84,7 @@ class RemoveProjectGithubRepoServiceImplTest {
         every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
             ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(50L, 1L, 5L)
