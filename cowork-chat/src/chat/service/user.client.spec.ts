@@ -1,96 +1,35 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
+import { UserProfileProjectionRepository } from '../repository/user-profile-projection.repository';
 import { UserClient } from './user.client';
 
 describe('UserClient', () => {
-    let client: UserClient;
+    const projectionRepository = {
+        findByUserIds: jest.fn(),
+    };
+    const client = new UserClient(projectionRepository as unknown as UserProfileProjectionRepository);
 
-    beforeEach(async () => {
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                UserClient,
-                {
-                    provide: ConfigService,
-                    useValue: { get: jest.fn().mockReturnValue('http://localhost:8082') },
-                },
-            ],
-        }).compile();
+    beforeEach(() => jest.clearAllMocks());
 
-        client = module.get(UserClient);
+    it('빈 배열이면 projection을 조회하지 않는다', async () => {
+        await expect(client.getDisplayNames([])).resolves.toEqual(new Map());
+        expect(projectionRepository.findByUserIds).not.toHaveBeenCalled();
     });
 
-    beforeEach(() => {
-        global.fetch = jest.fn();
+    it('nickname을 우선하고 없으면 name을 표시명으로 사용한다', async () => {
+        projectionRepository.findByUserIds.mockResolvedValue([
+            { userId: 1, name: '홍길동', nickname: '길동이' },
+            { userId: 2, name: '김철수', nickname: null },
+        ]);
+
+        await expect(client.getDisplayNames([1, 2, 1])).resolves.toEqual(new Map([
+            [1, '길동이'],
+            [2, '김철수'],
+        ]));
+        expect(projectionRepository.findByUserIds).toHaveBeenCalledWith([1, 2]);
     });
 
-    afterEach(() => {
-        jest.restoreAllMocks();
-    });
+    it('projection에 없는 사용자는 결과에서 생략한다', async () => {
+        projectionRepository.findByUserIds.mockResolvedValue([{ userId: 1, name: '홍길동', nickname: null }]);
 
-    describe('getDisplayNames', () => {
-        it('빈 배열이면 fetch 없이 빈 Map을 반환한다', async () => {
-            const result = await client.getDisplayNames([]);
-
-            expect(result).toEqual(new Map());
-            expect(global.fetch).not.toHaveBeenCalled();
-        });
-
-        it('여러 userId를 단일 요청으로 조회해 Map으로 반환한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({
-                    users: [
-                        { id: 1, name: '홍길동', nickname: '길동이' },
-                        { id: 2, name: '김철수', nickname: null },
-                    ],
-                }),
-            });
-
-            const result = await client.getDisplayNames([1, 2]);
-
-            expect(global.fetch).toHaveBeenCalledWith(
-                'http://localhost:8082/users/batch?ids=1,2',
-                expect.anything(),
-            );
-            expect(result).toEqual(new Map([[1, '길동이'], [2, '김철수']]));
-        });
-
-        it('응답에 없는 userId는 Map에서 생략된다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({ users: [{ id: 1, name: '홍길동', nickname: null }] }),
-            });
-
-            const result = await client.getDisplayNames([1, 999]);
-
-            expect(result).toEqual(new Map([[1, '홍길동']]));
-        });
-
-        it('응답 항목의 형식이 올바르지 않으면 해당 항목만 생략하고 나머지는 반환한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({
-                    users: [
-                        { id: 1, name: '홍길동', nickname: null },
-                        { id: 2, name: '', nickname: null },
-                        { id: 'invalid', name: '김철수', nickname: null },
-                    ],
-                }),
-            });
-
-            const result = await client.getDisplayNames([1, 2, 3]);
-
-            expect(result).toEqual(new Map([[1, '홍길동']]));
-        });
-
-        it('비정상 응답이면 예외를 던진다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: false,
-                status: 500,
-                text: jest.fn().mockResolvedValue('boom'),
-            });
-
-            await expect(client.getDisplayNames([1, 2])).rejects.toThrow('user-service 오류: 500 - boom');
-        });
+        await expect(client.getDisplayNames([1, 999])).resolves.toEqual(new Map([[1, '홍길동']]));
     });
 });

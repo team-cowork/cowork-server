@@ -1,6 +1,7 @@
 package com.cowork.preference.config
 
 import io.vertx.core.json.JsonObject
+import java.net.NetworkInterface
 
 data class DbConfig(
     val host: String,
@@ -12,14 +13,9 @@ data class DbConfig(
     val poolSize: Int,
 )
 
-data class RedisConfig(
-    val host: String,
-    val port: Int,
-)
+data class RedisConfig(val host: String, val port: Int)
 
-data class KafkaConfig(
-    val bootstrapServers: String,
-)
+data class KafkaConfig(val bootstrapServers: String, val consumerGroupId: String, val teamMemberTopic: String)
 
 data class AppConfig(
     val serverPort: Int,
@@ -42,7 +38,24 @@ data class AppConfig(
             val instance = eureka.getJsonObject("instance") ?: JsonObject()
             val serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001
             val appName = eureka.getString("app-name", "cowork-preference")
-            val instanceHost = instance.getString("host", "localhost")
+            val configuredInstanceHost = instance.getString("host", "localhost")
+            val useRuntimeIdentity = System.getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
+            val runtimeHostname = System.getenv("HOSTNAME")?.takeIf(String::isNotBlank)
+            val instanceHost = if (useRuntimeIdentity) {
+                System.getenv("EUREKA_INSTANCE_HOST")?.takeIf(String::isNotBlank)
+                    ?: nonLoopbackIpv4()
+                    ?: error("No non-loopback IPv4 address is available for Eureka registration")
+            } else {
+                configuredInstanceHost
+            }
+            val instanceId = System.getenv("EUREKA_INSTANCE_ID")?.takeIf(String::isNotBlank)
+                ?: if (useRuntimeIdentity) {
+                    val identityHost = runtimeHostname
+                        ?: error("HOSTNAME is required for replica-unique Eureka identity")
+                    "$identityHost:$appName:$serverPort"
+                } else {
+                    instance.getString("id", "$instanceHost:$appName:$serverPort")
+                }
             return AppConfig(
                 serverPort = serverPort,
                 db = DbConfig(
@@ -60,20 +73,28 @@ data class AppConfig(
                 ),
                 kafka = KafkaConfig(
                     bootstrapServers = kafka.getString("bootstrap-servers", "localhost:9092"),
+                    consumerGroupId = kafka.getString("consumer-group-id", "cowork-preference-team-member-projection"),
+                    teamMemberTopic = kafka.getString("team-member-topic", "team.member.event"),
                 ),
                 eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
                 eurekaEnabled = eureka.getBoolean("enabled", true),
                 eurekaAppName = appName,
                 eurekaInstanceHost = instanceHost,
-                eurekaInstanceId = instance.getString("id", "$instanceHost:$appName:$serverPort"),
+                eurekaInstanceId = instanceId,
             )
         }
 
-        private fun JsonObject.getInt(key: String, defaultValue: Int): Int =
-            when (val value = getValue(key)) {
-                is Number -> value.toInt()
-                is String -> value.toIntOrNull() ?: defaultValue
-                else -> defaultValue
-            }
+        private fun nonLoopbackIpv4(): String? = NetworkInterface.getNetworkInterfaces().toList()
+            .asSequence()
+            .filter { it.isUp && !it.isLoopback }
+            .flatMap { it.inetAddresses.toList().asSequence() }
+            .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress && it.address.size == 4 }
+            ?.hostAddress
+
+        private fun JsonObject.getInt(key: String, defaultValue: Int): Int = when (val value = getValue(key)) {
+            is Number -> value.toInt()
+            is String -> value.toIntOrNull() ?: defaultValue
+            else -> defaultValue
+        }
     }
 }

@@ -1,15 +1,18 @@
 package kafka
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
-	"strings"
 	"time"
 
 	segkafka "github.com/segmentio/kafka-go"
 )
+
+var errInvalidNotificationEvent = errors.New("invalid notification event")
 
 type NotificationTriggerEvent struct {
 	Type          string         `json:"type"`
@@ -19,7 +22,7 @@ type NotificationTriggerEvent struct {
 }
 
 type NotificationService interface {
-	Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) error
+	Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) ([]int64, error)
 }
 
 type TeamNameResolver interface {
@@ -35,36 +38,55 @@ type SSEBroadcaster interface {
 	Broadcast(userIDs []int64, payload []byte)
 }
 
-type Consumer struct {
-	reader         *segkafka.Reader
-	svc            NotificationService
-	teamClient     TeamNameResolver
-	userClient     UserNameResolver
-	sseBroadcaster SSEBroadcaster
+type projectionGate interface {
+	Wait(context.Context) bool
 }
 
-func NewConsumer(brokers, topic, groupID string, svc NotificationService, teamClient TeamNameResolver, userClient UserNameResolver, sseBroadcaster SSEBroadcaster) *Consumer {
+type notificationReader interface {
+	FetchMessage(context.Context) (segkafka.Message, error)
+	CommitMessages(context.Context, ...segkafka.Message) error
+	Close() error
+}
+
+type Consumer struct {
+	reader         notificationReader
+	svc            NotificationService
+	teamNames      TeamNameResolver
+	userNames      UserNameResolver
+	sseBroadcaster SSEBroadcaster
+	projectionGate projectionGate
+}
+
+func NewConsumer(
+	brokers, topic, groupID string,
+	svc NotificationService,
+	teamNames TeamNameResolver,
+	userNames UserNameResolver,
+	sseBroadcaster SSEBroadcaster,
+	gate projectionGate,
+) *Consumer {
 	return &Consumer{
 		reader: segkafka.NewReader(segkafka.ReaderConfig{
-			Brokers: strings.Split(brokers, ","),
+			Brokers: splitBrokerList(brokers),
 			Topic:   topic,
 			GroupID: groupID,
 		}),
 		svc:            svc,
-		teamClient:     teamClient,
-		userClient:     userClient,
+		teamNames:      teamNames,
+		userNames:      userNames,
 		sseBroadcaster: sseBroadcaster,
+		projectionGate: gate,
 	}
 }
 
 // NewConsumerForTest returns a Consumer with no Kafka reader — for unit tests only.
-func NewConsumerForTest(svc NotificationService, teamClient TeamNameResolver, userClient UserNameResolver) *Consumer {
-	return &Consumer{svc: svc, teamClient: teamClient, userClient: userClient}
+func NewConsumerForTest(svc NotificationService, teamNames TeamNameResolver, userNames UserNameResolver) *Consumer {
+	return &Consumer{svc: svc, teamNames: teamNames, userNames: userNames}
 }
 
 // HandleForTest exposes handle for unit testing.
 func (c *Consumer) HandleForTest(ctx context.Context, msg segkafka.Message) {
-	c.handle(ctx, msg)
+	_ = c.handle(ctx, msg)
 }
 
 func (c *Consumer) Start(ctx context.Context) {
@@ -72,7 +94,10 @@ func (c *Consumer) Start(ctx context.Context) {
 		panic("kafka: Consumer.Start called on test-only Consumer with nil reader")
 	}
 	for {
-		msg, err := c.reader.ReadMessage(ctx)
+		if c.projectionGate != nil && !c.projectionGate.Wait(ctx) {
+			return
+		}
+		msg, err := c.reader.FetchMessage(ctx)
 		if err != nil {
 			if ctx.Err() != nil {
 				return
@@ -80,7 +105,41 @@ func (c *Consumer) Start(ctx context.Context) {
 			slog.Error("kafka read error", "err", err)
 			continue
 		}
-		c.handle(ctx, msg)
+		// The projection assignment may have changed while FetchMessage was
+		// blocked. Never process the fetched trigger until the new barrier closes.
+		if c.projectionGate != nil && !c.projectionGate.Wait(ctx) {
+			return
+		}
+		if !c.handleWithRetry(ctx, msg) {
+			return
+		}
+		for {
+			if err := c.reader.CommitMessages(ctx, msg); err == nil {
+				break
+			} else {
+				slog.Error("notification kafka commit failed; retrying", "err", err, "offset", msg.Offset)
+			}
+			if !waitForRetry(ctx) {
+				return
+			}
+		}
+	}
+}
+
+func (c *Consumer) handleWithRetry(ctx context.Context, msg segkafka.Message) bool {
+	for {
+		err := c.handle(ctx, msg)
+		if err == nil {
+			return true
+		}
+		if errors.Is(err, errInvalidNotificationEvent) {
+			slog.Error("invalid notification event skipped", "err", err, "offset", msg.Offset)
+			return true
+		}
+		slog.Error("notification processing failed; retrying", "err", err, "offset", msg.Offset)
+		if !waitForRetry(ctx) {
+			return false
+		}
 	}
 }
 
@@ -91,22 +150,31 @@ func (c *Consumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) {
+func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) error {
 	var event NotificationTriggerEvent
-	if err := json.Unmarshal(msg.Value, &event); err != nil {
-		slog.Error("failed to unmarshal notification event", "err", err, "offset", msg.Offset)
-		return
+	decoder := json.NewDecoder(bytes.NewReader(msg.Value))
+	decoder.UseNumber()
+	if err := decoder.Decode(&event); err != nil {
+		return fmt.Errorf("%w: %v", errInvalidNotificationEvent, err)
 	}
 
 	title, body, ok := c.buildMessage(ctx, event)
 	if !ok {
 		slog.Warn("알림 생성 실패로 스킵", "type", event.Type)
-		return
+		return nil
 	}
 
 	channelID := extractInt64(event.Data, "channelId")
-	if err := c.svc.Notify(ctx, event.TargetUserIDs, event.ForcedUserIDs, title, body, channelID); err != nil {
-		slog.Error("notification failed", "err", err, "type", event.Type)
+	enabledUserIDs, err := c.svc.Notify(
+		ctx,
+		event.TargetUserIDs,
+		event.ForcedUserIDs,
+		title,
+		body,
+		channelID,
+	)
+	if err != nil {
+		return err
 	}
 
 	// 데스크톱 앱(SSE)으로 알림 이벤트 브로드캐스트
@@ -121,9 +189,10 @@ func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) {
 		if err != nil {
 			slog.Error("SSE 페이로드 직렬화 실패", "err", err, "type", event.Type)
 		} else {
-			c.sseBroadcaster.Broadcast(mergeUserIDs(event.TargetUserIDs, event.ForcedUserIDs), ssePayload)
+			c.sseBroadcaster.Broadcast(enabledUserIDs, ssePayload)
 		}
 	}
+	return nil
 }
 
 func (c *Consumer) buildMessage(ctx context.Context, event NotificationTriggerEvent) (title, body string, ok bool) {
@@ -166,10 +235,10 @@ func (c *Consumer) buildChatMessage(ctx context.Context, event NotificationTrigg
 	content, _ := event.Data["content"].(string)
 	occurredAt, _ := event.Data["occurredAt"].(string)
 
-	senderName, err := c.userClient.GetDisplayName(ctx, authorID)
+	senderName, err := c.userNames.GetDisplayName(ctx, authorID)
 	if err != nil {
-		slog.Error("발신자 이름 조회 실패 — 알림 스킵", "authorId", authorID, "err", err)
-		return "", "", false
+		slog.Warn("발신자 프로필 projection 조회 실패 — 기본 이름 사용", "authorId", authorID, "err", err)
+		senderName = fmt.Sprintf("사용자 %d", authorID)
 	}
 
 	// DM 채널 메시지는 팀에 속하지 않아 teamId가 없다(0). 발신자 이름을 제목으로 사용한다.
@@ -179,10 +248,10 @@ func (c *Consumer) buildChatMessage(ctx context.Context, event NotificationTrigg
 		return title, body, true
 	}
 
-	teamName, err := c.teamClient.GetName(ctx, teamID)
+	teamName, err := c.teamNames.GetName(ctx, teamID)
 	if err != nil {
-		slog.Error("팀 이름 조회 실패 — 알림 스킵", "teamId", teamID, "err", err)
-		return "", "", false
+		slog.Warn("팀 projection 조회 실패 — 기본 이름 사용", "teamId", teamID, "err", err)
+		teamName = fmt.Sprintf("팀 %d", teamID)
 	}
 
 	title = teamName
@@ -207,19 +276,6 @@ func formatTime(iso string) string {
 	return kst.Format("2006-01-02 15:04")
 }
 
-// mergeUserIDs는 두 슬라이스를 합치되 중복을 제거합니다.
-func mergeUserIDs(a, b []int64) []int64 {
-	seen := make(map[int64]struct{}, len(a)+len(b))
-	result := make([]int64, 0, len(a)+len(b))
-	for _, id := range append(a, b...) {
-		if _, ok := seen[id]; !ok {
-			seen[id] = struct{}{}
-			result = append(result, id)
-		}
-	}
-	return result
-}
-
 func extractInt64(data map[string]any, key string) int64 {
 	if data == nil {
 		return 0
@@ -233,6 +289,11 @@ func extractInt64(data map[string]any, key string) int64 {
 		return int64(n)
 	case int64:
 		return n
+	case json.Number:
+		value, err := n.Int64()
+		if err == nil {
+			return value
+		}
 	}
 	return 0
 }
