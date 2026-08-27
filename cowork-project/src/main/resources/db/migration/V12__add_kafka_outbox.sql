@@ -8,7 +8,7 @@ CREATE TABLE tb_kafka_outbox
     attempts   INT          NOT NULL DEFAULT 0,
     last_error LONGTEXT     NULL,
     PRIMARY KEY (id),
-    INDEX idx_tb_kafka_outbox_pending_id (id)
+    INDEX idx_tb_kafka_outbox_id (id)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_unicode_ci;
