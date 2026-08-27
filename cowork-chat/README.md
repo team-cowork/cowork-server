@@ -71,43 +71,65 @@
 
 ## Kafka 토픽
 - Produce: `chat.message`(전송 요청 발행 → 자기 자신이 consume해 저장·브로드캐스트), `notification.trigger`(아웃박스 폴러), `github.issue.create`
-- Consume: `chat.message`, `github.issue.result`, `channel.event`(채널 projection), `project.event`, `channel.member.event`(채널 멤버십 projection), `project.member.event`(프로젝트 멤버십 projection), `team.member.event`(팀 멤버십 projection), `user.profile.event`(사용자 프로필 projection)
+- Consume: `chat.message`, `github.issue.result`, `github.repo.event`, `channel.event`(채널 projection), `project.event`, `project.github-repo.event`(GitHub 저장소 연결 projection), `channel.member.event`(채널 멤버십 projection), `project.member.event`(프로젝트 멤버십 projection), `team.member.event`(팀 멤버십 projection), `user.profile.event`(사용자 프로필 projection)
 
 ### 내부 조회 projection
 
 일반 채팅 경로는 다른 서비스의 REST API를 호출하지 않는다. MongoDB의 `channelprojections`, `channelmembers`,
-`projectprojections`, `projectmemberprojections`, `teammemberprojections`, `userprofileprojections` 컬렉션을 조회한다. 각 projection은
+`projectprojections`, `projectgithubrepoprojections`, `projectmemberprojections`, `teammemberprojections`,
+`userprofileprojections` 컬렉션을 조회한다. 각 projection은
 표시용 `sourceOccurredAt`, ordering용 epoch-nanoseconds BSON Long `sourceVersion`, `deleted` tombstone을 보존해 중복·역순 이벤트를
 안전하게 처리한다. 같은 nanosecond이면 DELETE가 우선하며, 같은 millisecond 안의 DELETE→재가입도 원문 fraction으로 구분한다.
-GitHub App 연동에 필요한 프로젝트/GitHub 조회는 이번 전환 범위에서 제외되어 HTTP를 유지한다.
+GitHub 이슈 생성과 webhook 대상 조회도 `project.github-repo.event`의 로컬 projection을 사용한다. 현재
+이슈 생성 request에는 `repoId`가 없으므로 프로젝트에 활성 저장소가 정확히 하나일 때만 대상을 결정하며,
+둘 이상이면 임의 선택하지 않고 `409 Conflict`를 반환한다.
 
 | 토픽 | key | 상태 이벤트 |
 |---|---|---|
 | `channel.event` | `channelId` | `CREATED`, `UPDATED`, `DELETED` |
 | `channel.member.event` | `channelId:userId` | `JOIN`, `LEAVE` |
 | `project.event` | `projectId` | `CREATED`, `UPDATED`, `DELETED` |
+| `project.github-repo.event` | `repoId` | `UPSERT`, `DELETE` |
 | `project.member.event` | `projectId:userId` | `ADDED`, `REMOVED` |
 | `team.member.event` | `teamId:userId` | `UPSERT`, `DELETE` |
 | `user.profile.event` | `userId` | `UPSERT`, `DELETE` |
 
-로컬과 운영의 빈 DB에서도 복구할 수 있도록 `channel.event`, `channel.member.event`,
-`project.member.event`, `team.member.event`, `user.profile.event` producer는 현재 상태 전체를 startup/주기 snapshot으로 발행해야 한다.
-토픽은 엔티티 키(`channelId`, `channelId:userId`, `projectId:userId`, `teamId:userId`, `userId`) 기준 compact 정책을 사용하고,
+로컬과 운영의 빈 DB에서도 복구할 수 있도록 `channel.event`, `channel.member.event`, `project.event`,
+`project.github-repo.event`, `project.member.event`, `team.member.event`,
+`user.profile.event` producer는 현재 상태 전체를
+startup/주기 snapshot으로 발행해야 한다. 토픽은 엔티티 키(`channelId`, `channelId:userId`, `projectId`, `repoId`,
+`projectId:userId`, `teamId:userId`, `userId`) 기준 compact 정책을 사용하고,
 consumer는 `fromBeginning: true`로 replay한다. 새 환경은 snapshot 발행 완료와 consumer lag 0을 확인한 뒤
 트래픽을 연다. producer는 snapshot outbox 뒤에 `__cowork_projection_snapshot_complete__:{partition}` marker를 각
 partition에 명시적으로 발행한다. chat readiness는 모든 partition의 marker receipt와 next offset을 같은 Mongo checkpoint
-update로 저장하고, startup high-watermark와 marker를 모두 지난 뒤에만 열린다. 따라서 신규 빈 topic도 snapshot 전에 ready로
+update로 저장한다. KafkaJS가 broker topic UUID를 노출하지 않으므로 매 partition assignment마다 consumer를 잠시 멈추고
+같은 member의 첫 fresh broker heartbeat에서 generation을 확인한다. 그 뒤 Mongo DB time 기반 renewable lease를 claim하고
+checkpoint를 retained earliest와 새 random fencing epoch로 원자 reset하며 기존 marker receipt를 제거한 뒤 earliest부터
+full replay한다. 다른 owner는 generation 값과 무관하게 active lease를 덮지 못하고, 성공한 heartbeat는 lease를 renew하며
+rebalance/disconnect에서는 exact owner lease를 release한다. advance와 invalid-record latch도 유효한 epoch/member/generation
+lease를 모두 요구한다. 새 epoch에서 다시 관측한 marker와 현재 broker high-watermark가 정확히 일치한 뒤에만 readiness를
+연다. 따라서 신규 빈 topic도 snapshot 전에 ready로
 오판하지 않는다. 계약/JSON 오류는 원문을 `projection_quarantine_records`에 먼저 영속화한 뒤 checkpoint를 전진하며,
-Mongo 저장 실패 같은 런타임 오류는 offset을 유지해 재시도한다. 운영에서 projection DB를 복원하거나 비우는 경우 consumer
-group offset도 함께 초기화해야 한다.
-모든 이벤트의 `occurredAt`은 UTC offset이 포함된 ISO-8601 값이어야 한다. 변경 이벤트는 원본 row의 변경 시각을 사용하고,
-snapshot은 원본 변경 시각 또는 일관된 조회를 시작하기 전에 캡처한 watermark를 사용한다. snapshot을 읽은 뒤의 발행 시각을
-새로 찍으면 지연된 snapshot이 더 최신인 것으로 오인될 수 있으므로 사용하지 않는다.
+Mongo 저장 실패 같은 런타임 오류는 offset을 유지해 재시도한다. 운영에서 Kafka topic/cluster 세대를 교체하면 관련
+projection과 Mongo checkpoint를 함께 재구축한다. broker consumer-group offset은 복구 기준으로 재사용하지 않는다.
+
+Assignment replay는 projection collection을 purge하지 않고 저장된 `occurredAt`/DELETE 우선 LWW로 merge한다. 따라서 모든
+활성 key와 삭제 key의 durable tombstone을 producer snapshot이 계속 재발행한다는 계약에서만 완전 수렴한다. source가
+tombstone ledger를 잃었거나 새 topic/source 세대가 예전 key를 단순 누락하면 stale projection을 자동으로 제거할 수 없다.
+다중 partition/replica가 공유하는 collection을 한 consumer가 임의 purge하지 않으며, 이 경우 projection과 checkpoint를
+함께 명시적으로 rebuild해야 한다. 그러므로 fencing replay를 추가해도 production의 `delete.topic.enable=false`, immutable
+state topic 이름, 세대 교체 시 coordinated rebuild 운영 계약은 유지한다. 같은 이름의 topic이 실행 중 offset 범위까지
+겹치게 재생성되는 상황은 KafkaJS metadata만으로 즉시 식별할 수 없고 다음 assignment 전까지 탐지되지 않는다.
+
+현재 numeric JSON ID 계약은 유지하되 모든 projection ID와 공개 HTTP/WebSocket ID 입력은 양의 JavaScript safe integer만
+허용한다. `Number.MAX_SAFE_INTEGER`를 넘는 값은 key 비교나 Mongo 저장 전에 계약 오류로 격리하거나 요청을 거부한다.
+모든 이벤트의 `occurredAt`은 UTC offset이 포함된 ISO-8601 값이어야 한다. 변경과 snapshot 이벤트는 모두
+authoritative row/ledger에 저장된 상태 version을 재사용한다. snapshot 발행 시각을 새 상태 version으로 찍으면 지연된
+snapshot이 더 최신인 것으로 오인될 수 있으므로 사용하지 않는다.
 `channel.event`, `project.event`, `channel.member.event`의 startup/주기 snapshot은 `snapshot: true`를 포함해야 한다.
 consumer는 projection 상태는 반영하되 Redis 무효화나 Socket 변경 알림 같은 실시간 부수효과는 발생시키지 않는다.
 
 ## 의존 서비스
-- HTTP: `cowork-project` (GitHub App 연동 조회만 유지)
 - Kafka projection producer: `cowork-channel`, `cowork-project`, `cowork-team`, `cowork-user`
 - MongoDB, Elasticsearch(검색 색인), Redis(차단 목록·레이트리밋), SeaweedFS(첨부파일)
 - Discord Webhook(선택) — 알림/에러 알림
@@ -117,7 +139,7 @@ consumer는 projection 상태는 반영하되 Redis 무효화나 Socket 변경 �
 | 공급원 | 설정 |
 |---|---|
 | Compose | `APP_CONFIG_URL`, `APP_PROFILE` |
-| Config Server | 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, 서비스 URL, S3(SeaweedFS) endpoint/정책, rate limit |
+| Config Server | 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, S3(SeaweedFS) endpoint/정책, rate limit |
 | Vault | `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3(SeaweedFS) access/secret key |
 
 Config Server가 내려준 값은 비어 있는 `process.env`에만 채워지므로 직접 환경변수가 최우선입니다. Compose 기동에서는 Config Server 조회 실패 시 즉시 종료합니다.
