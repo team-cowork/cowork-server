@@ -7,7 +7,7 @@ import java.time.LocalDateTime
 
 /**
  * `cowork-team`이 관리하는 팀 GitHub App 설치 정보의 로컬 read-model.
- * `team.github.connected` / `team.github.disconnected` Kafka 이벤트로 동기화된다.
+ * authoritative `team.lifecycle` full-state Kafka 이벤트로 동기화된다.
  */
 @Entity
 @Table(name = "tb_team_github_installations")
