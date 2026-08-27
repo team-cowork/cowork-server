@@ -12,4 +12,7 @@ data class TeamLifecyclePayload(
     val targetUserIds: List<Long> = emptyList(),
     val occurredAt: Instant? = null,
     val newRole: String? = null,
+    val githubInstallationId: Long? = null,
+    val githubOrgLogin: String? = null,
+    val snapshot: Boolean = false,
 )

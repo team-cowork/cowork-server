@@ -29,7 +29,7 @@ class ReorderTeamProjectsServiceImpl(
             throw ExpectedException("프로젝트 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val projects = projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val projects = projectRepository.findAllByTeamIdForUpdate(teamId)
         val teamProjectIds = projects.map { it.id }.toSet()
         if (inputIds != teamProjectIds) {
             throw ExpectedException("팀의 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
