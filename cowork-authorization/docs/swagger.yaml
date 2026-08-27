@@ -53,6 +53,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       summary: 액세스 토큰 갱신
       tags:
       - auth
@@ -84,6 +90,12 @@ paths:
             type: object
         "401":
           description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: authentication temporarily unavailable
           schema:
             additionalProperties:
               type: string
@@ -131,6 +143,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       summary: 토큰 발급 (PKCE code exchange)
       tags:
       - auth
@@ -138,8 +156,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user
-        동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+      description: DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로
+        전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
       parameters:
       - description: sha256=<HMAC-SHA256(secret, body)>
         in: header

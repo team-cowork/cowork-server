@@ -475,6 +475,17 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				},
 			},
 		}, true
+	case 8:
+		return []tableExpectation{
+			{
+				name: "tb_user_identity_operations",
+				columns: []string{
+					"operation_id", "idempotency_key", "user_id", "request_hash", "status",
+					"result_user_id", "error_code", "error_message", "result_hash",
+					"created_at", "updated_at", "completed_at",
+				},
+			},
+		}, true
 	default:
 		return nil, false
 	}

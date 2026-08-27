@@ -22,7 +22,7 @@ func NewEventHandler(eventSvc *service.EventService) *EventHandler {
 
 // DataGSMWebhook godoc
 // @Summary      DataGSM webhook 수신
-// @Description  DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+// @Description  DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
 // @Tags         events
 // @Accept       json
 // @Produce      json
@@ -49,7 +49,10 @@ func (h *EventHandler) DataGSMWebhook(c *gin.Context) {
 	}
 
 	if err := h.eventSvc.ProcessEvent(c.Request.Context(), body); err != nil {
-		log.Printf("failed to process webhook event: %v", err)
+		// Database constraint errors can contain identity values. Keep the public
+		// log free of provider payload/PII; request logs and failure metrics retain
+		// the operational signal without copying identity values.
+		log.Printf("failed to process webhook event")
 		// 페이로드/유효성 오류는 400으로 응답해 DataGSM의 불필요한 재시도를 막고,
 		// DB/Kafka 등 실제 내부 오류만 500으로 응답해 재시도를 유도한다.
 		if errors.Is(err, service.ErrInvalidPayload) {
