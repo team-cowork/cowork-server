@@ -18,6 +18,7 @@ defmodule CoworkUser.Kafka.ProfileEventTest do
              name: "Snowy",
              nickname: "snow",
              githubId: "snowykte0426",
+             version: 1,
              occurredAt: "2026-08-26T12:34:56.123456Z"
            }
   end
@@ -29,6 +30,7 @@ defmodule CoworkUser.Kafka.ProfileEventTest do
              name: nil,
              nickname: nil,
              githubId: nil,
+             version: 1,
              occurredAt: "2026-08-26T12:34:56Z"
            }
   end
@@ -55,7 +57,9 @@ defmodule CoworkUser.Kafka.ProfileEventTest do
           nickname: "snow",
           github_id: "snowykte0426",
           account_updated_at: ~U[2026-08-26 01:02:03.123456Z],
-          profile_updated_at: ~U[2026-08-26 01:02:04.123456Z]
+          profile_updated_at: ~U[2026-08-26 01:02:04.123456Z],
+          profile_event_version: 8,
+          profile_event_occurred_at: ~U[2026-08-26 01:02:05.123456Z]
         }
       ])
 
@@ -68,8 +72,60 @@ defmodule CoworkUser.Kafka.ProfileEventTest do
              "name" => "Snowy",
              "nickname" => "snow",
              "githubId" => "snowykte0426",
-             "occurredAt" => "2026-08-26T01:02:04.123456Z"
+             "version" => 8,
+             "occurredAt" => "2026-08-26T01:02:05.123456Z"
            }
+  end
+
+  test "persisted profile event clock advances across host clock rollback" do
+    current = ~U[2026-08-27 01:02:03.123456Z]
+
+    assert {~U[2026-08-27 01:02:03.123457Z], 8} =
+             ProfileEventPublisher.next_profile_event_state(
+               current,
+               7,
+               [DateTime.add(current, -60, :second)]
+             )
+
+    future = DateTime.add(current, 10, :second)
+
+    assert {^future, 8} =
+             ProfileEventPublisher.next_profile_event_state(current, 7, [future])
+  end
+
+  test "identity transfer의 donor와 claimant 공개 상태를 각각 UPSERT로 만든다" do
+    occurred_at = ~U[2026-08-27 01:02:03.123456Z]
+
+    rows =
+      ProfileEventPublisher.outbox_rows("user.profile.event", [
+        %{
+          id: 7,
+          name: "Previous owner",
+          nickname: nil,
+          github_id: nil,
+          account_updated_at: occurred_at,
+          profile_updated_at: occurred_at,
+          profile_event_version: 10,
+          profile_event_occurred_at: occurred_at
+        },
+        %{
+          id: 8,
+          name: "Claimant",
+          nickname: nil,
+          github_id: "transferred",
+          account_updated_at: occurred_at,
+          profile_updated_at: occurred_at,
+          profile_event_version: 11,
+          profile_event_occurred_at: occurred_at
+        }
+      ])
+
+    assert Enum.map(rows, & &1.event_key) == ["7", "8"]
+
+    assert Enum.map(rows, &(Jason.decode!(&1.payload) |> Map.take(["userId", "githubId"]))) == [
+             %{"userId" => 7, "githubId" => nil},
+             %{"userId" => 8, "githubId" => "transferred"}
+           ]
   end
 
   test "snapshot 완료 marker는 모든 partition에 명시 발행되도록 outbox에 적재한다" do

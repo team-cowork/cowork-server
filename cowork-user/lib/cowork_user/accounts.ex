@@ -22,8 +22,7 @@ defmodule CoworkUser.Accounts do
   @doc """
   GitHub 로그인명(`tb_accounts.github`, 유니크)으로 cowork 사용자를 역조회한다.
 
-  cowork-project의 GitHub 이슈/PR 댓글 알림에서, 댓글이 달린 이슈/PR의
-  GitHub 작성자가 cowork 사용자이면 그 사람에게 알림을 보내기 위해 사용한다.
+  공개 user API 소비자가 GitHub identity와 cowork profile을 연결할 때 사용한다.
   """
   def get_by_github(username) do
     case Repo.get_by(Account, github: username) do
@@ -40,8 +39,7 @@ defmodule CoworkUser.Accounts do
   @doc """
   여러 사용자의 표시 이름(name/nickname)만 일괄 조회한다.
 
-  N개의 user_id에 대해 N번 `GET /users/:id`를 호출하던 N+1 패턴(예: chat 서비스의
-  파일 업로더 이름 조회)을 대체하기 위한 배치 조회 API.
+  N개의 user_id에 대해 공개 `GET /users/:id`를 반복하는 대신 사용하는 배치 조회 API.
   `to_user_response/1`(전체 프로필 + profile_roles preload + 프로필 이미지 presigned URL 생성)을
   N명분 재사용하면 배치 호출 1번이 오히려 더 무거워지므로, JOIN 1번으로 필요한 컬럼만 조회한다.
 
@@ -226,130 +224,53 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  def upsert_user(user_id, attrs) do
-    with :ok <- validate_upsert(attrs) do
-      Repo.transaction(fn ->
-        existing = lock_account(user_id)
+  @doc """
+  Applies an authorization login command to the cowork-user-owned account and
+  profile inside the caller's transaction. The caller also stores the inbox and
+  result outbox in that same transaction.
+  """
+  def apply_identity_command(command) when is_map(command) do
+    if Repo.in_transaction?() do
+      existing = lock_account(command.user_id)
 
-        upsert_attrs =
-          Map.merge(account_attrs(user_id, attrs), presence_attrs_for_upsert(existing))
-
-        account =
-          existing
-          |> case do
-            nil ->
-              %Account{}
-              |> Account.changeset(upsert_attrs)
-              |> Repo.insert!()
-
-            existing ->
-              existing
-              |> Account.changeset(upsert_attrs)
-              |> Repo.update!()
-          end
-
-        profile =
-          lock_profile(user_id)
-          |> case do
-            nil ->
-              %Profile{}
-              |> Profile.changeset(%{account_id: account.id})
-              |> Repo.insert!()
-
-            profile ->
-              profile
-          end
-
-        ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
-        profile
-      end)
-      |> case do
-        {:ok, _} ->
-          reconcile_presence_and_get_profile(user_id)
-
-        {:error, %Ecto.Changeset{} = changeset} ->
-          {:error, {:validation, format_changeset_errors(changeset)}}
-
-        {:error, reason} ->
-          {:error, {:validation, inspect(reason)}}
-      end
-    end
-  end
-
-  def upsert_user_from_sync_event(event) when is_map(event) do
-    user_id = Map.get(event, "user_id") || Map.get(event, "userId")
-
-    attrs = %{
-      "name" => Map.get(event, "name"),
-      "email" => Map.get(event, "email"),
-      "sex" => Map.get(event, "sex"),
-      "github_id" => Map.get(event, "github_id") || Map.get(event, "github"),
-      "student_role" =>
-        Map.get(event, "student_role") || Map.get(event, "st_role") || Map.get(event, "stRole"),
-      "student_number" =>
-        Map.get(event, "student_number") || Map.get(event, "st_num") || Map.get(event, "stNum"),
-      "datagsm_student_id" => Map.get(event, "datagsm_student_id"),
-      "major" => Map.get(event, "major"),
-      "role" => Map.get(event, "role"),
-      "specialty" => Map.get(event, "specialty") || Map.get(event, "spe"),
-      "account_description" =>
-        Map.get(event, "account_description") || Map.get(event, "description")
-    }
-
-    Repo.transaction(fn ->
-      existing = lock_account(user_id)
-
-      upsert_attrs =
-        account_attrs(user_id, attrs)
+      attrs =
+        %{
+          id: command.user_id,
+          name: command.name,
+          email: command.email,
+          sex: command.sex,
+          github: command.github_id,
+          student_role: command.role,
+          student_number: build_student_number_from_command(command),
+          datagsm_student_id: command.datagsm_student_id,
+          major: command.major,
+          last_modified_by: command.requested_by
+        }
         |> Map.merge(presence_attrs_for_upsert(existing))
-        |> Map.put(:description, Map.get(attrs, "account_description"))
+        |> maybe_mark_creator(existing, command.requested_by)
 
-      account =
-        existing
-        |> case do
-          nil ->
-            %Account{}
-            |> Account.changeset(upsert_attrs)
-            |> Repo.insert!()
-
-          existing ->
-            existing
-            |> Account.changeset(upsert_attrs)
-            |> Repo.update!()
-        end
-
-      profile =
-        lock_profile(account.id) ||
-          Repo.insert!(Profile.changeset(%Profile{}, %{account_id: account.id}))
-
-      ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
-      profile
-    end)
-    |> case do
-      {:ok, _profile} ->
-        reconcile_presence_and_get_profile(user_id)
-
-      error ->
-        error
+      with {:ok, account} <- persist_command_account(existing, attrs),
+           {:ok, _profile} <- ensure_profile(account.id),
+           :ok <- PresenceProjection.reconcile_account(account.id) do
+        ProfileEventPublisher.enqueue_current_upsert!(Repo, account.id)
+        {:ok, account.id}
+      else
+        {:error, %Ecto.Changeset{}} -> {:error, :validation}
+        {:error, reason} -> {:error, {:storage, reason}}
+      end
+    else
+      {:error, {:storage, :identity_command_requires_transaction}}
     end
   rescue
-    exception in [Ecto.InvalidChangesetError] ->
-      {:error, {:validation, format_changeset_errors(exception.changeset)}}
-
-    exception in [Ecto.ConstraintError] ->
-      {:error, {:validation, Exception.message(exception)}}
-
-    exception ->
-      {:error, {:transient, Exception.message(exception)}}
+    _exception in [Ecto.ConstraintError] -> {:error, :validation}
+    exception -> {:error, {:storage, exception}}
   end
 
   @doc """
   DataGSM webhook에서 전달된 student.updated 이벤트를 반영한다.
 
-  전체 upsert(`upsert_user_from_sync_event/1`)와 달리 불변인 `datagsm_student_id`로 기존
-  account를 찾아 학생 정보를 부분 갱신한다. 이메일은 변경될 수 있어 조인 키로 쓰지 않는다.
-  접속 상태(status)는 Cowork 내부 상태이므로 보존한다.
-  cowork에 아직 가입(로그인)하지 않은 사용자(account 없음)는 갱신 대상이 없으므로 skip한다.
+  불변인 `datagsm_student_id`로 기존 account를 찾아 학생 정보를 부분 갱신한다.
+  cowork에 아직 가입하지 않은 사용자는 owner table에 생성하지 않고 skip한다.
   """
   def apply_student_event(%{"datagsm_student_id" => student_id} = event)
       when is_integer(student_id) do
@@ -412,12 +333,7 @@ defmodule CoworkUser.Accounts do
 
   def apply_student_event(_event), do: {:error, :invalid_student_event}
 
-  @doc """
-  DataGSM 상태 이벤트의 last-write-wins 적용 여부를 결정한다.
-
-  동일 시각 이벤트는 재전달일 수 있으므로 적용하지 않으며, 저장된 시각이 없는
-  기존 계정에는 첫 상태 이벤트를 적용한다.
-  """
+  @doc false
   def student_event_newer?(nil, %DateTime{}), do: true
 
   def student_event_newer?(%DateTime{} = current, %DateTime{} = incoming) do
@@ -540,29 +456,8 @@ defmodule CoworkUser.Accounts do
     Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key,
                                                                                              field},
                                                                                             acc ->
-      if Map.has_key?(attrs, key) do
-        Map.put(acc, field, attrs[key])
-      else
-        acc
-      end
+      if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
     end)
-  end
-
-  defp account_attrs(user_id, attrs) do
-    %{
-      id: user_id,
-      name: Map.get(attrs, "name"),
-      email: Map.get(attrs, "email"),
-      sex: Map.get(attrs, "sex"),
-      github: Map.get(attrs, "github_id"),
-      description: Map.get(attrs, "account_description"),
-      student_role: Map.get(attrs, "student_role") || Map.get(attrs, "role"),
-      student_number:
-        normalize_student_number(Map.get(attrs, "student_number")) || build_student_number(attrs),
-      datagsm_student_id: Map.get(attrs, "datagsm_student_id"),
-      major: Map.get(attrs, "major"),
-      specialty: Map.get(attrs, "specialty")
-    }
   end
 
   @doc false
@@ -574,10 +469,37 @@ defmodule CoworkUser.Accounts do
     %{status: status, presence_updated_at: occurred_at}
   end
 
-  defp reconcile_presence_and_get_profile(user_id) do
-    case PresenceProjection.reconcile_account(user_id) do
-      :ok -> get_user_profile(user_id)
-      {:error, reason} -> {:error, {:transient, inspect(reason)}}
+  defp persist_command_account(nil, attrs) do
+    %Account{}
+    |> Account.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  defp persist_command_account(%Account{} = account, attrs) do
+    account
+    |> Account.changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp ensure_profile(user_id) do
+    case lock_profile(user_id) do
+      %Profile{} = profile -> {:ok, profile}
+      nil -> %Profile{} |> Profile.changeset(%{account_id: user_id}) |> Repo.insert()
+    end
+  end
+
+  defp maybe_mark_creator(attrs, nil, user_id),
+    do: Map.put(attrs, :created_by, user_id)
+
+  defp maybe_mark_creator(attrs, _existing, _user_id), do: attrs
+
+  defp build_student_number_from_command(command) do
+    with grade when is_integer(grade) <- command.grade,
+         class_number when is_integer(class_number) <- command.class_number,
+         number when is_integer(number) <- command.student_number_in_class do
+      "#{grade}#{class_number}#{number |> Integer.to_string() |> String.pad_leading(2, "0")}"
+    else
+      _ -> nil
     end
   end
 
@@ -593,11 +515,7 @@ defmodule CoworkUser.Accounts do
     ]
 
     Enum.reduce(mappings, %{}, fn {key, field}, acc ->
-      if Map.has_key?(event, key) do
-        Map.put(acc, field, Map.get(event, key))
-      else
-        acc
-      end
+      if Map.has_key?(event, key), do: Map.put(acc, field, event[key]), else: acc
     end)
     |> maybe_put_student_number(event)
   end
@@ -613,39 +531,11 @@ defmodule CoworkUser.Accounts do
   end
 
   defp maybe_put_student_number(attrs, event) do
-    cond do
-      not is_nil(Map.get(event, "student_number")) ->
-        Map.put(
-          attrs,
-          :student_number,
-          normalize_student_number(Map.get(event, "student_number"))
-        )
-
-      has_student_number_parts?(event) ->
-        Map.put(attrs, :student_number, build_student_number(event))
-
-      Map.has_key?(event, "student_number") ->
-        Map.put(attrs, :student_number, nil)
-
-      true ->
-        attrs
-    end
-  end
-
-  defp build_student_number(attrs) do
-    with {:ok, grade} <- get_int(attrs, "grade"),
-         {:ok, class_number} <- get_int(attrs, "class_number", "class_num"),
-         {:ok, student_number_in_class} <- get_int(attrs, "student_number_in_class", "number") do
-      "#{grade}#{class_number}#{student_number_in_class |> Integer.to_string() |> String.pad_leading(2, "0")}"
+    if Map.has_key?(event, "student_number") do
+      Map.put(attrs, :student_number, normalize_student_number(event["student_number"]))
     else
-      _ -> nil
+      attrs
     end
-  end
-
-  defp has_student_number_parts?(event) do
-    Map.has_key?(event, "grade") and
-      (Map.has_key?(event, "class_number") or Map.has_key?(event, "class_num")) and
-      (Map.has_key?(event, "student_number_in_class") or Map.has_key?(event, "number"))
   end
 
   defp normalize_student_number(nil), do: nil
@@ -653,33 +543,9 @@ defmodule CoworkUser.Accounts do
   defp normalize_student_number(value) when is_binary(value), do: value
   defp normalize_student_number(value), do: to_string(value)
 
-  defp get_int(map, key), do: get_int(map, key, nil)
-
-  defp get_int(map, key, fallback_key) do
-    value =
-      case Map.fetch(map, key) do
-        {:ok, value} -> value
-        :error when is_binary(fallback_key) -> Map.get(map, fallback_key)
-        :error -> nil
-      end
-
-    case value do
-      nil ->
-        {:error, :missing}
-
-      value when is_integer(value) ->
-        {:ok, value}
-
-      value when is_binary(value) ->
-        case Integer.parse(value) do
-          {parsed, ""} -> {:ok, parsed}
-          _ -> {:error, :invalid}
-        end
-
-      _ ->
-        {:error, :invalid}
-    end
-  end
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
 
   defp query_display_names([]), do: []
 
@@ -788,19 +654,6 @@ defmodule CoworkUser.Accounts do
     |> Enum.uniq()
     |> Enum.sort()
   end
-
-  defp validate_upsert(attrs) do
-    required = ~w(name email sex major role)a
-
-    case Enum.find(required, fn key -> blank?(Map.get(attrs, Atom.to_string(key))) end) do
-      nil -> :ok
-      key -> {:error, {:validation, "#{key} 값이 필요합니다."}}
-    end
-  end
-
-  defp blank?(nil), do: true
-  defp blank?(""), do: true
-  defp blank?(_), do: false
 
   defp maybe_like(query, _field, value, _source) when value in [nil, ""], do: query
 

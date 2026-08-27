@@ -99,8 +99,9 @@ services:
       KAFKA_TOPICS: >-
         springCloudBus
         user.data.sync
-        user.lifecycle
-        user.lifecycle-dlt
+        user.identity.command
+        user.identity.command-result
+        user.identity.command-result-dlt
         user.profile.event
         user.presence.event
         team.lifecycle
@@ -112,6 +113,7 @@ services:
         project.event
         project.event-dlt
         project.member.event
+        project.github-repo.event
         chat.message
         github.issue.create
         github.issue.result
@@ -127,8 +129,14 @@ services:
         preference.channel-notification.changed
         preference.team-role.changed
         preference.team-role.changed-dlt
+        preference.team-role.command
+        preference.team-role.command-result
+        preference.team-role.command-result-dlt
+        preference.github-repo.setting.command
+        preference.github-repo.setting.state
+        preference.github-repo.setting.result
+        preference.github-repo.setting.result-dlt
       KAFKA_COMPACTED_TOPICS: >-
-        user.lifecycle
         user.profile.event
         user.presence.event
         team.lifecycle
@@ -137,8 +145,10 @@ services:
         channel.event
         project.event
         project.member.event
+        project.github-repo.event
         preference.channel-notification.changed
         preference.team-role.changed
+        preference.github-repo.setting.state
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -208,7 +218,6 @@ services:
       VAULT_ADDR: http://cowork-vault:8200
       VAULT_TOKEN: dev-root-token
       JWT_SECRET: ${JWT_SECRET}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       DATAGSM_CLIENT_ID: ${DATAGSM_CLIENT_ID}
       DATAGSM_WEBHOOK_SECRET: ${DATAGSM_WEBHOOK_SECRET:-}
       MYSQL_USER: ${MYSQL_USER}
@@ -242,7 +251,7 @@ services:
     entrypoint: ["/bin/sh", "/scripts/vault-init.sh"]
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.44
     container_name: cowork-seaweedfs
     restart: unless-stopped
     environment:
@@ -270,7 +279,7 @@ services:
           -volume.port=8080 \
           -filer.port=8888
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -313,7 +322,7 @@ services:
     volumes:
       - es_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -348,7 +357,7 @@ services:
       - ./docker/livekit/${LIVEKIT_CONFIG_FILE:-livekit.yaml}:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:7880 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -461,7 +470,7 @@ services:
     command:
       - '--config.file=/etc/alertmanager/generated/alertmanager.yml'
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9093/-/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -568,12 +577,14 @@ services:
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://localhost:7880}
     ports:
       - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8761/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -599,7 +610,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -627,7 +638,7 @@ services:
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -659,7 +670,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9001/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9001/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -681,6 +692,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     environment:
@@ -691,7 +704,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -709,6 +722,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     environment:
@@ -719,7 +734,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8085/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -747,7 +762,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -777,7 +792,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -805,7 +820,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health/readiness || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -838,7 +853,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8086/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -858,6 +873,10 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
       elasticsearch:
         condition: service_healthy
       cowork-config:
@@ -870,7 +889,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8087/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -904,7 +923,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/health/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8089/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -14,6 +14,7 @@ data class ProjectionCheckpoint(
     val nextOffset: Long,
     val topicId: String,
     val invalidCheckpointOffset: Long? = null,
+    val invalidRecordOffset: Long? = null,
     val snapshotCompletedOffset: Long? = null,
 )
 
@@ -68,7 +69,9 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             )
             upsertBarrier(connection, consumerGroup, topic, topicId, range)
             ensureCheckpoint(connection, consumerGroup, topic, range.partition, resolution)
-            if (resolution.invalidCheckpointOffset != null) invalidCheckpoint = true
+            if (resolution.invalidCheckpointOffset != null || existing[range.partition]?.invalidRecordOffset != null) {
+                invalidCheckpoint = true
+            }
             if (range.partition in assignedPartitions) seekOffsets[range.partition] = resolution.seekOffset
         }
         ProjectionAssignmentResult(seekOffsets, invalidCheckpoint)
@@ -124,7 +127,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
                     record.reason,
                 ),
             ).coAwait()
-            upsertMonotonic(connection, checkpoint)
+            latchInvalidRecordAndAdvance(connection, checkpoint)
         }
     }
 
@@ -138,7 +141,8 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
     private suspend fun load(client: SqlClient, consumerGroup: String, topic: String): Map<Int, ProjectionCheckpoint> {
         val rows = client.preparedQuery(
             """
-            SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset, snapshot_completed_offset
+            SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset,
+                   invalid_record_offset, snapshot_completed_offset
             FROM tb_projection_consumer_checkpoints
             WHERE consumer_group = ${'$'}1 AND topic = ${'$'}2
             """.trimIndent(),
@@ -152,6 +156,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
                 nextOffset = row.getLong("next_offset"),
                 topicId = row.getString("topic_id"),
                 invalidCheckpointOffset = row.getLong("invalid_checkpoint_offset"),
+                invalidRecordOffset = row.getLong("invalid_record_offset"),
                 snapshotCompletedOffset = row.getLong("snapshot_completed_offset"),
             )
         }
@@ -237,6 +242,30 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             WHERE tb_projection_consumer_checkpoints.topic_id = EXCLUDED.topic_id
             """.trimIndent(),
         ).execute(checkpoint.parameters()).coAwait()
+        check(updated.rowCount() == 1) { "projection checkpoint topic generation mismatch" }
+    }
+
+    private suspend fun latchInvalidRecordAndAdvance(connection: SqlConnection, checkpoint: ProjectionCheckpoint) {
+        val recordOffset = checkpoint.nextOffset - 1
+        val updated = connection.preparedQuery(
+            """
+            UPDATE tb_projection_consumer_checkpoints
+            SET next_offset = GREATEST(next_offset, ${'$'}1),
+                invalid_record_offset = GREATEST(COALESCE(invalid_record_offset, -1), ${'$'}2),
+                updated_at = now()
+            WHERE consumer_group = ${'$'}3 AND topic = ${'$'}4 AND partition_id = ${'$'}5
+              AND topic_id = ${'$'}6
+            """.trimIndent(),
+        ).execute(
+            Tuple.of(
+                checkpoint.nextOffset,
+                recordOffset,
+                checkpoint.consumerGroup,
+                checkpoint.topic,
+                checkpoint.partition,
+                checkpoint.topicId,
+            ),
+        ).coAwait()
         check(updated.rowCount() == 1) { "projection checkpoint topic generation mismatch" }
     }
 

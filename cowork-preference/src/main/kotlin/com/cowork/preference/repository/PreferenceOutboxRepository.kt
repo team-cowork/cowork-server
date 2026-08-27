@@ -2,6 +2,7 @@ package com.cowork.preference.repository
 
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
+import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
@@ -20,10 +21,13 @@ enum class PreferenceOutboxDispatchResult {
 
 class PreferenceOutboxRepository(private val pool: Pool) {
 
-    suspend fun <T> inTransaction(block: suspend (SqlConnection) -> T): T = withTransaction(
+    suspend fun <T> inTransaction(block: suspend (SqlConnection) -> T): T = withPooledTransaction(
         serializeOutboxWrites = true,
         block = block,
     )
+
+    suspend fun <T> inTransaction(connection: SqlConnection, block: suspend (SqlConnection) -> T): T =
+        withTransaction(connection, serializeOutboxWrites = true, block)
 
     suspend fun enqueue(client: SqlClient, event: PreferenceEvent) {
         require(event.topic in PreferenceEvents.OUTBOX_TOPICS) { "unsupported outbox topic '${event.topic}'" }
@@ -38,7 +42,7 @@ class PreferenceOutboxRepository(private val pool: Pool) {
             Tuple.of(
                 event.topic,
                 event.key,
-                event.payload.encode(),
+                event.payload,
                 event.occurredAt.atOffset(ZoneOffset.UTC),
                 event.partition,
             ),
@@ -49,10 +53,47 @@ class PreferenceOutboxRepository(private val pool: Pool) {
         events.forEach { enqueue(client, it) }
     }
 
+    /**
+     * 한 DB session이 전체 snapshot run 동안 lock을 소유한다. 고정 TTL lease와 달리 긴 page scan도
+     * 다른 replica와 겹치지 않으며, process/connection 장애 시 PostgreSQL이 lock을 회수한다.
+     */
+    suspend fun withProjectionSnapshotLock(block: suspend (SqlConnection) -> Unit): Boolean {
+        val connection = pool.connection.coAwait()
+        var acquired = false
+        var primaryFailure: Throwable? = null
+        try {
+            acquired = acquireProjectionSnapshotLock(connection)
+            if (!acquired) return false
+            block(connection)
+            return true
+        } catch (error: Throwable) {
+            primaryFailure = error
+            throw error
+        } finally {
+            var cleanupFailure: Throwable? = null
+            if (acquired) {
+                try {
+                    releaseProjectionSnapshotLock(connection)
+                } catch (error: Throwable) {
+                    cleanupFailure = error
+                }
+            }
+            try {
+                connection.close().coAwait()
+            } catch (error: Throwable) {
+                if (cleanupFailure == null) cleanupFailure = error else cleanupFailure.addSuppressed(error)
+            }
+            if (cleanupFailure != null) {
+                if (primaryFailure == null) throw cleanupFailure
+                primaryFailure.addSuppressed(cleanupFailure)
+            }
+        }
+    }
+
     suspend fun dispatchNextIfLeader(publish: suspend (PreferenceEvent) -> Unit): PreferenceOutboxDispatchResult =
-        withTransaction(serializeOutboxWrites = false) { connection ->
-            if (!acquireDispatchLock(connection)) return@withTransaction PreferenceOutboxDispatchResult.BUSY
-            val row = loadNext(connection) ?: return@withTransaction PreferenceOutboxDispatchResult.EMPTY
+        withPooledTransaction(serializeOutboxWrites = false) { connection ->
+            if (!acquireDispatchLock(connection)) return@withPooledTransaction PreferenceOutboxDispatchResult.BUSY
+            val row = loadNext(connection) ?: return@withPooledTransaction PreferenceOutboxDispatchResult.EMPTY
             val event = row.toPreferenceEvent()
             publish(event)
             val updated = connection.preparedQuery(
@@ -80,6 +121,20 @@ class PreferenceOutboxRepository(private val pool: Pool) {
         return rows.first().getBoolean("acquired")
     }
 
+    private suspend fun acquireProjectionSnapshotLock(connection: SqlConnection): Boolean {
+        val rows = connection.preparedQuery(
+            "SELECT pg_try_advisory_lock(${'$'}1) AS acquired",
+        ).execute(Tuple.of(PROJECTION_SNAPSHOT_LOCK_ID)).coAwait()
+        return rows.first().getBoolean("acquired")
+    }
+
+    private suspend fun releaseProjectionSnapshotLock(connection: SqlConnection) {
+        val rows = connection.preparedQuery(
+            "SELECT pg_advisory_unlock(${'$'}1) AS released",
+        ).execute(Tuple.of(PROJECTION_SNAPSHOT_LOCK_ID)).coAwait()
+        check(rows.first().getBoolean("released")) { "Preference projection snapshot lock was not owned" }
+    }
+
     private suspend fun loadNext(connection: SqlConnection): Row? {
         val rows = connection.preparedQuery(
             """
@@ -97,27 +152,51 @@ class PreferenceOutboxRepository(private val pool: Pool) {
     private fun Row.toPreferenceEvent(): PreferenceEvent = PreferenceEvent(
         topic = getString("topic"),
         key = getString("record_key"),
-        payload = JsonObject(getString("payload")),
+        payload = decodePayload(getString("payload")),
         occurredAt = getOffsetDateTime("occurred_at").toInstant(),
         partition = getInteger("partition_id"),
     )
 
-    private suspend fun <T> withTransaction(serializeOutboxWrites: Boolean, block: suspend (SqlConnection) -> T): T {
+    private fun decodePayload(payload: String): JsonObject {
+        val json = payload.trim()
+        return if (json.startsWith('"')) {
+            JsonObject(Json.decodeValue(json, String::class.java))
+        } else {
+            JsonObject(json)
+        }
+    }
+
+    private suspend fun <T> withPooledTransaction(
+        serializeOutboxWrites: Boolean,
+        block: suspend (SqlConnection) -> T,
+    ): T {
         val connection = pool.connection.coAwait()
         try {
-            val transaction = connection.begin().coAwait()
-            try {
-                if (serializeOutboxWrites) PreferenceOutboxOrdering.acquireForWrite(connection)
-                val result = block(connection)
-                transaction.commit().coAwait()
-                return result
-            } catch (error: Throwable) {
-                runCatching { transaction.rollback().coAwait() }
-                    .onFailure(error::addSuppressed)
-                throw error
-            }
+            return withTransaction(connection, serializeOutboxWrites, block)
         } finally {
             connection.close().coAwait()
         }
+    }
+
+    private suspend fun <T> withTransaction(
+        connection: SqlConnection,
+        serializeOutboxWrites: Boolean,
+        block: suspend (SqlConnection) -> T,
+    ): T {
+        val transaction = connection.begin().coAwait()
+        try {
+            if (serializeOutboxWrites) PreferenceOutboxOrdering.acquireForWrite(connection)
+            val result = block(connection)
+            transaction.commit().coAwait()
+            return result
+        } catch (error: Throwable) {
+            runCatching { transaction.rollback().coAwait() }
+                .onFailure(error::addSuppressed)
+            throw error
+        }
+    }
+
+    private companion object {
+        const val PROJECTION_SNAPSHOT_LOCK_ID = 0x434F574F524B5053L
     }
 }
