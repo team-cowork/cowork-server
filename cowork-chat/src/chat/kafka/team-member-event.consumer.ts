@@ -5,6 +5,7 @@ import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
@@ -102,8 +103,8 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (typeof payload !== 'object' || payload === null) return false;
         const event = payload as Partial<TeamMemberEvent>;
         if ((event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
-            || typeof event.teamId !== 'number'
-            || typeof event.userId !== 'number'
+            || !isSafePositiveInteger(event.teamId)
+            || !isSafePositiveInteger(event.userId)
             || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')
             || parseEventTime(event.occurredAt) === null) {
             return false;

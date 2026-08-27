@@ -173,7 +173,7 @@ export class ChatService {
     async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
         await this.checkMembership(ctx.channelId, ctx.userId);
 
-        const channel = await this.channelClient.getChannel(ctx.channelId, ctx.userId);
+        const channel = await this.channelClient.getChannel(ctx.channelId);
         if (channel.viewType !== FILE_SHARE_VIEW_TYPE) {
             throw new BadRequestException('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
         }
@@ -368,7 +368,7 @@ export class ChatService {
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
         const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
-        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId, ctx.userId);
+        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
         if (!repoInfo) {
             throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
         }
