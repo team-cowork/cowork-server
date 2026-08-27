@@ -15,6 +15,8 @@ import reactor.test.StepVerifier;
 
 class TeamMemberProjectionProcessorTest {
 
+    private static final String SNAPSHOT_ID = "00000000-0000-0000-0000-000000000001";
+
     private final TeamMemberProjectionHandler handler = mock(TeamMemberProjectionHandler.class);
     private final ProjectionCheckpointRepository checkpoints = mock(ProjectionCheckpointRepository.class);
     private final ProjectionTopicGenerationRegistry topicGeneration = new ProjectionTopicGenerationRegistry();
@@ -49,16 +51,25 @@ class TeamMemberProjectionProcessorTest {
                 7L,
                 ProjectionSnapshotCompletion.KEY_PREFIX + "2",
                 "{}");
-        when(checkpoints.markSnapshotCompleted("cowork-roadmap.team-member", "team.member.event", 2, 7L, "topic-id"))
-                .thenReturn(Mono.empty());
+        when(checkpoints.markSnapshotCompleted("cowork-roadmap.team-member",
+                "team.member.event",
+                2,
+                7L,
+                "topic-id",
+                SNAPSHOT_ID)).thenReturn(Mono.empty());
         when(checkpoints.advance("cowork-roadmap.team-member", "team.member.event", 2, 8L, "topic-id"))
                 .thenReturn(Mono.empty());
 
-        StepVerifier.create(processor.completeSnapshot(record)).verifyComplete();
+        StepVerifier.create(processor.completeSnapshot(record, SNAPSHOT_ID)).verifyComplete();
 
         InOrder order = inOrder(checkpoints);
         order.verify(checkpoints)
-                .markSnapshotCompleted("cowork-roadmap.team-member", "team.member.event", 2, 7L, "topic-id");
+                .markSnapshotCompleted("cowork-roadmap.team-member",
+                        "team.member.event",
+                        2,
+                        7L,
+                        "topic-id",
+                        SNAPSHOT_ID);
         order.verify(checkpoints).advance("cowork-roadmap.team-member", "team.member.event", 2, 8L, "topic-id");
     }
 }
