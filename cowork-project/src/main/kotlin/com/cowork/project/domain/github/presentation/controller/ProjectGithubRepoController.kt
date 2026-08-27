@@ -9,6 +9,9 @@ import com.cowork.project.domain.github.service.ListProjectGithubRepoLinksServic
 import com.cowork.project.domain.github.service.QueryGithubLabelPolicyService
 import com.cowork.project.domain.github.service.RemoveProjectGithubRepoService
 import com.cowork.project.domain.github.service.UpdateGithubLabelPolicyService
+import com.cowork.project.domain.githubPreference.presentation.data.response.GithubLabelPolicyOperationAcceptedResDto
+import com.cowork.project.domain.githubPreference.presentation.data.response.GithubLabelPolicyOperationResDto
+import com.cowork.project.domain.githubPreference.service.QueryGithubLabelPolicyOperationService
 import com.cowork.project.domain.project.presentation.data.request.SetProjectGithubWebhookChannelReqDto
 import com.cowork.project.domain.project.service.ClearProjectGithubWebhookChannelService
 import com.cowork.project.domain.project.service.SetProjectGithubWebhookChannelService
@@ -41,6 +44,7 @@ class ProjectGithubRepoController(
     private val clearProjectGithubWebhookChannelService: ClearProjectGithubWebhookChannelService,
     private val queryGithubLabelPolicyService: QueryGithubLabelPolicyService,
     private val updateGithubLabelPolicyService: UpdateGithubLabelPolicyService,
+    private val queryGithubLabelPolicyOperationService: QueryGithubLabelPolicyOperationService,
 ) {
 
     @Operation(summary = "등록된 GitHub 레포 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -93,7 +97,7 @@ class ProjectGithubRepoController(
         ApiResponse(responseCode = "400", description = "이 프로젝트 소속 채널이 아님"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트, 레포 등록 또는 채널 없음"),
-        ApiResponse(responseCode = "502", description = "채널 서비스 통신 오류"),
+        ApiResponse(responseCode = "503", description = "채널 projection 동기화 중"),
     )
     @PutMapping("/{repoId}/webhook-channel")
     fun setWebhookChannel(
@@ -122,7 +126,7 @@ class ProjectGithubRepoController(
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
         ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
-        ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
+        ApiResponse(responseCode = "503", description = "설정 projection 동기화 중"),
     )
     @GetMapping("/{repoId}/label-policy")
     fun getLabelPolicy(
@@ -133,17 +137,35 @@ class ProjectGithubRepoController(
 
     @Operation(summary = "라벨 자동/수동 적용 정책 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "변경 성공"),
+        ApiResponse(responseCode = "202", description = "비동기 변경 접수"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
-        ApiResponse(responseCode = "502", description = "설정 서비스 통신 오류"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 요청 불일치"),
     )
     @PutMapping("/{repoId}/label-policy")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun updateLabelPolicy(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @RequestBody request: UpdateGithubLabelPolicyReqDto,
-    ): GithubLabelPolicyResDto = updateGithubLabelPolicyService.execute(userId, projectId, repoId, request)
+    ): GithubLabelPolicyOperationAcceptedResDto =
+        updateGithubLabelPolicyService.execute(userId, projectId, repoId, idempotencyKey, request)
+
+    @Operation(summary = "라벨 정책 변경 작업 상태 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
+        ApiResponse(responseCode = "404", description = "프로젝트, 레포 등록 또는 작업 없음"),
+    )
+    @GetMapping("/{repoId}/label-policy/operations/{operationId}")
+    fun getLabelPolicyOperation(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+        @PathVariable operationId: String,
+    ): GithubLabelPolicyOperationResDto =
+        queryGithubLabelPolicyOperationService.execute(userId, projectId, repoId, operationId)
 }

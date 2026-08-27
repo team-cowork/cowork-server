@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common';
 import {
     ApiNoContentResponse,
     ApiOkResponse,
@@ -8,6 +8,7 @@ import {
 } from '@nestjs/swagger';
 import { BlockService } from './block.service';
 import { UserId } from '../common/decorator/user.decorator';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 @ApiTags('block')
 @Controller('block')
@@ -21,7 +22,7 @@ export class BlockController {
     @ApiNoContentResponse({ description: '차단 성공' })
     blockUser(
         @UserId() userId: number,
-        @Param('targetUserId', ParseIntPipe) targetUserId: number,
+        @Param('targetUserId', SafePositiveIntPipe) targetUserId: number,
     ) {
         return this.blockService.blockUser(userId, targetUserId);
     }
@@ -33,7 +34,7 @@ export class BlockController {
     @ApiNoContentResponse({ description: '차단 해제 성공' })
     unblockUser(
         @UserId() userId: number,
-        @Param('targetUserId', ParseIntPipe) targetUserId: number,
+        @Param('targetUserId', SafePositiveIntPipe) targetUserId: number,
     ) {
         return this.blockService.unblockUser(userId, targetUserId);
     }

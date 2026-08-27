@@ -58,4 +58,4 @@ Shared config is served by `cowork-config`, which is both the Config Server and 
 
 ---
 
-Scoped rules, including Kafka projection contracts, live in `.claude/rules/`. Kotlin/Java code style lives in `.gemini/styleguide.md`.
+Kotlin/Java code style lives in `.gemini/styleguide.md`.

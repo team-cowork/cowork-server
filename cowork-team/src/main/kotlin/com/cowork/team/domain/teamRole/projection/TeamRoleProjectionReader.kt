@@ -3,9 +3,9 @@ package com.cowork.team.domain.teamRole.projection
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberRoleAssignmentResponse
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.global.projection.ProjectionReadinessGate
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.readValue
 
 @Component
 class TeamRoleProjectionReader(
