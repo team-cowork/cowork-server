@@ -23,7 +23,8 @@ func NewRefreshTokenRepository(db *gorm.DB) *RefreshTokenRepository {
 }
 
 // CreateSession commits the refresh token, derived durable presence state, and
-// first-session online event in one transaction.
+// first-session online event in one transaction. It is called only after the
+// cowork-user identity command has completed successfully.
 func (r *RefreshTokenRepository) CreateSession(
 	ctx context.Context,
 	token *domain.RefreshToken,
