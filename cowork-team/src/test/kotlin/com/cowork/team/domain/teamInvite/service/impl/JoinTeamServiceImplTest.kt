@@ -1,18 +1,14 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamEventPayload
-import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
+import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import io.mockk.Runs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
@@ -24,12 +20,12 @@ import java.time.LocalDateTime
 class JoinTeamServiceImplTest {
 
     private val teamInviteRepository = mockk<TeamInviteRepository>()
+    private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
     private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
 
     private val service =
-        JoinTeamServiceImpl(teamInviteRepository, teamMemberRepository, teamEventPublisher, teamMemberEventPublisher)
+        JoinTeamServiceImpl(teamInviteRepository, teamRepository, teamMemberRepository, teamMemberEventPublisher)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
 
@@ -50,9 +46,10 @@ class JoinTeamServiceImplTest {
     }
 
     @Test
-    fun `joinTeam은 유효한 코드로 가입 성공 시 MEMBER_JOINED 이벤트를 발행`() {
+    fun `joinTeam은 유효한 코드로 가입 성공 시 member full state만 발행`() {
         val invite = makeInvite(createdBy = 10L)
         every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns invite
+        every { teamRepository.findByIdForUpdate(1L) } returns team
         every { teamMemberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
         val newMember = TeamMember(team = team, userId = 99L).also {
             val f = TeamMember::class.java.getDeclaredField("joinedAt").also { f -> f.isAccessible = true }
@@ -60,18 +57,12 @@ class JoinTeamServiceImplTest {
         }
         every { teamMemberRepository.save(any()) } returns newMember
 
-        val captured = slot<TeamEventPayload>()
-        every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
-
         val result = service.execute(99L, "aB3xK9mZ")
 
         assertEquals(1L, result.teamId)
         assertEquals(99L, result.userId)
         assertEquals("MEMBER", result.role)
-        verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }
-        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(newMember, any(), false) }
-        assertEquals("MEMBER_JOINED", captured.captured.eventType)
-        assertEquals(listOf(99L), captured.captured.targetUserIds)
+        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(newMember, any()) }
     }
 
     @Test
@@ -89,6 +80,7 @@ class JoinTeamServiceImplTest {
     fun `joinTeam은 이미 팀 멤버면 409`() {
         val invite = makeInvite()
         every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns invite
+        every { teamRepository.findByIdForUpdate(1L) } returns team
         every { teamMemberRepository.existsByTeamIdAndUserId(1L, 42L) } returns true
 
         val ex = assertThrows(ExpectedException::class.java) {

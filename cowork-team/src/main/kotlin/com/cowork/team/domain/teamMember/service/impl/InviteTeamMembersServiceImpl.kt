@@ -1,7 +1,6 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.event.NotificationTriggerEvent
-import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
@@ -24,10 +23,10 @@ class InviteTeamMembersServiceImpl(
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
+        val team = teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
         teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER, TeamRole.ADMIN)
-        val team = teamMemberAccessGuard.findTeamOrThrow(teamId)
 
-        val existingUserIds = teamMemberRepository.findAllByTeamId(teamId).map { it.userId }.toSet()
+        val existingUserIds = teamMemberRepository.findAllByTeamIdForUpdate(teamId).map { it.userId }.toSet()
         val newMembers = request.userIds
             .filter { it !in existingUserIds }
             .map { userId -> TeamMember(team = team, userId = userId, role = TeamRole.MEMBER) }
@@ -35,14 +34,6 @@ class InviteTeamMembersServiceImpl(
         val savedMembers = teamMemberRepository.saveAll(newMembers)
 
         if (savedMembers.isNotEmpty()) {
-            val payload = TeamEventPayload(
-                eventType = "MEMBER_INVITED",
-                teamId = teamId,
-                teamName = team.name,
-                actorUserId = actorId,
-                targetUserIds = savedMembers.map { it.userId },
-            )
-            teamEventPublisher.publishLifecycle(payload)
             teamEventPublisher.publishNotification(
                 teamId,
                 NotificationTriggerEvent(
