@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class UpdateProjectServiceImplTest {
 
@@ -37,7 +36,7 @@ class UpdateProjectServiceImplTest {
     @Test
     fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
 
@@ -48,7 +47,7 @@ class UpdateProjectServiceImplTest {
     @Test
     fun `updateProject은 팀 비멤버이면 FORBIDDEN`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns null
 

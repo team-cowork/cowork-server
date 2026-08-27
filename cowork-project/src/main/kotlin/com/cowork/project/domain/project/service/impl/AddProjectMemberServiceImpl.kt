@@ -22,7 +22,7 @@ class AddProjectMemberServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, request: AddProjectMemberReqDto): ProjectMemberResDto {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
 
         projectAccessGuard.teamRoleOf(project.teamId, request.userId)
@@ -32,7 +32,7 @@ class AddProjectMemberServiceImpl(
             throw ExpectedException("OWNER 역할은 멤버 추가로 부여할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val existingMember = projectMemberRepository.findByProjectIdAndUserId(projectId, request.userId)
+        val existingMember = projectMemberRepository.findByProjectIdAndUserIdForUpdate(projectId, request.userId)
         if (existingMember != null) {
             throw ExpectedException("이미 프로젝트에 참여 중인 사용자입니다.", HttpStatus.CONFLICT)
         }
@@ -45,7 +45,7 @@ class AddProjectMemberServiceImpl(
             ),
         )
 
-        projectMemberEventPublisher.publishAdded(projectId, member.userId)
+        projectMemberEventPublisher.publishAdded(member)
 
         return ProjectMemberResDto.of(member)
     }
