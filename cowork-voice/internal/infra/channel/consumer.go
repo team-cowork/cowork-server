@@ -12,6 +12,9 @@ import (
 
 	"github.com/google/uuid"
 	segkafka "github.com/segmentio/kafka-go"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
 const (
@@ -25,6 +28,9 @@ const (
 
 var ErrCheckpointAheadOfTopic = errors.New("projection checkpoint is ahead of the topic end")
 var ErrCheckpointBehindTopic = errors.New("projection checkpoint is behind the topic start")
+var ErrTopicGenerationMismatch = errors.New("projection checkpoint belongs to a different Kafka topic generation")
+var ErrProjectionNotCurrent = errors.New("channel membership projection is not at the current Kafka high-watermark")
+var ErrProjectionTopologyChanged = errors.New("projection topic topology changed during the consumer generation")
 
 type readinessState interface {
 	Set(bool)
@@ -35,92 +41,264 @@ type offsetSnapshotter interface {
 }
 
 type kafkaOffsetSnapshotter struct {
-	client *segkafka.Client
+	client *kgo.Client
 }
 
-func newKafkaOffsetSnapshotter(brokers []string) *kafkaOffsetSnapshotter {
-	return &kafkaOffsetSnapshotter{client: &segkafka.Client{
-		Addr:    segkafka.TCP(brokers...),
-		Timeout: 10 * time.Second,
-	}}
+type brokerTopicMetadata struct {
+	topicIDs          map[string]string
+	partitionsByTopic map[string][]int
+	partitions        map[TopicPartition]struct{}
+}
+
+func newKafkaOffsetSnapshotter(brokers []string) (*kafkaOffsetSnapshotter, error) {
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(brokers...),
+		kgo.ClientID("cowork-voice-projection-barrier"),
+		kgo.RequestTimeoutOverhead(10*time.Second),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create projection metadata client: %w", err)
+	}
+	return &kafkaOffsetSnapshotter{client: client}, nil
 }
 
 func (s *kafkaOffsetSnapshotter) Snapshot(
 	ctx context.Context,
 	topics []string,
 ) (map[TopicPartition]OffsetRange, error) {
-	metadata, err := s.client.Metadata(ctx, &segkafka.MetadataRequest{Topics: topics})
+	snapshotCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ctx = snapshotCtx
+
+	metadataRequest := kmsg.NewPtrMetadataRequest()
+	metadataRequest.AllowAutoTopicCreation = false
+	for _, topic := range topics {
+		topicName := topic
+		metadataRequest.Topics = append(
+			metadataRequest.Topics,
+			kmsg.MetadataRequestTopic{Topic: &topicName},
+		)
+	}
+	metadata, err := metadataRequest.RequestWith(ctx, s.client)
 	if err != nil {
 		return nil, fmt.Errorf("load projection topic metadata: %w", err)
 	}
 
-	requests := make(map[string][]segkafka.OffsetRequest, len(topics))
-	expected := make(map[TopicPartition]struct{})
-	for _, topic := range metadata.Topics {
-		if topic.Error != nil {
-			return nil, fmt.Errorf("load metadata for topic %s: %w", topic.Name, topic.Error)
-		}
-		for _, partition := range topic.Partitions {
-			if partition.Error != nil {
-				return nil, fmt.Errorf(
-					"load metadata for %s/%d: %w",
-					topic.Name,
-					partition.ID,
-					partition.Error,
-				)
-			}
-			requests[topic.Name] = append(
-				requests[topic.Name],
-				segkafka.FirstOffsetOf(partition.ID),
-				segkafka.LastOffsetOf(partition.ID),
-			)
-			expected[TopicPartition{Topic: topic.Name, Partition: partition.ID}] = struct{}{}
-		}
+	requested := make(map[string]struct{}, len(topics))
+	for _, topic := range topics {
+		requested[topic] = struct{}{}
 	}
-	if len(expected) == 0 {
-		return nil, errors.New("projection topics have no partitions")
+	brokerMetadata, err := parseBrokerTopicMetadata(metadata, requested)
+	if err != nil {
+		return nil, err
 	}
 
-	offsets, err := s.client.ListOffsets(ctx, &segkafka.ListOffsetsRequest{Topics: requests})
+	firstOffsets, err := s.loadOffsets(ctx, brokerMetadata.partitionsByTopic, -2)
 	if err != nil {
-		return nil, fmt.Errorf("load projection topic offsets: %w", err)
+		return nil, fmt.Errorf("load projection topic start offsets: %w", err)
 	}
-	ranges := make(map[TopicPartition]OffsetRange, len(expected))
-	for topic, partitions := range offsets.Topics {
-		for _, partition := range partitions {
-			if partition.Error != nil {
-				return nil, fmt.Errorf(
-					"load offsets for %s/%d: %w",
-					topic,
-					partition.Partition,
-					partition.Error,
-				)
-			}
-			tp := TopicPartition{Topic: topic, Partition: partition.Partition}
-			ranges[tp] = OffsetRange{First: partition.FirstOffset, End: partition.LastOffset}
-		}
+	endOffsets, err := s.loadOffsets(ctx, brokerMetadata.partitionsByTopic, -1)
+	if err != nil {
+		return nil, fmt.Errorf("load projection topic end offsets: %w", err)
 	}
-	for partition := range expected {
-		if _, ok := ranges[partition]; !ok {
+
+	verifiedMetadataResponse, err := metadataRequest.RequestWith(ctx, s.client)
+	if err != nil {
+		return nil, fmt.Errorf("verify projection topic metadata: %w", err)
+	}
+	verifiedMetadata, err := parseBrokerTopicMetadata(verifiedMetadataResponse, requested)
+	if err != nil {
+		return nil, fmt.Errorf("verify projection topic metadata: %w", err)
+	}
+	if err := requireStableBrokerMetadata(brokerMetadata, verifiedMetadata); err != nil {
+		return nil, err
+	}
+
+	ranges := make(map[TopicPartition]OffsetRange, len(brokerMetadata.partitions))
+	for partition := range brokerMetadata.partitions {
+		first, firstFound := firstOffsets[partition]
+		end, endFound := endOffsets[partition]
+		if !firstFound || !endFound {
 			return nil, fmt.Errorf("offset response missing %s/%d", partition.Topic, partition.Partition)
+		}
+		if first < 0 || end < first {
+			return nil, fmt.Errorf(
+				"invalid offset range for %s/%d: first=%d end=%d",
+				partition.Topic,
+				partition.Partition,
+				first,
+				end,
+			)
+		}
+		ranges[partition] = OffsetRange{
+			First:   first,
+			End:     end,
+			TopicID: brokerMetadata.topicIDs[partition.Topic],
 		}
 	}
 	return ranges, nil
 }
 
+func parseBrokerTopicMetadata(
+	metadata *kmsg.MetadataResponse,
+	requested map[string]struct{},
+) (brokerTopicMetadata, error) {
+	result := brokerTopicMetadata{
+		topicIDs:          make(map[string]string, len(requested)),
+		partitionsByTopic: make(map[string][]int, len(requested)),
+		partitions:        make(map[TopicPartition]struct{}),
+	}
+	for _, topic := range metadata.Topics {
+		if topic.Topic == nil {
+			return brokerTopicMetadata{}, errors.New("projection metadata response omitted a topic name")
+		}
+		topicName := *topic.Topic
+		if _, ok := requested[topicName]; !ok {
+			return brokerTopicMetadata{}, fmt.Errorf("projection metadata returned unexpected topic %s", topicName)
+		}
+		if _, duplicate := result.topicIDs[topicName]; duplicate {
+			return brokerTopicMetadata{}, fmt.Errorf("projection metadata returned duplicate topic %s", topicName)
+		}
+		if kafkaErr := kerr.ErrorForCode(topic.ErrorCode); kafkaErr != nil {
+			return brokerTopicMetadata{}, fmt.Errorf("load metadata for topic %s: %w", topicName, kafkaErr)
+		}
+		topicUUID := uuid.UUID(topic.TopicID)
+		if topicUUID == uuid.Nil {
+			return brokerTopicMetadata{}, fmt.Errorf(
+				"load metadata for topic %s: broker did not return a topic UUID; Kafka 2.8+ is required",
+				topicName,
+			)
+		}
+		result.topicIDs[topicName] = topicUUID.String()
+		for _, partition := range topic.Partitions {
+			if kafkaErr := kerr.ErrorForCode(partition.ErrorCode); kafkaErr != nil {
+				return brokerTopicMetadata{}, fmt.Errorf(
+					"load metadata for %s/%d: %w",
+					topicName,
+					partition.Partition,
+					kafkaErr,
+				)
+			}
+			partitionID := int(partition.Partition)
+			tp := TopicPartition{Topic: topicName, Partition: partitionID}
+			if _, duplicate := result.partitions[tp]; duplicate {
+				return brokerTopicMetadata{}, fmt.Errorf(
+					"projection metadata returned duplicate partition %s/%d",
+					topicName,
+					partitionID,
+				)
+			}
+			result.partitionsByTopic[topicName] = append(result.partitionsByTopic[topicName], partitionID)
+			result.partitions[tp] = struct{}{}
+		}
+	}
+	if len(result.topicIDs) != len(requested) {
+		return brokerTopicMetadata{}, errors.New("projection metadata response is missing a requested topic")
+	}
+	if len(result.partitions) == 0 {
+		return brokerTopicMetadata{}, errors.New("projection topics have no partitions")
+	}
+	return result, nil
+}
+
+func requireStableBrokerMetadata(before, after brokerTopicMetadata) error {
+	if len(before.topicIDs) != len(after.topicIDs) {
+		return fmt.Errorf(
+			"%w while capturing broker offsets: topic count changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(before.topicIDs),
+			len(after.topicIDs),
+		)
+	}
+	for topic, topicID := range before.topicIDs {
+		if after.topicIDs[topic] != topicID {
+			return fmt.Errorf(
+				"%w while capturing broker offsets: %s topic UUID changed",
+				ErrTopicGenerationMismatch,
+				topic,
+			)
+		}
+	}
+	if len(before.partitions) != len(after.partitions) {
+		return fmt.Errorf(
+			"%w while capturing broker offsets: partitions changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(before.partitions),
+			len(after.partitions),
+		)
+	}
+	for partition := range before.partitions {
+		if _, found := after.partitions[partition]; !found {
+			return fmt.Errorf(
+				"%w while capturing broker offsets: partition %s/%d changed",
+				ErrProjectionTopologyChanged,
+				partition.Topic,
+				partition.Partition,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *kafkaOffsetSnapshotter) loadOffsets(
+	ctx context.Context,
+	partitionsByTopic map[string][]int,
+	timestamp int64,
+) (map[TopicPartition]int64, error) {
+	request := kmsg.NewPtrListOffsetsRequest()
+	for topic, partitions := range partitionsByTopic {
+		requestTopic := kmsg.NewListOffsetsRequestTopic()
+		requestTopic.Topic = topic
+		for _, partition := range partitions {
+			requestPartition := kmsg.NewListOffsetsRequestTopicPartition()
+			requestPartition.Partition = int32(partition)
+			requestPartition.Timestamp = timestamp
+			requestTopic.Partitions = append(requestTopic.Partitions, requestPartition)
+		}
+		request.Topics = append(request.Topics, requestTopic)
+	}
+	response, err := request.RequestWith(ctx, s.client)
+	if err != nil {
+		return nil, err
+	}
+	offsets := make(map[TopicPartition]int64)
+	for _, topic := range response.Topics {
+		for _, partition := range topic.Partitions {
+			if kafkaErr := kerr.ErrorForCode(partition.ErrorCode); kafkaErr != nil {
+				return nil, fmt.Errorf("load offset for %s/%d: %w", topic.Topic, partition.Partition, kafkaErr)
+			}
+			tp := TopicPartition{Topic: topic.Topic, Partition: int(partition.Partition)}
+			if _, exists := offsets[tp]; exists {
+				return nil, fmt.Errorf("duplicate offset response for %s/%d", tp.Topic, tp.Partition)
+			}
+			offsets[tp] = partition.Offset
+		}
+	}
+	return offsets, nil
+}
+
+func (s *kafkaOffsetSnapshotter) Close() {
+	s.client.Close()
+}
+
 type Consumer struct {
-	brokers     []string
-	topic       string
-	groupID     string
-	group       *segkafka.ConsumerGroup
-	handler     *EventHandler
-	checkpoints CheckpointStore
-	snapshotter offsetSnapshotter
-	readiness   readinessState
-	cancel      context.CancelFunc
-	done        chan struct{}
-	startOnce   sync.Once
-	stopOnce    sync.Once
+	brokers             []string
+	topic               string
+	groupID             string
+	group               *segkafka.ConsumerGroup
+	handler             *EventHandler
+	checkpoints         CheckpointStore
+	snapshotter         offsetSnapshotter
+	readiness           readinessState
+	cancel              context.CancelFunc
+	done                chan struct{}
+	startOnce           sync.Once
+	stopOnce            sync.Once
+	generationMu        sync.RWMutex
+	generationToken     uint64
+	generationRanges    map[TopicPartition]OffsetRange
+	currentHighMu       sync.Mutex
+	currentHighSequence uint64
 }
 
 func NewConsumer(
@@ -130,6 +308,10 @@ func NewConsumer(
 	readiness readinessState,
 ) (*Consumer, error) {
 	brokerList := splitBrokers(brokers)
+	snapshotter, err := newKafkaOffsetSnapshotter(brokerList)
+	if err != nil {
+		return nil, err
+	}
 	group, err := segkafka.NewConsumerGroup(segkafka.ConsumerGroupConfig{
 		ID:                    groupID,
 		Brokers:               brokerList,
@@ -138,6 +320,7 @@ func NewConsumer(
 		WatchPartitionChanges: true,
 	})
 	if err != nil {
+		snapshotter.Close()
 		return nil, fmt.Errorf("create channel membership consumer group: %w", err)
 	}
 	return &Consumer{
@@ -147,7 +330,7 @@ func NewConsumer(
 		group:       group,
 		handler:     handler,
 		checkpoints: checkpoints,
-		snapshotter: newKafkaOffsetSnapshotter(brokerList),
+		snapshotter: snapshotter,
 		readiness:   readiness,
 		done:        make(chan struct{}),
 	}, nil
@@ -188,13 +371,18 @@ func (c *Consumer) consumeGeneration(
 	ctx context.Context,
 	assignments map[string][]segkafka.PartitionAssignment,
 ) {
-	ranges, ok := c.snapshotWithRetry(ctx)
+	consumerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ranges, ok := c.snapshotWithRetry(consumerCtx)
 	if !ok {
 		return
 	}
-	if !c.initializeCheckpoints(ctx, ranges) {
+	if !c.initializeCheckpoints(consumerCtx, ranges) {
 		return
 	}
+	generationToken := c.activateGeneration(ranges)
+	defer c.deactivateGeneration(generationToken)
 
 	var readers sync.WaitGroup
 	for _, assignment := range assignments[c.topic] {
@@ -207,13 +395,14 @@ func (c *Consumer) consumeGeneration(
 		readers.Add(1)
 		go func() {
 			defer readers.Done()
-			c.consumePartition(ctx, tp, offsetRange)
+			defer cancel()
+			c.consumePartition(consumerCtx, tp, offsetRange)
 		}()
 	}
 
-	c.monitorBarrier(ctx, ranges)
+	c.monitorBarrier(consumerCtx, generationToken, ranges)
+	cancel()
 	readers.Wait()
-	c.readiness.Set(false)
 }
 
 func (c *Consumer) snapshotWithRetry(ctx context.Context) (map[TopicPartition]OffsetRange, bool) {
@@ -243,7 +432,11 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 			)
 			nextOffset := checkpoint.NextOffset
 			if err == nil {
-				resumeOffset, policyErr := checkpointResumeOffset(nextOffset, found, offsetRange)
+				policyErr := checkpointGenerationError(checkpoint, found, offsetRange)
+				resumeOffset := int64(0)
+				if policyErr == nil {
+					resumeOffset, policyErr = checkpointResumeOffset(nextOffset, found, offsetRange)
+				}
 				if policyErr != nil {
 					err = policyErr
 				} else if found && resumeOffset == nextOffset {
@@ -254,6 +447,7 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 						c.groupID,
 						partition.Topic,
 						partition.Partition,
+						offsetRange.TopicID,
 						resumeOffset,
 					)
 				}
@@ -264,7 +458,16 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 			if ctx.Err() != nil {
 				return false
 			}
-			if errors.Is(err, ErrCheckpointAheadOfTopic) {
+			if errors.Is(err, ErrTopicGenerationMismatch) {
+				slog.Error(
+					"channel membership topic generation changed; refusing readiness and seek",
+					"topic", partition.Topic,
+					"partition", partition.Partition,
+					"checkpointTopicId", checkpoint.TopicID,
+					"brokerTopicId", offsetRange.TopicID,
+					"action", "rebuild the projection and reset its shared checkpoint together",
+				)
+			} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
 				slog.Error(
 					"channel membership checkpoint is ahead of Kafka; refusing readiness and seek",
 					"topic", partition.Topic,
@@ -339,7 +542,7 @@ func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartitio
 			}
 			continue
 		}
-		if !c.processWithRetry(ctx, message) {
+		if !c.processWithRetry(ctx, message, offsetRange.TopicID) {
 			return
 		}
 	}
@@ -359,7 +562,11 @@ func (c *Consumer) loadCheckpointWithRetry(
 		)
 		nextOffset := checkpoint.NextOffset
 		if err == nil {
-			resumeOffset, policyErr := checkpointResumeOffset(nextOffset, found, offsetRange)
+			policyErr := checkpointGenerationError(checkpoint, found, offsetRange)
+			resumeOffset := int64(0)
+			if policyErr == nil {
+				resumeOffset, policyErr = checkpointResumeOffset(nextOffset, found, offsetRange)
+			}
 			if policyErr == nil {
 				return resumeOffset, true
 			}
@@ -368,7 +575,16 @@ func (c *Consumer) loadCheckpointWithRetry(
 		if ctx.Err() != nil {
 			return 0, false
 		}
-		if errors.Is(err, ErrCheckpointAheadOfTopic) {
+		if errors.Is(err, ErrTopicGenerationMismatch) {
+			slog.Error(
+				"channel membership topic generation changed; refusing seek",
+				"topic", partition.Topic,
+				"partition", partition.Partition,
+				"checkpointTopicId", checkpoint.TopicID,
+				"brokerTopicId", offsetRange.TopicID,
+				"action", "rebuild the projection and reset its shared checkpoint together",
+			)
+		} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
 			slog.Error(
 				"channel membership checkpoint is ahead of Kafka; refusing seek",
 				"topic", partition.Topic,
@@ -391,6 +607,25 @@ func (c *Consumer) loadCheckpointWithRetry(
 			return 0, false
 		}
 	}
+}
+
+func checkpointGenerationError(
+	checkpoint CheckpointState,
+	found bool,
+	offsetRange OffsetRange,
+) error {
+	if offsetRange.TopicID == "" {
+		return fmt.Errorf("%w: broker topic UUID is empty", ErrTopicGenerationMismatch)
+	}
+	if found && checkpoint.TopicID != offsetRange.TopicID {
+		return fmt.Errorf(
+			"%w: checkpointTopicId=%q brokerTopicId=%q",
+			ErrTopicGenerationMismatch,
+			checkpoint.TopicID,
+			offsetRange.TopicID,
+		)
+	}
+	return nil
 }
 
 func checkpointResumeOffset(nextOffset int64, found bool, offsetRange OffsetRange) (int64, error) {
@@ -416,7 +651,7 @@ func checkpointResumeOffset(nextOffset int64, found bool, offsetRange OffsetRang
 	return nextOffset, nil
 }
 
-func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Message) bool {
+func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Message, topicID string) bool {
 	invalidReason := ""
 	isMarker, marker, markerErr := parseSnapshotMarker(message)
 	if markerErr != nil {
@@ -428,6 +663,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				c.groupID,
 				message.Topic,
 				message.Partition,
+				topicID,
 				message.Offset+1,
 				marker,
 			)
@@ -473,8 +709,42 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 	}
 
 	if invalidReason != "" {
+		readinessClosed := false
 		for {
-			err := c.checkpoints.Quarantine(ctx, DeadLetter{
+			stale, err := c.invalidRecordAlreadyProcessed(ctx, message, topicID)
+			if err == nil {
+				if stale {
+					slog.Warn(
+						"stale invalid channel membership event ignored",
+						"partition", message.Partition,
+						"offset", message.Offset,
+					)
+					return true
+				}
+				break
+			}
+			if !readinessClosed {
+				c.closeReadinessForStateGap()
+				readinessClosed = true
+			}
+			if ctx.Err() != nil {
+				return false
+			}
+			slog.Error(
+				"channel membership checkpoint preflight failed; retrying",
+				"partition", message.Partition,
+				"offset", message.Offset,
+				"err", err,
+			)
+			if !waitForRetry(ctx) {
+				return false
+			}
+		}
+		if !readinessClosed {
+			c.closeReadinessForStateGap()
+		}
+		for {
+			err := c.checkpoints.QuarantineAndAdvance(ctx, DeadLetter{
 				ConsumerGroup: c.groupID,
 				Topic:         message.Topic,
 				Partition:     message.Partition,
@@ -482,9 +752,15 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				Key:           append([]byte(nil), message.Key...),
 				Payload:       append([]byte(nil), message.Value...),
 				Reason:        invalidReason,
-			})
+			}, topicID, message.Offset+1)
 			if err == nil {
-				break
+				slog.Error(
+					"invalid channel membership event quarantined and state gap latched",
+					"partition", message.Partition,
+					"offset", message.Offset,
+					"reason", invalidReason,
+				)
+				return true
 			}
 			if ctx.Err() != nil {
 				return false
@@ -499,12 +775,6 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				return false
 			}
 		}
-		slog.Error(
-			"invalid channel membership event quarantined",
-			"partition", message.Partition,
-			"offset", message.Offset,
-			"reason", invalidReason,
-		)
 	}
 
 	for {
@@ -513,6 +783,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 			c.groupID,
 			message.Topic,
 			message.Partition,
+			topicID,
 			message.Offset+1,
 		)
 		if err == nil {
@@ -533,19 +804,45 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 	}
 }
 
-func (c *Consumer) monitorBarrier(ctx context.Context, ranges map[TopicPartition]OffsetRange) {
-	partitions := make([]TopicPartition, 0, len(ranges))
-	for partition := range ranges {
-		partitions = append(partitions, partition)
+func (c *Consumer) invalidRecordAlreadyProcessed(
+	ctx context.Context,
+	message segkafka.Message,
+	topicID string,
+) (bool, error) {
+	checkpoint, found, err := c.checkpoints.Load(
+		ctx,
+		c.groupID,
+		message.Topic,
+		message.Partition,
+	)
+	if err != nil || !found {
+		return false, err
 	}
+	if checkpoint.TopicID != topicID {
+		return false, fmt.Errorf(
+			"%w: checkpointTopicId=%q brokerTopicId=%q",
+			ErrTopicGenerationMismatch,
+			checkpoint.TopicID,
+			topicID,
+		)
+	}
+	return message.Offset < checkpoint.NextOffset, nil
+}
 
+func (c *Consumer) monitorBarrier(
+	ctx context.Context,
+	generationToken uint64,
+	expectedRanges map[TopicPartition]OffsetRange,
+) {
 	ticker := time.NewTicker(barrierPollInterval)
 	defer ticker.Stop()
 	for {
-		checkpoints, err := c.checkpoints.LoadAll(ctx, c.groupID, partitions)
-		c.readiness.Set(err == nil && barrierComplete(ranges, checkpoints))
+		err := c.evaluateAndPublishCurrentHigh(ctx, generationToken, expectedRanges)
 		if err != nil && ctx.Err() == nil {
-			slog.Error("channel membership barrier check failed; retrying", "err", err)
+			slog.Error("channel membership current-high check failed; retrying", "err", err)
+			if errors.Is(err, ErrProjectionTopologyChanged) || errors.Is(err, ErrTopicGenerationMismatch) {
+				return
+			}
 		}
 
 		select {
@@ -554,6 +851,156 @@ func (c *Consumer) monitorBarrier(ctx context.Context, ranges map[TopicPartition
 		case <-ticker.C:
 		}
 	}
+}
+
+// EstablishCurrent synchronously verifies the projection against a fresh broker
+// high-watermark. It is used to distinguish an authoritative membership miss
+// from a projection that became stale after the route-level readiness check.
+func (c *Consumer) EstablishCurrent(ctx context.Context) error {
+	generationToken, expectedRanges, active := c.activeGeneration()
+	if !active {
+		return fmt.Errorf("%w: no active consumer generation", ErrProjectionNotCurrent)
+	}
+	return c.evaluateAndPublishCurrentHigh(ctx, generationToken, expectedRanges)
+}
+
+func (c *Consumer) evaluateAndPublishCurrentHigh(
+	ctx context.Context,
+	generationToken uint64,
+	expectedRanges map[TopicPartition]OffsetRange,
+) error {
+	c.currentHighMu.Lock()
+	c.currentHighSequence++
+	sequence := c.currentHighSequence
+	c.currentHighMu.Unlock()
+
+	err := c.evaluateCurrentHigh(ctx, expectedRanges)
+	c.currentHighMu.Lock()
+	if sequence != c.currentHighSequence {
+		c.currentHighMu.Unlock()
+		return fmt.Errorf("%w: current-high evaluation was superseded", ErrProjectionNotCurrent)
+	}
+	published := c.setReadinessForGeneration(generationToken, err == nil)
+	c.currentHighMu.Unlock()
+	if !published {
+		return fmt.Errorf("%w: consumer generation changed during current-high evaluation", ErrProjectionNotCurrent)
+	}
+	return err
+}
+
+func (c *Consumer) closeReadinessForStateGap() {
+	c.currentHighMu.Lock()
+	defer c.currentHighMu.Unlock()
+	// Invalidate any broker/checkpoint evaluation that started before this
+	// malformed state record was classified, so it cannot reopen readiness.
+	c.currentHighSequence++
+	c.readiness.Set(false)
+}
+
+func (c *Consumer) evaluateCurrentHigh(
+	ctx context.Context,
+	expectedRanges map[TopicPartition]OffsetRange,
+) error {
+	currentRanges, err := c.snapshotter.Snapshot(ctx, []string{c.topic})
+	if err != nil {
+		return fmt.Errorf("%w: capture broker offsets: %v", ErrProjectionNotCurrent, err)
+	}
+	if err := requireSameTopologyAndGeneration(expectedRanges, currentRanges); err != nil {
+		return err
+	}
+	partitions := make([]TopicPartition, 0, len(currentRanges))
+	for partition := range currentRanges {
+		partitions = append(partitions, partition)
+	}
+	checkpoints, err := c.checkpoints.LoadAll(ctx, c.groupID, partitions)
+	if err != nil {
+		return fmt.Errorf("%w: load checkpoints: %v", ErrProjectionNotCurrent, err)
+	}
+	if !barrierComplete(currentRanges, checkpoints) {
+		return ErrProjectionNotCurrent
+	}
+	return nil
+}
+
+func requireSameTopologyAndGeneration(
+	expected map[TopicPartition]OffsetRange,
+	current map[TopicPartition]OffsetRange,
+) error {
+	if len(expected) != len(current) {
+		return fmt.Errorf(
+			"%w: partitions changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(expected),
+			len(current),
+		)
+	}
+	for partition, expectedRange := range expected {
+		currentRange, found := current[partition]
+		if !found {
+			return fmt.Errorf(
+				"%w: partition %s/%d disappeared",
+				ErrProjectionTopologyChanged,
+				partition.Topic,
+				partition.Partition,
+			)
+		}
+		if expectedRange.TopicID == "" || currentRange.TopicID != expectedRange.TopicID {
+			return fmt.Errorf(
+				"%w: %s/%d expectedTopicId=%q currentTopicId=%q; rebuild projection and checkpoint",
+				ErrTopicGenerationMismatch,
+				partition.Topic,
+				partition.Partition,
+				expectedRange.TopicID,
+				currentRange.TopicID,
+			)
+		}
+	}
+	return nil
+}
+
+func (c *Consumer) activateGeneration(ranges map[TopicPartition]OffsetRange) uint64 {
+	c.generationMu.Lock()
+	defer c.generationMu.Unlock()
+	c.generationToken++
+	c.generationRanges = cloneOffsetRanges(ranges)
+	c.readiness.Set(false)
+	return c.generationToken
+}
+
+func (c *Consumer) deactivateGeneration(generationToken uint64) {
+	c.generationMu.Lock()
+	defer c.generationMu.Unlock()
+	if c.generationToken == generationToken {
+		c.generationRanges = nil
+		c.readiness.Set(false)
+	}
+}
+
+func (c *Consumer) activeGeneration() (uint64, map[TopicPartition]OffsetRange, bool) {
+	c.generationMu.RLock()
+	defer c.generationMu.RUnlock()
+	if len(c.generationRanges) == 0 {
+		return c.generationToken, nil, false
+	}
+	return c.generationToken, cloneOffsetRanges(c.generationRanges), true
+}
+
+func (c *Consumer) setReadinessForGeneration(generationToken uint64, ready bool) bool {
+	c.generationMu.RLock()
+	defer c.generationMu.RUnlock()
+	if c.generationToken == generationToken && len(c.generationRanges) > 0 {
+		c.readiness.Set(ready)
+		return true
+	}
+	return false
+}
+
+func cloneOffsetRanges(ranges map[TopicPartition]OffsetRange) map[TopicPartition]OffsetRange {
+	cloned := make(map[TopicPartition]OffsetRange, len(ranges))
+	for partition, offsetRange := range ranges {
+		cloned[partition] = offsetRange
+	}
+	return cloned
 }
 
 type snapshotMarkerPayload struct {
@@ -605,7 +1052,7 @@ func parseSnapshotMarker(message segkafka.Message) (bool, SnapshotMarkerReceipt,
 	}
 	return true, SnapshotMarkerReceipt{
 		Offset:     message.Offset,
-		SnapshotID: marker.SnapshotID,
+		SnapshotID: parsedID.String(),
 		Source:     marker.Source,
 		OccurredAt: occurredAt.UTC(),
 	}, nil
@@ -617,6 +1064,9 @@ func (c *Consumer) Stop() error {
 			c.cancel()
 		}
 		_ = c.group.Close()
+		if closer, ok := c.snapshotter.(interface{ Close() }); ok {
+			closer.Close()
+		}
 	})
 	<-c.done
 	return nil
