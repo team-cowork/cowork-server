@@ -15,18 +15,18 @@ class PreferenceService(
 ) {
 
     suspend fun getSettings(resourceType: ResourceType, resourceId: Long): JsonObject {
-        cache.getSettings(resourceType, resourceId)?.let { return it }
-        val settings = repository.findSettings(resourceId, resourceType) ?: JsonObject()
+        cache.getSettings(resourceType, resourceId)?.let { return normalizeSettings(resourceType, it) }
+        val settings = normalizeSettings(resourceType, repository.findSettings(resourceId, resourceType))
         cache.setSettings(resourceType, resourceId, settings)
         return settings
     }
 
-    /** 여러 리소스의 설정을 한 번의 DB 조회로 반환 (호출자의 N+1 원격 호출 방지용) */
     suspend fun getSettingsBulk(resourceType: ResourceType, resourceIds: List<Long>): Map<Long, JsonObject> {
         if (resourceIds.isEmpty()) return emptyMap()
         val found = repository.findSettingsForResources(resourceIds, resourceType)
-        found.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
-        return resourceIds.associateWith { found[it] ?: JsonObject() }
+        val normalized = resourceIds.associateWith { normalizeSettings(resourceType, found[it]) }
+        normalized.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
+        return normalized
     }
 
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
@@ -68,7 +68,18 @@ class PreferenceService(
                     ),
                 )
             }
-            result.settings
+            if (resourceType == ResourceType.GITHUB_REPO) {
+                outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.githubRepoSettingState(
+                        repoId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
+            }
+            normalizeSettings(resourceType, result.settings)
         }
         cache.setSettings(resourceType, resourceId, updated)
 
@@ -99,6 +110,12 @@ class PreferenceService(
 
     private fun containsNicknameFormatSettings(settings: JsonObject): Boolean =
         settings.containsKey(NICKNAME_FORMAT_ENFORCED) || settings.containsKey(NICKNAME_FORMAT_EXAMPLE)
+
+    private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
+        if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
+        return JsonObject()
+            .put("label_auto_apply", settings?.getBoolean("label_auto_apply", true) ?: true)
+    }
 
     companion object {
         private const val NICKNAME_FORMAT_ENFORCED = "nickname_format_enforced"

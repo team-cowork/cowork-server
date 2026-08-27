@@ -6,7 +6,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
-import com.cowork.preference.handler.TeamRoleHandler
+import com.cowork.preference.messaging.GithubRepoSettingCommandConsumer
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.messaging.PreferenceOutboxDispatcher
 import com.cowork.preference.messaging.PreferenceProducer
@@ -14,16 +14,22 @@ import com.cowork.preference.messaging.PreferenceSnapshotPublisher
 import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionConsumer
+import com.cowork.preference.messaging.TeamRoleCommandConsumer
+import com.cowork.preference.repository.GithubRepoSettingCommandInboxRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectRoleRepository
 import com.cowork.preference.repository.ProjectionCheckpointRepository
+import com.cowork.preference.repository.TeamMemberProjectionRepository
+import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
+import com.cowork.preference.service.GithubRepoSettingCommandProcessor
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectRoleService
+import com.cowork.preference.service.TeamRoleCommandProcessor
 import com.cowork.preference.service.TeamRoleService
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Future
@@ -62,6 +68,8 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var producer: KafkaProducer<String, String>
     private lateinit var preferenceOutboxDispatcher: PreferenceOutboxDispatcher
     private lateinit var teamMemberProjectionConsumer: TeamMemberProjectionConsumer
+    private lateinit var teamRoleCommandConsumer: TeamRoleCommandConsumer
+    private lateinit var githubRepoSettingCommandConsumer: GithubRepoSettingCommandConsumer
     private lateinit var projectionTopicIdentity: ProjectionTopicIdentityProvider
     private lateinit var eurekaRegistration: EurekaRegistration
     private var eurekaReadinessTimerId: Long? = null
@@ -86,37 +94,51 @@ class MainVerticle : AbstractVerticle() {
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
         val teamRoleRepo = TeamRoleRepository(pool)
+        val teamMemberProjectionRepo = TeamMemberProjectionRepository()
         val checkpointRepository = ProjectionCheckpointRepository(pool)
+        val commandInboxRepository = TeamRoleCommandInboxRepository(pool)
+        val githubRepoSettingCommandInboxRepository = GithubRepoSettingCommandInboxRepository(pool)
         val outboxRepository = PreferenceOutboxRepository(pool)
         val projectionReadiness = ProjectionReadiness()
         projectionTopicIdentity = ProjectionTopicIdentityProvider(appConfig.kafka.bootstrapServers)
 
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
-        val notifService = NotificationService(notifRepo, preferenceCache, outboxRepository)
+        val notifService = NotificationService(notifRepo, outboxRepository)
         val roleService = ProjectRoleService(roleRepo)
         val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository)
+        val teamRoleCommandProcessor = TeamRoleCommandProcessor(
+            roleRepository = teamRoleRepo,
+            memberRepository = teamMemberProjectionRepo,
+            inboxRepository = commandInboxRepository,
+            outboxRepository = outboxRepository,
+            readiness = projectionReadiness,
+        )
+        val githubRepoSettingCommandProcessor = GithubRepoSettingCommandProcessor(
+            preferenceRepository = prefRepo,
+            inboxRepository = githubRepoSettingCommandInboxRepository,
+            outboxRepository = outboxRepository,
+            cache = preferenceCache,
+        )
 
         val prefHandler = PreferenceHandler(prefService, scope)
         val notifHandler = NotificationHandler(notifService, scope)
         val roleHandler = ProjectRoleHandler(roleService, scope)
-        val teamRoleHandler = TeamRoleHandler(teamRoleService, scope)
 
         val router = buildRouter(
             vertx,
             prefHandler,
             notifHandler,
             roleHandler,
-            teamRoleHandler,
             projectionReadiness,
         )
 
         scheduleStatusExpiryCheck(prefRepo, outboxRepository, preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             notificationRepository = notifRepo,
+            preferenceRepository = prefRepo,
             teamRoleRepository = teamRoleRepo,
             outboxRepository = outboxRepository,
             topicIdentity = projectionTopicIdentity,
-            cache = preferenceCache,
         )
         scheduleProjectionSnapshots(snapshotPublisher)
 
@@ -131,15 +153,36 @@ class MainVerticle : AbstractVerticle() {
         teamMemberProjectionConsumer = TeamMemberProjectionConsumer(
             vertx = vertx,
             bootstrapServers = appConfig.kafka.bootstrapServers,
-            groupId = appConfig.kafka.consumerGroupId,
+            groupId = appConfig.kafka.teamMemberConsumerGroupId,
             topic = appConfig.kafka.teamMemberTopic,
             teamRoleService = teamRoleService,
+            teamMemberProjectionRepository = teamMemberProjectionRepo,
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,
             readiness = projectionReadiness,
             scope = scope,
         )
         teamMemberProjectionConsumer.start()
+
+        teamRoleCommandConsumer = TeamRoleCommandConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.teamRoleCommandConsumerGroupId,
+            processor = teamRoleCommandProcessor,
+            inboxRepository = commandInboxRepository,
+            scope = scope,
+        )
+        teamRoleCommandConsumer.start()
+
+        githubRepoSettingCommandConsumer = GithubRepoSettingCommandConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.githubRepoSettingCommandConsumerGroupId,
+            processor = githubRepoSettingCommandProcessor,
+            inboxRepository = githubRepoSettingCommandInboxRepository,
+            scope = scope,
+        )
+        githubRepoSettingCommandConsumer.start()
 
         vertx.createHttpServer()
             .requestHandler(router)
@@ -284,6 +327,10 @@ class MainVerticle : AbstractVerticle() {
         }
 
         val quiesceFutures = mutableListOf<Future<Void>>()
+        if (::githubRepoSettingCommandConsumer.isInitialized) {
+            quiesceFutures.add(githubRepoSettingCommandConsumer.close())
+        }
+        if (::teamRoleCommandConsumer.isInitialized) quiesceFutures.add(teamRoleCommandConsumer.close())
         if (::teamMemberProjectionConsumer.isInitialized) quiesceFutures.add(teamMemberProjectionConsumer.close())
         if (::scopeJob.isInitialized) quiesceFutures.add(cancelScopeAndAwaitChildren())
 
