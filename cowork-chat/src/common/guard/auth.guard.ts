@@ -1,9 +1,10 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { UserRole } from '../enum/user-role.enum';
 import { IS_PUBLIC_KEY } from './public.decorator';
 import { ROLES_KEY } from './roles.decorator';
+import { RequestContextUtil } from '../util/request-context.util';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -22,8 +23,7 @@ export class AuthGuard implements CanActivate {
         const path = request.path;
         if (path === '/metrics') return true;
 
-        const userId = request.headers['x-user-id'];
-        if (!userId) throw new UnauthorizedException('x-user-id 헤더가 없습니다');
+        RequestContextUtil.getUserId(request.headers);
 
         const requiredRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
             context.getHandler(),
