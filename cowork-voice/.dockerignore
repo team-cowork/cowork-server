@@ -1,5 +1,10 @@
 target/
 .git/
+.env
+.env.*
+*.log
+.idea/
+.vscode/
 *.md
 src/
 Cargo.toml

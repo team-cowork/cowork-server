@@ -1,12 +1,28 @@
-# 빌드 전 gateway.jar (Bazel //cowork-gateway:gateway, rules_spring springboot 산출물)이 컨텍스트에 있어야 한다.
-# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:25-jdk-alpine AS builder
+WORKDIR /workspace
+
+COPY gradlew gradlew
+COPY gradle gradle
+COPY settings.gradle.kts build.gradle.kts ./
+COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
+COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
+COPY cowork-channel/build.gradle.kts cowork-channel/build.gradle.kts
+COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
+COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
+COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
+COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
+COPY cowork-gateway/src cowork-gateway/src
+RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
+    chmod +x gradlew \
+    && ./gradlew :cowork-gateway:bootJar -x test --no-daemon \
+    && artifact="$(find cowork-gateway/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" \
+    && test -n "${artifact}" \
+    && cp "${artifact}" /workspace/app.jar
+
+FROM eclipse-temurin:25-jre-alpine AS runtime
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --chown=app:app gateway.jar app.jar
+COPY --chown=app:app --from=builder /workspace/app.jar app.jar
 USER app
 EXPOSE 8080
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

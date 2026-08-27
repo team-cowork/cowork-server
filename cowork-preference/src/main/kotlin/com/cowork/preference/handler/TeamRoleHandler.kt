@@ -14,15 +14,6 @@ class TeamRoleHandler(
     private val scope: CoroutineScope,
 ) {
 
-    fun getRoles(ctx: RoutingContext) {
-        val teamId = parseLong(ctx, "teamId") ?: return
-        scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.getRoles(teamId) }
-                .onSuccess { ctx.json(rolesBody(it), 200) }
-                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
-        }
-    }
-
     fun createRole(ctx: RoutingContext) {
         val teamId = parseLong(ctx, "teamId") ?: return
         val body = body(ctx) ?: return
@@ -77,33 +68,6 @@ class TeamRoleHandler(
         }
     }
 
-    fun getMemberRoles(ctx: RoutingContext) {
-        val teamId = parseLong(ctx, "teamId") ?: return
-        scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.getMemberRoles(teamId) }
-                .onSuccess { members ->
-                    val arr = JsonArray(members.map {
-                        JsonObject()
-                            .put("accountId", it.accountId)
-                            .put("teamId", it.teamId)
-                            .put("roleId", it.roleId)
-                    })
-                    ctx.json(arr, 200)
-                }
-                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
-        }
-    }
-
-    fun getMemberRoleDefinitions(ctx: RoutingContext) {
-        val teamId = parseLong(ctx, "teamId") ?: return
-        val accountId = parseLong(ctx, "accountId") ?: return
-        scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.getMemberRoleDefinitions(teamId, accountId) }
-                .onSuccess { ctx.json(rolesBody(it), 200) }
-                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
-        }
-    }
-
     fun assignRole(ctx: RoutingContext) {
         val teamId = parseLong(ctx, "teamId") ?: return
         val roleId = parseLong(ctx, "roleId") ?: return
@@ -125,16 +89,6 @@ class TeamRoleHandler(
         val accountId = parseLong(ctx, "accountId") ?: return
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.removeRole(accountId, teamId, roleId) }
-                .onSuccess { ctx.response().setStatusCode(204).end() }
-                .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
-        }
-    }
-
-    fun removeMemberRoles(ctx: RoutingContext) {
-        val teamId = parseLong(ctx, "teamId") ?: return
-        val accountId = parseLong(ctx, "accountId") ?: return
-        scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.removeMemberRoles(accountId, teamId) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { ctx.response().setStatusCode(statusOf(it)).end(errorBody(it.message)) }
         }

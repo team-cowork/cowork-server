@@ -1,21 +1,31 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Kafka, Consumer } from 'kafkajs';
+import { Consumer, Kafka } from 'kafkajs';
 import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { parseEventTime } from '../../common/util/event-time.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ChannelMetaCache } from '../service/channel-meta.cache';
+import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
+import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository/channel-projection.repository';
 
 interface ChannelEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
     channelId: number;
-    teamId: number;
+    teamId: number | null;
+    /** 팀 채널은 null, 프로젝트 채널은 해당 project ID. legacy 이벤트는 누락될 수 있다. */
+    projectId?: number | null;
     name: string;
     type: string;
     viewType: string;
     description: string | null;
     isPrivate: boolean;
+    occurredAt: string;
+    /** 주기/startup state replay이면 변경 알림 부수효과를 억제한다. */
+    snapshot?: boolean;
+    /** 이전 producer 이벤트와의 호환을 위해 선택값이며, 누락 시 0으로 저장한다. */
+    position?: number;
 }
 
 @Injectable()
@@ -27,7 +37,8 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
-        private readonly channelMetaCache: ChannelMetaCache,
+        private readonly channelRepository: ChannelProjectionRepository,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -39,67 +50,106 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             clientId: 'cowork-chat-channel-event',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.consumer = kafka.consumer({ groupId: 'cowork-chat-channel-event' });
+        const stream = PROJECTION_STREAMS.channel;
+        this.consumer = kafka.consumer({ groupId: stream.groupId });
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: 'channel.event', fromBeginning: false });
+        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
-        void this.consumer
-            .run({
-                eachMessage: ({ message }): Promise<void> => {
-                    if (message.value) {
-                        try {
-                            const event = JSON.parse(message.value.toString()) as ChannelEvent;
-                            this.handleEvent(event);
-                        } catch (err) {
-                            this.logger.error('Exception while processing channel.event Kafka message', err);
-                            if (!(err instanceof SyntaxError)) throw err;
-                        }
-                    }
-                    return Promise.resolve();
-                },
-            })
-            .catch(async (err) => {
-                this.logger.error('channel.event Kafka consumer failed', err);
-                await this.dicoshot.sendCustom({
-                    title: '🔴 Kafka Consumer 중단',
-                    description: 'cowork-chat의 channel.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
-                    color: 'danger',
-                    fields: [
-                        { name: 'Topic', value: 'channel.event', inline: true },
-                        ...buildErrorFields(err),
-                    ],
-                }).catch(() => {});
-                process.exit(1);
-            });
-        this.logger.log('Kafka consumer started: channel.event');
+        void this.consumer.run({
+            eachMessage: async ({ partition, message }): Promise<void> => {
+                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
+                    return applyProjectionMessage(
+                        stream,
+                        partition,
+                        message,
+                        this.projectionReadiness,
+                        (payload, key) => this.handleEvent(payload, key),
+                    );
+                });
+            },
+        }).catch(async (err) => {
+            this.logger.error('channel.event Kafka consumer failed', err);
+            await this.dicoshot.sendCustom({
+                title: '🔴 Kafka Consumer 중단',
+                description: 'cowork-chat의 channel.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                color: 'danger',
+                fields: [{ name: 'Topic', value: 'channel.event', inline: true }, ...buildErrorFields(err)],
+            }).catch(() => {});
+            process.exit(1);
+        });
+        this.logger.log('Kafka projection consumer started: channel.event');
     }
 
     async onModuleDestroy() {
         await this.consumer.disconnect();
     }
 
-    private handleEvent(event: ChannelEvent) {
-        if (!event || !event.eventType || !event.teamId) {
-            this.logger.warn('Invalid channel event payload: ' + JSON.stringify(event));
-            return;
+    private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
+        if (!this.isChannelEvent(payload)) {
+            throw new ProjectionContractError('invalid channel event payload');
         }
-        if (!this.io) {
-            this.logger.warn(`Socket.IO server not initialized yet, dropping channel event (channelId=${event.channelId})`);
-            return;
+        const event = payload;
+        if (messageKey !== String(event.channelId)) {
+            throw new ProjectionContractError(
+                `channel event key does not match channelId [key=${messageKey ?? '<missing>'}, channelId=${event.channelId}]`,
+            );
         }
+
+        const eventTime = parseEventTime(event.occurredAt);
+        if (!eventTime) throw new ProjectionContractError('channel event occurredAt must be RFC3339');
+        const { occurredAt, sourceVersion } = eventTime;
+        let applied: boolean;
+        if (event.eventType === 'DELETED') {
+            applied = await this.channelRepository.remove(event.channelId, occurredAt, sourceVersion);
+        } else {
+            const projectionEvent: ChannelProjectionEvent = {
+                eventType: event.eventType,
+                channelId: event.channelId,
+                teamId: event.teamId,
+                projectId: event.projectId ?? null,
+                name: event.name,
+                type: event.type,
+                viewType: event.viewType,
+                description: event.description,
+                isPrivate: event.isPrivate,
+                position: event.position ?? 0,
+                occurredAt,
+                sourceVersion,
+            };
+            applied = await this.channelRepository.upsert(projectionEvent);
+        }
+        if (applied === false) return;
+        if (event.snapshot === true) return;
+
+        if (event.teamId === null || !this.io) return;
         const room = `team:${event.teamId}`;
-        const { eventType, ...payload } = event;
-
-        if (eventType === 'UPDATED' || eventType === 'DELETED') {
-            void this.channelMetaCache.invalidate(event.channelId);
-        }
-
+        const { eventType, snapshot, ...projectionPayload } = event;
+        void snapshot;
         if (eventType === 'CREATED') {
-            this.io.to(room).emit('channel:created', payload);
+            this.io.to(room).emit('channel:created', projectionPayload);
         } else if (eventType === 'UPDATED') {
-            this.io.to(room).emit('channel:updated', payload);
-        } else if (eventType === 'DELETED') {
+            this.io.to(room).emit('channel:updated', projectionPayload);
+        } else {
             this.io.to(room).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
         }
+    }
+
+    private isChannelEvent(payload: unknown): payload is ChannelEvent {
+        if (typeof payload !== 'object' || payload === null) return false;
+        const event = payload as Partial<ChannelEvent>;
+        if (!['CREATED', 'UPDATED', 'DELETED'].includes(event.eventType ?? '')) return false;
+        if (typeof event.channelId !== 'number') return false;
+        if (event.teamId !== null && typeof event.teamId !== 'number') return false;
+        if (event.projectId !== undefined && event.projectId !== null && typeof event.projectId !== 'number') return false;
+        if (parseEventTime(event.occurredAt) === null) return false;
+        if (event.snapshot !== undefined && typeof event.snapshot !== 'boolean') return false;
+        if (event.eventType === 'DELETED') return true;
+        return typeof event.name === 'string'
+            && typeof event.type === 'string'
+            && typeof event.viewType === 'string'
+            && (event.description === null || typeof event.description === 'string')
+            && typeof event.isPrivate === 'boolean'
+            && (event.position === undefined || typeof event.position === 'number');
     }
 }

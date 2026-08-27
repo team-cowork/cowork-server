@@ -11,8 +11,25 @@ spring:
 
 eureka:
   client:
+    healthcheck:
+      enabled: true
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    initial-status: STARTING
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000
 
 github-app:
   service-url: ${GITHUB_APP_SERVICE_URL}
