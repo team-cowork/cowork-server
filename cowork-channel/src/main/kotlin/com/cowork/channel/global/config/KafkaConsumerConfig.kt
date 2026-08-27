@@ -62,7 +62,4 @@ class KafkaConsumerConfig(
 
     @Bean
     fun teamLifecycleListenerContainerFactory() = listenerContainerFactory(streams.teamLifecycle)
-
-    @Bean
-    fun userLifecycleListenerContainerFactory() = listenerContainerFactory(streams.userLifecycle)
 }

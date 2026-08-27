@@ -1,7 +1,9 @@
 package com.cowork.channel.domain.membership.repository
 
 import com.cowork.channel.domain.membership.entity.TeamMembership
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
@@ -12,11 +14,17 @@ interface TeamMembershipRepository : JpaRepository<TeamMembership, Long> {
     )
     fun findByTeamIdAndUserId(@Param("teamId") teamId: Long, @Param("userId") userId: Long): TeamMembership?
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         "SELECT membership FROM TeamMembership membership " +
             "WHERE membership.teamId = :teamId AND membership.userId = :userId",
     )
-    fun findStateByTeamIdAndUserId(@Param("teamId") teamId: Long, @Param("userId") userId: Long): TeamMembership?
+    fun findStateByTeamIdAndUserIdForUpdate(
+        @Param("teamId") teamId: Long,
+        @Param("userId") userId: Long,
+    ): TeamMembership?
 
-    fun findAllByTeamId(teamId: Long): List<TeamMembership>
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT membership FROM TeamMembership membership WHERE membership.teamId = :teamId ORDER BY membership.id")
+    fun findAllByTeamIdForUpdateOrderByIdAsc(@Param("teamId") teamId: Long): List<TeamMembership>
 }

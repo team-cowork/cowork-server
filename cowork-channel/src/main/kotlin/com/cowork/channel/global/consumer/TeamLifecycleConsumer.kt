@@ -24,7 +24,11 @@ class TeamLifecycleConsumer(
     )
     fun consume(record: ConsumerRecord<String, String>) {
         if (processor.processControlRecord(streams.teamLifecycle, record)) return
-        val payload = runCatching { objectMapper.readValue(record.value(), TeamLifecyclePayload::class.java) }
+        val payload = runCatching {
+            requireNotNull(objectMapper.readValue(record.value(), TeamLifecyclePayload::class.java)) {
+                "top-level null은 허용되지 않습니다."
+            }
+        }
             .getOrElse {
                 quarantine(record, "team.lifecycle JSON 역직렬화 실패: ${it.message}")
                 return
