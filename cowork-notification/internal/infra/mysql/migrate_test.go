@@ -99,6 +99,8 @@ func TestMigrationExpectationsCoverCurrentVersions(t *testing.T) {
 		2: 3,
 		3: 2,
 		4: 1,
+		5: 2,
+		6: 1,
 	}
 	for version, wantCount := range wantTableCounts {
 		expectations, known := migrationExpectations(version)
@@ -110,7 +112,7 @@ func TestMigrationExpectationsCoverCurrentVersions(t *testing.T) {
 		}
 	}
 
-	if _, known := migrationExpectations(5); known {
+	if _, known := migrationExpectations(7); known {
 		t.Fatal("unknown migration version must fail closed")
 	}
 }

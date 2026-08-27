@@ -56,8 +56,13 @@ func (f *fakeAtomicStore) RecordSnapshotMarkerWithCheckpoint(
 	return nil
 }
 
-func (*fakeAtomicStore) LoadCheckpoint(context.Context, string, string, int) (int64, bool, error) {
-	return 0, false, nil
+func (*fakeAtomicStore) LoadCheckpoint(
+	context.Context,
+	string,
+	string,
+	int,
+) (projection.CheckpointState, bool, error) {
+	return projection.CheckpointState{}, false, nil
 }
 
 func (*fakeAtomicStore) AdvanceCheckpoint(context.Context, projection.Checkpoint) error {
@@ -199,6 +204,7 @@ func TestService_checkpointedApplyRunsProjectionBeforeCheckpoint(t *testing.T) {
 		ConsumerGroup: "cowork-notification-projections",
 		Topic:         "user.profile.event",
 		Partition:     1,
+		TopicID:       "93b19168-4a63-49cd-b01d-b8d0667a1cb5",
 		NextOffset:    12,
 	}
 
@@ -221,6 +227,7 @@ func TestService_recordsSnapshotMarkerAndCheckpointTogether(t *testing.T) {
 		ConsumerGroup: "cowork-notification-projections",
 		Topic:         "user.profile.event",
 		Partition:     1,
+		TopicID:       "93b19168-4a63-49cd-b01d-b8d0667a1cb5",
 		NextOffset:    13,
 	}
 	marker := projection.SnapshotMarkerReceipt{
