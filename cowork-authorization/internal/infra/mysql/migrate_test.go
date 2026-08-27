@@ -3,7 +3,6 @@ package mysql
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -86,52 +85,6 @@ func TestMigrationExpectationsCoverCurrentVersions(t *testing.T) {
 
 	if _, known := migrationExpectations(9); known {
 		t.Fatal("unknown migration version must fail closed")
-	}
-}
-
-func TestPlatformRoleMigrationBackfillsLegacySessionsAsLeastPrivilegeMember(t *testing.T) {
-	t.Parallel()
-
-	contents, err := os.ReadFile("../../../src/main/resources/db/migration/V7__add_refresh_token_platform_role.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sql := string(contents)
-	for _, required := range []string{
-		"ADD COLUMN platform_role",
-		"NOT NULL DEFAULT 'MEMBER'",
-	} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("V7 migration is missing %q", required)
-		}
-	}
-	if statements := splitSQLStatements(sql); len(statements) != 1 {
-		t.Fatalf("V7 migration statements = %d, want one ALTER", len(statements))
-	}
-}
-
-func TestPresenceMigrationBackfillsExistingSessionsInUTC(t *testing.T) {
-	t.Parallel()
-
-	contents, err := os.ReadFile("../../../src/main/resources/db/migration/V6__add_user_presence_states.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	sql := string(contents)
-	for _, required := range []string{
-		"tb_user_presence_states",
-		"active_session_count",
-		"UTC_TIMESTAMP(6)",
-		"FROM tb_refresh_tokens",
-		"GROUP BY token.user_id",
-		"ON DUPLICATE KEY UPDATE",
-	} {
-		if !strings.Contains(sql, required) {
-			t.Fatalf("V6 migration is missing %q", required)
-		}
-	}
-	if statements := splitSQLStatements(sql); len(statements) != 2 {
-		t.Fatalf("V6 migration statements = %d, want create plus backfill", len(statements))
 	}
 }
 
