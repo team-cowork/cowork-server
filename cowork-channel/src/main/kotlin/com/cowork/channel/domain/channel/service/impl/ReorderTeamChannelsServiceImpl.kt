@@ -1,5 +1,6 @@
 package com.cowork.channel.domain.channel.service.impl
 
+import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.ReorderTeamChannelsService
@@ -13,6 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ReorderTeamChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
+    private val channelEventPublisher: ChannelEventPublisher,
 ) : ReorderTeamChannelsService {
 
     @Transactional
@@ -38,6 +40,8 @@ class ReorderTeamChannelsServiceImpl(
             channelById[channelId]?.updatePosition(index)
         }
 
-        return orderedChannelIds.mapNotNull { channelById[it] }.map(ChannelResponse::of)
+        val orderedChannels = orderedChannelIds.mapNotNull(channelById::get)
+        orderedChannels.forEach(channelEventPublisher::publishUpdated)
+        return orderedChannels.map(ChannelResponse::of)
     }
 }

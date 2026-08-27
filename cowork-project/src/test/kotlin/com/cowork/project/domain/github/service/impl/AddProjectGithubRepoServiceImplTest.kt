@@ -27,7 +27,7 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
 
     private val service = AddProjectGithubRepoServiceImpl(projectGithubRepoRepository, projectAccessGuard)
 
