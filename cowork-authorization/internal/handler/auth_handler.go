@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"strconv"
@@ -51,6 +52,7 @@ func clearWsCookie(c *gin.Context) {
 // @Success      200   {object}  service.TokenPair
 // @Failure      400   {object}  map[string]string  "missing required fields"
 // @Failure      401   {object}  map[string]string  "authentication failed"
+// @Failure      503   {object}  map[string]string  "authentication temporarily unavailable"
 // @Router       /auth/token [post]
 func (h *AuthHandler) Token(c *gin.Context) {
 	var req struct {
@@ -65,7 +67,12 @@ func (h *AuthHandler) Token(c *gin.Context) {
 
 	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
 	if err != nil {
-		log.Printf("token exchange error: %v", err)
+		// Provider/DB errors can contain identity or unique-index values.
+		log.Printf("token exchange failed")
+		if errors.Is(err, service.ErrAuthenticationUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
 		return
 	}
@@ -84,6 +91,7 @@ func (h *AuthHandler) Token(c *gin.Context) {
 // @Success      200   {object}  map[string]string             "새 access_token, refresh_token"
 // @Failure      400   {object}  map[string]string             "refresh_token is required"
 // @Failure      401   {object}  map[string]string             "invalid or expired refresh token"
+// @Failure      503   {object}  map[string]string             "authentication temporarily unavailable"
 // @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req struct {
@@ -96,7 +104,11 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	pair, err := h.authSvc.RefreshTokens(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		log.Printf("refresh token rotation failed: %v", err)
+		log.Printf("refresh token rotation failed")
+		if errors.Is(err, service.ErrAuthenticationUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}
@@ -116,6 +128,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 // @Success      204   "로그아웃 성공"
 // @Failure      400   {object}  map[string]string  "refresh_token is required"
 // @Failure      401   {object}  map[string]string  "unauthorized"
+// @Failure      503   {object}  map[string]string  "authentication temporarily unavailable"
 // @Router       /auth/signout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req struct {
@@ -128,7 +141,11 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	userID := c.GetInt64(userIDKey)
 	if err := h.authSvc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
-		log.Printf("refresh token revocation failed for user %d: %v", userID, err)
+		log.Printf("refresh token revocation failed")
+		if errors.Is(err, service.ErrAuthenticationUnavailable) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
+			return
+		}
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
 		return
 	}
