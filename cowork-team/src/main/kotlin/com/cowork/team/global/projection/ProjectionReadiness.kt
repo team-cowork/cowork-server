@@ -46,6 +46,10 @@ class ProjectionReadinessState(
         refresh()
     }
 
+    fun markNotReady(stream: ProjectionStream) {
+        if (stream in streams.required) ready = false
+    }
+
     fun refresh(): Boolean {
         ready = if (initializingStreams.isNotEmpty()) {
             false
@@ -65,7 +69,6 @@ class ProjectionReadinessState(
 
     fun initializingCount(): Int = initializingStreams.size
 }
-
 class ProjectionAssignmentCoordinator(
     private val stream: ProjectionStream,
     private val checkpointStore: ProjectionCheckpointStore,

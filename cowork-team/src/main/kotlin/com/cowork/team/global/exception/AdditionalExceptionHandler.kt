@@ -1,6 +1,5 @@
 package com.cowork.team.global.exception
 
-import feign.FeignException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -51,12 +50,6 @@ class AdditionalExceptionHandler {
     fun handleExpected(e: ExpectedException): ResponseEntity<CommonApiResponse<Nothing>> = ResponseEntity.status(
         e.statusCode,
     ).body(CommonApiResponse.error(e.message ?: "요청 처리 중 오류가 발생했습니다.", e.statusCode))
-
-    @ExceptionHandler(FeignException::class)
-    fun handleFeignException(e: FeignException): ResponseEntity<CommonApiResponse<Nothing>> {
-        val status = HttpStatus.resolve(e.status()) ?: HttpStatus.BAD_GATEWAY
-        return ResponseEntity.status(status).body(CommonApiResponse.error("설정 서비스 요청에 실패했습니다.", status))
-    }
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {

@@ -14,7 +14,11 @@ interface TeamMemberRepository : JpaRepository<TeamMember, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT tm FROM TeamMember tm WHERE tm.team.id = :teamId ORDER BY tm.id")
-    fun findSnapshotByTeamId(@Param("teamId") teamId: Long): List<TeamMember>
+    fun findAllByTeamIdForUpdate(@Param("teamId") teamId: Long): List<TeamMember>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT tm FROM TeamMember tm WHERE tm.team.id = :teamId AND tm.userId = :userId")
+    fun findByTeamIdAndUserIdForUpdate(@Param("teamId") teamId: Long, @Param("userId") userId: Long): TeamMember?
 
     fun findAllByTeamId(teamId: Long): List<TeamMember>
 
