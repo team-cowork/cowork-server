@@ -27,10 +27,11 @@ type LiveSession struct {
 }
 
 type LiveViewer struct {
-	ID        bson.ObjectID `bson:"_id,omitempty"`
-	SessionID string        `bson:"session_id"`
-	UserID    int64         `bson:"user_id"`
-	ChannelID int64         `bson:"channel_id"`
-	JoinedAt  time.Time     `bson:"joined_at"`
-	LeftAt    *time.Time    `bson:"left_at"`
+	ID           bson.ObjectID `bson:"_id,omitempty"`
+	SessionID    string        `bson:"session_id"`
+	UserID       int64         `bson:"user_id"`
+	ChannelID    int64         `bson:"channel_id"`
+	OccurrenceID string        `bson:"occurrence_id,omitempty"`
+	JoinedAt     time.Time     `bson:"joined_at"`
+	LeftAt       *time.Time    `bson:"left_at"`
 }
