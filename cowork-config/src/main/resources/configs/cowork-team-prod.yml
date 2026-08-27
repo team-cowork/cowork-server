@@ -45,8 +45,8 @@ team-github:
   state-secret: ${TEAM_GITHUB_STATE_SECRET}
   app-slug: ${GITHUB_APP_SLUG}
 
-KAFKA_TOPIC_TEAM_ROLE_PREFERENCE: preference.team-role.changed
 KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE: cowork-team.team-role-projection
+KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT: cowork-team.team-role-command-result
 
 object-storage:
   public-endpoint: ${S3_PUBLIC_ENDPOINT}

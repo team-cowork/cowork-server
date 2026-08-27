@@ -58,6 +58,18 @@ class ProjectionReadinessTest {
     }
 
     @Test
+    fun `quarantined record latch keeps readiness unavailable after the checkpoint advances`() {
+        val evaluation = evaluate(
+            barriers = mapOf(0 to ProjectionBarrier(topicId, 8)),
+            checkpoints = mapOf(0 to checkpoint(12, 10, invalidRecordOffset = 7)),
+            ranges = mapOf(0 to ProjectionBrokerRange(0, 12)),
+        )
+
+        assertFalse(evaluation.ready)
+        assertTrue(evaluation.reason.contains("invalid record"))
+    }
+
+    @Test
     fun `replica without local assignment becomes ready from shared durable state`() {
         val readiness = ProjectionReadiness()
         readiness.markInitialized()
@@ -76,12 +88,18 @@ class ProjectionReadinessTest {
         ranges: Map<Int, ProjectionBrokerRange>,
     ) = ProjectionReadinessEvaluator.evaluate(barriers, checkpoints, ProjectionTopicState(topicId, ranges))
 
-    private fun checkpoint(nextOffset: Long, markerOffset: Long?, partition: Int = 0) = ProjectionCheckpoint(
+    private fun checkpoint(
+        nextOffset: Long,
+        markerOffset: Long?,
+        partition: Int = 0,
+        invalidRecordOffset: Long? = null,
+    ) = ProjectionCheckpoint(
         consumerGroup = "group",
         topic = "team.member.event",
         partition = partition,
         nextOffset = nextOffset,
         topicId = topicId,
+        invalidRecordOffset = invalidRecordOffset,
         snapshotCompletedOffset = markerOffset,
     )
 }

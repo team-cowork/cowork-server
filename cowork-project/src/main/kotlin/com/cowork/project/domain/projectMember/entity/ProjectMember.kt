@@ -2,6 +2,7 @@ package com.cowork.project.domain.projectMember.entity
 
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
+import java.time.Instant
 import java.time.LocalDateTime
 
 @Entity
@@ -25,6 +26,9 @@ class ProjectMember(
     @CreationTimestamp
     @Column(name = "joined_at", nullable = false, updatable = false)
     val joinedAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "state_occurred_at", nullable = false)
+    var stateOccurredAt: Instant = Instant.EPOCH,
 ) {
     fun updateRole(newRole: ProjectMemberRole) {
         role = newRole

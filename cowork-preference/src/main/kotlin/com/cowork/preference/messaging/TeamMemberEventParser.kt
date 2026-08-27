@@ -22,9 +22,7 @@ object TeamMemberCleanupPolicy {
 }
 
 sealed interface TeamMemberRecordDecision {
-    data class ApplyDelete(val event: TeamMemberEvent) : TeamMemberRecordDecision
-
-    data class IgnoreUpsert(val event: TeamMemberEvent) : TeamMemberRecordDecision
+    data class Apply(val event: TeamMemberEvent) : TeamMemberRecordDecision
 
     data class Quarantine(val reason: String) : TeamMemberRecordDecision
 }
@@ -48,10 +46,7 @@ object TeamMemberEventParser {
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
         val event = TeamMemberEvent(eventType, teamId, userId, role, occurredAt)
-        when (eventType) {
-            "DELETE" -> TeamMemberRecordDecision.ApplyDelete(event)
-            else -> TeamMemberRecordDecision.IgnoreUpsert(event)
-        }
+        TeamMemberRecordDecision.Apply(event)
     }.getOrElse { error ->
         TeamMemberRecordDecision.Quarantine(error.message ?: "invalid team member record")
     }

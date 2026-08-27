@@ -1,6 +1,5 @@
 package com.cowork.team.global.projection
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -19,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.module.kotlin.jacksonObjectMapper
 
 class ProjectionCheckpointPolicyTest {
     private val stream = ProjectionStream("group", "topic", "cowork-preference")
@@ -27,14 +27,22 @@ class ProjectionCheckpointPolicyTest {
     private fun checkpoint(
         nextOffset: Long,
         invalidCheckpointOffset: Long? = null,
+        invalidRecordOffset: Long? = null,
         topicId: String = this.topicId,
         snapshotCompletedOffset: Long? = nextOffset - 1,
-    ) = ProjectionCheckpoint(nextOffset, topicId, invalidCheckpointOffset, snapshotCompletedOffset)
+    ) = ProjectionCheckpoint(
+        nextOffset = nextOffset,
+        topicId = topicId,
+        invalidCheckpointOffset = invalidCheckpointOffset,
+        invalidRecordOffset = invalidRecordOffset,
+        snapshotCompletedOffset = snapshotCompletedOffset,
+    )
 
     private fun processor(
         store: ProjectionCheckpointStore,
         topicGenerations: ProjectionTopicGenerationRegistry = ProjectionTopicGenerationRegistry(),
-    ) = ProjectionRecordProcessor(store, ObjectMapper(), topicGenerations)
+        readinessState: ProjectionReadinessState = mockk(relaxed = true),
+    ) = ProjectionRecordProcessor(store, jacksonObjectMapper(), topicGenerations, readinessState)
 
     private fun barrier(targetOffset: Long, topicId: String = this.topicId) = ProjectionBarrier(topicId, targetOffset)
 
@@ -113,6 +121,18 @@ class ProjectionCheckpointPolicyTest {
     }
 
     @Test
+    fun `invalid record latch가 있으면 이후 정상 record와 snapshot marker를 반영해도 ready가 아니다`() {
+        val barriers = mapOf(stream to mapOf(0 to barrier(8)))
+        val checkpoints = mapOf(
+            stream to mapOf(
+                0 to checkpoint(nextOffset = 9, invalidRecordOffset = 3, snapshotCompletedOffset = 7),
+            ),
+        )
+
+        assertFalse(ProjectionCatchUpPolicy.isReady(setOf(stream), barriers, checkpoints))
+    }
+
+    @Test
     fun `local assignment가 없는 replica도 shared checkpoint가 준비되면 ready다`() {
         val store = mockk<ProjectionCheckpointStore>()
         val streams = mockk<ProjectionStreams>()
@@ -123,6 +143,21 @@ class ProjectionCheckpointPolicyTest {
         state.markInitialized(stream, locallyAssigned = false)
         assertTrue(state.isReady())
         assertEquals(0, state.assignedCount())
+    }
+
+    @Test
+    fun `invalid record를 감지하면 DB poll 전에도 readiness를 즉시 닫는다`() {
+        val store = mockk<ProjectionCheckpointStore>()
+        val streams = mockk<ProjectionStreams>()
+        every { streams.required } returns setOf(stream)
+        every { store.isCaughtUp(setOf(stream)) } returns true
+        val state = ProjectionReadinessState(store, streams)
+        state.markInitialized(stream, locallyAssigned = true)
+        assertTrue(state.isReady())
+
+        state.markNotReady(stream)
+
+        assertFalse(state.isReady())
     }
 
     @Test
@@ -209,14 +244,17 @@ class ProjectionCheckpointPolicyTest {
     }
 
     @Test
-    fun `invalid record는 격리한 뒤 같은 transaction 경로에서 checkpoint를 진전시킨다`() {
+    fun `invalid record는 격리와 durable latch를 남긴 뒤 같은 transaction 경로에서 checkpoint를 진전시킨다`() {
         val store = mockk<ProjectionCheckpointStore>()
-        every { store.quarantine(any(), any(), any()) } just runs
+        val readinessState = mockk<ProjectionReadinessState>(relaxed = true)
+        val generations = ProjectionTopicGenerationRegistry().apply { markAssigned(stream, topicId) }
+        every { store.quarantineAndLatch(any(), any(), any(), any()) } just runs
         every { store.advance(any(), any(), any()) } just runs
         val record = ConsumerRecord("topic", 1, 7L, "key", "payload")
-        processor(store).quarantineRecord(stream, record, "invalid")
+        processor(store, generations, readinessState).quarantineRecord(stream, record, "invalid")
         verifyOrder {
-            store.quarantine(stream, record, "invalid")
+            readinessState.markNotReady(stream)
+            store.quarantineAndLatch(stream, record, "invalid", topicId)
             store.advance(stream, 1, 8L)
         }
     }
@@ -246,7 +284,9 @@ class ProjectionCheckpointPolicyTest {
     @Test
     fun `다른 producer의 snapshot completion marker는 readiness 완료로 인정하지 않는다`() {
         val store = mockk<ProjectionCheckpointStore>()
-        every { store.quarantine(any(), any(), any()) } just runs
+        val readinessState = mockk<ProjectionReadinessState>(relaxed = true)
+        val generations = ProjectionTopicGenerationRegistry().apply { markAssigned(stream, topicId) }
+        every { store.quarantineAndLatch(any(), any(), any(), any()) } just runs
         every { store.advance(any(), any(), any()) } just runs
         val record = ConsumerRecord(
             "topic",
@@ -256,10 +296,11 @@ class ProjectionCheckpointPolicyTest {
             """{"eventType":"PROJECTION_SNAPSHOT_COMPLETED","topic":"topic","partition":1,"snapshotId":"00000000-0000-0000-0000-000000000001","occurredAt":"2026-08-26T00:00:00Z","source":"cowork-deprecated"}""",
         )
 
-        assertTrue(processor(store).processControlRecord(stream, record))
+        assertTrue(processor(store, generations, readinessState).processControlRecord(stream, record))
 
         verifyOrder {
-            store.quarantine(stream, record, match { it.contains("cowork-preference") })
+            readinessState.markNotReady(stream)
+            store.quarantineAndLatch(stream, record, match { it.contains("cowork-preference") }, topicId)
             store.advance(stream, 1, 8L)
         }
         verify(exactly = 0) { store.markSnapshotCompleted(any(), any(), any(), any()) }
@@ -268,14 +309,17 @@ class ProjectionCheckpointPolicyTest {
     @Test
     fun `잘못된 reserved marker는 격리하고 checkpoint만 진전시키며 완료로 표시하지 않는다`() {
         val store = mockk<ProjectionCheckpointStore>()
-        every { store.quarantine(any(), any(), any()) } just runs
+        val readinessState = mockk<ProjectionReadinessState>(relaxed = true)
+        val generations = ProjectionTopicGenerationRegistry().apply { markAssigned(stream, topicId) }
+        every { store.quarantineAndLatch(any(), any(), any(), any()) } just runs
         every { store.advance(any(), any(), any()) } just runs
         val record = ConsumerRecord("topic", 1, 7L, ProjectionSnapshotCompletion.key(0), "{}")
 
-        assertTrue(processor(store).processControlRecord(stream, record))
+        assertTrue(processor(store, generations, readinessState).processControlRecord(stream, record))
 
         verifyOrder {
-            store.quarantine(stream, record, any())
+            readinessState.markNotReady(stream)
+            store.quarantineAndLatch(stream, record, any(), topicId)
             store.advance(stream, 1, 8L)
         }
         verify(exactly = 0) { store.markSnapshotCompleted(any(), any(), any(), any()) }
