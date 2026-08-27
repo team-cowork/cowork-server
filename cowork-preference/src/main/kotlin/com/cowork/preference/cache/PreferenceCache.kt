@@ -8,6 +8,8 @@ import io.vertx.redis.client.RedisAPI
 private const val TTL_SECONDS = 300L
 private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
 private const val LOCK_TTL_SECONDS = 55L
+private const val PROJECTION_SNAPSHOT_LOCK_KEY = "projection:snapshot:lock"
+private const val PROJECTION_SNAPSHOT_LOCK_TTL_SECONDS = 240L
 
 class PreferenceCache(private val redis: RedisAPI) {
 
@@ -42,9 +44,20 @@ class PreferenceCache(private val redis: RedisAPI) {
         return result?.toString() == "OK"
     }
 
-    private fun settingKey(resourceType: ResourceType, resourceId: Long) =
-        "pref:${resourceType.name}:$resourceId"
+    suspend fun acquireProjectionSnapshotLock(): Boolean {
+        val result = redis.set(
+            listOf(
+                PROJECTION_SNAPSHOT_LOCK_KEY,
+                "1",
+                "NX",
+                "EX",
+                PROJECTION_SNAPSHOT_LOCK_TTL_SECONDS.toString(),
+            ),
+        ).coAwait()
+        return result?.toString() == "OK"
+    }
 
-    private fun notificationKey(accountId: Long, channelId: Long) =
-        "pref:notification:$accountId:$channelId"
+    private fun settingKey(resourceType: ResourceType, resourceId: Long) = "pref:${resourceType.name}:$resourceId"
+
+    private fun notificationKey(accountId: Long, channelId: Long) = "pref:notification:$accountId:$channelId"
 }

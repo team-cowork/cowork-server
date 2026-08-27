@@ -1,5 +1,6 @@
 package com.cowork.project.domain.project.service.impl
 
+import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
@@ -13,6 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ReorderTeamProjectsServiceImpl(
     private val projectRepository: ProjectRepository,
     private val projectAccessGuard: ProjectAccessGuard,
+    private val projectEventPublisher: ProjectEventPublisher,
 ) : ReorderTeamProjectsService {
 
     @Transactional
@@ -38,6 +40,8 @@ class ReorderTeamProjectsServiceImpl(
             projectById[projectId]?.updatePosition(index)
         }
 
-        return orderedProjectIds.mapNotNull { projectById[it] }.map(ProjectResDto::of)
+        val orderedProjects = orderedProjectIds.mapNotNull(projectById::get)
+        orderedProjects.forEach(projectEventPublisher::publishUpdated)
+        return orderedProjects.map(ProjectResDto::of)
     }
 }

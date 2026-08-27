@@ -3,6 +3,7 @@ package com.cowork.team.domain.teamInvite.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
@@ -13,13 +14,10 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 import java.time.LocalDateTime
 
@@ -28,24 +26,12 @@ class JoinTeamServiceImplTest {
     private val teamInviteRepository = mockk<TeamInviteRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
+    private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
 
-    private val service = JoinTeamServiceImpl(teamInviteRepository, teamMemberRepository, teamEventPublisher)
+    private val service =
+        JoinTeamServiceImpl(teamInviteRepository, teamMemberRepository, teamEventPublisher, teamMemberEventPublisher)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-
-    @BeforeEach
-    fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
-    }
-
-    private fun fireAfterCommit() {
-        TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
-    }
 
     private fun makeInvite(
         inviteCode: String = "aB3xK9mZ",
@@ -78,12 +64,12 @@ class JoinTeamServiceImplTest {
         every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
 
         val result = service.execute(99L, "aB3xK9mZ")
-        fireAfterCommit()
 
         assertEquals(1L, result.teamId)
         assertEquals(99L, result.userId)
         assertEquals("MEMBER", result.role)
         verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }
+        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(newMember, any(), false) }
         assertEquals("MEMBER_JOINED", captured.captured.eventType)
         assertEquals(listOf(99L), captured.captured.targetUserIds)
     }

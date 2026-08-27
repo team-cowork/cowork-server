@@ -20,19 +20,29 @@ import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { ProjectMemberEventConsumer } from './kafka/project-member-event.consumer';
+import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
+import { UserProfileEventConsumer } from './kafka/user-profile-event.consumer';
 import { ProjectClient } from './service/project.client';
-import { ProjectMemberCache } from './service/project-member.cache';
 import { ProjectRepoCache } from './service/project-repo.cache';
 import { UnreadCounterService } from './service/unread-counter.service';
 import { ChannelClient } from './service/channel.client';
-import { ChannelMetaCache } from './service/channel-meta.cache';
 import { ChannelSearchClient } from './service/channel-search.client';
 import { UnifiedSearchResolver } from './unified-search.resolver';
 import { UserClient } from './service/user.client';
 import { Message, MessageSchema } from './schema/message.schema';
 import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
+import { ChannelProjection, ChannelProjectionSchema } from './schema/channel-projection.schema';
+import { ProjectMemberProjection, ProjectMemberProjectionSchema } from './schema/project-member-projection.schema';
+import { ProjectProjection, ProjectProjectionSchema } from './schema/project-projection.schema';
+import { TeamMemberProjection, TeamMemberProjectionSchema } from './schema/team-member-projection.schema';
+import { UserProfileProjection, UserProfileProjectionSchema } from './schema/user-profile-projection.schema';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
+import { ChannelProjectionRepository } from './repository/channel-projection.repository';
+import { ProjectMemberProjectionRepository } from './repository/project-member-projection.repository';
+import { ProjectProjectionRepository } from './repository/project-projection.repository';
+import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
+import { UserProfileProjectionRepository } from './repository/user-profile-projection.repository';
 import { MembershipModule } from '../membership/membership.module';
 import { BlockModule } from '../block/block.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
@@ -56,6 +66,11 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         MongooseModule.forFeature([
             { name: Message.name, schema: MessageSchema },
             { name: ChannelMember.name, schema: ChannelMemberSchema },
+            { name: ChannelProjection.name, schema: ChannelProjectionSchema },
+            { name: ProjectMemberProjection.name, schema: ProjectMemberProjectionSchema },
+            { name: ProjectProjection.name, schema: ProjectProjectionSchema },
+            { name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema },
+            { name: UserProfileProjection.name, schema: UserProfileProjectionSchema },
         ]),
         DicoshotModule.registerAsync({
             imports: [ConfigModule],
@@ -89,14 +104,19 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelEventConsumer,
         ProjectEventConsumer,
         ProjectMemberEventConsumer,
+        TeamMemberEventConsumer,
+        UserProfileEventConsumer,
         ProjectClient,
-        ProjectMemberCache,
         ProjectRepoCache,
         UnreadCounterService,
         ChannelClient,
-        ChannelMetaCache,
         ChannelSearchClient,
         UserClient,
+        ChannelProjectionRepository,
+        ProjectMemberProjectionRepository,
+        ProjectProjectionRepository,
+        TeamMemberProjectionRepository,
+        UserProfileProjectionRepository,
         UnifiedSearchResolver,
         RedisRateLimiter,
         ThrottleGuard,

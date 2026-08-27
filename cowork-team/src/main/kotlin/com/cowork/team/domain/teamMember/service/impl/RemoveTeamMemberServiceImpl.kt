@@ -1,13 +1,13 @@
 package com.cowork.team.domain.teamMember.service.impl
 
+import com.cowork.team.domain.team.event.NotificationTriggerEvent
 import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
 import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
-import com.cowork.team.global.client.PreferenceTeamRoleClient
-import com.cowork.team.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,8 +16,8 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class RemoveTeamMemberServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
-    private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
     private val teamEventPublisher: TeamEventPublisher,
+    private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : RemoveTeamMemberService {
 
@@ -46,7 +46,6 @@ class RemoveTeamMemberServiceImpl(
         }
 
         teamMemberRepository.delete(targetMember)
-        afterCommit { preferenceTeamRoleClient.deleteMemberRoles(teamId, targetUserId) }
 
         val payload = TeamEventPayload(
             eventType = "MEMBER_REMOVED",
@@ -55,6 +54,15 @@ class RemoveTeamMemberServiceImpl(
             actorUserId = actorId,
             targetUserIds = listOf(targetUserId),
         )
-        afterCommit { teamEventPublisher.publishLifecycle(payload) }
+        teamEventPublisher.publishLifecycle(payload)
+        teamEventPublisher.publishNotification(
+            teamId,
+            NotificationTriggerEvent(
+                type = "MEMBER_REMOVED",
+                targetUserIds = listOf(targetUserId),
+                data = mapOf("teamId" to teamId),
+            ),
+        )
+        teamMemberEventPublisher.publishDelete(targetMember)
     }
 }

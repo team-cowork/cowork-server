@@ -15,11 +15,15 @@ eureka_instance_port: 8082
 
 kafka_bootstrap_servers: kafka:9092
 kafka_group_id: cowork-user
+kafka_team_member_topic: team.member.event
+kafka_team_member_group_id: cowork-user.team-member
+kafka_presence_topic: user.presence.event
+kafka_presence_group_id: cowork-user.user-presence
+kafka_profile_topic: user.profile.event
+kafka_profile_snapshot_interval_ms: 300000
 
 s3_region: us-east-1
 s3_path_style_access_enabled: true
 
 redis_host: redis
 redis_port: 6379
-
-team_service_url: http://cowork-team:8085
