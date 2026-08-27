@@ -11,12 +11,8 @@ export interface ChannelInfo {
 export class ChannelClient {
     constructor(private readonly projectionRepository: ChannelProjectionRepository) {}
 
-    /**
-     * 채널 메타데이터는 로컬 projection에서 조회한다.
-     * userId는 기존 호출 계약 호환을 위해 유지하며, 접근 권한은 호출부의 채널 멤버십 검사에서 검증한다.
-     */
-    async getChannel(channelId: number, userId: number): Promise<ChannelInfo> {
-        void userId;
+    /** 채널 메타데이터는 로컬 projection에서 조회한다. */
+    async getChannel(channelId: number): Promise<ChannelInfo> {
         const channel = await this.projectionRepository.findById(channelId);
         if (!channel) {
             throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');

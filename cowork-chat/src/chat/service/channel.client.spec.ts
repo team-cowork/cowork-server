@@ -22,13 +22,13 @@ describe('ChannelClient', () => {
             position: 0,
         });
 
-        await expect(client.getChannel(1, 42)).resolves.toEqual({ id: 1, viewType: 'FILE_SHARE' });
+        await expect(client.getChannel(1)).resolves.toEqual({ id: 1, viewType: 'FILE_SHARE' });
         expect(projectionRepository.findById).toHaveBeenCalledWith(1);
     });
 
     it('projection이 아직 동기화되지 않았으면 원격 호출 없이 fail-closed한다', async () => {
         projectionRepository.findById.mockResolvedValue(null);
 
-        await expect(client.getChannel(99, 42)).rejects.toBeInstanceOf(ServiceUnavailableException);
+        await expect(client.getChannel(99)).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
 });

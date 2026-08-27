@@ -1,186 +1,66 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { ProjectClient, GithubRepoInfo } from './project.client';
+import { ConflictException } from '@nestjs/common';
+import { ProjectGithubRepoProjectionRepository } from '../repository/project-github-repo-projection.repository';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
-import { ProjectRepoCache } from './project-repo.cache';
-
-type ClientWithPrivates = Omit<ProjectClient, 'parseRepoUrl'> & {
-    parseRepoUrl: (url: string | null | undefined) => Omit<GithubRepoInfo, 'teamId'> | null;
-};
+import { ProjectClient } from './project.client';
 
 describe('ProjectClient', () => {
-    let client: ProjectClient;
-    let memberRepository: { exists: jest.Mock };
-    let repoCache: { get: jest.Mock; set: jest.Mock };
+    const memberRepository = { exists: jest.fn() };
+    const repoRepository = {
+        findAllByProjectId: jest.fn(),
+        findWebhookTargets: jest.fn(),
+    };
+    const client = new ProjectClient(
+        memberRepository as unknown as ProjectMemberProjectionRepository,
+        repoRepository as unknown as ProjectGithubRepoProjectionRepository,
+    );
 
-    beforeEach(async () => {
-        memberRepository = { exists: jest.fn().mockResolvedValue(false) };
-        repoCache = { get: jest.fn().mockResolvedValue(undefined), set: jest.fn().mockResolvedValue(undefined) };
-
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                ProjectClient,
-                {
-                    provide: ConfigService,
-                    useValue: { get: jest.fn().mockReturnValue('http://localhost:8084') },
-                },
-                { provide: ProjectMemberProjectionRepository, useValue: memberRepository },
-                { provide: ProjectRepoCache, useValue: repoCache },
-            ],
-        }).compile();
-
-        client = module.get<ProjectClient>(ProjectClient);
+    beforeEach(() => {
+        jest.clearAllMocks();
     });
 
-    describe('parseRepoUrl (private)', () => {
-        const parse = (url: string | null | undefined) =>
-            (client as unknown as ClientWithPrivates).parseRepoUrl(url);
+    it('연결 저장소가 하나면 그 저장소를 선택한다', async () => {
+        repoRepository.findAllByProjectId.mockResolvedValue([{
+            repoId: 7,
+            projectId: 5,
+            teamId: 10,
+            owner: 'cowork-org',
+            repo: 'server',
+        }]);
 
-        it('표준 GitHub URL에서 owner와 repo를 파싱한다', () => {
-            expect(parse('https://github.com/my-org/backend')).toEqual({
-                owner: 'my-org',
-                repo: 'backend',
-            });
-        });
-
-        it('.git 접미사를 제거한다', () => {
-            expect(parse('https://github.com/my-org/backend.git')).toEqual({
-                owner: 'my-org',
-                repo: 'backend',
-            });
-        });
-
-        it('하위 경로가 있어도 owner/repo만 추출한다', () => {
-            expect(parse('https://github.com/my-org/backend/tree/main')).toEqual({
-                owner: 'my-org',
-                repo: 'backend',
-            });
-        });
-
-        it('null이면 null을 반환한다', () => {
-            expect(parse(null)).toBeNull();
-        });
-
-        it('undefined이면 null을 반환한다', () => {
-            expect(parse(undefined)).toBeNull();
-        });
-
-        it('빈 문자열이면 null을 반환한다', () => {
-            expect(parse('')).toBeNull();
-        });
-
-        it('GitHub URL이 아니면 null을 반환한다', () => {
-            expect(parse('https://gitlab.com/my-org/backend')).toBeNull();
-        });
-
-        it('형식이 잘못된 URL이면 null을 반환한다', () => {
-            expect(parse('not-a-url')).toBeNull();
+        await expect(client.getGithubRepoInfo(5)).resolves.toEqual({
+            repoId: 7,
+            teamId: 10,
+            owner: 'cowork-org',
+            repo: 'server',
         });
     });
 
-    describe('getGithubRepoInfo', () => {
-        beforeEach(() => {
-            global.fetch = jest.fn();
-        });
+    it('여러 저장소 중 하나를 임의 선택하지 않는다', async () => {
+        repoRepository.findAllByProjectId.mockResolvedValue([
+            { repoId: 7, projectId: 5, teamId: 10, owner: 'cowork-org', repo: 'server' },
+            { repoId: 8, projectId: 5, teamId: 10, owner: 'cowork-org', repo: 'web' },
+        ]);
 
-        afterEach(() => {
-            jest.restoreAllMocks();
-        });
-
-        it('프로젝트 서비스 응답에서 레포 정보를 파싱해 반환하고 캐시에 저장한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({
-                    teamId: 10,
-                    githubRepoUrl: 'https://github.com/my-org/backend',
-                }),
-            });
-
-            const result = await client.getGithubRepoInfo(1, 42);
-
-            expect(global.fetch).toHaveBeenCalledWith(
-                'http://localhost:8084/projects/1',
-                expect.objectContaining({
-                    headers: { 'X-User-Id': '42' },
-                    signal: expect.any(AbortSignal) as unknown,
-                }),
-            );
-            expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            expect(repoCache.set).toHaveBeenCalledWith(1, { teamId: 10, owner: 'my-org', repo: 'backend' });
-        });
-
-        it('githubRepoUrl이 null이면 null을 반환하고 캐시에 저장한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({ teamId: 10, githubRepoUrl: null }),
-            });
-
-            expect(await client.getGithubRepoInfo(1, 42)).toBeNull();
-            expect(repoCache.set).toHaveBeenCalledWith(1, null);
-        });
-
-        it('teamId가 없으면 null을 반환한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: true,
-                json: jest.fn().mockResolvedValue({ githubRepoUrl: 'https://github.com/my-org/backend' }),
-            });
-
-            expect(await client.getGithubRepoInfo(1, 42)).toBeNull();
-        });
-
-        it('404 응답이면 null을 반환하고 캐시에 저장한다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 404 });
-
-            expect(await client.getGithubRepoInfo(99, 42)).toBeNull();
-            expect(repoCache.set).toHaveBeenCalledWith(99, null);
-        });
-
-        it('5xx 응답이면 예외를 던지고 캐시에 저장하지 않는다', async () => {
-            (global.fetch as jest.Mock).mockResolvedValue({ ok: false, status: 500 });
-
-            await expect(client.getGithubRepoInfo(1, 42)).rejects.toThrow('프로젝트 서비스 응답 오류: 500');
-            expect(repoCache.set).not.toHaveBeenCalled();
-        });
-
-        it('네트워크 오류가 발생하면 예외를 던지고 캐시에 저장하지 않는다', async () => {
-            (global.fetch as jest.Mock).mockRejectedValue(new Error('ECONNREFUSED'));
-
-            await expect(client.getGithubRepoInfo(1, 42)).rejects.toThrow('ECONNREFUSED');
-            expect(repoCache.set).not.toHaveBeenCalled();
-        });
-
-        it('캐시에 값이 있으면 project-service를 호출하지 않고 캐시된 값을 반환한다', async () => {
-            repoCache.get.mockResolvedValue({ teamId: 10, owner: 'my-org', repo: 'backend' });
-
-            const result = await client.getGithubRepoInfo(1, 42);
-
-            expect(result).toEqual({ teamId: 10, owner: 'my-org', repo: 'backend' });
-            expect(global.fetch).not.toHaveBeenCalled();
-            expect(repoCache.set).not.toHaveBeenCalled();
-        });
-
-        it('캐시에 null(저장소 없음)이 저장되어 있으면 project-service를 호출하지 않는다', async () => {
-            repoCache.get.mockResolvedValue(null);
-
-            const result = await client.getGithubRepoInfo(1, 42);
-
-            expect(result).toBeNull();
-            expect(global.fetch).not.toHaveBeenCalled();
-        });
+        await expect(client.getGithubRepoInfo(5)).rejects.toBeInstanceOf(ConflictException);
     });
 
-    describe('isMember', () => {
-        it('Kafka로 동기화된 로컬 projection에 멤버십이 있으면 true를 반환한다', async () => {
-            memberRepository.exists.mockResolvedValue(true);
+    it('GitHub 활동은 같은 저장소에 연결된 모든 알림 채널로 라우팅한다', async () => {
+        repoRepository.findWebhookTargets.mockResolvedValue([
+            { teamId: 10, projectId: 5, webhookChannelId: 3 },
+            { teamId: 20, projectId: 6, webhookChannelId: 4 },
+        ]);
 
-            await expect(client.isMember(5, 42)).resolves.toBe(true);
-            expect(memberRepository.exists).toHaveBeenCalledWith(5, 42);
-        });
+        await expect(client.getGithubWebhookTargets('Cowork-Org', 'Server')).resolves.toEqual([
+            { teamId: 10, projectId: 5, channelId: 3 },
+            { teamId: 20, projectId: 6, channelId: 4 },
+        ]);
+        expect(repoRepository.findWebhookTargets).toHaveBeenCalledWith('Cowork-Org', 'Server');
+    });
 
-        it('projection에 멤버십이 없으면 fail-closed한다', async () => {
-            memberRepository.exists.mockResolvedValue(false);
+    it('프로젝트 멤버십은 로컬 projection만 조회한다', async () => {
+        memberRepository.exists.mockResolvedValue(true);
 
-            await expect(client.isMember(5, 99)).resolves.toBe(false);
-        });
+        await expect(client.isMember(5, 42)).resolves.toBe(true);
+        expect(memberRepository.exists).toHaveBeenCalledWith(5, 42);
     });
 });
