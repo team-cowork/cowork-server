@@ -1,6 +1,7 @@
 package com.cowork.team.global.consumer
 
 import com.cowork.team.domain.team.entity.Team
+import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
 import io.mockk.every
@@ -10,14 +11,14 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class TeamGithubInstallationConsumerTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamGithubStateSupport = mockk<TeamGithubStateSupport>()
+    private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
 
-    private val consumer = TeamGithubInstallationConsumer(teamRepository, teamGithubStateSupport)
+    private val consumer = TeamGithubInstallationConsumer(teamRepository, teamGithubStateSupport, teamEventPublisher)
 
     private fun team(id: Long = 100L) = Team(id = id, name = "team", description = null, iconUrl = null, ownerId = 1L)
 
@@ -26,7 +27,7 @@ class TeamGithubInstallationConsumerTest {
         val existing = team()
         every { teamGithubStateSupport.verifyState("valid-state") } returns (100L to 10L)
         every { teamRepository.findByGithubInstallationId(1L) } returns null
-        every { teamRepository.findById(100L) } returns Optional.of(existing)
+        every { teamRepository.findByIdForUpdate(100L) } returns existing
         every { teamRepository.save(existing) } returns existing
 
         consumer.consumeConnected(TeamGithubConnectedPayload("valid-state", installationId = 1L, orgLogin = "my-org"))
@@ -34,6 +35,7 @@ class TeamGithubInstallationConsumerTest {
         assertEquals(1L, existing.githubInstallationId)
         assertEquals("my-org", existing.githubOrgLogin)
         verify(exactly = 1) { teamRepository.save(existing) }
+        verify(exactly = 1) { teamEventPublisher.publishUpdated(existing, 10L, any()) }
     }
 
     @Test
@@ -43,7 +45,7 @@ class TeamGithubInstallationConsumerTest {
 
         consumer.consumeConnected(TeamGithubConnectedPayload("invalid-state", installationId = 1L, orgLogin = "my-org"))
 
-        verify(exactly = 0) { teamRepository.findById(any()) }
+        verify(exactly = 0) { teamRepository.findByIdForUpdate(any()) }
         verify(exactly = 0) { teamRepository.save(any()) }
     }
 
@@ -55,7 +57,7 @@ class TeamGithubInstallationConsumerTest {
 
         consumer.consumeConnected(TeamGithubConnectedPayload("valid-state", installationId = 1L, orgLogin = "my-org"))
 
-        verify(exactly = 0) { teamRepository.findById(any()) }
+        verify(exactly = 0) { teamRepository.findByIdForUpdate(any()) }
         verify(exactly = 0) { teamRepository.save(any()) }
     }
 
@@ -64,11 +66,13 @@ class TeamGithubInstallationConsumerTest {
         val existing = team()
         existing.connectGithub(installationId = 1L, orgLogin = "my-org")
         every { teamRepository.findByGithubInstallationId(1L) } returns existing
+        every { teamRepository.findByIdForUpdate(100L) } returns existing
         every { teamRepository.save(existing) } returns existing
 
         consumer.consumeDisconnected(TeamGithubDisconnectedPayload(installationId = 1L))
 
         assertEquals(null, existing.githubInstallationId)
         verify(exactly = 1) { teamRepository.save(existing) }
+        verify(exactly = 1) { teamEventPublisher.publishUpdated(existing, existing.ownerId, any()) }
     }
 }
