@@ -1,11 +1,21 @@
-# 빌드 전 cowork-voice (CGO_ENABLED=0 GOOS=linux 정적 바이너리)이 컨텍스트에 있어야 한다.
-# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
-FROM alpine:3.20
-RUN apk --no-cache add ca-certificates tzdata && \
-    addgroup -S app && adduser -S app -G app
+FROM golang:1.26-alpine AS builder
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-voice ./cmd/server
+
+FROM alpine:3.20 AS runtime
+RUN apk --no-cache add ca-certificates tzdata \
+    && addgroup -S app \
+    && adduser -S app -G app
 WORKDIR /app
-COPY --chown=app:app cowork-voice /usr/local/bin/cowork-voice
+COPY --chown=app:app --from=builder /out/cowork-voice /usr/local/bin/cowork-voice
 USER app
 EXPOSE 8089
 ENV PORT=8089
-CMD ["cowork-voice"]
+ENTRYPOINT ["cowork-voice"]

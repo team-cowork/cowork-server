@@ -79,10 +79,35 @@ func main() {
 
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	processedEventRepo := repository.NewProcessedEventRepository(db)
+	if err := refreshTokenRepo.DeleteExpiredSessions(
+		context.Background(),
+		time.Now().UTC().Truncate(time.Microsecond),
+		cfg.KafkaTopicUserPresence,
+	); err != nil {
+		log.Fatalf("failed to reconcile expired refresh sessions: %v", err)
+	}
 
 	userClient := client.NewUserClient(cfg.UserServiceURL)
 	tokenSvc := service.NewTokenService(cfg)
+	presenceProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserPresence)
 	authSvc := service.NewAuthService(cfg, userClient, refreshTokenRepo, tokenSvc)
+	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, presenceProducer)
+	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
+		sqlDB,
+		cfg.KafkaTopicUserPresence,
+		presenceProducer,
+	)
+	outboxCtx, stopOutboxRelay := context.WithCancel(context.Background())
+	outboxDone := make(chan struct{})
+	go func() {
+		defer close(outboxDone)
+		outboxRelay.Run(outboxCtx)
+	}()
+	snapshotBarrierDone := make(chan struct{})
+	go func() {
+		defer close(snapshotBarrierDone)
+		snapshotBarrierPublisher.Run(outboxCtx)
+	}()
 
 	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
 	defer func() { _ = kafkaProducer.Close() }()
@@ -139,8 +164,12 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				if err := refreshTokenRepo.DeleteExpired(); err != nil {
-					log.Printf("failed to delete expired refresh tokens: %v", err)
+				if err := refreshTokenRepo.DeleteExpiredSessions(
+					context.Background(),
+					time.Now().UTC().Truncate(time.Microsecond),
+					cfg.KafkaTopicUserPresence,
+				); err != nil {
+					log.Printf("failed to reconcile expired refresh sessions: %v", err)
 				}
 				if err := processedEventRepo.DeleteOlderThan(processedEventRetention); err != nil {
 					log.Printf("failed to delete old processed events: %v", err)
@@ -163,6 +192,20 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("server forced to shutdown: %v", err)
+	}
+	stopOutboxRelay()
+	select {
+	case <-outboxDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization outbox relay did not stop within 5 seconds")
+	}
+	select {
+	case <-snapshotBarrierDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization snapshot marker publisher did not stop within 5 seconds")
+	}
+	if err := presenceProducer.Close(); err != nil {
+		log.Printf("failed to close presence producer: %v", err)
 	}
 	log.Println("server exited")
 }
