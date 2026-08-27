@@ -10,11 +10,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"gorm.io/gorm"
 )
+
+var ErrAuthenticationUnavailable = errors.New("authentication temporarily unavailable")
 
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
@@ -68,10 +69,14 @@ type RefreshTokenStore interface {
 	) error
 }
 
+type IdentityCommitCoordinator interface {
+	EnsureUser(context.Context, domain.UserIdentityCommand) (int64, error)
+}
+
 type AuthService struct {
 	cfg              *config.AppConfig
 	httpClient       *http.Client
-	userClient       *client.UserClient
+	identity         IdentityCommitCoordinator
 	refreshTokenRepo RefreshTokenStore
 	tokenSvc         *TokenService
 	now              func() time.Time
@@ -79,14 +84,14 @@ type AuthService struct {
 
 func NewAuthService(
 	cfg *config.AppConfig,
-	userClient *client.UserClient,
+	identity IdentityCommitCoordinator,
 	refreshTokenRepo RefreshTokenStore,
 	tokenSvc *TokenService,
 ) *AuthService {
 	return &AuthService{
 		cfg:              cfg,
 		httpClient:       &http.Client{Timeout: 5 * time.Second},
-		userClient:       userClient,
+		identity:         identity,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
 		now: func() time.Time {
@@ -115,36 +120,47 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	if err != nil {
 		return nil, err
 	}
+	operationID, err := domain.NewUUID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user identity operation: %w", err)
+	}
 	grade := st.Grade
-	classNum := st.ClassNum
-	number := st.Number
+	classNumber := st.ClassNum
+	studentNumberInClass := st.Number
 	studentID := st.ID
-
-	upsertReq := client.UpsertUserRequest{
+	command := domain.UserIdentityCommand{
+		SchemaVersion:        domain.UserIdentitySchemaVersion,
+		OperationID:          operationID,
+		IdempotencyKey:       operationID,
+		CommandType:          domain.UserIdentityCommandUpsert,
+		UserID:               userInfo.ID,
 		Name:                 st.Name,
 		Email:                userInfo.Email,
 		Sex:                  st.Sex,
 		Grade:                &grade,
-		ClassNumber:          &classNum,
-		StudentNumberInClass: &number,
+		ClassNumber:          &classNumber,
+		StudentNumberInClass: &studentNumberInClass,
 		Major:                st.Major,
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
 		DataGSMStudentID:     &studentID,
+		RequestedBy:          userInfo.ID,
+		OccurredAt:           s.now().UTC().Truncate(time.Microsecond),
 	}
-
-	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upsert user: %w", err)
-	}
-
-	return s.issueNewSession(ctx, userID, userInfo.Email, platformRole, st.Role, "")
+	return s.commitIdentityAndIssueSession(
+		ctx,
+		command,
+		userInfo.Email,
+		platformRole,
+		st.Role,
+		"",
+	)
 }
 
 func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
 	rawRefresh, refreshHash, err := s.tokenSvc.GenerateRefreshToken()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
+		return nil, fmt.Errorf("%w: failed to generate refresh token: %v", ErrAuthenticationUnavailable, err)
 	}
 
 	now := s.now().UTC().Truncate(time.Microsecond)
@@ -162,7 +178,7 @@ func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		case errors.Is(err, domain.ErrRefreshTokenExpired):
 			return nil, fmt.Errorf("refresh token expired")
 		default:
-			return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
+			return nil, fmt.Errorf("%w: failed to rotate refresh token: %v", ErrAuthenticationUnavailable, err)
 		}
 	}
 
@@ -173,7 +189,7 @@ func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		source.GsmRole,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate access token: %w", err)
+		return nil, fmt.Errorf("%w: failed to generate access token: %v", ErrAuthenticationUnavailable, err)
 	}
 	return s.tokenPair(accessToken, rawRefresh), nil
 }
@@ -193,7 +209,7 @@ func (s *AuthService) Logout(ctx context.Context, userID int64, rawRefreshToken 
 		case errors.Is(err, domain.ErrRefreshTokenOwnerMismatch):
 			return fmt.Errorf("token does not belong to user")
 		default:
-			return fmt.Errorf("failed to revoke refresh token: %w", err)
+			return fmt.Errorf("%w: failed to revoke refresh token: %v", ErrAuthenticationUnavailable, err)
 		}
 	}
 
@@ -243,6 +259,25 @@ func (s *AuthService) issueNewSession(
 	return s.tokenPair(accessToken, rawRefresh), nil
 }
 
+func (s *AuthService) commitIdentityAndIssueSession(
+	ctx context.Context,
+	command domain.UserIdentityCommand,
+	email string,
+	role string,
+	gsmRole string,
+	deviceInfo string,
+) (*TokenPair, error) {
+	userID, err := s.identity.EnsureUser(ctx, command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit user identity: %w", err)
+	}
+	pair, err := s.issueNewSession(ctx, userID, email, role, gsmRole, deviceInfo)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to issue session: %v", ErrAuthenticationUnavailable, err)
+	}
+	return pair, nil
+}
+
 // PlatformRoleFromDataGSM maps the provider's account role to the only two
 // platform-wide roles accepted by Gateway and downstream services.
 func PlatformRoleFromDataGSM(providerRole string) (string, error) {
@@ -285,13 +320,13 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to call token endpoint: %w", err)
+		return "", fmt.Errorf("%w: failed to call token endpoint: %v", ErrAuthenticationUnavailable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read token response: %w", err)
+		return "", fmt.Errorf("%w: failed to read token response: %v", ErrAuthenticationUnavailable, err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		return "", providerStatusError("token", resp.StatusCode)
@@ -301,10 +336,10 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("failed to parse token response: %w", err)
+		return "", fmt.Errorf("%w: failed to parse token response: %v", ErrAuthenticationUnavailable, err)
 	}
 	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access_token in response")
+		return "", fmt.Errorf("%w: empty access_token in response", ErrAuthenticationUnavailable)
 	}
 	return result.AccessToken, nil
 }
@@ -318,7 +353,7 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
+		return nil, fmt.Errorf("%w: failed to call userinfo endpoint: %v", ErrAuthenticationUnavailable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -328,16 +363,20 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read userinfo response: %w", err)
+		return nil, fmt.Errorf("%w: failed to read userinfo response: %v", ErrAuthenticationUnavailable, err)
 	}
 
 	var info DataGSMUserInfo
 	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, fmt.Errorf("failed to parse userinfo response: %w", err)
+		return nil, fmt.Errorf("%w: failed to parse userinfo response: %v", ErrAuthenticationUnavailable, err)
 	}
 	return &info, nil
 }
 
 func providerStatusError(endpoint string, status int) error {
-	return fmt.Errorf("%s endpoint returned status %d", endpoint, status)
+	err := fmt.Errorf("%s endpoint returned status %d", endpoint, status)
+	if status >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: %v", ErrAuthenticationUnavailable, err)
+	}
+	return err
 }
