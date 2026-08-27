@@ -14,6 +14,38 @@ interface ProjectMemberRepository :
     JpaSpecificationExecutor<ProjectMember> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pm FROM ProjectMember pm WHERE pm.id = :memberId")
+    fun findByIdForUpdate(@Param("memberId") memberId: Long): ProjectMember?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        "SELECT pm FROM ProjectMember pm " +
+            "WHERE pm.projectId = :projectId AND pm.userId = :userId",
+    )
+    fun findByProjectIdAndUserIdForUpdate(
+        @Param("projectId") projectId: Long,
+        @Param("userId") userId: Long,
+    ): ProjectMember?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pm FROM ProjectMember pm WHERE pm.projectId = :projectId ORDER BY pm.id")
+    fun findAllByProjectIdForUpdate(@Param("projectId") projectId: Long): List<ProjectMember>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pm FROM ProjectMember pm WHERE pm.projectId IN :projectIds ORDER BY pm.projectId, pm.id")
+    fun findAllByProjectIdInForUpdate(@Param("projectIds") projectIds: Collection<Long>): List<ProjectMember>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        "SELECT pm FROM ProjectMember pm " +
+            "WHERE pm.userId = :userId AND pm.projectId IN :projectIds ORDER BY pm.projectId, pm.id",
+    )
+    fun findAllByUserIdAndProjectIdInForUpdate(
+        @Param("userId") userId: Long,
+        @Param("projectIds") projectIds: Collection<Long>,
+    ): List<ProjectMember>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT pm FROM ProjectMember pm WHERE pm.projectId = :projectId ORDER BY pm.id")
     fun findSnapshotByProjectId(@Param("projectId") projectId: Long): List<ProjectMember>
 
@@ -36,8 +68,6 @@ interface ProjectMemberRepository :
     fun findAllByProjectIdIn(projectIds: List<Long>): List<ProjectMember>
 
     fun findAllByUserId(userId: Long): List<ProjectMember>
-
-    fun deleteAllByUserId(userId: Long)
 
     fun deleteAllByUserIdAndProjectIdIn(userId: Long, projectIds: List<Long>)
 }

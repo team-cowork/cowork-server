@@ -37,7 +37,7 @@ class CreateProjectServiceImpl(
             ),
         )
 
-        projectMemberRepository.save(
+        val owner = projectMemberRepository.save(
             ProjectMember(
                 projectId = project.id,
                 userId = userId,
@@ -46,7 +46,7 @@ class CreateProjectServiceImpl(
         )
 
         projectEventPublisher.publishCreated(project)
-        projectMemberEventPublisher.publishAdded(project.id, userId)
+        projectMemberEventPublisher.publishAdded(owner)
 
         return ProjectResDto.of(project)
     }
