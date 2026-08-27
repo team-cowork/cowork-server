@@ -8,8 +8,6 @@ import io.vertx.redis.client.RedisAPI
 private const val TTL_SECONDS = 300L
 private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
 private const val LOCK_TTL_SECONDS = 55L
-private const val PROJECTION_SNAPSHOT_LOCK_KEY = "projection:snapshot:lock"
-private const val PROJECTION_SNAPSHOT_LOCK_TTL_SECONDS = 240L
 
 class PreferenceCache(private val redis: RedisAPI) {
 
@@ -26,38 +24,10 @@ class PreferenceCache(private val redis: RedisAPI) {
         redis.del(listOf(settingKey(resourceType, resourceId))).coAwait()
     }
 
-    suspend fun getNotification(accountId: Long, channelId: Long): JsonObject? {
-        val value = redis.get(notificationKey(accountId, channelId)).coAwait()
-        return value?.toString()?.let { JsonObject(it) }
-    }
-
-    suspend fun setNotification(accountId: Long, channelId: Long, settings: JsonObject) {
-        redis.setex(notificationKey(accountId, channelId), TTL_SECONDS.toString(), settings.encode()).coAwait()
-    }
-
-    suspend fun invalidateNotification(accountId: Long, channelId: Long) {
-        redis.del(listOf(notificationKey(accountId, channelId))).coAwait()
-    }
-
     suspend fun acquireExpiryLock(): Boolean {
         val result = redis.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
         return result?.toString() == "OK"
     }
 
-    suspend fun acquireProjectionSnapshotLock(): Boolean {
-        val result = redis.set(
-            listOf(
-                PROJECTION_SNAPSHOT_LOCK_KEY,
-                "1",
-                "NX",
-                "EX",
-                PROJECTION_SNAPSHOT_LOCK_TTL_SECONDS.toString(),
-            ),
-        ).coAwait()
-        return result?.toString() == "OK"
-    }
-
     private fun settingKey(resourceType: ResourceType, resourceId: Long) = "pref:${resourceType.name}:$resourceId"
-
-    private fun notificationKey(accountId: Long, channelId: Long) = "pref:notification:$accountId:$channelId"
 }

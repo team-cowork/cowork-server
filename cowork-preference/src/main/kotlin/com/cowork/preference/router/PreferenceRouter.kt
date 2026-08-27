@@ -5,7 +5,6 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
-import com.cowork.preference.handler.TeamRoleHandler
 import com.cowork.preference.messaging.ProjectionReadiness
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
@@ -16,7 +15,6 @@ fun buildRouter(
     preferenceHandler: PreferenceHandler,
     notificationHandler: NotificationHandler,
     projectRoleHandler: ProjectRoleHandler,
-    teamRoleHandler: TeamRoleHandler,
     projectionReadiness: ProjectionReadiness,
 ): Router {
     val router = Router.router(vertx)
@@ -41,18 +39,6 @@ fun buildRouter(
             )
     }
 
-    router.route().handler { ctx ->
-        if (TeamRoleProjectionGate.requiresProjection(ctx.normalizedPath()) && !projectionReadiness.isReady) {
-            ctx.response()
-                .setStatusCode(503)
-                .putHeader("Content-Type", "application/json")
-                .putHeader("Retry-After", "1")
-                .end("""{"error":"team role projection is catching up"}""")
-        } else {
-            ctx.next()
-        }
-    }
-
     router.get("/metrics").handler { ctx ->
         ctx.response()
             .putHeader("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
@@ -75,12 +61,6 @@ fun buildRouter(
     // TEAM
     router.get("/preferences/team/:id").handler(preferenceHandler.getSettings(ResourceType.TEAM))
     router.put("/preferences/team/:id").handler(preferenceHandler.updateSettings(ResourceType.TEAM))
-    router.post("/internal/preferences/team/:teamId/roles").handler(teamRoleHandler::createRole)
-    router.patch("/internal/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::updateRole)
-    router.delete("/internal/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::deleteRole)
-    router.post("/internal/preferences/team/:teamId/roles/:roleId/members").handler(teamRoleHandler::assignRole)
-    router.delete("/internal/preferences/team/:teamId/roles/:roleId/members/:accountId")
-        .handler(teamRoleHandler::removeRole)
 
     // PROJECT
     router.get("/preferences/project/:id").handler(preferenceHandler.getSettings(ResourceType.PROJECT))
@@ -102,11 +82,6 @@ fun buildRouter(
     router.get("/preferences/text-channel/:id").handler(preferenceHandler.getSettings(ResourceType.TEXT_CHANNEL))
     router.put("/preferences/text-channel/:id").handler(preferenceHandler.updateSettings(ResourceType.TEXT_CHANNEL))
 
-    // GITHUB_REPO
-    router.get("/preferences/github-repo").handler(preferenceHandler.getSettingsBulk(ResourceType.GITHUB_REPO))
-    router.get("/preferences/github-repo/:id").handler(preferenceHandler.getSettings(ResourceType.GITHUB_REPO))
-    router.put("/preferences/github-repo/:id").handler(preferenceHandler.updateSettings(ResourceType.GITHUB_REPO))
-
     // Notification
     router.get("/preferences/account/:accountId/channels/:channelId/notification")
         .handler(notificationHandler::getNotification)
@@ -114,10 +89,4 @@ fun buildRouter(
         .handler(notificationHandler::updateNotification)
 
     return router
-}
-
-object TeamRoleProjectionGate {
-    private val rolePath = Regex("^/internal/preferences/team/[^/]+/roles(?:/.*)?$")
-
-    fun requiresProjection(path: String): Boolean = rolePath.matches(path)
 }
