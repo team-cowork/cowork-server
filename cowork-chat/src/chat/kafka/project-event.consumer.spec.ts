@@ -1,7 +1,6 @@
 import { mongo } from 'mongoose';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
-import { ProjectRepoCache } from '../service/project-repo.cache';
 import { ProjectEventConsumer } from './project-event.consumer';
 
 type ConsumerWithHandle = {
@@ -11,7 +10,6 @@ type ConsumerWithHandle = {
 const SOURCE_VERSION = mongo.Long.fromString('1787702400000000000');
 
 describe('ProjectEventConsumer', () => {
-    const repoCache = { invalidate: jest.fn().mockResolvedValue(undefined) };
     const memberRepository = { removeByProjectId: jest.fn().mockResolvedValue(undefined) };
     const projectRepository = {
         upsert: jest.fn().mockResolvedValue(true),
@@ -20,7 +18,6 @@ describe('ProjectEventConsumer', () => {
     const consumer = new ProjectEventConsumer(
         { get: jest.fn() } as never,
         { sendCustom: jest.fn() } as never,
-        repoCache as unknown as ProjectRepoCache,
         projectRepository as unknown as ProjectProjectionRepository,
         memberRepository as unknown as ProjectMemberProjectionRepository,
         {} as never,
@@ -30,7 +27,7 @@ describe('ProjectEventConsumer', () => {
 
     beforeEach(() => jest.clearAllMocks());
 
-    it('프로젝트 삭제 시 GitHub 캐시와 모든 멤버십 projection을 정리한다', async () => {
+    it('프로젝트 삭제 시 모든 멤버십 projection을 정리한다', async () => {
         await (consumer as unknown as ConsumerWithHandle).handleEvent({
             eventType: 'DELETED',
             projectId: 5,
@@ -41,7 +38,6 @@ describe('ProjectEventConsumer', () => {
             occurredAt: '2026-08-26T00:00:00',
         }, '5');
 
-        expect(repoCache.invalidate).toHaveBeenCalledWith(5);
         expect(projectRepository.remove).toHaveBeenCalledWith(
             5,
             new Date('2026-08-26T00:00:00Z'),
@@ -54,7 +50,7 @@ describe('ProjectEventConsumer', () => {
         );
     });
 
-    it('이미 반영된 UPDATED snapshot이면 캐시를 다시 무효화하지 않는다', async () => {
+    it('이미 반영된 UPDATED 이벤트면 부수효과를 다시 실행하지 않는다', async () => {
         projectRepository.upsert.mockResolvedValueOnce(false);
 
         await (consumer as unknown as ConsumerWithHandle).handleEvent({
@@ -67,12 +63,11 @@ describe('ProjectEventConsumer', () => {
             occurredAt: '2026-08-26T00:00:00Z',
         }, '5');
 
-        expect(repoCache.invalidate).not.toHaveBeenCalled();
         expect(memberRepository.removeByProjectId).not.toHaveBeenCalled();
         expect(socket.to).not.toHaveBeenCalled();
     });
 
-    it('snapshot=true이면 projection은 갱신하지만 캐시·socket 변경 알림은 발생시키지 않는다', async () => {
+    it('snapshot=true이면 projection은 갱신하지만 socket 변경 알림은 발생시키지 않는다', async () => {
         await (consumer as unknown as ConsumerWithHandle).handleEvent({
             eventType: 'UPDATED',
             projectId: 5,
@@ -86,7 +81,6 @@ describe('ProjectEventConsumer', () => {
         }, '5');
 
         expect(projectRepository.upsert).toHaveBeenCalled();
-        expect(repoCache.invalidate).not.toHaveBeenCalled();
         expect(socket.to).not.toHaveBeenCalled();
     });
 
@@ -105,7 +99,6 @@ describe('ProjectEventConsumer', () => {
 
             expect(projectRepository.upsert).not.toHaveBeenCalled();
             expect(projectRepository.remove).not.toHaveBeenCalled();
-            expect(repoCache.invalidate).not.toHaveBeenCalled();
             expect(socket.to).not.toHaveBeenCalled();
         },
     );

@@ -9,14 +9,16 @@ import { ProjectClient } from '../service/project.client';
 import { GithubRepoEvent } from './event/github-repo.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 
 /** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
 const MESSAGE_CONTENT_MAX_LENGTH = 25000;
+const PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS = 5000;
 
 /**
  * Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
  *
- * 이벤트가 발생한 저장소(`owner`/`repo`)에 연결된 프로젝트의 GitHub 알림 채널을 `project-service`에 조회하고,
+ * 이벤트가 발생한 저장소(`owner`/`repo`)에 연결된 프로젝트의 GitHub 알림 채널을 로컬 projection에서 조회하고,
  * 알림 채널이 지정되어 있으면 `summary`를 SYSTEM 메시지로 MongoDB에 저장한 후 Socket.IO로 브로드캐스트한다.
  * Socket.IO 서버 인스턴스는 `ChatGateway`의 `afterInit`에서 {@link setSocketServer}로 주입된다.
  */
@@ -31,6 +33,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly projectClient: ProjectClient,
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     /**
@@ -62,11 +65,12 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer
             .run({
-                eachMessage: async ({ message }) => {
+                eachMessage: async (payload) => {
+                    const { message } = payload;
                     if (!message.value) return;
                     try {
                         const event = JSON.parse(message.value.toString()) as GithubRepoEvent;
-                        await this.handleRepoEvent(event);
+                        await this.handleRepoEvent(event, () => payload.heartbeat());
                     } catch (err) {
                         this.logger.error('Failed to process repo event', err);
                         // 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
@@ -105,18 +109,50 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      *
      * @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
      */
-    private async handleRepoEvent(event: GithubRepoEvent): Promise<void> {
+    private async handleRepoEvent(event: GithubRepoEvent, heartbeat: () => Promise<void> = async () => {}): Promise<void> {
         const summary = this.sanitizeSummary(event.summary);
         if (summary === null) {
             this.logger.warn(`Skipping repo event with empty summary owner=${event.owner} repo=${event.repo}`);
             return;
         }
 
+        await this.waitForProjectionReadiness(heartbeat);
+        if (!this.projectionReadiness.isReady()) {
+            throw new Error('Kafka projections became unavailable while processing github.repo.event');
+        }
         const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
         for (const target of targets) {
             const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary, target.projectId);
             this.notifyClient(target.channelId, saved.toObject());
+        }
+    }
+
+    /**
+     * 초기 projection 적재가 Kafka session timeout보다 길어져도 consumer가 재조정되지 않도록
+     * 준비 상태를 기다리는 동안 주기적으로 heartbeat를 전송한다.
+     */
+    private async waitForProjectionReadiness(heartbeat: () => Promise<void>): Promise<void> {
+        await this.waitWithHeartbeat(this.projectionReadiness.checkCatchup(), heartbeat);
+        while (!this.projectionReadiness.isReady()) {
+            await this.waitWithHeartbeat(this.projectionReadiness.whenReady(), heartbeat);
+        }
+    }
+
+    private async waitWithHeartbeat(operation: Promise<void>, heartbeat: () => Promise<void>): Promise<void> {
+        while (true) {
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const completed = operation.then(() => true);
+            const heartbeatInterval = new Promise<boolean>((resolve) => {
+                timer = setTimeout(() => resolve(false), PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS);
+            });
+
+            try {
+                if (await Promise.race([completed, heartbeatInterval])) return;
+            } finally {
+                if (timer) clearTimeout(timer);
+            }
+            await heartbeat();
         }
     }
 
