@@ -1,20 +1,20 @@
-# 빌드 전 target/app.jar (CI가 mvnw package 산출물 boot jar를 app.jar로 전달)이 컨텍스트에 있어야 한다.
-# TODO: CI 산출물 핸드오프 배선 후 이 주석 삭제
-FROM eclipse-temurin:25-jre-alpine AS extractor
-WORKDIR /app
-COPY target/app.jar app.jar
-RUN java -Djarmode=layertools -jar app.jar extract --destination extracted
+FROM eclipse-temurin:25-jdk-alpine AS builder
+WORKDIR /workspace
 
-FROM eclipse-temurin:25-jre-alpine
+COPY .mvn .mvn
+COPY mvnw pom.xml ./
+RUN chmod +x mvnw
+COPY src src
+RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
+    ./mvnw -B -DskipTests clean package \
+    && artifact="$(find target -maxdepth 1 -type f -name 'cowork-project-*.jar' -print -quit)" \
+    && test -n "${artifact}" \
+    && cp "${artifact}" /workspace/app.jar
+
+FROM eclipse-temurin:25-jre-alpine AS runtime
 RUN addgroup -S app && adduser -S app -G app
 WORKDIR /app
-COPY --chown=app:app --from=extractor /app/extracted/dependencies ./
-COPY --chown=app:app --from=extractor /app/extracted/spring-boot-loader ./
-COPY --chown=app:app --from=extractor /app/extracted/snapshot-dependencies ./
-COPY --chown=app:app --from=extractor /app/extracted/application ./
+COPY --chown=app:app --from=builder /workspace/app.jar app.jar
 USER app
 EXPOSE 8084
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

@@ -2,12 +2,12 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,6 +18,7 @@ class JoinTeamServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
+    private val teamMemberEventPublisher: TeamMemberEventPublisher,
 ) : JoinTeamService {
 
     @Transactional
@@ -43,7 +44,8 @@ class JoinTeamServiceImpl(
             actorUserId = userId,
             targetUserIds = listOf(userId),
         )
-        afterCommit { teamEventPublisher.publishLifecycle(payload) }
+        teamEventPublisher.publishLifecycle(payload)
+        teamMemberEventPublisher.publishUpsert(member)
 
         return JoinTeamResponse(
             teamId = teamId,

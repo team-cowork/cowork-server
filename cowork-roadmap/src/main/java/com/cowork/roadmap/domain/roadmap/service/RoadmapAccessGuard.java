@@ -7,15 +7,16 @@ import org.springframework.stereotype.Component;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.global.client.TeamClient;
+import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.TeamMemberProjectionRepository;
 
 import lombok.RequiredArgsConstructor;
 import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 /**
- * 로드맵 읽기/변경/생성 권한 판정. 커스텀(TEAM/PROJECT) 로드맵은 항상 owner_team_id를 기준으로
- * cowork-team의 팀 역할을 조회해 판정한다.
+ * 로드맵 읽기/변경/생성 권한 판정. 커스텀(TEAM/PROJECT) 로드맵은 항상 owner_team_id를 기준으로 Kafka로 동기화한
+ * 로컬 팀 멤버 투영의 역할을 조회해 판정한다.
  */
 @Component
 @RequiredArgsConstructor
@@ -24,7 +25,8 @@ public class RoadmapAccessGuard {
     private static final String ROLE_ADMIN = "ADMIN";
     private static final Set<String> TEAM_MANAGER_ROLES = Set.of("OWNER", "ADMIN");
 
-    private final TeamClient teamClient;
+    private final TeamMemberProjectionRepository teamMemberships;
+    private final TeamMemberProjectionReadiness projectionReadiness;
 
     /** 로드맵 생성 권한. GLOBAL은 ADMIN, 커스텀은 소유 팀의 OWNER/ADMIN만 허용. */
     public Mono<Void> requireCreatable(Long userId, String userRole, RoadmapScope scope, Long ownerTeamId) {
@@ -56,9 +58,10 @@ public class RoadmapAccessGuard {
         if (ROLE_ADMIN.equals(userRole)) {
             return Mono.empty();
         }
-        return teamClient.getMemberRole(roadmap.getOwnerTeamId(), userId)
-                .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 조회할 권한이 없습니다.", HttpStatus.FORBIDDEN)))
-                .then();
+        return requireProjectionReady()
+                .then(Mono.defer(() -> teamMemberships.findActiveRole(roadmap.getOwnerTeamId(), userId)
+                        .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 조회할 권한이 없습니다.", HttpStatus.FORBIDDEN)))
+                        .then()));
     }
 
     /** 과제 출제/삭제 권한. 글로벌 ADMIN 또는 해당 팀의 OWNER/ADMIN. */
@@ -77,9 +80,16 @@ public class RoadmapAccessGuard {
     }
 
     private Mono<Void> requireTeamManager(Long teamId, Long userId, String message) {
-        return teamClient.getMemberRole(teamId, userId)
+        return requireProjectionReady().then(Mono.defer(() -> teamMemberships.findActiveRole(teamId, userId)
                 .filter(TEAM_MANAGER_ROLES::contains)
                 .switchIfEmpty(Mono.error(new ExpectedException(message, HttpStatus.FORBIDDEN)))
-                .then();
+                .then()));
+    }
+
+    private Mono<Void> requireProjectionReady() {
+        if (projectionReadiness.isReady()) {
+            return Mono.empty();
+        }
+        return Mono.error(new ExpectedException("팀 멤버 투영을 동기화하는 중입니다.", HttpStatus.SERVICE_UNAVAILABLE));
     }
 }

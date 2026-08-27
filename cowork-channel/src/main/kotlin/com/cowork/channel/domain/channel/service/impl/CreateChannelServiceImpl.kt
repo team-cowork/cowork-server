@@ -13,7 +13,6 @@ import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -67,10 +66,8 @@ class CreateChannelServiceImpl(
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             createDefaultMeetingNoteTemplateService.createDefaultTemplate(channel)
         }
-        afterCommit {
-            channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
-            channelEventPublisher.publishCreated(channel)
-        }
+        channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
+        channelEventPublisher.publishCreated(channel)
         return ChannelResponse.of(channel)
     }
 }

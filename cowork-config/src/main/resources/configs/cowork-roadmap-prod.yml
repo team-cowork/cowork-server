@@ -10,11 +10,13 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     user: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
 
-team-service:
-  base-url: lb://cowork-team
+KAFKA_TOPIC_TEAM_MEMBER: team.member.event
+KAFKA_GROUP_ID_TEAM_MEMBER: cowork-roadmap.team-member

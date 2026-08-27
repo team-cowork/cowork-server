@@ -11,7 +11,6 @@ import com.cowork.team.domain.team.service.CreateTeamService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
-import com.cowork.team.global.support.afterCommit
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -33,7 +32,7 @@ class CreateTeamServiceImpl(
                 ownerId = ownerId,
             ),
         )
-        teamMemberRepository.save(
+        val owner = teamMemberRepository.save(
             TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER),
         )
 
@@ -44,13 +43,11 @@ class CreateTeamServiceImpl(
             actorUserId = ownerId,
             targetUserIds = listOf(ownerId),
         )
-        afterCommit {
-            teamEventPublisher.publishNotification(payload)
-            teamLifecycleSyncPublisher.publishTeamSnapshot(
-                actorUserId = ownerId,
-                members = listOf(TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER)),
-            )
-        }
+        teamEventPublisher.publishLifecycle(payload)
+        teamLifecycleSyncPublisher.publishTeamSnapshot(
+            actorUserId = ownerId,
+            members = listOf(owner),
+        )
 
         return TeamResponse.of(team)
     }
