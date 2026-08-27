@@ -1,8 +1,9 @@
-import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Param } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { UserId } from '../common/decorator/user.decorator';
 import { UnreadCountItemDto } from './dto/unread-count-response.dto';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 @ApiTags('Chat')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
@@ -15,7 +16,7 @@ export class TeamUnreadController {
     @ApiOperation({ summary: '팀 내 가입 채널별 미읽 카운트 조회' })
     @ApiResponse({ status: 200, type: [UnreadCountItemDto] })
     async getTeamUnread(
-        @Param('teamId', ParseIntPipe) teamId: number,
+        @Param('teamId', SafePositiveIntPipe) teamId: number,
         @UserId() userId: number,
     ): Promise<UnreadCountItemDto[]> {
         return this.chatService.getTeamUnread(teamId, userId);
