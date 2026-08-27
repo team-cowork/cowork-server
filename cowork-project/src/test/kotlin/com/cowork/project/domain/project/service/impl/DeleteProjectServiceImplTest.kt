@@ -1,5 +1,6 @@
 package com.cowork.project.domain.project.service.impl
 
+import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -20,6 +21,7 @@ class DeleteProjectServiceImplTest {
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectMemberEventPublisher = mockk<ProjectMemberEventPublisher>(relaxed = true)
     private val projectAccessGuard = mockk<ProjectAccessGuard>()
+    private val repoDeletionSupport = mockk<ProjectGithubRepoDeletionSupport>(relaxed = true)
     private val service =
         DeleteProjectServiceImpl(
             projectRepository,
@@ -27,6 +29,7 @@ class DeleteProjectServiceImplTest {
             projectEventPublisher,
             projectMemberEventPublisher,
             projectAccessGuard,
+            repoDeletionSupport,
         )
 
     @Test
@@ -36,17 +39,18 @@ class DeleteProjectServiceImplTest {
             ProjectMember(projectId = 7L, userId = 11L),
             ProjectMember(projectId = 7L, userId = 12L),
         )
-        every { projectAccessGuard.findProjectOrThrow(7L) } returns project
+        every { projectAccessGuard.findProjectForUpdateOrThrow(7L) } returns project
         every { projectAccessGuard.requireProjectOwner(project, 11L) } just Runs
-        every { projectMemberRepository.findByProjectId(7L) } returns members
+        every { projectMemberRepository.findAllByProjectIdForUpdate(7L) } returns members
         every { projectRepository.delete(project) } just Runs
 
         service.execute(11L, 7L)
 
         verifyOrder {
-            projectMemberEventPublisher.publishRemoved(7L, 11L, any(), false)
-            projectMemberEventPublisher.publishRemoved(7L, 12L, any(), false)
+            projectMemberEventPublisher.publishRemoved(members[0], any())
+            projectMemberEventPublisher.publishRemoved(members[1], any())
             projectEventPublisher.publishDeleted(project, any())
+            projectRepository.delete(project)
         }
     }
 }

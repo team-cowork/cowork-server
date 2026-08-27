@@ -12,4 +12,7 @@ class ProjectMemberLookupSupport(private val projectMemberRepository: ProjectMem
     fun findMemberOrThrow(memberId: Long): ProjectMember = projectMemberRepository.findById(memberId).orElseThrow {
         ExpectedException("프로젝트 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
+
+    fun findMemberForUpdateOrThrow(memberId: Long): ProjectMember = projectMemberRepository.findByIdForUpdate(memberId)
+        ?: throw ExpectedException("프로젝트 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 }
