@@ -18,6 +18,7 @@ postgresql = "42.7.11"
 micrometer = "1.17.0"
 logstash-logback = "9.0"
 mockk = "1.14.3"
+kotest = "5.9.1"
 jetbrains-annotations = "26.1.0"
 lombok = "1.18.46"
 
@@ -86,6 +87,8 @@ flyway-database-postgresql = { module = "org.flywaydb:flyway-database-postgresql
 postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" }
 logstash-logback-encoder = { module = "net.logstash.logback:logstash-logback-encoder", version.ref = "logstash-logback" }
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5-jvm", version.ref = "kotest" }
+kotest-assertions-core = { module = "io.kotest:kotest-assertions-core-jvm", version.ref = "kotest" }
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 
