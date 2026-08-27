@@ -20,8 +20,6 @@ db_url =
     System.get_env("DB_URL")
 
 db_pool_size = String.to_integer(System.get_env("DB_POOL_SIZE", "10"))
-server_port = String.to_integer(System.get_env("PORT") || System.get_env("SERVER_PORT") || "8082")
-secret_key_base = System.fetch_env!("SECRET_KEY_BASE")
 
 repo_config =
   if db_url do
@@ -37,8 +35,3 @@ repo_config =
   end
 
 config :cowork_user, CoworkUser.Repo, Keyword.put(repo_config, :pool_size, db_pool_size)
-
-config :cowork_user, CoworkUser.Endpoint,
-  http: [ip: {0, 0, 0, 0}, port: server_port],
-  server: true,
-  secret_key_base: secret_key_base
