@@ -26,7 +26,8 @@ public class TeamMemberEventConsumer {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
             String violation = ProjectionSnapshotCompletion.violation(objectMapper, record);
             if (violation == null) {
-                processor.completeSnapshot(record).block(APPLY_TIMEOUT);
+                processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record))
+                        .block(APPLY_TIMEOUT);
             } else {
                 LOG.error("Discarding invalid projection snapshot marker: {}", violation);
                 discard(record, violation);
@@ -40,6 +41,10 @@ public class TeamMemberEventConsumer {
         } catch (Exception exception) {
             LOG.error("Discarding malformed team.member.event payload", exception);
             discard(record, "team.member.event JSON is malformed: " + exception.getMessage());
+            return;
+        }
+        if (event == null) {
+            discard(record, "team.member.event top-level null is not allowed");
             return;
         }
 

@@ -24,7 +24,7 @@ class TeamMemberEventParserTest {
             """.trimIndent(),
         )
 
-        val event = assertInstanceOf(TeamMemberRecordDecision.ApplyDelete::class.java, decision).event
+        val event = assertInstanceOf(TeamMemberRecordDecision.Apply::class.java, decision).event
         assertEquals(3L, event.teamId)
         assertEquals(11L, event.userId)
         assertEquals(TeamMemberCleanupScope.MEMBER, TeamMemberCleanupPolicy.scope(event))
@@ -47,7 +47,7 @@ class TeamMemberEventParserTest {
             """.trimIndent(),
         )
 
-        val event = assertInstanceOf(TeamMemberRecordDecision.ApplyDelete::class.java, decision).event
+        val event = assertInstanceOf(TeamMemberRecordDecision.Apply::class.java, decision).event
         assertEquals(TeamMemberCleanupScope.TEAM, TeamMemberCleanupPolicy.scope(event))
     }
 
@@ -92,7 +92,7 @@ class TeamMemberEventParserTest {
     }
 
     @Test
-    fun `checkpoints member upserts without applying cleanup`() {
+    fun `applies member upserts to the durable membership projection`() {
         val decision = TeamMemberEventParser.parse(
             key = "3:11",
             value =
@@ -107,6 +107,7 @@ class TeamMemberEventParserTest {
             """.trimIndent(),
         )
 
-        assertInstanceOf(TeamMemberRecordDecision.IgnoreUpsert::class.java, decision)
+        val event = assertInstanceOf(TeamMemberRecordDecision.Apply::class.java, decision).event
+        assertEquals("UPSERT", event.eventType)
     }
 }

@@ -1,20 +1,17 @@
 # Gateway 내부 API 외부 노출 차단
 
-- **서비스**: cowork-gateway, cowork-user, cowork-team, cowork-project 및 내부 HTTP client
+- **서비스**: cowork-gateway, cowork-project, 별도 cowork-github-app
 - **우선순위**: 🔴 높음
 - **파생 원본**: [외부 API 모듈 네임스페이스 통일](../10-api/public-route-namespace-migration.md)
-- **현재 상태**: 신규 내부 command는 `/internal/**`로 분리했으며, 직전 GitHub App PR 범위의 기존 operation은 별도 전환 작업까지 보류함
+- **현재 상태**: 모노레포 서비스 간 내부 HTTP operation은 제거했으며, 외부 GitHub App adapter의 request-scoped HTTP만 남음
 
 ## 문제
 
 module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/api/project/projects/**`처럼 resource root 전체를 Gateway에 연결하면 같은 root 아래의 내부 서비스용 operation도 계속 노출된다.
 
-현재 확인된 대상은 다음과 같다.
-
-| 소유 서비스 | 내부 downstream operation | 현재 내부 소비자 |
-|---|---|---|
-| user | `PUT /internal/users/{userId}` | authorization 로그인 사용자 동기화 |
-| user | `GET /users/by-github/{githubUsername}` | project GitHub 댓글 작성자 매핑 |
+현재 모노레포 서비스가 제공하는 내부 downstream HTTP operation은 없다. 기존 project webhook-target
+조회는 `project.github-repo.event`, GitHub 저장소 label-policy 조회는
+`preference.github-repo.setting.state` projection으로 대체했다.
 
 `@Hidden` 또는 OpenAPI customizer는 Swagger에서 operation을 숨길 뿐 실제 요청을 차단하지 않는다. Gateway JWT 인증도 “로그인한 외부 사용자”의 호출을 막지 않으므로 내부 API 접근 통제로 사용할 수 없다.
 
@@ -22,7 +19,7 @@ module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/a
 
 - Gateway에는 외부 공개가 확정된 HTTP method와 path 조합만 positive allowlist로 등록한다.
 - 내부 operation은 canonical module namespace에서도 외부에서 도달할 수 없어야 한다.
-- 남은 서비스 간 동기 command client는 Gateway를 거치지 않고 내부 service URL을 사용한다.
+- 보류된 GitHub App client는 Gateway를 거치지 않고 별도 service URL을 사용한다.
 - Downstream 서비스는 Gateway가 전달한 `X-User-Id`·`X-User-Role`을 신뢰하는 기존 원칙을 유지하며 JWT를 직접 검증하지 않는다.
 - 운영 환경에서 서비스 포트는 외부에 공개하지 않고 Gateway만 외부 진입점으로 유지한다.
 - OpenAPI 노출 제어와 네트워크·라우팅 접근 제어를 별도 계층으로 검증한다.
@@ -56,9 +53,7 @@ module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/a
 - `cowork-config/src/main/resources/configs/cowork-gateway-local.yml`
 - `cowork-config/src/main/resources/configs/cowork-gateway-prod.yml`
 - `cowork-gateway/src/test/kotlin/com/cowork/gateway/GatewayConfigBindingTest.kt`
-- cowork-user의 router·Gateway-facing `open_api.ex`
-- cowork-team·cowork-project의 OpenAPI customizer 또는 operation visibility 설정
-- 남은 동기 command client의 경로 계약 단위 테스트
+- 보류된 GitHub App client의 경로·인증 계약
 - `docker-compose.yml`, `docker-compose.prod.yml` 및 운영 ingress·방화벽 설정 점검
 
 ## 검증
@@ -66,7 +61,7 @@ module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/a
 - 정상 JWT가 있어도 각 `internal-only` canonical URL은 Gateway에서 도달하지 않는다.
 - JWT가 없거나 관리자 role인 경우에도 내부 operation이 외부에 열리지 않는다.
 - 같은 resource root의 공개 operation은 정상 JWT로 계속 동작한다.
-- authorization → user 동기 command와 Kafka projection 소비가 정상 동작한다.
+- authorization의 identity command를 user가 커밋하고 Kafka result를 반환하는 흐름이 정상 동작한다.
 - 구 경로와 canonical 경로 모두에서 내부 operation이 의도한 서비스에 도달하지 않는다.
 - Gateway-facing OpenAPI에 내부 operation이 없고, 공개 operation의 server + path는 canonical URL과 일치한다.
 - 새 controller operation을 추가했을 때 allowlist에 명시하지 않으면 외부에 자동 노출되지 않는다.
@@ -77,6 +72,6 @@ module namespace를 적용해도 `/api/user/users/**`, `/api/team/teams/**`, `/a
 - 모든 Gateway-facing operation에 공개·내부 소유권이 method·path 단위로 정의되어 있다.
 - 내부 operation은 인증 여부나 role과 관계없이 외부 Gateway에서 도달할 수 없다.
 - 내부 API를 숨기는 데 `@Hidden`이나 Swagger 필터만 의존하지 않는다.
-- 서비스 간 직접 호출과 내부 service discovery는 기존 경로로 정상 동작한다.
+- 보류된 GitHub App 직접 호출은 명시한 service URL과 인증 계약으로만 동작한다.
 - local/prod Gateway 설정과 Gateway-facing OpenAPI가 같은 public allowlist를 표현한다.
-- 내부 operation 추가 시 외부 자동 노출을 막는 회귀 테스트가 자동화되어 있다.
+- Gateway public allowlist와 내부 operation 차단 경계가 핵심 라우팅 계약 단위 테스트로 고정되어 있다.

@@ -18,6 +18,9 @@ defmodule CoworkUser.AppConfigTest do
     "KAFKA_BOOTSTRAP_SERVERS",
     "KAFKA_TOPIC_USER_SYNC",
     "KAFKA_GROUP_ID",
+    "KAFKA_TOPIC_USER_IDENTITY_COMMAND",
+    "KAFKA_GROUP_ID_USER_IDENTITY_COMMAND",
+    "KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT",
     "KAFKA_TOPIC_TEAM_MEMBER",
     "KAFKA_GROUP_ID_TEAM_MEMBER",
     "KAFKA_TOPIC_USER_PRESENCE",
@@ -69,6 +72,10 @@ defmodule CoworkUser.AppConfigTest do
     assert config.s3_internal_endpoint == "http://localhost:9000"
     assert config.redis_host == "localhost"
     assert config.redis_port == 6379
+    assert config.kafka_topic == "user.data.sync"
+    assert config.kafka_identity_command_topic == "user.identity.command"
+    assert config.kafka_identity_command_group_id == "cowork-user.user-identity-command"
+    assert config.kafka_identity_command_result_topic == "user.identity.command-result"
     assert config.kafka_team_member_topic == "team.member.event"
     assert config.kafka_presence_topic == "user.presence.event"
     assert config.kafka_profile_topic == "user.profile.event"
@@ -79,7 +86,6 @@ defmodule CoworkUser.AppConfigTest do
       "PORT" => "9082",
       "APP_PROFILE" => "prod",
       "EUREKA_INSTANCE_HOST" => "user.internal",
-      "KAFKA_ENABLED" => "false",
       "S3_ALLOWED_CONTENT_TYPES" => "image/png, application/pdf",
       "REDIS_PORT" => "6380"
     })
@@ -90,9 +96,17 @@ defmodule CoworkUser.AppConfigTest do
     assert config.config_profile == "prod"
     assert config.eureka_instance_host == "user.internal"
     assert config.eureka_instance_id == "user.internal:cowork-user:9082"
-    refute config.kafka_enabled
+    assert config.kafka_enabled
     assert config.allowed_content_types == ["image/png", "application/pdf"]
     assert config.redis_port == 6380
+  end
+
+  test "rejects disabling the owner command and projection transport" do
+    System.put_env("KAFKA_ENABLED", "false")
+
+    assert_raise RuntimeError, ~r/KAFKA_ENABLED=false is unsupported/, fn ->
+      AppConfig.load()
+    end
   end
 
   test "production replicas can register with their runtime hostname" do

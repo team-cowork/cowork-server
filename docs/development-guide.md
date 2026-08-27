@@ -31,7 +31,7 @@ cowork-server/
 ├── cowork-project/       프로젝트 관리 — Kotlin (Spring Boot)
 ├── cowork-roadmap/       전공/포지션별 온보딩 로드맵 — Java (Spring Boot WebFlux + R2DBC)
 ├── cowork-channel/       채널 관리 (텍스트/음성/웹훅 등) — Kotlin (Spring Boot)
-├── cowork-preference/    팀 설정 관리 — Kotlin (Vert.x)
+├── cowork-preference/    사용자·팀·채널·저장소 설정 및 사용자 정의 팀 역할 관리 — Kotlin (Vert.x)
 ├── cowork-chat/          채팅 메시지 (MongoDB + Elasticsearch) — NestJS (TypeScript)
 ├── cowork-voice/         음성 채널 (MongoDB + Redis) — Go
 ├── cowork-notification/  알림 (FCM 푸시 + SSE) — Go
@@ -158,10 +158,11 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 - 클라이언트 → Gateway → 각 서비스 경로로만 호출합니다.
 - Gateway는 Eureka의 `lb://cowork-{name}` 대상으로 라우팅합니다.
-- 서비스 간 **조회**는 Kafka 이벤트로 로컬 read model을 구성하며, 내부 REST 조회 API를 만들지 않습니다.
-- 동기 응답에서 원격 서비스가 생성한 ID나 검증 오류가 즉시 필요한 command만 내부 REST를 허용합니다.
-- 현재 예외는 로그인 시 authorization → user 계정 upsert와 team → preference 역할 변경 command입니다.
-  직전 PR의 GitHub App 연동 HTTP는 이번 전환 대상에서 보류합니다.
+- 다른 서비스의 durable state는 authoritative owner가 transactional outbox로 발행하고,
+  호출자가 idempotent 로컬 projection으로 소비합니다. 내부 REST/Feign으로 상태를 조회하지 않습니다.
+- 즉시 응답, 생성 ID, 검증 오류만으로는 내부 HTTP 예외가 될 수 없습니다. durable state로
+  재구성할 수 없는 request-scoped 작업만 이유를 문서화하고 허용합니다.
+- 명시적으로 보류된 GitHub App API와 외부 provider API는 이 내부 상태 조회 규칙의 대상이 아닙니다.
 
 ### 비동기 통신 (Kafka)
 
@@ -169,19 +170,32 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니다.
 
 Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
-`(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록하고, partition
-assignment 때 해당 checkpoint로 seek합니다. 기동 시점에 관련된 모든 topic partition의 end offset을
-고정한 뒤 shared checkpoint가 전부 도달할 때만 readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축,
-consumer group offset 선행, 다중 replica 환경에서도 projection이 비거나 부분적인 상태를 정상 응답으로
-노출하지 않습니다. 동기화 중 projection 의존 API는 `403`이나 빈 결과 대신 `503`을 반환합니다.
+`(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록합니다. Client가
+broker topic UUID를 제공하면 checkpoint와 함께 저장해 assignment와 range 검사 때 동일성을 검증합니다.
+UUID를 제공하지 못하는 client는 프로세스 재시작·강제 복구마다 durable replay generation을 만들고,
+assignment 시 checkpoint와 snapshot barrier를 broker earliest로 원자적으로 초기화하며 이전 replica의
+lease를 fencing합니다. 숫자 checkpoint만으로 이전 topic의 연속성을 추정하지 않습니다.
 
-계약 위반 레코드는 격리 성공 후 checkpoint를 진전시킬 수 있지만, DB·MongoDB·Kafka 같은 일시적
-인프라 오류에서는 checkpoint와 consumer position을 절대 진전시키지 않습니다. Docker/Eureka는
-liveness가 아니라 각 서비스의 readiness endpoint를 트래픽 허용 기준으로 사용합니다.
+기동 시점에 관련된 모든 topic partition의 end offset을 고정한 뒤 shared checkpoint가 전부 도달할 때만
+readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축, consumer group offset 선행, 다중 replica 환경에서도
+projection이 비거나 부분적인 상태를 정상 응답으로 노출하지 않습니다. 준비 완료 뒤에도 현재 broker
+high-watermark와 checkpoint를 계속 비교하며, 필수 projection이 뒤처지면 readiness를 다시 닫습니다.
+동기화 중 projection 의존 API는 `403`이나 빈 결과 대신 `503`을 반환합니다.
 
-Kafka 토픽 이름은 배포 후 불변입니다. 숫자 offset만으로는 같은 이름의 새 토픽을 완전히
-식별할 수 없으므로 토픽을 제거한 뒤 같은 이름으로 재생성하지 않습니다. Kafka cluster/data volume을
-교체할 때는 관련 projection table과 checkpoint를 같이 재구축한 뒤에만 트래픽을 다시 엽니다.
+action-only 계약 위반 레코드는 격리 성공 후 checkpoint를 진전시킬 수 있습니다. snapshot-backed state
+레코드가 잘못되면 격리와 함께 durable invalid-record latch를 남기고 readiness를 즉시 닫습니다. 같은
+aggregate의 startup·주기 snapshot을 replica 전체에서 하나의 분산 락으로 직렬화하고, 서로 다른
+`snapshotId`의 full snapshot 완료로 gap 이후 시작한 재구성이 증명될 때만 latch를 해제합니다. 중복
+marker는 새 복구 run으로 세지 않습니다. DB·MongoDB·Kafka 같은 일시적 인프라 오류에서는 checkpoint와
+consumer position을 절대 진전시키지 않습니다. Docker/Eureka는 liveness가 아니라 각 서비스의
+readiness endpoint를 트래픽 허용 기준으로 사용합니다.
+
+Kafka 토픽 이름은 배포 후 불변입니다. UUID를 읽을 수 있는 client는 같은 이름의 topic 교체를 즉시
+감지합니다. topic identity를 제공하지 않는 client는 겹치는 offset 범위로 같은 이름이 교체되면 다음
+fenced replay 경계 전까지 연속성을 증명할 수 없으므로, topic 불변성과 coordinated projection rebuild가
+필수입니다. 특히 authoritative owner DB나 Kafka dataset 교체로 과거 tombstone까지 사라지면 full
+replay만으로 projection의 잔존 행을 판별할 수 없습니다. 이 경우 관련 projection table, snapshot barrier,
+checkpoint를 함께 재구축한 뒤에만 트래픽을 다시 엽니다.
 
 주기 snapshot의 `occurredAt`은 발행 시각이 아니라 source row의 실제 변경 시각을 재사용합니다.
 발행 시각을 새 버전으로 쓰면 삭제와 동시에 실행된 snapshot UPSERT가 tombstone보다 최신이 되어
@@ -197,34 +211,44 @@ ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완�
 transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
 낮은 sequence 행을 볼 수 없습니다.
 
-이 marker 계약을 지원하지 않는 구버전에서 처음 전환할 때는 source와 consumer를 조정된 한 릴리스로
-교체합니다. 구버전 source는 새 consumer의 readiness를 열 수 없으므로 source 서비스를 먼저 실행해
-모든 partition marker를 발행시키고, dependent consumer의 readiness가 올라오기 전에는 트래픽을 열지
-않습니다. team과 preference처럼 서로의 state topic을 소비하는 서비스는 둘 다 snapshot source를 먼저
-실행해야 하며, 한쪽 readiness를 기다리느라 다른 쪽 기동을 막으면 안 됩니다.
-
 | 토픽 | Producer | Consumer | 용도 |
 |---|---|---|---|
-| `user.data.sync` | cowork-authorization | cowork-user | 인증 사용자 데이터 동기화 |
+| `user.data.sync` | cowork-authorization | cowork-user | DataGSM webhook의 계정·프로필 변경 요청 |
+| `user.identity.command` | cowork-authorization | cowork-user | 로그인 시 계정·프로필 생성 또는 동기화 command |
+| `user.identity.command-result` | cowork-user | cowork-authorization | identity command의 owner commit 결과 |
 | `team.lifecycle` | cowork-team | cowork-channel, cowork-project, cowork-notification | team key별 최신 생명주기 상태·삭제와 연쇄 정리 |
-| `team.member.event` | cowork-team | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-preference, cowork-chat | 버전 기반 팀 멤버십 projection |
-| `user.lifecycle` | 현재 저장소 내 producer 없음 | cowork-channel, cowork-project | 사용자 삭제 동기화 계약 |
-| `user.profile.event` | cowork-user | cowork-chat, cowork-notification | 사용자 표시 정보 projection |
+| `team.member.event` | cowork-team | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection |
+| `user.profile.event` | cowork-user | cowork-project, cowork-chat, cowork-notification | 사용자 표시·GitHub identity 정보 projection |
 | `user.presence.event` | cowork-authorization | cowork-user | 사용자 접속 상태 projection |
-| `channel.event` | cowork-channel | cowork-chat | 채널 메타데이터 동기화 |
+| `channel.event` | cowork-channel | cowork-project, cowork-chat | 채널 메타데이터와 GitHub webhook 대상 정합성 projection |
 | `channel.member.event` | cowork-channel | cowork-chat, cowork-voice | 채널 멤버십 projection |
 | `project.event` | cowork-project | cowork-channel, cowork-chat | 프로젝트 메타데이터 projection |
 | `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 projection |
+| `project.github-repo.event` | cowork-project | cowork-chat | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
 | `preference.channel-notification.changed` | cowork-preference | cowork-notification | 채널 알림 설정 projection |
-| `preference.team-role.changed` | cowork-preference | cowork-team | 팀 역할·할당 projection |
+| `preference.team-role.command` | cowork-team | cowork-preference | 사용자 정의 팀 역할·할당 비동기 command |
+| `preference.team-role.changed` | cowork-preference | cowork-team | 사용자 정의 팀 역할·할당 상태 projection |
+| `preference.team-role.command-result` | cowork-preference | cowork-team | 팀 역할 command 처리 결과 |
+| `preference.github-repo.setting.command` | cowork-project | cowork-preference | GitHub 저장소 설정 비동기 command |
+| `preference.github-repo.setting.state` | cowork-preference | cowork-project | GitHub 저장소 설정 상태 projection |
+| `preference.github-repo.setting.result` | cowork-preference | cowork-project | GitHub 저장소 설정 command 처리 결과 |
 | `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
 | `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
 | `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
+| `github.repo.event` | 외부 GitHub App 연동 | cowork-chat | GitHub 저장소 action stream |
 | `voice.event` | cowork-voice | 연동 서비스 | 음성 세션 이벤트 |
 | `preference.status.changed` | cowork-preference | 연동 서비스 | 사용자 상태 변경 |
 | `preference.team.setting.changed` | cowork-preference | 연동 서비스 | 팀 설정 변경 |
 
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
+계정과 프로필 identity는 `cowork-user`가 소유합니다. authorization은 DataGSM 인증 정보로
+`user.identity.command`를 발행하고 user의 commit 결과를 확인한 뒤에만 세션과 토큰을 발급합니다.
+DataGSM webhook 변경은 `user.data.sync`로 전달하며, 공개 프로필의 `name`과 `github_id` 변경도
+user의 공개 API와 저장소에서 처리합니다.
+팀의 built-in 멤버십 역할은 `cowork-team`이 소유하고, 사용자 정의 역할과 할당은
+`cowork-preference`가 소유합니다. team의 공개 API 위치는 소유권을 옮기지 않으며,
+command/result와 local state projection으로 비동기 처리합니다. GitHub 저장소의 `label_auto_apply`도
+`cowork-preference`가 소유하고 project는 local projection을 읽습니다.
 
 ---
 

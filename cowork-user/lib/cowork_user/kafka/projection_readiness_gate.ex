@@ -24,6 +24,7 @@ defmodule CoworkUser.Kafka.ProjectionReadinessGate do
 
   @doc false
   def projection_dependent_read?("GET", "/users/me"), do: true
+  def projection_dependent_read?("GET", "/users/batch"), do: true
   def projection_dependent_read?("GET", "/users/search"), do: true
 
   def projection_dependent_read?("GET", "/users/by-github/" <> username),

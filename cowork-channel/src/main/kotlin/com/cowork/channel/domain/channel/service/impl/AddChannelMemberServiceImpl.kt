@@ -45,7 +45,7 @@ class AddChannelMemberServiceImpl(
         val member = channelMemberRepository.save(
             ChannelMember(channelId = channelId, userId = request.userId),
         )
-        channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
+        channelMemberEventPublisher.publishJoin(channel.id, request.userId)
         return ChannelMemberResponse.of(member)
     }
 }
