@@ -1,4 +1,4 @@
-# MONGODB_URI, JWT_SECRET, DISCORD_WEBHOOK_URL은 Vault secret/cowork-chat 에서 주입됨
+# MONGODB_URI, DISCORD_WEBHOOK_URL은 Vault secret/cowork-chat에서, JWT_SECRET은 secret/application에서 주입됨
 # NestJS 런타임은 원격 문자열의 ${ENV}를 해석하지 않는다.
 # S3_* 는 Config Server overrides가 같은 키 이름으로 덮어쓰므로 여기 값은 사용되지 않는다.
 PORT: 8087
@@ -8,7 +8,6 @@ MONGODB_DIRECT_CONNECTION: false
 MONGODB_SERVER_SELECTION_TIMEOUT_MS: 5000
 MONGODB_CONNECT_TIMEOUT_MS: 5000
 KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-PROJECT_SERVICE_URL: http://cowork-project:8084
 REDIS_HOST: redis
 REDIS_PORT: 6379
 EUREKA_ENABLED: true
