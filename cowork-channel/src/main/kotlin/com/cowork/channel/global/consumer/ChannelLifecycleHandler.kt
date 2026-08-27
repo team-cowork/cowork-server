@@ -1,6 +1,5 @@
 package com.cowork.channel.global.consumer
 
-import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.event.ChannelMemberEventPublisher
 import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
@@ -26,7 +25,7 @@ class ChannelLifecycleHandler(
     @Transactional
     fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val membership = teamMembershipRepository.findStateByTeamIdAndUserId(teamId, userId)
+        val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, userId)
             ?: TeamMembership(teamId = teamId, userId = userId, role = role, sourceOccurredAt = version)
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
         if (existingVersion.isAfter(version) ||
@@ -43,37 +42,37 @@ class ChannelLifecycleHandler(
     @Transactional
     fun onTeamDeleted(teamId: Long, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val memberships = teamMembershipRepository.findAllByTeamId(teamId)
+        val memberships = teamMembershipRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
         memberships.filter { !it.sourceOccurredAt.toProjectionPrecision().isAfter(version) }
             .forEach { it.markDeleted(version) }
         if (memberships.isNotEmpty()) teamMembershipRepository.saveAll(memberships)
 
-        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val channels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
         if (channels.isEmpty()) {
             log.info("Skipped TEAM_DELETED event: no channels to delete [teamId={}]", teamId)
             return
         }
-        val membersByChannel = channels.associateWith { channelMemberRepository.findByChannelId(it.id) }
-        channelRepository.deleteAll(channels)
+        val membersByChannel = channels.associateWith {
+            channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(it.id)
+        }
         membersByChannel.forEach { (channel, members) ->
+            val channelVersion = channelEventPublisher.publishDeleted(channel, version)
             members.forEach { member ->
                 channelMemberEventPublisher.publishLeave(
                     channel.id,
-                    channel.teamId,
                     member.userId,
-                    channel.type.name,
-                    occurredAt = version,
+                    requestedAt = channelVersion,
                 )
             }
-            channelEventPublisher.publishDeleted(channel, version)
         }
+        channelRepository.deleteAll(channels)
         log.info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)
     }
 
     @Transactional
     fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val membership = teamMembershipRepository.findStateByTeamIdAndUserId(teamId, targetUserId)
+        val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(
                 teamId = teamId,
                 userId = targetUserId,
@@ -90,39 +89,36 @@ class ChannelLifecycleHandler(
         membership.markDeleted(version)
         teamMembershipRepository.save(membership)
 
-        val creatorOf = channelRepository.findAllByTeamIdAndCreatedByOrderByIdAsc(teamId, targetUserId)
-        val otherIds = channelRepository.findIdsByTeamIdAndCreatedByNot(teamId, targetUserId)
-        val deletedMembers = creatorOf.associateWith { channelMemberRepository.findByChannelId(it.id) }
-        val otherChannels = channelRepository.findAllById(otherIds).associateBy { it.id }
+        val teamChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
+        val creatorOf = teamChannels.filter { it.createdBy == targetUserId }
+        val otherChannels = teamChannels.filter { it.createdBy != targetUserId }
+        val deletedMembers = creatorOf.associateWith {
+            channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(it.id)
+        }
 
-        if (creatorOf.isNotEmpty()) {
-            channelRepository.deleteAll(creatorOf)
-        }
-        if (otherIds.isNotEmpty()) {
-            channelMemberRepository.deleteAllByUserIdAndChannelIdIn(targetUserId, otherIds)
-        }
         deletedMembers.forEach { (channel, members) ->
+            val channelVersion = channelEventPublisher.publishDeleted(channel, version)
             members.forEach { member ->
                 channelMemberEventPublisher.publishLeave(
                     channel.id,
-                    channel.teamId,
                     member.userId,
-                    channel.type.name,
-                    occurredAt = version,
+                    requestedAt = channelVersion,
                 )
             }
-            channelEventPublisher.publishDeleted(channel, version)
         }
-        otherIds.forEach { channelId ->
-            otherChannels[channelId]?.let { channel ->
-                channelMemberEventPublisher.publishLeave(
-                    channel.id,
-                    channel.teamId,
-                    targetUserId,
-                    channel.type.name,
-                    occurredAt = version,
-                )
-            }
+        otherChannels.forEach { channel ->
+            channelMemberEventPublisher.publishLeave(
+                channel.id,
+                targetUserId,
+                requestedAt = version,
+            )
+        }
+        if (creatorOf.isNotEmpty()) {
+            channelRepository.deleteAll(creatorOf)
+        }
+        val otherIds = otherChannels.map { it.id }
+        if (otherIds.isNotEmpty()) {
+            channelMemberRepository.deleteAllByUserIdAndChannelIdIn(targetUserId, otherIds)
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}, membershipsRemoved={}]",
@@ -131,45 +127,5 @@ class ChannelLifecycleHandler(
             creatorOf.size,
             otherIds.size,
         )
-    }
-
-    @Transactional
-    fun onUserDeleted(userId: Long, occurredAt: Instant) {
-        val version = occurredAt.toProjectionPrecision()
-        // DM 채널은 상대방의 대화 기록 보존을 위해 삭제하지 않는다.
-        val ownedChannels = channelRepository.findAllByCreatedBy(userId).filter { it.type != ChannelType.DM }
-        val deletedMembers = ownedChannels.associateWith { channelMemberRepository.findByChannelId(it.id) }
-        val userMemberships = channelMemberRepository.findAllByUserId(userId)
-        val channelsById = channelRepository.findAllById(userMemberships.map { it.channelId }.distinct())
-            .associateBy { it.id }
-        if (ownedChannels.isNotEmpty()) {
-            channelRepository.deleteAll(ownedChannels)
-        }
-        channelMemberRepository.deleteAllByUserId(userId)
-        val deletedChannelIds = ownedChannels.map { it.id }.toSet()
-        deletedMembers.forEach { (channel, members) ->
-            members.forEach { member ->
-                channelMemberEventPublisher.publishLeave(
-                    channel.id,
-                    channel.teamId,
-                    member.userId,
-                    channel.type.name,
-                    occurredAt = version,
-                )
-            }
-            channelEventPublisher.publishDeleted(channel, version)
-        }
-        userMemberships.filterNot { it.channelId in deletedChannelIds }.forEach { member ->
-            channelsById[member.channelId]?.let { channel ->
-                channelMemberEventPublisher.publishLeave(
-                    channel.id,
-                    channel.teamId,
-                    member.userId,
-                    channel.type.name,
-                    occurredAt = version,
-                )
-            }
-        }
-        log.info("Processed USER_DELETED event [userId={}, channelsDeleted={}]", userId, ownedChannels.size)
     }
 }
