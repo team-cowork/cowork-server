@@ -15,6 +15,14 @@ interface ProjectRepository :
     JpaSpecificationExecutor<Project> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Project p WHERE p.id = :projectId")
+    fun findByIdForUpdate(@Param("projectId") projectId: Long): Project?
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM Project p WHERE p.teamId = :teamId ORDER BY p.id")
+    fun findAllByTeamIdForUpdate(@Param("teamId") teamId: Long): List<Project>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Project p WHERE p.id > :afterId ORDER BY p.id")
     fun findSnapshotBatch(@Param("afterId") afterId: Long, pageable: Pageable): List<Project>
 

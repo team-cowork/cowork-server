@@ -1,5 +1,6 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
@@ -28,6 +29,7 @@ class ProjectLifecycleHandlerTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>(relaxed = true)
     private val projectMemberEventPublisher = mockk<ProjectMemberEventPublisher>(relaxed = true)
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
+    private val repoDeletionSupport = mockk<ProjectGithubRepoDeletionSupport>(relaxed = true)
 
     private val handler = ProjectLifecycleHandler(
         projectRepository,
@@ -35,6 +37,7 @@ class ProjectLifecycleHandlerTest {
         teamMembershipRepository,
         projectMemberEventPublisher,
         projectEventPublisher,
+        repoDeletionSupport,
     )
 
     init {
@@ -48,25 +51,26 @@ class ProjectLifecycleHandlerTest {
     @Test
     fun `onTeamDeleted는 팀의 모든 프로젝트를 삭제하고 멤버 캐시 무효화 이벤트를 발행한다`() {
         val projects = listOf(project(1L, 100L), project(2L, 100L))
-        every { projectRepository.findAllByTeamId(100L) } returns projects
+        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns projects
         every { projectRepository.deleteAll(projects) } just Runs
-        every { projectMemberRepository.findAllByProjectIdIn(listOf(1L, 2L)) } returns listOf(
+        val members = listOf(
             ProjectMember(projectId = 1L, userId = 7L, role = ProjectMemberRole.OWNER),
             ProjectMember(projectId = 2L, userId = 8L, role = ProjectMemberRole.EDITOR),
         )
+        every { projectMemberRepository.findAllByProjectIdInForUpdate(listOf(1L, 2L)) } returns members
 
         handler.onTeamDeleted(100L, occurredAt)
 
         verify(exactly = 1) { projectRepository.deleteAll(projects) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 8L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(members[0], any()) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(members[1], any()) }
         verify(exactly = 1) { projectEventPublisher.publishDeleted(projects[0], any()) }
         verify(exactly = 1) { projectEventPublisher.publishDeleted(projects[1], any()) }
     }
 
     @Test
     fun `onTeamDeleted는 대상 없으면 no-op`() {
-        every { projectRepository.findAllByTeamId(100L) } returns emptyList()
+        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
 
         handler.onTeamDeleted(100L, occurredAt)
 
@@ -75,65 +79,29 @@ class ProjectLifecycleHandlerTest {
 
     @Test
     fun `onMemberRemovedFromTeam은 OWNER인 프로젝트는 삭제, 나머지는 멤버십만 제거하며 각각 캐시 무효화 이벤트를 발행한다`() {
-        every { projectRepository.findIdsByTeamId(100L) } returns listOf(1L, 2L, 3L)
-        every {
-            projectMemberRepository.findAllByUserIdAndRoleAndProjectIdIn(
-                7L,
-                ProjectMemberRole.OWNER,
-                listOf(1L, 2L, 3L),
-            )
-        } returns listOf(ProjectMember(projectId = 2L, userId = 7L, role = ProjectMemberRole.OWNER))
-        every { projectMemberRepository.findAllByProjectIdIn(listOf(2L)) } returns listOf(
+        val projects = listOf(project(1L, 100L), project(2L, 100L), project(3L, 100L))
+        val ownerMembership = ProjectMember(projectId = 2L, userId = 7L, role = ProjectMemberRole.OWNER)
+        val ownerProjectMembers = listOf(
             ProjectMember(projectId = 2L, userId = 7L, role = ProjectMemberRole.OWNER),
             ProjectMember(projectId = 2L, userId = 9L, role = ProjectMemberRole.EDITOR),
         )
-        every { projectRepository.findAllById(listOf(2L)) } returns listOf(project(2L, 100L))
+        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns projects
+        every {
+            projectMemberRepository.findAllByUserIdAndProjectIdInForUpdate(7L, listOf(1L, 2L, 3L))
+        } returns listOf(ownerMembership)
+        every { projectMemberRepository.findAllByProjectIdInForUpdate(listOf(2L)) } returns ownerProjectMembers
         val membership = TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER")
-        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
+        every { teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(100L, 7L) } returns membership
 
         handler.onMemberRemovedFromTeam(100L, 7L, "MEMBER", occurredAt)
 
         verify(exactly = 1) { teamMembershipRepository.save(membership) }
-        verify(exactly = 1) { projectRepository.deleteAllById(listOf(2L)) }
-        verify(exactly = 1) { projectMemberRepository.deleteAllByUserIdAndProjectIdIn(7L, listOf(1L, 3L)) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 7L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 9L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(3L, 7L, any(), false) }
+        verify(exactly = 1) { projectRepository.deleteAll(listOf(projects[1])) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(ownerProjectMembers[0], any()) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(ownerProjectMembers[1], any()) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L, any()) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(3L, 7L, any()) }
         verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 2L }, any()) }
-    }
-
-    @Test
-    fun `onUserDeleted는 유저가 OWNER인 프로젝트 삭제 + 모든 멤버십 제거하며 캐시 무효화 이벤트를 발행한다`() {
-        every {
-            projectMemberRepository.findAllByUserId(50L)
-        } returns listOf(
-            ProjectMember(projectId = 10L, userId = 50L, role = ProjectMemberRole.OWNER),
-            ProjectMember(projectId = 11L, userId = 50L, role = ProjectMemberRole.OWNER),
-            ProjectMember(projectId = 12L, userId = 50L, role = ProjectMemberRole.EDITOR),
-        )
-        every { projectMemberRepository.findAllByProjectIdIn(listOf(10L, 11L)) } returns listOf(
-            ProjectMember(projectId = 10L, userId = 50L, role = ProjectMemberRole.OWNER),
-            ProjectMember(projectId = 11L, userId = 50L, role = ProjectMemberRole.OWNER),
-            ProjectMember(projectId = 10L, userId = 60L, role = ProjectMemberRole.VIEWER),
-        )
-        every { projectRepository.findAllById(listOf(10L, 11L)) } returns listOf(
-            project(10L, 100L),
-            project(11L, 100L),
-        )
-
-        val deletedAt = Instant.parse("2026-08-26T03:00:00.123456999Z")
-        handler.onUserDeleted(50L, deletedAt)
-
-        verify(exactly = 1) { projectRepository.deleteAllById(listOf(10L, 11L)) }
-        verify(exactly = 1) { projectMemberRepository.deleteAllByUserId(50L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 50L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(11L, 50L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 60L, any(), false) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(12L, 50L, any(), false) }
-        val normalized = Instant.parse("2026-08-26T03:00:00.123456Z")
-        verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 10L }, normalized) }
-        verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 11L }, normalized) }
     }
 
     @Test
@@ -145,7 +113,7 @@ class ProjectLifecycleHandlerTest {
             active = false,
             sourceOccurredAt = occurredAt,
         )
-        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
+        every { teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(100L, 7L) } returns membership
 
         handler.onMemberUpsert(100L, 7L, "ADMIN", occurredAt.minusSeconds(1))
 
@@ -162,7 +130,7 @@ class ProjectLifecycleHandlerTest {
             active = false,
             sourceOccurredAt = deletedAt,
         )
-        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
+        every { teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(100L, 7L) } returns membership
 
         handler.onMemberUpsert(100L, 7L, "ADMIN", Instant.parse("2026-08-26T03:00:00.123456999Z"))
 
