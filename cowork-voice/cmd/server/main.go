@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -86,6 +87,16 @@ func main() {
 		slog.Error("mongodb index creation failed", "err", err)
 		os.Exit(1)
 	}
+	if err := channel.CreateIndexes(indexCtx, db); err != nil {
+		indexCancel()
+		slog.Error("channel membership projection index creation failed", "err", err)
+		os.Exit(1)
+	}
+	if err := channel.CreateCheckpointIndexes(indexCtx, db); err != nil {
+		indexCancel()
+		slog.Error("channel membership projection checkpoint index creation failed", "err", err)
+		os.Exit(1)
+	}
 	indexCancel()
 
 	kafkaProducer := kafkadomain.NewProducer(
@@ -108,7 +119,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	channelClient := channel.NewClient(cfg.ChannelServiceURL)
+	channelMemberships := channel.NewProjection(db)
+	projectionReadiness := health.NewReadiness()
+	channelMembershipConsumer, err := channel.NewConsumer(
+		cfg.KafkaBrokers,
+		cfg.KafkaTopicChannelMember,
+		cfg.KafkaGroupIDChannelMember,
+		channel.NewEventHandler(channelMemberships),
+		channel.NewMongoCheckpointStore(db),
+		projectionReadiness,
+	)
+	if err != nil {
+		slog.Error("channel membership consumer init failed", "err", err)
+		os.Exit(1)
+	}
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	channelMembershipConsumer.Start(runtimeCtx)
 	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
 	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
 	outboxRepo := mongoinfra.NewOutboxRepository(db)
@@ -118,7 +144,7 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, outboxRepo, cfg.LiveKitWsURL)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelMemberships, livekitRoom, outboxRepo, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
 	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, outboxRepo)
 
@@ -130,7 +156,7 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelClient, liveLKRoom, outboxRepo, cfg.LiveKitWsURL)
+	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelMemberships, liveLKRoom, outboxRepo, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
 	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom, outboxRepo)
 
@@ -150,6 +176,7 @@ func main() {
 	r.Use(monitoring.HTTPMetricsMiddleware)
 
 	r.Get("/health", health.Handler)
+	r.Get("/health/ready", health.ReadyHandler(projectionReadiness))
 	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -157,6 +184,7 @@ func main() {
 	r.Post("/voice/webhook", webhookHandler.Handle)
 
 	r.Group(func(r chi.Router) {
+		r.Use(health.RequireReady(projectionReadiness))
 		r.Use(middleware.ExtractAuthUser)
 		r.Post("/voice/channels/{channel_id}/join", roomHandler.Join)
 		r.Post("/voice/channels/{channel_id}/leave", roomHandler.Leave)
@@ -173,17 +201,33 @@ func main() {
 		Handler: r,
 	}
 
-	eurekaClient := eureka.New(cfg)
-	if err := eurekaClient.Register(cfg); err != nil {
-		slog.Error("critical: eureka registration failed", "err", err)
-		os.Exit(1)
-	}
-	eurekaClient.StartHeartbeat(cfg)
-
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	exitCode := 0
+	eurekaClient := eureka.New(cfg)
+	var eurekaRegistered atomic.Bool
+	go func() {
+		if !projectionReadiness.Wait(runtimeCtx) {
+			return
+		}
+		for {
+			if err := eurekaClient.Register(cfg); err == nil {
+				eurekaRegistered.Store(true)
+				eurekaClient.StartHeartbeat(cfg)
+				return
+			} else {
+				slog.Warn("eureka registration failed; retrying", "err", err)
+			}
+			timer := time.NewTimer(time.Second)
+			select {
+			case <-runtimeCtx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+		}
+	}()
 
 	go func() {
 		slog.Info("cowork-voice starting", "port", cfg.Port)
@@ -200,7 +244,10 @@ func main() {
 		exitCode = 1
 	}
 
-	_ = eurekaClient.Deregister(cfg)
+	runtimeCancel()
+	if eurekaRegistered.Load() {
+		_ = eurekaClient.Deregister(cfg)
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -209,6 +256,9 @@ func main() {
 		slog.Error("server shutdown error", "err", err)
 	}
 	outboxRelay.Stop()
+	if err := channelMembershipConsumer.Stop(); err != nil {
+		slog.Error("channel membership consumer close error", "err", err)
+	}
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
 	}

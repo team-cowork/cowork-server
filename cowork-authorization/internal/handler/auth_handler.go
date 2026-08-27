@@ -94,9 +94,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	pair, err := h.authSvc.RefreshTokens(req.RefreshToken)
+	pair, err := h.authSvc.RefreshTokens(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		log.Printf("refresh token rotation failed: %v", err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired refresh token"})
 		return
 	}
 
@@ -127,7 +128,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	userID := c.GetInt64(userIDKey)
 	if err := h.authSvc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		log.Printf("refresh token revocation failed for user %d: %v", userID, err)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid refresh token"})
 		return
 	}
 

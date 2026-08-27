@@ -1,7 +1,12 @@
 package com.cowork.channel.global.config
 
-import com.cowork.channel.global.consumer.TeamLifecyclePayload
-import com.cowork.channel.global.consumer.UserLifecyclePayload
+import com.cowork.channel.global.projection.ProjectionAssignmentCoordinator
+import com.cowork.channel.global.projection.ProjectionCheckpointStore
+import com.cowork.channel.global.projection.ProjectionReadinessState
+import com.cowork.channel.global.projection.ProjectionStream
+import com.cowork.channel.global.projection.ProjectionStreams
+import com.cowork.channel.global.projection.ProjectionTopicGenerationRegistry
+import com.cowork.channel.global.projection.ProjectionTopicIdentityProvider
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties
@@ -11,51 +16,53 @@ import org.springframework.kafka.annotation.EnableKafka
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory
 import org.springframework.kafka.core.ConsumerFactory
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory
-import org.springframework.kafka.core.KafkaTemplate
-import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
 import org.springframework.kafka.listener.DefaultErrorHandler
-import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
-import org.springframework.kafka.support.serializer.JacksonJsonDeserializer
-import org.springframework.util.backoff.FixedBackOff
 
 @Configuration
 @EnableKafka
 class KafkaConsumerConfig(
     private val kafkaProperties: KafkaProperties,
-    private val kafkaTemplate: KafkaTemplate<String, Any>,
+    private val checkpointStore: ProjectionCheckpointStore,
+    private val readinessState: ProjectionReadinessState,
+    private val streams: ProjectionStreams,
+    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val topicGenerations: ProjectionTopicGenerationRegistry,
 ) {
 
-    private fun <T : Any> consumerFactory(targetType: Class<T>): ConsumerFactory<String, T> {
+    private fun consumerFactory(): ConsumerFactory<String, String> {
         val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
-        props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
-        props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
-        props[ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS] = StringDeserializer::class.java
-        props[ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS] = JacksonJsonDeserializer::class.java
-        props[JacksonJsonDeserializer.TRUSTED_PACKAGES] = "*"
-        props[JacksonJsonDeserializer.USE_TYPE_INFO_HEADERS] = false
-        props[JacksonJsonDeserializer.VALUE_DEFAULT_TYPE] = targetType.name
-        return DefaultKafkaConsumerFactory<String, T>(props)
+        props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        return DefaultKafkaConsumerFactory<String, String>(props)
     }
 
-    private fun <T : Any> listenerContainerFactory(
-        targetType: Class<T>,
-    ): ConcurrentKafkaListenerContainerFactory<String, T> {
-        val factory = ConcurrentKafkaListenerContainerFactory<String, T>()
-        factory.setConsumerFactory(consumerFactory(targetType))
-        factory.setCommonErrorHandler(
-            DefaultErrorHandler(
-                DeadLetterPublishingRecoverer(kafkaTemplate),
-                FixedBackOff(1_000L, 3L),
+    private fun listenerContainerFactory(
+        stream: ProjectionStream,
+    ): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(consumerFactory())
+        factory.setCommonErrorHandler(DefaultErrorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
+        factory.containerProperties.setConsumerRebalanceListener(
+            ProjectionAssignmentCoordinator(
+                stream,
+                checkpointStore,
+                readinessState,
+                topicIdentityProvider,
+                topicGenerations,
             ),
         )
         return factory
     }
 
     @Bean
-    fun teamLifecycleListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, TeamLifecyclePayload> =
-        listenerContainerFactory(TeamLifecyclePayload::class.java)
+    fun projectEventListenerContainerFactory() = listenerContainerFactory(streams.project)
 
     @Bean
-    fun userLifecycleListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, UserLifecyclePayload> =
-        listenerContainerFactory(UserLifecyclePayload::class.java)
+    fun teamMemberEventListenerContainerFactory() = listenerContainerFactory(streams.teamMember)
+
+    @Bean
+    fun teamLifecycleListenerContainerFactory() = listenerContainerFactory(streams.teamLifecycle)
+
+    @Bean
+    fun userLifecycleListenerContainerFactory() = listenerContainerFactory(streams.userLifecycle)
 }

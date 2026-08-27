@@ -2,11 +2,18 @@ package com.cowork.channel.domain.channel.repository
 
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
+import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface ChannelRepository : JpaRepository<Channel, Long> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Channel c WHERE c.id > :afterId ORDER BY c.id")
+    fun findSnapshotBatch(@Param("afterId") afterId: Long, pageable: Pageable): List<Channel>
 
     fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
 

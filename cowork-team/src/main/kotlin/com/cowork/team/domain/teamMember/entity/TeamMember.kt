@@ -5,6 +5,7 @@ import com.cowork.team.domain.teamRole.entity.TeamRole
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedBy
 import org.springframework.data.annotation.CreatedDate
+import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
 import java.time.LocalDateTime
 
@@ -38,6 +39,10 @@ class TeamMember(
     @CreatedBy
     @Column(name = "created_by", updatable = false)
     var createdBy: Long? = null
+
+    @LastModifiedDate
+    @Column(name = "updated_at", nullable = false)
+    var updatedAt: LocalDateTime? = null
 
     fun changeRole(newRole: TeamRole) {
         role = newRole
