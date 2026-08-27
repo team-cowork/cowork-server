@@ -9,17 +9,23 @@ import org.springframework.data.repository.query.Param
 
 interface ChannelMemberRepository : JpaRepository<ChannelMember, Long> {
 
+    fun findByChannelId(channelId: Long): List<ChannelMember>
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT cm FROM ChannelMember cm WHERE cm.channelId = :channelId ORDER BY cm.id")
-    fun findSnapshotByChannelId(@Param("channelId") channelId: Long): List<ChannelMember>
+    fun findAllByChannelIdForUpdateOrderByIdAsc(@Param("channelId") channelId: Long): List<ChannelMember>
 
-    fun findByChannelId(channelId: Long): List<ChannelMember>
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        "SELECT cm FROM ChannelMember cm " +
+            "WHERE cm.channelId = :channelId AND cm.userId = :userId",
+    )
+    fun findByChannelIdAndUserIdForUpdate(
+        @Param("channelId") channelId: Long,
+        @Param("userId") userId: Long,
+    ): ChannelMember?
 
     fun existsByChannelIdAndUserId(channelId: Long, userId: Long): Boolean
 
     fun deleteAllByUserIdAndChannelIdIn(userId: Long, channelIds: List<Long>)
-
-    fun findAllByUserId(userId: Long): List<ChannelMember>
-
-    fun deleteAllByUserId(userId: Long)
 }

@@ -29,7 +29,7 @@ class ReorderTeamChannelsServiceImpl(
             throw ExpectedException("채널 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val channels = channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(teamId)
+        val channels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
         val teamChannelIds = channels.map { it.id }.toSet()
         if (inputIds != teamChannelIds) {
             throw ExpectedException("팀의 모든 채널 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
