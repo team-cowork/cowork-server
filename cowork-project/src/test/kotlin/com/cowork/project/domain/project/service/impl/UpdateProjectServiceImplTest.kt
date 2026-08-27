@@ -38,7 +38,7 @@ class UpdateProjectServiceImplTest {
         val proj = project()
         every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
 
         val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
         assertEquals("newName", response.name)
@@ -49,7 +49,7 @@ class UpdateProjectServiceImplTest {
         val proj = project()
         every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns null
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(99L, 1L, UpdateProjectReqDto(name = "x"))
