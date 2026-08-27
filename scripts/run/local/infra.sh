@@ -13,13 +13,22 @@ REQUIRED_VARS=(
   MONGO_ROOT_USERNAME
   MONGO_ROOT_PASSWORD
   JWT_SECRET
-  SECRET_KEY_BASE
   DATAGSM_CLIENT_ID
   ACCOUNT_CREDENTIAL_ENCRYPTION_KEY
   ACCOUNT_SHARE_OAUTH_STATE_SECRET
+  TEAM_GITHUB_STATE_SECRET
+  GITHUB_APP_SLUG
 )
 
-CONTAINERS=(cowork-mysql cowork-mongodb cowork-kafka cowork-vault cowork-redis cowork-seaweedfs)
+CONTAINERS=(
+  cowork-mysql
+  cowork-postgres
+  cowork-mongodb
+  cowork-kafka
+  cowork-vault
+  cowork-redis
+  cowork-seaweedfs
+)
 
 load_env() {
   if [ ! -f "$PROJECT_ROOT/.env" ]; then
