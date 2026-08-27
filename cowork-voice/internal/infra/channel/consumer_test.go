@@ -9,6 +9,12 @@ import (
 	segkafka "github.com/segmentio/kafka-go"
 )
 
+const testTopicID = "93b19168-4a63-49cd-b01d-b8d0667a1cb5"
+
+type noopReadiness struct{}
+
+func (noopReadiness) Set(bool) {}
+
 type checkpointCallStore struct {
 	calls       *[]string
 	checkpoints map[TopicPartition]CheckpointState
@@ -30,10 +36,12 @@ func (s *checkpointCallStore) Advance(
 	_ context.Context,
 	_, topic string,
 	partition int,
+	topicID string,
 	nextOffset int64,
 ) error {
 	*s.calls = append(*s.calls, "checkpoint")
 	checkpoint := s.checkpoints[TopicPartition{Topic: topic, Partition: partition}]
+	checkpoint.TopicID = topicID
 	checkpoint.NextOffset = nextOffset
 	s.checkpoints[TopicPartition{Topic: topic, Partition: partition}] = checkpoint
 	return nil
@@ -43,12 +51,15 @@ func (s *checkpointCallStore) RecordSnapshotMarker(
 	_ context.Context,
 	_, topic string,
 	partition int,
+	topicID string,
 	nextOffset int64,
 	marker SnapshotMarkerReceipt,
 ) error {
 	*s.calls = append(*s.calls, "marker_checkpoint")
 	markerOffset := marker.Offset
-	s.checkpoints[TopicPartition{Topic: topic, Partition: partition}] = CheckpointState{
+	tp := TopicPartition{Topic: topic, Partition: partition}
+	s.checkpoints[tp] = CheckpointState{
+		TopicID:                 topicID,
 		NextOffset:              nextOffset,
 		SnapshotCompletedOffset: &markerOffset,
 	}
@@ -64,9 +75,22 @@ func (s *checkpointCallStore) LoadAll(
 	return s.checkpoints, nil
 }
 
-func (s *checkpointCallStore) Quarantine(_ context.Context, deadLetter DeadLetter) error {
-	*s.calls = append(*s.calls, "quarantine")
+func (s *checkpointCallStore) QuarantineAndAdvance(
+	_ context.Context,
+	deadLetter DeadLetter,
+	topicID string,
+	nextOffset int64,
+) error {
+	*s.calls = append(*s.calls, "quarantine_checkpoint")
+	tp := TopicPartition{Topic: deadLetter.Topic, Partition: deadLetter.Partition}
+	checkpoint := s.checkpoints[tp]
+	if deadLetter.Offset < checkpoint.NextOffset {
+		return nil
+	}
 	s.deadLetters = append(s.deadLetters, deadLetter)
+	checkpoint.TopicID = topicID
+	checkpoint.NextOffset = nextOffset
+	s.checkpoints[tp] = checkpoint
 	return nil
 }
 
@@ -100,44 +124,44 @@ func (s *orderedMembershipStore) Deactivate(_ context.Context, _ Membership) err
 	return s.err
 }
 
-func TestBarrierComplete_requiresEverySharedCheckpointAtFixedEndOffset(t *testing.T) {
+func TestBarrierComplete_requiresEverySharedCheckpointAtCurrentEndAndGeneration(t *testing.T) {
 	t.Parallel()
 	one := TopicPartition{Topic: "channel.member.event", Partition: 0}
 	two := TopicPartition{Topic: "channel.member.event", Partition: 1}
 	ranges := map[TopicPartition]OffsetRange{
-		one: {First: 0, End: 11},
-		two: {First: 0, End: 0},
+		one: {First: 0, End: 11, TopicID: testTopicID},
+		two: {First: 0, End: 1, TopicID: testTopicID},
 	}
 	oneMarker := int64(10)
 	twoMarker := int64(0)
 
 	if barrierComplete(ranges, map[TopicPartition]CheckpointState{
-		one: {NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
+		one: {TopicID: testTopicID, NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
 	}) {
 		t.Fatal("barrier completed without the empty partition checkpoint")
 	}
 	if barrierComplete(ranges, map[TopicPartition]CheckpointState{
-		one: {NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
-		two: {NextOffset: 0},
+		one: {TopicID: testTopicID, NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
+		two: {TopicID: testTopicID, NextOffset: 1},
 	}) {
-		t.Fatal("barrier completed without a snapshot marker for every startup partition")
+		t.Fatal("barrier completed without a snapshot marker for every current partition")
 	}
 	if barrierComplete(ranges, map[TopicPartition]CheckpointState{
-		one: {NextOffset: 10, SnapshotCompletedOffset: &oneMarker},
-		two: {NextOffset: 1, SnapshotCompletedOffset: &twoMarker},
+		one: {TopicID: testTopicID, NextOffset: 10, SnapshotCompletedOffset: &oneMarker},
+		two: {TopicID: testTopicID, NextOffset: 1, SnapshotCompletedOffset: &twoMarker},
 	}) {
-		t.Fatal("barrier completed before partition 0 reached its fixed end offset")
+		t.Fatal("barrier completed before partition 0 reached its current end offset")
 	}
 	staleMarker := int64(4)
-	retainedRange := map[TopicPartition]OffsetRange{one: {First: 5, End: 11}}
+	retainedRange := map[TopicPartition]OffsetRange{one: {First: 5, End: 11, TopicID: testTopicID}}
 	if barrierComplete(retainedRange, map[TopicPartition]CheckpointState{
-		one: {NextOffset: 11, SnapshotCompletedOffset: &staleMarker},
+		one: {TopicID: testTopicID, NextOffset: 11, SnapshotCompletedOffset: &staleMarker},
 	}) {
 		t.Fatal("barrier completed with a marker outside the retained topic range")
 	}
 	if !barrierComplete(ranges, map[TopicPartition]CheckpointState{
-		one: {NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
-		two: {NextOffset: 1, SnapshotCompletedOffset: &twoMarker},
+		one: {TopicID: testTopicID, NextOffset: 11, SnapshotCompletedOffset: &oneMarker},
+		two: {TopicID: testTopicID, NextOffset: 1, SnapshotCompletedOffset: &twoMarker},
 	}) {
 		t.Fatal("barrier did not complete after every checkpoint reached its target and marker")
 	}
@@ -182,11 +206,11 @@ func TestProcessWithRetry_advancesCheckpointOnlyAfterProjectionApply(t *testing.
 		Offset:    41,
 		Key:       []byte("7:9"),
 		Value: []byte(
-			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"occurredAt":"2026-08-26T01:02:03Z"}`,
+			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"role":"MEMBER","channelType":"VOICE","occurredAt":"2026-08-26T01:02:03Z"}`,
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if !reflect.DeepEqual(calls, []string{"apply", "checkpoint"}) {
@@ -208,6 +232,7 @@ func TestProcessWithRetry_quarantinesInvalidRecordBeforeAdvancingCheckpoint(t *t
 		groupID:     "cowork-voice.channel-member",
 		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
 		checkpoints: checkpoints,
+		readiness:   noopReadiness{},
 	}
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
@@ -215,14 +240,14 @@ func TestProcessWithRetry_quarantinesInvalidRecordBeforeAdvancingCheckpoint(t *t
 		Offset:    8,
 		Key:       []byte("wrong-key"),
 		Value: []byte(
-			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"occurredAt":"2026-08-26T01:02:03Z"}`,
+			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"role":"MEMBER","channelType":"VOICE","occurredAt":"2026-08-26T01:02:03Z"}`,
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"quarantine", "checkpoint"}) {
+	if !reflect.DeepEqual(calls, []string{"quarantine_checkpoint"}) {
 		t.Fatalf("call order = %v", calls)
 	}
 	if len(checkpoints.deadLetters) != 1 {
@@ -255,7 +280,7 @@ func TestProcessWithRetry_snapshotMarkerSkipsDomainAndRecordsCheckpointAtomicall
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if !reflect.DeepEqual(calls, []string{"marker_checkpoint"}) {
@@ -281,6 +306,7 @@ func TestProcessWithRetry_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t *
 		groupID:     "cowork-voice.channel-member",
 		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
 		checkpoints: checkpoints,
+		readiness:   noopReadiness{},
 	}
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
@@ -292,10 +318,10 @@ func TestProcessWithRetry_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t *
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"quarantine", "checkpoint"}) {
+	if !reflect.DeepEqual(calls, []string{"quarantine_checkpoint"}) {
 		t.Fatalf("call order = %v", calls)
 	}
 	if len(checkpoints.deadLetters) != 1 || len(checkpoints.markers) != 0 {
@@ -344,12 +370,12 @@ func TestProcessWithRetry_transientProjectionFailureDoesNotAdvanceCheckpoint(t *
 		Offset:    5,
 		Key:       []byte("7:9"),
 		Value: []byte(
-			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"occurredAt":"2026-08-26T01:02:03Z"}`,
+			`{"eventType":"JOIN","channelId":7,"teamId":3,"userId":9,"role":"MEMBER","channelType":"VOICE","occurredAt":"2026-08-26T01:02:03Z"}`,
 		),
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan bool, 1)
-	go func() { result <- consumer.processWithRetry(ctx, message) }()
+	go func() { result <- consumer.processWithRetry(ctx, message, testTopicID) }()
 	<-tried
 	cancel()
 

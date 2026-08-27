@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -133,6 +132,7 @@ func main() {
 		slog.Error("channel membership consumer init failed", "err", err)
 		os.Exit(1)
 	}
+	channelMemberships.SetCurrentHighChecker(channelMembershipConsumer)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	channelMembershipConsumer.Start(runtimeCtx)
 	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
@@ -144,9 +144,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelMemberships, livekitRoom, outboxRepo, cfg.LiveKitWsURL)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelMemberships, livekitRoom, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
-	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, outboxRepo)
+	webhookSvc := webhookdomain.NewWebhookService(sessionRepo)
 
 	// live: 방송형(1:N) 라이브. 세션은 Mongo 직행(캐시 미적용), 이벤트는 동일 outbox 경유
 	liveMongoRepo := mongoinfra.NewMongoLiveSessionRepository(db)
@@ -156,9 +156,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelMemberships, liveLKRoom, outboxRepo, cfg.LiveKitWsURL)
+	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelMemberships, liveLKRoom, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
-	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom, outboxRepo)
+	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
 
 	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
 	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
@@ -206,27 +206,10 @@ func main() {
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	exitCode := 0
 	eurekaClient := eureka.New(cfg)
-	var eurekaRegistered atomic.Bool
+	eurekaDone := make(chan struct{})
 	go func() {
-		if !projectionReadiness.Wait(runtimeCtx) {
-			return
-		}
-		for {
-			if err := eurekaClient.Register(cfg); err == nil {
-				eurekaRegistered.Store(true)
-				eurekaClient.StartHeartbeat(cfg)
-				return
-			} else {
-				slog.Warn("eureka registration failed; retrying", "err", err)
-			}
-			timer := time.NewTimer(time.Second)
-			select {
-			case <-runtimeCtx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-		}
+		defer close(eurekaDone)
+		eurekaClient.Run(runtimeCtx, cfg, projectionReadiness)
 	}()
 
 	go func() {
@@ -245,9 +228,7 @@ func main() {
 	}
 
 	runtimeCancel()
-	if eurekaRegistered.Load() {
-		_ = eurekaClient.Deregister(cfg)
-	}
+	<-eurekaDone
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
