@@ -35,7 +35,7 @@ docker compose up vault-init
 | `secret/cowork-notification`  | DB DSN                                   |
 | `secret/cowork-preference`    | PostgreSQL 계정                          |
 | `secret/cowork-project`       | GitHub App 내부 키                       |
-| `secret/cowork-user`          | MySQL 계정, Phoenix `SECRET_KEY_BASE`    |
+| `secret/cowork-user`          | MySQL 계정                               |
 | `secret/cowork-voice`         | MongoDB, LiveKit                         |
 
 Vault dev 서버는 메모리 기반이다. Docker Desktop이나 Vault 컨테이너를 재시작해 데이터가 사라졌다면 `vault-init`을 다시 실행하고 Vault 값을 시작 시 읽는 서비스를 재시작한다.

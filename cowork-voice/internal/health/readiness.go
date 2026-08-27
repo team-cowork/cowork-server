@@ -7,8 +7,9 @@ import (
 	"sync/atomic"
 )
 
-// Readiness tracks whether the Kafka-backed authorization projection has
-// reached the fixed startup high-watermark. Liveness is deliberately separate.
+// Readiness tracks whether the Kafka-backed authorization projection matches
+// the latest broker high-watermark observed by the continuous poller. Liveness
+// is deliberately separate.
 type Readiness struct {
 	ready   atomic.Bool
 	mu      sync.Mutex
@@ -21,6 +22,15 @@ func NewReadiness() *Readiness {
 
 func (r *Readiness) IsReady() bool {
 	return r.ready.Load()
+}
+
+// Snapshot atomically returns the current state and a channel closed by the
+// next transition. Callers can recompute after the channel closes without
+// losing a transition between observing state and subscribing.
+func (r *Readiness) Snapshot() (bool, <-chan struct{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.ready.Load(), r.changed
 }
 
 func (r *Readiness) Set(ready bool) {

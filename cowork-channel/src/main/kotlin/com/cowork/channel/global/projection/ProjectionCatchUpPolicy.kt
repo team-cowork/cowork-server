@@ -1,16 +1,13 @@
 package com.cowork.channel.global.projection
 
-data class ProjectionStream(
-    val consumerGroup: String,
-    val topic: String,
-    val expectedSource: String?,
-)
+data class ProjectionStream(val consumerGroup: String, val topic: String, val expectedSource: String?)
 
 data class ProjectionCheckpoint(
     val nextOffset: Long,
     val topicId: String,
     val invalidCheckpointOffset: Long? = null,
     val snapshotCompletedOffset: Long? = null,
+    val invalidRecordOffset: Long? = null,
 )
 
 data class ProjectionBarrier(val topicId: String, val targetOffset: Long)
@@ -57,6 +54,7 @@ object ProjectionCatchUpPolicy {
                 checkpoint != null &&
                     checkpoint.topicId == barrier.topicId &&
                     checkpoint.invalidCheckpointOffset == null &&
+                    checkpoint.invalidRecordOffset == null &&
                     checkpoint.snapshotCompletedOffset != null &&
                     checkpoint.nextOffset > checkpoint.snapshotCompletedOffset &&
                     checkpoint.nextOffset >= barrier.targetOffset
@@ -82,7 +80,7 @@ object ProjectionCatchUpPolicy {
                 checkpoint.topicId == topicState.topicId &&
                 checkpoint.snapshotCompletedOffset?.let { it >= range.beginningOffset } == true &&
                 barrier.targetOffset <= range.endOffset &&
-                checkpoint.nextOffset in range.beginningOffset..range.endOffset
+                checkpoint.nextOffset == range.endOffset
         }
     }
 }

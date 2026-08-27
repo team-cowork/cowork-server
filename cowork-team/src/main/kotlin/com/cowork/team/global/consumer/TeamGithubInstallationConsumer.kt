@@ -1,5 +1,6 @@
 package com.cowork.team.global.consumer
 
+import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
 import org.slf4j.LoggerFactory
@@ -12,6 +13,7 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamGithubInstallationConsumer(
     private val teamRepository: TeamRepository,
     private val teamGithubStateSupport: TeamGithubStateSupport,
+    private val teamEventPublisher: TeamEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(TeamGithubInstallationConsumer::class.java)
 
@@ -22,7 +24,7 @@ class TeamGithubInstallationConsumer(
     )
     @Transactional
     fun consumeConnected(payload: TeamGithubConnectedPayload) {
-        val (teamId, _) = try {
+        val (teamId, actorUserId) = try {
             teamGithubStateSupport.verifyState(payload.state)
         } catch (e: ExpectedException) {
             log.warn("team.github.connected state 검증 실패로 이벤트를 무시합니다: {}", e.message)
@@ -41,7 +43,7 @@ class TeamGithubInstallationConsumer(
             return
         }
 
-        val team = teamRepository.findById(teamId).orElse(null) ?: run {
+        val team = teamRepository.findByIdForUpdate(teamId) ?: run {
             log.warn("team.github.connected: team {} 없음", teamId)
             return
         }
@@ -58,9 +60,11 @@ class TeamGithubInstallationConsumer(
             )
             return
         }
+        if (currentInstallationId == payload.installationId && team.githubOrgLogin == payload.orgLogin) return
 
         team.connectGithub(payload.installationId, payload.orgLogin)
         teamRepository.save(team)
+        teamEventPublisher.publishUpdated(team, actorUserId)
     }
 
     @KafkaListener(
@@ -68,9 +72,13 @@ class TeamGithubInstallationConsumer(
         groupId = "cowork-team.github-disconnected",
         containerFactory = "teamGithubDisconnectedListenerContainerFactory",
     )
+    @Transactional
     fun consumeDisconnected(payload: TeamGithubDisconnectedPayload) {
-        val team = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
+        val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
+        val team = teamRepository.findByIdForUpdate(existing.id) ?: return
+        if (team.githubInstallationId != payload.installationId) return
         team.disconnectGithub()
         teamRepository.save(team)
+        teamEventPublisher.publishUpdated(team, team.ownerId)
     }
 }

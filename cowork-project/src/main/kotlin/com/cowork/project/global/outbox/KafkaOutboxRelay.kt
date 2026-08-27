@@ -56,7 +56,7 @@ class KafkaOutboxRelay(
     private fun relayBatch(connection: Connection) {
         for (record in findPending(connection)) {
             try {
-                val payload = objectMapper.readTree(record.payload)
+                val payload = deserializePayload(record.payload)
                 val sendResult = record.partition?.let { partition ->
                     kafkaTemplate.send(record.topic, partition, record.eventKey, payload)
                 } ?: kafkaTemplate.send(record.topic, record.eventKey, payload)
@@ -72,6 +72,13 @@ class KafkaOutboxRelay(
                 break
             }
         }
+    }
+
+    private fun deserializePayload(payload: String): Map<String, Any?> {
+        val decoded: Any? = objectMapper.readValue(payload, Any::class.java)
+        require(decoded is Map<*, *>) { "Kafka outbox payload must be a JSON object." }
+        @Suppress("UNCHECKED_CAST")
+        return decoded as Map<String, Any?>
     }
 
     private fun findPending(connection: Connection): List<OutboxRecord> =

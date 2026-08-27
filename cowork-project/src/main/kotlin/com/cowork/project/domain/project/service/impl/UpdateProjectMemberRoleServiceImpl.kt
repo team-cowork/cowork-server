@@ -4,6 +4,7 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
 import com.cowork.project.domain.project.service.support.ProjectMemberLookupSupport
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
 import com.cowork.project.domain.projectMember.presentation.data.request.UpdateProjectMemberRoleReqDto
 import com.cowork.project.domain.projectMember.presentation.data.response.ProjectMemberResDto
 import org.springframework.http.HttpStatus
@@ -15,6 +16,7 @@ import team.themoment.sdk.exception.ExpectedException
 class UpdateProjectMemberRoleServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectMemberLookupSupport: ProjectMemberLookupSupport,
+    private val projectMemberEventPublisher: ProjectMemberEventPublisher,
 ) : UpdateProjectMemberRoleService {
 
     @Transactional
@@ -24,9 +26,9 @@ class UpdateProjectMemberRoleServiceImpl(
         memberId: Long,
         request: UpdateProjectMemberRoleReqDto,
     ): ProjectMemberResDto {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
-        val member = projectMemberLookupSupport.findMemberOrThrow(memberId)
+        val member = projectMemberLookupSupport.findMemberForUpdateOrThrow(memberId)
 
         if (member.projectId != projectId) {
             throw ExpectedException("해당 프로젝트의 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
@@ -40,6 +42,7 @@ class UpdateProjectMemberRoleServiceImpl(
         }
 
         member.updateRole(request.role)
+        projectMemberEventPublisher.publishAdded(member)
 
         return ProjectMemberResDto.of(member)
     }

@@ -70,18 +70,20 @@ class ProjectionCheckpointStore(
         return seeks
     }
 
-    fun advance(stream: ProjectionStream, partition: Int, nextOffset: Long) {
+    fun advance(stream: ProjectionStream, partition: Int, nextOffset: Long, topicId: String) {
         val updated = jdbcTemplate.update(
             """
             UPDATE tb_kafka_projection_checkpoints
             SET next_offset = GREATEST(next_offset, ?),
                 updated_at = CURRENT_TIMESTAMP(6)
             WHERE consumer_group = ? AND topic_name = ? AND partition_id = ?
+              AND BINARY topic_id = BINARY ?
             """.trimIndent(),
             nextOffset,
             stream.consumerGroup,
             stream.topic,
             partition,
+            topicId,
         )
         check(updated == 1) {
             "Kafka projection checkpoint가 초기화되지 않았습니다: " +
@@ -89,14 +91,80 @@ class ProjectionCheckpointStore(
         }
     }
 
-    fun markSnapshotCompleted(stream: ProjectionStream, partition: Int, markerOffset: Long, topicId: String) {
+    fun markInvalidRecord(stream: ProjectionStream, partition: Int, recordOffset: Long, topicId: String) {
         val updated = jdbcTemplate.update(
             """
             UPDATE tb_kafka_projection_checkpoints
-            SET snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), ?),
+            SET recovery_snapshot_id = IF(
+                    invalid_record_offset IS NULL OR ? > invalid_record_offset,
+                    NULL,
+                    recovery_snapshot_id
+                ),
+                invalid_record_offset = GREATEST(
+                    COALESCE(invalid_record_offset, -1),
+                    ?
+                ),
+                updated_at = CURRENT_TIMESTAMP(6)
+            WHERE consumer_group = ? AND topic_name = ? AND partition_id = ?
+              AND BINARY topic_id = BINARY ?
+            """.trimIndent(),
+            recordOffset,
+            recordOffset,
+            stream.consumerGroup,
+            stream.topic,
+            partition,
+            topicId,
+        )
+        check(updated == 1) {
+            "Kafka projection checkpoint가 초기화되지 않았습니다: " +
+                "${stream.consumerGroup}/${stream.topic}/$partition"
+        }
+    }
+
+    fun markSnapshotCompleted(
+        stream: ProjectionStream,
+        partition: Int,
+        markerOffset: Long,
+        topicId: String,
+        snapshotId: String,
+    ) {
+        val updated = jdbcTemplate.update(
+            """
+            UPDATE tb_kafka_projection_checkpoints
+            SET invalid_record_offset = IF(
+                    invalid_record_offset IS NOT NULL
+                        AND ? > invalid_record_offset
+                        AND recovery_snapshot_id IS NOT NULL
+                        AND BINARY recovery_snapshot_id <> BINARY ?
+                        AND (last_snapshot_id IS NULL OR BINARY last_snapshot_id <> BINARY ?),
+                    NULL,
+                    invalid_record_offset
+                ),
+                recovery_snapshot_id = CASE
+                    WHEN invalid_record_offset IS NULL THEN NULL
+                    WHEN ? <= invalid_record_offset THEN recovery_snapshot_id
+                    WHEN last_snapshot_id IS NOT NULL AND BINARY last_snapshot_id = BINARY ?
+                        THEN recovery_snapshot_id
+                    WHEN recovery_snapshot_id IS NULL THEN ?
+                    ELSE recovery_snapshot_id
+                END,
+                last_snapshot_id = IF(
+                    snapshot_completed_offset IS NULL OR ? >= snapshot_completed_offset,
+                    ?,
+                    last_snapshot_id
+                ),
+                snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), ?),
                 updated_at = CURRENT_TIMESTAMP(6)
             WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND BINARY topic_id = BINARY ?
             """.trimIndent(),
+            markerOffset,
+            snapshotId,
+            snapshotId,
+            markerOffset,
+            snapshotId,
+            snapshotId,
+            markerOffset,
+            snapshotId,
             markerOffset,
             stream.consumerGroup,
             stream.topic,
@@ -157,7 +225,8 @@ class ProjectionCheckpointStore(
 
     private fun findCheckpoints(stream: ProjectionStream): Map<Int, ProjectionCheckpoint> = jdbcTemplate.query(
         """
-        SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset, snapshot_completed_offset
+        SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset,
+               snapshot_completed_offset, invalid_record_offset
         FROM tb_kafka_projection_checkpoints
         WHERE consumer_group = ? AND topic_name = ?
         """.trimIndent(),
@@ -168,11 +237,15 @@ class ProjectionCheckpointStore(
             val snapshotCompletedOffset = resultSet.getLong("snapshot_completed_offset").let {
                 if (resultSet.wasNull()) null else it
             }
+            val invalidRecordOffset = resultSet.getLong("invalid_record_offset").let {
+                if (resultSet.wasNull()) null else it
+            }
             resultSet.getInt("partition_id") to ProjectionCheckpoint(
                 nextOffset = resultSet.getLong("next_offset"),
                 topicId = resultSet.getString("topic_id"),
                 invalidCheckpointOffset = invalidCheckpointOffset,
                 snapshotCompletedOffset = snapshotCompletedOffset,
+                invalidRecordOffset = invalidRecordOffset,
             )
         },
         stream.consumerGroup,
@@ -184,8 +257,9 @@ class ProjectionCheckpointStore(
             """
             INSERT INTO tb_kafka_projection_checkpoints
                 (consumer_group, topic_name, partition_id, topic_id, next_offset,
-                 invalid_checkpoint_offset, snapshot_completed_offset)
-            VALUES (?, ?, ?, ?, ?, ?, NULL)
+                 invalid_checkpoint_offset, snapshot_completed_offset, invalid_record_offset,
+                 last_snapshot_id, recovery_snapshot_id)
+            VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL)
             ON DUPLICATE KEY UPDATE
                 snapshot_completed_offset = IF(
                     BINARY topic_id <> BINARY VALUES(topic_id),
@@ -196,6 +270,21 @@ class ProjectionCheckpointStore(
                     BINARY topic_id <> BINARY VALUES(topic_id),
                     next_offset,
                     COALESCE(invalid_checkpoint_offset, VALUES(invalid_checkpoint_offset))
+                ),
+                invalid_record_offset = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    invalid_record_offset
+                ),
+                last_snapshot_id = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    last_snapshot_id
+                ),
+                recovery_snapshot_id = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    recovery_snapshot_id
                 ),
                 topic_id = VALUES(topic_id),
                 updated_at = CURRENT_TIMESTAMP(6)

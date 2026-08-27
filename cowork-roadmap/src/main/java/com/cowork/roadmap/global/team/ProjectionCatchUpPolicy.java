@@ -3,8 +3,12 @@ package com.cowork.roadmap.global.team;
 import java.util.Map;
 import java.util.Set;
 
-record ProjectionCheckpoint(long nextOffset, String topicId, Long invalidCheckpointOffset,
-        Long snapshotCompletedOffset) {
+record ProjectionCheckpoint(long nextOffset, String topicId, Long invalidCheckpointOffset, Long snapshotCompletedOffset,
+        Long invalidRecordOffset) {
+
+    ProjectionCheckpoint(long nextOffset, String topicId, Long invalidCheckpointOffset, Long snapshotCompletedOffset) {
+        this(nextOffset, topicId, invalidCheckpointOffset, snapshotCompletedOffset, null);
+    }
 }
 
 record ProjectionBarrier(String topicId, long targetOffset) {
@@ -64,11 +68,12 @@ final class ProjectionCatchUpPolicy {
             ProjectionBrokerRange range = brokerRanges.get(partition);
             if (!barrier.topicId().equals(currentTopicId) || !checkpoint.topicId().equals(currentTopicId)
                     || checkpoint.invalidCheckpointOffset() != null || checkpoint.snapshotCompletedOffset() == null
+                    || checkpoint.invalidRecordOffset() != null
                     || checkpoint.nextOffset() <= checkpoint.snapshotCompletedOffset()
                     || checkpoint.nextOffset() < barrier.targetOffset() || barrier.targetOffset() > range.endOffset()
                     || checkpoint.snapshotCompletedOffset() < range.beginningOffset()
                     || checkpoint.nextOffset() < range.beginningOffset()
-                    || checkpoint.nextOffset() > range.endOffset()) {
+                    || checkpoint.nextOffset() != range.endOffset()) {
                 return false;
             }
         }

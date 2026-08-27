@@ -10,11 +10,18 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
   @range_validation_interval_ms 2_000
   @readiness_refresh_interval_ms 500
   @readiness_cache :cowork_user_projection_readiness_cache
+  @marker_fetch_options %{max_wait_time: 100, min_bytes: 1, max_bytes: 1_048_576}
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
 
   def ready?, do: cached_readiness(:ready)
   def team_ready?, do: cached_readiness(:team_ready)
+
+  def current? do
+    GenServer.call(__MODULE__, :current?, 10_000)
+  catch
+    :exit, _reason -> false
+  end
 
   def consumer_connected do
     epoch = runtime_connection_epoch()
@@ -27,6 +34,32 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     set_runtime_consumer_connected(false)
     close_readiness_cache()
     GenServer.cast(__MODULE__, {:consumer_disconnected, epoch})
+  end
+
+  def assignment_replay_started(consumer_group, topic, partition) do
+    close_readiness_cache()
+
+    GenServer.call(
+      __MODULE__,
+      {:assignment_replay_started, {consumer_group, topic, partition}},
+      10_000
+    )
+  catch
+    :exit, reason -> {:error, reason}
+  end
+
+  def assignment_replay_finished(consumer_group, topic, partition) do
+    GenServer.call(
+      __MODULE__,
+      {:assignment_replay_finished, {consumer_group, topic, partition}},
+      10_000
+    )
+  catch
+    :exit, reason -> {:error, reason}
+  end
+
+  def state_gap_detected do
+    close_readiness_cache()
   end
 
   @doc false
@@ -45,9 +78,13 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
   def replay_validation_action({:error, _reason}), do: :recapture
   def replay_validation_action({:invalid, _reason}), do: :halt
 
+  @doc false
+  def profile_snapshot_transition_action(false, true), do: :publish_now
+  def profile_snapshot_transition_action(_previous_ready?, _next_ready?), do: :keep
+
   def barrier_satisfied?(barriers, offsets) when map_size(barriers) > 0 do
     Enum.all?(barriers, fn {key, range} ->
-      Map.get(offsets, key, -1) >= required_offset(range)
+      Map.get(offsets, key, -1) == required_offset(range)
     end)
   end
 
@@ -57,6 +94,48 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
       when is_integer(checkpoint) and is_integer(beginning_offset) and is_integer(end_offset) do
     checkpoint >= beginning_offset and checkpoint <= end_offset
   end
+
+  @doc false
+  def partition_ready?(
+        %{
+          beginning_offset: beginning_offset,
+          end_offset: end_offset,
+          replay_generation: generation,
+          validated_marker: validated_marker
+        },
+        %{
+          next_offset: end_offset,
+          replay_generation: generation,
+          replay_token: token,
+          replay_lease_active: true,
+          invalid_record_offset: nil,
+          snapshot_completed_offset: marker_offset,
+          last_snapshot_id: snapshot_id
+        },
+        %{
+          marker_offset: marker_offset,
+          replay_generation: generation,
+          replay_token: token,
+          snapshot_id: snapshot_id
+        }
+      )
+      when is_binary(token) and is_map(validated_marker) do
+    marker_offset >= beginning_offset and marker_offset < end_offset and
+      validated_marker.marker_offset == marker_offset and
+      validated_marker.snapshot_id == snapshot_id and
+      validated_marker.replay_generation == generation and
+      validated_marker.replay_token == token
+  end
+
+  def partition_ready?(_range, _checkpoint, _marker), do: false
+
+  @doc false
+  def partition_count_contract(_topic, _reserved, partition_count)
+      when is_integer(partition_count) and partition_count > 0,
+      do: :ok
+
+  def partition_count_contract(_topic, _reserved, partition_count),
+    do: {:invalid, {:invalid_partition_count, partition_count}}
 
   @impl true
   def init(opts) do
@@ -72,23 +151,21 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     state = %{
       config: config,
       barriers: %{},
+      assignments_replaying: %{},
       capture_generation: 0,
-      consumer_connected: not config.kafka_enabled,
-      initialized: not config.kafka_enabled,
+      consumer_connected: false,
+      initialized: false,
       invalid_latched: false,
-      replay_range_valid: not config.kafka_enabled,
+      replay_range_valid: false,
       runtime_connection_epoch: 0
     }
 
     :ets.insert(@readiness_cache, [
-      {:consumer_connected, not config.kafka_enabled},
+      {:consumer_connected, false},
       {:runtime_connection_epoch, 0}
     ])
 
-    cache_readiness(
-      if(config.kafka_enabled, do: {false, false}, else: {true, true}),
-      state.runtime_connection_epoch
-    )
+    cache_readiness({false, false}, state.runtime_connection_epoch)
 
     schedule_range_validation()
     schedule_readiness_refresh()
@@ -100,6 +177,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         {:consumer_connected, _epoch},
         %{config: %{kafka_enabled: false}} = state
       ) do
+    cache_readiness({false, false}, state.runtime_connection_epoch)
     {:noreply, state}
   end
 
@@ -144,7 +222,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         {:consumer_disconnected, _epoch},
         %{config: %{kafka_enabled: false}} = state
       ) do
-    cache_readiness({true, true}, state.runtime_connection_epoch)
+    cache_readiness({false, false}, state.runtime_connection_epoch)
     {:noreply, state}
   end
 
@@ -159,12 +237,56 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     {:noreply,
      %{
        state
-       | capture_generation: state.capture_generation + 1,
+       | assignments_replaying: %{},
+         capture_generation: state.capture_generation + 1,
          consumer_connected: false,
          initialized: false,
          replay_range_valid: false,
          runtime_connection_epoch: epoch
      }}
+  end
+
+  @impl true
+  def handle_call({:assignment_replay_started, key}, _from, state) do
+    close_readiness_cache()
+
+    {:reply, :ok,
+     %{state | assignments_replaying: Map.put(state.assignments_replaying, key, true)}}
+  end
+
+  def handle_call({:assignment_replay_finished, key}, _from, state) do
+    assignments_replaying = Map.delete(state.assignments_replaying, key)
+
+    if map_size(assignments_replaying) == 0 do
+      generation = state.capture_generation + 1
+      send(self(), {:initialize, generation})
+
+      {:reply, :ok,
+       %{
+         state
+         | assignments_replaying: assignments_replaying,
+           capture_generation: generation,
+           initialized: false,
+           replay_range_valid: false
+       }}
+    else
+      {:reply, :ok, %{state | assignments_replaying: assignments_replaying}}
+    end
+  end
+
+  def handle_call(:current?, _from, %{consumer_connected: false} = state) do
+    cache_readiness({false, false})
+    {:reply, false, state}
+  end
+
+  def handle_call(:current?, _from, %{initialized: false} = state) do
+    cache_readiness({false, false})
+    {:reply, false, state}
+  end
+
+  def handle_call(:current?, _from, state) do
+    {ready?, next_state} = refresh_current_barriers(state)
+    {:reply, ready?, next_state}
   end
 
   @impl true
@@ -195,6 +317,10 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         Logger.error("Kafka projection replay state is invalid: #{inspect(reason)}")
         {:noreply, fail_closed_until_restart(state)}
 
+      {:replay, reason} ->
+        Logger.warning("Kafka projection source identity changed: #{inspect(reason)}")
+        {:noreply, fail_closed_for_replay(state, reason)}
+
       {:error, reason} ->
         Logger.warning("Kafka projection barrier initialization failed: #{inspect(reason)}")
         Process.send_after(self(), {:initialize, generation}, @retry_ms)
@@ -215,30 +341,23 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
   end
 
   def handle_info(:validate_replay_ranges, state) do
-    validation = validate_replay_ranges(state.config, Map.keys(state.barriers))
-
-    next_state =
-      case replay_validation_action(validation) do
-        :keep ->
-          state
-
-        :halt ->
-          {:invalid, reason} = validation
-          Logger.error("Kafka projection replay range became invalid: #{inspect(reason)}")
-          fail_closed_until_restart(state)
-
-        :recapture ->
-          {:error, reason} = validation
-          Logger.warning("Kafka projection replay range validation failed: #{inspect(reason)}")
-          fail_closed_and_recapture(state)
-      end
+    {_ready?, next_state} = refresh_current_barriers(state)
 
     schedule_range_validation()
     {:noreply, next_state}
   end
 
+  def handle_info(
+        :refresh_readiness,
+        %{consumer_connected: true, initialized: true} = state
+      ) do
+    {_ready?, next_state} = refresh_current_barriers(state)
+    schedule_readiness_refresh()
+    {:noreply, next_state}
+  end
+
   def handle_info(:refresh_readiness, state) do
-    cache_readiness(compute_readiness(state), state.runtime_connection_epoch)
+    cache_readiness({false, false}, state.runtime_connection_epoch)
     schedule_readiness_refresh()
     {:noreply, state}
   end
@@ -254,9 +373,15 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         {config.kafka_presence_group_id, config.kafka_presence_topic}
       ]
       |> Enum.reduce_while({:ok, %{}}, fn {consumer_group, topic}, {:ok, barriers} ->
-        case topic_barriers(endpoints, consumer_group, topic) do
+        case topic_barriers(
+               endpoints,
+               consumer_group,
+               topic,
+               nil
+             ) do
           {:ok, topic_barriers} -> {:cont, {:ok, Map.merge(barriers, topic_barriers)}}
           {:invalid, reason} -> {:halt, {:invalid, {topic, reason}}}
+          {:replay, reason} -> {:halt, {:replay, {topic, reason}}}
           {:error, reason} -> {:halt, {:error, {topic, reason}}}
         end
       end)
@@ -267,51 +392,62 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     end
   end
 
-  defp topic_barriers(endpoints, consumer_group, topic) do
-    with {:ok, partition_count} when partition_count > 0 <-
+  defp topic_barriers(endpoints, consumer_group, topic, identity_topic) do
+    with {:ok, partition_count} <-
            :brod.get_partitions_count(@client_id, topic),
-         {:ok, marker_offsets} <- ProjectionBarrier.offsets([{consumer_group, topic}]) do
-      0..(partition_count - 1)
-      |> Enum.reduce_while({:ok, %{}}, fn partition, {:ok, barriers} ->
-        with {:ok, beginning_offset} <-
-               :brod.resolve_offset(endpoints, topic, partition, :earliest),
-             {:ok, end_offset} <- :brod.resolve_offset(endpoints, topic, partition, :latest),
-             {:ok, checkpoint} <-
-               load_or_initialize_checkpoint(
-                 consumer_group,
-                 topic,
-                 partition,
-                 beginning_offset
-               ) do
-          marker_offset = Map.get(marker_offsets, {consumer_group, topic, partition})
+         :ok <- partition_count_contract(topic, identity_topic, partition_count),
+         {:ok, checkpoints} <- ProjectionCheckpoint.states([{consumer_group, topic}]),
+         {:ok, markers} <- ProjectionBarrier.states([{consumer_group, topic}]),
+         {:ok, generations} <- ProjectionCheckpoint.generations([{consumer_group, topic}]) do
+      generation = Map.get(generations, {consumer_group, topic})
 
-          cond do
-            not checkpoint_replayable?(checkpoint, beginning_offset, end_offset) ->
-              {:halt,
-               {:invalid,
-                {:projection_checkpoint_outside_retained_log,
-                 checkpoint: checkpoint,
-                 beginning_offset: beginning_offset,
-                 end_offset: end_offset}}}
+      if is_integer(generation) and generation > 0 do
+        0..(partition_count - 1)
+        |> Enum.reduce_while({:ok, %{}}, fn partition, {:ok, barriers} ->
+          key = {consumer_group, topic, partition}
 
-            not marker_range_valid?(marker_offset, beginning_offset, end_offset) ->
-              {:halt,
-               {:invalid,
-                {:projection_marker_outside_retained_log,
-                 marker_offset: marker_offset,
-                 beginning_offset: beginning_offset,
-                 end_offset: end_offset}}}
+          with {:ok, beginning_offset} <-
+                 :brod.resolve_offset(endpoints, topic, partition, :earliest),
+               {:ok, end_offset} <-
+                 :brod.resolve_offset(endpoints, topic, partition, :latest) do
+            checkpoint = Map.get(checkpoints, key)
+            marker = Map.get(markers, key)
 
-            true ->
-              range = %{beginning_offset: beginning_offset, end_offset: end_offset}
-              {:cont, {:ok, Map.put(barriers, {consumer_group, topic, partition}, range)}}
+            case validate_partition_replay(
+                   endpoints,
+                   topic,
+                   partition,
+                   generation,
+                   beginning_offset,
+                   end_offset,
+                   checkpoint,
+                   marker
+                 ) do
+              {:ok, validated_marker} ->
+                range = %{
+                  beginning_offset: beginning_offset,
+                  end_offset: end_offset,
+                  replay_generation: generation,
+                  validated_marker: validated_marker
+                }
+
+                {:cont, {:ok, Map.put(barriers, key, range)}}
+
+              {:replay, reason} ->
+                {:halt, {:replay, {partition, reason}}}
+
+              {:error, reason} ->
+                {:halt, {:error, {partition, reason}}}
+            end
+          else
+            {:error, reason} -> {:halt, {:error, {partition, reason}}}
           end
-        else
-          {:error, reason} -> {:halt, {:error, reason}}
-        end
-      end)
+        end)
+      else
+        {:error, :replay_generation_not_started}
+      end
     else
-      {:ok, partition_count} -> {:invalid, {:invalid_partition_count, partition_count}}
+      {:invalid, reason} -> {:invalid, reason}
       {:error, reason} -> {:error, reason}
     end
   end
@@ -329,96 +465,12 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     end
   end
 
-  defp load_or_initialize_checkpoint(consumer_group, topic, partition, beginning_offset) do
-    case ProjectionCheckpoint.next_offset(consumer_group, topic, partition) do
-      {:ok, nil} ->
-        case ProjectionCheckpoint.initialize(
-               consumer_group,
-               topic,
-               partition,
-               beginning_offset
-             ) do
-          :ok -> {:ok, beginning_offset}
-          {:error, reason} -> {:error, reason}
-        end
-
-      {:ok, checkpoint} ->
-        {:ok, checkpoint}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
-  end
-
-  defp validate_replay_ranges(config, startup_keys) do
-    endpoints = parse_bootstrap_servers(config.kafka_bootstrap_servers)
-
-    [
-      {config.kafka_team_member_group_id, config.kafka_team_member_topic},
-      {config.kafka_presence_group_id, config.kafka_presence_topic}
-    ]
-    |> Enum.reduce_while(:ok, fn {consumer_group, topic}, :ok ->
-      case validate_topic_range(endpoints, consumer_group, topic, startup_keys) do
-        :ok -> {:cont, :ok}
-        other -> {:halt, other}
-      end
-    end)
-  end
-
-  defp validate_topic_range(endpoints, consumer_group, topic, startup_keys) do
-    with {:ok, partition_count} <- :brod.get_partitions_count(@client_id, topic),
-         {:ok, marker_offsets} <- ProjectionBarrier.offsets([{consumer_group, topic}]) do
-      current_partitions =
-        if partition_count > 0, do: Enum.to_list(0..(partition_count - 1)), else: []
-
-      expected_partitions =
-        startup_keys
-        |> Enum.filter(fn {group, key_topic, _partition} ->
-          group == consumer_group and key_topic == topic
-        end)
-        |> Enum.map(fn {_group, _topic, partition} -> partition end)
-        |> Enum.sort()
-
-      if current_partitions != expected_partitions do
-        {:invalid,
-         {:partition_topology_changed,
-          topic: topic, expected: expected_partitions, current: current_partitions}}
-      else
-        Enum.reduce_while(current_partitions, :ok, fn partition, :ok ->
-          with {:ok, beginning_offset} <-
-                 :brod.resolve_offset(endpoints, topic, partition, :earliest),
-               {:ok, end_offset} <- :brod.resolve_offset(endpoints, topic, partition, :latest),
-               {:ok, checkpoint} <-
-                 ProjectionCheckpoint.next_offset(consumer_group, topic, partition) do
-            marker_offset = Map.get(marker_offsets, {consumer_group, topic, partition})
-
-            if is_integer(checkpoint) and
-                 checkpoint_replayable?(checkpoint, beginning_offset, end_offset) and
-                 marker_range_valid?(marker_offset, beginning_offset, end_offset) do
-              {:cont, :ok}
-            else
-              {:halt,
-               {:invalid,
-                {:checkpoint_outside_retained_log,
-                 topic: topic,
-                 partition: partition,
-                 checkpoint: checkpoint,
-                 marker_offset: marker_offset,
-                 beginning_offset: beginning_offset,
-                 end_offset: end_offset}}}
-            end
-          else
-            {:error, reason} -> {:halt, {:error, reason}}
-          end
-        end)
-      end
-    else
-      {:error, reason} -> {:error, reason}
-    end
-  end
-
-  defp compute_readiness(%{config: %{kafka_enabled: false}}), do: {true, true}
+  defp compute_readiness(%{config: %{kafka_enabled: false}}), do: {false, false}
   defp compute_readiness(%{consumer_connected: false}), do: {false, false}
+
+  defp compute_readiness(%{assignments_replaying: assignments}) when map_size(assignments) > 0,
+    do: {false, false}
+
   defp compute_readiness(%{initialized: false}), do: {false, false}
   defp compute_readiness(%{invalid_latched: true}), do: {false, false}
   defp compute_readiness(%{replay_range_valid: false}), do: {false, false}
@@ -434,11 +486,12 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     groups_and_topics =
       keys |> Enum.map(fn {group, topic, _partition} -> {group, topic} end) |> Enum.uniq()
 
-    with {:ok, offsets} <- ProjectionCheckpoint.offsets(groups_and_topics),
-         {:ok, marker_offsets} <- ProjectionBarrier.offsets(groups_and_topics) do
+    with {:ok, checkpoints} <- ProjectionCheckpoint.states(groups_and_topics),
+         {:ok, markers} <- ProjectionBarrier.states(groups_and_topics),
+         {:ok, generations} <- ProjectionCheckpoint.generations(groups_and_topics) do
       {
-        keys_ready?(state.barriers, keys, offsets, marker_offsets),
-        keys_ready?(state.barriers, team_keys, offsets, marker_offsets)
+        keys_ready?(state.barriers, keys, checkpoints, markers, generations),
+        keys_ready?(state.barriers, team_keys, checkpoints, markers, generations)
       }
     else
       {:error, _reason} -> {false, false}
@@ -447,13 +500,44 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     _exception -> {false, false}
   end
 
-  defp keys_ready?(_barriers, [], _offsets, _marker_offsets), do: false
+  defp refresh_current_barriers(state) do
+    case build_barriers(state.config, Map.keys(state.barriers)) do
+      {:ok, current_barriers} ->
+        current_state = %{state | barriers: current_barriers}
+        {ready?, team_ready?} = compute_readiness(current_state)
 
-  defp keys_ready?(barriers, keys, offsets, marker_offsets) do
-    barrier = Map.take(barriers, keys)
+        cache_readiness(
+          {ready?, team_ready?},
+          current_state.runtime_connection_epoch
+        )
 
-    barrier_satisfied?(barrier, offsets) and
-      ProjectionBarrier.markers_satisfied?(barrier, offsets, marker_offsets)
+        {ready?, current_state}
+
+      {:invalid, reason} ->
+        Logger.error("Kafka projection replay range became invalid: #{inspect(reason)}")
+        {false, fail_closed_until_restart(state)}
+
+      {:replay, reason} ->
+        Logger.warning("Kafka projection source identity changed: #{inspect(reason)}")
+        {false, fail_closed_for_replay(state, reason)}
+
+      {:error, reason} ->
+        Logger.warning("Kafka projection replay range validation failed: #{inspect(reason)}")
+        {false, fail_closed_and_recapture(state)}
+    end
+  end
+
+  defp keys_ready?(_barriers, [], _checkpoints, _markers, _generations), do: false
+
+  defp keys_ready?(barriers, keys, checkpoints, markers, generations) do
+    Enum.all?(keys, fn key ->
+      {consumer_group, topic, _partition} = key
+      range = Map.get(barriers, key)
+
+      is_map(range) and
+        Map.get(generations, {consumer_group, topic}) == range.replay_generation and
+        partition_ready?(range, Map.get(checkpoints, key), Map.get(markers, key))
+    end)
   end
 
   defp cached_readiness(key) do
@@ -470,10 +554,17 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
       is_nil(expected_runtime_epoch) or
         runtime_connection_matches?(expected_runtime_epoch)
 
+    previous_ready = cached_readiness(:ready)
+    next_ready = ready and runtime_valid
+
     :ets.insert(@readiness_cache, [
-      {:ready, ready and runtime_valid},
+      {:ready, next_ready},
       {:team_ready, team_ready and runtime_valid}
     ])
+
+    if profile_snapshot_transition_action(previous_ready, next_ready) == :publish_now do
+      CoworkUser.Kafka.ProfileSnapshotPublisher.publish_now()
+    end
 
     :ok
   end
@@ -518,6 +609,132 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     ArgumentError -> false
   end
 
+  defp validate_partition_replay(
+         _endpoints,
+         _topic,
+         _partition,
+         _generation,
+         _beginning_offset,
+         _end_offset,
+         nil,
+         _marker
+       ),
+       do: {:ok, nil}
+
+  defp validate_partition_replay(
+         endpoints,
+         topic,
+         partition,
+         generation,
+         beginning_offset,
+         end_offset,
+         checkpoint,
+         marker
+       ) do
+    cond do
+      checkpoint.replay_generation != generation ->
+        {:ok, nil}
+
+      not is_binary(checkpoint.replay_token) ->
+        {:replay, :missing_replay_token}
+
+      not checkpoint_replayable?(
+        checkpoint.next_offset,
+        beginning_offset,
+        end_offset
+      ) ->
+        {:replay,
+         {:projection_checkpoint_outside_retained_log,
+          checkpoint: checkpoint.next_offset,
+          beginning_offset: beginning_offset,
+          end_offset: end_offset}}
+
+      is_nil(marker) ->
+        {:ok, nil}
+
+      marker.replay_generation != generation or
+          marker.replay_token != checkpoint.replay_token ->
+        {:ok, nil}
+
+      not marker_range_valid?(marker.marker_offset, beginning_offset, end_offset) ->
+        {:replay,
+         {:projection_marker_outside_retained_log,
+          marker_offset: marker.marker_offset,
+          beginning_offset: beginning_offset,
+          end_offset: end_offset}}
+
+      true ->
+        validate_broker_marker(endpoints, topic, partition, marker)
+    end
+  end
+
+  defp validate_broker_marker(endpoints, topic, partition, marker) do
+    case :brod.fetch(
+           endpoints,
+           topic,
+           partition,
+           marker.marker_offset,
+           @marker_fetch_options
+         ) do
+      {:ok, {_high_watermark, messages}} ->
+        record =
+          Enum.find(messages, fn
+            {:kafka_message, offset, _key, _value, _ts_type, _ts, _headers} ->
+              offset == marker.marker_offset
+
+            _other ->
+              false
+          end)
+
+        if marker_identity_matches?(record, topic, partition, marker) do
+          {:ok,
+           %{
+             marker_offset: marker.marker_offset,
+             replay_generation: marker.replay_generation,
+             replay_token: marker.replay_token,
+             snapshot_id: marker.snapshot_id
+           }}
+        else
+          {:replay,
+           {:projection_marker_identity_mismatch,
+            marker_offset: marker.marker_offset, snapshot_id: marker.snapshot_id}}
+        end
+
+      {:error, :offset_out_of_range} ->
+        {:replay, {:projection_marker_offset_missing, marker.marker_offset}}
+
+      {:error, reason} ->
+        {:error, {:projection_marker_fetch_failed, reason}}
+    end
+  end
+
+  @doc false
+  def marker_identity_matches?(
+        {:kafka_message, offset, key, value, _ts_type, _ts, _headers},
+        topic,
+        partition,
+        marker
+      )
+      when is_binary(value) do
+    with true <- offset == marker.marker_offset,
+         {:ok, %{} = payload} <- Jason.decode(value),
+         {:ok, parsed_marker} <-
+           ProjectionBarrier.parse(
+             payload,
+             to_string(key),
+             topic,
+             partition,
+             marker.source
+           ) do
+      parsed_marker.snapshot_id == marker.snapshot_id and
+        parsed_marker.source == marker.source
+    else
+      _other -> false
+    end
+  end
+
+  def marker_identity_matches?(_record, _topic, _partition, _marker), do: false
+
   defp parse_bootstrap_servers(bootstrap_servers) do
     bootstrap_servers
     |> String.split(",", trim: true)
@@ -551,9 +768,28 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
     }
   end
 
+  defp fail_closed_for_replay(state, reason) do
+    cache_readiness({false, false})
+    request_full_replay(reason)
+
+    %{
+      state
+      | capture_generation: state.capture_generation + 1,
+        initialized: false,
+        invalid_latched: false,
+        replay_range_valid: false
+    }
+  end
+
   defp fail_closed_until_restart(state) do
     cache_readiness({false, false})
     %{state | initialized: false, invalid_latched: true, replay_range_valid: false}
+  end
+
+  defp request_full_replay(reason) do
+    CoworkUser.Kafka.Consumer.force_replay(reason)
+  catch
+    :exit, _reason -> :ok
   end
 
   defp required_offset(%{end_offset: end_offset}), do: end_offset

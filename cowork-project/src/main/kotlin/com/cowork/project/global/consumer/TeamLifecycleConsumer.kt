@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component
 @Component
 class TeamLifecycleConsumer(
     private val handler: ProjectLifecycleHandler,
+    private val githubInstallationHandler: TeamGithubInstallationProjectionHandler,
     private val objectMapper: ObjectMapper,
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
@@ -24,7 +25,11 @@ class TeamLifecycleConsumer(
     )
     fun consume(record: ConsumerRecord<String, String>) {
         if (processor.processControlRecord(streams.teamLifecycle, record)) return
-        val payload = runCatching { objectMapper.readValue(record.value(), TeamLifecyclePayload::class.java) }
+        val payload = runCatching {
+            requireNotNull(objectMapper.readValue(record.value(), TeamLifecyclePayload::class.java)) {
+                "top-level null은 허용되지 않습니다."
+            }
+        }
             .getOrElse {
                 quarantine(record, "team.lifecycle JSON 역직렬화 실패: ${it.message}")
                 return
@@ -38,11 +43,18 @@ class TeamLifecycleConsumer(
             "TEAM_CREATED",
             "TEAM_UPDATED",
         )
+        val teamStateEvent = payload.eventType in setOf("TEAM_CREATED", "TEAM_UPDATED", "TEAM_DELETED")
         val reason = when {
             record.key() != payload.teamId.toString() -> "teamId와 Kafka key가 일치하지 않습니다."
             payload.teamId <= 0 -> "teamId는 양수여야 합니다."
             !knownEvent -> "지원하지 않는 eventType입니다."
             payload.occurredAt == null -> "occurredAt이 필요합니다."
+            teamStateEvent && (payload.githubInstallationId == null) != (payload.githubOrgLogin == null) ->
+                "githubInstallationId와 githubOrgLogin은 함께 존재하거나 함께 없어야 합니다."
+            payload.githubInstallationId != null && payload.githubInstallationId <= 0 ->
+                "githubInstallationId는 양수여야 합니다."
+            payload.githubOrgLogin != null && payload.githubOrgLogin.isBlank() ->
+                "githubOrgLogin은 비어 있을 수 없습니다."
             else -> null
         }
         if (reason != null) {
@@ -50,8 +62,26 @@ class TeamLifecycleConsumer(
             return
         }
         processor.applyRecord(streams.teamLifecycle, record) {
-            if (payload.eventType == "TEAM_DELETED") {
-                handler.onTeamDeleted(payload.teamId, requireNotNull(payload.occurredAt))
+            val occurredAt = requireNotNull(payload.occurredAt)
+            when (payload.eventType) {
+                "TEAM_CREATED", "TEAM_UPDATED" -> githubInstallationHandler.apply(
+                    teamId = payload.teamId,
+                    installationId = payload.githubInstallationId,
+                    orgLogin = payload.githubOrgLogin,
+                    teamDeleted = false,
+                    occurredAt = occurredAt,
+                )
+                "TEAM_DELETED" -> {
+                    githubInstallationHandler.apply(
+                        teamId = payload.teamId,
+                        installationId = payload.githubInstallationId,
+                        orgLogin = payload.githubOrgLogin,
+                        teamDeleted = true,
+                        occurredAt = occurredAt,
+                    )
+                    handler.onTeamDeleted(payload.teamId, occurredAt)
+                }
+                else -> Unit
             }
         }
     }

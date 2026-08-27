@@ -1,95 +1,87 @@
 package com.cowork.team.domain.team.event
 
+import com.cowork.team.domain.team.entity.Team
+import com.cowork.team.domain.team.entity.TeamEventState
+import com.cowork.team.domain.team.repository.TeamEventStateRepository
+import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.global.outbox.OutboxWriter
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Component
-class TeamEventPublisher(private val entityManager: EntityManager, private val outboxWriter: OutboxWriter) {
+@Transactional(propagation = Propagation.MANDATORY)
+class TeamEventPublisher(
+    private val teamRepository: TeamRepository,
+    private val stateRepository: TeamEventStateRepository,
+    private val entityManager: EntityManager,
+    private val outboxWriter: OutboxWriter,
+) {
     fun publishNotification(teamId: Long, event: NotificationTriggerEvent) {
         entityManager.flush()
         outboxWriter.enqueue(Topics.NOTIFICATION_TRIGGER, teamId.toString(), event)
     }
 
-    fun publishLifecycle(payload: TeamEventPayload) = send(Topics.TEAM_LIFECYCLE, payload)
+    fun publishCreated(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
+        publishMutation("TEAM_CREATED", team, actorUserId, deleted = false, requestedAt = requestedAt)
 
-    fun publishTeamSnapshot(
-        teamId: Long,
-        teamName: String,
-        actorUserId: Long,
-        targetUserIds: List<Long>,
-        occurredAt: Instant,
-    ) {
-        publishLifecycle(
-            TeamEventPayload(
-                eventType = "TEAM_UPDATED",
-                teamId = teamId,
-                teamName = teamName,
-                actorUserId = actorUserId,
-                targetUserIds = targetUserIds,
-                occurredAt = occurredAt,
-                snapshot = true,
-            ),
-        )
-    }
+    fun publishUpdated(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
+        publishMutation("TEAM_UPDATED", team, actorUserId, deleted = false, requestedAt = requestedAt)
 
-    fun publishMemberInvited(
-        teamId: Long,
-        teamName: String,
-        actorUserId: Long,
-        targetUserIds: List<Long>,
-        occurredAt: Instant = Instant.now(),
-    ) {
-        if (targetUserIds.isEmpty()) return
-        publishLifecycle(
-            TeamEventPayload(
-                eventType = "MEMBER_INVITED",
-                teamId = teamId,
-                teamName = teamName,
-                actorUserId = actorUserId,
-                targetUserIds = targetUserIds.distinct(),
-                occurredAt = occurredAt,
-            ),
-        )
-    }
+    fun publishDeleted(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
+        publishMutation("TEAM_DELETED", team, actorUserId, deleted = true, requestedAt = requestedAt)
 
-    fun publishMemberJoined(teamId: Long, teamName: String, userId: Long) {
-        publishLifecycle(
-            TeamEventPayload(
-                eventType = "MEMBER_JOINED",
-                teamId = teamId,
-                teamName = teamName,
-                actorUserId = userId,
-                targetUserIds = listOf(userId),
-            ),
-        )
-    }
-
-    fun publishRoleChanged(
-        teamId: Long,
-        teamName: String,
-        actorUserId: Long,
-        targetUserIds: List<Long>,
-        newRole: String,
-        occurredAt: Instant = Instant.now(),
-    ) {
-        if (targetUserIds.isEmpty()) return
-        publishLifecycle(
-            TeamEventPayload(
-                eventType = "ROLE_CHANGED",
-                teamId = teamId,
-                teamName = teamName,
-                actorUserId = actorUserId,
-                targetUserIds = targetUserIds.distinct(),
-                occurredAt = occurredAt,
-                newRole = newRole,
-            ),
-        )
-    }
-
-    private fun send(topic: String, payload: TeamEventPayload) {
+    fun publishSnapshot(state: TeamEventState) {
         entityManager.flush()
-        outboxWriter.enqueue(topic, payload.teamId.toString(), payload)
+        enqueue(
+            eventType = if (state.deleted) "TEAM_DELETED" else "TEAM_UPDATED",
+            state = state,
+            snapshot = true,
+        )
+    }
+
+    private fun publishMutation(
+        eventType: String,
+        team: Team,
+        actorUserId: Long,
+        deleted: Boolean,
+        requestedAt: Instant,
+    ): Instant {
+        val lockedTeam = checkNotNull(teamRepository.findByIdForUpdate(team.id)) {
+            "Team row must exist while publishing its state mutation: ${team.id}"
+        }
+        val existingState = stateRepository.findByTeamIdForUpdate(lockedTeam.id)
+        val state = existingState ?: TeamEventState.create(lockedTeam, actorUserId, deleted, requestedAt)
+        val version = if (existingState == null) {
+            state.stateOccurredAt
+        } else {
+            state.apply(lockedTeam, actorUserId, deleted, requestedAt)
+        }
+        stateRepository.save(state)
+        entityManager.flush()
+        check((eventType == "TEAM_DELETED") == state.deleted) {
+            "Team lifecycle event type must match its persisted deletion state"
+        }
+        enqueue(eventType, state, snapshot = false)
+        return version
+    }
+
+    private fun enqueue(eventType: String, state: TeamEventState, snapshot: Boolean) {
+        val payload = TeamEventPayload(
+            eventType = eventType,
+            teamId = state.teamId,
+            teamName = state.name,
+            actorUserId = state.actorUserId,
+            occurredAt = state.stateOccurredAt,
+            snapshot = snapshot,
+            description = state.description,
+            iconUrl = state.iconUrl,
+            ownerUserId = state.ownerId,
+            githubInstallationId = state.githubInstallationId,
+            githubOrgLogin = state.githubOrgLogin,
+        )
+        outboxWriter.enqueue(Topics.TEAM_LIFECYCLE, state.teamId.toString(), payload)
     }
 }

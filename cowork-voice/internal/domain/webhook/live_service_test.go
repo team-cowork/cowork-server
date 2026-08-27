@@ -30,8 +30,7 @@ func TestLiveHandleEvent_호스트_첫_접속이면_LIVE_STARTED를_발행한다
 		findSessionByRoomNameResult: activeLiveSession(),
 		markSessionStartedResult:    true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -42,18 +41,18 @@ func TestLiveHandleEvent_호스트_첫_접속이면_LIVE_STARTED를_발행한다
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	started, ok := publisher.messages[0].event.(*kafkadomain.LiveStartedEvent)
+	started, ok := repo.messages[0].event.(*kafkadomain.LiveStartedEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *LiveStartedEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *LiveStartedEvent", repo.messages[0].event)
 	}
 	if started.HostUserID != 42 {
 		t.Fatalf("host_user_id = %d, want 42", started.HostUserID)
 	}
-	if repo.insertViewerCalled {
-		t.Fatal("InsertViewer() was called for host, want no call")
+	if repo.recordViewerCalled {
+		t.Fatal("RecordViewerJoinedAndEnqueue() was called for host")
 	}
 }
 
@@ -64,8 +63,7 @@ func TestLiveHandleEvent_호스트_재접속이면_LIVE_STARTED를_재발행하�
 		findSessionByRoomNameResult: activeLiveSession(),
 		markSessionStartedResult:    false, // 게이트: 이미 시작 이벤트 발행됨
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -76,8 +74,8 @@ func TestLiveHandleEvent_호스트_재접속이면_LIVE_STARTED를_재발행하�
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0", len(repo.messages))
 	}
 }
 
@@ -87,8 +85,7 @@ func TestLiveHandleEvent_시청자_접속이면_시청자_행을_만들고_VIEWE
 	repo := &stubLiveSessionRepository{
 		findSessionByRoomNameResult: activeLiveSession(),
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -99,15 +96,15 @@ func TestLiveHandleEvent_시청자_접속이면_시청자_행을_만들고_VIEWE
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if !repo.insertViewerCalled {
-		t.Fatal("InsertViewer() was not called")
+	if !repo.recordViewerCalled {
+		t.Fatal("RecordViewerJoinedAndEnqueue() was not called")
 	}
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	joined, ok := publisher.messages[0].event.(*kafkadomain.ViewerJoinedEvent)
+	joined, ok := repo.messages[0].event.(*kafkadomain.ViewerJoinedEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *ViewerJoinedEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *ViewerJoinedEvent", repo.messages[0].event)
 	}
 	if joined.UserID != 99 {
 		t.Fatalf("user_id = %d, want 99", joined.UserID)
@@ -121,8 +118,7 @@ func TestLiveHandleEvent_호스트가_나가면_방을_삭제한다(t *testing.T
 		findSessionByRoomNameResult: activeLiveSession(),
 	}
 	room := &stubLiveRoomController{}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, room, publisher)
+	svc := NewLiveWebhookService(repo, room)
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -140,8 +136,8 @@ func TestLiveHandleEvent_호스트가_나가면_방을_삭제한다(t *testing.T
 	if repo.endSessionCalled {
 		t.Fatal("EndSession() was called, want webhook room_finished path")
 	}
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0", len(repo.messages))
 	}
 }
 
@@ -154,8 +150,7 @@ func TestLiveHandleEvent_시청자_퇴장_첫_처리면_VIEWER_LEFT를_발행한
 		getViewerJoinedAtResult:     &joinedAt,
 		markViewerLeftResult:        true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -166,12 +161,12 @@ func TestLiveHandleEvent_시청자_퇴장_첫_처리면_VIEWER_LEFT를_발행한
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	left, ok := publisher.messages[0].event.(*kafkadomain.ViewerLeftEvent)
+	left, ok := repo.messages[0].event.(*kafkadomain.ViewerLeftEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *ViewerLeftEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *ViewerLeftEvent", repo.messages[0].event)
 	}
 	if left.DurationSeconds != 300 {
 		t.Fatalf("duration_seconds = %d, want 300", left.DurationSeconds)
@@ -185,8 +180,7 @@ func TestLiveHandleEvent_시청자_퇴장이_중복이면_발행하지_않는다
 		findSessionByRoomNameResult: activeLiveSession(),
 		markViewerLeftResult:        false,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -197,8 +191,8 @@ func TestLiveHandleEvent_시청자_퇴장이_중복이면_발행하지_않는다
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0", len(repo.messages))
 	}
 }
 
@@ -215,8 +209,7 @@ func TestLiveHandleEvent_룸종료면_세션종료와_정리후_LIVE_ENDED를_�
 		endSessionResult:            true,
 		cleanupOrphanViewersResult:  2,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000600, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -229,12 +222,12 @@ func TestLiveHandleEvent_룸종료면_세션종료와_정리후_LIVE_ENDED를_�
 	if !repo.cleanupCalled {
 		t.Fatal("CleanupOrphanViewers() was not called")
 	}
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	ended, ok := publisher.messages[0].event.(*kafkadomain.LiveEndedEvent)
+	ended, ok := repo.messages[0].event.(*kafkadomain.LiveEndedEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *LiveEndedEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *LiveEndedEvent", repo.messages[0].event)
 	}
 	if ended.DurationSeconds != 600 {
 		t.Fatalf("duration_seconds = %d, want 600", ended.DurationSeconds)
@@ -253,8 +246,7 @@ func TestLiveHandleEvent_룸종료가_재전송이면_LIVE_ENDED를_중복발행
 		findSessionByRoomNameResult: sess,
 		endSessionResult:            false, // 이미 종료됨 → 전환 없음
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000600, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -264,8 +256,8 @@ func TestLiveHandleEvent_룸종료가_재전송이면_LIVE_ENDED를_중복발행
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0 (already ended)", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0 (already ended)", len(repo.messages))
 	}
 	if repo.cleanupCalled {
 		t.Fatal("CleanupOrphanViewers should not run on redelivery")
@@ -280,8 +272,7 @@ func TestLiveHandleEvent_호스트가_접속하지_않은_유령세션은_LIVE_E
 		findSessionByRoomNameResult: activeLiveSession(),
 		endSessionResult:            true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000600, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -291,8 +282,8 @@ func TestLiveHandleEvent_호스트가_접속하지_않은_유령세션은_LIVE_E
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0 (ghost session)", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0 (ghost session)", len(repo.messages))
 	}
 }
 
@@ -300,8 +291,7 @@ func TestLiveHandleEvent_음성_룸_이름이면_무시한다(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubLiveSessionRepository{}
-	publisher := &stubPublisher{}
-	svc := NewLiveWebhookService(repo, &stubLiveRoomController{}, publisher)
+	svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -312,8 +302,8 @@ func TestLiveHandleEvent_음성_룸_이름이면_무시한다(t *testing.T) {
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0", len(repo.messages))
 	}
 }
 
@@ -332,8 +322,8 @@ type stubLiveSessionRepository struct {
 	findSessionByRoomNameErr    error
 	markSessionStartedResult    bool
 	markSessionStartedErr       error
-	insertViewerErr             error
-	insertViewerCalled          bool
+	recordViewerErr             error
+	recordViewerCalled          bool
 	getViewerJoinedAtResult     *time.Time
 	getViewerJoinedAtErr        error
 	markViewerLeftResult        bool
@@ -344,31 +334,73 @@ type stubLiveSessionRepository struct {
 	endSessionResult            bool
 	endSessionErr               error
 	endSessionCalled            bool
+	messages                    []publishedMessage
 }
 
 func (s *stubLiveSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*livedomain.LiveSession, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
-func (s *stubLiveSessionRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
+func (s *stubLiveSessionRepository) MarkSessionStartedAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ time.Time,
+	event any,
+) (bool, error) {
+	if s.markSessionStartedResult && s.markSessionStartedErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.markSessionStartedResult, s.markSessionStartedErr
 }
 
-func (s *stubLiveSessionRepository) InsertViewer(_ context.Context, _ *livedomain.LiveViewer) error {
-	s.insertViewerCalled = true
-	return s.insertViewerErr
+func (s *stubLiveSessionRepository) RecordViewerJoinedAndEnqueue(
+	_ context.Context,
+	viewer *livedomain.LiveViewer,
+	_ string,
+	event any,
+) (bool, error) {
+	s.recordViewerCalled = true
+	if s.recordViewerErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: viewer.SessionID, event: event})
+	}
+	return s.recordViewerErr == nil, s.recordViewerErr
 }
 
-func (s *stubLiveSessionRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
+func (s *stubLiveSessionRepository) GetViewerJoinedAt(
+	_ context.Context,
+	_ string,
+	_ int64,
+	_ string,
+) (*time.Time, error) {
 	return s.getViewerJoinedAtResult, s.getViewerJoinedAtErr
 }
 
-func (s *stubLiveSessionRepository) MarkViewerLeft(_ context.Context, _ string, _ int64, _ time.Time) (bool, error) {
+func (s *stubLiveSessionRepository) MarkViewerLeftAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ int64,
+	_ string,
+	_ time.Time,
+	event any,
+) (bool, error) {
+	if s.markViewerLeftResult && s.markViewerLeftErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.markViewerLeftResult, s.markViewerLeftErr
 }
 
-func (s *stubLiveSessionRepository) EndSession(_ context.Context, _ string, _ time.Time) (bool, error) {
+func (s *stubLiveSessionRepository) EndSessionAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ time.Time,
+	event any,
+	enqueueOnlyIfStarted bool,
+) (bool, error) {
 	s.endSessionCalled = true
+	started := s.findSessionByRoomNameResult != nil && s.findSessionByRoomNameResult.StartedEventSentAt != nil
+	if s.endSessionResult && s.endSessionErr == nil && (!enqueueOnlyIfStarted || started) {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.endSessionResult, s.endSessionErr
 }
 

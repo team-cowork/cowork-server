@@ -5,7 +5,13 @@ defmodule CoworkUser.Kafka.ProjectionReadinessGateTest do
   alias CoworkUser.Kafka.ProjectionReadinessGate
 
   test "projection-dependent public reads fail closed while presence is catching up" do
-    for path <- ["/users/me", "/users/42", "/users/by-github/octocat", "/users/search"] do
+    for path <- [
+          "/users/me",
+          "/users/batch?ids=1",
+          "/users/42",
+          "/users/by-github/octocat",
+          "/users/search"
+        ] do
       conn =
         :get
         |> conn(path)
@@ -26,15 +32,12 @@ defmodule CoworkUser.Kafka.ProjectionReadinessGateTest do
     assert is_nil(conn.status)
   end
 
-  test "operational routes, display-name batch, writes, and auth command stay exempt" do
+  test "operational routes and writes stay exempt" do
     requests = [
       {:get, "/actuator/health"},
       {:get, "/actuator/prometheus"},
       {:get, "/v3/api-docs"},
-      {:get, "/users/batch?ids=1"},
-      {:patch, "/users/me"},
-      {:put, "/users/42"},
-      {:put, "/internal/users/42"}
+      {:patch, "/users/me"}
     ]
 
     for {method, path} <- requests do

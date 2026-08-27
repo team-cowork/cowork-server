@@ -2,11 +2,13 @@ package com.cowork.team.domain.teamRole.presentation.controller
 
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleRequest
+import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperationResponse
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.service.AssignTeamRoleService
 import com.cowork.team.domain.teamRole.service.CreateTeamRoleService
 import com.cowork.team.domain.teamRole.service.DeleteTeamRoleService
 import com.cowork.team.domain.teamRole.service.QueryMemberRolesService
+import com.cowork.team.domain.teamRole.service.QueryTeamRoleOperationService
 import com.cowork.team.domain.teamRole.service.QueryTeamRolesService
 import com.cowork.team.domain.teamRole.service.RevokeTeamRoleService
 import com.cowork.team.domain.teamRole.service.UpdateTeamRoleService
@@ -35,6 +37,7 @@ import org.springframework.web.bind.annotation.RestController
 class TeamRoleController(
     private val queryTeamRolesService: QueryTeamRolesService,
     private val queryMemberRolesService: QueryMemberRolesService,
+    private val queryTeamRoleOperationService: QueryTeamRoleOperationService,
     private val createTeamRoleService: CreateTeamRoleService,
     private val updateTeamRoleService: UpdateTeamRoleService,
     private val deleteTeamRoleService: DeleteTeamRoleService,
@@ -57,6 +60,7 @@ class TeamRoleController(
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "대상 멤버 없음"),
     )
     @GetMapping("/members/{targetUserId}/roles")
     fun getMemberRoles(
@@ -67,56 +71,111 @@ class TeamRoleController(
 
     @Operation(summary = "역할 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "생성 성공"),
+        ApiResponse(responseCode = "202", description = "비동기 생성 요청 접수"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "409", description = "역할 이름 중복"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
     )
     @PostMapping("/roles")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun createRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable teamId: Long,
         @RequestBody request: CreateTeamRoleRequest,
-    ): TeamRoleResponse = createTeamRoleService.execute(userId, teamId, request)
+    ): TeamRoleOperationResponse = createTeamRoleService.execute(userId, teamId, idempotencyKey, request)
 
     @Operation(summary = "역할 수정", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "202", description = "비동기 수정 요청 접수"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "역할 없음"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+    )
     @PatchMapping("/roles/{roleId}")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun updateRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
         @RequestBody request: UpdateTeamRoleRequest,
-    ): TeamRoleResponse = updateTeamRoleService.execute(userId, teamId, roleId, request)
+    ): TeamRoleOperationResponse = updateTeamRoleService.execute(userId, teamId, roleId, idempotencyKey, request)
 
     @Operation(summary = "역할 삭제", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "202", description = "비동기 삭제 요청 접수"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "역할 없음"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+    )
     @DeleteMapping("/roles/{roleId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun deleteRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable teamId: Long,
         @PathVariable roleId: Long,
-    ) {
-        deleteTeamRoleService.execute(userId, teamId, roleId)
-    }
+    ): TeamRoleOperationResponse = deleteTeamRoleService.execute(userId, teamId, roleId, idempotencyKey)
 
     @Operation(summary = "멤버에게 역할 부여", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "202", description = "비동기 부여 요청 접수"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "대상 멤버 또는 역할 없음"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+    )
     @PutMapping("/members/{targetUserId}/roles/{roleId}")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun assignRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
-    ): TeamRoleResponse = assignTeamRoleService.execute(userId, teamId, targetUserId, roleId)
+    ): TeamRoleOperationResponse = assignTeamRoleService.execute(
+        userId,
+        teamId,
+        targetUserId,
+        roleId,
+        idempotencyKey,
+    )
 
     @Operation(summary = "멤버 역할 회수", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "202", description = "비동기 회수 요청 접수"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "대상 멤버 또는 역할 없음"),
+        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+    )
     @DeleteMapping("/members/{targetUserId}/roles/{roleId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun revokeRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
         @PathVariable roleId: Long,
-    ) {
-        revokeTeamRoleService.execute(userId, teamId, targetUserId, roleId)
-    }
+    ): TeamRoleOperationResponse = revokeTeamRoleService.execute(
+        userId,
+        teamId,
+        targetUserId,
+        roleId,
+        idempotencyKey,
+    )
+
+    @Operation(
+        summary = "팀 역할 비동기 작업 상태 조회",
+        description = "소유 서비스 검증 실패는 FAILED 상태와 errorCode/errorMessage로 반환됩니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "작업 상태 조회 성공"),
+        ApiResponse(responseCode = "404", description = "작업 없음"),
+    )
+    @GetMapping("/role-operations/{operationId}")
+    fun getOperation(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+        @PathVariable operationId: String,
+    ): TeamRoleOperationResponse = queryTeamRoleOperationService.execute(userId, teamId, operationId)
 }

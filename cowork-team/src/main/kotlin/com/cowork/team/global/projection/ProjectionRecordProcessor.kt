@@ -1,9 +1,9 @@
 package com.cowork.team.global.projection
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
 
@@ -12,19 +12,18 @@ class ProjectionRecordProcessor(
     private val checkpointStore: ProjectionCheckpointStore,
     private val objectMapper: ObjectMapper,
     private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val readinessState: ProjectionReadinessState,
 ) {
 
     @Transactional
     fun processControlRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>): Boolean {
         if (!record.key().orEmpty().startsWith(ProjectionSnapshotCompletion.KEY_PREFIX)) return false
 
+        val topicId = requireTopicId(stream)
         val violation = snapshotCompletionViolation(stream, record)
         if (violation != null) {
-            checkpointStore.quarantine(stream, record, violation)
+            quarantineAndLatch(stream, record, violation, topicId)
         } else {
-            val topicId = checkNotNull(topicGenerations.topicId(stream)) {
-                "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
-            }
             checkpointStore.markSnapshotCompleted(stream, record.partition(), record.offset(), topicId)
         }
         checkpointStore.advance(stream, record.partition(), record.offset() + 1)
@@ -39,8 +38,22 @@ class ProjectionRecordProcessor(
 
     @Transactional
     fun quarantineRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>, reason: String) {
-        checkpointStore.quarantine(stream, record, reason)
+        quarantineAndLatch(stream, record, reason, requireTopicId(stream))
         checkpointStore.advance(stream, record.partition(), record.offset() + 1)
+    }
+
+    private fun quarantineAndLatch(
+        stream: ProjectionStream,
+        record: ConsumerRecord<String, String>,
+        reason: String,
+        topicId: String,
+    ) {
+        readinessState.markNotReady(stream)
+        checkpointStore.quarantineAndLatch(stream, record, reason, topicId)
+    }
+
+    private fun requireTopicId(stream: ProjectionStream): String = checkNotNull(topicGenerations.topicId(stream)) {
+        "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
     }
 
     private fun snapshotCompletionViolation(

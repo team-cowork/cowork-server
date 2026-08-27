@@ -1,5 +1,6 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.event.ProjectEventPublisher
@@ -20,13 +21,14 @@ class ProjectLifecycleHandler(
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectMemberEventPublisher: ProjectMemberEventPublisher,
     private val projectEventPublisher: ProjectEventPublisher,
+    private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
 ) {
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
     @Transactional
     fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val membership = teamMembershipRepository.findStateByTeamIdAndUserId(teamId, userId)
+        val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, userId)
             ?: TeamMembership(teamId = teamId, userId = userId, role = role, sourceOccurredAt = version)
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
         if (existingVersion.isAfter(version) ||
@@ -43,27 +45,28 @@ class ProjectLifecycleHandler(
     @Transactional
     fun onTeamDeleted(teamId: Long, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val memberships = teamMembershipRepository.findAllByTeamId(teamId)
+        val memberships = teamMembershipRepository.findAllByTeamIdForUpdate(teamId)
         memberships.filter { !it.sourceOccurredAt.toProjectionPrecision().isAfter(version) }
             .forEach { it.markDeleted(version) }
         if (memberships.isNotEmpty()) teamMembershipRepository.saveAll(memberships)
 
-        val projects = projectRepository.findAllByTeamId(teamId)
+        val projects = projectRepository.findAllByTeamIdForUpdate(teamId)
         if (projects.isEmpty()) {
             log.info("TEAM_DELETED 처리: 대상 프로젝트 없음 [teamId={}]", teamId)
             return
         }
-        val members = projectMemberRepository.findAllByProjectIdIn(projects.map { it.id })
-        projectRepository.deleteAll(projects)
-        members.forEach { projectMemberEventPublisher.publishRemoved(it.projectId, it.userId, version) }
+        val members = projectMemberRepository.findAllByProjectIdInForUpdate(projects.map { it.id })
+        repoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
+        members.forEach { projectMemberEventPublisher.publishRemoved(it, version) }
         projects.forEach { projectEventPublisher.publishDeleted(it, version) }
+        projectRepository.deleteAll(projects)
         log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)
     }
 
     @Transactional
     fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val membership = teamMembershipRepository.findStateByTeamIdAndUserId(teamId, targetUserId)
+        val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(
                 teamId = teamId,
                 userId = targetUserId,
@@ -80,25 +83,39 @@ class ProjectLifecycleHandler(
         membership.markDeleted(version)
         teamMembershipRepository.save(membership)
 
-        val teamProjectIds = projectRepository.findIdsByTeamId(teamId)
-        if (teamProjectIds.isEmpty()) return
-
-        val ownerProjects = projectMemberRepository
-            .findAllByUserIdAndRoleAndProjectIdIn(targetUserId, ProjectMemberRole.OWNER, teamProjectIds)
-            .map { it.projectId }
+        val teamProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
+        if (teamProjects.isEmpty()) return
+        val teamProjectIds = teamProjects.map { it.id }
+        val targetMemberships = projectMemberRepository.findAllByUserIdAndProjectIdInForUpdate(
+            targetUserId,
+            teamProjectIds,
+        )
+        val ownerProjects = targetMemberships.filter { it.role == ProjectMemberRole.OWNER }.map { it.projectId }
 
         if (ownerProjects.isNotEmpty()) {
-            val members = projectMemberRepository.findAllByProjectIdIn(ownerProjects)
-            val deletedProjects = projectRepository.findAllById(ownerProjects)
-            projectRepository.deleteAllById(ownerProjects)
-            members.forEach { projectMemberEventPublisher.publishRemoved(it.projectId, it.userId, version) }
+            val members = projectMemberRepository.findAllByProjectIdInForUpdate(ownerProjects)
+            val deletedProjects = teamProjects.filter { it.id in ownerProjects }
+            repoDeletionSupport.deleteByProjectIds(ownerProjects, version)
+            members.forEach { projectMemberEventPublisher.publishRemoved(it, version) }
             deletedProjects.forEach { projectEventPublisher.publishDeleted(it, version) }
+            projectRepository.deleteAll(deletedProjects)
         }
 
         val remaining = teamProjectIds - ownerProjects.toSet()
         if (remaining.isNotEmpty()) {
-            projectMemberRepository.deleteAllByUserIdAndProjectIdIn(targetUserId, remaining)
-            remaining.forEach { projectMemberEventPublisher.publishRemoved(it, targetUserId, version) }
+            val remainingMemberships = targetMemberships.filter { it.projectId in remaining }
+                .associateBy { it.projectId }
+            remaining.forEach { projectId ->
+                val activeMember = remainingMemberships[projectId]
+                if (activeMember == null) {
+                    projectMemberEventPublisher.publishRemoved(projectId, targetUserId, version)
+                } else {
+                    projectMemberEventPublisher.publishRemoved(activeMember, version)
+                }
+            }
+            if (remainingMemberships.isNotEmpty()) {
+                projectMemberRepository.deleteAll(remainingMemberships.values)
+            }
         }
         log.info(
             "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}, membershipsRemoved={}]",
@@ -106,31 +123,6 @@ class ProjectLifecycleHandler(
             targetUserId,
             ownerProjects.size,
             remaining.size,
-        )
-    }
-
-    @Transactional
-    fun onUserDeleted(userId: Long, occurredAt: Instant) {
-        val version = occurredAt.toProjectionPrecision()
-        val memberships = projectMemberRepository.findAllByUserId(userId)
-        val ownerProjectIds = memberships.filter { it.role == ProjectMemberRole.OWNER }.map { it.projectId }
-
-        if (ownerProjectIds.isNotEmpty()) {
-            val members = projectMemberRepository.findAllByProjectIdIn(ownerProjectIds)
-            val deletedProjects = projectRepository.findAllById(ownerProjectIds)
-            projectRepository.deleteAllById(ownerProjectIds)
-            members.forEach { projectMemberEventPublisher.publishRemoved(it.projectId, it.userId, version) }
-            deletedProjects.forEach { projectEventPublisher.publishDeleted(it, version) }
-        }
-
-        val remainingProjectIds = memberships.map { it.projectId } - ownerProjectIds.toSet()
-        projectMemberRepository.deleteAllByUserId(userId)
-        remainingProjectIds.forEach { projectMemberEventPublisher.publishRemoved(it, userId, version) }
-
-        log.info(
-            "USER_DELETED 처리 [userId={}, ownerProjectsDeleted={}]",
-            userId,
-            ownerProjectIds.size,
         )
     }
 }

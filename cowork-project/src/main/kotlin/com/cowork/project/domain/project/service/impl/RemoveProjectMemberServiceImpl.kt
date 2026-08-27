@@ -21,9 +21,9 @@ class RemoveProjectMemberServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, memberId: Long) {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
-        val member = projectMemberLookupSupport.findMemberOrThrow(memberId)
+        val member = projectMemberLookupSupport.findMemberForUpdateOrThrow(memberId)
 
         if (member.projectId != projectId) {
             throw ExpectedException("해당 프로젝트의 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
@@ -33,8 +33,7 @@ class RemoveProjectMemberServiceImpl(
             throw ExpectedException("OWNER는 제거할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
+        projectMemberEventPublisher.publishRemoved(member)
         projectMemberRepository.delete(member)
-
-        projectMemberEventPublisher.publishRemoved(projectId, member.userId)
     }
 }
