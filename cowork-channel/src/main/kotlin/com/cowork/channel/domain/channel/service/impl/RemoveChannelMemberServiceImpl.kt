@@ -42,7 +42,7 @@ class RemoveChannelMemberServiceImpl(
             throw ExpectedException("멤버 제거 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
 
+        channelMemberEventPublisher.publishLeave(channel.id, member.userId)
         channelMemberRepository.delete(member)
-        channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
     }
 }

@@ -3,6 +3,11 @@ DATAGSM_TOKEN_URL: https://oauth.authorization.datagsm.kr/v1/oauth/token
 DATAGSM_USERINFO_URL: https://oauth.resource.datagsm.kr/userinfo
 KAFKA_BOOTSTRAP_SERVERS: kafka:9092
 KAFKA_TOPIC_USER_SYNC: user.data.sync
+KAFKA_TOPIC_USER_IDENTITY_COMMAND: user.identity.command
+KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT: user.identity.command-result
+KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT: user.identity.command-result-dlt
+KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT: cowork-authorization.user-identity-command-result
+KAFKA_IDENTITY_COMMAND_TIMEOUT: 5s
 KAFKA_TOPIC_USER_PRESENCE: user.presence.event
 JWT_ACCESS_EXPIRE: 30m
 JWT_REFRESH_EXPIRE: 2160h
@@ -10,4 +15,3 @@ EUREKA_SERVER_URL: http://cowork-config:8761/eureka
 EUREKA_APP_NAME: cowork-authorization
 EUREKA_INSTANCE_HOST: cowork-authorization
 EUREKA_INSTANCE_PORT: 8081
-USER_SERVICE_URL: http://cowork-user:8082

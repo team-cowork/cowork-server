@@ -7,10 +7,10 @@ import com.cowork.team.domain.teamRole.projection.TeamRoleMemberTombstoneReposit
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjection
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionRepository
 import com.cowork.team.global.projection.toProjectionPrecision
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleProjectionHandler(

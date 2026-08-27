@@ -8,7 +8,6 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import java.time.Instant
-import java.util.Optional
 
 class ProjectProjectionHandlerTest {
 
@@ -17,7 +16,7 @@ class ProjectProjectionHandlerTest {
 
     @Test
     fun `updated event upserts project team mapping`() {
-        every { repository.findById(7L) } returns Optional.empty()
+        every { repository.findByIdForUpdate(7L) } returns null
         every { repository.save(any()) } answers { firstArg() }
 
         val occurredAt = Instant.parse("2026-08-26T03:00:00Z")
@@ -34,7 +33,7 @@ class ProjectProjectionHandlerTest {
 
     @Test
     fun `deleted event keeps a versioned tombstone`() {
-        every { repository.findById(7L) } returns Optional.empty()
+        every { repository.findByIdForUpdate(7L) } returns null
         every { repository.save(any()) } answers { firstArg() }
         val occurredAt = Instant.parse("2026-08-26T03:00:00Z")
 
@@ -49,7 +48,7 @@ class ProjectProjectionHandlerTest {
     fun `같은 DB microsecond의 update는 project delete tombstone을 되살리지 않는다`() {
         val deletedAt = Instant.parse("2026-08-26T03:00:00.123456Z")
         val projection = ProjectProjection(7L, 3L, deleted = true, sourceOccurredAt = deletedAt)
-        every { repository.findById(7L) } returns Optional.of(projection)
+        every { repository.findByIdForUpdate(7L) } returns projection
 
         handler.apply(
             ProjectEventPayload(
@@ -67,7 +66,7 @@ class ProjectProjectionHandlerTest {
 
     @Test
     fun `새 projection version은 DB microsecond 정밀도로 저장한다`() {
-        every { repository.findById(7L) } returns Optional.empty()
+        every { repository.findByIdForUpdate(7L) } returns null
         val saved = mutableListOf<ProjectProjection>()
         every { repository.save(capture(saved)) } answers { firstArg() }
 

@@ -3,10 +3,13 @@ package mysql
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/domain/projection"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type channelNotificationPreference struct {
@@ -47,11 +50,16 @@ type ProjectionRepository struct {
 }
 
 type projectionCheckpoint struct {
-	ConsumerGroup           string `gorm:"column:consumer_group;primaryKey"`
-	Topic                   string `gorm:"column:topic_name;primaryKey"`
-	Partition               int    `gorm:"column:partition_id;primaryKey"`
-	NextOffset              int64  `gorm:"column:next_offset"`
-	SnapshotCompletedOffset *int64 `gorm:"column:snapshot_completed_offset"`
+	ConsumerGroup           string  `gorm:"column:consumer_group;primaryKey"`
+	Topic                   string  `gorm:"column:topic_name;primaryKey"`
+	Partition               int     `gorm:"column:partition_id;primaryKey"`
+	TopicID                 string  `gorm:"column:topic_id"`
+	NextOffset              int64   `gorm:"column:next_offset"`
+	SnapshotCompletedOffset *int64  `gorm:"column:snapshot_completed_offset"`
+	SnapshotID              *string `gorm:"column:snapshot_id"`
+	InvalidRecordOffset     *int64  `gorm:"column:invalid_record_offset"`
+	LastSnapshotID          *string `gorm:"column:last_snapshot_id"`
+	RecoverySnapshotID      *string `gorm:"column:recovery_snapshot_id"`
 }
 
 func (projectionCheckpoint) TableName() string {
@@ -68,6 +76,9 @@ func (r *ProjectionRepository) ApplyWithCheckpoint(
 	apply func(projection.Store) error,
 ) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := prepareCheckpointGeneration(tx, checkpoint); err != nil {
+			return err
+		}
 		txRepository := NewProjectionRepository(tx)
 		if err := apply(txRepository); err != nil {
 			return err
@@ -81,22 +92,53 @@ func (r *ProjectionRepository) QuarantineWithCheckpoint(
 	record projection.InvalidRecord,
 ) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		recordOffset := record.Checkpoint.NextOffset - 1
+		stored, err := prepareCheckpointGenerationAt(tx, record.Checkpoint, recordOffset)
+		if err != nil {
+			return err
+		}
+		if invalidRecordIsStale(stored.NextOffset, recordOffset) {
+			return nil
+		}
 		if err := tx.Exec(
 			`INSERT INTO tb_projection_dead_letters
-				(consumer_group, topic_name, partition_id, message_offset, event_key, payload, reason)
-			 VALUES (?, ?, ?, ?, ?, ?, ?) AS incoming
-			 ON DUPLICATE KEY UPDATE message_offset = incoming.message_offset`,
+				(consumer_group, topic_name, partition_id, topic_id, message_offset, event_key, payload, reason)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?) AS incoming
+			 ON DUPLICATE KEY UPDATE
+				topic_id = incoming.topic_id,
+				event_key = incoming.event_key,
+				payload = incoming.payload,
+				reason = incoming.reason`,
 			record.Checkpoint.ConsumerGroup,
 			record.Checkpoint.Topic,
 			record.Checkpoint.Partition,
-			record.Checkpoint.NextOffset-1,
+			record.Checkpoint.TopicID,
+			recordOffset,
 			record.Key,
 			record.Payload,
 			record.Reason,
 		).Error; err != nil {
 			return err
 		}
-		return advanceCheckpoint(tx, record.Checkpoint)
+		if !record.LatchStateGap {
+			return advanceCheckpoint(tx, record.Checkpoint)
+		}
+
+		latch := latchInvalidRecord(stored.recoveryLatch(), recordOffset)
+		return tx.Exec(
+			`UPDATE tb_projection_checkpoints
+			 SET next_offset = GREATEST(next_offset, ?),
+				invalid_record_offset = ?,
+				recovery_snapshot_id = ?
+			 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
+			record.Checkpoint.NextOffset,
+			latch.InvalidRecordOffset,
+			latch.RecoverySnapshotID,
+			record.Checkpoint.ConsumerGroup,
+			record.Checkpoint.Topic,
+			record.Checkpoint.Partition,
+			record.Checkpoint.TopicID,
+		).Error
 	})
 }
 
@@ -106,40 +148,52 @@ func (r *ProjectionRepository) RecordSnapshotMarkerWithCheckpoint(
 	marker projection.SnapshotMarkerReceipt,
 ) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		stored, err := prepareCheckpointGeneration(tx, checkpoint)
+		if err != nil {
+			return err
+		}
+		latch := recordRecoverySnapshot(stored.recoveryLatch(), marker.Offset, marker.SnapshotID)
 		return tx.Exec(
-			`INSERT INTO tb_projection_checkpoints
-				(consumer_group, topic_name, partition_id, next_offset,
-				 snapshot_completed_offset, snapshot_id, snapshot_source, snapshot_occurred_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?) AS incoming
-			 ON DUPLICATE KEY UPDATE
-				next_offset = GREATEST(tb_projection_checkpoints.next_offset, incoming.next_offset),
+			`UPDATE tb_projection_checkpoints
+			 SET next_offset = GREATEST(next_offset, ?),
+				invalid_record_offset = ?,
+				last_snapshot_id = ?,
+				recovery_snapshot_id = ?,
 				snapshot_id = IF(
-					incoming.snapshot_completed_offset >= COALESCE(tb_projection_checkpoints.snapshot_completed_offset, -1),
-					incoming.snapshot_id,
-					tb_projection_checkpoints.snapshot_id
+					? >= COALESCE(snapshot_completed_offset, -1),
+					?,
+					snapshot_id
 				),
 				snapshot_source = IF(
-					incoming.snapshot_completed_offset >= COALESCE(tb_projection_checkpoints.snapshot_completed_offset, -1),
-					incoming.snapshot_source,
-					tb_projection_checkpoints.snapshot_source
+					? >= COALESCE(snapshot_completed_offset, -1),
+					?,
+					snapshot_source
 				),
 				snapshot_occurred_at = IF(
-					incoming.snapshot_completed_offset >= COALESCE(tb_projection_checkpoints.snapshot_completed_offset, -1),
-					incoming.snapshot_occurred_at,
-					tb_projection_checkpoints.snapshot_occurred_at
+					? >= COALESCE(snapshot_completed_offset, -1),
+					?,
+					snapshot_occurred_at
 				),
 				snapshot_completed_offset = GREATEST(
-					COALESCE(tb_projection_checkpoints.snapshot_completed_offset, -1),
-					incoming.snapshot_completed_offset
-				)`,
+					COALESCE(snapshot_completed_offset, -1),
+					?
+				)
+			 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
+			checkpoint.NextOffset,
+			latch.InvalidRecordOffset,
+			latch.LastSnapshotID,
+			latch.RecoverySnapshotID,
+			marker.Offset,
+			marker.SnapshotID,
+			marker.Offset,
+			marker.Source,
+			marker.Offset,
+			marker.OccurredAt,
+			marker.Offset,
 			checkpoint.ConsumerGroup,
 			checkpoint.Topic,
 			checkpoint.Partition,
-			checkpoint.NextOffset,
-			marker.Offset,
-			marker.SnapshotID,
-			marker.Source,
-			marker.OccurredAt,
+			checkpoint.TopicID,
 		).Error
 	})
 }
@@ -148,22 +202,27 @@ func (r *ProjectionRepository) LoadCheckpoint(
 	ctx context.Context,
 	group, topic string,
 	partition int,
-) (int64, bool, error) {
+) (projection.CheckpointState, bool, error) {
 	var row projectionCheckpoint
 	err := r.db.WithContext(ctx).
 		Where("consumer_group = ? AND topic_name = ? AND partition_id = ?", group, topic, partition).
 		First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return 0, false, nil
+		return projection.CheckpointState{}, false, nil
 	}
 	if err != nil {
-		return 0, false, err
+		return projection.CheckpointState{}, false, err
 	}
-	return row.NextOffset, true, nil
+	return row.toState(), true, nil
 }
 
 func (r *ProjectionRepository) AdvanceCheckpoint(ctx context.Context, checkpoint projection.Checkpoint) error {
-	return advanceCheckpoint(r.db.WithContext(ctx), checkpoint)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if _, err := prepareCheckpointGeneration(tx, checkpoint); err != nil {
+			return err
+		}
+		return advanceCheckpoint(tx, checkpoint)
+	})
 }
 
 func (r *ProjectionRepository) LoadCheckpoints(
@@ -189,8 +248,10 @@ func (r *ProjectionRepository) LoadCheckpoints(
 			return nil, err
 		}
 		result[partition] = projection.CheckpointState{
+			TopicID:                 row.TopicID,
 			NextOffset:              row.NextOffset,
 			SnapshotCompletedOffset: row.SnapshotCompletedOffset,
+			InvalidRecordOffset:     row.InvalidRecordOffset,
 		}
 	}
 	return result, nil
@@ -198,16 +259,147 @@ func (r *ProjectionRepository) LoadCheckpoints(
 
 func advanceCheckpoint(db *gorm.DB, checkpoint projection.Checkpoint) error {
 	return db.Exec(
-		`INSERT INTO tb_projection_checkpoints
-			(consumer_group, topic_name, partition_id, next_offset)
-		 VALUES (?, ?, ?, ?) AS incoming
-		 ON DUPLICATE KEY UPDATE
-			next_offset = GREATEST(tb_projection_checkpoints.next_offset, incoming.next_offset)`,
+		`UPDATE tb_projection_checkpoints
+		 SET next_offset = GREATEST(next_offset, ?)
+		 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
+		checkpoint.NextOffset,
 		checkpoint.ConsumerGroup,
 		checkpoint.Topic,
 		checkpoint.Partition,
-		checkpoint.NextOffset,
+		checkpoint.TopicID,
 	).Error
+}
+
+func prepareCheckpointGeneration(db *gorm.DB, checkpoint projection.Checkpoint) (projectionCheckpoint, error) {
+	return prepareCheckpointGenerationAt(db, checkpoint, checkpoint.NextOffset)
+}
+
+func prepareCheckpointGenerationAt(
+	db *gorm.DB,
+	checkpoint projection.Checkpoint,
+	initialNextOffset int64,
+) (projectionCheckpoint, error) {
+	topicID, err := canonicalTopicID(checkpoint.TopicID)
+	if err != nil {
+		return projectionCheckpoint{}, err
+	}
+	if err := db.Exec(
+		`INSERT INTO tb_projection_checkpoints
+			(consumer_group, topic_name, partition_id, topic_id, next_offset)
+		 VALUES (?, ?, ?, ?, ?) AS incoming
+		 ON DUPLICATE KEY UPDATE next_offset = tb_projection_checkpoints.next_offset`,
+		checkpoint.ConsumerGroup,
+		checkpoint.Topic,
+		checkpoint.Partition,
+		topicID,
+		initialNextOffset,
+	).Error; err != nil {
+		return projectionCheckpoint{}, err
+	}
+
+	var stored projectionCheckpoint
+	err = db.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where(
+			"consumer_group = ? AND topic_name = ? AND partition_id = ?",
+			checkpoint.ConsumerGroup,
+			checkpoint.Topic,
+			checkpoint.Partition,
+		).
+		Take(&stored).Error
+	if err != nil {
+		return projectionCheckpoint{}, err
+	}
+	if stored.TopicID != topicID {
+		return projectionCheckpoint{}, fmt.Errorf(
+			"%w: topic=%s partition=%d checkpointTopicId=%q brokerTopicId=%q",
+			projection.ErrTopicGenerationMismatch,
+			checkpoint.Topic,
+			checkpoint.Partition,
+			stored.TopicID,
+			topicID,
+		)
+	}
+	return stored, nil
+}
+
+func canonicalTopicID(value string) (string, error) {
+	topicID, err := uuid.Parse(value)
+	if err != nil || topicID == uuid.Nil || value != topicID.String() {
+		return "", fmt.Errorf(
+			"%w: invalid brokerTopicId=%q",
+			projection.ErrTopicGenerationMismatch,
+			value,
+		)
+	}
+	return topicID.String(), nil
+}
+
+func (row projectionCheckpoint) toState() projection.CheckpointState {
+	return projection.CheckpointState{
+		TopicID:                 row.TopicID,
+		NextOffset:              row.NextOffset,
+		SnapshotCompletedOffset: row.SnapshotCompletedOffset,
+		InvalidRecordOffset:     row.InvalidRecordOffset,
+	}
+}
+
+type recoveryLatch struct {
+	InvalidRecordOffset *int64
+	LastSnapshotID      *string
+	RecoverySnapshotID  *string
+}
+
+func (row projectionCheckpoint) recoveryLatch() recoveryLatch {
+	lastSnapshotID := row.LastSnapshotID
+	if lastSnapshotID == nil && row.SnapshotID != nil {
+		if parsed, err := uuid.Parse(*row.SnapshotID); err == nil && parsed != uuid.Nil {
+			lastSnapshotID = stringPointer(parsed.String())
+		}
+	}
+	return recoveryLatch{
+		InvalidRecordOffset: row.InvalidRecordOffset,
+		LastSnapshotID:      lastSnapshotID,
+		RecoverySnapshotID:  row.RecoverySnapshotID,
+	}
+}
+
+func latchInvalidRecord(state recoveryLatch, recordOffset int64) recoveryLatch {
+	if state.InvalidRecordOffset == nil || recordOffset > *state.InvalidRecordOffset {
+		state.InvalidRecordOffset = int64Pointer(recordOffset)
+		state.RecoverySnapshotID = nil
+	}
+	return state
+}
+
+func invalidRecordIsStale(nextOffset, recordOffset int64) bool {
+	return recordOffset < nextOffset
+}
+
+func recordRecoverySnapshot(state recoveryLatch, markerOffset int64, snapshotID string) recoveryLatch {
+	if state.InvalidRecordOffset != nil && markerOffset > *state.InvalidRecordOffset &&
+		!stringPointerEquals(state.LastSnapshotID, snapshotID) {
+		switch {
+		case state.RecoverySnapshotID == nil:
+			state.RecoverySnapshotID = stringPointer(snapshotID)
+		case *state.RecoverySnapshotID != snapshotID:
+			state.InvalidRecordOffset = nil
+			state.RecoverySnapshotID = nil
+		}
+	}
+	state.LastSnapshotID = stringPointer(snapshotID)
+	return state
+}
+
+func stringPointerEquals(value *string, expected string) bool {
+	return value != nil && *value == expected
+}
+
+func int64Pointer(value int64) *int64 {
+	return &value
+}
+
+func stringPointer(value string) *string {
+	return &value
 }
 
 func (r *ProjectionRepository) UpsertChannelNotification(

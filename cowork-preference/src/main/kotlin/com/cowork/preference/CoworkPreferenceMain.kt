@@ -90,8 +90,11 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "REDIS_HOST" to "preference.redis.host",
             "REDIS_PORT" to "preference.redis.port",
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
-            "KAFKA_CONSUMER_GROUP_ID" to "preference.kafka.consumer-group-id",
+            "KAFKA_GROUP_ID_TEAM_MEMBER_PROJECTION" to "preference.kafka.team-member-consumer-group-id",
             "KAFKA_TOPIC_TEAM_MEMBER_EVENT" to "preference.kafka.team-member-topic",
+            "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
+            "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
+                "preference.kafka.github-repo-setting-command-consumer-group-id",
             "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",

@@ -49,6 +49,10 @@ class ProjectionReadinessState(
         refresh()
     }
 
+    fun markNotReady(stream: ProjectionStream) {
+        if (stream in streams.required) ready = false
+    }
+
     fun refresh(): Boolean {
         ready = if (initializingStreams.isNotEmpty()) {
             false
@@ -58,6 +62,16 @@ class ProjectionReadinessState(
                 .getOrDefault(false)
         }
         return ready
+    }
+
+    fun areCurrent(requiredStreams: Set<ProjectionStream>): Boolean {
+        require(streams.required.containsAll(requiredStreams)) {
+            "Snapshot readiness can only depend on configured projection streams"
+        }
+        if (requiredStreams.any(initializingStreams::contains)) return false
+        return runCatching { checkpointStore.isCaughtUp(requiredStreams) }
+            .onFailure { log.warn("Kafka projection subset readiness 조회 실패", it) }
+            .getOrDefault(false)
     }
 
     fun isReady(): Boolean = ready
@@ -150,10 +164,16 @@ class ProjectionReadinessAvailability(
 class ProjectionReadinessGate(private val readinessState: ProjectionReadinessState) {
     fun requireReady() {
         if (!readinessState.isReady()) {
-            throw ExpectedException(
-                "외부 상태 projection 동기화가 완료되지 않았습니다.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-            )
+            throw notReady()
         }
     }
+
+    fun requireCurrent() {
+        if (!readinessState.refresh()) throw notReady()
+    }
+
+    private fun notReady() = ExpectedException(
+        "외부 상태 projection 동기화가 완료되지 않았습니다.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+    )
 }

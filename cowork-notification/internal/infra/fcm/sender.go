@@ -50,6 +50,9 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 
 	var invalid []string
 	for i := 0; i < len(tokens); i += fcmBatchSize {
+		if err := ctx.Err(); err != nil {
+			return invalid, err
+		}
 		end := i + fcmBatchSize
 		if end > len(tokens) {
 			end = len(tokens)

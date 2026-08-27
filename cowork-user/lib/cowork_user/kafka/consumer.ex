@@ -3,7 +3,7 @@ defmodule CoworkUser.Kafka.Consumer do
 
   require Logger
 
-  alias CoworkUser.Kafka.ProjectionReadiness
+  alias CoworkUser.Kafka.{ProjectionCheckpoint, ProjectionReadiness}
 
   @client_id :cowork_user_kafka_consumers
   @initial_backoff_ms 5_000
@@ -11,6 +11,8 @@ defmodule CoworkUser.Kafka.Consumer do
   @readiness_heartbeat_ms 1_000
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts, name: __MODULE__)
+
+  def force_replay(reason), do: GenServer.cast(__MODULE__, {:force_replay, reason})
 
   @impl true
   def init(opts) do
@@ -20,7 +22,8 @@ defmodule CoworkUser.Kafka.Consumer do
       config: config,
       subscribers: %{},
       backoff_ms: @initial_backoff_ms,
-      readiness_heartbeat_ref: nil
+      readiness_heartbeat_ref: nil,
+      replay_generation_started: false
     }
 
     if config.kafka_enabled do
@@ -37,28 +40,12 @@ defmodule CoworkUser.Kafka.Consumer do
   def handle_info(:connect, %{config: %{kafka_enabled: false}} = state), do: {:noreply, state}
 
   def handle_info(:connect, state) do
-    case start_subscribers(state.config) do
-      {:ok, subscribers} ->
-        Logger.info(
-          "Kafka consumers connected for user sync, team membership, and presence projections."
-        )
-
-        monitored_subscribers = monitor_subscribers(subscribers)
-        notify_projection_readiness(:connected)
-
-        {:noreply,
-         %{
-           state
-           | subscribers: monitored_subscribers,
-             backoff_ms: @initial_backoff_ms,
-             readiness_heartbeat_ref: schedule_readiness_heartbeat()
-         }}
+    case ensure_replay_generation(state) do
+      {:ok, generation_state} ->
+        connect_subscribers(generation_state)
 
       {:error, reason} ->
-        notify_projection_readiness(:disconnected)
-        Logger.warning("Kafka consumer connection failed: #{inspect(reason)}")
-        schedule_reconnect(state.backoff_ms)
-        {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, @max_backoff_ms)}}
+        connection_failed(state, {:replay_generation, reason})
     end
   end
 
@@ -96,6 +83,26 @@ defmodule CoworkUser.Kafka.Consumer do
   def handle_info(_message, state), do: {:noreply, state}
 
   @impl true
+  def handle_cast({:force_replay, reason}, state) when map_size(state.subscribers) > 0 do
+    Logger.warning("Restarting Kafka subscribers for a fenced full replay: #{inspect(reason)}")
+    cancel_readiness_heartbeat(state.readiness_heartbeat_ref)
+    notify_projection_readiness(:disconnected)
+    stop_subscribers(state.subscribers)
+    send(self(), :connect)
+
+    {:noreply,
+     %{
+       state
+       | subscribers: %{},
+         readiness_heartbeat_ref: nil,
+         backoff_ms: @initial_backoff_ms,
+         replay_generation_started: false
+     }}
+  end
+
+  def handle_cast({:force_replay, _reason}, state), do: {:noreply, state}
+
+  @impl true
   def terminate(_reason, state) do
     cancel_readiness_heartbeat(state.readiness_heartbeat_ref)
     if state.config.kafka_enabled, do: notify_projection_readiness(:disconnected)
@@ -110,10 +117,18 @@ defmodule CoworkUser.Kafka.Consumer do
     with {:ok, _apps} <- Application.ensure_all_started(:brod),
          :ok <- ensure_client(config) do
       consumer_specs(config)
-      |> Enum.reduce_while({:ok, %{}}, fn {name, topic, group_id, handler, projection?},
+      |> Enum.reduce_while({:ok, %{}}, fn {name, topic, group_id, handler, projection?,
+                                           handler_data},
                                           {:ok, started} ->
         case :brod.start_link_group_subscriber_v2(
-               subscriber_config(topic, group_id, handler, projection?)
+               subscriber_config(
+                 topic,
+                 group_id,
+                 handler,
+                 projection?,
+                 parse_bootstrap_servers(config.kafka_bootstrap_servers),
+                 handler_data
+               )
              ) do
           {:ok, pid} ->
             {:cont, {:ok, Map.put(started, name, pid)}}
@@ -124,6 +139,54 @@ defmodule CoworkUser.Kafka.Consumer do
         end
       end)
     end
+  end
+
+  defp ensure_replay_generation(%{replay_generation_started: true} = state),
+    do: {:ok, state}
+
+  defp ensure_replay_generation(state) do
+    case start_replay_generation(state.config) do
+      :ok -> {:ok, %{state | replay_generation_started: true}}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp connect_subscribers(state) do
+    case start_subscribers(state.config) do
+      {:ok, subscribers} ->
+        Logger.info("Kafka consumers connected for user owner commands and state projections.")
+
+        monitored_subscribers = monitor_subscribers(subscribers)
+        notify_projection_readiness(:connected)
+
+        {:noreply,
+         %{
+           state
+           | subscribers: monitored_subscribers,
+             backoff_ms: @initial_backoff_ms,
+             readiness_heartbeat_ref: schedule_readiness_heartbeat()
+         }}
+
+      {:error, reason} ->
+        connection_failed(state, reason)
+    end
+  end
+
+  defp connection_failed(state, reason) do
+    notify_projection_readiness(:disconnected)
+    Logger.warning("Kafka consumer connection failed: #{inspect(reason)}")
+    schedule_reconnect(state.backoff_ms)
+    {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, @max_backoff_ms)}}
+  end
+
+  defp start_replay_generation(config) do
+    sources =
+      Enum.map(consumer_specs(config), fn {_name, topic, group_id, _handler, projection?, _data} ->
+        if projection?, do: {group_id, topic}, else: nil
+      end)
+      |> Enum.reject(&is_nil/1)
+
+    ProjectionCheckpoint.start_replay_generation(sources)
   end
 
   defp ensure_client(config) do
@@ -137,13 +200,28 @@ defmodule CoworkUser.Kafka.Consumer do
     end
   end
 
-  defp subscriber_config(topic, group_id, handler, projection?) do
+  defp subscriber_config(
+         topic,
+         group_id,
+         handler,
+         projection?,
+         bootstrap_endpoints,
+         handler_data
+       ) do
     %{
       client: @client_id,
       group_id: group_id,
       topics: [topic],
       cb_module: handler,
-      init_data: %{consumer_group: group_id},
+      init_data:
+        Map.merge(
+          %{
+            bootstrap_endpoints: bootstrap_endpoints,
+            consumer_group: group_id,
+            replay_owner: Ecto.UUID.generate()
+          },
+          handler_data
+        ),
       message_type: :message,
       consumer_config: [
         begin_offset: :earliest,
@@ -159,12 +237,15 @@ defmodule CoworkUser.Kafka.Consumer do
 
   defp consumer_specs(config) do
     [
-      {:user_sync, config.kafka_topic, config.kafka_group_id, CoworkUser.Kafka.SyncHandler,
-       false},
+      {:user_sync, config.kafka_topic, config.kafka_group_id, CoworkUser.Kafka.SyncHandler, false,
+       %{}},
+      {:identity_command, config.kafka_identity_command_topic,
+       config.kafka_identity_command_group_id, CoworkUser.Kafka.IdentityCommandHandler, false,
+       %{result_topic: config.kafka_identity_command_result_topic}},
       {:team_member, config.kafka_team_member_topic, config.kafka_team_member_group_id,
-       CoworkUser.Kafka.TeamMemberHandler, true},
+       CoworkUser.Kafka.TeamMemberHandler, true, %{}},
       {:presence, config.kafka_presence_topic, config.kafka_presence_group_id,
-       CoworkUser.Kafka.PresenceHandler, true}
+       CoworkUser.Kafka.PresenceHandler, true, %{}}
     ]
   end
 

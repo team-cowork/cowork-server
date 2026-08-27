@@ -1,7 +1,5 @@
 package com.cowork.project.global.config
 
-import com.cowork.project.global.consumer.TeamGithubConnectedPayload
-import com.cowork.project.global.consumer.TeamGithubDisconnectedPayload
 import com.cowork.project.global.projection.ProjectionAssignmentCoordinator
 import com.cowork.project.global.projection.ProjectionCheckpointStore
 import com.cowork.project.global.projection.ProjectionReadinessState
@@ -81,6 +79,16 @@ class KafkaConsumerConfig(
         return factory
     }
 
+    private fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
+        props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(DefaultKafkaConsumerFactory<String, String>(props))
+        factory.setCommonErrorHandler(errorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
+        return factory
+    }
+
     private fun errorHandler(backOff: BackOff): DefaultErrorHandler {
         val recoverer = DeadLetterPublishingRecoverer(kafkaTemplate) { record, _ ->
             TopicPartition(KafkaConsumerRetryPolicy.deadLetterTopic(record.topic()), record.partition())
@@ -92,27 +100,20 @@ class KafkaConsumerConfig(
     }
 
     @Bean
+    fun channelStateListenerContainerFactory() = projectionListenerContainerFactory(streams.channelState)
+
+    @Bean
     fun teamLifecycleListenerContainerFactory() = projectionListenerContainerFactory(streams.teamLifecycle)
 
     @Bean
     fun teamMemberEventListenerContainerFactory() = projectionListenerContainerFactory(streams.teamMember)
 
     @Bean
-    fun userLifecycleListenerContainerFactory() = projectionListenerContainerFactory(streams.userLifecycle)
+    fun userProfileListenerContainerFactory() = projectionListenerContainerFactory(streams.userProfile)
 
     @Bean
-    fun teamGithubConnectedListenerContainerFactory():
-        ConcurrentKafkaListenerContainerFactory<String, TeamGithubConnectedPayload> =
-        listenerContainerFactory(
-            TeamGithubConnectedPayload::class.java,
-            KafkaConsumerRetryPolicy.externalEventBackOff(),
-        )
+    fun githubRepoSettingStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubRepoSetting)
 
     @Bean
-    fun teamGithubDisconnectedListenerContainerFactory():
-        ConcurrentKafkaListenerContainerFactory<String, TeamGithubDisconnectedPayload> =
-        listenerContainerFactory(
-            TeamGithubDisconnectedPayload::class.java,
-            KafkaConsumerRetryPolicy.externalEventBackOff(),
-        )
+    fun githubRepoSettingResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

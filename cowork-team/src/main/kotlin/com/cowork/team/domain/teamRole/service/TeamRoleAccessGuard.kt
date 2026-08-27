@@ -23,9 +23,9 @@ class TeamRoleAccessGuard(
     private val teamRoleProjectionReader: TeamRoleProjectionReader,
 ) {
 
-    fun requireTeam(teamId: Long) {
-        if (!teamRepository.existsById(teamId)) {
-            throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+    fun lockTeamOrThrow(teamId: Long) {
+        if (teamRepository.findByIdForUpdate(teamId) == null) {
+            throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
         }
     }
 

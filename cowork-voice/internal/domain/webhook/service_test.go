@@ -25,8 +25,7 @@ func TestHandleEvent_참가_이벤트_첫_입장이면_세션시작과_유저입
 		},
 		markSessionStartedResult: true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewWebhookService(repo, publisher)
+	svc := NewWebhookService(repo)
 	now := time.Unix(1700000300, 0).UTC()
 	svc.now = func() time.Time { return now }
 
@@ -42,14 +41,14 @@ func TestHandleEvent_참가_이벤트_첫_입장이면_세션시작과_유저입
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 2 {
-		t.Fatalf("published messages = %d, want 2", len(publisher.messages))
+	if len(repo.messages) != 2 {
+		t.Fatalf("enqueued messages = %d, want 2", len(repo.messages))
 	}
-	if _, ok := publisher.messages[0].event.(*kafkadomain.SessionStartedEvent); !ok {
-		t.Fatalf("first event type = %T, want *SessionStartedEvent", publisher.messages[0].event)
+	if _, ok := repo.messages[0].event.(*kafkadomain.SessionStartedEvent); !ok {
+		t.Fatalf("first event type = %T, want *SessionStartedEvent", repo.messages[0].event)
 	}
-	if _, ok := publisher.messages[1].event.(*kafkadomain.UserJoinedEvent); !ok {
-		t.Fatalf("second event type = %T, want *UserJoinedEvent", publisher.messages[1].event)
+	if _, ok := repo.messages[1].event.(*kafkadomain.UserJoinedEvent); !ok {
+		t.Fatalf("second event type = %T, want *UserJoinedEvent", repo.messages[1].event)
 	}
 }
 
@@ -69,8 +68,7 @@ func TestHandleEvent_퇴장_이벤트가_중복이면_아무것도_발행하지_
 		getParticipantJoinedAtResult: &joinedAt,
 		markParticipantLeftResult:    false,
 	}
-	publisher := &stubPublisher{}
-	svc := NewWebhookService(repo, publisher)
+	svc := NewWebhookService(repo)
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -85,8 +83,8 @@ func TestHandleEvent_퇴장_이벤트가_중복이면_아무것도_발행하지_
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0", len(repo.messages))
 	}
 }
 
@@ -106,8 +104,7 @@ func TestHandleEvent_퇴장_이벤트_첫_처리면_USER_LEFT를_발행한다(t 
 		getParticipantJoinedAtResult: &joinedAt,
 		markParticipantLeftResult:    true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewWebhookService(repo, publisher)
+	svc := NewWebhookService(repo)
 	svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -122,12 +119,12 @@ func TestHandleEvent_퇴장_이벤트_첫_처리면_USER_LEFT를_발행한다(t 
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	left, ok := publisher.messages[0].event.(*kafkadomain.UserLeftEvent)
+	left, ok := repo.messages[0].event.(*kafkadomain.UserLeftEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *UserLeftEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *UserLeftEvent", repo.messages[0].event)
 	}
 	if left.DurationSeconds != 300 {
 		t.Fatalf("duration_seconds = %d, want 300", left.DurationSeconds)
@@ -151,8 +148,7 @@ func TestHandleEvent_룸종료_이벤트면_세션종료와_정리후_이벤트�
 		endSessionResult:                true,
 		cleanupOrphanParticipantsResult: 2,
 	}
-	publisher := &stubPublisher{}
-	svc := NewWebhookService(repo, publisher)
+	svc := NewWebhookService(repo)
 	svc.now = func() time.Time { return now }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -170,12 +166,12 @@ func TestHandleEvent_룸종료_이벤트면_세션종료와_정리후_이벤트�
 	if repo.cleanupSessionID != "session-1" {
 		t.Fatalf("CleanupOrphanParticipants() sessionID = %q, want session-1", repo.cleanupSessionID)
 	}
-	if len(publisher.messages) != 1 {
-		t.Fatalf("published messages = %d, want 1", len(publisher.messages))
+	if len(repo.messages) != 1 {
+		t.Fatalf("enqueued messages = %d, want 1", len(repo.messages))
 	}
-	ended, ok := publisher.messages[0].event.(*kafkadomain.SessionEndedEvent)
+	ended, ok := repo.messages[0].event.(*kafkadomain.SessionEndedEvent)
 	if !ok {
-		t.Fatalf("event type = %T, want *SessionEndedEvent", publisher.messages[0].event)
+		t.Fatalf("event type = %T, want *SessionEndedEvent", repo.messages[0].event)
 	}
 	if ended.DurationSeconds != 600 {
 		t.Fatalf("duration_seconds = %d, want 600", ended.DurationSeconds)
@@ -196,8 +192,7 @@ func TestHandleEvent_룸종료_이벤트가_재전송이면_SESSION_ENDED를_중
 		},
 		endSessionResult: false, // 이미 종료됨 → 전환 없음
 	}
-	publisher := &stubPublisher{}
-	svc := NewWebhookService(repo, publisher)
+	svc := NewWebhookService(repo)
 	svc.now = func() time.Time { return time.Unix(1700000600, 0).UTC() }
 
 	if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -207,33 +202,17 @@ func TestHandleEvent_룸종료_이벤트가_재전송이면_SESSION_ENDED를_중
 		t.Fatalf("HandleEvent() error = %v", err)
 	}
 
-	if len(publisher.messages) != 0 {
-		t.Fatalf("published messages = %d, want 0 (already ended)", len(publisher.messages))
+	if len(repo.messages) != 0 {
+		t.Fatalf("enqueued messages = %d, want 0 (already ended)", len(repo.messages))
 	}
 	if repo.cleanupSessionID != "" {
 		t.Fatalf("CleanupOrphanParticipants should not run on redelivery, got %q", repo.cleanupSessionID)
 	}
 }
 
-type stubPublisher struct {
-	messages []publishedMessage
-	err      error
-}
-
 type publishedMessage struct {
 	sessionID string
 	event     any
-}
-
-func (s *stubPublisher) Publish(_ context.Context, sessionID string, v any) error {
-	if s.err != nil {
-		return s.err
-	}
-	s.messages = append(s.messages, publishedMessage{
-		sessionID: sessionID,
-		event:     v,
-	})
-	return nil
 }
 
 type stubSessionRepository struct {
@@ -251,26 +230,68 @@ type stubSessionRepository struct {
 	endSessionErr                   error
 	endSessionSessionID             string
 	cleanupSessionID                string
+	messages                        []publishedMessage
 }
 
 func (s *stubSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
-func (s *stubSessionRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
+func (s *stubSessionRepository) MarkSessionStartedAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ time.Time,
+	event any,
+) (bool, error) {
+	if s.markSessionStartedResult && s.markSessionStartedErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.markSessionStartedResult, s.markSessionStartedErr
 }
 
-func (s *stubSessionRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
+func (s *stubSessionRepository) RecordParticipantJoinedAndEnqueue(
+	_ context.Context,
+	participant *roomdomain.VoiceParticipant,
+	_ string,
+	event any,
+) (bool, error) {
+	s.messages = append(s.messages, publishedMessage{sessionID: participant.SessionID, event: event})
+	return true, nil
+}
+
+func (s *stubSessionRepository) GetParticipantJoinedAt(
+	_ context.Context,
+	_ string,
+	_ int64,
+	_ string,
+) (*time.Time, error) {
 	return s.getParticipantJoinedAtResult, s.getParticipantJoinedAtErr
 }
 
-func (s *stubSessionRepository) MarkParticipantLeft(_ context.Context, _ string, _ int64, _ time.Time) (bool, error) {
+func (s *stubSessionRepository) MarkParticipantLeftAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ int64,
+	_ string,
+	_ time.Time,
+	event any,
+) (bool, error) {
+	if s.markParticipantLeftResult && s.markParticipantLeftErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.markParticipantLeftResult, s.markParticipantLeftErr
 }
 
-func (s *stubSessionRepository) EndSession(_ context.Context, sessionID string, _ time.Time) (bool, error) {
+func (s *stubSessionRepository) EndSessionAndEnqueue(
+	_ context.Context,
+	sessionID string,
+	_ time.Time,
+	event any,
+) (bool, error) {
 	s.endSessionSessionID = sessionID
+	if s.endSessionResult && s.endSessionErr == nil {
+		s.messages = append(s.messages, publishedMessage{sessionID: sessionID, event: event})
+	}
 	return s.endSessionResult, s.endSessionErr
 }
 
