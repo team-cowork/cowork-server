@@ -91,9 +91,11 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return false;
         }
         try {
-            ProjectionTopicState broker = topicIdentity.topicState(topic);
             Map<Integer, ProjectionBarrier> barriers = requireBarriers();
             Map<Integer, ProjectionCheckpoint> stored = requireCheckpoints();
+            // Observe the broker last so an append concurrent with the durable reads cannot
+            // leave readiness open against an older high-watermark.
+            ProjectionTopicState broker = topicIdentity.topicState(topic);
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {
