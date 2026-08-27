@@ -27,6 +27,9 @@ object ProjectionReadinessEvaluator {
             if (checkpoint.invalidCheckpointOffset != null) {
                 return unavailable("checkpoint requires manual rebuild for partition $partition")
             }
+            if (checkpoint.invalidRecordOffset != null) {
+                return unavailable("invalid record requires manual rebuild for partition $partition")
+            }
             val markerOffset = checkpoint.snapshotCompletedOffset
                 ?: return unavailable("snapshot completion marker missing for partition $partition")
             if (checkpoint.nextOffset <= markerOffset) {
@@ -53,7 +56,6 @@ object ProjectionReadinessEvaluator {
 
     private fun unavailable(reason: String) = ProjectionReadinessEvaluation(false, reason)
 }
-
 data class ProjectionReadinessSnapshot(val ready: Boolean, val reason: String, val initialized: Boolean)
 
 class ProjectionReadiness {
