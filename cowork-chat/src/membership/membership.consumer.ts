@@ -8,6 +8,7 @@ import { ChannelMember } from '../chat/schema/channel-member.schema';
 import { ChannelMemberEvent } from './event/membership.event';
 import { getRequiredCsvConfig } from '../common/config/config.util';
 import { parseEventTime } from '../common/util/event-time.util';
+import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../common/kafka/projection-message.processor';
 import {
@@ -172,9 +173,9 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         if (typeof payload !== 'object' || payload === null) return false;
         const event = payload as Partial<ChannelMemberEvent>;
         return (event.eventType === 'JOIN' || event.eventType === 'LEAVE' || event.eventType === 'ROLE_CHANGE')
-            && typeof event.channelId === 'number'
-            && (event.teamId === null || typeof event.teamId === 'number')
-            && typeof event.userId === 'number'
+            && isSafePositiveInteger(event.channelId)
+            && (event.teamId === null || isSafePositiveInteger(event.teamId))
+            && isSafePositiveInteger(event.userId)
             && typeof event.role === 'string'
             && typeof event.channelType === 'string'
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
