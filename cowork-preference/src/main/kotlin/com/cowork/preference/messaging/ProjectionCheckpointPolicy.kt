@@ -10,7 +10,6 @@ enum class ProjectionCheckpointAction {
     BLOCK_TOPIC_RECREATED,
     BLOCK_INVALID_CHECKPOINT,
 }
-
 data class ProjectionCheckpointResolution(
     val action: ProjectionCheckpointAction,
     val seekOffset: Long,
