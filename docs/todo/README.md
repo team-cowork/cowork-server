@@ -15,6 +15,7 @@
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - security: [Gateway 내부 API 외부 노출 차단](./items/12-security/internal-api-gateway-access-control.md)
+- storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 
 ## 점검 스냅샷
 
