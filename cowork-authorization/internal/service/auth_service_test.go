@@ -32,6 +32,20 @@ type fakeRefreshTokenStore struct {
 	revokeCallCount int
 }
 
+type fakeIdentityCoordinator struct {
+	userID int64
+	err    error
+	calls  int
+}
+
+func (f *fakeIdentityCoordinator) EnsureUser(
+	_ context.Context,
+	_ domain.UserIdentityCommand,
+) (int64, error) {
+	f.calls++
+	return f.userID, f.err
+}
+
 func (f *fakeRefreshTokenStore) CreateSession(
 	_ context.Context,
 	token *domain.RefreshToken,
@@ -114,6 +128,46 @@ func TestIssueNewSessionDelegatesTokenPresenceAndOutboxToOneStoreOperation(t *te
 	}
 }
 
+func TestIdentityOwnerCommitMustSucceedBeforeSessionAndTokenIssue(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.August, 27, 1, 2, 3, 0, time.UTC)
+	store := &fakeRefreshTokenStore{}
+	identity := &fakeIdentityCoordinator{err: errors.New("owner rejected command")}
+	service := newUnitAuthService(store, now)
+	service.identity = identity
+
+	command := domain.UserIdentityCommand{UserID: 7}
+	pair, err := service.commitIdentityAndIssueSession(
+		context.Background(),
+		command,
+		"user@example.com",
+		"MEMBER",
+		"STUDENT",
+		"",
+	)
+	if err == nil || pair != nil {
+		t.Fatalf("commitIdentityAndIssueSession() = %+v, %v; want failure", pair, err)
+	}
+	if identity.calls != 1 || store.createdToken != nil {
+		t.Fatalf("owner calls=%d createdToken=%+v; token/session must follow SUCCEEDED", identity.calls, store.createdToken)
+	}
+
+	identity.err = nil
+	identity.userID = 7
+	pair, err = service.commitIdentityAndIssueSession(
+		context.Background(),
+		command,
+		"user@example.com",
+		"MEMBER",
+		"STUDENT",
+		"",
+	)
+	if err != nil || pair == nil || store.createdToken == nil {
+		t.Fatalf("successful owner commit did not issue session: pair=%+v token=%+v err=%v", pair, store.createdToken, err)
+	}
+}
+
 func TestRefreshUsesSingleAtomicRotationOperation(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +243,42 @@ func TestProviderStatusErrorCannotExposeResponseBody(t *testing.T) {
 	err := providerStatusError("token", 401)
 	if got, want := err.Error(), "token endpoint returned status 401"; got != want {
 		t.Fatalf("providerStatusError() = %q, want body-free %q", got, want)
+	}
+}
+
+func TestAuthenticationInfrastructureFailuresAreClassifiedAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	if err := providerStatusError("token", 503); !errors.Is(err, ErrAuthenticationUnavailable) {
+		t.Fatalf("provider 503 error = %v, want ErrAuthenticationUnavailable", err)
+	}
+
+	now := time.Date(2026, time.August, 27, 1, 2, 3, 0, time.UTC)
+	store := &fakeRefreshTokenStore{createErr: errors.New("database unavailable")}
+	identity := &fakeIdentityCoordinator{userID: 7}
+	service := newUnitAuthService(store, now)
+	service.identity = identity
+
+	pair, err := service.commitIdentityAndIssueSession(
+		context.Background(),
+		domain.UserIdentityCommand{UserID: 7},
+		"user@example.com",
+		"MEMBER",
+		"STUDENT",
+		"",
+	)
+	if pair != nil || !errors.Is(err, ErrAuthenticationUnavailable) {
+		t.Fatalf("session persistence failure = pair %+v, err %v; want unavailable", pair, err)
+	}
+
+	store.rotateErr = errors.New("database unavailable")
+	if _, err := service.RefreshTokens(context.Background(), "refresh-token"); !errors.Is(err, ErrAuthenticationUnavailable) {
+		t.Fatalf("refresh persistence failure = %v, want unavailable", err)
+	}
+
+	store.revokeErr = errors.New("database unavailable")
+	if err := service.Logout(context.Background(), 7, "refresh-token"); !errors.Is(err, ErrAuthenticationUnavailable) {
+		t.Fatalf("logout persistence failure = %v, want unavailable", err)
 	}
 }
 
