@@ -18,6 +18,11 @@ spring:
     user: ${MYSQL_USER:cowork}
     password: ${MYSQL_PASSWORD:}
     locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      auto-offset-reset: earliest
+      enable-auto-commit: false
 
 eureka:
   client:
