@@ -33,7 +33,12 @@ consumer assignment 때 broker group offset 대신 이 checkpoint로 seek하며,
 high-watermark를 shared checkpoint가 모두 넘고 각 partition의 source snapshot completion marker를 소비하기 전에는
 `/actuator/health/readiness`와 Eureka를 열지 않습니다. 저장된 topic UUID가 현재 Kafka topic과 다르거나 checkpoint/marker가
 retention 범위 밖이면 수치 offset이 겹쳐도 fail-closed 합니다.
-이 구간의 projection 의존 요청은 잘못된 `403` 대신 `503`을 반환합니다.
+준비 완료 뒤에도 요청과 health check가 broker의 현재 high-watermark를 마지막으로 조회해 checkpoint와 정확히
+일치하는지 확인합니다. 뒤처지거나 broker 상태를 확인할 수 없는 구간의 projection 의존 요청은 잘못된 `403`
+대신 `503`을 반환하고, 멤버십 부정 결과는 현재 상태 확인 후 한 번 더 조회합니다.
+
+커스텀 목록은 `teamId` 또는 `projectId` 중 하나를 지정해야 하며, 결과를 반환하기 전에 모든 로드맵의 소유 팀
+멤버십을 확인합니다. 두 ID를 함께 보내거나 소유자 필터 없이 `TEAM`/`PROJECT` scope 전체를 요청하면 `400`입니다.
 
 ## 주요 엔드포인트 (서비스 내부 경로)
 

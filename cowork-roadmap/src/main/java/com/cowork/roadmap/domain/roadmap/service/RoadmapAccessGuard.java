@@ -1,6 +1,7 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
 import java.util.Set;
+import java.util.function.Predicate;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -58,10 +59,15 @@ public class RoadmapAccessGuard {
         if (ROLE_ADMIN.equals(userRole)) {
             return Mono.empty();
         }
-        return requireProjectionReady()
-                .then(Mono.defer(() -> teamMemberships.findActiveRole(roadmap.getOwnerTeamId(), userId)
-                        .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 조회할 권한이 없습니다.", HttpStatus.FORBIDDEN)))
-                        .then()));
+        return requireTeamRole(roadmap.getOwnerTeamId(), userId, ignored -> true, "로드맵을 조회할 권한이 없습니다.");
+    }
+
+    /** 팀별 목록을 조회할 권한. ADMIN 또는 해당 팀의 활성 멤버만 허용. */
+    public Mono<Void> requireTeamReadable(Long teamId, Long userId, String userRole) {
+        if (ROLE_ADMIN.equals(userRole)) {
+            return Mono.empty();
+        }
+        return requireTeamRole(teamId, userId, ignored -> true, "로드맵을 조회할 권한이 없습니다.");
     }
 
     /** 과제 출제/삭제 권한. 글로벌 ADMIN 또는 해당 팀의 OWNER/ADMIN. */
@@ -80,10 +86,19 @@ public class RoadmapAccessGuard {
     }
 
     private Mono<Void> requireTeamManager(Long teamId, Long userId, String message) {
-        return requireProjectionReady().then(Mono.defer(() -> teamMemberships.findActiveRole(teamId, userId)
-                .filter(TEAM_MANAGER_ROLES::contains)
+        return requireTeamRole(teamId, userId, TEAM_MANAGER_ROLES::contains, message);
+    }
+
+    private Mono<Void> requireTeamRole(Long teamId, Long userId, Predicate<String> accepted, String message) {
+        return requireProjectionReady().then(Mono.defer(() -> findAcceptedRole(teamId, userId, accepted)))
+                .switchIfEmpty(
+                        Mono.defer(() -> requireProjectionReady().then(findAcceptedRole(teamId, userId, accepted))))
                 .switchIfEmpty(Mono.error(new ExpectedException(message, HttpStatus.FORBIDDEN)))
-                .then()));
+                .then();
+    }
+
+    private Mono<String> findAcceptedRole(Long teamId, Long userId, Predicate<String> accepted) {
+        return teamMemberships.findActiveRole(teamId, userId).filter(accepted);
     }
 
     private Mono<Void> requireProjectionReady() {

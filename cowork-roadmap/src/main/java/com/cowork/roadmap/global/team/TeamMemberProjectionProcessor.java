@@ -32,14 +32,24 @@ public class TeamMemberProjectionProcessor {
 
     @Transactional
     public Mono<Void> discard(ConsumerRecord<String, String> record, String reason) {
-        return checkpoints.quarantine(consumerGroup, record, reason).then(advance(record));
+        String topicId = topicGeneration.requireTopicId();
+        return checkpoints.quarantine(consumerGroup, record, reason)
+                .then(checkpoints
+                        .markInvalidRecord(consumerGroup, record.topic(), record.partition(), record.offset(), topicId))
+                .then(checkpoints
+                        .advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId));
     }
 
     @Transactional
-    public Mono<Void> completeSnapshot(ConsumerRecord<String, String> record) {
+    public Mono<Void> completeSnapshot(ConsumerRecord<String, String> record, String snapshotId) {
         String topicId = topicGeneration.requireTopicId();
         return checkpoints
-                .markSnapshotCompleted(consumerGroup, record.topic(), record.partition(), record.offset(), topicId)
+                .markSnapshotCompleted(consumerGroup,
+                        record.topic(),
+                        record.partition(),
+                        record.offset(),
+                        topicId,
+                        snapshotId)
                 .then(checkpoints
                         .advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId));
     }
