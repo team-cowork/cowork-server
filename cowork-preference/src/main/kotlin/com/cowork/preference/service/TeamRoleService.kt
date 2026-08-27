@@ -7,7 +7,7 @@ import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlClient
 import java.time.Instant
-import java.time.ZoneOffset
+import java.time.temporal.ChronoUnit
 
 class TeamRoleService(
     private val repository: TeamRoleRepository,
@@ -119,11 +119,22 @@ class TeamRoleService(
         }
     }
 
-    suspend fun assignRole(accountId: Long, teamId: Long, roleId: Long): Result<TeamRoleDefinition> {
+    suspend fun assignRole(
+        accountId: Long,
+        teamId: Long,
+        roleId: Long,
+        sourceMembershipVersion: Instant,
+    ): Result<TeamRoleDefinition> {
         repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
         val role = outboxRepository.inTransaction { connection ->
-            val persistedRole = repository.assignRole(connection, accountId, teamId, roleId)
+            val persistedRole = repository.assignRole(
+                connection,
+                accountId,
+                teamId,
+                roleId,
+                sourceMembershipVersion,
+            )
             val assignment = requireNotNull(repository.findAssignment(connection, accountId, teamId, roleId))
             outboxRepository.enqueue(
                 connection,
@@ -156,8 +167,14 @@ class TeamRoleService(
         teamId: Long,
         occurredAt: Instant,
     ) {
-        repository.removeMemberRolesAtOrBefore(client, accountId, teamId, occurredAt.atOffset(ZoneOffset.UTC))
-        outboxRepository.enqueue(client, PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, occurredAt))
+        val removedAssignments = repository.removeMemberRolesAtOrBefore(client, accountId, teamId, occurredAt)
+        val tombstoneVersion = nextProjectionVersion(
+            sequenceOf(occurredAt) + removedAssignments.asSequence().mapNotNull { it.updatedAt?.toInstant() },
+        )
+        outboxRepository.enqueue(
+            client,
+            PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, tombstoneVersion),
+        )
     }
 
     suspend fun deleteTeamRoles(teamId: Long, occurredAt: Instant) {
@@ -167,14 +184,20 @@ class TeamRoleService(
     }
 
     internal suspend fun deleteTeamRoles(client: SqlClient, teamId: Long, occurredAt: Instant) {
+        repository.markTeamDeleted(client, teamId, occurredAt)
         val assignments = repository.findMemberRoles(client, teamId)
         val roles = repository.findRoles(client, teamId)
+        val tombstoneVersion = nextProjectionVersion(
+            sequenceOf(occurredAt) +
+                assignments.asSequence().mapNotNull { it.updatedAt?.toInstant() } +
+                roles.asSequence().mapNotNull { (it.updatedAt ?: it.createdAt)?.toInstant() },
+        )
 
         repository.deleteTeamRoles(client, teamId)
         outboxRepository.enqueueAll(
             client,
-            assignments.map { PreferenceEvents.assignmentDeleted(it, occurredAt) } +
-                roles.map { PreferenceEvents.roleDeleted(teamId, it.id, occurredAt) },
+            assignments.map { PreferenceEvents.assignmentDeleted(it, tombstoneVersion) } +
+                roles.map { PreferenceEvents.roleDeleted(teamId, it.id, tombstoneVersion) },
         )
     }
 
@@ -189,4 +212,8 @@ class TeamRoleService(
     } else {
         Result.success(Unit)
     }
+
+    private fun nextProjectionVersion(versions: Sequence<Instant>): Instant = requireNotNull(versions.maxOrNull())
+        .truncatedTo(ChronoUnit.MICROS)
+        .plus(1, ChronoUnit.MICROS)
 }
