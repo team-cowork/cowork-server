@@ -12,12 +12,16 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/domain/projection"
+	"github.com/google/uuid"
 	segkafka "github.com/segmentio/kafka-go"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
 const (
 	projectionRetryDelay              = time.Second
-	barrierPollInterval               = 250 * time.Millisecond
+	barrierPollInterval               = time.Second
 	projectionMaxBytes                = 10e6
 	snapshotMarkerKeyPrefix           = "__cowork_projection_snapshot_complete__:"
 	snapshotMarkerEventType           = "PROJECTION_SNAPSHOT_COMPLETED"
@@ -32,6 +36,7 @@ var snapshotIDPattern = regexp.MustCompile(
 
 var ErrProjectionCheckpointAheadOfTopic = errors.New("projection checkpoint is ahead of the topic end")
 var ErrProjectionCheckpointBehindTopic = errors.New("projection checkpoint is behind the topic start")
+var ErrProjectionTopologyChanged = errors.New("projection topic topology changed during the consumer generation")
 
 type ProjectionTopics struct {
 	ChannelNotification string
@@ -82,7 +87,7 @@ type projectionProcessor interface {
 		projection.SnapshotMarkerReceipt,
 	) error
 	QuarantineWithCheckpoint(context.Context, projection.InvalidRecord) error
-	LoadCheckpoint(context.Context, string, string, int) (int64, bool, error)
+	LoadCheckpoint(context.Context, string, string, int) (projection.CheckpointState, bool, error)
 	AdvanceCheckpoint(context.Context, projection.Checkpoint) error
 	LoadCheckpoints(
 		context.Context,
@@ -92,8 +97,9 @@ type projectionProcessor interface {
 }
 
 type projectionOffsetRange struct {
-	First int64
-	End   int64
+	First   int64
+	End     int64
+	TopicID string
 }
 
 type projectionOffsetSnapshotter interface {
@@ -104,21 +110,45 @@ type projectionOffsetSnapshotter interface {
 }
 
 type kafkaProjectionOffsetSnapshotter struct {
-	client *segkafka.Client
+	client *kgo.Client
 }
 
-func newKafkaProjectionOffsetSnapshotter(brokers []string) *kafkaProjectionOffsetSnapshotter {
-	return &kafkaProjectionOffsetSnapshotter{client: &segkafka.Client{
-		Addr:    segkafka.TCP(brokers...),
-		Timeout: 10 * time.Second,
-	}}
+type projectionBrokerMetadata struct {
+	topicIDs          map[string]string
+	partitionsByTopic map[string][]int
+	partitions        map[projection.TopicPartition]struct{}
+}
+
+func newKafkaProjectionOffsetSnapshotter(brokers []string) (*kafkaProjectionOffsetSnapshotter, error) {
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(brokers...),
+		kgo.ClientID("cowork-notification-projection-barrier"),
+		kgo.RequestTimeoutOverhead(10*time.Second),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create projection metadata client: %w", err)
+	}
+	return &kafkaProjectionOffsetSnapshotter{client: client}, nil
 }
 
 func (s *kafkaProjectionOffsetSnapshotter) Snapshot(
 	ctx context.Context,
 	topics []string,
 ) (map[projection.TopicPartition]projectionOffsetRange, error) {
-	metadata, err := s.client.Metadata(ctx, &segkafka.MetadataRequest{Topics: topics})
+	snapshotCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	ctx = snapshotCtx
+
+	metadataRequest := kmsg.NewPtrMetadataRequest()
+	metadataRequest.AllowAutoTopicCreation = false
+	for _, topic := range topics {
+		topicName := topic
+		metadataRequest.Topics = append(
+			metadataRequest.Topics,
+			kmsg.MetadataRequestTopic{Topic: &topicName},
+		)
+	}
+	metadata, err := metadataRequest.RequestWith(ctx, s.client)
 	if err != nil {
 		return nil, fmt.Errorf("load projection topic metadata: %w", err)
 	}
@@ -127,79 +157,210 @@ func (s *kafkaProjectionOffsetSnapshotter) Snapshot(
 	for _, topic := range topics {
 		requestedTopics[topic] = struct{}{}
 	}
-	offsetRequests := make(map[string][]segkafka.OffsetRequest, len(topics))
-	expected := make(map[projection.TopicPartition]struct{})
-	for _, topic := range metadata.Topics {
-		if _, requested := requestedTopics[topic.Name]; !requested {
-			continue
-		}
-		if topic.Error != nil {
-			return nil, fmt.Errorf("load metadata for topic %s: %w", topic.Name, topic.Error)
-		}
-		delete(requestedTopics, topic.Name)
-		for _, partition := range topic.Partitions {
-			if partition.Error != nil {
-				return nil, fmt.Errorf(
-					"load metadata for %s/%d: %w",
-					topic.Name,
-					partition.ID,
-					partition.Error,
-				)
-			}
-			offsetRequests[topic.Name] = append(
-				offsetRequests[topic.Name],
-				segkafka.FirstOffsetOf(partition.ID),
-				segkafka.LastOffsetOf(partition.ID),
-			)
-			expected[projection.TopicPartition{Topic: topic.Name, Partition: partition.ID}] = struct{}{}
-		}
-	}
-	if len(requestedTopics) > 0 {
-		return nil, fmt.Errorf("projection topic metadata missing: %v", mapKeys(requestedTopics))
-	}
-	if len(expected) == 0 {
-		return nil, errors.New("projection topics have no partitions")
+	brokerMetadata, err := parseProjectionBrokerMetadata(metadata, requestedTopics)
+	if err != nil {
+		return nil, err
 	}
 
-	offsets, err := s.client.ListOffsets(ctx, &segkafka.ListOffsetsRequest{Topics: offsetRequests})
+	firstOffsets, err := s.loadOffsets(ctx, brokerMetadata.partitionsByTopic, -2)
 	if err != nil {
-		return nil, fmt.Errorf("load projection topic offsets: %w", err)
+		return nil, fmt.Errorf("load projection topic start offsets: %w", err)
 	}
-	ranges := make(map[projection.TopicPartition]projectionOffsetRange, len(expected))
-	for topic, partitions := range offsets.Topics {
-		for _, partition := range partitions {
-			if partition.Error != nil {
-				return nil, fmt.Errorf(
-					"load offsets for %s/%d: %w",
-					topic,
-					partition.Partition,
-					partition.Error,
-				)
-			}
-			tp := projection.TopicPartition{Topic: topic, Partition: partition.Partition}
-			ranges[tp] = projectionOffsetRange{
-				First: partition.FirstOffset,
-				End:   partition.LastOffset,
-			}
-		}
+	endOffsets, err := s.loadOffsets(ctx, brokerMetadata.partitionsByTopic, -1)
+	if err != nil {
+		return nil, fmt.Errorf("load projection topic end offsets: %w", err)
 	}
-	for partition := range expected {
-		if _, ok := ranges[partition]; !ok {
+
+	verifiedMetadataResponse, err := metadataRequest.RequestWith(ctx, s.client)
+	if err != nil {
+		return nil, fmt.Errorf("verify projection topic metadata: %w", err)
+	}
+	verifiedMetadata, err := parseProjectionBrokerMetadata(verifiedMetadataResponse, requestedTopics)
+	if err != nil {
+		return nil, fmt.Errorf("verify projection topic metadata: %w", err)
+	}
+	if err := requireStableProjectionBrokerMetadata(brokerMetadata, verifiedMetadata); err != nil {
+		return nil, err
+	}
+
+	ranges := make(map[projection.TopicPartition]projectionOffsetRange, len(brokerMetadata.partitions))
+	for partition := range brokerMetadata.partitions {
+		first, firstFound := firstOffsets[partition]
+		end, endFound := endOffsets[partition]
+		if !firstFound || !endFound {
 			return nil, fmt.Errorf("offset response missing %s/%d", partition.Topic, partition.Partition)
+		}
+		if first < 0 || end < first {
+			return nil, fmt.Errorf(
+				"invalid offset range for %s/%d: first=%d end=%d",
+				partition.Topic,
+				partition.Partition,
+				first,
+				end,
+			)
+		}
+		ranges[partition] = projectionOffsetRange{
+			First:   first,
+			End:     end,
+			TopicID: brokerMetadata.topicIDs[partition.Topic],
 		}
 	}
 	return ranges, nil
 }
 
+func parseProjectionBrokerMetadata(
+	metadata *kmsg.MetadataResponse,
+	requested map[string]struct{},
+) (projectionBrokerMetadata, error) {
+	result := projectionBrokerMetadata{
+		topicIDs:          make(map[string]string, len(requested)),
+		partitionsByTopic: make(map[string][]int, len(requested)),
+		partitions:        make(map[projection.TopicPartition]struct{}),
+	}
+	for _, topic := range metadata.Topics {
+		if topic.Topic == nil {
+			return projectionBrokerMetadata{}, errors.New("projection metadata response omitted a topic name")
+		}
+		topicName := *topic.Topic
+		if _, ok := requested[topicName]; !ok {
+			return projectionBrokerMetadata{}, fmt.Errorf("projection metadata returned unexpected topic %s", topicName)
+		}
+		if _, duplicate := result.topicIDs[topicName]; duplicate {
+			return projectionBrokerMetadata{}, fmt.Errorf("projection metadata returned duplicate topic %s", topicName)
+		}
+		if kafkaErr := kerr.ErrorForCode(topic.ErrorCode); kafkaErr != nil {
+			return projectionBrokerMetadata{}, fmt.Errorf("load metadata for topic %s: %w", topicName, kafkaErr)
+		}
+		topicUUID := uuid.UUID(topic.TopicID)
+		if topicUUID == uuid.Nil {
+			return projectionBrokerMetadata{}, fmt.Errorf(
+				"load metadata for topic %s: broker did not return a topic UUID; Kafka 2.8+ is required",
+				topicName,
+			)
+		}
+		result.topicIDs[topicName] = topicUUID.String()
+		if len(topic.Partitions) == 0 {
+			return projectionBrokerMetadata{}, fmt.Errorf("projection topic %s has no partitions", topicName)
+		}
+		for _, partition := range topic.Partitions {
+			if kafkaErr := kerr.ErrorForCode(partition.ErrorCode); kafkaErr != nil {
+				return projectionBrokerMetadata{}, fmt.Errorf(
+					"load metadata for %s/%d: %w",
+					topicName,
+					partition.Partition,
+					kafkaErr,
+				)
+			}
+			partitionID := int(partition.Partition)
+			tp := projection.TopicPartition{Topic: topicName, Partition: partitionID}
+			if _, duplicate := result.partitions[tp]; duplicate {
+				return projectionBrokerMetadata{}, fmt.Errorf(
+					"projection metadata returned duplicate partition %s/%d",
+					topicName,
+					partitionID,
+				)
+			}
+			result.partitionsByTopic[topicName] = append(result.partitionsByTopic[topicName], partitionID)
+			result.partitions[tp] = struct{}{}
+		}
+	}
+	if len(result.topicIDs) != len(requested) {
+		return projectionBrokerMetadata{}, errors.New("projection metadata response is missing a requested topic")
+	}
+	return result, nil
+}
+
+func requireStableProjectionBrokerMetadata(before, after projectionBrokerMetadata) error {
+	if len(before.topicIDs) != len(after.topicIDs) {
+		return fmt.Errorf(
+			"%w while capturing broker offsets: topic count changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(before.topicIDs),
+			len(after.topicIDs),
+		)
+	}
+	for topic, topicID := range before.topicIDs {
+		if after.topicIDs[topic] != topicID {
+			return fmt.Errorf(
+				"%w while capturing broker offsets: %s topic UUID changed",
+				projection.ErrTopicGenerationMismatch,
+				topic,
+			)
+		}
+	}
+	if len(before.partitions) != len(after.partitions) {
+		return fmt.Errorf(
+			"%w while capturing broker offsets: partitions changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(before.partitions),
+			len(after.partitions),
+		)
+	}
+	for partition := range before.partitions {
+		if _, found := after.partitions[partition]; !found {
+			return fmt.Errorf(
+				"%w while capturing broker offsets: partition %s/%d changed",
+				ErrProjectionTopologyChanged,
+				partition.Topic,
+				partition.Partition,
+			)
+		}
+	}
+	return nil
+}
+
+func (s *kafkaProjectionOffsetSnapshotter) loadOffsets(
+	ctx context.Context,
+	partitionsByTopic map[string][]int,
+	timestamp int64,
+) (map[projection.TopicPartition]int64, error) {
+	request := kmsg.NewPtrListOffsetsRequest()
+	for topic, partitions := range partitionsByTopic {
+		requestTopic := kmsg.NewListOffsetsRequestTopic()
+		requestTopic.Topic = topic
+		for _, partition := range partitions {
+			requestPartition := kmsg.NewListOffsetsRequestTopicPartition()
+			requestPartition.Partition = int32(partition)
+			requestPartition.Timestamp = timestamp
+			requestTopic.Partitions = append(requestTopic.Partitions, requestPartition)
+		}
+		request.Topics = append(request.Topics, requestTopic)
+	}
+	response, err := request.RequestWith(ctx, s.client)
+	if err != nil {
+		return nil, err
+	}
+	offsets := make(map[projection.TopicPartition]int64)
+	for _, topic := range response.Topics {
+		for _, partition := range topic.Partitions {
+			if kafkaErr := kerr.ErrorForCode(partition.ErrorCode); kafkaErr != nil {
+				return nil, fmt.Errorf("load offset for %s/%d: %w", topic.Topic, partition.Partition, kafkaErr)
+			}
+			tp := projection.TopicPartition{Topic: topic.Topic, Partition: int(partition.Partition)}
+			if _, exists := offsets[tp]; exists {
+				return nil, fmt.Errorf("duplicate offset response for %s/%d", tp.Topic, tp.Partition)
+			}
+			offsets[tp] = partition.Offset
+		}
+	}
+	return offsets, nil
+}
+
+func (s *kafkaProjectionOffsetSnapshotter) Close() {
+	s.client.Close()
+}
+
 type ProjectionConsumer struct {
-	brokers     []string
-	groupID     string
-	topics      ProjectionTopics
-	group       *segkafka.ConsumerGroup
-	processor   projectionProcessor
-	snapshotter projectionOffsetSnapshotter
-	readiness   projectionReadiness
-	closeOnce   sync.Once
+	brokers        []string
+	groupID        string
+	topics         ProjectionTopics
+	group          *segkafka.ConsumerGroup
+	processor      projectionProcessor
+	snapshotter    projectionOffsetSnapshotter
+	readiness      projectionReadiness
+	closeOnce      sync.Once
+	readinessMu    sync.Mutex
+	readinessEpoch uint64
 }
 
 func NewProjectionConsumer(
@@ -210,6 +371,10 @@ func NewProjectionConsumer(
 	readiness projectionReadiness,
 ) (*ProjectionConsumer, error) {
 	brokerList := splitBrokerList(brokers)
+	snapshotter, err := newKafkaProjectionOffsetSnapshotter(brokerList)
+	if err != nil {
+		return nil, err
+	}
 	group, err := segkafka.NewConsumerGroup(segkafka.ConsumerGroupConfig{
 		ID:                    groupID,
 		Brokers:               brokerList,
@@ -218,6 +383,7 @@ func NewProjectionConsumer(
 		WatchPartitionChanges: true,
 	})
 	if err != nil {
+		snapshotter.Close()
 		return nil, fmt.Errorf("create notification projection consumer group: %w", err)
 	}
 	return &ProjectionConsumer{
@@ -226,7 +392,7 @@ func NewProjectionConsumer(
 		topics:      topics,
 		group:       group,
 		processor:   processor,
-		snapshotter: newKafkaProjectionOffsetSnapshotter(brokerList),
+		snapshotter: snapshotter,
 		readiness:   readiness,
 	}, nil
 }
@@ -257,8 +423,11 @@ func (c *ProjectionConsumer) consumeGeneration(
 	ctx context.Context,
 	assignments map[string][]segkafka.PartitionAssignment,
 ) {
-	ranges, ok := c.snapshotWithRetry(ctx)
-	if !ok || !c.initializeCheckpoints(ctx, ranges) {
+	consumerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	ranges, ok := c.snapshotWithRetry(consumerCtx)
+	if !ok || !c.initializeCheckpoints(consumerCtx, ranges) {
 		return
 	}
 
@@ -274,12 +443,14 @@ func (c *ProjectionConsumer) consumeGeneration(
 			readers.Add(1)
 			go func() {
 				defer readers.Done()
-				c.consumePartition(ctx, partition, offsetRange)
+				defer cancel()
+				c.consumePartition(consumerCtx, partition, offsetRange)
 			}()
 		}
 	}
 
-	c.monitorBarrier(ctx, ranges)
+	c.monitorBarrier(consumerCtx, ranges)
+	cancel()
 	readers.Wait()
 	c.readiness.Set(false)
 }
@@ -308,14 +479,15 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 ) bool {
 	for partition, offsetRange := range ranges {
 		for {
-			nextOffset, found, err := c.processor.LoadCheckpoint(
+			checkpoint, found, err := c.processor.LoadCheckpoint(
 				ctx,
 				c.groupID,
 				partition.Topic,
 				partition.Partition,
 			)
+			nextOffset := checkpoint.NextOffset
 			if err == nil {
-				resumeOffset, policyErr := projectionCheckpointResumeOffset(nextOffset, found, offsetRange)
+				resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
 				if policyErr != nil {
 					err = policyErr
 				} else if found && resumeOffset == nextOffset {
@@ -325,6 +497,7 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 						ConsumerGroup: c.groupID,
 						Topic:         partition.Topic,
 						Partition:     partition.Partition,
+						TopicID:       offsetRange.TopicID,
 						NextOffset:    resumeOffset,
 					})
 				}
@@ -335,14 +508,23 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 			if ctx.Err() != nil {
 				return false
 			}
-			if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
+			if errors.Is(err, projection.ErrTopicGenerationMismatch) {
+				slog.Error(
+					"projection topic generation changed; refusing readiness and seek",
+					"topic", partition.Topic,
+					"partition", partition.Partition,
+					"checkpointTopicId", checkpoint.TopicID,
+					"brokerTopicId", offsetRange.TopicID,
+					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
+				)
+			} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
 				slog.Error(
 					"projection checkpoint is ahead of Kafka; refusing readiness and seek",
 					"topic", partition.Topic,
 					"partition", partition.Partition,
 					"checkpoint", nextOffset,
 					"topicEnd", offsetRange.End,
-					"action", "verify topic recreation and reset the shared projection checkpoint",
+					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
 				)
 			} else if errors.Is(err, ErrProjectionCheckpointBehindTopic) {
 				slog.Error(
@@ -414,7 +596,7 @@ func (c *ProjectionConsumer) consumePartition(
 			}
 			continue
 		}
-		if !c.processWithRetry(ctx, message) {
+		if !c.processWithRetry(ctx, message, offsetRange.TopicID) {
 			return
 		}
 	}
@@ -426,14 +608,15 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 	offsetRange projectionOffsetRange,
 ) (int64, bool) {
 	for {
-		nextOffset, found, err := c.processor.LoadCheckpoint(
+		checkpoint, found, err := c.processor.LoadCheckpoint(
 			ctx,
 			c.groupID,
 			partition.Topic,
 			partition.Partition,
 		)
+		nextOffset := checkpoint.NextOffset
 		if err == nil {
-			resumeOffset, policyErr := projectionCheckpointResumeOffset(nextOffset, found, offsetRange)
+			resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
 			if policyErr == nil {
 				return resumeOffset, true
 			}
@@ -442,7 +625,16 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 		if ctx.Err() != nil {
 			return 0, false
 		}
-		if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
+		if errors.Is(err, projection.ErrTopicGenerationMismatch) {
+			slog.Error(
+				"projection topic generation changed; refusing seek",
+				"topic", partition.Topic,
+				"partition", partition.Partition,
+				"checkpointTopicId", checkpoint.TopicID,
+				"brokerTopicId", offsetRange.TopicID,
+				"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
+			)
+		} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
 			slog.Error(
 				"projection checkpoint is ahead of Kafka; refusing seek",
 				"topic", partition.Topic,
@@ -468,10 +660,22 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 }
 
 func projectionCheckpointResumeOffset(
-	nextOffset int64,
+	checkpoint projection.CheckpointState,
 	found bool,
 	offsetRange projectionOffsetRange,
 ) (int64, error) {
+	if offsetRange.TopicID == "" {
+		return 0, fmt.Errorf("%w: broker topic UUID is empty", projection.ErrTopicGenerationMismatch)
+	}
+	if found && checkpoint.TopicID != offsetRange.TopicID {
+		return 0, fmt.Errorf(
+			"%w: checkpointTopicId=%q brokerTopicId=%q",
+			projection.ErrTopicGenerationMismatch,
+			checkpoint.TopicID,
+			offsetRange.TopicID,
+		)
+	}
+	nextOffset := checkpoint.NextOffset
 	if found && nextOffset < offsetRange.First {
 		return 0, fmt.Errorf(
 			"%w: checkpoint=%d topicStart=%d",
@@ -494,11 +698,16 @@ func projectionCheckpointResumeOffset(
 	return nextOffset, nil
 }
 
-func (c *ProjectionConsumer) processWithRetry(ctx context.Context, message segkafka.Message) bool {
+func (c *ProjectionConsumer) processWithRetry(
+	ctx context.Context,
+	message segkafka.Message,
+	topicID string,
+) bool {
 	checkpoint := projection.Checkpoint{
 		ConsumerGroup: c.groupID,
 		Topic:         message.Topic,
 		Partition:     message.Partition,
+		TopicID:       topicID,
 		NextOffset:    message.Offset + 1,
 	}
 	for {
@@ -507,11 +716,49 @@ func (c *ProjectionConsumer) processWithRetry(ctx context.Context, message segka
 			return true
 		}
 		if errors.Is(err, projection.ErrInvalidEvent) {
+			_, latchStateGap := c.topics.expectedSnapshotSource(message.Topic)
+			readinessClosed := false
+			for {
+				stale, preflightErr := c.invalidRecordAlreadyProcessed(ctx, checkpoint, message.Offset)
+				if preflightErr == nil {
+					if stale {
+						slog.Warn(
+							"stale invalid projection event ignored",
+							"topic", message.Topic,
+							"partition", message.Partition,
+							"offset", message.Offset,
+						)
+						return true
+					}
+					break
+				}
+				if latchStateGap && !readinessClosed {
+					c.closeReadinessForStateGap()
+					readinessClosed = true
+				}
+				if ctx.Err() != nil {
+					return false
+				}
+				slog.Error(
+					"projection checkpoint preflight failed; retrying",
+					"topic", message.Topic,
+					"partition", message.Partition,
+					"offset", message.Offset,
+					"err", preflightErr,
+				)
+				if !waitForRetry(ctx) {
+					return false
+				}
+			}
+			if latchStateGap && !readinessClosed {
+				c.closeReadinessForStateGap()
+			}
 			record := projection.InvalidRecord{
-				Checkpoint: checkpoint,
-				Key:        append([]byte(nil), message.Key...),
-				Payload:    append([]byte(nil), message.Value...),
-				Reason:     err.Error(),
+				Checkpoint:    checkpoint,
+				Key:           append([]byte(nil), message.Key...),
+				Payload:       append([]byte(nil), message.Value...),
+				Reason:        err.Error(),
+				LatchStateGap: latchStateGap,
 			}
 			for {
 				if quarantineErr := c.processor.QuarantineWithCheckpoint(ctx, record); quarantineErr == nil {
@@ -552,6 +799,31 @@ func (c *ProjectionConsumer) processWithRetry(ctx context.Context, message segka
 			return false
 		}
 	}
+}
+
+func (c *ProjectionConsumer) invalidRecordAlreadyProcessed(
+	ctx context.Context,
+	checkpoint projection.Checkpoint,
+	recordOffset int64,
+) (bool, error) {
+	stored, found, err := c.processor.LoadCheckpoint(
+		ctx,
+		checkpoint.ConsumerGroup,
+		checkpoint.Topic,
+		checkpoint.Partition,
+	)
+	if err != nil || !found {
+		return false, err
+	}
+	if stored.TopicID != checkpoint.TopicID {
+		return false, fmt.Errorf(
+			"%w: checkpointTopicId=%q brokerTopicId=%q",
+			projection.ErrTopicGenerationMismatch,
+			stored.TopicID,
+			checkpoint.TopicID,
+		)
+	}
+	return recordOffset < stored.NextOffset, nil
 }
 
 func (c *ProjectionConsumer) handleWithCheckpoint(
@@ -606,20 +878,41 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 
 func (c *ProjectionConsumer) monitorBarrier(
 	ctx context.Context,
-	ranges map[projection.TopicPartition]projectionOffsetRange,
+	startupRanges map[projection.TopicPartition]projectionOffsetRange,
 ) {
-	partitions := make([]projection.TopicPartition, 0, len(ranges))
-	for partition := range ranges {
-		partitions = append(partitions, partition)
-	}
-
 	ticker := time.NewTicker(barrierPollInterval)
 	defer ticker.Stop()
 	for {
-		checkpoints, err := c.processor.LoadCheckpoints(ctx, c.groupID, partitions)
-		c.readiness.Set(err == nil && projectionBarrierComplete(ranges, checkpoints))
-		if err != nil && ctx.Err() == nil {
-			slog.Error("projection barrier check failed; retrying", "err", err)
+		readinessEpoch := c.currentReadinessEpoch()
+		currentRanges, rangeErr := c.snapshotter.Snapshot(ctx, c.topics.all())
+		if rangeErr != nil {
+			c.readiness.Set(false)
+			if ctx.Err() == nil {
+				slog.Error("projection current high-watermark check failed; retrying", "err", rangeErr)
+			}
+		} else if topologyErr := requireSameProjectionTopologyAndGeneration(startupRanges, currentRanges); topologyErr != nil {
+			c.readiness.Set(false)
+			if ctx.Err() == nil {
+				slog.Error(
+					"projection topic generation or topology changed; refusing readiness and stopping readers",
+					"err", topologyErr,
+					"action", "rebuild projection tables and shared checkpoints together on generation change",
+				)
+			}
+			return
+		} else {
+			partitions := make([]projection.TopicPartition, 0, len(currentRanges))
+			for partition := range currentRanges {
+				partitions = append(partitions, partition)
+			}
+			checkpoints, err := c.processor.LoadCheckpoints(ctx, c.groupID, partitions)
+			c.publishReadiness(
+				readinessEpoch,
+				err == nil && projectionBarrierComplete(currentRanges, checkpoints),
+			)
+			if err != nil && ctx.Err() == nil {
+				slog.Error("projection barrier check failed; retrying", "err", err)
+			}
 		}
 
 		select {
@@ -630,10 +923,35 @@ func (c *ProjectionConsumer) monitorBarrier(
 	}
 }
 
+func (c *ProjectionConsumer) closeReadinessForStateGap() {
+	c.readinessMu.Lock()
+	defer c.readinessMu.Unlock()
+	c.readinessEpoch++
+	c.readiness.Set(false)
+}
+
+func (c *ProjectionConsumer) currentReadinessEpoch() uint64 {
+	c.readinessMu.Lock()
+	defer c.readinessMu.Unlock()
+	return c.readinessEpoch
+}
+
+func (c *ProjectionConsumer) publishReadiness(epoch uint64, ready bool) {
+	c.readinessMu.Lock()
+	defer c.readinessMu.Unlock()
+	if epoch != c.readinessEpoch {
+		ready = false
+	}
+	c.readiness.Set(ready)
+}
+
 func (c *ProjectionConsumer) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
 		err = c.group.Close()
+		if snapshotter, ok := c.snapshotter.(*kafkaProjectionOffsetSnapshotter); ok {
+			snapshotter.Close()
+		}
 	})
 	return err
 }
@@ -644,7 +962,8 @@ func projectionBarrierComplete(
 ) bool {
 	for partition, offsetRange := range ranges {
 		checkpoint, found := checkpoints[partition]
-		if !found || checkpoint.NextOffset < offsetRange.End {
+		if !found || offsetRange.TopicID == "" || checkpoint.TopicID != offsetRange.TopicID ||
+			checkpoint.NextOffset != offsetRange.End || checkpoint.InvalidRecordOffset != nil {
 			return false
 		}
 		markerOffset := checkpoint.SnapshotCompletedOffset
@@ -653,6 +972,49 @@ func projectionBarrierComplete(
 		}
 	}
 	return true
+}
+
+func sameProjectionTopology(
+	left map[projection.TopicPartition]projectionOffsetRange,
+	right map[projection.TopicPartition]projectionOffsetRange,
+) bool {
+	return requireSameProjectionTopologyAndGeneration(left, right) == nil
+}
+
+func requireSameProjectionTopologyAndGeneration(
+	left map[projection.TopicPartition]projectionOffsetRange,
+	right map[projection.TopicPartition]projectionOffsetRange,
+) error {
+	if len(left) != len(right) {
+		return fmt.Errorf(
+			"%w: partitions changed from %d to %d",
+			ErrProjectionTopologyChanged,
+			len(left),
+			len(right),
+		)
+	}
+	for partition, leftRange := range left {
+		rightRange, found := right[partition]
+		if !found {
+			return fmt.Errorf(
+				"%w: partition %s/%d disappeared",
+				ErrProjectionTopologyChanged,
+				partition.Topic,
+				partition.Partition,
+			)
+		}
+		if leftRange.TopicID == "" || rightRange.TopicID != leftRange.TopicID {
+			return fmt.Errorf(
+				"%w: %s/%d expectedTopicId=%q currentTopicId=%q",
+				projection.ErrTopicGenerationMismatch,
+				partition.Topic,
+				partition.Partition,
+				leftRange.TopicID,
+				rightRange.TopicID,
+			)
+		}
+	}
+	return nil
 }
 
 type snapshotMarkerPayload struct {
@@ -706,6 +1068,13 @@ func parseSnapshotMarker(
 			projection.ErrInvalidEvent,
 		)
 	}
+	parsedSnapshotID, err := uuid.Parse(marker.SnapshotID)
+	if err != nil || parsedSnapshotID == uuid.Nil {
+		return true, projection.SnapshotMarkerReceipt{}, fmt.Errorf(
+			"%w: invalid snapshot marker snapshotId",
+			projection.ErrInvalidEvent,
+		)
+	}
 	occurredAt, err := time.Parse(time.RFC3339Nano, marker.OccurredAt)
 	if err != nil || marker.Source != expectedSource {
 		return true, projection.SnapshotMarkerReceipt{}, fmt.Errorf(
@@ -715,7 +1084,7 @@ func parseSnapshotMarker(
 	}
 	return true, projection.SnapshotMarkerReceipt{
 		Offset:     message.Offset,
-		SnapshotID: marker.SnapshotID,
+		SnapshotID: parsedSnapshotID.String(),
 		Source:     marker.Source,
 		OccurredAt: occurredAt.UTC(),
 	}, nil
@@ -727,14 +1096,6 @@ func invalidJSON(topic string, err error) error {
 
 func invalidKey(topic string, key []byte) error {
 	return fmt.Errorf("%w: topic %s key %q does not match payload", projection.ErrInvalidEvent, topic, key)
-}
-
-func mapKeys(values map[string]struct{}) []string {
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	return keys
 }
 
 func splitBrokerList(brokers string) []string {
