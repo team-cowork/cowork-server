@@ -41,7 +41,7 @@ class ReorderTeamChannelsServiceImplTest {
         val first = channel(id = 1L, position = 0)
         val second = channel(id = 2L, position = 1)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
 
         val result = service.execute(7L, 100L, listOf(2L, 1L))
 
@@ -55,7 +55,7 @@ class ReorderTeamChannelsServiceImplTest {
     @Test
     fun `reorderTeamChannels는 팀 채널 ID 누락 시 BAD_REQUEST`() {
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns
             listOf(channel(id = 1L), channel(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {

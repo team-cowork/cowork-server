@@ -26,7 +26,7 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
     }
 
     private fun upsert(projectId: Long, teamId: Long, occurredAt: Instant) {
-        val projection = repository.findById(projectId).orElseGet {
+        val projection = repository.findByIdForUpdate(projectId) ?: run {
             ProjectProjection(projectId = projectId, teamId = teamId, sourceOccurredAt = occurredAt)
         }
         val existingVersion = projection.sourceOccurredAt.toProjectionPrecision()
@@ -40,7 +40,7 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
     }
 
     private fun delete(projectId: Long, teamId: Long, occurredAt: Instant) {
-        val projection = repository.findById(projectId).orElseGet {
+        val projection = repository.findByIdForUpdate(projectId) ?: run {
             ProjectProjection(
                 projectId = projectId,
                 teamId = teamId,

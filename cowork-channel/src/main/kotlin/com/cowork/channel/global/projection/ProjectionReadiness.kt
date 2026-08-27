@@ -49,6 +49,10 @@ class ProjectionReadinessState(
         refresh()
     }
 
+    fun markNotReady(stream: ProjectionStream) {
+        if (stream in streams.required) ready = false
+    }
+
     fun refresh(): Boolean {
         ready = if (initializingStreams.isNotEmpty()) {
             false
