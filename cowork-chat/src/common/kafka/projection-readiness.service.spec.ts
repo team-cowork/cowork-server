@@ -1,5 +1,6 @@
-import { Consumer, ConsumerGroupJoinEvent, Kafka } from 'kafkajs';
+import { Consumer, Kafka } from 'kafkajs';
 import {
+    ProjectionAssignmentLease,
     ProjectionCheckpointOffset,
     ProjectionCheckpointRepository,
     SnapshotBarrierReceipt,
@@ -20,7 +21,17 @@ describe('ProjectionReadinessService', () => {
         topicOffsets: StartupPartitionOffset[],
         storedOffsets: ProjectionCheckpointOffset[] = [],
     ) => {
-        let groupJoinListener: ((event: ConsumerGroupJoinEvent) => void) | undefined;
+        const listeners = new Map<string, Array<(event: never) => void>>();
+        const rows = new Map<string, ProjectionCheckpointOffset>();
+        const rowKey = (topic: string, partition: number) => `${topic}:${partition}`;
+        for (const offset of storedOffsets) {
+            rows.set(rowKey(PROJECTION_STREAMS.channel.topic, offset.partition), offset);
+        }
+        const leaseFor = (topic: string, partition: number): ProjectionAssignmentLease => ({
+            assignmentEpoch: `epoch-${topic}-${partition}`,
+            memberId: 'member-1',
+            groupGenerationId: 1,
+        });
         const admin = {
             connect: jest.fn().mockResolvedValue(undefined),
             disconnect: jest.fn().mockResolvedValue(undefined),
@@ -28,20 +39,78 @@ describe('ProjectionReadinessService', () => {
         };
         const kafka = { admin: jest.fn(() => admin) } as unknown as Kafka;
         const seek = jest.fn();
+        const pause = jest.fn();
+        const resume = jest.fn();
         const consumer = {
-            events: { GROUP_JOIN: 'consumer.group_join' },
-            on: jest.fn((_eventName, listener: (event: ConsumerGroupJoinEvent) => void) => {
-                groupJoinListener = listener;
+            events: {
+                GROUP_JOIN: 'consumer.group_join',
+                HEARTBEAT: 'consumer.heartbeat',
+                REBALANCING: 'consumer.rebalancing',
+                DISCONNECT: 'consumer.disconnect',
+                STOP: 'consumer.stop',
+                CRASH: 'consumer.crash',
+            },
+            on: jest.fn((eventName: string, listener: (event: never) => void) => {
+                listeners.set(eventName, [...(listeners.get(eventName) ?? []), listener]);
                 return jest.fn();
             }),
             seek,
+            pause,
+            resume,
         } as unknown as Consumer;
-        const find = jest.fn().mockResolvedValue(storedOffsets);
-        const advance = jest.fn().mockResolvedValue(undefined);
+        const find = jest.fn((_groupId: string, topic: string) => Promise.resolve(
+            [...rows.entries()]
+                .filter(([key]) => key.startsWith(`${topic}:`))
+                .map(([, row]) => row),
+        ));
+        const claimForAssignment = jest.fn((
+            _groupId: string,
+            topic: string,
+            partition: number,
+            earliestOffset: string,
+        ) => {
+            const lease = leaseFor(topic, partition);
+            rows.set(rowKey(topic, partition), {
+                partition,
+                offset: earliestOffset,
+                assignmentEpoch: lease.assignmentEpoch,
+                assignmentMemberId: lease.memberId,
+                assignmentGenerationId: lease.groupGenerationId,
+            });
+            return Promise.resolve(lease);
+        });
+        const advance = jest.fn((
+            _groupId: string,
+            topic: string,
+            partition: number,
+            lease: ProjectionAssignmentLease,
+            nextOffset: string,
+            snapshotBarrier?: SnapshotBarrierReceipt,
+        ) => {
+            rows.set(rowKey(topic, partition), {
+                partition,
+                offset: nextOffset,
+                assignmentEpoch: lease.assignmentEpoch,
+                assignmentMemberId: lease.memberId,
+                assignmentGenerationId: lease.groupGenerationId,
+                ...(snapshotBarrier ? {
+                    snapshotCompletedOffset: snapshotBarrier.offset,
+                    snapshotId: snapshotBarrier.snapshotId,
+                } : {}),
+            });
+            return Promise.resolve();
+        });
         const checkpoints = {
             find,
             advance,
+            claimForAssignment,
+            renewAssignment: jest.fn().mockResolvedValue(undefined),
+            releaseAssignment: jest.fn().mockResolvedValue(true),
         } as unknown as ProjectionCheckpointRepository;
+
+        const emit = (eventName: string, event: unknown) => {
+            for (const listener of listeners.get(eventName) ?? []) listener(event as never);
+        };
 
         return {
             kafka,
@@ -51,10 +120,29 @@ describe('ProjectionReadinessService', () => {
             find,
             advance,
             seek,
-            emitGroupJoin: (topic: string, partitions: number[]) => {
-                groupJoinListener?.({
-                    payload: { memberAssignment: { [topic]: partitions } },
-                } as ConsumerGroupJoinEvent);
+            leaseFor,
+            setRows: (topic: string, offsets: ProjectionCheckpointOffset[]) => {
+                for (const key of [...rows.keys()]) {
+                    if (key.startsWith(`${topic}:`)) rows.delete(key);
+                }
+                for (const offset of offsets) rows.set(rowKey(topic, offset.partition), offset);
+            },
+            activate: async (stream: typeof PROJECTION_STREAMS[keyof typeof PROJECTION_STREAMS], partitions: number[]) => {
+                emit('consumer.group_join', {
+                    payload: {
+                        groupId: stream.groupId,
+                        memberId: 'member-1',
+                        memberAssignment: { [stream.topic]: partitions },
+                    },
+                });
+                emit('consumer.heartbeat', {
+                    payload: {
+                        groupId: stream.groupId,
+                        memberId: 'member-1',
+                        groupGenerationId: 1,
+                    },
+                });
+                await new Promise<void>((resolve) => setImmediate(resolve));
             },
         };
     };
@@ -88,12 +176,33 @@ describe('ProjectionReadinessService', () => {
 
         expect(hasCompletedSnapshotBarriers(targets, [])).toBe(false);
         expect(hasCompletedSnapshotBarriers(targets, [
-            { partition: 0, offset: '1', snapshotCompletedOffset: '0' },
+            {
+                partition: 0,
+                offset: '1',
+                snapshotCompletedOffset: '0',
+                assignmentEpoch: 'epoch-0',
+                assignmentMemberId: 'member-1',
+                assignmentGenerationId: 1,
+            },
             { partition: 1, offset: '0' },
         ])).toBe(false);
         expect(hasCompletedSnapshotBarriers(targets, [
-            { partition: 0, offset: '1', snapshotCompletedOffset: '0' },
-            { partition: 1, offset: '1', snapshotCompletedOffset: '0' },
+            {
+                partition: 0,
+                offset: '1',
+                snapshotCompletedOffset: '0',
+                assignmentEpoch: 'epoch-0',
+                assignmentMemberId: 'member-1',
+                assignmentGenerationId: 1,
+            },
+            {
+                partition: 1,
+                offset: '1',
+                snapshotCompletedOffset: '0',
+                assignmentEpoch: 'epoch-1',
+                assignmentMemberId: 'member-1',
+                assignmentGenerationId: 1,
+            },
         ])).toBe(true);
         expect(hasReachedStartupOffsets(targets, [])).toBe(false);
     });
@@ -119,7 +228,7 @@ describe('ProjectionReadinessService', () => {
         service = new ProjectionReadinessService(harness.checkpoints);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
-        harness.emitGroupJoin(PROJECTION_STREAMS.channel.topic, [0]);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
         expect(harness.seek).toHaveBeenCalledWith({
             topic: PROJECTION_STREAMS.channel.topic,
@@ -128,7 +237,7 @@ describe('ProjectionReadinessService', () => {
         });
     });
 
-    it('shared checkpoint가 있으면 assignment 시 해당 next offset으로 seek한다', async () => {
+    it('shared checkpoint가 있어도 새 assignment는 earliest offset부터 재생한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '3', high: '10', offset: '10' }],
             [{ partition: 0, offset: '7' }],
@@ -136,45 +245,47 @@ describe('ProjectionReadinessService', () => {
         service = new ProjectionReadinessService(harness.checkpoints);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
-        harness.emitGroupJoin(PROJECTION_STREAMS.channel.topic, [0]);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
         expect(harness.seek).toHaveBeenCalledWith({
             topic: PROJECTION_STREAMS.channel.topic,
             partition: 0,
-            offset: '7',
+            offset: '3',
         });
     });
 
-    it('retention으로 checkpoint가 earliest보다 뒤처졌으면 fail-closed한다', async () => {
+    it('retention 이전 checkpoint가 있어도 새 assignment는 retained earliest에서 복구한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '3', high: '10', offset: '10' }],
             [{ partition: 0, offset: '1' }],
         );
         service = new ProjectionReadinessService(harness.checkpoints);
 
-        await expect(service.registerProjection(
-            harness.kafka,
-            harness.consumer,
-            PROJECTION_STREAMS.channel,
-        )).rejects.toThrow('outside the retained log');
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
         expect(service.isReady()).toBe(false);
-        expect(harness.seek).not.toHaveBeenCalled();
+        expect(harness.seek).toHaveBeenCalledWith({
+            topic: PROJECTION_STREAMS.channel.topic,
+            partition: 0,
+            offset: '3',
+        });
     });
 
-    it('topic이 checkpoint보다 뒤에서 재생성된 경우 ready로 오판하지 않는다', async () => {
+    it('재생성된 topic도 새 assignment epoch에서 earliest부터 복구한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '0', high: '2', offset: '2' }],
             [{ partition: 0, offset: '9' }],
         );
         service = new ProjectionReadinessService(harness.checkpoints);
 
-        await expect(service.registerProjection(
-            harness.kafka,
-            harness.consumer,
-            PROJECTION_STREAMS.channel,
-        )).rejects.toThrow('outside the retained log');
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
         expect(service.isReady()).toBe(false);
-        expect(harness.seek).not.toHaveBeenCalled();
+        expect(harness.seek).toHaveBeenCalledWith({
+            topic: PROJECTION_STREAMS.channel.topic,
+            partition: 0,
+            offset: '0',
+        });
     });
 
     it('checkpoint replay 가능 범위는 earliest와 high-watermark를 모두 포함한다', () => {
@@ -200,6 +311,7 @@ describe('ProjectionReadinessService', () => {
         });
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
         const snapshotBarrier: SnapshotBarrierReceipt = {
             offset: '9007199254740993',
@@ -218,16 +330,18 @@ describe('ProjectionReadinessService', () => {
             PROJECTION_STREAMS.channel.groupId,
             PROJECTION_STREAMS.channel.topic,
             0,
+            harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0),
             '9007199254740994',
             snapshotBarrier,
         );
-        expect(service.getStatus().channel).toBe(true);
+        expect(service.getStatus().channel).toBe(false);
     });
 
     it('격리 가능한 invalid record도 handler 반환 후 checkpoint를 전진시킨다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
         await service.processMessage(PROJECTION_STREAMS.channel, 0, '0', () => Promise.resolve());
 
@@ -235,6 +349,7 @@ describe('ProjectionReadinessService', () => {
             PROJECTION_STREAMS.channel.groupId,
             PROJECTION_STREAMS.channel.topic,
             0,
+            harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0),
             '1',
         );
     });
@@ -243,6 +358,7 @@ describe('ProjectionReadinessService', () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
         await expect(service.processMessage(
             PROJECTION_STREAMS.channel,
@@ -253,23 +369,28 @@ describe('ProjectionReadinessService', () => {
         expect(harness.advance).not.toHaveBeenCalled();
     });
 
-    it('등록 때 캡처한 high-watermark를 고정하고 다른 replica의 shared checkpoint를 반영한다', async () => {
+    it('runtime high-watermark보다 shared checkpoint가 뒤처지면 readiness를 열지 않는다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '10', offset: '10' }]);
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
-        harness.admin.fetchTopicOffsets.mockResolvedValue([
-            { partition: 0, low: '0', high: '100', offset: '100' },
-        ]);
-        harness.find.mockResolvedValue([{
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
+        const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [{
             partition: 0,
             offset: '10',
             snapshotCompletedOffset: '9',
+            assignmentEpoch: lease.assignmentEpoch,
+            assignmentMemberId: lease.memberId,
+            assignmentGenerationId: lease.groupGenerationId,
         }]);
+        harness.admin.fetchTopicOffsets.mockResolvedValue([
+            { partition: 0, low: '0', high: '100', offset: '100' },
+        ]);
 
         await service.checkCatchup();
 
-        expect(service.getStatus().channel).toBe(true);
-        expect(harness.admin.fetchTopicOffsets).toHaveBeenCalledTimes(2);
+        expect(service.getStatus().channel).toBe(false);
+        expect(harness.admin.fetchTopicOffsets).toHaveBeenCalledTimes(3);
     });
 
     it('ready 후 runtime topic 재생성을 감지하면 readiness를 닫고 재시작을 요청한다', async () => {
@@ -279,6 +400,17 @@ describe('ProjectionReadinessService', () => {
         );
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
+        const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [{
+            partition: 0,
+            offset: '10',
+            snapshotCompletedOffset: '9',
+            assignmentEpoch: lease.assignmentEpoch,
+            assignmentMemberId: lease.memberId,
+            assignmentGenerationId: lease.groupGenerationId,
+        }]);
+        await service.checkCatchup();
         expect(service.getStatus().channel).toBe(true);
 
         const violations: string[] = [];
@@ -301,8 +433,25 @@ describe('ProjectionReadinessService', () => {
         );
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
+        const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [{
+            partition: 0,
+            offset: '10',
+            snapshotCompletedOffset: '9',
+            assignmentEpoch: lease.assignmentEpoch,
+            assignmentMemberId: lease.memberId,
+            assignmentGenerationId: lease.groupGenerationId,
+        }]);
+        await service.checkCatchup();
         expect(service.getStatus().channel).toBe(true);
-        harness.find.mockResolvedValue([{ partition: 0, offset: '10' }]);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [{
+            partition: 0,
+            offset: '10',
+            assignmentEpoch: lease.assignmentEpoch,
+            assignmentMemberId: lease.memberId,
+            assignmentGenerationId: lease.groupGenerationId,
+        }]);
 
         await service.checkCatchup();
 
@@ -320,8 +469,37 @@ describe('ProjectionReadinessService', () => {
         ]);
         service = new ProjectionReadinessService(harness.checkpoints);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0, 1]);
+        const lease0 = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
+        const lease1 = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 1);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [
+            {
+                partition: 0,
+                offset: '10',
+                snapshotCompletedOffset: '9',
+                assignmentEpoch: lease0.assignmentEpoch,
+                assignmentMemberId: lease0.memberId,
+                assignmentGenerationId: lease0.groupGenerationId,
+            },
+            {
+                partition: 1,
+                offset: '20',
+                snapshotCompletedOffset: '19',
+                assignmentEpoch: lease1.assignmentEpoch,
+                assignmentMemberId: lease1.memberId,
+                assignmentGenerationId: lease1.groupGenerationId,
+            },
+        ]);
+        await service.checkCatchup();
         expect(service.getStatus().channel).toBe(true);
-        harness.find.mockResolvedValue([{ partition: 0, offset: '10', snapshotCompletedOffset: '9' }]);
+        harness.setRows(PROJECTION_STREAMS.channel.topic, [{
+            partition: 0,
+            offset: '10',
+            snapshotCompletedOffset: '9',
+            assignmentEpoch: lease0.assignmentEpoch,
+            assignmentMemberId: lease0.memberId,
+            assignmentGenerationId: lease0.groupGenerationId,
+        }]);
 
         await service.checkCatchup();
 
@@ -329,7 +507,7 @@ describe('ProjectionReadinessService', () => {
     });
 
     it('필수 projection이 모두 등록되고 snapshot marker까지 처리되어야 readiness가 열린다', async () => {
-        const harness = createHarness([{ partition: 0, low: '0', high: '0', offset: '0' }]);
+        const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
         service = new ProjectionReadinessService(harness.checkpoints);
         let readyResolved = false;
         void service.whenReady().then(() => {
@@ -338,6 +516,7 @@ describe('ProjectionReadinessService', () => {
 
         for (const stream of Object.values(PROJECTION_STREAMS)) {
             await service.registerProjection(harness.kafka, harness.consumer, stream);
+            await harness.activate(stream, [0]);
         }
         await Promise.resolve();
 
@@ -353,6 +532,7 @@ describe('ProjectionReadinessService', () => {
             }));
         }
 
+        await service.checkCatchup();
         expect(service.isReady()).toBe(true);
         expect(readyResolved).toBe(true);
     });
