@@ -2,12 +2,20 @@ package com.cowork.project.domain.projectMember.repository
 
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
+import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 
 interface ProjectMemberRepository :
     JpaRepository<ProjectMember, Long>,
     JpaSpecificationExecutor<ProjectMember> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT pm FROM ProjectMember pm WHERE pm.projectId = :projectId ORDER BY pm.id")
+    fun findSnapshotByProjectId(@Param("projectId") projectId: Long): List<ProjectMember>
 
     fun findByProjectId(projectId: Long): List<ProjectMember>
 
