@@ -12,9 +12,6 @@ spring:
     password: ${MYSQL_PASSWORD}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
-    consumer:
-      auto-offset-reset: earliest
-      enable-auto-commit: false
 
 eureka:
   client:
