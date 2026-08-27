@@ -83,6 +83,14 @@ class RoadmapAccessGuardTest {
         verifyNoInteractions(teamMemberships);
     }
 
+    @Test
+    void requireMutable_rechecksCurrentProjectionBeforeForbiddingManager() {
+        Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+        when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Mono.empty(), Mono.just("ADMIN"));
+
+        StepVerifier.create(accessGuard.requireMutable(roadmap, 8L, "MEMBER")).verifyComplete();
+    }
+
     private static Roadmap roadmap(RoadmapScope scope, Long createdBy, Long ownerTeamId) {
         Roadmap roadmap = Roadmap.builder().id(1L).scope(scope.name()).ownerTeamId(ownerTeamId).build();
         roadmap.setCreatedBy(createdBy);

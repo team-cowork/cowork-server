@@ -21,8 +21,10 @@ public class ProjectionCheckpointRepository {
     private static final String ENSURE_CHECKPOINT_SQL = """
             INSERT INTO tb_kafka_projection_offsets
                 (consumer_group, topic_name, partition_id, topic_id, next_offset,
-                 invalid_checkpoint_offset, snapshot_completed_offset)
-            VALUES (:consumerGroup, :topic, :partition, :topicId, :nextOffset, :invalidOffset, NULL)
+                 invalid_checkpoint_offset, snapshot_completed_offset, invalid_record_offset,
+                 last_snapshot_id, recovery_snapshot_id)
+            VALUES (:consumerGroup, :topic, :partition, :topicId, :nextOffset, :invalidOffset,
+                    NULL, NULL, NULL, NULL)
             ON DUPLICATE KEY UPDATE
                 snapshot_completed_offset = IF(
                     BINARY topic_id <> BINARY VALUES(topic_id),
@@ -33,6 +35,21 @@ public class ProjectionCheckpointRepository {
                     BINARY topic_id <> BINARY VALUES(topic_id),
                     next_offset,
                     COALESCE(invalid_checkpoint_offset, VALUES(invalid_checkpoint_offset))
+                ),
+                invalid_record_offset = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    invalid_record_offset
+                ),
+                last_snapshot_id = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    last_snapshot_id
+                ),
+                recovery_snapshot_id = IF(
+                    BINARY topic_id <> BINARY VALUES(topic_id),
+                    NULL,
+                    recovery_snapshot_id
                 ),
                 topic_id = VALUES(topic_id),
                 updated_at = CURRENT_TIMESTAMP(6)
@@ -77,14 +94,73 @@ public class ProjectionCheckpointRepository {
                         : Mono.error(new IllegalStateException("Kafka projection checkpoint generation mismatch")));
     }
 
+    public Mono<Void> markInvalidRecord(String consumerGroup,
+            String topic,
+            int partition,
+            long recordOffset,
+            String topicId) {
+        return databaseClient.sql("""
+                UPDATE tb_kafka_projection_offsets
+                SET recovery_snapshot_id = IF(
+                        invalid_record_offset IS NULL OR :recordOffset > invalid_record_offset,
+                        NULL,
+                        recovery_snapshot_id
+                    ),
+                    invalid_record_offset = GREATEST(
+                        COALESCE(invalid_record_offset, -1),
+                        :recordOffset
+                    ),
+                    updated_at = CURRENT_TIMESTAMP(6)
+                WHERE consumer_group = :consumerGroup AND topic_name = :topic
+                  AND partition_id = :partition AND BINARY topic_id = BINARY :topicId
+                """)
+                .bind("consumerGroup", consumerGroup)
+                .bind("topic", topic)
+                .bind("partition", partition)
+                .bind("recordOffset", recordOffset)
+                .bind("topicId", topicId)
+                .fetch()
+                .rowsUpdated()
+                .flatMap(updated -> updated == 1
+                        ? Mono.empty()
+                        : Mono.error(new IllegalStateException("Kafka projection checkpoint generation mismatch")));
+    }
+
     public Mono<Void> markSnapshotCompleted(String consumerGroup,
             String topic,
             int partition,
             long markerOffset,
-            String topicId) {
+            String topicId,
+            String snapshotId) {
         return databaseClient.sql("""
                 UPDATE tb_kafka_projection_offsets
-                SET snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), :markerOffset),
+                SET invalid_record_offset = IF(
+                        invalid_record_offset IS NOT NULL
+                            AND :markerOffset > invalid_record_offset
+                            AND recovery_snapshot_id IS NOT NULL
+                            AND BINARY recovery_snapshot_id <> BINARY :snapshotId
+                            AND (last_snapshot_id IS NULL OR BINARY last_snapshot_id <> BINARY :snapshotId),
+                        NULL,
+                        invalid_record_offset
+                    ),
+                    recovery_snapshot_id = CASE
+                        WHEN invalid_record_offset IS NULL THEN NULL
+                        WHEN :markerOffset <= invalid_record_offset THEN recovery_snapshot_id
+                        WHEN last_snapshot_id IS NOT NULL
+                            AND BINARY last_snapshot_id = BINARY :snapshotId
+                            THEN recovery_snapshot_id
+                        WHEN recovery_snapshot_id IS NULL THEN :snapshotId
+                        ELSE recovery_snapshot_id
+                    END,
+                    last_snapshot_id = IF(
+                        snapshot_completed_offset IS NULL OR :markerOffset >= snapshot_completed_offset,
+                        :snapshotId,
+                        last_snapshot_id
+                    ),
+                    snapshot_completed_offset = GREATEST(
+                        COALESCE(snapshot_completed_offset, -1),
+                        :markerOffset
+                    ),
                     updated_at = CURRENT_TIMESTAMP(6)
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
                   AND partition_id = :partition AND BINARY topic_id = BINARY :topicId
@@ -94,6 +170,7 @@ public class ProjectionCheckpointRepository {
                 .bind("partition", partition)
                 .bind("markerOffset", markerOffset)
                 .bind("topicId", topicId)
+                .bind("snapshotId", snapshotId)
                 .fetch()
                 .rowsUpdated()
                 .flatMap(updated -> updated == 1
@@ -124,7 +201,8 @@ public class ProjectionCheckpointRepository {
 
     public Mono<Map<Integer, ProjectionCheckpoint>> findByTopic(String consumerGroup, String topic) {
         return databaseClient.sql("""
-                SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset, snapshot_completed_offset
+                SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset,
+                       snapshot_completed_offset, invalid_record_offset
                 FROM tb_kafka_projection_offsets
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
                 """)
@@ -134,7 +212,8 @@ public class ProjectionCheckpointRepository {
                         new ProjectionCheckpoint(row.get("next_offset", Long.class),
                                 row.get("topic_id", String.class),
                                 row.get("invalid_checkpoint_offset", Long.class),
-                                row.get("snapshot_completed_offset", Long.class))))
+                                row.get("snapshot_completed_offset", Long.class),
+                                row.get("invalid_record_offset", Long.class))))
                 .all()
                 .collect(HashMap::new, (offsets, entry) -> offsets.put(entry.getKey(), entry.getValue()));
     }
