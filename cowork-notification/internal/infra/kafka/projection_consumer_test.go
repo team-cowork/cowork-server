@@ -9,6 +9,8 @@ import (
 	segkafka "github.com/segmentio/kafka-go"
 )
 
+const testProjectionTopicID = "93b19168-4a63-49cd-b01d-b8d0667a1cb5"
+
 type fakeProjectionProcessor struct {
 	channelApplied int
 	userApplied    int
@@ -20,6 +22,10 @@ type fakeProjectionProcessor struct {
 	applyErr       error
 	tried          chan struct{}
 }
+
+type noopProjectionReadiness struct{}
+
+func (*noopProjectionReadiness) Set(bool) {}
 
 func (p *fakeProjectionProcessor) RecordSnapshotMarkerWithCheckpoint(
 	_ context.Context,
@@ -98,8 +104,8 @@ func (p *fakeProjectionProcessor) LoadCheckpoint(
 	string,
 	string,
 	int,
-) (int64, bool, error) {
-	return 0, false, errors.New("not used")
+) (projection.CheckpointState, bool, error) {
+	return projection.CheckpointState{}, false, nil
 }
 
 func (p *fakeProjectionProcessor) AdvanceCheckpoint(context.Context, projection.Checkpoint) error {
@@ -120,40 +126,40 @@ func TestProjectionBarrierComplete_requiresAllThreeTopicCheckpoints(t *testing.T
 	user := projection.TopicPartition{Topic: "user.profile.event", Partition: 0}
 	team := projection.TopicPartition{Topic: "team.lifecycle", Partition: 0}
 	ranges := map[projection.TopicPartition]projectionOffsetRange{
-		preference: {First: 0, End: 4},
-		user:       {First: 0, End: 8},
-		team:       {First: 0, End: 0},
+		preference: {First: 0, End: 4, TopicID: testProjectionTopicID},
+		user:       {First: 0, End: 8, TopicID: testProjectionTopicID},
+		team:       {First: 0, End: 1, TopicID: testProjectionTopicID},
 	}
 	preferenceMarker := int64(3)
 	userMarker := int64(7)
 	teamMarker := int64(0)
 
 	if projectionBarrierComplete(ranges, map[projection.TopicPartition]projection.CheckpointState{
-		preference: {NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
-		user:       {NextOffset: 8, SnapshotCompletedOffset: &userMarker},
+		preference: {TopicID: testProjectionTopicID, NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
+		user:       {TopicID: testProjectionTopicID, NextOffset: 8, SnapshotCompletedOffset: &userMarker},
 	}) {
 		t.Fatal("barrier completed without the empty team topic checkpoint")
 	}
 	if projectionBarrierComplete(ranges, map[projection.TopicPartition]projection.CheckpointState{
-		preference: {NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
-		user:       {NextOffset: 8, SnapshotCompletedOffset: &userMarker},
-		team:       {NextOffset: 0},
+		preference: {TopicID: testProjectionTopicID, NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
+		user:       {TopicID: testProjectionTopicID, NextOffset: 8, SnapshotCompletedOffset: &userMarker},
+		team:       {TopicID: testProjectionTopicID, NextOffset: 0},
 	}) {
 		t.Fatal("barrier completed without a snapshot marker for every startup partition")
 	}
 	if projectionBarrierComplete(ranges, map[projection.TopicPartition]projection.CheckpointState{
-		preference: {NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
-		user:       {NextOffset: 7, SnapshotCompletedOffset: &userMarker},
-		team:       {NextOffset: 1, SnapshotCompletedOffset: &teamMarker},
+		preference: {TopicID: testProjectionTopicID, NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
+		user:       {TopicID: testProjectionTopicID, NextOffset: 7, SnapshotCompletedOffset: &userMarker},
+		team:       {TopicID: testProjectionTopicID, NextOffset: 1, SnapshotCompletedOffset: &teamMarker},
 	}) {
 		t.Fatal("barrier completed before the user profile checkpoint reached its target")
 	}
 	if !projectionBarrierComplete(
 		ranges,
 		map[projection.TopicPartition]projection.CheckpointState{
-			preference: {NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
-			user:       {NextOffset: 8, SnapshotCompletedOffset: &userMarker},
-			team:       {NextOffset: 1, SnapshotCompletedOffset: &teamMarker},
+			preference: {TopicID: testProjectionTopicID, NextOffset: 4, SnapshotCompletedOffset: &preferenceMarker},
+			user:       {TopicID: testProjectionTopicID, NextOffset: 8, SnapshotCompletedOffset: &userMarker},
+			team:       {TopicID: testProjectionTopicID, NextOffset: 1, SnapshotCompletedOffset: &teamMarker},
 		},
 	) {
 		t.Fatal("barrier did not complete after every shared checkpoint reached its target and marker")
@@ -162,28 +168,36 @@ func TestProjectionBarrierComplete_requiresAllThreeTopicCheckpoints(t *testing.T
 
 func TestProjectionCheckpointResumeOffset_distinguishesMissingAndOutOfRangeCheckpoints(t *testing.T) {
 	t.Parallel()
-	offsetRange := projectionOffsetRange{First: 0, End: 12}
+	offsetRange := projectionOffsetRange{First: 0, End: 12, TopicID: testProjectionTopicID}
 
-	if _, err := projectionCheckpointResumeOffset(13, true, offsetRange); !errors.Is(
+	if _, err := projectionCheckpointResumeOffset(
+		projection.CheckpointState{TopicID: testProjectionTopicID, NextOffset: 13},
+		true,
+		offsetRange,
+	); !errors.Is(
 		err,
 		ErrProjectionCheckpointAheadOfTopic,
 	) {
 		t.Fatalf("projectionCheckpointResumeOffset() error = %v, want ahead-of-topic error", err)
 	}
-	if got, err := projectionCheckpointResumeOffset(12, true, offsetRange); err != nil || got != 12 {
+	if got, err := projectionCheckpointResumeOffset(
+		projection.CheckpointState{TopicID: testProjectionTopicID, NextOffset: 12},
+		true,
+		offsetRange,
+	); err != nil || got != 12 {
 		t.Fatalf("checkpoint at end = (%d, %v), want (12, nil)", got, err)
 	}
 	if _, err := projectionCheckpointResumeOffset(
-		6,
+		projection.CheckpointState{TopicID: testProjectionTopicID, NextOffset: 6},
 		true,
-		projectionOffsetRange{First: 7, End: 12},
+		projectionOffsetRange{First: 7, End: 12, TopicID: testProjectionTopicID},
 	); !errors.Is(err, ErrProjectionCheckpointBehindTopic) {
 		t.Fatalf("checkpoint behind topic error = %v, want behind-topic error", err)
 	}
 	if got, err := projectionCheckpointResumeOffset(
-		0,
+		projection.CheckpointState{},
 		false,
-		projectionOffsetRange{First: 7, End: 12},
+		projectionOffsetRange{First: 7, End: 12, TopicID: testProjectionTopicID},
 	); err != nil || got != 7 {
 		t.Fatalf("missing checkpoint = (%d, %v), want earliest offset 7", got, err)
 	}
@@ -211,13 +225,14 @@ func TestProjectionConsumer_validEventPassesNextOffsetToAtomicApply(t *testing.T
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testProjectionTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if processor.userApplied != 1 {
 		t.Fatalf("user apply count = %d, want 1", processor.userApplied)
 	}
-	if processor.checkpoint.NextOffset != 18 || processor.checkpoint.Partition != 2 {
+	if processor.checkpoint.NextOffset != 18 || processor.checkpoint.Partition != 2 ||
+		processor.checkpoint.TopicID != testProjectionTopicID {
 		t.Fatalf("checkpoint = %+v", processor.checkpoint)
 	}
 }
@@ -225,6 +240,7 @@ func TestProjectionConsumer_validEventPassesNextOffsetToAtomicApply(t *testing.T
 func TestProjectionConsumer_keyMismatchIsQuarantinedWithCheckpoint(t *testing.T) {
 	t.Parallel()
 	processor := &fakeProjectionProcessor{}
+	readiness := &noopProjectionReadiness{}
 	consumer := &ProjectionConsumer{
 		groupID: "cowork-notification-projections",
 		topics: ProjectionTopics{
@@ -233,6 +249,7 @@ func TestProjectionConsumer_keyMismatchIsQuarantinedWithCheckpoint(t *testing.T)
 			TeamLifecycle:       "team.lifecycle",
 		},
 		processor: processor,
+		readiness: readiness,
 	}
 	message := segkafka.Message{
 		Topic:     "team.lifecycle",
@@ -244,7 +261,7 @@ func TestProjectionConsumer_keyMismatchIsQuarantinedWithCheckpoint(t *testing.T)
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testProjectionTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if processor.teamApplied != 0 {
@@ -277,7 +294,7 @@ func TestProjectionConsumer_snapshotMarkerSkipsDomainAndRecordsReceiptAtomically
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testProjectionTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if processor.markerRecorded != 1 || processor.channelApplied != 0 || processor.userApplied != 0 || processor.teamApplied != 0 {
@@ -300,6 +317,7 @@ func TestProjectionConsumer_snapshotMarkerSkipsDomainAndRecordsReceiptAtomically
 func TestProjectionConsumer_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t *testing.T) {
 	t.Parallel()
 	processor := &fakeProjectionProcessor{}
+	readiness := &noopProjectionReadiness{}
 	consumer := &ProjectionConsumer{
 		groupID: "cowork-notification-projections",
 		topics: ProjectionTopics{
@@ -308,6 +326,7 @@ func TestProjectionConsumer_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t
 			TeamLifecycle:       "team.lifecycle",
 		},
 		processor: processor,
+		readiness: readiness,
 	}
 	message := segkafka.Message{
 		Topic:     "user.profile.event",
@@ -319,7 +338,7 @@ func TestProjectionConsumer_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t
 		),
 	}
 
-	if !consumer.processWithRetry(context.Background(), message) {
+	if !consumer.processWithRetry(context.Background(), message, testProjectionTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
 	if processor.quarantined == nil || processor.quarantined.Checkpoint.NextOffset != 18 {
@@ -375,7 +394,7 @@ func TestProjectionConsumer_transientDatabaseFailureDoesNotAdvanceOrQuarantine(t
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	result := make(chan bool, 1)
-	go func() { result <- consumer.processWithRetry(ctx, message) }()
+	go func() { result <- consumer.processWithRetry(ctx, message, testProjectionTopicID) }()
 	<-tried
 	cancel()
 
