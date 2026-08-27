@@ -497,7 +497,12 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
       {:error, _reason} -> {false, false}
     end
   rescue
-    _exception -> {false, false}
+    exception ->
+      Logger.warning(
+        "Kafka projection readiness check failed: #{Exception.message(exception)}"
+      )
+
+      {false, false}
   end
 
   defp refresh_current_barriers(state) do
