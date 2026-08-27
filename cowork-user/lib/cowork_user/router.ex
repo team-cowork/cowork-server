@@ -160,28 +160,6 @@ defmodule CoworkUser.Router do
     end
   end
 
-  # Rolling deploy 동안 이전 authorization instance가 사용하는 deprecated
-  # command alias. Gateway user route는 PUT을 전달하지 않으므로 외부에는 노출되지 않는다.
-  put "/users/:user_id" do
-    handle_identity_upsert(conn, user_id)
-  end
-
-  # authorization 로그인 흐름만 사용하는 동기 command. Gateway의 public
-  # `/api/user/users/**` route와 겹치지 않게 internal namespace에 둔다.
-  put "/internal/users/:user_id" do
-    handle_identity_upsert(conn, user_id)
-  end
-
-  defp handle_identity_upsert(conn, user_id) do
-    with {:ok, user_id} <- parse_integer(user_id, "user_id"),
-         {:ok, profile} <- Accounts.upsert_user(user_id, conn.body_params) do
-      JSON.send(conn, 200, profile)
-    else
-      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
-      {:error, {:transient, _reason}} -> JSON.error(conn, 503, "사용자 상태를 저장할 수 없습니다.")
-    end
-  end
-
   match _ do
     JSON.error(conn, 404, "요청한 경로를 찾을 수 없습니다.")
   end

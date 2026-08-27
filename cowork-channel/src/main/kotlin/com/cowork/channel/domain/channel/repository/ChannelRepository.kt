@@ -3,7 +3,6 @@ package com.cowork.channel.domain.channel.repository
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import jakarta.persistence.LockModeType
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
@@ -12,10 +11,14 @@ import org.springframework.data.repository.query.Param
 interface ChannelRepository : JpaRepository<Channel, Long> {
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT c FROM Channel c WHERE c.id > :afterId ORDER BY c.id")
-    fun findSnapshotBatch(@Param("afterId") afterId: Long, pageable: Pageable): List<Channel>
+    @Query("SELECT c FROM Channel c WHERE c.id = :channelId")
+    fun findByIdForUpdate(@Param("channelId") channelId: Long): Channel?
 
     fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Channel c WHERE c.teamId = :teamId ORDER BY c.id")
+    fun findAllByTeamIdForUpdateOrderByIdAsc(@Param("teamId") teamId: Long): List<Channel>
 
     fun findByDmKey(dmKey: String): Channel?
 
@@ -23,18 +26,11 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
 
     fun findAllByProjectIdOrderByIdAsc(projectId: Long): List<Channel>
 
-    fun findAllByTeamIdAndCreatedByOrderByIdAsc(teamId: Long, createdBy: Long): List<Channel>
-
-    fun findAllByCreatedBy(createdBy: Long): List<Channel>
-
     @Query("SELECT COALESCE(MAX(c.position), -1) FROM Channel c WHERE c.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
     @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId")
     fun findAllIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
-
-    @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId AND c.createdBy <> :createdBy ORDER BY c.id ASC")
-    fun findIdsByTeamIdAndCreatedByNot(@Param("teamId") teamId: Long, @Param("createdBy") createdBy: Long): List<Long>
 
     @Query(
         "SELECT c FROM Channel c WHERE c.teamId = :teamId AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY c.position ASC, c.id ASC",

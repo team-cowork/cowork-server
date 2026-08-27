@@ -49,8 +49,6 @@ dependencies {
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation(libs.logstash.logback.encoder)
-    implementation(libs.shedlock.spring)
-    implementation(libs.shedlock.provider.jdbc.template)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)

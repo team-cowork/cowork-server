@@ -6,13 +6,13 @@ import com.cowork.team.domain.teamRole.projection.TeamRoleMemberTombstone
 import com.cowork.team.domain.teamRole.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjection
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Optional
 
@@ -24,7 +24,7 @@ class PreferenceTeamRoleProjectionHandlerTest {
         roleRepository,
         assignmentRepository,
         tombstoneRepository,
-        ObjectMapper(),
+        jacksonObjectMapper(),
     )
 
     @Test

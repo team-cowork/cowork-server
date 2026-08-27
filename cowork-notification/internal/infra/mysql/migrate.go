@@ -144,7 +144,11 @@ func migrateLocked(ctx context.Context, db *gorm.DB, migrations []migration, dbN
 		}
 
 		if !complete {
-			for _, stmt := range splitSQLStatements(m.contents) {
+			ddlComplete, _, ddlErr := migrationDDLComplete(ctx, db, m.version)
+			if ddlErr != nil {
+				return fmt.Errorf("failed to inspect migration %s DDL: %w", m.script, ddlErr)
+			}
+			for _, stmt := range migrationStatementsForRecovery(m, ddlComplete) {
 				if err := db.WithContext(ctx).Exec(stmt).Error; err != nil && !isRecoverableMigrationError(err) {
 					return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
 				}
@@ -391,12 +395,64 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				},
 			},
 		}, true
+	case 5:
+		return []tableExpectation{
+			{
+				name: "tb_projection_checkpoints",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "topic_id", "next_offset",
+					"snapshot_completed_offset", "snapshot_id", "snapshot_source", "snapshot_occurred_at",
+					"created_at", "updated_at",
+				},
+			},
+			{
+				name: "tb_projection_dead_letters",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "topic_id", "message_offset",
+					"event_key", "payload", "reason", "created_at",
+				},
+			},
+		}, true
+	case 6:
+		return []tableExpectation{
+			{
+				name: "tb_projection_checkpoints",
+				columns: []string{
+					"consumer_group", "topic_name", "partition_id", "topic_id", "next_offset",
+					"snapshot_completed_offset", "snapshot_id", "snapshot_source", "snapshot_occurred_at",
+					"invalid_record_offset", "last_snapshot_id", "recovery_snapshot_id",
+					"created_at", "updated_at",
+				},
+			},
+		}, true
 	default:
 		return nil, false
 	}
 }
 
 func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
+	complete, known, err := migrationDDLComplete(ctx, db, version)
+	if err != nil || !known || !complete {
+		return complete, known, err
+	}
+	if version != 6 {
+		return true, true, nil
+	}
+
+	var missingBackfillRows int64
+	err = db.WithContext(ctx).Raw(
+		`SELECT COUNT(*)
+		 FROM tb_projection_checkpoints
+		 WHERE snapshot_id IS NOT NULL
+		   AND last_snapshot_id IS NULL`,
+	).Scan(&missingBackfillRows).Error
+	if err != nil {
+		return false, true, err
+	}
+	return missingBackfillRows == 0, true, nil
+}
+
+func migrationDDLComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
 	expectations, known := migrationExpectations(version)
 	if !known {
 		return false, false, nil
@@ -423,6 +479,21 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 	}
 
 	return true, true, nil
+}
+
+func migrationStatementsForRecovery(m migration, ddlComplete bool) []string {
+	statements := splitSQLStatements(m.contents)
+	if m.version != 6 || !ddlComplete {
+		return statements
+	}
+
+	updates := make([]string, 0, 1)
+	for _, statement := range statements {
+		if strings.HasPrefix(strings.ToUpper(strings.TrimSpace(statement)), "UPDATE ") {
+			updates = append(updates, statement)
+		}
+	}
+	return updates
 }
 
 func isRecoverableMigrationError(err error) bool {

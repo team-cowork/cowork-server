@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	defaultJWTAccessExpire  = "30m"
-	defaultJWTRefreshExpire = "2160h"
+	defaultJWTAccessExpire        = "30m"
+	defaultJWTRefreshExpire       = "2160h"
+	defaultIdentityCommandTimeout = "5s"
 )
 
 type AppConfig struct {
@@ -28,9 +29,14 @@ type AppConfig struct {
 	DataGSMUserInfoURL   string
 	DataGSMWebhookSecret string
 
-	KafkaBootstrapServers  string
-	KafkaTopicUserSync     string
-	KafkaTopicUserPresence string
+	KafkaBootstrapServers               string
+	KafkaTopicUserSync                  string
+	KafkaTopicUserIdentityCommand       string
+	KafkaTopicUserIdentityCommandResult string
+	KafkaTopicUserIdentityResultDLT     string
+	KafkaGroupIDUserIdentityResult      string
+	KafkaIdentityCommandTimeout         time.Duration
+	KafkaTopicUserPresence              string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -41,8 +47,6 @@ type AppConfig struct {
 	EurekaInstanceHost string
 	EurekaInstanceID   string
 	EurekaInstancePort int
-
-	UserServiceURL string
 }
 
 func Load() (*AppConfig, error) {
@@ -60,6 +64,14 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
+	identityTimeoutValue := lookup(flatMap, "KAFKA_IDENTITY_COMMAND_TIMEOUT", defaultIdentityCommandTimeout)
+	if value := os.Getenv("KAFKA_IDENTITY_COMMAND_TIMEOUT"); value != "" {
+		identityTimeoutValue = value
+	}
+	identityCommandTimeout, err := time.ParseDuration(identityTimeoutValue)
+	if err != nil || identityCommandTimeout <= 0 {
+		return nil, fmt.Errorf("invalid KAFKA_IDENTITY_COMMAND_TIMEOUT")
+	}
 
 	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", "8081"))
 	if err != nil {
@@ -75,9 +87,14 @@ func Load() (*AppConfig, error) {
 		DataGSMUserInfoURL:   lookup(flatMap, "DATAGSM_USERINFO_URL", ""),
 		DataGSMWebhookSecret: lookup(flatMap, "DATAGSM_WEBHOOK_SECRET", ""),
 
-		KafkaBootstrapServers:  lookup(flatMap, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
-		KafkaTopicUserSync:     lookup(flatMap, "KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserPresence: lookup(flatMap, "KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
+		KafkaBootstrapServers:               lookup(flatMap, "KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
+		KafkaTopicUserSync:                  lookup(flatMap, "KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
+		KafkaTopicUserIdentityCommand:       lookup(flatMap, "KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command"),
+		KafkaTopicUserIdentityCommandResult: lookup(flatMap, "KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
+		KafkaTopicUserIdentityResultDLT:     lookup(flatMap, "KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
+		KafkaGroupIDUserIdentityResult:      lookup(flatMap, "KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),
+		KafkaIdentityCommandTimeout:         identityCommandTimeout,
+		KafkaTopicUserPresence:              lookup(flatMap, "KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
 
 		JWTSecret:        lookup(flatMap, "JWT_SECRET", ""),
 		JWTAccessExpire:  accessExpire,
@@ -87,8 +104,6 @@ func Load() (*AppConfig, error) {
 		EurekaAppName:      lookup(flatMap, "EUREKA_APP_NAME", "cowork-authorization"),
 		EurekaInstanceHost: lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
 		EurekaInstancePort: eurekaPort,
-
-		UserServiceURL: lookup(flatMap, "USER_SERVICE_URL", "http://cowork-user:8082"),
 	}
 
 	overrideFromEnv(cfg)
@@ -171,6 +186,18 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("KAFKA_TOPIC_USER_SYNC"); v != "" {
 		cfg.KafkaTopicUserSync = v
 	}
+	if v := os.Getenv("KAFKA_TOPIC_USER_IDENTITY_COMMAND"); v != "" {
+		cfg.KafkaTopicUserIdentityCommand = v
+	}
+	if v := os.Getenv("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT"); v != "" {
+		cfg.KafkaTopicUserIdentityCommandResult = v
+	}
+	if v := os.Getenv("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT"); v != "" {
+		cfg.KafkaTopicUserIdentityResultDLT = v
+	}
+	if v := os.Getenv("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT"); v != "" {
+		cfg.KafkaGroupIDUserIdentityResult = v
+	}
 	if v := os.Getenv("KAFKA_TOPIC_USER_PRESENCE"); v != "" {
 		cfg.KafkaTopicUserPresence = v
 	}
@@ -190,9 +217,6 @@ func overrideFromEnv(cfg *AppConfig) {
 		if parsed, err := strconv.Atoi(v); err == nil {
 			cfg.EurekaInstancePort = parsed
 		}
-	}
-	if v := os.Getenv("USER_SERVICE_URL"); v != "" {
-		cfg.UserServiceURL = v
 	}
 }
 
