@@ -490,58 +490,6 @@ func invalidRecordCheckpointUpdate(
 	}
 }
 
-type recoveryLatch struct {
-	InvalidRecordOffset *int64
-	LastSnapshotID      *string
-	RecoverySnapshotID  *string
-}
-
-func latchInvalidRecord(state recoveryLatch, recordOffset int64) recoveryLatch {
-	if state.InvalidRecordOffset == nil || recordOffset > *state.InvalidRecordOffset {
-		state.InvalidRecordOffset = int64Pointer(recordOffset)
-		state.RecoverySnapshotID = nil
-	}
-	return state
-}
-
-func latchInvalidRecordAtCheckpoint(
-	state recoveryLatch,
-	nextOffset int64,
-	recordOffset int64,
-) (recoveryLatch, bool) {
-	if recordOffset < nextOffset {
-		return state, false
-	}
-	return latchInvalidRecord(state, recordOffset), true
-}
-
-func recordRecoverySnapshot(state recoveryLatch, markerOffset int64, snapshotID string) recoveryLatch {
-	if state.InvalidRecordOffset != nil && markerOffset > *state.InvalidRecordOffset &&
-		!stringPointerEquals(state.LastSnapshotID, snapshotID) {
-		switch {
-		case state.RecoverySnapshotID == nil:
-			state.RecoverySnapshotID = stringPointer(snapshotID)
-		case *state.RecoverySnapshotID != snapshotID:
-			state.InvalidRecordOffset = nil
-			state.RecoverySnapshotID = nil
-		}
-	}
-	state.LastSnapshotID = stringPointer(snapshotID)
-	return state
-}
-
-func stringPointerEquals(value *string, expected string) bool {
-	return value != nil && *value == expected
-}
-
-func int64Pointer(value int64) *int64 {
-	return &value
-}
-
-func stringPointer(value string) *string {
-	return &value
-}
-
 func (s *MongoCheckpointStore) quarantine(ctx context.Context, deadLetter DeadLetter) error {
 	deadLetter.CreatedAt = time.Now().UTC()
 	_, err := s.deadLetters.UpdateOne(

@@ -974,13 +974,6 @@ func projectionBarrierComplete(
 	return true
 }
 
-func sameProjectionTopology(
-	left map[projection.TopicPartition]projectionOffsetRange,
-	right map[projection.TopicPartition]projectionOffsetRange,
-) bool {
-	return requireSameProjectionTopologyAndGeneration(left, right) == nil
-}
-
 func requireSameProjectionTopologyAndGeneration(
 	left map[projection.TopicPartition]projectionOffsetRange,
 	right map[projection.TopicPartition]projectionOffsetRange,
