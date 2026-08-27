@@ -2,7 +2,6 @@ import {
     Controller,
     Get,
     Param,
-    ParseIntPipe,
     Query,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -10,6 +9,7 @@ import { ChatService } from './chat.service';
 import { SearchMessagesDto } from './dto/search-messages.dto';
 import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { UserId } from '../common/decorator/user.decorator';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 /**
  * 프로젝트 단위 채팅 메시지 검색 컨트롤러.
@@ -54,7 +54,7 @@ export class ProjectMessageController {
     @ApiResponse({ status: 200, type: SearchMessagesResponseDto })
     @ApiResponse({ status: 403, description: '프로젝트 멤버 아님 또는 채널 접근 권한 없음' })
     async searchMessages(
-        @Param('projectId', ParseIntPipe) projectId: number,
+        @Param('projectId', SafePositiveIntPipe) projectId: number,
         @Query() dto: SearchMessagesDto,
         @UserId() userId: number,
     ): Promise<SearchMessagesResponseDto> {

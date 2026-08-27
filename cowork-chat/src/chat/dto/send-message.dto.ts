@@ -1,4 +1,16 @@
-import { IsNumber, IsOptional, IsString, MaxLength, IsEnum, IsArray, IsMongoId, ValidateNested } from 'class-validator';
+import {
+    IsArray,
+    IsEnum,
+    IsInt,
+    IsMongoId,
+    IsNumber,
+    IsOptional,
+    IsPositive,
+    IsString,
+    Max,
+    MaxLength,
+    ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,10 +30,10 @@ export class AttachmentDto {
 
 export class SendMessageDto {
     @ApiPropertyOptional({ description: '팀 ID (DM 채널 메시지는 생략, 서버에서 null 처리)', nullable: true })
-    @IsNumber() @IsOptional() teamId?: number | null;
+    @IsInt() @IsPositive() @Max(Number.MAX_SAFE_INTEGER) @IsOptional() teamId?: number | null;
 
     @ApiPropertyOptional({ description: '프로젝트 ID (팀 채널이면 null)', nullable: true })
-    @IsNumber() @IsOptional() projectId?: number | null;
+    @IsInt() @IsPositive() @Max(Number.MAX_SAFE_INTEGER) @IsOptional() projectId?: number | null;
 
     @ApiProperty({ description: '메시지 내용 (최대 25000자). 멘션은 `<@userId>` 형식으로 포함 가능 (예: `<@123>`)', maxLength: 25000, minLength: 1 })
     @IsString() @MaxLength(25000) content!: string;

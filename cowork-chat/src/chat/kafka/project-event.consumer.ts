@@ -5,12 +5,12 @@ import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
-import { ProjectRepoCache } from '../service/project-repo.cache';
 
 interface ProjectEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -34,7 +34,6 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
-        private readonly projectRepoCache: ProjectRepoCache,
         private readonly projectRepository: ProjectProjectionRepository,
         private readonly projectMemberRepository: ProjectMemberProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
@@ -121,9 +120,6 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             await this.projectMemberRepository.removeByProjectId(event.projectId, occurredAt, sourceVersion);
         }
         if (event.snapshot === true) return;
-        if (event.eventType === 'UPDATED' || event.eventType === 'DELETED') {
-            await this.projectRepoCache.invalidate(event.projectId);
-        }
 
         if (!this.io) return;
         const room = `team:${event.teamId}`;
@@ -142,8 +138,8 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (typeof payload !== 'object' || payload === null) return false;
         const event = payload as Partial<ProjectEvent>;
         if ((event.eventType !== 'CREATED' && event.eventType !== 'UPDATED' && event.eventType !== 'DELETED')
-            || typeof event.projectId !== 'number'
-            || typeof event.teamId !== 'number'
+            || !isSafePositiveInteger(event.projectId)
+            || !isSafePositiveInteger(event.teamId)
             || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')
             || parseEventTime(event.occurredAt) === null) {
             return false;
