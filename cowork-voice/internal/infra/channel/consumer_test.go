@@ -124,6 +124,25 @@ func (s *orderedMembershipStore) Deactivate(_ context.Context, _ Membership) err
 	return s.err
 }
 
+// newRetryTestConsumer는 processWithRetry 시나리오 테스트들이 공유하는
+// call-order 기록용 checkpoint store/membership store/consumer 조합을 만든다.
+// tried가 nil이 아니면 membership store의 첫 Upsert/Deactivate 호출에서 닫혀
+// 트랜지언트 실패 테스트가 재시도 시작 시점을 관측할 수 있게 한다.
+func newRetryTestConsumer(membershipErr error, tried chan struct{}) (consumer *Consumer, calls *[]string, checkpoints *checkpointCallStore) {
+	callLog := []string{}
+	checkpoints = &checkpointCallStore{
+		calls:       &callLog,
+		checkpoints: map[TopicPartition]CheckpointState{},
+	}
+	consumer = &Consumer{
+		groupID:     "cowork-voice.channel-member",
+		handler:     NewEventHandler(&orderedMembershipStore{calls: &callLog, err: membershipErr, tried: tried}),
+		checkpoints: checkpoints,
+		readiness:   noopReadiness{},
+	}
+	return consumer, &callLog, checkpoints
+}
+
 func TestBarrierComplete_requiresEverySharedCheckpointAtCurrentEndAndGeneration(t *testing.T) {
 	t.Parallel()
 	one := TopicPartition{Topic: "channel.member.event", Partition: 0}
@@ -167,7 +186,7 @@ func TestBarrierComplete_requiresEverySharedCheckpointAtCurrentEndAndGeneration(
 	}
 }
 
-func TestCheckpointResumeOffset_distinguishesMissingAndOutOfRangeCheckpoints(t *testing.T) {
+func TestCheckpointResumeOffset_체크포인트_없음과_범위이탈을_구분한다(t *testing.T) {
 	t.Parallel()
 	offsetRange := OffsetRange{First: 0, End: 12}
 
@@ -188,18 +207,9 @@ func TestCheckpointResumeOffset_distinguishesMissingAndOutOfRangeCheckpoints(t *
 	}
 }
 
-func TestProcessWithRetry_advancesCheckpointOnlyAfterProjectionApply(t *testing.T) {
+func TestProcessWithRetry_프로젝션_적용에_성공한_뒤에만_체크포인트를_전진시킨다(t *testing.T) {
 	t.Parallel()
-	calls := []string{}
-	checkpoints := &checkpointCallStore{
-		calls:       &calls,
-		checkpoints: map[TopicPartition]CheckpointState{},
-	}
-	consumer := &Consumer{
-		groupID:     "cowork-voice.channel-member",
-		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
-		checkpoints: checkpoints,
-	}
+	consumer, calls, checkpoints := newRetryTestConsumer(nil, nil)
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
 		Partition: 2,
@@ -213,27 +223,17 @@ func TestProcessWithRetry_advancesCheckpointOnlyAfterProjectionApply(t *testing.
 	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"apply", "checkpoint"}) {
-		t.Fatalf("call order = %v", calls)
+	if !reflect.DeepEqual(*calls, []string{"apply", "checkpoint"}) {
+		t.Fatalf("call order = %v", *calls)
 	}
 	if got := checkpoints.checkpoints[TopicPartition{Topic: message.Topic, Partition: message.Partition}].NextOffset; got != 42 {
 		t.Fatalf("next offset = %d, want 42", got)
 	}
 }
 
-func TestProcessWithRetry_quarantinesInvalidRecordBeforeAdvancingCheckpoint(t *testing.T) {
+func TestProcessWithRetry_잘못된_레코드는_체크포인트_전진_전에_격리한다(t *testing.T) {
 	t.Parallel()
-	calls := []string{}
-	checkpoints := &checkpointCallStore{
-		calls:       &calls,
-		checkpoints: map[TopicPartition]CheckpointState{},
-	}
-	consumer := &Consumer{
-		groupID:     "cowork-voice.channel-member",
-		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
-		checkpoints: checkpoints,
-		readiness:   noopReadiness{},
-	}
+	consumer, calls, checkpoints := newRetryTestConsumer(nil, nil)
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
 		Partition: 1,
@@ -247,8 +247,8 @@ func TestProcessWithRetry_quarantinesInvalidRecordBeforeAdvancingCheckpoint(t *t
 	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"quarantine_checkpoint"}) {
-		t.Fatalf("call order = %v", calls)
+	if !reflect.DeepEqual(*calls, []string{"quarantine_checkpoint"}) {
+		t.Fatalf("call order = %v", *calls)
 	}
 	if len(checkpoints.deadLetters) != 1 {
 		t.Fatalf("dead letters = %d, want 1", len(checkpoints.deadLetters))
@@ -258,18 +258,9 @@ func TestProcessWithRetry_quarantinesInvalidRecordBeforeAdvancingCheckpoint(t *t
 	}
 }
 
-func TestProcessWithRetry_snapshotMarkerSkipsDomainAndRecordsCheckpointAtomically(t *testing.T) {
+func TestProcessWithRetry_스냅샷마커는_도메인_적용을_건너뛰고_체크포인트만_원자적으로_기록한다(t *testing.T) {
 	t.Parallel()
-	calls := []string{}
-	checkpoints := &checkpointCallStore{
-		calls:       &calls,
-		checkpoints: map[TopicPartition]CheckpointState{},
-	}
-	consumer := &Consumer{
-		groupID:     "cowork-voice.channel-member",
-		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
-		checkpoints: checkpoints,
-	}
+	consumer, calls, checkpoints := newRetryTestConsumer(nil, nil)
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
 		Partition: 2,
@@ -283,8 +274,8 @@ func TestProcessWithRetry_snapshotMarkerSkipsDomainAndRecordsCheckpointAtomicall
 	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"marker_checkpoint"}) {
-		t.Fatalf("call order = %v", calls)
+	if !reflect.DeepEqual(*calls, []string{"marker_checkpoint"}) {
+		t.Fatalf("call order = %v", *calls)
 	}
 	if len(checkpoints.markers) != 1 || checkpoints.markers[0].Offset != 41 {
 		t.Fatalf("marker receipts = %+v", checkpoints.markers)
@@ -295,19 +286,9 @@ func TestProcessWithRetry_snapshotMarkerSkipsDomainAndRecordsCheckpointAtomicall
 	}
 }
 
-func TestProcessWithRetry_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t *testing.T) {
+func TestProcessWithRetry_소스가_다른_스냅샷마커는_도메인_적용_전에_격리한다(t *testing.T) {
 	t.Parallel()
-	calls := []string{}
-	checkpoints := &checkpointCallStore{
-		calls:       &calls,
-		checkpoints: map[TopicPartition]CheckpointState{},
-	}
-	consumer := &Consumer{
-		groupID:     "cowork-voice.channel-member",
-		handler:     NewEventHandler(&orderedMembershipStore{calls: &calls}),
-		checkpoints: checkpoints,
-		readiness:   noopReadiness{},
-	}
+	consumer, calls, checkpoints := newRetryTestConsumer(nil, nil)
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
 		Partition: 2,
@@ -321,15 +302,15 @@ func TestProcessWithRetry_wrongSourceSnapshotMarkerIsQuarantinedBeforeDomain(t *
 	if !consumer.processWithRetry(context.Background(), message, testTopicID) {
 		t.Fatal("processWithRetry() = false")
 	}
-	if !reflect.DeepEqual(calls, []string{"quarantine_checkpoint"}) {
-		t.Fatalf("call order = %v", calls)
+	if !reflect.DeepEqual(*calls, []string{"quarantine_checkpoint"}) {
+		t.Fatalf("call order = %v", *calls)
 	}
 	if len(checkpoints.deadLetters) != 1 || len(checkpoints.markers) != 0 {
 		t.Fatalf("dead letters/markers = %d/%d", len(checkpoints.deadLetters), len(checkpoints.markers))
 	}
 }
 
-func TestParseSnapshotMarker_requiresExplicitPartitionForPartitionZero(t *testing.T) {
+func TestParseSnapshotMarker_파티션0은_명시적_파티션값이_없으면_거부한다(t *testing.T) {
 	t.Parallel()
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
@@ -347,23 +328,10 @@ func TestParseSnapshotMarker_requiresExplicitPartitionForPartitionZero(t *testin
 	}
 }
 
-func TestProcessWithRetry_transientProjectionFailureDoesNotAdvanceCheckpoint(t *testing.T) {
+func TestProcessWithRetry_일시적_프로젝션_실패시_체크포인트를_전진시키지_않는다(t *testing.T) {
 	t.Parallel()
-	calls := []string{}
-	checkpoints := &checkpointCallStore{
-		calls:       &calls,
-		checkpoints: map[TopicPartition]CheckpointState{},
-	}
 	tried := make(chan struct{})
-	consumer := &Consumer{
-		groupID: "cowork-voice.channel-member",
-		handler: NewEventHandler(&orderedMembershipStore{
-			calls: &calls,
-			err:   errors.New("mongodb temporarily unavailable"),
-			tried: tried,
-		}),
-		checkpoints: checkpoints,
-	}
+	consumer, calls, _ := newRetryTestConsumer(errors.New("mongodb temporarily unavailable"), tried)
 	message := segkafka.Message{
 		Topic:     "channel.member.event",
 		Partition: 0,
@@ -382,7 +350,7 @@ func TestProcessWithRetry_transientProjectionFailureDoesNotAdvanceCheckpoint(t *
 	if <-result {
 		t.Fatal("processWithRetry() = true after transient failure and cancellation")
 	}
-	if len(calls) != 1 || calls[0] != "apply" {
-		t.Fatalf("calls = %v, checkpoint must not advance", calls)
+	if len(*calls) != 1 || (*calls)[0] != "apply" {
+		t.Fatalf("calls = %v, checkpoint must not advance", *calls)
 	}
 }
