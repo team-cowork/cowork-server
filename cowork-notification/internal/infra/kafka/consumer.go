@@ -9,10 +9,12 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cowork/cowork-notification/internal/health"
 	segkafka "github.com/segmentio/kafka-go"
 )
 
 var errInvalidNotificationEvent = errors.New("invalid notification event")
+var errProjectionLeaseExpired = errors.New("projection readiness lease expired")
 
 type NotificationTriggerEvent struct {
 	Type          string         `json:"type"`
@@ -39,8 +41,22 @@ type SSEBroadcaster interface {
 }
 
 type projectionGate interface {
-	Wait(context.Context) bool
+	WaitLease(context.Context) (*health.Lease, bool)
 }
+
+type currentnessLease interface {
+	Context() context.Context
+	Current() bool
+	Close()
+}
+
+type unfencedLease struct {
+	ctx context.Context
+}
+
+func (l *unfencedLease) Context() context.Context { return l.ctx }
+func (l *unfencedLease) Current() bool            { return l.ctx.Err() == nil }
+func (*unfencedLease) Close()                     {}
 
 type notificationReader interface {
 	FetchMessage(context.Context) (segkafka.Message, error)
@@ -86,7 +102,7 @@ func NewConsumerForTest(svc NotificationService, teamNames TeamNameResolver, use
 
 // HandleForTest exposes handle for unit testing.
 func (c *Consumer) HandleForTest(ctx context.Context, msg segkafka.Message) {
-	_ = c.handle(ctx, msg)
+	_ = c.handle(ctx, ctx, msg, nil)
 }
 
 func (c *Consumer) Start(ctx context.Context) {
@@ -94,23 +110,36 @@ func (c *Consumer) Start(ctx context.Context) {
 		panic("kafka: Consumer.Start called on test-only Consumer with nil reader")
 	}
 	for {
-		if c.projectionGate != nil && !c.projectionGate.Wait(ctx) {
+		fetchLease, ok := c.acquireLease(ctx)
+		if !ok {
 			return
 		}
-		msg, err := c.reader.FetchMessage(ctx)
+		msg, err := c.reader.FetchMessage(fetchLease.Context())
+		leaseExpired := !fetchLease.Current()
+		fetchLease.Close()
 		if err != nil {
 			if ctx.Err() != nil {
 				return
 			}
+			if leaseExpired {
+				continue
+			}
 			slog.Error("kafka read error", "err", err)
 			continue
 		}
-		// The projection assignment may have changed while FetchMessage was
-		// blocked. Never process the fetched trigger until the new barrier closes.
-		if c.projectionGate != nil && !c.projectionGate.Wait(ctx) {
-			return
-		}
-		if !c.handleWithRetry(ctx, msg) {
+		for {
+			lease, acquired := c.acquireLease(ctx)
+			if !acquired {
+				return
+			}
+			handleErr := c.handleWithRetry(ctx, msg, lease)
+			lease.Close()
+			if handleErr == nil {
+				break
+			}
+			if errors.Is(handleErr, errProjectionLeaseExpired) {
+				continue
+			}
 			return
 		}
 		for {
@@ -126,19 +155,45 @@ func (c *Consumer) Start(ctx context.Context) {
 	}
 }
 
-func (c *Consumer) handleWithRetry(ctx context.Context, msg segkafka.Message) bool {
+func (c *Consumer) acquireLease(ctx context.Context) (currentnessLease, bool) {
+	if c.projectionGate == nil {
+		if ctx.Err() != nil {
+			return nil, false
+		}
+		return &unfencedLease{ctx: ctx}, true
+	}
+	return c.projectionGate.WaitLease(ctx)
+}
+
+func (c *Consumer) handleWithRetry(
+	parentCtx context.Context,
+	msg segkafka.Message,
+	lease currentnessLease,
+) error {
 	for {
-		err := c.handle(ctx, msg)
+		if !lease.Current() {
+			return errProjectionLeaseExpired
+		}
+		err := c.handle(parentCtx, lease.Context(), msg, lease)
 		if err == nil {
-			return true
+			return nil
 		}
 		if errors.Is(err, errInvalidNotificationEvent) {
 			slog.Error("invalid notification event skipped", "err", err, "offset", msg.Offset)
-			return true
+			return nil
+		}
+		if parentCtx.Err() != nil {
+			return parentCtx.Err()
+		}
+		if !lease.Current() || errors.Is(context.Cause(lease.Context()), health.ErrReadinessEpochChanged) {
+			return errProjectionLeaseExpired
 		}
 		slog.Error("notification processing failed; retrying", "err", err, "offset", msg.Offset)
-		if !waitForRetry(ctx) {
-			return false
+		if !waitForRetry(lease.Context()) {
+			if parentCtx.Err() != nil {
+				return parentCtx.Err()
+			}
+			return errProjectionLeaseExpired
 		}
 	}
 }
@@ -150,7 +205,12 @@ func (c *Consumer) Close() error {
 	return c.reader.Close()
 }
 
-func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) error {
+func (c *Consumer) handle(
+	parentCtx context.Context,
+	attemptCtx context.Context,
+	msg segkafka.Message,
+	lease currentnessLease,
+) error {
 	var event NotificationTriggerEvent
 	decoder := json.NewDecoder(bytes.NewReader(msg.Value))
 	decoder.UseNumber()
@@ -158,15 +218,18 @@ func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) error {
 		return fmt.Errorf("%w: %v", errInvalidNotificationEvent, err)
 	}
 
-	title, body, ok := c.buildMessage(ctx, event)
+	title, body, ok := c.buildMessage(attemptCtx, event)
 	if !ok {
 		slog.Warn("알림 생성 실패로 스킵", "type", event.Type)
 		return nil
 	}
 
 	channelID := extractInt64(event.Data, "channelId")
+	if lease != nil && !lease.Current() {
+		return errProjectionLeaseExpired
+	}
 	enabledUserIDs, err := c.svc.Notify(
-		ctx,
+		attemptCtx,
 		event.TargetUserIDs,
 		event.ForcedUserIDs,
 		title,
@@ -189,10 +252,30 @@ func (c *Consumer) handle(ctx context.Context, msg segkafka.Message) error {
 		if err != nil {
 			slog.Error("SSE 페이로드 직렬화 실패", "err", err, "type", event.Type)
 		} else {
-			c.sseBroadcaster.Broadcast(enabledUserIDs, ssePayload)
+			return c.broadcastWhenCurrent(parentCtx, enabledUserIDs, ssePayload)
 		}
 	}
 	return nil
+}
+
+func (c *Consumer) broadcastWhenCurrent(
+	ctx context.Context,
+	userIDs []int64,
+	payload []byte,
+) error {
+	for {
+		lease, ok := c.acquireLease(ctx)
+		if !ok {
+			return ctx.Err()
+		}
+		if !lease.Current() {
+			lease.Close()
+			continue
+		}
+		c.sseBroadcaster.Broadcast(userIDs, payload)
+		lease.Close()
+		return nil
+	}
 }
 
 func (c *Consumer) buildMessage(ctx context.Context, event NotificationTriggerEvent) (title, body string, ok bool) {
