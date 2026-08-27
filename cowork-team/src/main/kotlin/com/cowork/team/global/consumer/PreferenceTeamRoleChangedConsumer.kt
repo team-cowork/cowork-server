@@ -1,12 +1,13 @@
 package com.cowork.team.global.consumer
 
+import com.cowork.team.domain.teamRole.operation.TeamRoleContractTopics
 import com.cowork.team.global.projection.ProjectionRecordProcessor
 import com.cowork.team.global.projection.ProjectionStreams
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleChangedConsumer(
@@ -18,7 +19,7 @@ class PreferenceTeamRoleChangedConsumer(
     private val log = LoggerFactory.getLogger(PreferenceTeamRoleChangedConsumer::class.java)
 
     @KafkaListener(
-        topics = ["\${KAFKA_TOPIC_TEAM_ROLE_PREFERENCE:preference.team-role.changed}"],
+        topics = [TeamRoleContractTopics.STATE],
         groupId = "\${KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE:cowork-team.team-role-projection}",
         containerFactory = "preferenceTeamRoleChangedListenerContainerFactory",
     )

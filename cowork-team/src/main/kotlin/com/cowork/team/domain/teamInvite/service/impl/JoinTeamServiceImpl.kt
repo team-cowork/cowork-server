@@ -1,9 +1,8 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.event.TeamEventPayload
-import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
+import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
 import com.cowork.team.domain.teamMember.entity.TeamMember
@@ -16,8 +15,8 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class JoinTeamServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
+    private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
-    private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
 ) : JoinTeamService {
 
@@ -31,20 +30,13 @@ class JoinTeamServiceImpl(
         }
 
         val teamId = invite.team.id
+        val team = teamRepository.findByIdForUpdate(teamId)
+            ?: throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
             throw ExpectedException("이미 팀 멤버입니다.", HttpStatus.CONFLICT)
         }
 
-        val member = teamMemberRepository.save(TeamMember(team = invite.team, userId = userId))
-
-        val payload = TeamEventPayload(
-            eventType = "MEMBER_JOINED",
-            teamId = teamId,
-            teamName = invite.team.name,
-            actorUserId = userId,
-            targetUserIds = listOf(userId),
-        )
-        teamEventPublisher.publishLifecycle(payload)
+        val member = teamMemberRepository.save(TeamMember(team = team, userId = userId))
         teamMemberEventPublisher.publishUpsert(member)
 
         return JoinTeamResponse(

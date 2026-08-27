@@ -22,13 +22,18 @@ type TopicPartition struct {
 }
 
 type OffsetRange struct {
-	First int64
-	End   int64
+	First   int64
+	End     int64
+	TopicID string
 }
 
 type CheckpointState struct {
-	NextOffset              int64  `bson:"next_offset"`
-	SnapshotCompletedOffset *int64 `bson:"snapshot_completed_offset,omitempty"`
+	TopicID                 string  `bson:"topic_id"`
+	NextOffset              int64   `bson:"next_offset"`
+	SnapshotCompletedOffset *int64  `bson:"snapshot_completed_offset,omitempty"`
+	InvalidRecordOffset     *int64  `bson:"invalid_record_offset,omitempty"`
+	LastSnapshotID          *string `bson:"last_snapshot_id,omitempty"`
+	RecoverySnapshotID      *string `bson:"recovery_snapshot_id,omitempty"`
 }
 
 type SnapshotMarkerReceipt struct {
@@ -51,11 +56,12 @@ type DeadLetter struct {
 
 type CheckpointStore interface {
 	Load(ctx context.Context, group, topic string, partition int) (CheckpointState, bool, error)
-	Advance(ctx context.Context, group, topic string, partition int, nextOffset int64) error
+	Advance(ctx context.Context, group, topic string, partition int, topicID string, nextOffset int64) error
 	RecordSnapshotMarker(
 		ctx context.Context,
 		group, topic string,
 		partition int,
+		topicID string,
 		nextOffset int64,
 		marker SnapshotMarkerReceipt,
 	) error
@@ -64,7 +70,12 @@ type CheckpointStore interface {
 		group string,
 		partitions []TopicPartition,
 	) (map[TopicPartition]CheckpointState, error)
-	Quarantine(ctx context.Context, deadLetter DeadLetter) error
+	QuarantineAndAdvance(
+		ctx context.Context,
+		deadLetter DeadLetter,
+		topicID string,
+		nextOffset int64,
+	) error
 }
 
 type MongoCheckpointStore struct {
@@ -126,13 +137,14 @@ func (s *MongoCheckpointStore) RecordSnapshotMarker(
 	ctx context.Context,
 	group, topic string,
 	partition int,
+	topicID string,
 	nextOffset int64,
 	marker SnapshotMarkerReceipt,
 ) error {
 	_, err := s.checkpoints.UpdateOne(
 		ctx,
-		checkpointFilter(group, topic, partition),
-		snapshotMarkerCheckpointUpdate(group, topic, partition, nextOffset, marker),
+		checkpointGenerationFilter(group, topic, partition, topicID),
+		snapshotMarkerCheckpointUpdate(group, topic, partition, topicID, nextOffset, marker),
 		options.UpdateOne().SetUpsert(true),
 	)
 	if err != nil {
@@ -145,16 +157,18 @@ func (s *MongoCheckpointStore) Advance(
 	ctx context.Context,
 	group, topic string,
 	partition int,
+	topicID string,
 	nextOffset int64,
 ) error {
 	_, err := s.checkpoints.UpdateOne(
 		ctx,
-		checkpointFilter(group, topic, partition),
+		checkpointGenerationFilter(group, topic, partition, topicID),
 		bson.D{
 			{Key: "$setOnInsert", Value: bson.D{
 				{Key: "consumer_group", Value: group},
 				{Key: "topic", Value: topic},
 				{Key: "partition", Value: partition},
+				{Key: "topic_id", Value: topicID},
 				{Key: "created_at", Value: time.Now().UTC()},
 			}},
 			{Key: "$max", Value: bson.D{{Key: "next_offset", Value: nextOffset}}},
@@ -164,6 +178,64 @@ func (s *MongoCheckpointStore) Advance(
 	)
 	if err != nil {
 		return fmt.Errorf("advance projection checkpoint: %w", err)
+	}
+	return nil
+}
+
+// QuarantineAndAdvance writes the dead letter before atomically advancing and
+// latching the checkpoint document. A retry after either write is safe: the
+// dead-letter key is unique and the invalid-offset transition is idempotent.
+func (s *MongoCheckpointStore) QuarantineAndAdvance(
+	ctx context.Context,
+	deadLetter DeadLetter,
+	topicID string,
+	nextOffset int64,
+) error {
+	checkpoint, found, err := s.Load(
+		ctx,
+		deadLetter.ConsumerGroup,
+		deadLetter.Topic,
+		deadLetter.Partition,
+	)
+	if err != nil {
+		return err
+	}
+	if found {
+		if checkpoint.TopicID != topicID {
+			return fmt.Errorf(
+				"%w: checkpointTopicId=%q brokerTopicId=%q",
+				ErrTopicGenerationMismatch,
+				checkpoint.TopicID,
+				topicID,
+			)
+		}
+		if deadLetter.Offset < checkpoint.NextOffset {
+			return nil
+		}
+	}
+	if err := s.quarantine(ctx, deadLetter); err != nil {
+		return err
+	}
+	_, err = s.checkpoints.UpdateOne(
+		ctx,
+		checkpointGenerationFilter(
+			deadLetter.ConsumerGroup,
+			deadLetter.Topic,
+			deadLetter.Partition,
+			topicID,
+		),
+		invalidRecordCheckpointUpdate(
+			deadLetter.ConsumerGroup,
+			deadLetter.Topic,
+			deadLetter.Partition,
+			topicID,
+			nextOffset,
+			deadLetter.Offset,
+		),
+		options.UpdateOne().SetUpsert(true),
+	)
+	if err != nil {
+		return fmt.Errorf("latch invalid projection record and advance checkpoint: %w", err)
 	}
 	return nil
 }
@@ -189,6 +261,7 @@ func (s *MongoCheckpointStore) LoadAll(
 func snapshotMarkerCheckpointUpdate(
 	group, topic string,
 	partition int,
+	topicID string,
 	nextOffset int64,
 	marker SnapshotMarkerReceipt,
 ) mongo.Pipeline {
@@ -213,6 +286,54 @@ func snapshotMarkerCheckpointUpdate(
 			existingMarkerOffset,
 		},
 	}}
+	existingInvalidOffset := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$invalid_record_offset", nil},
+	}}
+	existingLastSnapshotID := bson.D{{
+		Key: "$ifNull",
+		Value: bson.A{
+			"$last_snapshot_id",
+			bson.D{{
+				Key: "$toLower",
+				Value: bson.D{{
+					Key:   "$ifNull",
+					Value: bson.A{"$snapshot_id", ""},
+				}},
+			}},
+		},
+	}}
+	existingRecoverySnapshotID := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$recovery_snapshot_id", nil},
+	}}
+	hasInvalidRecord := bson.D{{
+		Key:   "$ne",
+		Value: bson.A{existingInvalidOffset, nil},
+	}}
+	eligibleRecoverySnapshot := bson.D{{
+		Key: "$and",
+		Value: bson.A{
+			hasInvalidRecord,
+			bson.D{{Key: "$gt", Value: bson.A{marker.Offset, existingInvalidOffset}}},
+			bson.D{{Key: "$ne", Value: bson.A{existingLastSnapshotID, marker.SnapshotID}}},
+		},
+	}}
+	clearInvalidRecord := bson.D{{
+		Key: "$and",
+		Value: bson.A{
+			eligibleRecoverySnapshot,
+			bson.D{{Key: "$ne", Value: bson.A{existingRecoverySnapshotID, nil}}},
+			bson.D{{Key: "$ne", Value: bson.A{existingRecoverySnapshotID, marker.SnapshotID}}},
+		},
+	}}
+	firstRecoverySnapshot := bson.D{{
+		Key: "$and",
+		Value: bson.A{
+			eligibleRecoverySnapshot,
+			bson.D{{Key: "$eq", Value: bson.A{existingRecoverySnapshotID, nil}}},
+		},
+	}}
 
 	return mongo.Pipeline{
 		bson.D{{
@@ -221,6 +342,10 @@ func snapshotMarkerCheckpointUpdate(
 				{Key: "consumer_group", Value: group},
 				{Key: "topic", Value: topic},
 				{Key: "partition", Value: partition},
+				{Key: "topic_id", Value: bson.D{{
+					Key:   "$ifNull",
+					Value: bson.A{"$topic_id", topicID},
+				}}},
 				{Key: "created_at", Value: bson.D{{
 					Key:   "$ifNull",
 					Value: bson.A{"$created_at", "$$NOW"},
@@ -233,6 +358,36 @@ func snapshotMarkerCheckpointUpdate(
 				{Key: "next_offset", Value: bson.D{{
 					Key:   "$max",
 					Value: bson.A{existingNextOffset, nextOffset},
+				}}},
+				{Key: "invalid_record_offset", Value: bson.D{{
+					Key:   "$cond",
+					Value: bson.A{clearInvalidRecord, nil, existingInvalidOffset},
+				}}},
+				{Key: "recovery_snapshot_id", Value: bson.D{{
+					Key: "$cond",
+					Value: bson.A{
+						hasInvalidRecord,
+						bson.D{{
+							Key: "$cond",
+							Value: bson.A{
+								clearInvalidRecord,
+								nil,
+								bson.D{{
+									Key: "$cond",
+									Value: bson.A{
+										firstRecoverySnapshot,
+										marker.SnapshotID,
+										existingRecoverySnapshotID,
+									},
+								}},
+							},
+						}},
+						nil,
+					},
+				}}},
+				{Key: "last_snapshot_id", Value: bson.D{{
+					Key:   "$cond",
+					Value: bson.A{isLatestMarker, marker.SnapshotID, existingLastSnapshotID},
 				}}},
 				{Key: "snapshot_id", Value: bson.D{{
 					Key:   "$cond",
@@ -256,7 +411,86 @@ func snapshotMarkerCheckpointUpdate(
 	}
 }
 
-func (s *MongoCheckpointStore) Quarantine(ctx context.Context, deadLetter DeadLetter) error {
+func invalidRecordCheckpointUpdate(
+	group, topic string,
+	partition int,
+	topicID string,
+	nextOffset int64,
+	recordOffset int64,
+) mongo.Pipeline {
+	existingNextOffset := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$next_offset", int64(-1)},
+	}}
+	existingInvalidOffset := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$invalid_record_offset", nil},
+	}}
+	existingInvalidOffsetForComparison := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$invalid_record_offset", int64(-1)},
+	}}
+	existingRecoverySnapshotID := bson.D{{
+		Key:   "$ifNull",
+		Value: bson.A{"$recovery_snapshot_id", nil},
+	}}
+	isCurrentRecord := bson.D{{
+		Key:   "$gte",
+		Value: bson.A{recordOffset, existingNextOffset},
+	}}
+	isNewerInvalidRecord := bson.D{{
+		Key: "$and",
+		Value: bson.A{
+			isCurrentRecord,
+			bson.D{{
+				Key:   "$gt",
+				Value: bson.A{recordOffset, existingInvalidOffsetForComparison},
+			}},
+		},
+	}}
+
+	return mongo.Pipeline{
+		bson.D{{
+			Key: "$set",
+			Value: bson.D{
+				{Key: "consumer_group", Value: group},
+				{Key: "topic", Value: topic},
+				{Key: "partition", Value: partition},
+				{Key: "topic_id", Value: bson.D{{
+					Key:   "$ifNull",
+					Value: bson.A{"$topic_id", topicID},
+				}}},
+				{Key: "created_at", Value: bson.D{{
+					Key:   "$ifNull",
+					Value: bson.A{"$created_at", "$$NOW"},
+				}}},
+			},
+		}},
+		bson.D{{
+			Key: "$set",
+			Value: bson.D{
+				{Key: "next_offset", Value: bson.D{{
+					Key:   "$max",
+					Value: bson.A{existingNextOffset, nextOffset},
+				}}},
+				{Key: "invalid_record_offset", Value: bson.D{{
+					Key:   "$cond",
+					Value: bson.A{isNewerInvalidRecord, recordOffset, existingInvalidOffset},
+				}}},
+				{Key: "recovery_snapshot_id", Value: bson.D{{
+					Key:   "$cond",
+					Value: bson.A{isNewerInvalidRecord, nil, existingRecoverySnapshotID},
+				}}},
+				{Key: "updated_at", Value: bson.D{{
+					Key:   "$cond",
+					Value: bson.A{isCurrentRecord, "$$NOW", "$updated_at"},
+				}}},
+			},
+		}},
+	}
+}
+
+func (s *MongoCheckpointStore) quarantine(ctx context.Context, deadLetter DeadLetter) error {
 	deadLetter.CreatedAt = time.Now().UTC()
 	_, err := s.deadLetters.UpdateOne(
 		ctx,
@@ -283,10 +517,16 @@ func checkpointFilter(group, topic string, partition int) bson.D {
 	}
 }
 
+func checkpointGenerationFilter(group, topic string, partition int, topicID string) bson.D {
+	filter := checkpointFilter(group, topic, partition)
+	return append(filter, bson.E{Key: "topic_id", Value: topicID})
+}
+
 func barrierComplete(ranges map[TopicPartition]OffsetRange, checkpoints map[TopicPartition]CheckpointState) bool {
 	for partition, offsetRange := range ranges {
 		checkpoint, found := checkpoints[partition]
-		if !found || checkpoint.NextOffset < offsetRange.End {
+		if !found || offsetRange.TopicID == "" || checkpoint.TopicID != offsetRange.TopicID ||
+			checkpoint.NextOffset != offsetRange.End || checkpoint.InvalidRecordOffset != nil {
 			return false
 		}
 		markerOffset := checkpoint.SnapshotCompletedOffset
