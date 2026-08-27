@@ -5,6 +5,10 @@
 - **현재 상태**: 저장소 코드 전환 및 자동화 검증 완료. 외부 소비처·provider 운영 URL 전환과 staging 배포 검증 대기
 - **외부 소비처 담당**: 웹·모바일·자동화 클라이언트와 provider 운영 설정은 저장소 외부 작업이며 사용자가 전환한다
 
+> **2026-08-27 후속 상태:** authorization → user 내부 upsert와 다른 모노레포 서비스 간 HTTP
+> 호출은 Kafka state projection 또는 authoritative aggregate 이전으로 제거됐다. 아래의 당시 구현 기록 중
+> 해당 내부 URL 설명은 현재 계약이 아니며, GitHub App 관련 HTTP만 별도 보류 상태다.
+
 ## 진행 상태 (2026-08-25)
 
 | 단계 | 상태 |
@@ -103,7 +107,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 | authorization | `/api/auth/**` | `/api/authorization/auth/**` | `/auth/**` |
 | authorization | `/api/events/datagsm` | `/api/authorization/events/datagsm` | `/events/datagsm` |
 | user | `/api/users/**` | `/api/user/users/**` | `/users/**` |
-| user 내부 API | 기존 public root 내부 command | 외부 route 제거 | authorization이 서비스 내부망에서 `PUT /internal/users/{id}` 호출 |
+| user 내부 API | 기존 public root 내부 command | 제거 완료 | authorization command를 user가 커밋하고 Kafka 결과를 반환 |
 | team | `/api/teams/**` 중 team 소유 API | `/api/team/teams/**` | `/teams/**` |
 | project | `/api/projects/**` 중 project 소유 API | `/api/project/projects/**` | `/projects/**` |
 | project | `/api/teams/{teamId}/projects/**` | `/api/project/teams/{teamId}/projects/**` | `/teams/{teamId}/projects/**` |
@@ -166,7 +170,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 - Go 서비스는 handler annotation 수정 후 `make swagger-gen`으로 `docs.go`, `swagger.json`, `swagger.yaml`을 같이 재생성한다.
 - Authorization과 Notification의 생성 명세에 포함된 직접 `/health` operation은 Gateway-facing Swagger에서 제거한다. 두 경로는 해당 모듈의 공개 route allowlist에 포함하지 않는다.
 - cowork-user의 `open_api.ex`, cowork-preference의 `openapi.json`은 정적 명세를 직접 갱신한다.
-- cowork-user 명세에 현재 누락된 공개 `GET /users/batch`를 추가하고 내부 `PUT /internal/users/{id}`는 Gateway-facing 명세에서 제외한다. 접속 상태 변경은 본인용 `PATCH /users/me/status`만 공개한다.
+- cowork-user 명세의 공개 `GET /users/batch`를 유지한다. 제거된 내부 `PUT /internal/users/{id}`는 명세와 router 어디에도 두지 않으며, 접속 상태 변경은 본인용 `PATCH /users/me/status`만 공개한다.
 - Spring 모듈은 Gateway-facing server/path customizer를 추가하고, Channel의 `sdk.swagger.paths-to-match`에 `/projects/**`, `/search/**`, `/dms`를, Project에 `/teams/**`를 포함한다.
 - 통합 Swagger `Try it out`으로 생성된 URL·Authorization header·public operation을 서비스별로 검증한다.
 
@@ -191,7 +195,7 @@ HTTP API의 canonical 경로는 다음 규칙을 따른다.
 1. 모듈별 현재 endpoint·HTTP method·downstream target·public 인증·OpenAPI path를 snapshot test로 고정한다.
 2. 해당 모듈의 Gateway local/prod route, route order, rewrite, `SecurityConfig`를 canonical URL로 교체한다.
 3. 각 런타임의 Gateway-facing Swagger/OpenAPI server·path·security를 동일 배포 단위에서 바꾼다.
-4. 서비스 간 직접 URL은 변경하지 않았음을 확인하고, 저장소 내부 OAuth·webhook URL 생성 코드를 canonical URL로 이동한다.
+4. 보류된 GitHub App 직접 URL은 변경하지 않았음을 확인하고, 저장소 내부 OAuth·webhook URL 생성 코드를 canonical URL로 이동한다.
 5. 사용자에게 최종 endpoint 변경표를 전달하고 웹·모바일·자동화 클라이언트와 provider 운영 등록 URL의 전환 완료를 확인한다.
 6. canonical 요청, 구 경로 negative, CORS preflight, JWT/public matcher, Swagger `Try it out`을 staging에서 검증한다.
 7. Gateway·클라이언트·provider 설정을 원자적으로 배포하고, 문제 시 이전 Gateway image와 클라이언트 version을 함께 rollback한다.
