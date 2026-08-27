@@ -42,7 +42,7 @@ retention 범위 밖이면 수치 offset이 겹쳐도 fail-closed 합니다.
 
 ## 주요 엔드포인트 (서비스 내부 경로)
 
-외부 Gateway 경로 정책은 `docs/gateway-config.md`를 기준으로 한다.
+외부 Gateway 경로 정책은 `cowork-config/src/main/resources/configs/cowork-gateway-{local,prod}.yml`를 기준으로 한다.
 
 | 메서드           | 경로                                            | 설명                          |
 |------------------|-------------------------------------------------|-------------------------------|
