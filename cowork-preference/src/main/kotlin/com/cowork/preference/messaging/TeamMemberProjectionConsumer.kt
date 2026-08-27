@@ -4,6 +4,7 @@ import com.cowork.preference.repository.ProjectionCheckpoint
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.ProjectionPartitionRange
 import com.cowork.preference.repository.QuarantinedProjectionRecord
+import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.service.TeamRoleService
 import io.vertx.core.Future
 import io.vertx.core.Vertx
@@ -27,6 +28,7 @@ class TeamMemberProjectionConsumer(
     private val groupId: String,
     private val topic: String,
     private val teamRoleService: TeamRoleService,
+    private val teamMemberProjectionRepository: TeamMemberProjectionRepository,
     private val checkpointRepository: ProjectionCheckpointRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
     private val readiness: ProjectionReadiness,
@@ -220,8 +222,7 @@ class TeamMemberProjectionConsumer(
             return
         }
         when (val decision = TeamMemberEventParser.parse(record.key(), record.value())) {
-            is TeamMemberRecordDecision.ApplyDelete -> applyDelete(checkpoint, decision.event)
-            is TeamMemberRecordDecision.IgnoreUpsert -> checkpointRepository.advance(checkpoint)
+            is TeamMemberRecordDecision.Apply -> applyEvent(checkpoint, decision.event)
             is TeamMemberRecordDecision.Quarantine -> quarantine(checkpoint, record, decision.reason)
         }
     }
@@ -244,8 +245,10 @@ class TeamMemberProjectionConsumer(
         )
     }
 
-    private suspend fun applyDelete(checkpoint: ProjectionCheckpoint, event: TeamMemberEvent) {
+    private suspend fun applyEvent(checkpoint: ProjectionCheckpoint, event: TeamMemberEvent) {
         checkpointRepository.inTransaction(checkpoint) { connection ->
+            val applied = teamMemberProjectionRepository.apply(connection, event)
+            if (!applied || event.eventType != "DELETE") return@inTransaction
             when (TeamMemberCleanupPolicy.scope(event)) {
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
@@ -301,6 +304,7 @@ class TeamMemberProjectionConsumer(
         checkpoints[partition]?.let { checkpoint ->
             checkpoint.topicId != topicState.topicId ||
                 checkpoint.invalidCheckpointOffset != null ||
+                checkpoint.invalidRecordOffset != null ||
                 checkpoint.nextOffset !in range.beginningOffset..range.endOffset
         } ?: true
     }

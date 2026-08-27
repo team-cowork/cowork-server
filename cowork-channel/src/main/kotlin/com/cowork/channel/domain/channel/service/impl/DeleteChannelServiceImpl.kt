@@ -26,18 +26,16 @@ class DeleteChannelServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
-        val members = channelMemberRepository.findByChannelId(channelId)
-        channelRepository.delete(channel)
-        val occurredAt = Instant.now()
+        val members = channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(channelId)
+        val requestedAt = Instant.now()
+        val channelVersion = channelEventPublisher.publishDeleted(channel, requestedAt)
         members.forEach { member ->
             channelMemberEventPublisher.publishLeave(
                 channel.id,
-                channel.teamId,
                 member.userId,
-                channel.type.name,
-                occurredAt = occurredAt,
+                requestedAt = channelVersion,
             )
         }
-        channelEventPublisher.publishDeleted(channel, occurredAt)
+        channelRepository.delete(channel)
     }
 }

@@ -9,12 +9,12 @@
 
 ## 조사
 
-`mvnw dependency:tree`로 확인한 결과, `cowork-project`는 `spring-cloud-starter-openfeign`만 의존하고 있었고 `feign-hc5`(Apache HttpClient5용 Feign 어댑터)가 없었다. `httpclient5` 라이브러리 자체는 `spring-cloud-starter-netflix-eureka-client`가 전이 의존성으로 이미 끌어오고 있었지만, Feign이 이를 사용하려면 별도 어댑터가 필요해서 실제로는 풀링이 없는 기본 `HttpURLConnection` 클라이언트로 동작하고 있었다. 리포지토리 내 다른 Eureka 기반 JVM 서비스들(`cowork-team`, `cowork-channel` 등)도 동일한 상태다.
+`mvnw dependency:tree`로 확인한 결과, `cowork-project`는 `spring-cloud-starter-openfeign`만 의존하고 있었고 `feign-hc5`(Apache HttpClient5용 Feign 어댑터)가 없었다. `httpclient5` 라이브러리 자체는 `spring-cloud-starter-netflix-eureka-client`가 전이 의존성으로 이미 끌어오고 있었지만, Feign이 이를 사용하려면 별도 어댑터가 필요해서 실제로는 풀링이 없는 기본 `HttpURLConnection` 클라이언트로 동작하고 있었다.
 
 ## 변경 사항
 
 - `cowork-project/pom.xml`에 `io.github.openfeign:feign-hc5` 의존성 추가 (버전은 `feign-core`와 동일하게 `13.6.1`로 자동 정렬)
-- 기존 `feign.client.config`의 `github-app`/`cowork-channel` 개별 timeout 설정은 그대로 유지
+- 기존 `feign.client.config`의 `github-app` 개별 timeout 설정은 그대로 유지
 - 풀 크기는 Spring Cloud OpenFeign 기본값(전체 200 / 호스트당 50)을 그대로 사용 — 실측 근거 없이 임의로 조정하지 않음
 
 ## 검증
@@ -32,5 +32,6 @@
 ## 결론 및 후속 조치
 
 - `feign-hc5`는 유지한다. 명시적인 풀 관리와 연결 재사용이라는 점에서 더 안전한 기본값이지만, 성능 개선을 보장하지는 않는다.
-- Kafka 비동기 전환 등 추가 아키텍처 변경은 이번 스코프에서 진행하지 않는다. 운영 환경에서 `GithubAppCallExecutor`의 502 발생률 또는 Feign 호출 p99 레이턴시가 실제로 문제로 관측되면 재검토한다.
+- 완전한 versioned event feed가 없는 외부 GitHub provider의 request-scoped 원본 조회만 HTTP 예외로 유지한다. cowork 내부의 durable 저장소·webhook 상태 조회는 compacted `project.github-repo.event` projection으로 전환한다.
+- 댓글·라벨 쓰기의 즉시 반환 계약만으로 HTTP를 정당화하지 않는다. 이 경로는 외부 github-app의 command/result·멱등 계약이 없어 보류된 계약 갭이며, 양쪽 저장소를 함께 바꿀 때 Kafka command로 전환한다.
 - `cowork-chat`의 슬래시 커맨드(`github.issue.create`)가 `cowork-project`의 `resolveForModify` 권한 체크를 우회하는 별도 이슈는 이번 스코프에서 제외했다 — 별도로 다뤄야 한다.
