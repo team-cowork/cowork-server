@@ -1,9 +1,8 @@
 package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamLifecycleSyncPublisher
+import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.repository.TeamRepository
@@ -19,7 +18,7 @@ class CreateTeamServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
-    private val teamLifecycleSyncPublisher: TeamLifecycleSyncPublisher,
+    private val teamMemberEventPublisher: TeamMemberEventPublisher,
 ) : CreateTeamService {
 
     @Transactional
@@ -36,18 +35,8 @@ class CreateTeamServiceImpl(
             TeamMember(team = team, userId = ownerId, role = TeamRole.OWNER),
         )
 
-        val payload = TeamEventPayload(
-            eventType = "TEAM_CREATED",
-            teamId = team.id,
-            teamName = team.name,
-            actorUserId = ownerId,
-            targetUserIds = listOf(ownerId),
-        )
-        teamEventPublisher.publishLifecycle(payload)
-        teamLifecycleSyncPublisher.publishTeamSnapshot(
-            actorUserId = ownerId,
-            members = listOf(owner),
-        )
+        teamEventPublisher.publishCreated(team, ownerId)
+        teamMemberEventPublisher.publishUpsert(owner)
 
         return TeamResponse.of(team)
     }
