@@ -17,11 +17,19 @@ data class PreferenceEvent(
 object PreferenceEvents {
     const val CHANNEL_NOTIFICATION_TOPIC = "preference.channel-notification.changed"
     const val TEAM_ROLE_TOPIC = "preference.team-role.changed"
+    const val TEAM_ROLE_COMMAND_TOPIC = "preference.team-role.command"
+    const val TEAM_ROLE_COMMAND_RESULT_TOPIC = "preference.team-role.command-result"
+    const val GITHUB_REPO_SETTING_COMMAND_TOPIC = "preference.github-repo.setting.command"
+    const val GITHUB_REPO_SETTING_STATE_TOPIC = "preference.github-repo.setting.state"
+    const val GITHUB_REPO_SETTING_RESULT_TOPIC = "preference.github-repo.setting.result"
     const val STATUS_CHANGED_TOPIC = "preference.status.changed"
     const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
     val OUTBOX_TOPICS = setOf(
         CHANNEL_NOTIFICATION_TOPIC,
         TEAM_ROLE_TOPIC,
+        TEAM_ROLE_COMMAND_RESULT_TOPIC,
+        GITHUB_REPO_SETTING_STATE_TOPIC,
+        GITHUB_REPO_SETTING_RESULT_TOPIC,
         STATUS_CHANGED_TOPIC,
         TEAM_SETTING_CHANGED_TOPIC,
     )
@@ -30,7 +38,11 @@ object PreferenceEvents {
     const val SNAPSHOT_COMPLETED_KEY_PREFIX = "__cowork_projection_snapshot_complete__:"
 
     fun snapshotCompleted(topic: String, partition: Int, snapshotId: String, occurredAt: Instant): PreferenceEvent {
-        require(topic == CHANNEL_NOTIFICATION_TOPIC || topic == TEAM_ROLE_TOPIC) {
+        require(
+            topic == CHANNEL_NOTIFICATION_TOPIC ||
+                topic == TEAM_ROLE_TOPIC ||
+                topic == GITHUB_REPO_SETTING_STATE_TOPIC,
+        ) {
             "unsupported projection snapshot topic '$topic'"
         }
         require(partition >= 0) { "partition must not be negative" }
@@ -101,6 +113,44 @@ object PreferenceEvents {
             .put("accountId", accountId),
         occurredAt = occurredAt,
     )
+
+    fun teamRoleCommandResult(operationId: String, result: JsonObject, occurredAt: Instant): PreferenceEvent =
+        PreferenceEvent(
+            topic = TEAM_ROLE_COMMAND_RESULT_TOPIC,
+            key = operationId,
+            payload = result,
+            occurredAt = occurredAt,
+        )
+
+    fun githubRepoSettingState(
+        repoId: Long,
+        settings: JsonObject?,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent {
+        val deleted = settings == null
+        val normalized = settings?.let {
+            JsonObject().put("label_auto_apply", it.getBoolean("label_auto_apply", true))
+        }
+        return PreferenceEvent(
+            topic = GITHUB_REPO_SETTING_STATE_TOPIC,
+            key = repoId.toString(),
+            payload = basePayload(if (deleted) "DELETE" else "UPSERT", occurredAt)
+                .put("schemaVersion", 1)
+                .put("repoId", repoId)
+                .put("settings", normalized)
+                .put("snapshot", snapshot),
+            occurredAt = occurredAt,
+        )
+    }
+
+    fun githubRepoSettingResult(operationId: String, result: JsonObject, occurredAt: Instant): PreferenceEvent =
+        PreferenceEvent(
+            topic = GITHUB_REPO_SETTING_RESULT_TOPIC,
+            key = operationId,
+            payload = result,
+            occurredAt = occurredAt,
+        )
 
     fun statusChanged(
         accountId: Long,
