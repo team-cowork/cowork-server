@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class AddProjectMemberServiceImplTest {
 
@@ -38,7 +37,7 @@ class AddProjectMemberServiceImplTest {
     @Test
     fun `addMember는 추가 대상이 팀 멤버 아니면 BAD_REQUEST`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 1L) } returns
             ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns null
@@ -52,16 +51,16 @@ class AddProjectMemberServiceImplTest {
     @Test
     fun `addMember는 성공 시 현재 트랜잭션에서 멤버 추가 이벤트를 기록한다`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 1L) } returns
             ProjectMember(projectId = 1L, userId = 1L, role = ProjectMemberRole.OWNER)
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns null
+        every { projectMemberRepository.findByProjectIdAndUserIdForUpdate(1L, 50L) } returns null
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 50L) } returns
             TeamMembership(teamId = 100L, userId = 50L, role = "MEMBER")
         every { projectMemberRepository.save(any()) } answers { firstArg() }
 
         service.execute(1L, 1L, AddProjectMemberReqDto(userId = 50L, role = ProjectMemberRole.EDITOR))
 
-        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(1L, 50L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(match { it.userId == 50L }, any()) }
     }
 }
