@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -35,12 +36,36 @@ type MembershipStore interface {
 	Deactivate(ctx context.Context, membership Membership) error
 }
 
-type Projection struct {
+type CurrentHighChecker interface {
+	EstablishCurrent(ctx context.Context) error
+}
+
+type membershipLookup interface {
+	FindActive(ctx context.Context, channelID, userID int64) (Membership, bool, error)
+}
+
+type mongoMembershipLookup struct {
 	col *mongo.Collection
 }
 
+type Projection struct {
+	col           *mongo.Collection
+	lookup        membershipLookup
+	currentHighMu sync.RWMutex
+	currentHigh   CurrentHighChecker
+}
+
 func NewProjection(db *mongo.Database) *Projection {
-	return &Projection{col: db.Collection(CollectionMemberships)}
+	col := db.Collection(CollectionMemberships)
+	return &Projection{col: col, lookup: &mongoMembershipLookup{col: col}}
+}
+
+// SetCurrentHighChecker completes the projection/consumer dependency cycle.
+// It must be called during wiring, before the HTTP server begins accepting work.
+func (p *Projection) SetCurrentHighChecker(checker CurrentHighChecker) {
+	p.currentHighMu.Lock()
+	p.currentHigh = checker
+	p.currentHighMu.Unlock()
 }
 
 func CreateIndexes(ctx context.Context, db *mongo.Database) error {
@@ -60,20 +85,58 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 }
 
 func (p *Projection) VerifyMembership(ctx context.Context, channelID, userID int64) (int64, error) {
+	p.currentHighMu.RLock()
+	currentHigh := p.currentHigh
+	p.currentHighMu.RUnlock()
+	if currentHigh == nil {
+		return 0, projectionUnavailable(
+			errors.New("current-high checker is not configured"),
+			channelID,
+			userID,
+		)
+	}
+	if err := currentHigh.EstablishCurrent(ctx); err != nil {
+		return 0, projectionUnavailable(err, channelID, userID)
+	}
+
+	membership, found, err := p.lookup.FindActive(ctx, channelID, userID)
+	if err != nil {
+		return 0, projectionUnavailable(err, channelID, userID)
+	}
+	if !found {
+		return 0, apperr.NotMember()
+	}
+	return membership.TeamID, nil
+}
+
+func (l *mongoMembershipLookup) FindActive(
+	ctx context.Context,
+	channelID, userID int64,
+) (Membership, bool, error) {
 	var membership Membership
-	err := p.col.FindOne(ctx, bson.D{
+	err := l.col.FindOne(ctx, bson.D{
 		{Key: "channel_id", Value: channelID},
 		{Key: "user_id", Value: userID},
+		{Key: "team_id", Value: bson.D{{Key: "$gt", Value: int64(0)}}},
 		{Key: "active", Value: true},
 	}).Decode(&membership)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		return 0, apperr.NotMember()
+		return Membership{}, false, nil
 	}
 	if err != nil {
-		slog.Error("channel membership projection lookup failed", "err", err, "channel_id", channelID, "user_id", userID)
-		return 0, apperr.ServiceUnavailable("channel membership projection unavailable")
+		return Membership{}, false, err
 	}
-	return membership.TeamID, nil
+	return membership, true, nil
+}
+
+func projectionUnavailable(err error, channelID, userID int64) error {
+	slog.Error(
+		"channel membership projection currency/lookup failed",
+		"err", err,
+		"channel_id", channelID,
+		"user_id", userID,
+	)
+	return apperr.ServiceUnavailable("channel membership projection unavailable")
 }
 
 func (p *Projection) Upsert(ctx context.Context, membership Membership) error {
@@ -130,13 +193,42 @@ type memberEvent struct {
 	OccurredAt  string `json:"occurredAt"`
 }
 
+var validMembershipRoles = map[string]struct{}{
+	"OWNER":  {},
+	"ADMIN":  {},
+	"MEMBER": {},
+}
+
+func validateMemberEventContract(event memberEvent) error {
+	if event.ChannelID <= 0 || event.UserID <= 0 {
+		return errors.New("channelId and userId must be positive")
+	}
+	if _, valid := validMembershipRoles[event.Role]; !valid {
+		return fmt.Errorf("unsupported role %q", event.Role)
+	}
+
+	switch event.ChannelType {
+	case "TEXT", "VOICE":
+		if event.TeamID == nil || *event.TeamID <= 0 {
+			return errors.New("teamId must be positive for a team channel")
+		}
+	case "DM":
+		if event.TeamID != nil {
+			return errors.New("teamId must be null for a DM channel")
+		}
+	default:
+		return fmt.Errorf("unsupported channelType %q", event.ChannelType)
+	}
+	return nil
+}
+
 func (h *EventHandler) Handle(ctx context.Context, key string, payload []byte) error {
 	var event memberEvent
 	if err := json.Unmarshal(payload, &event); err != nil {
 		return fmt.Errorf("%w: decode payload: %v", ErrInvalidEvent, err)
 	}
-	if event.ChannelID <= 0 || event.UserID <= 0 {
-		return fmt.Errorf("%w: channelId and userId must be positive", ErrInvalidEvent)
+	if err := validateMemberEventContract(event); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidEvent, err)
 	}
 	expectedKey := fmt.Sprintf("%d:%d", event.ChannelID, event.UserID)
 	if key != expectedKey {
@@ -145,6 +237,11 @@ func (h *EventHandler) Handle(ctx context.Context, key string, payload []byte) e
 	occurredAt, err := parseOccurredAt(event.OccurredAt)
 	if err != nil {
 		return fmt.Errorf("%w: occurredAt: %v", ErrInvalidEvent, err)
+	}
+	// DM membership events are valid source records, but cowork-voice requires
+	// a positive team identity and therefore does not project them.
+	if event.ChannelType == "DM" {
+		return nil
 	}
 	teamID := int64(0)
 	if event.TeamID != nil {

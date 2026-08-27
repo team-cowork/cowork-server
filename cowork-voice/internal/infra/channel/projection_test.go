@@ -27,7 +27,7 @@ func TestEventHandler_JOIN_멤버십을_활성화한다(t *testing.T) {
 
 	store := &recordingMembershipStore{}
 	handler := NewEventHandler(store)
-	payload := []byte(`{"eventType":"JOIN","channelId":123,"teamId":456,"userId":42,"role":"MEMBER","channelType":"TEAM","occurredAt":"2026-08-26T12:34:56.123456Z"}`)
+	payload := []byte(`{"eventType":"JOIN","channelId":123,"teamId":456,"userId":42,"role":"MEMBER","channelType":"VOICE","occurredAt":"2026-08-26T12:34:56.123456Z"}`)
 
 	if err := handler.Handle(context.Background(), "123:42", payload); err != nil {
 		t.Fatalf("Handle() error = %v", err)
@@ -49,7 +49,7 @@ func TestEventHandler_LEAVE_멤버십_tombstone을_기록한다(t *testing.T) {
 
 	store := &recordingMembershipStore{}
 	handler := NewEventHandler(store)
-	payload := []byte(`{"eventType":"LEAVE","channelId":123,"teamId":456,"userId":42,"role":"MEMBER","channelType":"TEAM","occurredAt":"2026-08-26T12:34:56Z"}`)
+	payload := []byte(`{"eventType":"LEAVE","channelId":123,"teamId":456,"userId":42,"role":"MEMBER","channelType":"VOICE","occurredAt":"2026-08-26T12:34:56Z"}`)
 
 	if err := handler.Handle(context.Background(), "123:42", payload); err != nil {
 		t.Fatalf("Handle() error = %v", err)

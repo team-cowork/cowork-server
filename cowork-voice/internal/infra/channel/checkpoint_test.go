@@ -21,6 +21,7 @@ func TestSnapshotMarkerCheckpointUpdateStoresReceiptAndNextOffsetInOnePipeline(t
 		"cowork-voice.channel-member",
 		"channel.member.event",
 		2,
+		testTopicID,
 		42,
 		marker,
 	)
