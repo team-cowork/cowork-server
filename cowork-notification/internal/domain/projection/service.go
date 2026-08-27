@@ -9,6 +9,9 @@ import (
 )
 
 var ErrInvalidEvent = errors.New("invalid projection event")
+var ErrTopicGenerationMismatch = errors.New(
+	"projection checkpoint belongs to a different Kafka topic generation; rebuild projection data and checkpoint together",
+)
 
 type Store interface {
 	UpsertChannelNotification(ctx context.Context, accountID, channelID int64, enabled bool, occurredAt time.Time) error
@@ -22,12 +25,15 @@ type Checkpoint struct {
 	ConsumerGroup string
 	Topic         string
 	Partition     int
+	TopicID       string
 	NextOffset    int64
 }
 
 type CheckpointState struct {
+	TopicID                 string
 	NextOffset              int64
 	SnapshotCompletedOffset *int64
+	InvalidRecordOffset     *int64
 }
 
 type SnapshotMarkerReceipt struct {
@@ -43,10 +49,11 @@ type TopicPartition struct {
 }
 
 type InvalidRecord struct {
-	Checkpoint Checkpoint
-	Key        []byte
-	Payload    []byte
-	Reason     string
+	Checkpoint    Checkpoint
+	Key           []byte
+	Payload       []byte
+	Reason        string
+	LatchStateGap bool
 }
 
 type AtomicStore interface {
@@ -58,7 +65,7 @@ type AtomicStore interface {
 		marker SnapshotMarkerReceipt,
 	) error
 	QuarantineWithCheckpoint(ctx context.Context, record InvalidRecord) error
-	LoadCheckpoint(ctx context.Context, group, topic string, partition int) (int64, bool, error)
+	LoadCheckpoint(ctx context.Context, group, topic string, partition int) (CheckpointState, bool, error)
 	AdvanceCheckpoint(ctx context.Context, checkpoint Checkpoint) error
 	LoadCheckpoints(
 		ctx context.Context,
@@ -164,10 +171,10 @@ func (s *Service) LoadCheckpoint(
 	ctx context.Context,
 	group, topic string,
 	partition int,
-) (int64, bool, error) {
+) (CheckpointState, bool, error) {
 	store, err := s.atomicStore()
 	if err != nil {
-		return 0, false, err
+		return CheckpointState{}, false, err
 	}
 	return store.LoadCheckpoint(ctx, group, topic, partition)
 }
