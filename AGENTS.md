@@ -39,6 +39,11 @@ Language and framework details live in each module's build file — read that, n
 - **Documented exception:** `cowork-chat`'s WebSocket gateway (`src/chat/chat.gateway.ts`) verifies the handshake token itself and sets its own CORS, because a WS upgrade does not pass through the Gateway's header-mutating filter. Do not copy this pattern into HTTP routes.
 - Don't expose service ports outside the Docker network in production-oriented config; all external traffic enters through the Gateway.
 
+## Inter-service Communication
+
+- Use Kafka-backed local projections for service-to-service reads whenever eventual consistency is acceptable; reserve synchronous HTTP for commands that require an immediate result or validation error.
+- Follow the scoped Kafka projection rules in `.claude/rules/kafka-projections.md` when changing clients, events, consumers, outboxes, or readiness behavior.
+
 ## Database Conventions
 
 - Never modify a committed migration (`V{n}__*.sql`); add a new version instead.
@@ -54,7 +59,7 @@ Language and framework details live in each module's build file — read that, n
 
 ## Configuration
 
-Shared config is served by `cowork-config`, which is both the Config Server and the Eureka server, and which holds every service's `configs/cowork-{service}-{env}.yml`. Local-only overrides go in `application-local.yml` (gitignored). Startup order is encoded in `docker-compose.yml`'s `depends_on` — `cowork-config` first, then `cowork-gateway`, then the rest in any order.
+Shared config is served by `cowork-config`, which is both the Config Server and the Eureka server, and which holds every service's `configs/cowork-{service}-{env}.yml`. Local-only overrides go in `application-local.yml` (gitignored). Startup order is encoded in `docker-compose.yml`'s `depends_on` — `cowork-config` first, then `cowork-gateway`; `cowork-user` additionally waits for a healthy `cowork-authorization` presence source, while the remaining services may start independently.
 
 ---
 
