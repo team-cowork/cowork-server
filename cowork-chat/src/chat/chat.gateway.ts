@@ -24,10 +24,12 @@ import { UserRole } from '../common/enum/user-role.enum';
 import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
+import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
 
 const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
 const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
 const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
+const PROJECTION_NOT_READY_MESSAGE = 'Kafka projections are synchronizing';
 
 export interface ChatSocketData {
     userId: number;
@@ -55,7 +57,7 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
     path: '/ws/chat',
     connectionStateRecovery: {
         maxDisconnectionDuration: 2 * 60 * 1000,
-        skipMiddlewares: true,
+        skipMiddlewares: false,
     },
     cors: {
         origin: true, // Gateway에서 이미 제어되지만, 필요시 ConfigService로 주입 가능
@@ -83,6 +85,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {
         this.typingRateLimitWindowMs = Number(
             getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
@@ -99,6 +102,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param server - 초기화된 Socket.IO 서버 인스턴스
      */
     afterInit(server: Server) {
+        server.use((_socket, next) => {
+            if (!this.projectionReadiness.isReady()) {
+                next(new Error(PROJECTION_NOT_READY_MESSAGE));
+                return;
+            }
+            _socket.use((_packet, packetNext) => {
+                if (!this.projectionReadiness.isReady()) {
+                    packetNext(new Error(PROJECTION_NOT_READY_MESSAGE));
+                    return;
+                }
+                packetNext();
+            });
+            next();
+        });
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
         this.githubRepoEventConsumer.setSocketServer(server);
@@ -116,6 +133,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param client - 연결된 Socket.IO 소켓
      */
     async handleConnection(client: ChatSocket) {
+        if (!this.projectionReadiness.isReady()) {
+            this.logger.warn(`Projection synchronization incomplete, rejecting connection: ${client.id}`);
+            client.emit('exception', { message: PROJECTION_NOT_READY_MESSAGE });
+            client.disconnect();
+            return;
+        }
         try {
             const { userId, userRole } = await this.resolveIdentity(client);
 

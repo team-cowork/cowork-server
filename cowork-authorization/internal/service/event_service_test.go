@@ -107,9 +107,10 @@ func envelope(t *testing.T, id, event string, objects ...string) []byte {
 	}
 
 	body, err := json.Marshal(WebhookEvent{
-		ID:    id,
-		Event: event,
-		Data:  mustMarshalRaw(t, map[string]any{"old": oldItems, "new": newItems}),
+		ID:        id,
+		Event:     event,
+		Timestamp: "2026-08-26T01:02:03.123456Z",
+		Data:      mustMarshalRaw(t, map[string]any{"old": oldItems, "new": newItems}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -161,6 +162,9 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	}
 	if msg.EventType != "student.updated" || msg.StudentRole != "STUDENT_COUNCIL" || msg.DataGSMRefID != 1 {
 		t.Errorf("unexpected sync message: %+v", msg)
+	}
+	if msg.OccurredAt != "2026-08-26T01:02:03.123456Z" {
+		t.Errorf("occurred_at = %q", msg.OccurredAt)
 	}
 	if msg.StudentNumber == nil || *msg.StudentNumber != 2105 || msg.GithubID == nil || *msg.GithubID != "hong" {
 		t.Errorf("student fields not mapped: %+v", msg)
@@ -225,9 +229,10 @@ func TestProcessEvent_MissingStudentID(t *testing.T) {
 	svc := newTestService(pub, &fakeStore{})
 
 	body, err := json.Marshal(WebhookEvent{
-		ID:    "evt_4",
-		Event: "student.updated",
-		Data:  json.RawMessage(`{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT"}}]}`),
+		ID:        "evt_4",
+		Event:     "student.updated",
+		Timestamp: "2026-08-26T01:02:03Z",
+		Data:      json.RawMessage(`{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT"}}]}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -254,6 +259,30 @@ func TestProcessEvent_InvalidEnvelopeIsPayloadError(t *testing.T) {
 	}
 	if pub.calls != 0 {
 		t.Errorf("should not publish on invalid envelope, got %d calls", pub.calls)
+	}
+}
+
+func TestProcessEvent_RequiresRFC3339Timestamp(t *testing.T) {
+	pub := &fakePublisher{}
+	svc := newTestService(pub, &fakeStore{})
+	body := envelope(t, "evt_bad_time", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
+
+	var event map[string]any
+	if err := json.Unmarshal(body, &event); err != nil {
+		t.Fatal(err)
+	}
+	event["timestamp"] = "not-a-timestamp"
+	body, err := json.Marshal(event)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = svc.ProcessEvent(context.Background(), body)
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("invalid timestamp should be ErrInvalidPayload, got %v", err)
+	}
+	if pub.calls != 0 {
+		t.Fatalf("invalid timestamp must not publish, got %d calls", pub.calls)
 	}
 }
 

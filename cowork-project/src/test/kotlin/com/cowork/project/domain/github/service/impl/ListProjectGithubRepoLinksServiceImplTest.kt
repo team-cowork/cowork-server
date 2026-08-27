@@ -24,7 +24,7 @@ class ListProjectGithubRepoLinksServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
 
     private val service = ListProjectGithubRepoLinksServiceImpl(projectGithubRepoRepository, projectAccessGuard)
 
@@ -39,7 +39,12 @@ class ListProjectGithubRepoLinksServiceImplTest {
             TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER")
         every { projectGithubRepoRepository.findAllByProjectId(1L) } returns
             listOf(
-                ProjectGithubRepo(id = 1L, projectId = 1L, teamId = 100L, githubRepoUrl = "https://github.com/my-org/my-repo"),
+                ProjectGithubRepo(
+                    id = 1L,
+                    projectId = 1L,
+                    teamId = 100L,
+                    githubRepoUrl = "https://github.com/my-org/my-repo",
+                ),
             )
 
         val result = service.execute(7L, 1L)
