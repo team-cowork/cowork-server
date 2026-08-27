@@ -58,15 +58,6 @@ springdoc:
   swagger-ui:
     path: /swagger-ui.html
 
-resilience4j:
-  circuitbreaker:
-    instances:
-      cowork-team:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
-
 sdk:
   logging:
     enabled: true
