@@ -1,6 +1,6 @@
 [
   {
-    "targets": ["host.docker.internal:8761"],
+    "targets": ["cowork-config:8761"],
     "labels": {
       "service": "config",
       "__metrics_path__": "/actuator/prometheus"
