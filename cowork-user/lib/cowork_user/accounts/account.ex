@@ -16,6 +16,8 @@ defmodule CoworkUser.Accounts.Account do
     field(:student_number, :string)
     field(:datagsm_student_id, :integer)
     field(:datagsm_updated_at, :utc_datetime_usec)
+    field(:profile_event_version, :integer, default: 0)
+    field(:profile_event_occurred_at, :utc_datetime_usec)
     field(:major, :string)
     field(:specialty, :string)
     field(:status, :string)
@@ -43,6 +45,7 @@ defmodule CoworkUser.Accounts.Account do
       :student_role,
       :student_number,
       :datagsm_student_id,
+      :datagsm_updated_at,
       :major,
       :specialty,
       :status,
@@ -54,6 +57,9 @@ defmodule CoworkUser.Accounts.Account do
       :last_modified_by
     ])
     |> validate_required([:id, :name, :email, :sex, :status])
+    |> unique_constraint(:email, name: :uq_tb_accounts_email)
+    |> unique_constraint(:github, name: :uq_tb_accounts_github)
+    |> unique_constraint(:datagsm_student_id, name: :uq_tb_accounts_datagsm_student_id)
     |> validate_status_text_lengths()
   end
 
@@ -61,6 +67,7 @@ defmodule CoworkUser.Accounts.Account do
     account
     |> cast(attrs, [:name, :github, :last_modified_by])
     |> validate_required([:name])
+    |> unique_constraint(:github, name: :uq_tb_accounts_github)
   end
 
   def custom_status_changeset(account, attrs) do
@@ -99,6 +106,8 @@ defmodule CoworkUser.Accounts.Account do
       :last_modified_by
     ])
     |> validate_required([:student_role])
+    |> unique_constraint(:email, name: :uq_tb_accounts_email)
+    |> unique_constraint(:github, name: :uq_tb_accounts_github)
   end
 
   defp validate_status_text_lengths(changeset) do
