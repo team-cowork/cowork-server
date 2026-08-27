@@ -34,28 +34,50 @@ defmodule CoworkUser.Kafka.ProjectionBarrier do
   def parse(_payload, _record_key, _expected_topic, _expected_partition, _expected_source),
     do: :not_barrier
 
-  def observe(consumer_group, topic, partition, marker_offset, marker) do
+  def observe(replay_lease, marker_offset, marker) when is_map(replay_lease) do
     case Ecto.Adapters.SQL.query(
            Repo,
            """
            INSERT INTO tb_kafka_projection_barriers
-               (consumer_group, topic_name, partition_id, marker_offset, snapshot_id, source_service, occurred_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+               (consumer_group, topic_name, partition_id, marker_offset,
+                replay_generation, replay_token, snapshot_id, source_service, occurred_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE
-               snapshot_id = IF(VALUES(marker_offset) >= marker_offset, VALUES(snapshot_id), snapshot_id),
+               snapshot_id = IF(
+                   VALUES(replay_generation) = replay_generation
+                   AND VALUES(replay_token) = replay_token
+                   AND VALUES(marker_offset) >= marker_offset,
+                   VALUES(snapshot_id),
+                   snapshot_id
+               ),
                source_service = IF(
-                   VALUES(marker_offset) >= marker_offset,
+                   VALUES(replay_generation) = replay_generation
+                   AND VALUES(replay_token) = replay_token
+                   AND VALUES(marker_offset) >= marker_offset,
                    VALUES(source_service),
                    source_service
                ),
-               occurred_at = IF(VALUES(marker_offset) >= marker_offset, VALUES(occurred_at), occurred_at),
-               marker_offset = GREATEST(marker_offset, VALUES(marker_offset))
+               occurred_at = IF(
+                   VALUES(replay_generation) = replay_generation
+                   AND VALUES(replay_token) = replay_token
+                   AND VALUES(marker_offset) >= marker_offset,
+                   VALUES(occurred_at),
+                   occurred_at
+               ),
+               marker_offset = IF(
+                   VALUES(replay_generation) = replay_generation
+                   AND VALUES(replay_token) = replay_token,
+                   GREATEST(marker_offset, VALUES(marker_offset)),
+                   marker_offset
+               )
            """,
            [
-             consumer_group,
-             topic,
-             partition,
+             replay_lease.consumer_group,
+             replay_lease.topic,
+             replay_lease.partition,
              marker_offset,
+             replay_lease.generation,
+             replay_lease.token,
              marker.snapshot_id,
              marker.source,
              DateTime.to_naive(marker.occurred_at)
@@ -66,30 +88,50 @@ defmodule CoworkUser.Kafka.ProjectionBarrier do
     end
   end
 
-  def offsets(consumer_groups_and_topics) when is_list(consumer_groups_and_topics) do
-    Enum.reduce_while(consumer_groups_and_topics, {:ok, %{}}, fn {consumer_group, topic},
-                                                                 {:ok, offsets} ->
-      case Ecto.Adapters.SQL.query(
-             Repo,
-             """
-             SELECT partition_id, marker_offset
-             FROM tb_kafka_projection_barriers
-             WHERE consumer_group = ? AND topic_name = ?
-             """,
-             [consumer_group, topic]
-           ) do
-        {:ok, %{rows: rows}} ->
-          topic_offsets =
-            Map.new(rows, fn [partition, marker_offset] ->
-              {{consumer_group, topic, partition}, marker_offset}
-            end)
+  def states(consumer_groups_and_topics) when is_list(consumer_groups_and_topics) do
+    Enum.reduce_while(Enum.uniq(consumer_groups_and_topics), {:ok, %{}}, fn
+      {consumer_group, topic}, {:ok, states} ->
+        case Ecto.Adapters.SQL.query(
+               Repo,
+               """
+               SELECT partition_id, marker_offset, replay_generation, replay_token,
+                      snapshot_id, source_service, occurred_at
+               FROM tb_kafka_projection_barriers
+               WHERE consumer_group = ? AND topic_name = ?
+               """,
+               [consumer_group, topic]
+             ) do
+          {:ok, %{rows: rows}} ->
+            topic_states =
+              Map.new(rows, fn
+                [partition, marker_offset, generation, token, snapshot_id, source, occurred_at] ->
+                  {{consumer_group, topic, partition},
+                   %{
+                     marker_offset: marker_offset,
+                     replay_generation: generation,
+                     replay_token: token,
+                     snapshot_id: snapshot_id,
+                     source: source,
+                     occurred_at: occurred_at
+                   }}
+              end)
 
-          {:cont, {:ok, Map.merge(offsets, topic_offsets)}}
+            {:cont, {:ok, Map.merge(states, topic_states)}}
 
-        {:error, reason} ->
-          {:halt, {:error, reason}}
-      end
+          {:error, reason} ->
+            {:halt, {:error, reason}}
+        end
     end)
+  end
+
+  def offsets(consumer_groups_and_topics) when is_list(consumer_groups_and_topics) do
+    case states(consumer_groups_and_topics) do
+      {:ok, states} ->
+        {:ok, Map.new(states, fn {key, state} -> {key, state.marker_offset} end)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def markers_satisfied?(barriers, checkpoints, marker_offsets) when map_size(barriers) > 0 do
