@@ -28,7 +28,7 @@ class NotificationRepository(private val pool: Pool) {
             VALUES (${'$'}1, ${'$'}2, ${'$'}3::jsonb)
             ON CONFLICT (account_id, channel_id)
             DO UPDATE SET settings = EXCLUDED.settings
-            RETURNING account_id, channel_id, settings, updated_at
+            RETURNING account_id, channel_id, settings, state_occurred_at
             """.trimIndent(),
         ).execute(Tuple.of(accountId, channelId, settings)).coAwait()
         return rows.first().toChannelNotificationPreference()
@@ -42,7 +42,7 @@ class NotificationRepository(private val pool: Pool) {
     ): List<ChannelNotificationPreference> {
         val rows = client.preparedQuery(
             """
-            SELECT account_id, channel_id, settings, updated_at
+            SELECT account_id, channel_id, settings, state_occurred_at
             FROM account_channel_notification
             WHERE (account_id, channel_id) > (${'$'}1, ${'$'}2)
             ORDER BY account_id, channel_id
@@ -57,6 +57,6 @@ class NotificationRepository(private val pool: Pool) {
         accountId = getLong("account_id"),
         channelId = getLong("channel_id"),
         notification = getJsonObject("settings")?.getBoolean("notification", true) ?: true,
-        updatedAt = getOffsetDateTime("updated_at"),
+        stateOccurredAt = getOffsetDateTime("state_occurred_at"),
     )
 }
