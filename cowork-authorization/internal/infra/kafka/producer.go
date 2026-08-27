@@ -58,6 +58,21 @@ func (p *Producer) PublishTo(ctx context.Context, topic, key string, value []byt
 	})
 }
 
+func (p *Producer) PublishToWithHeaders(
+	ctx context.Context,
+	topic string,
+	key string,
+	value []byte,
+	headers []kafka.Header,
+) error {
+	return p.writer.WriteMessages(ctx, kafka.Message{
+		Topic:   topic,
+		Key:     []byte(key),
+		Value:   value,
+		Headers: headers,
+	})
+}
+
 func (p *Producer) PublishToPartition(
 	ctx context.Context,
 	topic string,

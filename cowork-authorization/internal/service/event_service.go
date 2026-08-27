@@ -22,7 +22,7 @@ const signaturePrefix = "sha256="
 // instead of triggering DataGSM retries with a 5xx.
 var ErrInvalidPayload = errors.New("invalid webhook payload")
 
-// EventPublisher publishes a sync message to the user sync stream.
+// EventPublisher publishes a sync message to the user-owned sync stream.
 type EventPublisher interface {
 	Publish(ctx context.Context, key string, value []byte) error
 }
@@ -64,8 +64,6 @@ type indexedEventObject struct {
 	Object json.RawMessage `json:"object"`
 }
 
-// userSyncMessage is consumed by cowork-user's Kafka SyncHandler.
-// event_type drives a targeted update there (partial role change, not a full upsert).
 type userSyncMessage struct {
 	EventType     string  `json:"event_type"`
 	EventID       string  `json:"event_id"`
@@ -132,7 +130,7 @@ func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool
 }
 
 // ProcessEvent parses the verified webhook body and forwards student.updated
-// changes to the user sync stream. Idempotent on the event id.
+// changes to cowork-user's owner sync stream. It is idempotent on event id.
 func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	var envelope WebhookEvent
 	if err := json.Unmarshal(body, &envelope); err != nil {
@@ -146,8 +144,6 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: timestamp must be RFC3339", ErrInvalidPayload)
 	}
-	// cowork-user persists this ordering token in MySQL DATETIME(6). Normalize at
-	// the producer boundary so replay comparisons use the same precision.
 	envelope.Timestamp = occurredAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 
 	if _, ok := supportedStudentEvents[envelope.Event]; !ok {
@@ -169,21 +165,15 @@ func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
 	if err != nil {
 		return err
 	}
-
-	for _, msg := range messages {
-		payload, err := json.Marshal(msg)
+	for _, message := range messages {
+		payload, err := json.Marshal(message)
 		if err != nil {
-			log.Printf("failed to marshal sync message for %s: %v", envelope.ID, err)
 			return fmt.Errorf("failed to marshal sync message: %w", err)
 		}
-
-		if err := s.publisher.Publish(ctx, strconv.FormatInt(msg.DataGSMRefID, 10), payload); err != nil {
+		if err := s.publisher.Publish(ctx, strconv.FormatInt(message.DataGSMRefID, 10), payload); err != nil {
 			return fmt.Errorf("failed to publish sync message: %w", err)
 		}
 	}
-
-	// 발행이 성공한 뒤에 기록해 메시지 유실을 방지한다(at-least-once).
-	// 기록 실패는 메시지가 이미 발행됐으므로 치명적이지 않다(다음 동일 이벤트 재수신 시 중복 발행, 다운스트림 멱등).
 	if _, err := s.processedRepo.MarkProcessed(envelope.ID, envelope.Event); err != nil {
 		log.Printf("failed to record processed event %s after publish: %v", envelope.ID, err)
 	}
@@ -213,7 +203,7 @@ func (s *EventService) buildUserSyncMessages(envelope WebhookEvent) ([]userSyncM
 			log.Printf("failed to unmarshal student object for %s index %d: %v", envelope.ID, item.Index, err)
 			return nil, fmt.Errorf("%w: failed to parse student object", ErrInvalidPayload)
 		}
-		if student.StudentID == 0 {
+		if student.StudentID <= 0 {
 			return nil, fmt.Errorf("%w: event %s index %d missing student_id", ErrInvalidPayload, envelope.ID, item.Index)
 		}
 		if student.Name == "" || student.Email == "" || student.Sex == "" {

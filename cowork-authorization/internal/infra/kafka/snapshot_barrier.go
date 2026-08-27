@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -14,15 +16,18 @@ import (
 	"github.com/cowork/authorization/internal/domain"
 )
 
+var errSnapshotAlreadyRunning = errors.New("snapshot already running")
+
 const (
 	snapshotBarrierKeyPrefix = "__cowork_projection_snapshot_complete__:"
 	snapshotBarrierEventType = "PROJECTION_SNAPSHOT_COMPLETED"
 	snapshotBarrierSource    = "cowork-authorization"
 	snapshotBarrierInterval  = 5 * time.Minute
 	snapshotBarrierRetry     = 5 * time.Second
+	snapshotLockPrefix       = "cowork-authorization:snapshot:"
 )
 
-type partitionDiscoverer interface {
+type PartitionDiscoverer interface {
 	Partitions(ctx context.Context, topic string) ([]int, error)
 }
 
@@ -47,13 +52,13 @@ type snapshotOutboxRow struct {
 type SnapshotBarrierPublisher struct {
 	db       *sql.DB
 	topic    string
-	metadata partitionDiscoverer
+	metadata PartitionDiscoverer
 }
 
 func NewSnapshotBarrierPublisher(
 	db *sql.DB,
 	topic string,
-	metadata partitionDiscoverer,
+	metadata PartitionDiscoverer,
 ) *SnapshotBarrierPublisher {
 	return &SnapshotBarrierPublisher{db: db, topic: topic, metadata: metadata}
 }
@@ -68,15 +73,36 @@ func (p *SnapshotBarrierPublisher) Run(ctx context.Context) {
 			if ctx.Err() != nil {
 				return
 			}
+			if errors.Is(err, errSnapshotAlreadyRunning) {
+				delay = snapshotFailureDelay(err)
+				continue
+			}
 			log.Printf("failed to enqueue authorization projection snapshot marker: %v", err)
-			delay = snapshotBarrierRetry
+			delay = snapshotFailureDelay(err)
 			continue
 		}
 		delay = snapshotBarrierInterval
 	}
 }
 
+func snapshotFailureDelay(err error) time.Duration {
+	if errors.Is(err, errSnapshotAlreadyRunning) {
+		return snapshotBarrierInterval
+	}
+	return snapshotBarrierRetry
+}
+
 func (p *SnapshotBarrierPublisher) enqueue(ctx context.Context, occurredAt time.Time) error {
+	return withSnapshotSessionLock(ctx, p.db, p.topic, func(conn *sql.Conn) error {
+		return p.enqueueLocked(ctx, conn, occurredAt)
+	})
+}
+
+func (p *SnapshotBarrierPublisher) enqueueLocked(
+	ctx context.Context,
+	conn *sql.Conn,
+	occurredAt time.Time,
+) error {
 	partitions, err := p.metadata.Partitions(ctx, p.topic)
 	if err != nil {
 		return fmt.Errorf("load topic partitions: %w", err)
@@ -90,7 +116,7 @@ func (p *SnapshotBarrierPublisher) enqueue(ctx context.Context, occurredAt time.
 		return fmt.Errorf("create snapshot id: %w", err)
 	}
 
-	tx, err := p.db.BeginTx(ctx, nil)
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
@@ -126,6 +152,63 @@ func (p *SnapshotBarrierPublisher) enqueue(ctx context.Context, occurredAt time.
 		}
 	}
 	return tx.Commit()
+}
+
+// withSnapshotSessionLock serializes one topic's complete snapshot across
+// replicas, including the zero-row case where SELECT ... FOR UPDATE has no row
+// to lock. The transaction must use this same connection because MySQL named
+// locks are owned by the database session, not by the transaction.
+func withSnapshotSessionLock(
+	ctx context.Context,
+	db *sql.DB,
+	topic string,
+	run func(*sql.Conn) error,
+) (runErr error) {
+	lockName := snapshotLockPrefix + topic
+	if len(lockName) > 64 {
+		return fmt.Errorf("snapshot lock name exceeds MySQL limit: %q", lockName)
+	}
+
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire snapshot lock connection: %w", err)
+	}
+	defer func() { _ = conn.Close() }()
+
+	var acquired int
+	if err := conn.QueryRowContext(ctx, "SELECT GET_LOCK(?, 0)", lockName).Scan(&acquired); err != nil {
+		return fmt.Errorf("acquire snapshot lock: %w", err)
+	}
+	if acquired != 1 {
+		return fmt.Errorf("%w for topic %s", errSnapshotAlreadyRunning, topic)
+	}
+
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		var released sql.NullInt64
+		releaseErr := conn.QueryRowContext(
+			releaseCtx,
+			"SELECT RELEASE_LOCK(?)",
+			lockName,
+		).Scan(&released)
+		var lockErr error
+		switch {
+		case releaseErr != nil:
+			lockErr = fmt.Errorf("release snapshot lock: %w", releaseErr)
+		case !released.Valid || released.Int64 != 1:
+			lockErr = fmt.Errorf("snapshot lock was not owned at release: %s", topic)
+		}
+		if lockErr != nil {
+			// A failed RELEASE_LOCK must not return this physical MySQL session to
+			// the pool, where a reentrant GET_LOCK could hide a leaked lock count.
+			_ = conn.Raw(func(_ any) error { return driver.ErrBadConn })
+			runErr = errors.Join(runErr, lockErr)
+		}
+	}()
+
+	return run(conn)
 }
 
 func normalizeSnapshotPartitions(partitions []int) ([]int, error) {
