@@ -13,6 +13,7 @@ import { HealthController } from './health.controller';
 import { AuthGuard } from './common/guard/auth.guard';
 import { HttpLoggingInterceptor } from './common/interceptor/http-logging.interceptor';
 import { getOptionalConfig, getRequiredConfig } from './common/config/config.util';
+import { ProjectionReadinessModule } from './common/kafka/projection-readiness.module';
 
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
@@ -31,6 +32,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                 directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
             }),
         }),
+        ProjectionReadinessModule,
         LoggerModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => {

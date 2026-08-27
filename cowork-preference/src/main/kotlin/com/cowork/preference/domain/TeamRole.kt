@@ -18,4 +18,5 @@ data class AccountTeamRole(
     val accountId: Long,
     val teamId: Long,
     val roleId: Long,
+    val updatedAt: OffsetDateTime? = null,
 )

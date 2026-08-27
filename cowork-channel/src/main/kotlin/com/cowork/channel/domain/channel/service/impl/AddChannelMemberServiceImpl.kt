@@ -9,7 +9,6 @@ import com.cowork.channel.domain.channel.service.AddChannelMemberService
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -46,9 +45,7 @@ class AddChannelMemberServiceImpl(
         val member = channelMemberRepository.save(
             ChannelMember(channelId = channelId, userId = request.userId),
         )
-        afterCommit {
-            channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
-        }
+        channelMemberEventPublisher.publishJoin(channel.id, channel.teamId, request.userId, channel.type.name)
         return ChannelMemberResponse.of(member)
     }
 }

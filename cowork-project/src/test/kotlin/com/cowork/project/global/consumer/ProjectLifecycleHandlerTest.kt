@@ -1,7 +1,9 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.projectMember.entity.ProjectMember
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
@@ -12,25 +14,32 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.springframework.transaction.support.TransactionSynchronizationManager
+import java.time.Instant
 
 class ProjectLifecycleHandlerTest {
+
+    private val occurredAt = Instant.parse("2026-08-26T03:00:00Z")
 
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>(relaxed = true)
     private val projectMemberEventPublisher = mockk<ProjectMemberEventPublisher>(relaxed = true)
+    private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
 
     private val handler = ProjectLifecycleHandler(
         projectRepository,
         projectMemberRepository,
         teamMembershipRepository,
         projectMemberEventPublisher,
+        projectEventPublisher,
     )
 
     init {
         TransactionSynchronizationManager.clear()
+        every { teamMembershipRepository.save(any()) } answers { firstArg() }
     }
 
     private fun project(id: Long, teamId: Long) =
@@ -46,18 +55,20 @@ class ProjectLifecycleHandlerTest {
             ProjectMember(projectId = 2L, userId = 8L, role = ProjectMemberRole.EDITOR),
         )
 
-        handler.onTeamDeleted(100L)
+        handler.onTeamDeleted(100L, occurredAt)
 
         verify(exactly = 1) { projectRepository.deleteAll(projects) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 8L) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 8L, any(), false) }
+        verify(exactly = 1) { projectEventPublisher.publishDeleted(projects[0], any()) }
+        verify(exactly = 1) { projectEventPublisher.publishDeleted(projects[1], any()) }
     }
 
     @Test
     fun `onTeamDeleted는 대상 없으면 no-op`() {
         every { projectRepository.findAllByTeamId(100L) } returns emptyList()
 
-        handler.onTeamDeleted(100L)
+        handler.onTeamDeleted(100L, occurredAt)
 
         verify(exactly = 0) { projectRepository.deleteAll(any<List<Project>>()) }
     }
@@ -76,15 +87,20 @@ class ProjectLifecycleHandlerTest {
             ProjectMember(projectId = 2L, userId = 7L, role = ProjectMemberRole.OWNER),
             ProjectMember(projectId = 2L, userId = 9L, role = ProjectMemberRole.EDITOR),
         )
+        every { projectRepository.findAllById(listOf(2L)) } returns listOf(project(2L, 100L))
+        val membership = TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER")
+        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
 
-        handler.onMemberRemovedFromTeam(100L, 7L)
+        handler.onMemberRemovedFromTeam(100L, 7L, "MEMBER", occurredAt)
 
+        verify(exactly = 1) { teamMembershipRepository.save(membership) }
         verify(exactly = 1) { projectRepository.deleteAllById(listOf(2L)) }
         verify(exactly = 1) { projectMemberRepository.deleteAllByUserIdAndProjectIdIn(7L, listOf(1L, 3L)) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 7L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 9L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(3L, 7L) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 7L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(2L, 9L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(1L, 7L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(3L, 7L, any(), false) }
+        verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 2L }, any()) }
     }
 
     @Test
@@ -101,14 +117,57 @@ class ProjectLifecycleHandlerTest {
             ProjectMember(projectId = 11L, userId = 50L, role = ProjectMemberRole.OWNER),
             ProjectMember(projectId = 10L, userId = 60L, role = ProjectMemberRole.VIEWER),
         )
+        every { projectRepository.findAllById(listOf(10L, 11L)) } returns listOf(
+            project(10L, 100L),
+            project(11L, 100L),
+        )
 
-        handler.onUserDeleted(50L)
+        val deletedAt = Instant.parse("2026-08-26T03:00:00.123456999Z")
+        handler.onUserDeleted(50L, deletedAt)
 
         verify(exactly = 1) { projectRepository.deleteAllById(listOf(10L, 11L)) }
         verify(exactly = 1) { projectMemberRepository.deleteAllByUserId(50L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 50L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(11L, 50L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 60L) }
-        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(12L, 50L) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 50L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(11L, 50L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(10L, 60L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishRemoved(12L, 50L, any(), false) }
+        val normalized = Instant.parse("2026-08-26T03:00:00.123456Z")
+        verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 10L }, normalized) }
+        verify(exactly = 1) { projectEventPublisher.publishDeleted(match { it.id == 11L }, normalized) }
+    }
+
+    @Test
+    fun `stale upsert는 최신 delete tombstone을 되살리지 않는다`() {
+        val membership = TeamMembership(
+            teamId = 100L,
+            userId = 7L,
+            role = "MEMBER",
+            active = false,
+            sourceOccurredAt = occurredAt,
+        )
+        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
+
+        handler.onMemberUpsert(100L, 7L, "ADMIN", occurredAt.minusSeconds(1))
+
+        verify(exactly = 0) { teamMembershipRepository.save(any()) }
+    }
+
+    @Test
+    fun `같은 DB microsecond의 upsert는 delete tombstone을 되살리지 않는다`() {
+        val deletedAt = Instant.parse("2026-08-26T03:00:00.123456Z")
+        val membership = TeamMembership(
+            teamId = 100L,
+            userId = 7L,
+            role = "MEMBER",
+            active = false,
+            sourceOccurredAt = deletedAt,
+        )
+        every { teamMembershipRepository.findStateByTeamIdAndUserId(100L, 7L) } returns membership
+
+        handler.onMemberUpsert(100L, 7L, "ADMIN", Instant.parse("2026-08-26T03:00:00.123456999Z"))
+
+        verify(exactly = 0) { teamMembershipRepository.save(any()) }
+        assertEquals(false, membership.active)
+        assertEquals(deletedAt, membership.sourceOccurredAt)
     }
 }

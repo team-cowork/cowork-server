@@ -24,7 +24,7 @@ class UpdateProjectMemberRoleServiceImplTest {
     private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
     private val projectMemberLookupSupport = ProjectMemberLookupSupport(projectMemberRepository)
 
     private val service = UpdateProjectMemberRoleServiceImpl(projectAccessGuard, projectMemberLookupSupport)
