@@ -4,7 +4,7 @@ MONGODB_DB: cowork_voice
 REDIS_ADDR: redis:6379
 REDIS_DB: 0
 LIVEKIT_URL: http://cowork-livekit:7880
-LIVEKIT_WS_URL: ws://cowork-livekit:7880
+LIVEKIT_WS_URL: ws://localhost:7880
 LIVEKIT_TOKEN_TTL_SECS: 3600
 KAFKA_BROKERS: kafka:9092
 KAFKA_TOPIC_VOICE_EVENT: voice.event
