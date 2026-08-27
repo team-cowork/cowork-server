@@ -1,61 +1,75 @@
-import { ProjectionCheckpointRepository } from './projection-checkpoint.repository';
+import {
+    ProjectionAssignmentLease,
+    ProjectionCheckpointFenceError,
+    ProjectionCheckpointRepository,
+} from './projection-checkpoint.repository';
 
 describe('ProjectionCheckpointRepository', () => {
+    const lease: ProjectionAssignmentLease = {
+        assignmentEpoch: 'epoch-1',
+        memberId: 'member-1',
+        groupGenerationId: 7,
+    };
+
     it('nextOffset을 BSON Long으로 캐스팅 가능한 bigint $max로 단조 증가시킨다', async () => {
-        const updateOne = jest.fn().mockResolvedValue({ acknowledged: true });
+        const updateOne = jest.fn().mockResolvedValue({ matchedCount: 1 });
         const repository = new ProjectionCheckpointRepository({ updateOne } as never, {} as never);
 
-        await repository.advance('group', 'channel.event', 2, '9007199254740994');
+        await repository.advance('group', 'channel.event', 2, lease, '9007199254740994');
 
         expect(updateOne).toHaveBeenCalledWith(
-            { groupId: 'group', topic: 'channel.event', partition: 2 },
-            {
-                $setOnInsert: { groupId: 'group', topic: 'channel.event', partition: 2 },
-                $max: { nextOffset: 9007199254740994n },
-            },
-            { upsert: true },
+            expect.objectContaining({
+                groupId: 'group',
+                topic: 'channel.event',
+                partition: 2,
+                assignmentEpoch: 'epoch-1',
+                assignmentMemberId: 'member-1',
+                assignmentGenerationId: 7,
+            }),
+            { $max: { nextOffset: 9007199254740994n } },
         );
     });
 
-    it('rebalance 중 최초 upsert가 충돌하면 기존 checkpoint에 $max를 재시도한다', async () => {
-        const updateOne = jest.fn()
-            .mockRejectedValueOnce({ code: 11000 })
-            .mockResolvedValueOnce({ acknowledged: true });
+    it('현재 assignment fence와 일치하지 않으면 checkpoint를 갱신하지 않는다', async () => {
+        const updateOne = jest.fn().mockResolvedValue({ matchedCount: 0 });
         const repository = new ProjectionCheckpointRepository({ updateOne } as never, {} as never);
 
-        await expect(repository.advance('group', 'channel.event', 0, '11')).resolves.toBeUndefined();
+        await expect(repository.advance('group', 'channel.event', 0, lease, '11'))
+            .rejects.toBeInstanceOf(ProjectionCheckpointFenceError);
 
-        expect(updateOne).toHaveBeenNthCalledWith(
-            2,
-            { groupId: 'group', topic: 'channel.event', partition: 0 },
-            { $max: { nextOffset: 11n } },
-        );
+        expect(updateOne).toHaveBeenCalledTimes(1);
     });
 
     it('snapshot marker receipt와 next offset을 한 Mongo update로 저장한다', async () => {
-        const updateOne = jest.fn().mockResolvedValue({ acknowledged: true });
-        const repository = new ProjectionCheckpointRepository({ updateOne } as never, {} as never);
+        const updateOne = jest.fn().mockResolvedValue({ matchedCount: 1 });
+        const lean = jest.fn().mockResolvedValue({});
+        const findOne = jest.fn().mockReturnValue({ lean });
+        const repository = new ProjectionCheckpointRepository({ updateOne, findOne } as never, {} as never);
         const occurredAt = new Date('2026-08-26T11:00:00Z');
 
-        await repository.advance('group', 'channel.event', 2, '8', {
+        await repository.advance('group', 'channel.event', 2, lease, '8', {
             offset: '7',
             snapshotId: '93b19168-4a63-49cd-b01d-b8d0667a1cb5',
             source: 'cowork-channel',
             occurredAt,
         });
+        const expectedSnapshotFields: unknown = expect.objectContaining({
+            snapshotId: '93b19168-4a63-49cd-b01d-b8d0667a1cb5',
+            snapshotSource: 'cowork-channel',
+            snapshotOccurredAt: occurredAt,
+        });
 
         expect(updateOne).toHaveBeenCalledWith(
-            { groupId: 'group', topic: 'channel.event', partition: 2 },
-            {
-                $setOnInsert: { groupId: 'group', topic: 'channel.event', partition: 2 },
+            expect.objectContaining({
+                groupId: 'group',
+                topic: 'channel.event',
+                partition: 2,
+                assignmentEpoch: 'epoch-1',
+            }),
+            expect.objectContaining({
                 $max: { nextOffset: 8n, snapshotCompletedOffset: 7n },
-                $set: {
-                    snapshotId: '93b19168-4a63-49cd-b01d-b8d0667a1cb5',
-                    snapshotSource: 'cowork-channel',
-                    snapshotOccurredAt: occurredAt,
-                },
-            },
-            { upsert: true },
+                $set: expectedSnapshotFields,
+            }),
         );
     });
 
