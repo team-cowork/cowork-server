@@ -2,7 +2,7 @@
 
 - **서비스**: cowork-gateway, cowork-monitoring, Prometheus, Blackbox Exporter, Grafana, Alertmanager
 - **우선순위**: 🟠 중간
-- **파생 원본**: [외부 API 모듈 네임스페이스 통일](../10-api/public-route-namespace-migration.md)
+- **파생 원본**: 외부 API 모듈 네임스페이스 통일 (완료·문서 제거)
 - **선행 작업**: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./metrics-collection-recovery-and-health-dashboard-removal.md)
 - **현재 상태**: 내부 health·metrics 수집 구성이 존재하지만 실제 메트릭 수집 장애를 분석 중이며, canonical Gateway API의 end-to-end 도달성도 별도로 감시하지 않음
 
