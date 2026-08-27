@@ -15,7 +15,13 @@ data class DbConfig(
 
 data class RedisConfig(val host: String, val port: Int)
 
-data class KafkaConfig(val bootstrapServers: String, val consumerGroupId: String, val teamMemberTopic: String)
+data class KafkaConfig(
+    val bootstrapServers: String,
+    val teamMemberConsumerGroupId: String,
+    val teamMemberTopic: String,
+    val teamRoleCommandConsumerGroupId: String,
+    val githubRepoSettingCommandConsumerGroupId: String,
+)
 
 data class AppConfig(
     val serverPort: Int,
@@ -73,8 +79,19 @@ data class AppConfig(
                 ),
                 kafka = KafkaConfig(
                     bootstrapServers = kafka.getString("bootstrap-servers", "localhost:9092"),
-                    consumerGroupId = kafka.getString("consumer-group-id", "cowork-preference-team-member-projection"),
+                    teamMemberConsumerGroupId = kafka.getString(
+                        "team-member-consumer-group-id",
+                        "cowork-preference-team-member-projection",
+                    ),
                     teamMemberTopic = kafka.getString("team-member-topic", "team.member.event"),
+                    teamRoleCommandConsumerGroupId = kafka.getString(
+                        "team-role-command-consumer-group-id",
+                        "cowork-preference-team-role-command",
+                    ),
+                    githubRepoSettingCommandConsumerGroupId = kafka.getString(
+                        "github-repo-setting-command-consumer-group-id",
+                        "cowork-preference-github-repo-setting-command",
+                    ),
                 ),
                 eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
                 eurekaEnabled = eureka.getBoolean("enabled", true),

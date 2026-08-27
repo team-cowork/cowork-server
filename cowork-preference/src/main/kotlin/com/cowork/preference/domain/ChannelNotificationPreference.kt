@@ -6,5 +6,5 @@ data class ChannelNotificationPreference(
     val accountId: Long,
     val channelId: Long,
     val notification: Boolean,
-    val updatedAt: OffsetDateTime,
+    val stateOccurredAt: OffsetDateTime,
 )
