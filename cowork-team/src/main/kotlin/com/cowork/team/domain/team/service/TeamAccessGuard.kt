@@ -19,6 +19,9 @@ class TeamAccessGuard(
         ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
+    fun findTeamForUpdateOrThrow(teamId: Long): Team = teamRepository.findByIdForUpdate(teamId)
+        ?: throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+
     fun requireMemberExists(teamId: Long, userId: Long) {
         if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
             throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
