@@ -41,8 +41,8 @@ Language and framework details live in each module's build file — read that, n
 
 ## Inter-service Communication
 
-- Use Kafka-backed local projections for service-to-service reads whenever eventual consistency is acceptable; reserve synchronous HTTP for commands that require an immediate result or validation error.
-- Follow the scoped Kafka projection rules in `.claude/rules/kafka-projections.md` when changing clients, events, consumers, outboxes, or readiness behavior.
+- Keep each state mutation with its domain owner; a public API's location does not transfer ownership. Preserve cross-service consistency through a transactional outbox and idempotent Kafka projection.
+- An immediate result, generated ID, or validation error alone does not justify internal HTTP; document the rare request-scoped exception. Only explicitly exempted GitHub App APIs are on hold.
 
 ## Database Conventions
 
@@ -63,4 +63,4 @@ Shared config is served by `cowork-config`, which is both the Config Server and 
 
 ---
 
-File-type-scoped rules (SQL migrations, Spring config, JVM sources) live in `.claude/rules/`. Kotlin/Java code style lives in `.gemini/styleguide.md`.
+Kotlin/Java code style lives in `.gemini/styleguide.md`.
