@@ -38,7 +38,7 @@ class ReorderTeamProjectsServiceImplTest {
         val first = project(id = 1L, position = 0)
         val second = project(id = 2L, position = 1)
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
-        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
+        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, second)
 
         val result = service.execute(7L, 100L, listOf(2L, 1L))
 
@@ -52,7 +52,7 @@ class ReorderTeamProjectsServiceImplTest {
     @Test
     fun `reorderTeamProjects는 팀 프로젝트 ID 누락 시 BAD_REQUEST`() {
         every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
-        every { projectRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns
+        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
             listOf(project(id = 1L), project(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {
