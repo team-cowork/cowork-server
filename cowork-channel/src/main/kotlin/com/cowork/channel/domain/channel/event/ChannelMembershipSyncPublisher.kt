@@ -7,20 +7,12 @@ import java.time.Instant
 
 @Component
 class ChannelMembershipSyncPublisher(private val channelMemberEventPublisher: ChannelMemberEventPublisher) {
-    fun publishChannelSnapshot(
-        channel: Channel,
-        members: List<ChannelMember>,
-        occurredAt: Instant = Instant.now(),
-        snapshot: Boolean = false,
-    ) {
+    fun publishChannelSnapshot(channel: Channel, members: List<ChannelMember>, requestedAt: Instant = Instant.now()) {
         members.forEach { member ->
             channelMemberEventPublisher.publishJoin(
                 channelId = channel.id,
-                teamId = channel.teamId,
                 userId = member.userId,
-                channelType = channel.type.name,
-                occurredAt = occurredAt,
-                snapshot = snapshot,
+                requestedAt = requestedAt,
             )
         }
     }
