@@ -33,7 +33,3 @@ projection:
 
 github-app:
   service-url: ${GITHUB_APP_SERVICE_URL}
-
-# cowork-team과 동일한 값이 배포돼야 서로 발급한 state를 검증할 수 있다.
-team-github:
-  state-secret: ${TEAM_GITHUB_STATE_SECRET}
