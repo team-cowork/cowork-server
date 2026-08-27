@@ -13,6 +13,7 @@ class ApiResponseWrapperFilterTest :
     DescribeSpec({
         describe("ApiResponseWrapperFilter는") {
             it("GraphQL 표준 응답 envelope를 변경하지 않는다") {
+                // Given
                 val objectMapper = ObjectMapper()
                 val filter = ApiResponseWrapperFilter(objectMapper)
                 val body = """{"data":{"unifiedSearch":{"messages":[]}}}"""
@@ -26,12 +27,15 @@ class ApiResponseWrapperFilterTest :
                     )
                 }
 
+                // When
                 filter.filter(exchange, chain).block()
 
+                // Then
                 exchange.response.bodyAsString.block() shouldBe body
             }
 
             it("AsyncAPI 문서를 공통 API 응답으로 감싸지 않는다") {
+                // Given
                 val objectMapper = ObjectMapper()
                 val filter = ApiResponseWrapperFilter(objectMapper)
                 val body = """{"asyncapi":"3.0.0","info":{"title":"Cowork Chat Events"}}"""
@@ -45,8 +49,10 @@ class ApiResponseWrapperFilterTest :
                     )
                 }
 
+                // When
                 filter.filter(exchange, chain).block()
 
+                // Then
                 exchange.response.bodyAsString.block() shouldBe body
             }
         }
