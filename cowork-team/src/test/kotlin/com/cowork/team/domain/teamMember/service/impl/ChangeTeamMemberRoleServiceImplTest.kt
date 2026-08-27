@@ -1,8 +1,6 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamEventPayload
-import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
@@ -10,37 +8,31 @@ import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleReq
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
-import io.mockk.Runs
 import io.mockk.every
-import io.mockk.just
 import io.mockk.mockk
-import io.mockk.slot
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class ChangeTeamMemberRoleServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
     private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
     private val teamMemberAccessGuard = TeamMemberAccessGuard(teamRepository, teamMemberRepository)
 
     private val service =
         ChangeTeamMemberRoleServiceImpl(
             teamMemberRepository,
-            teamEventPublisher,
             teamMemberEventPublisher,
             teamMemberAccessGuard,
         )
 
     @Test
-    fun `changeRole은 OWNER 통과 시 ROLE_CHANGED 이벤트를 newRole 포함하여 lifecycle 토픽으로 발행`() {
+    fun `changeRole은 OWNER 통과 시 잠긴 member의 full state를 발행`() {
         val teamId = 5L
         val actorId = 1L
         val targetUserId = 7L
@@ -48,20 +40,14 @@ class ChangeTeamMemberRoleServiceImplTest {
 
         every { teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, actorId, listOf(TeamRole.OWNER)) } returns
             TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
-        every { teamRepository.findById(teamId) } returns Optional.of(team)
+        every { teamRepository.findByIdForUpdate(teamId) } returns team
         val targetMember = TeamMember(team = team, userId = targetUserId, role = TeamRole.MEMBER)
-        every { teamMemberRepository.findByTeamIdAndUserId(teamId, targetUserId) } returns targetMember
-
-        val captured = slot<TeamEventPayload>()
-        every { teamEventPublisher.publishLifecycle(capture(captured)) } just Runs
+        every { teamMemberRepository.findByTeamIdAndUserIdForUpdate(teamId, targetUserId) } returns targetMember
 
         service.execute(actorId, teamId, targetUserId, ChangeRoleRequest(role = TeamRole.ADMIN))
 
-        verify(exactly = 1) { teamEventPublisher.publishLifecycle(any()) }
-        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(targetMember, any(), false) }
-        assertEquals("ROLE_CHANGED", captured.captured.eventType)
-        assertEquals(listOf(targetUserId), captured.captured.targetUserIds)
-        assertEquals("ADMIN", captured.captured.newRole)
+        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(targetMember, any()) }
+        assertEquals(TeamRole.ADMIN, targetMember.role)
     }
 
     @Test
@@ -70,6 +56,7 @@ class ChangeTeamMemberRoleServiceImplTest {
         val actorId = 1L
         val team = Team(id = teamId, name = "팀X", description = null, iconUrl = null, ownerId = actorId)
 
+        every { teamRepository.findByIdForUpdate(teamId) } returns team
         every { teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, actorId, listOf(TeamRole.OWNER)) } returns
             TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
 
@@ -77,6 +64,6 @@ class ChangeTeamMemberRoleServiceImplTest {
             service.execute(actorId, teamId, 7L, ChangeRoleRequest(role = TeamRole.OWNER))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        verify(exactly = 0) { teamEventPublisher.publishLifecycle(any()) }
+        verify(exactly = 0) { teamMemberEventPublisher.publishUpsert(any(), any()) }
     }
 }
