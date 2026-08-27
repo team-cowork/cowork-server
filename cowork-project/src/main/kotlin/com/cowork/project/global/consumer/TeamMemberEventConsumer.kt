@@ -26,7 +26,11 @@ class TeamMemberEventConsumer(
     )
     fun consume(record: ConsumerRecord<String, String>) {
         if (processor.processControlRecord(streams.teamMember, record)) return
-        val payload = runCatching { objectMapper.readValue(record.value(), TeamMemberEventPayload::class.java) }
+        val payload = runCatching {
+            requireNotNull(objectMapper.readValue(record.value(), TeamMemberEventPayload::class.java)) {
+                "top-level null은 허용되지 않습니다."
+            }
+        }
             .getOrElse {
                 quarantine(record, "team.member.event JSON 역직렬화 실패: ${it.message}")
                 return

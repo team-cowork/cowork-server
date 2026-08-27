@@ -8,10 +8,7 @@ import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-class PreferenceHandler(
-    private val service: PreferenceService,
-    private val scope: CoroutineScope,
-) {
+class PreferenceHandler(private val service: PreferenceService, private val scope: CoroutineScope) {
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val resourceId = ctx.pathParam("id").toLongOrNull()
@@ -21,12 +18,13 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching { service.getSettings(resourceType, resourceId) }
-                .onSuccess { ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode()) }
+                .onSuccess {
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
+                }
                 .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
         }
     }
 
-    /** ?ids=1,2,3 형태의 콤마 구분 id 목록을 한 번에 조회 (N+1 방지용 벌크 조회) */
     fun getSettingsBulk(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val idsParam = ctx.request().getParam("ids")
         val resourceIds = idsParam?.split(",")?.mapNotNull { it.trim().toLongOrNull() }.orEmpty()
@@ -58,7 +56,9 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             service.updateSettings(resourceType, resourceId, body)
-                .onSuccess { ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode()) }
+                .onSuccess {
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
+                }
                 .onFailure { e ->
                     val status = if (e is IllegalArgumentException) 400 else 500
                     ctx.response().setStatusCode(status).end(errorBody(e.message))
@@ -66,6 +66,5 @@ class PreferenceHandler(
         }
     }
 
-    private fun errorBody(message: String?) =
-        JsonObject().put("error", message ?: "Internal server error").encode()
+    private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()
 }

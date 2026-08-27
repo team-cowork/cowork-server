@@ -1,6 +1,5 @@
 package com.cowork.team.domain.team.service.impl
 
-import com.cowork.team.domain.team.event.TeamEventPayload
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
@@ -22,18 +21,11 @@ class UpdateTeamServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
+        val team = teamAccessGuard.findTeamForUpdateOrThrow(teamId)
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
-        val team = teamAccessGuard.findTeamOrThrow(teamId)
         team.update(request.name, request.description, request.iconUrl)
-        val members = teamMemberRepository.findAllByTeamId(teamId)
-        val payload = TeamEventPayload(
-            eventType = "TEAM_UPDATED",
-            teamId = team.id,
-            teamName = team.name,
-            actorUserId = userId,
-            targetUserIds = members.map { it.userId },
-        )
-        teamEventPublisher.publishLifecycle(payload)
+        val members = teamMemberRepository.findAllByTeamIdForUpdate(teamId)
+        teamEventPublisher.publishUpdated(team, userId)
         members.forEach(teamMemberEventPublisher::publishUpsert)
         return TeamResponse.of(team)
     }

@@ -14,7 +14,6 @@ SERVICE_COMMAND=(
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
    export EUREKA_INSTANCE_HOST="${EUREKA_INSTANCE_HOST:-localhost}"
-   export USER_SERVICE_URL="${USER_SERVICE_URL:-http://localhost:8082}"
    go run ./cmd'
 )
 

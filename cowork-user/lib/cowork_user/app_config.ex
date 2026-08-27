@@ -18,6 +18,9 @@ defmodule CoworkUser.AppConfig do
     :kafka_bootstrap_servers,
     :kafka_topic,
     :kafka_group_id,
+    :kafka_identity_command_topic,
+    :kafka_identity_command_group_id,
+    :kafka_identity_command_result_topic,
     :kafka_team_member_topic,
     :kafka_team_member_group_id,
     :kafka_presence_topic,
@@ -90,8 +93,29 @@ defmodule CoworkUser.AppConfig do
       config_profile: System.get_env("APP_PROFILE", "local"),
       kafka_bootstrap_servers:
         lookup(remote, ["KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"], "localhost:9094"),
-      kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC"], "user.data.sync"),
+      kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC", "kafka_topic"], "user.data.sync"),
       kafka_group_id: lookup(remote, ["KAFKA_GROUP_ID", "kafka_group_id"], "cowork-user"),
+      kafka_identity_command_topic:
+        lookup(
+          remote,
+          ["KAFKA_TOPIC_USER_IDENTITY_COMMAND", "kafka_identity_command_topic"],
+          "user.identity.command"
+        ),
+      kafka_identity_command_group_id:
+        lookup(
+          remote,
+          ["KAFKA_GROUP_ID_USER_IDENTITY_COMMAND", "kafka_identity_command_group_id"],
+          "cowork-user.user-identity-command"
+        ),
+      kafka_identity_command_result_topic:
+        lookup(
+          remote,
+          [
+            "KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT",
+            "kafka_identity_command_result_topic"
+          ],
+          "user.identity.command-result"
+        ),
       kafka_team_member_topic:
         lookup(
           remote,
@@ -125,7 +149,7 @@ defmodule CoworkUser.AppConfig do
           "300000"
         )
         |> String.to_integer(),
-      kafka_enabled: lookup(remote, ["KAFKA_ENABLED"], "true") == "true",
+      kafka_enabled: require_kafka_enabled!(remote),
       s3_region: lookup(remote, ["S3_REGION", "s3_region"], "ap-northeast-2"),
       s3_internal_endpoint:
         lookup(
@@ -226,6 +250,16 @@ defmodule CoworkUser.AppConfig do
     Enum.find_value(keys, default, fn key ->
       System.get_env(key) || Map.get(remote, key)
     end)
+  end
+
+  defp require_kafka_enabled!(remote) do
+    case lookup(remote, ["KAFKA_ENABLED"], "true") do
+      "true" ->
+        true
+
+      _disabled ->
+        raise "KAFKA_ENABLED=false is unsupported because owner commands and projections require Kafka"
+    end
   end
 
   defp eureka_identity(remote, app_name, instance_port) do

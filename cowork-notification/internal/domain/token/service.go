@@ -92,6 +92,9 @@ func (s *Service) Notify(
 		return enabledIDs, nil
 	}
 
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	invalidTokens, err := s.fcm.Send(ctx, allTokens, title, body, nil)
 	if err != nil {
 		return nil, err

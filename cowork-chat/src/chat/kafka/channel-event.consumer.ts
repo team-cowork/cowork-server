@@ -6,6 +6,7 @@ import { DicoshotService } from 'dicoshot-nest';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository/channel-projection.repository';
@@ -139,9 +140,11 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (typeof payload !== 'object' || payload === null) return false;
         const event = payload as Partial<ChannelEvent>;
         if (!['CREATED', 'UPDATED', 'DELETED'].includes(event.eventType ?? '')) return false;
-        if (typeof event.channelId !== 'number') return false;
-        if (event.teamId !== null && typeof event.teamId !== 'number') return false;
-        if (event.projectId !== undefined && event.projectId !== null && typeof event.projectId !== 'number') return false;
+        if (!isSafePositiveInteger(event.channelId)) return false;
+        if (event.teamId !== null && !isSafePositiveInteger(event.teamId)) return false;
+        if (event.projectId !== undefined && event.projectId !== null && !isSafePositiveInteger(event.projectId)) {
+            return false;
+        }
         if (parseEventTime(event.occurredAt) === null) return false;
         if (event.snapshot !== undefined && typeof event.snapshot !== 'boolean') return false;
         if (event.eventType === 'DELETED') return true;

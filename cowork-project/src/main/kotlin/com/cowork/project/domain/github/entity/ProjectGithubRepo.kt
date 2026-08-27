@@ -3,6 +3,7 @@ package com.cowork.project.domain.github.entity
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import java.time.Instant
 import java.time.LocalDateTime
 
 @Entity
@@ -23,6 +24,9 @@ class ProjectGithubRepo(
 
     @Column(name = "github_webhook_channel_id")
     var githubWebhookChannelId: Long? = null,
+
+    @Column(name = "state_occurred_at", nullable = false)
+    var stateOccurredAt: Instant = Instant.now(),
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

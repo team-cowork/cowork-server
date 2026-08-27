@@ -18,7 +18,6 @@ import (
 	"time"
 
 	_ "github.com/cowork/authorization/docs"
-	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -76,9 +75,10 @@ func main() {
 	if err := mysqlinfra.Migrate(context.Background(), db, cfg.DBDSN); err != nil {
 		log.Fatalf("failed to migrate schema: %v", err)
 	}
-
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	processedEventRepo := repository.NewProcessedEventRepository(db)
+	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
 		context.Background(),
 		time.Now().UTC().Truncate(time.Microsecond),
@@ -87,15 +87,26 @@ func main() {
 		log.Fatalf("failed to reconcile expired refresh sessions: %v", err)
 	}
 
-	userClient := client.NewUserClient(cfg.UserServiceURL)
 	tokenSvc := service.NewTokenService(cfg)
-	presenceProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserPresence)
-	authSvc := service.NewAuthService(cfg, userClient, refreshTokenRepo, tokenSvc)
-	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, presenceProducer)
+	identityCoordinator := service.NewUserIdentityCoordinator(
+		identityOperationRepo,
+		cfg.KafkaTopicUserIdentityCommand,
+		cfg.KafkaIdentityCommandTimeout,
+	)
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc)
+	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
 		cfg.KafkaTopicUserPresence,
-		presenceProducer,
+		kafkaProducer,
+	)
+	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
+		cfg.KafkaBootstrapServers,
+		cfg.KafkaTopicUserIdentityCommandResult,
+		cfg.KafkaGroupIDUserIdentityResult,
+		cfg.KafkaTopicUserIdentityResultDLT,
+		identityOperationRepo,
+		kafkaProducer,
 	)
 	outboxCtx, stopOutboxRelay := context.WithCancel(context.Background())
 	outboxDone := make(chan struct{})
@@ -108,9 +119,12 @@ func main() {
 		defer close(snapshotBarrierDone)
 		snapshotBarrierPublisher.Run(outboxCtx)
 	}()
+	identityResultDone := make(chan struct{})
+	go func() {
+		defer close(identityResultDone)
+		identityResultConsumer.Run(outboxCtx)
+	}()
 
-	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
-	defer func() { _ = kafkaProducer.Close() }()
 	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc)
@@ -194,6 +208,9 @@ func main() {
 		log.Fatalf("server forced to shutdown: %v", err)
 	}
 	stopOutboxRelay()
+	if err := identityResultConsumer.Close(); err != nil {
+		log.Printf("failed to close user identity result consumer: %v", err)
+	}
 	select {
 	case <-outboxDone:
 	case <-time.After(5 * time.Second):
@@ -204,8 +221,13 @@ func main() {
 	case <-time.After(5 * time.Second):
 		log.Println("authorization snapshot marker publisher did not stop within 5 seconds")
 	}
-	if err := presenceProducer.Close(); err != nil {
-		log.Printf("failed to close presence producer: %v", err)
+	select {
+	case <-identityResultDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization identity result consumer did not stop within 5 seconds")
+	}
+	if err := kafkaProducer.Close(); err != nil {
+		log.Printf("failed to close Kafka producer: %v", err)
 	}
 	log.Println("server exited")
 }

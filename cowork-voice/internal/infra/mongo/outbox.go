@@ -3,88 +3,247 @@ package mongo
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"sort"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	"github.com/cowork/cowork-voice/internal/apperr"
+	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
+	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 )
 
-const CollectionOutbox = "voice_outbox"
+const outboxField = "outbox"
 
-// OutboxMessage는 transactional outbox 패턴의 메시지다.
-// 도메인 서비스는 진실의 원천(Mongo)에 이벤트를 먼저 적재하고, relay가 Kafka로 전송한다.
+// OutboxMessage is embedded in the authoritative document changed by the same
+// update. Source and OwnerID are relay-only routing metadata populated while
+// reading and are not persisted inside the embedded event.
 type OutboxMessage struct {
-	ID        bson.ObjectID `bson:"_id,omitempty"`
+	ID        bson.ObjectID `bson:"_id"`
 	Key       string        `bson:"key"`
 	Payload   []byte        `bson:"payload"`
 	CreatedAt time.Time     `bson:"created_at"`
 	SentAt    *time.Time    `bson:"sent_at,omitempty"`
-	// FailedAt이 설정되면 재시도 한도를 초과해 격리된(전송 포기) 메시지로, FetchUnsent에서 제외된다.
-	// 큐 진행을 막지 않으면서 운영자가 사후 조회·재처리할 수 있도록 삭제하지 않고 보존한다.
-	FailedAt *time.Time `bson:"failed_at,omitempty"`
-	Attempts int        `bson:"attempts"`
+	FailedAt  *time.Time    `bson:"failed_at,omitempty"`
+	Attempts  int           `bson:"attempts"`
+	Source    string        `bson:"-"`
+	OwnerID   bson.ObjectID `bson:"-"`
 }
 
 type OutboxRepository struct {
-	col *mongo.Collection
+	db *mongo.Database
 }
 
 func NewOutboxRepository(db *mongo.Database) *OutboxRepository {
-	return &OutboxRepository{col: db.Collection(CollectionOutbox)}
+	return &OutboxRepository{db: db}
 }
 
-// Publish는 도메인의 EventPublisher 인터페이스를 구현한다.
-// Kafka로 직접 보내지 않고 이벤트를 outbox에 내구성 있게 적재한다(Kafka 장애와 분리).
-func (r *OutboxRepository) Publish(ctx context.Context, key string, v any) error {
-	payload, err := json.Marshal(v)
+// newOutboxMessage assigns the durable event identity before the authoritative
+// update. That same identity is included in the payload, so a publish followed
+// by a crash before MarkSent can be deduplicated by consumers.
+func newOutboxMessage(key string, value any, createdAt time.Time) (OutboxMessage, error) {
+	id := bson.NewObjectID()
+	payload, err := payloadWithEventID(value, id.Hex())
 	if err != nil {
-		return apperr.Internal(err.Error())
+		return OutboxMessage{}, err
 	}
-	_, err = r.col.InsertOne(ctx, OutboxMessage{
+	return OutboxMessage{
+		ID:        id,
 		Key:       key,
 		Payload:   payload,
-		CreatedAt: time.Now().UTC(),
-	})
-	if err != nil {
-		return apperr.Internal(err.Error())
-	}
-	return nil
+		CreatedAt: createdAt.UTC(),
+	}, nil
 }
 
-// FetchUnsent는 아직 전송되지 않은 메시지를 생성 순서대로 반환한다(relay 전용).
+func payloadWithEventID(value any, eventID string) ([]byte, error) {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &object); err != nil {
+		return nil, err
+	}
+	if object == nil {
+		return nil, errors.New("outbox event must be a JSON object")
+	}
+	encodedID, err := json.Marshal(eventID)
+	if err != nil {
+		return nil, err
+	}
+	object["event_id"] = encodedID
+	return json.Marshal(object)
+}
+
+// FetchUnsent merges pending embedded events from every authoritative domain
+// collection.
 func (r *OutboxRepository) FetchUnsent(ctx context.Context, limit int) ([]OutboxMessage, error) {
-	opts := options.Find().
-		SetSort(bson.D{{Key: "created_at", Value: 1}}).
-		SetLimit(int64(limit))
-	filter := bson.D{{Key: "sent_at", Value: nil}, {Key: "failed_at", Value: nil}}
-	cur, err := r.col.Find(ctx, filter, opts)
+	if limit <= 0 {
+		return nil, nil
+	}
+
+	sources := []string{
+		roomdomain.CollectionSessions,
+		roomdomain.CollectionParticipants,
+		livedomain.CollectionSessions,
+		livedomain.CollectionViewers,
+	}
+	messages := make([]OutboxMessage, 0, limit)
+	for _, source := range sources {
+		found, err := r.fetchEmbedded(ctx, source, limit)
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, found...)
+	}
+	sort.Slice(messages, func(i, j int) bool {
+		if messages[i].CreatedAt.Equal(messages[j].CreatedAt) {
+			return messages[i].ID.Hex() < messages[j].ID.Hex()
+		}
+		return messages[i].CreatedAt.Before(messages[j].CreatedAt)
+	})
+	if len(messages) > limit {
+		messages = messages[:limit]
+	}
+	return messages, nil
+}
+
+func (r *OutboxRepository) fetchEmbedded(ctx context.Context, source string, limit int) ([]OutboxMessage, error) {
+	type embeddedResult struct {
+		OwnerID bson.ObjectID `bson:"owner_id"`
+		Message OutboxMessage `bson:"message"`
+	}
+	pipeline := mongo.Pipeline{
+		bson.D{{Key: "$unwind", Value: "$" + outboxField}},
+		bson.D{{Key: "$match", Value: bson.D{
+			{Key: outboxField + ".sent_at", Value: nil},
+			{Key: outboxField + ".failed_at", Value: nil},
+		}}},
+		bson.D{{Key: "$project", Value: bson.D{
+			{Key: "_id", Value: 0},
+			{Key: "owner_id", Value: "$_id"},
+			{Key: "message", Value: "$" + outboxField},
+		}}},
+		bson.D{{Key: "$sort", Value: bson.D{{Key: "message.created_at", Value: 1}, {Key: "message._id", Value: 1}}}},
+		bson.D{{Key: "$limit", Value: int64(limit)}},
+	}
+	cur, err := r.db.Collection(source).Aggregate(ctx, pipeline)
 	if err != nil {
 		return nil, err
 	}
 	defer func() { _ = cur.Close(ctx) }()
 
-	var msgs []OutboxMessage
-	if err := cur.All(ctx, &msgs); err != nil {
+	var rows []embeddedResult
+	if err := cur.All(ctx, &rows); err != nil {
 		return nil, err
 	}
-	return msgs, nil
+	messages := make([]OutboxMessage, 0, len(rows))
+	for _, row := range rows {
+		row.Message.Source = source
+		row.Message.OwnerID = row.OwnerID
+		messages = append(messages, row.Message)
+	}
+	return messages, nil
 }
 
-func (r *OutboxRepository) MarkSent(ctx context.Context, id bson.ObjectID, sentAt time.Time) error {
-	_, err := r.col.UpdateByID(ctx, id, bson.D{{Key: "$set", Value: bson.D{{Key: "sent_at", Value: sentAt}}}})
+func (r *OutboxRepository) MarkSent(ctx context.Context, message OutboxMessage, sentAt time.Time) error {
+	_, err := r.db.Collection(message.Source).UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: message.OwnerID}},
+		bson.D{{Key: "$pull", Value: bson.D{{Key: outboxField, Value: bson.D{{Key: "_id", Value: message.ID}}}}}},
+	)
 	return err
 }
 
-func (r *OutboxRepository) IncrementAttempts(ctx context.Context, id bson.ObjectID) error {
-	_, err := r.col.UpdateByID(ctx, id, bson.D{{Key: "$inc", Value: bson.D{{Key: "attempts", Value: 1}}}})
+func (r *OutboxRepository) IncrementAttempts(ctx context.Context, message OutboxMessage) error {
+	_, err := r.db.Collection(message.Source).UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: message.OwnerID}},
+		bson.D{{Key: "$inc", Value: bson.D{{Key: outboxField + ".$[event].attempts", Value: 1}}}},
+		options.UpdateOne().SetArrayFilters([]any{bson.D{{Key: "event._id", Value: message.ID}}}),
+	)
 	return err
 }
 
-// MarkFailed는 재시도 한도를 초과한 메시지를 격리한다(전송 포기). 이후 FetchUnsent에서 제외된다.
-func (r *OutboxRepository) MarkFailed(ctx context.Context, id bson.ObjectID, failedAt time.Time) error {
-	_, err := r.col.UpdateByID(ctx, id, bson.D{{Key: "$set", Value: bson.D{{Key: "failed_at", Value: failedAt}}}})
+func (r *OutboxRepository) MarkFailed(ctx context.Context, message OutboxMessage, failedAt time.Time) error {
+	_, err := r.db.Collection(message.Source).UpdateOne(
+		ctx,
+		bson.D{{Key: "_id", Value: message.OwnerID}},
+		bson.D{{Key: "$set", Value: bson.D{{Key: outboxField + ".$[event].failed_at", Value: failedAt.UTC()}}}},
+		options.UpdateOne().SetArrayFilters([]any{bson.D{{Key: "event._id", Value: message.ID}}}),
+	)
 	return err
+}
+
+// RecoverPendingCleanup completes the durable cleanup saga recorded on an
+// ended session. Re-running after a crash is safe because both participant
+// updates and clearing cleanup_pending are idempotent.
+func (r *OutboxRepository) RecoverPendingCleanup(ctx context.Context, limit int) error {
+	if err := r.recoverCollectionCleanup(
+		ctx,
+		roomdomain.CollectionSessions,
+		roomdomain.CollectionParticipants,
+		limit,
+	); err != nil {
+		return err
+	}
+	return r.recoverCollectionCleanup(
+		ctx,
+		livedomain.CollectionSessions,
+		livedomain.CollectionViewers,
+		limit,
+	)
+}
+
+func (r *OutboxRepository) recoverCollectionCleanup(
+	ctx context.Context,
+	sessionCollection string,
+	participantCollection string,
+	limit int,
+) error {
+	type cleanupSession struct {
+		ID        bson.ObjectID `bson:"_id"`
+		SessionID string        `bson:"session_id"`
+		EndedAt   *time.Time    `bson:"ended_at,omitempty"`
+	}
+	cur, err := r.db.Collection(sessionCollection).Find(
+		ctx,
+		bson.D{{Key: "cleanup_pending", Value: true}},
+		options.Find().SetSort(bson.D{{Key: "ended_at", Value: 1}}).SetLimit(int64(limit)),
+	)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = cur.Close(ctx) }()
+
+	var sessions []cleanupSession
+	if err := cur.All(ctx, &sessions); err != nil {
+		return err
+	}
+	for _, session := range sessions {
+		cleanupAt := time.Now().UTC()
+		if session.EndedAt != nil {
+			cleanupAt = session.EndedAt.UTC()
+		}
+		if _, err := r.db.Collection(participantCollection).UpdateMany(
+			ctx,
+			bson.D{{Key: "session_id", Value: session.SessionID}, {Key: "left_at", Value: nil}},
+			bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: cleanupAt}}}},
+		); err != nil {
+			return err
+		}
+		if _, err := r.db.Collection(sessionCollection).UpdateOne(
+			ctx,
+			bson.D{{Key: "_id", Value: session.ID}, {Key: "cleanup_pending", Value: true}},
+			bson.D{
+				{Key: "$set", Value: bson.D{{Key: "cleanup_completed_at", Value: time.Now().UTC()}}},
+				{Key: "$unset", Value: bson.D{{Key: "cleanup_pending", Value: ""}}},
+			},
+		); err != nil {
+			return err
+		}
+	}
+	return nil
 }
