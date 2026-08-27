@@ -16,7 +16,7 @@ class UpdateProjectServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 
         request.name?.let { project.updateName(it) }

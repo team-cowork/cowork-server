@@ -3,6 +3,7 @@ package com.cowork.project.domain.project.entity
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import java.time.Instant
 import java.time.LocalDateTime
 
 @Entity
@@ -39,6 +40,9 @@ class Project(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "state_occurred_at", nullable = false)
+    var stateOccurredAt: Instant = Instant.EPOCH,
 ) {
     fun updateName(newName: String) {
         name = newName
