@@ -71,6 +71,6 @@ class CreateProjectServiceImplTest {
 
         service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
-        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(any(), 7L, any(), false) }
+        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(match { it.userId == 7L }, any()) }
     }
 }

@@ -31,6 +31,9 @@ class ProjectAccessGuard(
         ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
+    fun findProjectForUpdateOrThrow(projectId: Long): Project = projectRepository.findByIdForUpdate(projectId)
+        ?: throw ExpectedException("프로젝트를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+
     fun teamRoleOf(teamId: Long, userId: Long): String? {
         projectionReadinessGate.requireReady()
         return teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
