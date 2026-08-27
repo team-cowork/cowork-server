@@ -77,22 +77,27 @@ class KafkaConsumerConfig(
         return factory
     }
 
-    private fun projectionListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+    private fun stringConsumerFactory(): ConsumerFactory<String, String> {
         val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        return DefaultKafkaConsumerFactory<String, String>(props)
+    }
+
+    private fun projectionListenerContainerFactory(
+        rebalanceListener: ProjectionAssignmentCoordinator,
+    ): ConcurrentKafkaListenerContainerFactory<String, String> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
-        factory.setConsumerFactory(DefaultKafkaConsumerFactory<String, String>(props))
+        factory.setConsumerFactory(stringConsumerFactory())
         factory.setCommonErrorHandler(DefaultErrorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
-        factory.containerProperties.setConsumerRebalanceListener(
-            ProjectionAssignmentCoordinator(
-                streams.teamRole,
-                checkpointStore,
-                readinessState,
-                topicIdentityProvider,
-                topicGenerations,
-            ),
-        )
+        factory.containerProperties.setConsumerRebalanceListener(rebalanceListener)
+        return factory
+    }
+
+    private fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(stringConsumerFactory())
+        factory.setCommonErrorHandler(errorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
         return factory
     }
 
@@ -123,5 +128,16 @@ class KafkaConsumerConfig(
         )
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory()
+    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(
+        ProjectionAssignmentCoordinator(
+            streams.teamRole,
+            checkpointStore,
+            readinessState,
+            topicIdentityProvider,
+            topicGenerations,
+        ),
+    )
+
+    @Bean
+    fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }
