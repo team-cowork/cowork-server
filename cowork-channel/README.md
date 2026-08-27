@@ -17,7 +17,7 @@
 
 - Spring Boot 4 / Kotlin / Java 25
 - Spring Data JPA + MySQL + Flyway
-- Spring Cloud Eureka·Config·OpenFeign
+- Spring Cloud Eureka·Config
 - Spring Kafka, Resilience4j
 
 ## 포트와 API
@@ -29,10 +29,19 @@
 
 ## 이벤트와 의존성
 
-- Kafka consume: `team.lifecycle`, `user.lifecycle`
+- Kafka consume: `team.lifecycle`, `team.member.event`, `user.lifecycle`, `project.event`
 - Kafka produce: `channel.event`, `channel.member.event`
-- HTTP: `cowork-team`, `cowork-project`
+- 서비스 간 조회: Kafka 기반 로컬 MySQL projection
 - MySQL, Eureka, Config Server
+
+### Projection 준비 상태
+
+각 state consumer는 projection 변경과 DB checkpoint를 같은 transaction으로 커밋합니다. 할당 시 공유 DB에 기록한
+전체 partition barrier와 source snapshot completion marker를 `project.event`, `team.member.event`, `team.lifecycle` 모두
+통과하기 전에는 projection 의존 API와 readiness가 503/OUT_OF_SERVICE로 fail-closed 됩니다. `user.lifecycle`은 현재
+snapshot producer가 없는 action-only stream이므로 durable checkpoint는 유지하지만 readiness barrier에는 포함하지 않습니다.
+Kafka retention으로 checkpoint/marker가 현재 offset 범위를 벗어나거나 저장된 Kafka topic ID와 현재 topic ID가 다르면 자동으로
+ready 처리하지 않으므로 projection 데이터와 checkpoint/barrier를 함께 재구성해야 합니다.
 
 ## 환경 변수
 
