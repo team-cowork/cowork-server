@@ -54,4 +54,12 @@ final class ProjectionSnapshotCompletion {
         }
         return null;
     }
+
+    static String snapshotId(ObjectMapper objectMapper, ConsumerRecord<String, String> record) {
+        try {
+            return UUID.fromString(objectMapper.readTree(record.value()).path("snapshotId").asText()).toString();
+        } catch (Exception exception) {
+            throw new IllegalArgumentException("projection snapshot marker snapshotId is invalid", exception);
+        }
+    }
 }
