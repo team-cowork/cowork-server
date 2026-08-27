@@ -35,7 +35,7 @@ class PreferenceServiceTest {
         }
         coEvery {
             repository.upsertSettings(connection, 19, ResourceType.ACCOUNT, requested, true)
-        } returns PreferenceSettingsUpdate(requested, "ONLINE", updatedAt)
+        } returns PreferenceSettingsUpdate(requested, "ONLINE", updatedAt, updatedAt)
         coEvery { outboxRepository.enqueue(connection, capture(event)) } returns Unit
         coEvery { cache.setSettings(ResourceType.ACCOUNT, 19, requested) } returns Unit
 

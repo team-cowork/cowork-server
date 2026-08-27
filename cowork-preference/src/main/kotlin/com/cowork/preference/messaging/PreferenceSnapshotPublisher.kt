@@ -1,8 +1,8 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import org.slf4j.LoggerFactory
 import java.time.Instant
@@ -11,36 +11,36 @@ import java.util.UUID
 
 class PreferenceSnapshotPublisher(
     private val notificationRepository: NotificationRepository,
+    private val preferenceRepository: PreferenceRepository,
     private val teamRoleRepository: TeamRoleRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
-    private val cache: PreferenceCache,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
     suspend fun publishAllIfLeader() {
-        val acquired = runCatching { cache.acquireProjectionSnapshotLock() }
-            .onFailure { log.error("Preference projection snapshot lock acquisition failed", it) }
-            .getOrDefault(false)
-        if (!acquired) return
-
         runCatching {
-            val notificationCount = publishNotificationSettings()
-            val roleCount = publishRoles()
-            val assignmentCount = publishAssignments()
-            publishCompletionMarkers()
-            log.info(
-                "Preference projection snapshot published notificationCount={} roleCount={} assignmentCount={}",
-                notificationCount,
-                roleCount,
-                assignmentCount,
-            )
+            outboxRepository.withProjectionSnapshotLock { connection ->
+                val notificationCount = publishNotificationSettings(connection)
+                val roleCount = publishRoles(connection)
+                val assignmentCount = publishAssignments(connection)
+                val githubRepoSettingCount = publishGithubRepoSettings(connection)
+                publishCompletionMarkers(connection)
+                log.info(
+                    "Preference projection snapshot published notificationCount={} roleCount={} " +
+                        "assignmentCount={} githubRepoSettingCount={}",
+                    notificationCount,
+                    roleCount,
+                    assignmentCount,
+                    githubRepoSettingCount,
+                )
+            }
         }.onFailure {
             log.error("Preference projection snapshot failed; next scheduled run will retry", it)
         }
     }
 
-    private suspend fun publishCompletionMarkers() {
+    private suspend fun publishCompletionMarkers(connection: io.vertx.sqlclient.SqlConnection) {
         val snapshotId = UUID.randomUUID().toString()
         val occurredAt = Instant.now().truncatedTo(ChronoUnit.MICROS)
         val topicPartitions = SNAPSHOT_TOPICS.associateWith { topic ->
@@ -48,31 +48,31 @@ class PreferenceSnapshotPublisher(
         }
         val events = ProjectionSnapshotCompletionEvents.create(topicPartitions, snapshotId, occurredAt)
         check(events.isNotEmpty()) { "Projection snapshot topics have no partitions" }
-        outboxRepository.inTransaction { connection ->
-            outboxRepository.enqueueAll(connection, events)
+        outboxRepository.inTransaction(connection) { transactionConnection ->
+            outboxRepository.enqueueAll(transactionConnection, events)
         }
     }
 
-    private suspend fun publishNotificationSettings(): Int {
+    private suspend fun publishNotificationSettings(connection: io.vertx.sqlclient.SqlConnection): Int {
         var afterAccountId = -1L
         var afterChannelId = -1L
         var published = 0
         while (true) {
-            val page = outboxRepository.inTransaction { connection ->
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
                 val lockedPage = notificationRepository.findNotificationPage(
-                    connection,
+                    transactionConnection,
                     afterAccountId,
                     afterChannelId,
                     PAGE_SIZE,
                 )
                 outboxRepository.enqueueAll(
-                    connection,
+                    transactionConnection,
                     lockedPage.map { preference ->
                         PreferenceEvents.channelNotificationChanged(
                             accountId = preference.accountId,
                             channelId = preference.channelId,
                             notification = preference.notification,
-                            occurredAt = preference.updatedAt.toInstant(),
+                            occurredAt = preference.stateOccurredAt.toInstant(),
                         )
                     },
                 )
@@ -86,14 +86,14 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishRoles(): Int {
+    private suspend fun publishRoles(connection: io.vertx.sqlclient.SqlConnection): Int {
         var afterRoleId = 0L
         var published = 0
         while (true) {
-            val page = outboxRepository.inTransaction { connection ->
-                val lockedPage = teamRoleRepository.findRolePage(connection, afterRoleId, PAGE_SIZE)
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
+                val lockedPage = teamRoleRepository.findRolePage(transactionConnection, afterRoleId, PAGE_SIZE)
                 outboxRepository.enqueueAll(
-                    connection,
+                    transactionConnection,
                     lockedPage.map { role ->
                         PreferenceEvents.roleUpserted(
                             role,
@@ -111,22 +111,22 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishAssignments(): Int {
+    private suspend fun publishAssignments(connection: io.vertx.sqlclient.SqlConnection): Int {
         var afterTeamId = -1L
         var afterAccountId = -1L
         var afterRoleId = -1L
         var published = 0
         while (true) {
-            val page = outboxRepository.inTransaction { connection ->
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
                 val lockedPage = teamRoleRepository.findAssignmentPage(
-                    client = connection,
-                    afterTeamId = afterTeamId,
-                    afterAccountId = afterAccountId,
-                    afterRoleId = afterRoleId,
-                    limit = PAGE_SIZE,
+                    transactionConnection,
+                    afterTeamId,
+                    afterAccountId,
+                    afterRoleId,
+                    PAGE_SIZE,
                 )
                 outboxRepository.enqueueAll(
-                    connection,
+                    transactionConnection,
                     lockedPage.map { assignment ->
                         PreferenceEvents.assignmentUpserted(
                             assignment,
@@ -147,11 +147,41 @@ class PreferenceSnapshotPublisher(
         }
     }
 
+    private suspend fun publishGithubRepoSettings(connection: io.vertx.sqlclient.SqlConnection): Int {
+        var afterRepoId = 0L
+        var published = 0
+        while (true) {
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
+                val lockedPage = preferenceRepository.findGithubRepoSettingPage(
+                    transactionConnection,
+                    afterRepoId,
+                    PAGE_SIZE,
+                )
+                outboxRepository.enqueueAll(
+                    transactionConnection,
+                    lockedPage.map { state ->
+                        PreferenceEvents.githubRepoSettingState(
+                            repoId = state.repoId,
+                            settings = state.settings,
+                            occurredAt = state.stateOccurredAt,
+                            snapshot = true,
+                        )
+                    },
+                )
+                lockedPage
+            }
+            if (page.isEmpty()) return published
+            published += page.size
+            afterRepoId = page.last().repoId
+        }
+    }
+
     private companion object {
         const val PAGE_SIZE = 500
         val SNAPSHOT_TOPICS = setOf(
             PreferenceEvents.CHANNEL_NOTIFICATION_TOPIC,
             PreferenceEvents.TEAM_ROLE_TOPIC,
+            PreferenceEvents.GITHUB_REPO_SETTING_STATE_TOPIC,
         )
     }
 }
