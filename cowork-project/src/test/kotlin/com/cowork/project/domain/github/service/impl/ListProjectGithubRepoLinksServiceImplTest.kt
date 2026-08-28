@@ -35,7 +35,7 @@ class ListProjectGithubRepoLinksServiceImplTest {
     fun `listGithubRepos는 팀 멤버면 등록된 레포 목록을 반환`() {
         val proj = project()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
             TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER")
         every { projectGithubRepoRepository.findAllByProjectId(1L) } returns
             listOf(
@@ -57,7 +57,7 @@ class ListProjectGithubRepoLinksServiceImplTest {
     fun `listGithubRepos는 팀 멤버가 아니면 FORBIDDEN`() {
         val proj = project()
         every { projectRepository.findById(1L) } returns Optional.of(proj)
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 7L) } returns null
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(7L, 1L)

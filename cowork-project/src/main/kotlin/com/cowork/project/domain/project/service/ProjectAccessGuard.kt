@@ -36,7 +36,7 @@ class ProjectAccessGuard(
 
     fun teamRoleOf(teamId: Long, userId: Long): String? {
         projectionReadinessGate.requireReady()
-        return teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
+        return teamMembershipRepository.findActiveByTeamIdAndUserId(teamId, userId)?.role
     }
 
     fun requireTeamMember(teamId: Long, userId: Long) {

@@ -12,7 +12,7 @@ interface TeamMembershipRepository : JpaRepository<TeamMembership, Long> {
         "SELECT membership FROM TeamMembership membership " +
             "WHERE membership.teamId = :teamId AND membership.userId = :userId AND membership.active = true",
     )
-    fun findByTeamIdAndUserId(@Param("teamId") teamId: Long, @Param("userId") userId: Long): TeamMembership?
+    fun findActiveByTeamIdAndUserId(@Param("teamId") teamId: Long, @Param("userId") userId: Long): TeamMembership?
 
     @Query(
         "SELECT membership FROM TeamMembership membership " +
