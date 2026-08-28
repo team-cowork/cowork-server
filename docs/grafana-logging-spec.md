@@ -12,11 +12,11 @@
   → Grafana 13.0.2
 ```
 
-| 구성 요소 | 로컬 주소 | 설정 파일 |
-|---|---|---|
-| Loki | `http://localhost:3100` | `cowork-monitoring/loki/loki-config.yml` |
-| Promtail | 외부 포트 없음 | `cowork-monitoring/promtail/promtail-config.yml` |
-| Grafana | `http://localhost:3001` | `cowork-monitoring/grafana/` |
+| 구성 요소 | 로컬 주소               | 설정 파일                                        |
+|-----------|-------------------------|--------------------------------------------------|
+| Loki      | `http://localhost:3100` | `cowork-monitoring/loki/loki-config.yml`         |
+| Promtail  | 외부 포트 없음          | `cowork-monitoring/promtail/promtail-config.yml` |
+| Grafana   | `http://localhost:3001` | `cowork-monitoring/grafana/`                     |
 
 Promtail은 `cowork_logs` 볼륨을 read-only로 마운트하고 아래 파일만 읽는다.
 
@@ -28,20 +28,20 @@ Promtail은 `cowork_logs` 볼륨을 read-only로 마운트하고 아래 파일�
 
 ## 서비스별 실제 수집 상태
 
-| 서비스 | 런타임 로거 | 현재 파일 경로 | Loki 수집 상태 |
-|---|---|---|---|
-| `cowork-voice` | Go `slog` JSON | `/var/log/cowork/cowork-voice/app.log` | 수집됨 |
-| `cowork-preference` | Log4j2 ECS JSON | `/var/log/cowork/preference/app.log` | 수집됨 |
-| `cowork-user` | Elixir Logger file backend | `/var/log/cowork/user/application.log` | 파일은 수집되지만 plain text라 공통 JSON 필드가 없음 |
-| `cowork-authorization` | Go `slog` JSON | `/var/log/cowork/cowork-authorization/app.log` | 컨테이너에 `cowork_logs` 볼륨이 없어 미수집 |
-| `cowork-config` | Logback JSON | 기본 `/app/build/logs/cowork/...` | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집 |
-| `cowork-gateway` | Logback JSON | 기본 `/app/build/logs/cowork/...` | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집 |
-| `cowork-team` | Logback JSON | 기본 `/app/build/logs/cowork/...` | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집 |
-| `cowork-chat` | Pino JSON | 기본 `/app/build/logs/cowork/chat/app.log` | Compose가 `COWORK_CHAT_LOG_DIR`를 지정하지 않아 미수집 |
-| `cowork-notification` | Go `slog` stdout | 파일 출력 없음 | 미수집 |
-| `cowork-channel` | Spring 기본 로깅 | 파일 출력 없음 | 미수집 |
-| `cowork-project` | Spring 기본 로깅 | 파일 출력 없음 | 미수집 |
-| `cowork-roadmap` | Spring 기본 로깅 | 파일 출력 없음 | 미수집 |
+| 서비스                 | 런타임 로거                | 현재 파일 경로                                 | Loki 수집 상태                                         |
+|------------------------|----------------------------|------------------------------------------------|--------------------------------------------------------|
+| `cowork-voice`         | Go `slog` JSON             | `/var/log/cowork/cowork-voice/app.log`         | 수집됨                                                 |
+| `cowork-preference`    | Log4j2 ECS JSON            | `/var/log/cowork/preference/app.log`           | 수집됨                                                 |
+| `cowork-user`          | Elixir Logger file backend | `/var/log/cowork/user/application.log`         | 파일은 수집되지만 plain text라 공통 JSON 필드가 없음   |
+| `cowork-authorization` | Go `slog` JSON             | `/var/log/cowork/cowork-authorization/app.log` | 컨테이너에 `cowork_logs` 볼륨이 없어 미수집            |
+| `cowork-config`        | Logback JSON               | 기본 `/app/build/logs/cowork/...`              | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집      |
+| `cowork-gateway`       | Logback JSON               | 기본 `/app/build/logs/cowork/...`              | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집      |
+| `cowork-team`          | Logback JSON               | 기본 `/app/build/logs/cowork/...`              | Compose가 `COWORK_LOG_DIR`를 지정하지 않아 미수집      |
+| `cowork-chat`          | Pino JSON                  | 기본 `/app/build/logs/cowork/chat/app.log`     | Compose가 `COWORK_CHAT_LOG_DIR`를 지정하지 않아 미수집 |
+| `cowork-notification`  | Go `slog` stdout           | 파일 출력 없음                                 | 미수집                                                 |
+| `cowork-channel`       | Spring 기본 로깅           | 파일 출력 없음                                 | 미수집                                                 |
+| `cowork-project`       | Spring 기본 로깅           | 파일 출력 없음                                 | 미수집                                                 |
+| `cowork-roadmap`       | Spring 기본 로깅           | 파일 출력 없음                                 | 미수집                                                 |
 
 Compose가 대부분의 애플리케이션에 `cowork_logs:/var/log/cowork`를 마운트하더라도, 애플리케이션이 그 경로에 파일을 쓰지 않으면 Promtail은 수집할 수 없다. `cowork-authorization`은 파일 경로는 맞지만 현재 공유 볼륨 mount 자체가 빠져 있다.
 
