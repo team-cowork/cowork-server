@@ -1,0 +1,395 @@
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+
+cowork:
+  swagger-ui:
+    primary-name: user
+    urls:
+      - name: authorization
+        url: /v3/api-docs/authorization
+      - name: user
+        url: /v3/api-docs/user
+      - name: team
+        url: /v3/api-docs/team
+      - name: channel
+        url: /v3/api-docs/channel
+      - name: project
+        url: /v3/api-docs/project
+      - name: roadmap
+        url: /v3/api-docs/roadmap
+      - name: chat
+        url: /v3/api-docs/chat
+      - name: voice
+        url: /v3/api-docs/voice
+      - name: notification
+        url: /v3/api-docs/notification
+      - name: preference
+        url: /v3/api-docs/preference
+
+spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+
+  cloud:
+    gateway.server.webflux:
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowedOrigins:
+              - "${PUBLIC_WEB_ORIGIN}"
+            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      routes:
+        - id: authorization-service
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/authorization/auth/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: authorization-webhook
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/api/authorization/events/datagsm
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: user-service
+          uri: lb://cowork-user
+          predicates:
+            - Path=/api/user/users/**
+            - Method=GET,POST,PATCH,DELETE
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: Retry
+              args:
+                retries: 3
+                statuses: BAD_GATEWAY, SERVICE_UNAVAILABLE
+                methods: GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+                  factor: 2
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: project-team-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/project/teams/*/projects/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: team-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channel/teams/*/channels, /api/channel/teams/*/channels/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: team-service
+          uri: lb://cowork-team
+          predicates:
+            - Path=/api/team/teams/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: channel-service-search
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channel/search/channels
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: project-channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channel/projects/*/channels, /api/channel/projects/*/channels/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: project-service
+          uri: lb://cowork-project
+          predicates:
+            - Path=/api/project/projects/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: roadmap-service
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/api/roadmap/roadmaps/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chat/chat/**, /api/chat/health, /api/chat/graphql, /api/chat/asyncapi.json
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channel/channels/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: chat-service-ws
+          uri: lb:ws://cowork-chat
+          predicates:
+            - Path=/ws/chat/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        # DM 채널 열기(멱등 생성)는 channel 서비스가 담당
+        - id: dm-open
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/api/channel/dms
+            - Method=POST
+          filters:
+            - StripPrefix=2
+
+        - id: preference-service
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/preference/preferences/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: live-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/live/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: voice-service-webhook
+          order: -1
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/voice/webhook
+            - Method=POST
+          filters:
+            - StripPrefix=2
+
+        - id: voice-service
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/api/voice/voice/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: authorization-service-docs
+          uri: lb://cowork-authorization
+          predicates:
+            - Path=/v3/api-docs/authorization
+          filters:
+            - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
+
+        - id: user-service-docs
+          uri: lb://cowork-user
+          predicates:
+            - Path=/v3/api-docs/user
+          filters:
+            - RewritePath=/v3/api-docs/user, /v3/api-docs
+
+        - id: voice-service-docs
+          uri: lb://cowork-voice
+          predicates:
+            - Path=/v3/api-docs/voice
+          filters:
+            - RewritePath=/v3/api-docs/voice, /swagger/doc.json
+
+        - id: chat-service-docs
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/v3/api-docs/chat
+          filters:
+            - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: preference-service-docs
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/v3/api-docs/preference
+          filters:
+            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+
+        - id: notification-service-sse
+          order: -1
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notification/notifications/stream
+          filters:
+            - StripPrefix=2
+          metadata:
+            response-timeout: -1  # SSE는 타임아웃 없음
+
+        - id: notification-service
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/api/notification/notifications/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: defaultCB
+                fallbackUri: forward:/fallback
+
+        - id: notification-service-docs
+          uri: lb://cowork-notification
+          predicates:
+            - Path=/v3/api-docs/notification
+          filters:
+            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+
+        - id: team-service-docs
+          uri: lb://cowork-team
+          predicates:
+            - Path=/v3/api-docs/team
+          filters:
+            - RewritePath=/v3/api-docs/team, /v3/api-docs
+
+        - id: channel-service-docs
+          uri: lb://cowork-channel
+          predicates:
+            - Path=/v3/api-docs/channel
+          filters:
+            - RewritePath=/v3/api-docs/channel, /v3/api-docs
+
+        - id: project-service-docs
+          uri: lb://cowork-project
+          predicates:
+            - Path=/v3/api-docs/project
+          filters:
+            - RewritePath=/v3/api-docs/project, /v3/api-docs
+
+        - id: roadmap-service-docs
+          uri: lb://cowork-roadmap
+          predicates:
+            - Path=/v3/api-docs/roadmap
+          filters:
+            - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
+
+# jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
+
+app:
+  ws:
+    allowed-origins:
+      - "${PUBLIC_WEB_ORIGIN}"
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      defaultCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true

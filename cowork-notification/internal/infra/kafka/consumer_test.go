@@ -20,13 +20,13 @@ type mockNotificationService struct {
 	err           error
 }
 
-func (m *mockNotificationService) Notify(_ context.Context, ids []int64, forced []int64, title, body string, channelID int64) error {
+func (m *mockNotificationService) Notify(_ context.Context, ids []int64, forced []int64, title, body string, channelID int64) ([]int64, error) {
 	m.calledUserIDs = ids
 	m.calledForced = forced
 	m.calledTitle = title
 	m.calledBody = body
 	m.calledChannel = channelID
-	return m.err
+	return ids, m.err
 }
 
 type mockTeamClient struct {
@@ -78,7 +78,7 @@ func TestConsumer_handle_chatMessage(t *testing.T) {
 	assert.Equal(t, int64(42), svc.calledChannel)
 }
 
-func TestConsumer_handle_chatMessage_teamFailSkips(t *testing.T) {
+func TestConsumer_handle_chatMessage_teamProjectionMissingUsesFallback(t *testing.T) {
 	svc := &mockNotificationService{}
 	teamC := &mockTeamClient{err: assert.AnError}
 	userC := &mockUserClient{displayName: "홍길동"}
@@ -95,10 +95,11 @@ func TestConsumer_handle_chatMessage_teamFailSkips(t *testing.T) {
 	raw, _ := json.Marshal(event)
 	c.HandleForTest(context.Background(), segkafka.Message{Value: raw})
 
-	assert.Nil(t, svc.calledUserIDs)
+	assert.Equal(t, []int64{1}, svc.calledUserIDs)
+	assert.Equal(t, "팀 7", svc.calledTitle)
 }
 
-func TestConsumer_handle_chatMessage_userFailSkips(t *testing.T) {
+func TestConsumer_handle_chatMessage_userProjectionMissingUsesFallback(t *testing.T) {
 	svc := &mockNotificationService{}
 	teamC := &mockTeamClient{name: "코워크팀"}
 	userC := &mockUserClient{err: assert.AnError}
@@ -115,7 +116,8 @@ func TestConsumer_handle_chatMessage_userFailSkips(t *testing.T) {
 	raw, _ := json.Marshal(event)
 	c.HandleForTest(context.Background(), segkafka.Message{Value: raw})
 
-	assert.Nil(t, svc.calledUserIDs)
+	assert.Equal(t, []int64{1}, svc.calledUserIDs)
+	assert.Contains(t, svc.calledBody, "사용자 100: hi")
 }
 
 func TestConsumer_handle_memberInvited(t *testing.T) {

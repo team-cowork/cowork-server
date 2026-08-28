@@ -6,7 +6,6 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.UpdateChannelService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -29,7 +28,7 @@ class UpdateChannelServiceImpl(
         channelPermissionSupport.requireChannelManager(channel, userId)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
-        afterCommit { channelEventPublisher.publishUpdated(channel) }
+        channelEventPublisher.publishUpdated(channel)
         return ChannelResponse.of(channel)
     }
 }

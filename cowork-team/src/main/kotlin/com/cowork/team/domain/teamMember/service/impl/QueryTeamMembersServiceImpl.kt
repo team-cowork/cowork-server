@@ -4,14 +4,14 @@ import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberRe
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
 import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
-import com.cowork.team.global.client.PreferenceTeamRoleClient
+import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
-    private val preferenceTeamRoleClient: PreferenceTeamRoleClient,
+    private val teamRoleProjectionReader: TeamRoleProjectionReader,
     private val teamMemberAccessGuard: TeamMemberAccessGuard,
 ) : QueryTeamMembersService {
 
@@ -19,8 +19,8 @@ class QueryTeamMembersServiceImpl(
     override fun execute(userId: Long, teamId: Long): List<TeamMemberResponse> {
         teamMemberAccessGuard.requireMemberExists(teamId, userId)
         val members = teamMemberRepository.findAllByTeamId(teamId)
-        val rolesById = preferenceTeamRoleClient.getRoles(teamId).associateBy { it.id }
-        val roleIdsByUserId = preferenceTeamRoleClient.getMemberRoleAssignments(teamId)
+        val rolesById = teamRoleProjectionReader.getRoles(teamId).associateBy { it.id }
+        val roleIdsByUserId = teamRoleProjectionReader.getMemberRoleAssignments(teamId)
             .groupBy({ it.accountId }, { it.roleId })
 
         return members.map { member ->

@@ -4,12 +4,13 @@ MONGODB_DB: cowork_voice
 REDIS_ADDR: redis:6379
 REDIS_DB: 0
 LIVEKIT_URL: http://cowork-livekit:7880
-LIVEKIT_WS_URL: ws://cowork-livekit:7880
+LIVEKIT_WS_URL: ws://localhost:7880
 LIVEKIT_TOKEN_TTL_SECS: 3600
 KAFKA_BROKERS: kafka:9092
 KAFKA_TOPIC_VOICE_EVENT: voice.event
+KAFKA_TOPIC_CHANNEL_MEMBER_EVENT: channel.member.event
+KAFKA_GROUP_ID_CHANNEL_MEMBER: cowork-voice.channel-member
 KAFKA_MESSAGE_TIMEOUT_MS: 5000
-CHANNEL_SERVICE_URL: http://cowork-channel:8083
 EUREKA_ENABLED: true
 EUREKA_SERVER_URL: http://cowork-config:8761/eureka
 EUREKA_APP_NAME: cowork-voice

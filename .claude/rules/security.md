@@ -1,23 +1,16 @@
 ---
 paths:
+  - "**/*.kt"
   - "**/*.java"
-  - "**/application*.yml"
-  - "**/application*.yaml"
-  - "**/bootstrap*.yml"
-  - "**/bootstrap*.yaml"
+  - "**/*.go"
+  - "**/*.ts"
+  - "**/*.ex"
+  - "**/*.exs"
 ---
 
 # Security Rules
 
-- Never hardcode sensitive values (DB credentials, JWT secrets, API keys). Always inject via environment variables.
-  ```yaml
-  # correct
-  password: ${DB_PASSWORD}
-
-  # wrong — never commit
-  password: mypassword123
-  ```
-- Never parse JWT in downstream services. Gateway validates the token and forwards user info via headers.
-- Downstream services must trust `X-User-Id` (Long) and `X-User-Role` (String: ADMIN | MEMBER) headers from Gateway.
-- Block direct calls that bypass Gateway in production environments.
-- Handle CORS consistently at the gateway level (`cowork-gateway`) and avoid duplicating service-level CORS configuration unless a service has a documented exception.
+- Never parse or validate JWT outside `cowork-gateway`. Read the caller's identity from the Gateway-forwarded `X-User-Id` (Long) and `X-User-Role` (`ADMIN` | `MEMBER`) headers instead.
+  - The one documented exception is `cowork-chat`'s WebSocket handshake (`src/chat/chat.gateway.ts`); do not extend it to HTTP routes.
+- Treat those headers as authenticated input, but still authorize: having a valid `X-User-Id` does not mean that user may touch the requested team, project, or channel.
+- Don't add per-service CORS configuration — CORS is handled at the Gateway.
