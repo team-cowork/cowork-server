@@ -82,6 +82,7 @@ spring:
           uri: lb://cowork-user
           predicates:
             - Path=/api/user/users/**
+            - Method=GET,POST,PATCH,DELETE
           filters:
             - StripPrefix=2
             - name: CircuitBreaker
