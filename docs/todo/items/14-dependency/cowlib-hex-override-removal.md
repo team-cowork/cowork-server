@@ -91,15 +91,6 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 - `cowork-user/deps/cowlib`의 git 작업 디렉터리가 사라졌는지 확인하고, IDE에 남은 VCS root 매핑을
   정리한다.
 
-### 고정 유지 중 관리
-
-- override를 유지하는 동안 `ref`를 upstream master의 최신 커밋으로 따라가지 않는다. 픽스에 필요한
-  최소 커밋만 고정한다.
-- 고정 커밋을 옮겨야 할 때는 그 사이 커밋이 요구 OTP 버전이나 공개 API를 바꾸지 않는지 먼저
-  확인한다.
-- 빌드 이미지에서 `git` 설치를 제거하지 않는다. override가 남아 있는 동안 `mix deps.get`이 이를
-  필요로 한다.
-
 ## 검증
 
 - `mix deps.get`과 `mix compile`이 새 의존성 구성에서 성공한다.
