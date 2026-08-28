@@ -5,10 +5,102 @@
 #   REGISTRY     - 컨테이너 레지스트리 주소 (예: ghcr.io/your-org)
 #   IMAGE_TAG    - 배포할 이미지 태그 (예: v1.2.3, sha-abc1234)
 #   SPRING_PROFILES_ACTIVE=prod
-#   VAULT_HOST, VAULT_TOKEN, CONFIG_GIT_URI (외부 Vault/Config Git은 배포 전에 준비)
+#   MYSQL_ROOT_PASSWORD, MYSQL_USER, MYSQL_PASSWORD
+#   POSTGRES_USER, POSTGRES_PASSWORD, MONGO_ROOT_USERNAME, MONGO_ROOT_PASSWORD
+#   GRAFANA_ADMIN_PASSWORD
+#   VAULT_HOST, VAULT_TOKEN (외부 Vault는 배포 전에 준비)
 #   LIVEKIT_API_KEY, LIVEKIT_API_SECRET, LIVEKIT_WS_URL, DISCORD_WEBHOOK_URL
+#   S3_ACCESS_KEY, S3_SECRET_KEY - SeaweedFS와 외부 Vault secret/application에 동일하게 저장
+#   S3_PUBLIC_ENDPOINT, S3_PUBLIC_BASE_URL - 클라이언트가 접근 가능한 오브젝트 스토리지 공개 주소
+#   PUBLIC_WEB_ORIGIN - 웹 클라이언트 origin (CORS·OAuth redirect)
+#   PUBLIC_API_BASE_URL - 외부 Gateway origin. OAuth callback canonical path는 서비스가 덧붙임
+#   GITHUB_APP_SERVICE_URL - GitHub App 연동 서비스 주소
+#   docker/secrets/firebase-credentials.json - notification service account JSON
+# 공개 endpoint와 origin은 cowork-config override로 전달한다. DB·MongoDB·SeaweedFS·LiveKit 같은
+# 인프라 bootstrap 값은 해당 컨테이너에 직접 주입하고, 애플리케이션이 쓰는 대응 값은 동일한
+# credential로 외부 Vault에 별도 저장한다. 정확한 key/DSN 계약은 docs/configuration.md를 따른다.
 services:
+  # Production traffic enters through the Gateway (and LiveKit's dedicated
+  # host-network listeners). Databases, brokers, caches, and ops UIs stay on
+  # the private Compose network.
+  mysql:
+    ports: !reset []
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+      MYSQL_USER: ${MYSQL_USER:?MYSQL_USER is required}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+
+  postgres:
+    ports: !reset []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: postgres
+
+  mongodb:
+    ports: !reset []
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?MONGO_ROOT_USERNAME is required}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?MONGO_ROOT_PASSWORD is required}
+
+  kafka:
+    ports: !reset []
+
+  kafka-ui:
+    ports: !reset []
+
+  seaweedfs:
+    ports: !reset []
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+
+  seaweedfs-init:
+    environment:
+      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:?S3_ACCESS_KEY is required}
+      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:?S3_SECRET_KEY is required}
+
+  elasticsearch:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  loki:
+    ports: !reset []
+
+  blackbox_exporter:
+    ports: !reset []
+
+  prometheus:
+    ports: !reset []
+
+  alertmanager:
+    ports: !reset []
+
+  grafana:
+    ports: !reset []
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+
+  mysqld_exporter:
+    ports: !reset []
+
+  redis_exporter:
+    ports: !reset []
+
+  kafka_exporter:
+    ports: !reset []
+
+  postgres_exporter:
+    ports: !reset []
+
+  mongodb_exporter:
+    ports: !reset []
+
   cowork-config:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
     depends_on: !override
       kafka:
@@ -21,60 +113,98 @@ services:
       VAULT_PORT: ${VAULT_PORT:-8200}
       VAULT_SCHEME: https
       VAULT_TOKEN: ${VAULT_TOKEN:?VAULT_TOKEN is required}
-      CONFIG_GIT_URI: ${CONFIG_GIT_URI:?CONFIG_GIT_URI is required}
-      CONFIG_GIT_USERNAME: ${CONFIG_GIT_USERNAME:-}
-      CONFIG_GIT_PASSWORD: ${CONFIG_GIT_PASSWORD:-}
+      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:?S3_PUBLIC_ENDPOINT is required}
+      S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:?S3_PUBLIC_BASE_URL is required}
+      PUBLIC_WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN:?PUBLIC_WEB_ORIGIN is required}
+      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:?PUBLIC_API_BASE_URL is required}
+      GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL:?GITHUB_APP_SERVICE_URL is required}
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
+    ports: !reset []
 
   vault:
     profiles: [local-vault]
+    ports: !reset []
 
   vault-init:
     profiles: [local-vault]
 
   cowork-gateway:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-gateway:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
 
   cowork-authorization:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-authorization:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-preference:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-preference:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-user:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-user:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-team:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-team:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-channel:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-channel:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-notification:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-notification:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-chat:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-chat:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
+    ports: !reset []
 
   cowork-voice:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-voice:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       APP_PROFILE: prod
+      EUREKA_USE_RUNTIME_HOSTNAME: "true"
       # Host-networked LiveKit is not attached to the Compose network. Keep the
       # server-to-server API on the host gateway and return the public WSS URL
       # to clients.
@@ -82,16 +212,23 @@ services:
       LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:?LIVEKIT_WS_URL is required}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    ports: !reset []
 
   cowork-project:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-project:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   cowork-roadmap:
+    container_name: !reset null
+    build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-roadmap:${IMAGE_TAG:?IMAGE_TAG is required}
     environment:
       SPRING_PROFILES_ACTIVE: prod
+    ports: !reset []
 
   alertmanager-config-init:
     environment:

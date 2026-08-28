@@ -1,6 +1,6 @@
 import { BadRequestException, HttpException, PayloadTooLargeException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { ObjectStorageService } from './object-storage.service';
 
@@ -12,7 +12,7 @@ const mockS3Client = {
     send: jest.fn(),
 };
 
-const mockGetSignedUrl = getSignedUrl as jest.Mock;
+const mockGetSignedUrl = jest.mocked(getSignedUrl);
 
 const createConfigService = (overrides: Record<string, string> = {}) => ({
     get: jest.fn((key: string) => ({
@@ -41,16 +41,13 @@ describe('ObjectStorageService', () => {
             size: 104857600,
         });
 
-        expect(mockGetSignedUrl).toHaveBeenCalledWith(
-            mockS3Client,
-            expect.objectContaining({
-                input: expect.objectContaining({
-                    Bucket: 'cowork-chat',
-                    Key: expect.stringMatching(/^chat-files\/1\/42\/.+\.mp4$/) as unknown as string,
-                }) as unknown,
-            }),
-            { expiresIn: 600 },
-        );
+        expect(mockGetSignedUrl).toHaveBeenCalledTimes(1);
+        const [client, command, options] = mockGetSignedUrl.mock.calls[0];
+        const putObjectCommand = command as PutObjectCommand;
+        expect(client).toBe(mockS3Client);
+        expect(putObjectCommand.input.Bucket).toBe('cowork-chat');
+        expect(putObjectCommand.input.Key).toMatch(/^chat-files\/1\/42\/.+\.mp4$/);
+        expect(options).toEqual({ expiresIn: 600 });
         expect(result.fileUrl).toContain('/cowork-chat/chat-files/1/42/');
     });
 

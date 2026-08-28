@@ -6,11 +6,14 @@ import java.time.format.DateTimeParseException
 
 object SettingSchema {
 
-    private val ACCOUNT_KEYS = setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format", "date_format")
+    private val ACCOUNT_KEYS =
+        setOf("status", "status_expires_at", "marketing_email", "theme", "language", "time_format", "date_format")
     private val TEAM_KEYS = setOf("tag_spam_block", "nickname_format_enforced", "nickname_format_example")
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("webhook")
+    private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
+
     // webhook은 PUT 전체 교체 계약 — 클라이언트는 항상 객체 전체를 전송해야 하며 부분 업데이트(PATCH)는 지원하지 않음
     private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
     val NOTIFICATION_KEYS = setOf("notification")
@@ -19,7 +22,8 @@ object SettingSchema {
     private val ACCOUNT_THEME_VALUES = setOf("WHITE", "BLACK")
     private val ACCOUNT_LANGUAGE_VALUES = setOf("KO", "EN")
     private val ACCOUNT_TIME_FORMAT_VALUES = setOf("12H", "24H")
-    private val ACCOUNT_DATE_FORMAT_VALUES = setOf("YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD")
+    private val ACCOUNT_DATE_FORMAT_VALUES =
+        setOf("YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD")
 
     fun validKeys(type: ResourceType): Set<String> = when (type) {
         ResourceType.ACCOUNT -> ACCOUNT_KEYS
@@ -27,6 +31,7 @@ object SettingSchema {
         ResourceType.PROJECT -> PROJECT_KEYS
         ResourceType.VOICE_CHANNEL -> VOICE_CHANNEL_KEYS
         ResourceType.TEXT_CHANNEL -> TEXT_CHANNEL_KEYS
+        ResourceType.GITHUB_REPO -> GITHUB_REPO_KEYS
     }
 
     fun filter(type: ResourceType, raw: JsonObject): JsonObject {
@@ -47,9 +52,11 @@ object SettingSchema {
     fun validate(type: ResourceType, settings: JsonObject): String? = when (type) {
         ResourceType.ACCOUNT -> validateAccount(settings)
         ResourceType.TEAM -> validateTeam(settings)
+        ResourceType.GITHUB_REPO -> validateGithubRepo(settings)
         ResourceType.PROJECT,
         ResourceType.VOICE_CHANNEL,
-        ResourceType.TEXT_CHANNEL -> null
+        ResourceType.TEXT_CHANNEL,
+        -> null
     }
 
     private fun validateAccount(settings: JsonObject): String? {
@@ -69,7 +76,9 @@ object SettingSchema {
             if (fmt !in ACCOUNT_DATE_FORMAT_VALUES) return "date_format must be one of $ACCOUNT_DATE_FORMAT_VALUES"
         }
         settings.getString("status_expires_at")?.let { expiresAt ->
-            try { Instant.parse(expiresAt) } catch (_: DateTimeParseException) {
+            try {
+                Instant.parse(expiresAt)
+            } catch (_: DateTimeParseException) {
                 return "status_expires_at must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
             }
         }
@@ -77,7 +86,9 @@ object SettingSchema {
     }
 
     private fun validateTeam(settings: JsonObject): String? {
-        if (settings.containsKey("nickname_format_enforced") && settings.getValue("nickname_format_enforced") !is Boolean) {
+        if (settings.containsKey("nickname_format_enforced") &&
+            settings.getValue("nickname_format_enforced") !is Boolean
+        ) {
             return "nickname_format_enforced must be a boolean"
         }
         if (settings.containsKey("nickname_format_example")) {
@@ -85,8 +96,17 @@ object SettingSchema {
             if (example !is String) return "nickname_format_example must be a string"
             if (example.isBlank()) return "nickname_format_example cannot be blank"
         }
-        if (settings.getBoolean("nickname_format_enforced") == true && settings.getString("nickname_format_example").isNullOrBlank()) {
+        if (settings.getBoolean("nickname_format_enforced") == true &&
+            settings.getString("nickname_format_example").isNullOrBlank()
+        ) {
             return "nickname_format_example is required when nickname_format_enforced is true"
+        }
+        return null
+    }
+
+    private fun validateGithubRepo(settings: JsonObject): String? {
+        if (settings.containsKey("label_auto_apply") && settings.getValue("label_auto_apply") !is Boolean) {
+            return "label_auto_apply must be a boolean"
         }
         return null
     }

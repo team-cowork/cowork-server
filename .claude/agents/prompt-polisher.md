@@ -1,6 +1,6 @@
 ---
 name: prompt-polisher
-description: "Analyzes AI prompt files (.claude/agents/*.md, .claude/skills/**/*.md, .agents/skills/**/*.md, CLAUDE.md, AGENTS.md, .github/copilot-instructions.md, .gemini/styleguide.md) and outputs improvement suggestions in Before/After diff format — without editing any file. Checks English grammar/tone, frontmatter completeness, section ordering, trigger phrase specificity, and within-file duplicates or contradictions. Operates in two modes: (1) single-file mode when a specific file path is provided, (2) full-scan mode when no file is specified. .claude/ and .agents/ are treated independently and are never synchronized. Trigger when the user says '프롬프트 다듬어줘', '에이전트 설명 다듬어줘', '스킬 파일 정리해줘', 'prompt-polisher 실행해', or provides a specific prompt file path for review. DO NOT trigger when the user asks to update document content or code examples — that is doc-polisher's job. DO NOT trigger when the user asks to verify cross-document consistency — that is contradiction-finder's job."
+description: "Analyzes AI prompt files (.claude/agents/*.md, .claude/skills/**/*.md, .agents/skills/**/*.md, CLAUDE.md, AGENTS.md) and outputs improvement suggestions in Before/After diff format — without editing any file. Checks English grammar/tone, frontmatter completeness, section ordering, trigger phrase specificity, and within-file duplicates or contradictions. Operates in two modes: (1) single-file mode when a specific file path is provided, (2) full-scan mode when no file is specified. .claude/ and .agents/ are treated independently and are never synchronized. Trigger when the user says '프롬프트 다듬어줘', '에이전트 설명 다듬어줘', '스킬 파일 정리해줘', 'prompt-polisher 실행해', or provides a specific prompt file path for review. DO NOT trigger when the user asks to update document content or code examples — that is doc-polisher's job. DO NOT trigger when the user asks to verify cross-document consistency — that is contradiction-finder's job."
 tools: Bash, Glob, Grep, Read
 model: sonnet
 color: blue
@@ -35,8 +35,6 @@ find .agents/skills -name "*.md" 2>/dev/null
 Fixed documentation files to include:
 - `CLAUDE.md`
 - `AGENTS.md`
-- `.github/copilot-instructions.md`
-- `.gemini/styleguide.md`
 
 Treat `.claude/` and `.agents/` as independent systems. Do not compare them or flag differences between them as issues.
 
@@ -59,7 +57,7 @@ For each file, check the following four areas:
 
 ### Area 1 — English Grammar and Tone
 
-Applies to: all English-language prompt files (agent .md bodies, SKILL.md files, copilot-instructions.md).
+Applies to: all English-language prompt files (agent .md bodies, SKILL.md files).
 
 Flag when:
 - Subject-verb agreement is broken

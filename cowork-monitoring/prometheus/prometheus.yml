@@ -18,7 +18,7 @@ scrape_configs:
   # eureka.instance.metadata-map에 prometheus.scrape=true가 있는 인스턴스만 스크랩
   - job_name: cowork-services
     eureka_sd_configs:
-      - server: http://host.docker.internal:8761/eureka
+      - server: http://cowork-config:8761/eureka
         refresh_interval: 30s
     relabel_configs:
       - source_labels: [__meta_eureka_app_instance_metadata_prometheus_scrape]
@@ -51,17 +51,17 @@ scrape_configs:
       module: [http_2xx]
     static_configs:
       - targets:
-          - http://host.docker.internal:8080/actuator/health
-          - http://host.docker.internal:8081/health
-          - http://host.docker.internal:8082/actuator/health
-          - http://host.docker.internal:8083/actuator/health
-          - http://host.docker.internal:8084/actuator/health
-          - http://host.docker.internal:8085/actuator/health
-          - http://host.docker.internal:8086/health
-          - http://host.docker.internal:8087/health
-          - http://host.docker.internal:8088/actuator/health
-          - http://host.docker.internal:8089/health
-          - http://host.docker.internal:9001/health
+          - http://cowork-gateway:8080/actuator/health
+          - http://cowork-authorization:8081/health
+          - http://cowork-user:8082/actuator/health
+          - http://cowork-channel:8083/actuator/health
+          - http://cowork-project:8084/actuator/health
+          - http://cowork-team:8085/actuator/health
+          - http://cowork-notification:8086/health
+          - http://cowork-chat:8087/health
+          - http://cowork-roadmap:8088/actuator/health
+          - http://cowork-voice:8089/health
+          - http://cowork-preference:9001/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

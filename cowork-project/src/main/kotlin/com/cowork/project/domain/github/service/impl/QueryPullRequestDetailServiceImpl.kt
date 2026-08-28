@@ -16,8 +16,8 @@ class QueryPullRequestDetailServiceImpl(
 ) : QueryPullRequestDetailService {
 
     @Transactional(readOnly = true)
-    override fun execute(userId: Long, projectId: Long, prNumber: Int): GithubPullRequestResDto {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId)
+    override fun execute(userId: Long, projectId: Long, repoId: Long, prNumber: Int): GithubPullRequestResDto {
+        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
         return callExecutor.execute { githubAppClient.getPullRequest(repo.owner, repo.repo, prNumber) }
     }
 }

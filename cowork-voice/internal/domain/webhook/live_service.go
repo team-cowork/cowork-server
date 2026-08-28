@@ -14,17 +14,15 @@ import (
 )
 
 type LiveWebhookService struct {
-	repo  LiveSessionRepository
-	room  LiveRoomController
-	kafka EventPublisher
-	now   func() time.Time
+	repo LiveSessionRepository
+	room LiveRoomController
+	now  func() time.Time
 }
 
-func NewLiveWebhookService(repo LiveSessionRepository, room LiveRoomController, kafka EventPublisher) *LiveWebhookService {
+func NewLiveWebhookService(repo LiveSessionRepository, room LiveRoomController) *LiveWebhookService {
 	return &LiveWebhookService{
-		repo:  repo,
-		room:  room,
-		kafka: kafka,
+		repo: repo,
+		room: room,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -80,46 +78,37 @@ func (s *LiveWebhookService) handleParticipantJoined(ctx context.Context, event 
 
 	if userID == liveSession.HostUserID {
 		// 호스트 첫 접속 = 방송 시작. 게이트가 재접속 시 LIVE_STARTED 재발행을 막는다.
-		firstStart, err := s.repo.MarkSessionStarted(ctx, liveSession.SessionID, now)
+		_, err := s.repo.MarkSessionStartedAndEnqueue(ctx, liveSession.SessionID, now, &kafkadomain.LiveStartedEvent{
+			EventType:  kafkadomain.EventLiveStarted,
+			SessionID:  liveSession.SessionID,
+			ChannelID:  parsedRoom.ChannelID,
+			TeamID:     liveSession.TeamID,
+			HostUserID: liveSession.HostUserID,
+			Timestamp:  nowStr,
+		})
 		if err != nil {
-			slog.Error("failed to mark live session started", "err", err, "session_id", liveSession.SessionID)
+			slog.Error("failed to mark live session started and enqueue LIVE_STARTED", "err", err, "session_id", liveSession.SessionID)
 			return err
-		}
-		if firstStart {
-			if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.LiveStartedEvent{
-				EventType:  kafkadomain.EventLiveStarted,
-				SessionID:  liveSession.SessionID,
-				ChannelID:  parsedRoom.ChannelID,
-				TeamID:     liveSession.TeamID,
-				HostUserID: liveSession.HostUserID,
-				Timestamp:  nowStr,
-			}); err != nil {
-				slog.Error("failed to publish LIVE_STARTED", "err", err)
-			}
 		}
 		return nil
 	}
 
-	// 시청자 reconnect 시 left 처리된 행을 새로 열어 duration 추적을 정상화한다(upsert).
-	if err := s.repo.InsertViewer(ctx, &livedomain.LiveViewer{
+	_, err = s.repo.RecordViewerJoinedAndEnqueue(ctx, &livedomain.LiveViewer{
 		SessionID: liveSession.SessionID,
 		UserID:    userID,
 		ChannelID: parsedRoom.ChannelID,
 		JoinedAt:  now,
-	}); err != nil {
-		slog.Error("failed to insert viewer", "err", err, "session_id", liveSession.SessionID)
-		return err
-	}
-
-	if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.ViewerJoinedEvent{
+	}, participantOccurrenceID(event), &kafkadomain.ViewerJoinedEvent{
 		EventType: kafkadomain.EventViewerJoined,
 		SessionID: liveSession.SessionID,
 		ChannelID: parsedRoom.ChannelID,
 		TeamID:    liveSession.TeamID,
 		UserID:    userID,
 		Timestamp: nowStr,
-	}); err != nil {
-		slog.Error("failed to publish VIEWER_JOINED", "err", err)
+	})
+	if err != nil {
+		slog.Error("failed to record viewer and enqueue VIEWER_JOINED", "err", err, "session_id", liveSession.SessionID)
+		return err
 	}
 	return nil
 }
@@ -163,18 +152,11 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 		return nil
 	}
 
-	joinedAt, err := s.repo.GetViewerJoinedAt(ctx, liveSession.SessionID, userID)
+	occurrenceID := participantOccurrenceID(event)
+	joinedAt, err := s.repo.GetViewerJoinedAt(ctx, liveSession.SessionID, userID, occurrenceID)
 	if err != nil {
 		slog.Error("failed to get viewer joined_at", "err", err)
-	}
-
-	firstLeave, err := s.repo.MarkViewerLeft(ctx, liveSession.SessionID, userID, now)
-	if err != nil {
-		slog.Error("failed to mark viewer left", "err", err)
 		return err
-	}
-	if !firstLeave {
-		return nil
 	}
 
 	var durationSeconds int64
@@ -182,7 +164,7 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 		durationSeconds = livedomain.DurationSecondsSince(now, *joinedAt)
 	}
 
-	if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.ViewerLeftEvent{
+	_, err = s.repo.MarkViewerLeftAndEnqueue(ctx, liveSession.SessionID, userID, occurrenceID, now, &kafkadomain.ViewerLeftEvent{
 		EventType:       kafkadomain.EventViewerLeft,
 		SessionID:       liveSession.SessionID,
 		ChannelID:       parsedRoom.ChannelID,
@@ -190,8 +172,10 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 		UserID:          userID,
 		DurationSeconds: durationSeconds,
 		Timestamp:       nowStr,
-	}); err != nil {
-		slog.Error("failed to publish VIEWER_LEFT", "err", err)
+	})
+	if err != nil {
+		slog.Error("failed to mark viewer left and enqueue VIEWER_LEFT", "err", err)
+		return err
 	}
 	return nil
 }
@@ -216,7 +200,16 @@ func (s *LiveWebhookService) handleRoomFinished(ctx context.Context, event *live
 		return nil
 	}
 
-	ended, err := s.repo.EndSession(ctx, liveSession.SessionID, now)
+	durationSeconds := livedomain.DurationSecondsSince(now, liveSession.StartedAt)
+	ended, err := s.repo.EndSessionAndEnqueue(ctx, liveSession.SessionID, now, &kafkadomain.LiveEndedEvent{
+		EventType:       kafkadomain.EventLiveEnded,
+		SessionID:       liveSession.SessionID,
+		ChannelID:       parsedRoom.ChannelID,
+		TeamID:          liveSession.TeamID,
+		HostUserID:      liveSession.HostUserID,
+		DurationSeconds: durationSeconds,
+		Timestamp:       nowStr,
+	}, true)
 	if err != nil {
 		slog.Error("failed to end live session", "err", err, "session_id", liveSession.SessionID)
 		return err
@@ -233,23 +226,5 @@ func (s *LiveWebhookService) handleRoomFinished(ctx context.Context, event *live
 		slog.Info("orphan viewers cleaned up", "session_id", liveSession.SessionID, "count", count)
 	}
 
-	// 호스트가 한 번도 접속하지 않은 유령 세션(LIVE_STARTED 미발행)은 LIVE_ENDED도 발행하지 않는다.
-	if liveSession.StartedEventSentAt == nil {
-		return nil
-	}
-
-	durationSeconds := livedomain.DurationSecondsSince(now, liveSession.StartedAt)
-
-	if err := s.kafka.Publish(ctx, liveSession.SessionID, &kafkadomain.LiveEndedEvent{
-		EventType:       kafkadomain.EventLiveEnded,
-		SessionID:       liveSession.SessionID,
-		ChannelID:       parsedRoom.ChannelID,
-		TeamID:          liveSession.TeamID,
-		HostUserID:      liveSession.HostUserID,
-		DurationSeconds: durationSeconds,
-		Timestamp:       nowStr,
-	}); err != nil {
-		slog.Error("failed to publish LIVE_ENDED", "err", err)
-	}
 	return nil
 }

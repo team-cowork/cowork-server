@@ -10,20 +10,21 @@ import (
 
 type SessionRepository interface {
 	FindSessionByRoomName(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error)
-	MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error)
-	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
-	MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
-	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
+	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
+	RecordParticipantJoinedAndEnqueue(ctx context.Context, participant *roomdomain.VoiceParticipant, occurrenceID string, event any) (bool, error)
+	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
+	MarkParticipantLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
+	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any) (bool, error)
 	CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error)
 }
 
 type LiveSessionRepository interface {
 	FindSessionByRoomName(ctx context.Context, roomName string) (*livedomain.LiveSession, error)
-	MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error)
-	InsertViewer(ctx context.Context, v *livedomain.LiveViewer) error
-	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
-	MarkViewerLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
-	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
+	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
+	RecordViewerJoinedAndEnqueue(ctx context.Context, viewer *livedomain.LiveViewer, occurrenceID string, event any) (bool, error)
+	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
+	MarkViewerLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
+	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any, enqueueOnlyIfStarted bool) (bool, error)
 	CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error)
 }
 

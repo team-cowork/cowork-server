@@ -34,6 +34,7 @@ func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
 		{
 			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
 		},
+		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
 	}
 	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
 		return fmt.Errorf("live_sessions index creation failed: %w", err)
@@ -41,7 +42,7 @@ func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
 
 	viewerIndexes := []mongo.IndexModel{
 		// 세션당 시청자는 "활성(left_at=null)" 한 명만 허용. voice_participants와 동일 패턴 —
-		// InsertViewer가 left_at을 항상 명시적으로 null로 set하므로 missing vs null 모호성은 없다.
+		// RecordViewerJoinedAndEnqueue가 left_at을 항상 null로 기록한다.
 		{
 			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "user_id", Value: 1}},
 			Options: options.Index().
@@ -51,6 +52,13 @@ func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
 		{
 			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "joined_at", Value: 1}},
 		},
+		{
+			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "occurrence_id", Value: 1}},
+			Options: options.Index().
+				SetUnique(true).
+				SetPartialFilterExpression(bson.D{{Key: "occurrence_id", Value: bson.D{{Key: "$type", Value: "string"}}}}),
+		},
+		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
 	}
 	if _, err := viewers.Indexes().CreateMany(ctx, viewerIndexes); err != nil {
 		return fmt.Errorf("live_participants index creation failed: %w", err)
@@ -134,17 +142,29 @@ func (r *mongoLiveSessionRepository) EndSession(ctx context.Context, sessionID s
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoLiveSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {
+func (r *mongoLiveSessionRepository) MarkSessionStartedAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	startedAt time.Time,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, startedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(live.CollectionSessions)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "status", Value: live.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "started_at", Value: startedAt},
-		{Key: "started_event_sent_at", Value: startedAt},
-	}}}
+	update := bson.D{
+		{Key: "$set", Value: bson.D{
+			{Key: "started_at", Value: startedAt},
+			{Key: "started_event_sent_at", Value: startedAt},
+		}},
+		{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+	}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return false, apperr.Internal(err.Error())
@@ -152,42 +172,60 @@ func (r *mongoLiveSessionRepository) MarkSessionStarted(ctx context.Context, ses
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoLiveSessionRepository) InsertViewer(ctx context.Context, v *live.LiveViewer) error {
+func (r *mongoLiveSessionRepository) RecordViewerJoinedAndEnqueue(
+	ctx context.Context,
+	v *live.LiveViewer,
+	occurrenceID string,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(v.SessionID, event, v.JoinedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(live.CollectionViewers)
-	filter := bson.D{
+	document := bson.D{
 		{Key: "session_id", Value: v.SessionID},
 		{Key: "user_id", Value: v.UserID},
+		{Key: "channel_id", Value: v.ChannelID},
+		{Key: "occurrence_id", Value: occurrenceID},
+		{Key: "joined_at", Value: v.JoinedAt},
 		{Key: "left_at", Value: nil},
+		{Key: outboxField, Value: bson.A{message}},
 	}
-	update := bson.D{
-		{Key: "$setOnInsert", Value: bson.D{
-			{Key: "session_id", Value: v.SessionID},
-			{Key: "user_id", Value: v.UserID},
-			{Key: "channel_id", Value: v.ChannelID},
-			{Key: "joined_at", Value: v.JoinedAt},
-			{Key: "left_at", Value: nil},
-		}},
-	}
-	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
-	if err != nil {
+	if _, err := col.InsertOne(ctx, document); err != nil {
 		if mongo.IsDuplicateKeyError(err) {
-			// 동시 join 경쟁: 다른 요청이 같은 (session_id, user_id) 활성 행을 먼저 insert함.
-			// 이미 시청자로 등록된 상태이므로 에러가 아니라 성공으로 처리한다.
-			return nil
+			return false, nil
 		}
-		return apperr.Internal(err.Error())
+		return false, apperr.Internal(err.Error())
 	}
-	return nil
+	return true, nil
 }
 
-func (r *mongoLiveSessionRepository) MarkViewerLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error) {
+func (r *mongoLiveSessionRepository) MarkViewerLeftAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+	now time.Time,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, now)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(live.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
 		{Key: "left_at", Value: nil},
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
+	if occurrenceID != "" {
+		filter = append(filter, bson.E{Key: "occurrence_id", Value: occurrenceID})
+	}
+	update := bson.D{
+		{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}},
+		{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+	}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return false, apperr.Internal(err.Error())
@@ -206,15 +244,33 @@ func (r *mongoLiveSessionRepository) CleanupOrphanViewers(ctx context.Context, s
 	if err != nil {
 		return 0, apperr.Internal(err.Error())
 	}
+	if _, err := r.db.Collection(live.CollectionSessions).UpdateOne(
+		ctx,
+		bson.D{{Key: "session_id", Value: sessionID}, {Key: "cleanup_pending", Value: true}},
+		bson.D{
+			{Key: "$set", Value: bson.D{{Key: "cleanup_completed_at", Value: time.Now().UTC()}}},
+			{Key: "$unset", Value: bson.D{{Key: "cleanup_pending", Value: ""}}},
+		},
+	); err != nil {
+		return result.ModifiedCount, apperr.Internal(err.Error())
+	}
 	return result.ModifiedCount, nil
 }
 
-func (r *mongoLiveSessionRepository) GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error) {
+func (r *mongoLiveSessionRepository) GetViewerJoinedAt(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+) (*time.Time, error) {
 	col := r.db.Collection(live.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
 		{Key: "left_at", Value: nil},
+	}
+	if occurrenceID != "" {
+		filter = append(filter, bson.E{Key: "occurrence_id", Value: occurrenceID})
 	}
 	var v live.LiveViewer
 	err := col.FindOne(ctx, filter).Decode(&v)
@@ -238,6 +294,51 @@ func (r *mongoLiveSessionRepository) CountActiveViewers(ctx context.Context, ses
 		return 0, apperr.Internal(err.Error())
 	}
 	return int(count), nil
+}
+
+func (r *mongoLiveSessionRepository) EndSessionAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	endedAt time.Time,
+	event any,
+	enqueueOnlyIfStarted bool,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, endedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	set := bson.D{
+		{Key: "status", Value: live.StatusEnded},
+		{Key: "ended_at", Value: endedAt},
+		{Key: "cleanup_pending", Value: true},
+	}
+	var update any = bson.D{
+		{Key: "$set", Value: set},
+		{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+	}
+	if enqueueOnlyIfStarted {
+		set = append(set, bson.E{
+			Key: outboxField,
+			Value: bson.D{{Key: "$cond", Value: bson.A{
+				bson.D{{Key: "$ne", Value: bson.A{bson.D{{Key: "$type", Value: "$started_event_sent_at"}}, "missing"}}},
+				bson.D{{Key: "$concatArrays", Value: bson.A{
+					bson.D{{Key: "$ifNull", Value: bson.A{"$" + outboxField, bson.A{}}}},
+					bson.A{message},
+				}}},
+				bson.D{{Key: "$ifNull", Value: bson.A{"$" + outboxField, bson.A{}}}},
+			}}},
+		})
+		update = mongo.Pipeline{bson.D{{Key: "$set", Value: set}}}
+	}
+	result, err := r.db.Collection(live.CollectionSessions).UpdateOne(
+		ctx,
+		bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: live.StatusActive}},
+		update,
+	)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	return result.ModifiedCount == 1, nil
 }
 
 // ensure interface compliance

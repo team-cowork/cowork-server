@@ -1,81 +1,78 @@
 package com.cowork.team.domain.team.event
 
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
-import net.javacrumbs.shedlock.core.LockConfiguration
-import net.javacrumbs.shedlock.core.LockingTaskExecutor
+import com.cowork.team.domain.team.repository.TeamEventStateRepository
+import com.cowork.team.domain.teamMember.repository.TeamMemberEventStateRepository
+import com.cowork.team.global.projection.ProjectionSnapshotCompletionPublisher
+import com.cowork.team.global.projection.ProjectionSnapshotLock
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
+import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
-import java.time.Duration
-import java.time.Instant
 
 @Component
 class TeamLifecycleSyncPublisher(
-    private val teamMemberRepository: TeamMemberRepository,
+    private val teamStateRepository: TeamEventStateRepository,
+    private val memberStateRepository: TeamMemberEventStateRepository,
     private val teamEventPublisher: TeamEventPublisher,
-    private val lockingTaskExecutor: LockingTaskExecutor,
+    private val teamMemberEventPublisher: TeamMemberEventPublisher,
+    private val completionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val snapshotLock: ProjectionSnapshotLock,
     transactionManager: PlatformTransactionManager,
 ) {
-    private val readOnlyTransaction = TransactionTemplate(transactionManager).apply {
-        isReadOnly = true
-    }
-
-    fun publishTeamSnapshot(actorUserId: Long, members: List<TeamMember>) {
-        if (members.isEmpty()) return
-
-        val team = members.first().team
-        teamEventPublisher.publishMemberInvited(
-            teamId = team.id,
-            teamName = team.name,
-            actorUserId = actorUserId,
-            targetUserIds = members.map(TeamMember::userId),
-        )
-
-        members.groupBy(TeamMember::role)
-            .filterKeys { it != TeamRole.MEMBER }
-            .forEach { (role, groupedMembers) ->
-                teamEventPublisher.publishRoleChanged(
-                    teamId = team.id,
-                    teamName = team.name,
-                    actorUserId = actorUserId,
-                    targetUserIds = groupedMembers.map(TeamMember::userId),
-                    newRole = role.name,
-                )
-            }
-    }
+    private val transaction = TransactionTemplate(transactionManager)
 
     @EventListener(ApplicationReadyEvent::class)
     fun publishAllSnapshots() {
-        val lockConfig = LockConfiguration(
-            Instant.now(),
-            "publishAllTeamSnapshots",
-            Duration.ofMinutes(10),
-            Duration.ZERO,
-        )
-        lockingTaskExecutor.executeWithLock(Runnable { publishAllInReadOnlyTransaction() }, lockConfig)
+        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
-    private fun publishAllInReadOnlyTransaction() {
-        readOnlyTransaction.executeWithoutResult { doPublishAll() }
+    @Scheduled(initialDelay = 30_000, fixedDelay = 300_000)
+    fun republishAllSnapshots() {
+        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
-    private fun doPublishAll() {
-        var page = 0
-        do {
-            val idSlice = teamMemberRepository.findAllIds(PageRequest.of(page++, 500))
-            teamMemberRepository.findAllWithTeamByIds(idSlice.content)
-                .groupBy { it.team.id }
-                .values
-                .forEach { members ->
-                    val actorUserId =
-                        members.firstOrNull { it.role == TeamRole.OWNER }?.userId ?: members.first().userId
-                    publishTeamSnapshot(actorUserId = actorUserId, members = members)
-                }
-        } while (idSlice.hasNext())
+    private fun publishAllInTransactions() {
+        publishTeamStates()
+        publishMemberStates()
+        completionPublisher.publishCompleted(SNAPSHOT_TOPICS)
+    }
+
+    private fun publishTeamStates() {
+        var afterId = 0L
+        while (true) {
+            val nextAfterId = transaction.execute {
+                val states = teamStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
+                states.forEach(teamEventPublisher::publishSnapshot)
+                states.lastOrNull()?.teamId
+            } ?: break
+            afterId = nextAfterId
+        }
+    }
+
+    private fun publishMemberStates() {
+        var afterTeamId = 0L
+        var afterUserId = 0L
+        while (true) {
+            val nextCursor = transaction.execute {
+                val states = memberStateRepository.findSnapshotBatch(
+                    afterTeamId,
+                    afterUserId,
+                    PageRequest.of(0, PAGE_SIZE),
+                )
+                states.forEach(teamMemberEventPublisher::publishSnapshot)
+                states.lastOrNull()?.let { it.teamId to it.userId }
+            } ?: break
+            afterTeamId = nextCursor.first
+            afterUserId = nextCursor.second
+        }
+    }
+
+    private companion object {
+        const val PAGE_SIZE = 500
+        const val SNAPSHOT_LOCK_NAME = "publishAllTeamSnapshots"
+        val SNAPSHOT_TOPICS = setOf(Topics.TEAM_LIFECYCLE, Topics.TEAM_MEMBER_EVENT)
     }
 }
