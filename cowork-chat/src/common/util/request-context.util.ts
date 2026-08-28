@@ -1,5 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '../enum/user-role.enum';
+import { isSafePositiveInteger } from './safe-integer.util';
 
 export class RequestContextUtil {
     static getUserId(headers: Record<string, string | string[] | undefined>): number {
@@ -7,7 +8,7 @@ export class RequestContextUtil {
         const value = Array.isArray(raw) ? raw[0] : raw;
         if (!value) throw new UnauthorizedException('x-user-id header missing');
         const id = Number(value);
-        if (isNaN(id)) throw new UnauthorizedException('x-user-id is invalid');
+        if (!isSafePositiveInteger(id)) throw new UnauthorizedException('x-user-id is invalid');
         return id;
     }
 

@@ -7,8 +7,7 @@ data class GithubRepoRef(val owner: String, val repo: String)
 /**
  * GitHub 저장소 URL을 owner/repo로 파싱한다.
  *
- * `cowork-chat`의 `ProjectClient.parseRepoUrl`과 동일한 규칙을 따른다:
- * `github.com` 호스트만 허용하고, repo 이름의 `.git` suffix는 제거한다.
+ * `github.com` 호스트만 허용하고 repo 이름의 `.git` suffix는 제거한다.
  */
 object GithubRepoUrlParser {
 
