@@ -35,9 +35,9 @@
 - file service discovery를 사용하는 target은 파일 로드 여부와 relabel 이후 최종 target 잔존 여부를 확인한다.
 - 다음 열을 갖는 target matrix를 작성해 정상·실패 서비스를 같은 기준으로 비교한다.
 
-| 서비스 | 환경 | discovery 원본 | 기대 scrape URL | 실제 scrape URL | HTTP 결과 | Prometheus last error | sample 수 |
-|---|---|---|---|---|---|---|---|
-| 조사 후 기록 | local/prod | Eureka/file/static | 조사 후 기록 | 조사 후 기록 | 조사 후 기록 | 조사 후 기록 | 조사 후 기록 |
+| 서비스       | 환경       | discovery 원본     | 기대 scrape URL | 실제 scrape URL | HTTP 결과    | Prometheus last error | sample 수    |
+|--------------|------------|--------------------|-----------------|-----------------|--------------|-----------------------|--------------|
+| 조사 후 기록 | local/prod | Eureka/file/static | 조사 후 기록    | 조사 후 기록    | 조사 후 기록 | 조사 후 기록          | 조사 후 기록 |
 
 ## 2단계: 실패 구간별 원인 분석
 
