@@ -1,5 +1,3 @@
-DELETE FROM tb_projection_consumer_checkpoints;
-
 ALTER TABLE tb_projection_consumer_checkpoints
     ADD COLUMN topic_id VARCHAR(64) NOT NULL,
     ADD COLUMN invalid_checkpoint_offset BIGINT,

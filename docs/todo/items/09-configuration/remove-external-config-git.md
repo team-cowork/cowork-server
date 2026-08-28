@@ -18,6 +18,9 @@
 | 8. staging 검증 후 단계적 전환 | ❌ 미수행 |
 | 9. 외부 Git 저장소·자격 증명 폐기 | ❌ 미수행 |
 
+> **2026-08-28:** 남은 1·8·9는 모두 외부 저장소 접근과 staging 배포가 필요한 작업이라
+> 저장소 안에서 진행할 수 있는 단계는 없다.
+
 1번을 수행하지 못했으므로 **기존 외부 Git이 공급하던 key 중 누락된 것이 있을 수 있다.** `*-prod.yml`은 각 서비스의 `-dev.yml`을 기준으로 작성했다. 외부 저장소 접근이 가능해지면 key set을 대조해야 한다.
 
 > 이후 `dev` 프로파일은 제거되어 `local`/`prod` 두 개만 남았다. 대조 시 기준은 `*-local.yml`이다.
@@ -134,7 +137,6 @@ native 전환과 문서 정합성을 함께 확인한 주요 파일은 다음과
 - `cowork-config/README.md`
 - `cowork-project/README.md`
 - `docs/configuration.md`
-- `docs/gateway-config.md`
 - `docs/local-run-guide.md`
 - `docs/development-guide.md`
 
