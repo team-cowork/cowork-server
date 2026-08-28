@@ -383,7 +383,7 @@ jobs:
             const modules = fs.readdirSync('.', { withFileTypes: true })
               .filter(d => d.isDirectory() && d.name.startsWith('cowork-'))
               .map(d => d.name).sort();
-            const AI = new Set(['.harness', '.claude', '.agents', '.codex', '.gemini']);
+            const AI = new Set(['.harness', '.claude', '.agents', '.codex']);
             const classify = (p) => {
               const top = p.split('/')[0];
               if (modules.includes(top)) return top;
