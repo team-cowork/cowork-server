@@ -14,9 +14,11 @@
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
+- dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)
 
 ## 점검 스냅샷
 
+- [20260828](./20260828_TODO.md) — cowork-user 의존성 임시 override 점검
 - [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
 - [20260723](./20260723_TODO.md) — Config Server 운영 구성 점검
 
