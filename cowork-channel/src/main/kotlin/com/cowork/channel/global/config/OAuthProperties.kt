@@ -18,4 +18,7 @@ data class OAuthProperties(
     val jira: OAuthProviderConfig = OAuthProviderConfig(),
     val google: OAuthProviderConfig = OAuthProviderConfig(),
     val facebook: OAuthProviderConfig = OAuthProviderConfig(),
-)
+) {
+    fun callbackUrl(providerName: String): String =
+        "${callbackBaseUrl.trimEnd('/')}/api/channel/channels/oauth/callback/${providerName.lowercase()}"
+}

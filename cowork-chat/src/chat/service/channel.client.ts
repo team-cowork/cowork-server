@@ -1,82 +1,22 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { getRequiredConfig } from '../../common/config/config.util';
-import { BaseHttpClient } from './base-http-client';
-import { ChannelMetaCache } from './channel-meta.cache';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
 
-/**
- * channel-service로부터 반환되는 채널 기본 정보.
- */
 export interface ChannelInfo {
     id: number;
     viewType: string;
 }
 
-/**
- * channel-service와 HTTP 통신하는 클라이언트.
- *
- * 환경변수 `CHANNEL_SERVICE_URL`을 베이스 URL로 사용하며,
- * 말미 슬래시는 자동으로 제거된다.
- */
+/** Kafka로 동기화된 로컬 채널 projection 조회기. */
 @Injectable()
-export class ChannelClient extends BaseHttpClient {
-    protected readonly logger = new Logger(ChannelClient.name);
-    protected readonly serviceName = 'channel-service';
-    private readonly channelServiceUrl: string;
+export class ChannelClient {
+    constructor(private readonly projectionRepository: ChannelProjectionRepository) {}
 
-    constructor(
-        private readonly configService: ConfigService,
-        private readonly metaCache: ChannelMetaCache,
-    ) {
-        super();
-        this.channelServiceUrl = getRequiredConfig(this.configService, 'CHANNEL_SERVICE_URL').replace(/\/$/, '');
-    }
-
-    /**
-     * 채널 ID로 채널 정보를 조회한다.
-     *
-     * 요청 시 `X-User-Id` 헤더에 호출자의 사용자 ID를 포함하여 전송한다.
-     * channel-service가 해당 헤더로 접근 권한을 검증하므로 반드시 필요하다.
-     * 응답 본문의 `id`와 `viewType` 필드 타입을 직접 검증하며,
-     * 형식이 맞지 않으면 예외를 던진다.
-     *
-     * `viewType`은 자주 바뀌지 않으므로 Redis에 30초 TTL로 캐싱된다(채널 ID 단위).
-     * 캐시는 호출자의 접근 권한과 무관한 채널 자체의 메타데이터만 담으므로,
-     * 캐시 적중 시에도 접근 권한 검증에는 영향을 주지 않는다(호출부에서 별도 멤버십 검증 필요).
-     *
-     * @param channelId - 조회할 채널의 ID
-     * @param userId - 요청을 수행하는 사용자의 ID (`X-User-Id` 헤더로 전달됨)
-     * @returns 채널 ID와 뷰 타입이 포함된 {@link ChannelInfo}
-     * @throws {Error} channel-service가 4xx/5xx 응답을 반환한 경우
-     * @throws {Error} 응답 본문의 형식이 올바르지 않은 경우
-     */
-    async getChannel(channelId: number, userId: number): Promise<ChannelInfo> {
-        const cachedViewType = await this.metaCache.get(channelId);
-        if (cachedViewType !== null) {
-            return { id: channelId, viewType: cachedViewType };
+    /** 채널 메타데이터는 로컬 projection에서 조회한다. */
+    async getChannel(channelId: number): Promise<ChannelInfo> {
+        const channel = await this.projectionRepository.findById(channelId);
+        if (!channel) {
+            throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
         }
-
-        const res = await this.fetchWithRetry(
-            `${this.channelServiceUrl}/channels/${channelId}`,
-            { headers: { 'X-User-Id': String(userId) } },
-            3000,
-        );
-
-        if (!res.ok) {
-            const message = await this.readErrorMessage(res);
-            throw new Error(`channel-service 오류: ${res.status}${message ? ` - ${message}` : ''}`);
-        }
-
-        const body = await this.readJsonBody<{ id?: number; viewType?: string }>(res);
-        if (typeof body.id !== 'number' || typeof body.viewType !== 'string') {
-            throw new Error('channel-service 응답 형식이 올바르지 않습니다');
-        }
-
-        await this.metaCache.set(channelId, body.viewType);
-
-        return {
-            id: body.id,
-            viewType: body.viewType,
-        };
+        return { id: channel.channelId, viewType: channel.viewType };
     }
 }

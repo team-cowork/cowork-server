@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"go.mongodb.org/mongo-driver/v2/bson"
-
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
 )
 
@@ -17,10 +15,11 @@ import (
 const maxPublishAttempts = 50
 
 type Outbox interface {
+	RecoverPendingCleanup(ctx context.Context, limit int) error
 	FetchUnsent(ctx context.Context, limit int) ([]mongoinfra.OutboxMessage, error)
-	MarkSent(ctx context.Context, id bson.ObjectID, sentAt time.Time) error
-	IncrementAttempts(ctx context.Context, id bson.ObjectID) error
-	MarkFailed(ctx context.Context, id bson.ObjectID, failedAt time.Time) error
+	MarkSent(ctx context.Context, message mongoinfra.OutboxMessage, sentAt time.Time) error
+	IncrementAttempts(ctx context.Context, message mongoinfra.OutboxMessage) error
+	MarkFailed(ctx context.Context, message mongoinfra.OutboxMessage, failedAt time.Time) error
 }
 
 type Publisher interface {
@@ -78,6 +77,11 @@ func (r *Relay) drain() {
 	ctx, cancel := context.WithTimeout(r.ctx, 30*time.Second)
 	defer cancel()
 
+	if err := r.outbox.RecoverPendingCleanup(ctx, r.batchSize); err != nil {
+		slog.Error("outbox relay: pending session cleanup recovery failed", "err", err)
+		return
+	}
+
 	msgs, err := r.outbox.FetchUnsent(ctx, r.batchSize)
 	if err != nil {
 		slog.Error("outbox relay: fetch failed", "err", err)
@@ -89,7 +93,7 @@ func (r *Relay) drain() {
 			if m.Attempts+1 >= maxPublishAttempts {
 				// 재시도 한도 초과: 격리해 큐를 막지 않는다. 격리된 메시지는 보존되어 사후 조회 가능.
 				slog.Error("outbox relay: max attempts exceeded, quarantining message", "err", err, "key", m.Key, "attempts", m.Attempts+1, "id", m.ID.Hex())
-				if ferr := r.outbox.MarkFailed(ctx, m.ID, time.Now().UTC()); ferr != nil {
+				if ferr := r.outbox.MarkFailed(ctx, m, time.Now().UTC()); ferr != nil {
 					// 격리 실패 시 hot loop를 피하려 멈추고 다음 tick에 재시도한다.
 					slog.Error("outbox relay: mark failed failed", "err", ferr, "key", m.Key)
 					return
@@ -97,13 +101,13 @@ func (r *Relay) drain() {
 				continue
 			}
 			slog.Warn("outbox relay: publish failed, will retry", "err", err, "key", m.Key, "attempts", m.Attempts)
-			if ierr := r.outbox.IncrementAttempts(ctx, m.ID); ierr != nil {
+			if ierr := r.outbox.IncrementAttempts(ctx, m); ierr != nil {
 				slog.Error("outbox relay: increment attempts failed", "err", ierr, "key", m.Key)
 			}
 			// 같은 key의 순서를 보존하기 위해 이후 메시지는 다음 tick에서 재시도한다.
 			return
 		}
-		if err := r.outbox.MarkSent(ctx, m.ID, time.Now().UTC()); err != nil {
+		if err := r.outbox.MarkSent(ctx, m, time.Now().UTC()); err != nil {
 			// sent_at 기록 실패: 다음 tick에 재전송됨(중복 가능 → consumer 멱등성 전제).
 			slog.Error("outbox relay: mark sent failed", "err", err, "key", m.Key)
 			return

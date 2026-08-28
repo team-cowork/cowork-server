@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260820.0"
+version = "20260828.0"
 
 java {
     toolchain {
@@ -33,7 +33,6 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
-    implementation(libs.spring.cloud.starter.openfeign)
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.jackson.module.kotlin)
 
@@ -50,13 +49,11 @@ dependencies {
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
     implementation(libs.logstash.logback.encoder)
-    implementation(libs.shedlock.spring)
-    implementation(libs.shedlock.provider.jdbc.template)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
-    testImplementation("io.kotest:kotest-runner-junit5-jvm:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core-jvm:5.9.1")
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 kotlin {
