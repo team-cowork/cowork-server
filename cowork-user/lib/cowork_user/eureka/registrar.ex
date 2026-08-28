@@ -4,6 +4,7 @@ defmodule CoworkUser.Eureka.Registrar do
   require Logger
 
   @heartbeat_interval 30_000
+  @readiness_retry_interval 2_000
 
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -19,32 +20,44 @@ defmodule CoworkUser.Eureka.Registrar do
 
   @impl true
   def handle_info(:register, state) do
-    case register(state.config) do
-      :ok ->
-        schedule_heartbeat()
-        {:noreply, %{state | backoff_ms: 5_000}}
+    if CoworkUser.Kafka.ProjectionReadiness.ready?() do
+      case register(state.config) do
+        :ok ->
+          schedule_heartbeat()
+          {:noreply, %{state | backoff_ms: 5_000}}
 
-      {:error, reason} ->
-        Logger.warning("eureka registration failed: #{inspect(reason)}")
-        Process.send_after(self(), :register, state.backoff_ms)
-        {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, 60_000)}}
+        {:error, reason} ->
+          Logger.warning("eureka registration failed: #{inspect(reason)}")
+          Process.send_after(self(), :register, state.backoff_ms)
+          {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, 60_000)}}
+      end
+    else
+      Process.send_after(self(), :register, @readiness_retry_interval)
+      {:noreply, state}
     end
   end
 
   def handle_info(:heartbeat, state) do
-    case heartbeat(state.config) do
-      :ok ->
-        schedule_heartbeat()
-        {:noreply, state}
+    if CoworkUser.Kafka.ProjectionReadiness.ready?() do
+      case heartbeat(state.config) do
+        :ok ->
+          schedule_heartbeat()
+          {:noreply, state}
 
-      {:error, :not_found} ->
-        send(self(), :register)
-        {:noreply, state}
+        {:error, :not_found} ->
+          send(self(), :register)
+          {:noreply, state}
 
-      {:error, reason} ->
-        Logger.warning("eureka heartbeat failed: #{inspect(reason)}")
-        Process.send_after(self(), :register, state.backoff_ms)
-        {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, 60_000)}}
+        {:error, reason} ->
+          Logger.warning("eureka heartbeat failed: #{inspect(reason)}")
+          Process.send_after(self(), :register, state.backoff_ms)
+          {:noreply, %{state | backoff_ms: min(state.backoff_ms * 2, 60_000)}}
+      end
+    else
+      Logger.error("projection readiness lost; deregistering from Eureka")
+      _ = deregister(state.config)
+      Process.send_after(self(), :register, @readiness_retry_interval)
+      {:noreply, state}
     end
   end
 
@@ -68,8 +81,10 @@ defmodule CoworkUser.Eureka.Registrar do
         status: "UP",
         port: %{"$" => config.eureka_instance_port, "@enabled" => "true"},
         securePort: %{"$" => 443, "@enabled" => "false"},
-        healthCheckUrl: "http://#{config.eureka_instance_host}:#{config.eureka_instance_port}/actuator/health",
-        statusPageUrl: "http://#{config.eureka_instance_host}:#{config.eureka_instance_port}/actuator/health",
+        healthCheckUrl:
+          "http://#{config.eureka_instance_host}:#{config.eureka_instance_port}/actuator/health/readiness",
+        statusPageUrl:
+          "http://#{config.eureka_instance_host}:#{config.eureka_instance_port}/actuator/health",
         homePageUrl: "http://#{config.eureka_instance_host}:#{config.eureka_instance_port}/",
         dataCenterInfo: %{
           "@class" => "com.netflix.appinfo.InstanceInfo$DefaultDataCenterInfo",
@@ -110,5 +125,7 @@ defmodule CoworkUser.Eureka.Registrar do
   end
 
   defp server_url(config), do: String.trim_trailing(config.eureka_server_url, "/")
-  defp instance_url(config), do: "#{server_url(config)}/apps/#{config.eureka_app_name}/#{config.eureka_instance_id}"
+
+  defp instance_url(config),
+    do: "#{server_url(config)}/apps/#{config.eureka_app_name}/#{config.eureka_instance_id}"
 end
