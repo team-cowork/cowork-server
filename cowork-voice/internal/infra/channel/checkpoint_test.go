@@ -8,7 +8,7 @@ import (
 	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
-func TestSnapshotMarkerCheckpointUpdateStoresReceiptAndNextOffsetInOnePipeline(t *testing.T) {
+func TestSnapshotMarkerCheckpointUpdate_수신확인과_다음오프셋을_하나의_파이프라인에_담는다(t *testing.T) {
 	t.Parallel()
 	marker := SnapshotMarkerReceipt{
 		Offset:     41,
