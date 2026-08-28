@@ -47,7 +47,6 @@ Config API에만 인증을 추가하면서 Eureka Client 기동을 깨뜨리거�
 
 ## 검증
 
-- 인증되지 않은 Config API 요청이 거부되는 통합 테스트를 추가한다.
 - 한 서비스의 자격 증명으로 다른 서비스의 설정을 조회할 수 없는지 검증한다.
 - 정상 자격 증명을 사용하는 Spring Boot, Go, NestJS, Vert.x, Elixir Config Client가 모두 기동하는지 검증한다.
 - Eureka 등록·heartbeat·registry 조회가 인증 적용 후에도 정상인지 검증한다.
