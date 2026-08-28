@@ -27,6 +27,7 @@ dependencies:
 
 test-dependencies:
   - io.vertx:vertx-junit5:5.1.1
+  - io.mockk:mockk:1.14.3
 
 settings:
   jvm:

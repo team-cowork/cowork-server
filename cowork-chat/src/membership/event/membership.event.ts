@@ -8,4 +8,6 @@ export interface ChannelMemberEvent {
     /** 채널 타입 (TEXT, VOICE, DM) — DM 채널 식별에 사용 */
     channelType: string;
     occurredAt: string;
+    /** startup/주기 projection snapshot 여부 */
+    snapshot?: boolean;
 }

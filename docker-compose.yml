@@ -70,6 +70,10 @@ services:
       # depend on broker auto-creation timing. This also matches production
       # clusters where automatic topic creation is normally disabled.
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      # Projection checkpoints store numeric offsets. Reusing a topic name for a
+      # newly-created topic can make an old checkpoint appear valid, so state
+      # topics are immutable and Kafka storage resets must reset projections too.
+      KAFKA_DELETE_TOPIC_ENABLE: "false"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qg
     ports:
@@ -95,12 +99,21 @@ services:
       KAFKA_TOPICS: >-
         springCloudBus
         user.data.sync
-        user.lifecycle
+        user.identity.command
+        user.identity.command-result
+        user.identity.command-result-dlt
+        user.profile.event
+        user.presence.event
         team.lifecycle
+        team.lifecycle-dlt
+        team.member.event
+        team.member.event-dlt
         channel.member.event
         channel.event
         project.event
+        project.event-dlt
         project.member.event
+        project.github-repo.event
         chat.message
         github.issue.create
         github.issue.result
@@ -113,6 +126,29 @@ services:
         voice.event
         preference.status.changed
         preference.team.setting.changed
+        preference.channel-notification.changed
+        preference.team-role.changed
+        preference.team-role.changed-dlt
+        preference.team-role.command
+        preference.team-role.command-result
+        preference.team-role.command-result-dlt
+        preference.github-repo.setting.command
+        preference.github-repo.setting.state
+        preference.github-repo.setting.result
+        preference.github-repo.setting.result-dlt
+      KAFKA_COMPACTED_TOPICS: >-
+        user.profile.event
+        user.presence.event
+        team.lifecycle
+        team.member.event
+        channel.member.event
+        channel.event
+        project.event
+        project.member.event
+        project.github-repo.event
+        preference.channel-notification.changed
+        preference.team-role.changed
+        preference.github-repo.setting.state
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
@@ -125,6 +161,14 @@ services:
             --topic "$${topic}" \
             --partitions "$${KAFKA_TOPIC_PARTITIONS}" \
             --replication-factor "$${KAFKA_TOPIC_REPLICATION_FACTOR}"
+        done
+        for topic in $${KAFKA_COMPACTED_TOPICS}; do
+          /opt/kafka/bin/kafka-configs.sh \
+            --bootstrap-server kafka:9092 \
+            --alter \
+            --entity-type topics \
+            --entity-name "$${topic}" \
+            --add-config cleanup.policy=compact
         done
 
   kafka-ui:
@@ -174,7 +218,6 @@ services:
       VAULT_ADDR: http://cowork-vault:8200
       VAULT_TOKEN: dev-root-token
       JWT_SECRET: ${JWT_SECRET}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
       DATAGSM_CLIENT_ID: ${DATAGSM_CLIENT_ID}
       DATAGSM_WEBHOOK_SECRET: ${DATAGSM_WEBHOOK_SECRET:-}
       MYSQL_USER: ${MYSQL_USER}
@@ -208,7 +251,7 @@ services:
     entrypoint: ["/bin/sh", "/scripts/vault-init.sh"]
 
   seaweedfs:
-    image: chrislusf/seaweedfs:latest
+    image: chrislusf/seaweedfs:4.44
     container_name: cowork-seaweedfs
     restart: unless-stopped
     environment:
@@ -236,7 +279,7 @@ services:
           -volume.port=8080 \
           -filer.port=8888
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:9333/cluster/status || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:9333/cluster/status || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -279,7 +322,7 @@ services:
     volumes:
       - es_data:/usr/share/elasticsearch/data
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://127.0.0.1:9200/_cluster/health || exit 1"]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -314,7 +357,7 @@ services:
       - ./docker/livekit/${LIVEKIT_CONFIG_FILE:-livekit.yaml}:/etc/livekit.yaml:ro
     command: --config /etc/livekit.yaml
     healthcheck:
-      test: [ "CMD-SHELL", "wget -qO- http://localhost:7880 || exit 1" ]
+      test: [ "CMD-SHELL", "wget -qO- http://127.0.0.1:7880 || exit 1" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -427,7 +470,7 @@ services:
     command:
       - '--config.file=/etc/alertmanager/generated/alertmanager.yml'
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9093/-/ready || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9093/-/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -515,6 +558,9 @@ services:
 
   cowork-config:
     image: cowork-config:local
+    build:
+      context: .
+      dockerfile: cowork-config/prod.dockerfile
     container_name: cowork-config
     restart: unless-stopped
     depends_on:
@@ -531,12 +577,14 @@ services:
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
+      LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://localhost:7880}
     ports:
       - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8761/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -544,6 +592,9 @@ services:
 
   cowork-gateway:
     image: cowork-gateway:local
+    build:
+      context: .
+      dockerfile: cowork-gateway/prod.dockerfile
     container_name: cowork-gateway
     restart: unless-stopped
     depends_on:
@@ -559,7 +610,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/actuator/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
@@ -567,6 +618,9 @@ services:
 
   cowork-authorization:
     image: cowork-authorization:local
+    build:
+      context: ./cowork-authorization
+      dockerfile: prod.dockerfile
     container_name: cowork-authorization
     restart: unless-stopped
     depends_on:
@@ -574,6 +628,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       cowork-config:
         condition: service_healthy
     environment:
@@ -582,7 +638,7 @@ services:
     ports:
       - "8081:8081"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -590,6 +646,9 @@ services:
 
   cowork-preference:
     image: cowork-preference:local
+    build:
+      context: ./cowork-preference
+      dockerfile: prod.dockerfile
     container_name: cowork-preference
     restart: unless-stopped
     depends_on:
@@ -599,6 +658,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       cowork-config:
         condition: service_healthy
     environment:
@@ -609,7 +670,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:9001/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9001/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -617,15 +678,24 @@ services:
 
   cowork-user:
     image: cowork-user:local
+    build:
+      context: ./cowork-user
+      dockerfile: prod.dockerfile
     container_name: cowork-user
     restart: unless-stopped
     depends_on:
       mysql:
         condition: service_healthy
+      cowork-authorization:
+        condition: service_healthy
       cowork-config:
         condition: service_healthy
       redis:
         condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
@@ -634,7 +704,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -642,6 +712,9 @@ services:
 
   cowork-team:
     image: cowork-team:local
+    build:
+      context: .
+      dockerfile: cowork-team/prod.dockerfile
     container_name: cowork-team
     restart: unless-stopped
     depends_on:
@@ -649,6 +722,10 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
@@ -657,7 +734,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8085/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -665,6 +742,9 @@ services:
 
   cowork-channel:
     image: cowork-channel:local
+    build:
+      context: .
+      dockerfile: cowork-channel/prod.dockerfile
     container_name: cowork-channel
     restart: unless-stopped
     depends_on:
@@ -672,6 +752,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
@@ -680,7 +762,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8083/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -688,6 +770,9 @@ services:
 
   cowork-project:
     image: cowork-project:local
+    build:
+      context: ./cowork-project
+      dockerfile: prod.dockerfile
     container_name: cowork-project
     restart: unless-stopped
     depends_on:
@@ -695,6 +780,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
@@ -705,7 +792,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -713,6 +800,9 @@ services:
 
   cowork-roadmap:
     image: cowork-roadmap:local
+    build:
+      context: .
+      dockerfile: cowork-roadmap/prod.dockerfile
     container_name: cowork-roadmap
     restart: unless-stopped
     depends_on:
@@ -720,6 +810,8 @@ services:
         condition: service_healthy
       cowork-config:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
@@ -728,7 +820,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8088/actuator/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8088/actuator/health/readiness || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -736,6 +828,9 @@ services:
 
   cowork-notification:
     image: cowork-notification:local
+    build:
+      context: ./cowork-notification
+      dockerfile: prod.dockerfile
     container_name: cowork-notification
     restart: unless-stopped
     depends_on:
@@ -743,6 +838,8 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       cowork-config:
         condition: service_healthy
     environment:
@@ -756,7 +853,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8086/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8086/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -764,6 +861,9 @@ services:
 
   cowork-chat:
     image: cowork-chat:local
+    build:
+      context: ./cowork-chat
+      dockerfile: prod.dockerfile
     container_name: cowork-chat
     restart: unless-stopped
     depends_on:
@@ -771,6 +871,12 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      seaweedfs-init:
+        condition: service_completed_successfully
       elasticsearch:
         condition: service_healthy
       cowork-config:
@@ -783,7 +889,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8087/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8087/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -791,6 +897,9 @@ services:
 
   cowork-voice:
     image: cowork-voice:local
+    build:
+      context: ./cowork-voice
+      dockerfile: prod.dockerfile
     container_name: cowork-voice
     restart: unless-stopped
     depends_on:
@@ -800,9 +909,11 @@ services:
         condition: service_healthy
       kafka:
         condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
       livekit:
         condition: service_healthy
-      cowork-channel:
+      cowork-config:
         condition: service_healthy
     environment:
       APP_CONFIG_URL: http://cowork-config:8761
@@ -812,7 +923,7 @@ services:
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8089/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8089/health/ready || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

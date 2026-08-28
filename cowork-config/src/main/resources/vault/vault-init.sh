@@ -5,7 +5,6 @@ set -eu
 : "${VAULT_TOKEN:?VAULT_TOKEN is required}"
 
 JWT_SECRET=${JWT_SECRET:-}
-SECRET_KEY_BASE=${SECRET_KEY_BASE:-}
 MYSQL_USER=${MYSQL_USER:-}
 MYSQL_PASSWORD=${MYSQL_PASSWORD:-}
 POSTGRES_USER=${POSTGRES_USER:-}
@@ -38,7 +37,7 @@ vault kv put secret/cowork-gateway \
   jwt.secret="${JWT_SECRET}" >/dev/null
 
 vault kv put secret/cowork-authorization \
-  DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=True&loc=Local" \
+  DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=true&loc=UTC&time_zone=%27%2B00%3A00%27" \
   DATAGSM_CLIENT_ID="${DATAGSM_CLIENT_ID}" \
   DATAGSM_WEBHOOK_SECRET="${DATAGSM_WEBHOOK_SECRET:-}" \
   JWT_SECRET="${JWT_SECRET}" >/dev/null
@@ -52,16 +51,14 @@ vault kv put secret/cowork-preference \
 
 vault kv put secret/cowork-user \
   DB_USERNAME="${MYSQL_USER}" \
-  DB_PASSWORD="${MYSQL_PASSWORD}" \
-  SECRET_KEY_BASE="${SECRET_KEY_BASE}" >/dev/null
+  DB_PASSWORD="${MYSQL_PASSWORD}" >/dev/null
 
 vault kv put secret/cowork-team \
   TEAM_GITHUB_STATE_SECRET="${TEAM_GITHUB_STATE_SECRET}" \
   GITHUB_APP_SLUG="${GITHUB_APP_SLUG}" >/dev/null
 
 vault kv put secret/cowork-project \
-  github-app.internal-api-key="${GITHUB_APP_INTERNAL_API_KEY:-}" \
-  TEAM_GITHUB_STATE_SECRET="${TEAM_GITHUB_STATE_SECRET}" >/dev/null
+  github-app.internal-api-key="${GITHUB_APP_INTERNAL_API_KEY:-}" >/dev/null
 
 vault kv put secret/cowork-voice \
   MONGODB_URI="mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_voice?authSource=admin" \
