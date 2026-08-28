@@ -31,19 +31,23 @@ cowork-server/
 ├── cowork-project/       프로젝트 관리 — Kotlin (Spring Boot)
 ├── cowork-roadmap/       전공/포지션별 온보딩 로드맵 — Java (Spring Boot WebFlux + R2DBC)
 ├── cowork-channel/       채널 관리 (텍스트/음성/웹훅 등) — Kotlin (Spring Boot)
-├── cowork-preference/    팀 설정 관리 — Kotlin (Vert.x)
+├── cowork-preference/    사용자·팀·채널·저장소 설정 및 사용자 정의 팀 역할 관리 — Kotlin (Vert.x)
 ├── cowork-chat/          채팅 메시지 (MongoDB + Elasticsearch) — NestJS (TypeScript)
 ├── cowork-voice/         음성 채널 (MongoDB + Redis) — Go
 ├── cowork-notification/  알림 (FCM 푸시 + SSE) — Go
-├── cowork-promotion/     서비스 소개 페이지 — Nuxt.js (Vue)
+├── cowork-promotion/     서비스 소개 페이지 — TypeScript 정적 사이트 (프레임워크 없음)
 └── cowork-monitoring/    Prometheus/Grafana 설정 (앱 없음)
 ```
 
 ### 모듈 네이밍 규칙
 
 - 모든 서비스 디렉터리명은 `cowork-` 접두사로 시작합니다.
-- Spring Boot / Vert.x 기반 JVM 서비스는 `settings.gradle.kts`에 등록합니다.
-- JVM 외 서비스(NestJS, Go, Elixir, Nuxt.js 등)는 Gradle에 포함하지 않습니다.
+- JVM 서비스는 `settings.gradle.kts`에 등록합니다. 현재 등록된 모듈은 `cowork-gateway`, `cowork-config`,
+  `cowork-channel`, `cowork-project`, `cowork-team`, `cowork-preference`, `cowork-roadmap` 7개입니다.
+- 등록되어 있어도 빌드 소유권은 다를 수 있습니다. `cowork-project`는 Maven(`pom.xml`), `cowork-preference`는
+  Amper(`module.yaml`)가 source of truth이고 `build.gradle.kts`는 위임만 합니다.
+- JVM 외 서비스(NestJS, Go, Elixir, 정적 사이트)는 Gradle에 포함하지 않습니다.
+- 새 모듈을 만들면 `scripts/bump.sh`(`make bump`)에도 추가해 릴리스 버전이 스탬프되게 합니다.
 
 ---
 
@@ -158,30 +162,97 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 - 클라이언트 → Gateway → 각 서비스 경로로만 호출합니다.
 - Gateway는 Eureka의 `lb://cowork-{name}` 대상으로 라우팅합니다.
-- 서비스 간 내부 호출은 런타임에 맞는 OpenFeign, WebClient, RestClient 또는 HTTP client를 사용합니다.
-- Eureka 이름을 쓰는 호출과 Config Server/환경 변수의 고정 URL을 쓰는 호출이 함께 있으므로 대상 서비스의 기존 client 패턴을 따릅니다.
+- 다른 서비스의 durable state는 authoritative owner가 transactional outbox로 발행하고,
+  호출자가 idempotent 로컬 projection으로 소비합니다. 내부 REST/Feign으로 상태를 조회하지 않습니다.
+- 즉시 응답, 생성 ID, 검증 오류만으로는 내부 HTTP 예외가 될 수 없습니다. durable state로
+  재구성할 수 없는 request-scoped 작업만 이유를 문서화하고 허용합니다.
+- 명시적으로 보류된 GitHub App API와 외부 provider API는 이 내부 상태 조회 규칙의 대상이 아닙니다.
 
 ### 비동기 통신 (Kafka)
 
-이벤트 기반 통신이 필요한 경우 Kafka를 사용합니다.
+서비스 간 상태 전파와 조회 모델 동기화에는 Kafka를 사용합니다. 상태 토픽은 aggregate ID 기반 key,
+UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니다.
 
-| 토픽 | Producer | Consumer | 용도 |
-|---|---|---|---|
-| `user.data.sync` | cowork-authorization | cowork-user | 인증 사용자 데이터 동기화 |
-| `team.lifecycle` | cowork-team | cowork-channel, cowork-project | 팀·멤버 생명주기 동기화 |
-| `user.lifecycle` | 현재 저장소 내 producer 없음 | cowork-channel, cowork-project | 사용자 삭제 동기화 계약 |
-| `channel.event` | cowork-channel | cowork-chat | 채널 메타데이터 동기화 |
-| `channel.member.event` | cowork-channel | cowork-chat | 채널 멤버십 동기화 |
-| `project.event` | cowork-project | cowork-chat | 프로젝트 메타데이터 동기화 |
-| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 캐시 무효화 |
-| `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
-| `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
-| `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
-| `voice.event` | cowork-voice | 연동 서비스 | 음성 세션 이벤트 |
-| `preference.status.changed` | cowork-preference | 연동 서비스 | 사용자 상태 변경 |
-| `preference.team.setting.changed` | cowork-preference | 연동 서비스 | 팀 설정 변경 |
+Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
+`(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록합니다. Client가
+broker topic UUID를 제공하면 checkpoint와 함께 저장해 assignment와 range 검사 때 동일성을 검증합니다.
+UUID를 제공하지 못하는 client는 프로세스 재시작·강제 복구마다 durable replay generation을 만들고,
+assignment 시 checkpoint와 snapshot barrier를 broker earliest로 원자적으로 초기화하며 이전 replica의
+lease를 fencing합니다. 숫자 checkpoint만으로 이전 topic의 연속성을 추정하지 않습니다.
+
+기동 시점에 관련된 모든 topic partition의 end offset을 고정한 뒤 shared checkpoint가 전부 도달할 때만
+readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축, consumer group offset 선행, 다중 replica 환경에서도
+projection이 비거나 부분적인 상태를 정상 응답으로 노출하지 않습니다. 준비 완료 뒤에도 현재 broker
+high-watermark와 checkpoint를 계속 비교하며, 필수 projection이 뒤처지면 readiness를 다시 닫습니다.
+동기화 중 projection 의존 API는 `403`이나 빈 결과 대신 `503`을 반환합니다.
+
+action-only 계약 위반 레코드는 격리 성공 후 checkpoint를 진전시킬 수 있습니다. snapshot-backed state
+레코드가 잘못되면 격리와 함께 durable invalid-record latch를 남기고 readiness를 즉시 닫습니다. 같은
+aggregate의 startup·주기 snapshot을 replica 전체에서 하나의 분산 락으로 직렬화하고, 서로 다른
+`snapshotId`의 full snapshot 완료로 gap 이후 시작한 재구성이 증명될 때만 latch를 해제합니다. 중복
+marker는 새 복구 run으로 세지 않습니다. DB·MongoDB·Kafka 같은 일시적 인프라 오류에서는 checkpoint와
+consumer position을 절대 진전시키지 않습니다. Docker/Eureka는 liveness가 아니라 각 서비스의
+readiness endpoint를 트래픽 허용 기준으로 사용합니다.
+
+Kafka 토픽 이름은 배포 후 불변입니다. UUID를 읽을 수 있는 client는 같은 이름의 topic 교체를 즉시
+감지합니다. topic identity를 제공하지 않는 client는 겹치는 offset 범위로 같은 이름이 교체되면 다음
+fenced replay 경계 전까지 연속성을 증명할 수 없으므로, topic 불변성과 coordinated projection rebuild가
+필수입니다. 특히 authoritative owner DB나 Kafka dataset 교체로 과거 tombstone까지 사라지면 full
+replay만으로 projection의 잔존 행을 판별할 수 없습니다. 이 경우 관련 projection table, snapshot barrier,
+checkpoint를 함께 재구축한 뒤에만 트래픽을 다시 엽니다.
+
+주기 snapshot의 `occurredAt`은 발행 시각이 아니라 source row의 실제 변경 시각을 재사용합니다.
+발행 시각을 새 버전으로 쓰면 삭제와 동시에 실행된 snapshot UPSERT가 tombstone보다 최신이 되어
+삭제 상태를 되살릴 수 있습니다. DB 기반 상태 변경과 Kafka 상태 이벤트는 같은 transaction에
+outbox로 적재하고, relay는 Kafka ack 이후에만 outbox 행을 제거합니다. relay 재시작에 따른 중복은
+consumer의 version/LWW 규칙으로 흡수하며 실패한 tombstone은 최대 재시도 횟수로 폐기하지 않습니다.
+
+full snapshot의 마지막에는 각 partition으로 `PROJECTION_SNAPSHOT_COMPLETED` marker를 명시적으로
+보냅니다. Consumer는 시작 시 캡처한 high-watermark뿐 아니라 모든 partition의 marker를 확인해야
+ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완료로 간주하지 않습니다. 반대로
+재구성 가능한 source snapshot이 없는 action stream은 이 barrier 대상에 넣거나 빈 marker로 위장하지
+않습니다. PostgreSQL outbox는 sequence 값이 commit 순서를 보장하지 않으므로 producer transaction을
+transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
+낮은 sequence 행을 볼 수 없습니다.
+
+| 토픽                                          | Producer                       | Consumer                                                                 | 용도                                                       |
+|-----------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
+| `user.data.sync`                              | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
+| `user.identity.command`                       | cowork-authorization           | cowork-user                                                              | 로그인 시 계정·프로필 생성 또는 동기화 command             |
+| `user.identity.command-result`                | cowork-user                    | cowork-authorization                                                     | identity command의 owner commit 결과                       |
+| `team.lifecycle`                              | cowork-team                    | cowork-channel, cowork-project, cowork-notification                      | team key별 최신 생명주기 상태·삭제와 연쇄 정리             |
+| `team.member.event`                           | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
+| `user.profile.event`                          | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
+| `user.presence.event`                         | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
+| `channel.event`                               | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
+| `channel.member.event`                        | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
+| `project.event`                               | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
+| `project.member.event`                        | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
+| `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
+| `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
+| `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
+| `preference.team-role.changed`                | cowork-preference              | cowork-team                                                              | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.team-role.command-result`         | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
+| `preference.github-repo.setting.command`      | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
+| `preference.github-repo.setting.state`        | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |
+| `preference.github-repo.setting.result`       | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 command 처리 결과                       |
+| `chat.message`                                | cowork-chat                    | cowork-chat                                                              | 메시지 비동기 저장·브로드캐스트                            |
+| `notification.trigger`                        | cowork-team, cowork-chat       | cowork-notification                                                      | FCM·SSE 알림 발송                                          |
+| `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat                                           | GitHub 이슈 slash command                                  |
+| `github.repo.event`                           | 외부 GitHub App 연동           | cowork-chat                                                              | GitHub 저장소 action stream                                |
+| `voice.event`                                 | cowork-voice                   | 연동 서비스                                                              | 음성 세션 이벤트                                           |
+| `preference.status.changed`                   | cowork-preference              | 연동 서비스                                                              | 사용자 상태 변경                                           |
+| `preference.team.setting.changed`             | cowork-preference              | 연동 서비스                                                              | 팀 설정 변경                                               |
 
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
+계정과 프로필 identity는 `cowork-user`가 소유합니다. authorization은 DataGSM 인증 정보로
+`user.identity.command`를 발행하고 user의 commit 결과를 확인한 뒤에만 세션과 토큰을 발급합니다.
+DataGSM webhook 변경은 `user.data.sync`로 전달하며, 공개 프로필의 `name`과 `github_id` 변경도
+user의 공개 API와 저장소에서 처리합니다.
+팀의 built-in 멤버십 역할은 `cowork-team`이 소유하고, 사용자 정의 역할과 할당은
+`cowork-preference`가 소유합니다. team의 공개 API 위치는 소유권을 옮기지 않으며,
+command/result와 local state projection으로 비동기 처리합니다. GitHub 저장소의 `label_auto_apply`도
+`cowork-preference`가 소유하고 project는 local projection을 읽습니다.
 
 ---
 
@@ -195,9 +266,9 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 ### Gateway가 하위 서비스로 전달하는 헤더
 
-| 헤더 | 값 | 설명 |
-|---|---|---|
-| `X-User-Id` | `Long` | 사용자 ID |
+| 헤더          | 값       | 설명                        |
+|---------------|----------|-----------------------------|
+| `X-User-Id`   | `Long`   | 사용자 ID                   |
 | `X-User-Role` | `String` | 사용자 권한 (ADMIN, MEMBER) |
 
 ### 하위 서비스 처리 원칙
@@ -214,12 +285,12 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 
 ### 원칙
 
-| 종류 | 관리 방법 |
-|---|---|
-| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입 |
-| 서비스별 일반 설정 | `cowork-config` Config Server (`local`/`prod` 모두 classpath `configs/`) |
-| 저장소 공통 로컬 설정 | `cowork-config/src/main/resources/configs/*-local.yml` |
-| 개발자 머신별 값 | 루트 `.env` 또는 gitignored 로컬 override |
+| 종류                                | 관리 방법                                                                |
+|-------------------------------------|--------------------------------------------------------------------------|
+| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입                           |
+| 서비스별 일반 설정                  | `cowork-config` Config Server (`local`/`prod` 모두 classpath `configs/`) |
+| 저장소 공통 로컬 설정               | `cowork-config/src/main/resources/configs/*-local.yml`                   |
+| 개발자 머신별 값                    | 루트 `.env` 또는 gitignored 로컬 override                                |
 
 ### Vault (로컬 개발)
 
@@ -295,22 +366,22 @@ docker compose up -d mysql mongodb kafka
 
 **인프라 포트 정보**
 
-| 서비스 | 호스트 포트 | 비고 |
-|---|---|---|
-| MySQL | 3306 | 서비스별 DB 자동 생성 (7개) |
-| PostgreSQL | 5432 | cowork-preference 전용 |
-| MongoDB | 27017 | cowork-chat, cowork-voice |
-| Kafka | 9094 | 호스트 접근용 (컨테이너 간: 9092) |
-| Kafka UI | 8090 | 브라우저에서 토픽/메시지 확인 |
-| Vault | 8200 | 시크릿 관리 (토큰: `dev-root-token`) |
-| SeaweedFS | 9000 | S3 호환 오브젝트 스토리지 |
-| SeaweedFS Console | 9002 | 브라우저 UI |
-| Elasticsearch | 9200 | 채팅 메시지 검색 (cowork-chat) |
-| Redis | 6379 | Gateway rate limit, chat·voice·preference |
-| LiveKit | 7880 | 음성 서버 |
-| Prometheus | 9090 | 메트릭 수집 |
-| Grafana | 3001 | 모니터링 대시보드 |
-| Loki | 3100 | 로그 수집 |
+| 서비스            | 호스트 포트 | 비고                                      |
+|-------------------|-------------|-------------------------------------------|
+| MySQL             | 3306        | 서비스별 DB 자동 생성 (7개)               |
+| PostgreSQL        | 5432        | cowork-preference 전용                    |
+| MongoDB           | 27017       | cowork-chat, cowork-voice                 |
+| Kafka             | 9094        | 호스트 접근용 (컨테이너 간: 9092)         |
+| Kafka UI          | 8090        | 브라우저에서 토픽/메시지 확인             |
+| Vault             | 8200        | 시크릿 관리 (토큰: `dev-root-token`)      |
+| SeaweedFS         | 9000        | S3 호환 오브젝트 스토리지                 |
+| SeaweedFS Console | 9002        | 브라우저 UI                               |
+| Elasticsearch     | 9200        | 채팅 메시지 검색 (cowork-chat)            |
+| Redis             | 6379        | Gateway rate limit, chat·voice·preference |
+| LiveKit           | 7880        | 음성 서버                                 |
+| Prometheus        | 9090        | 메트릭 수집                               |
+| Grafana           | 3001        | 모니터링 대시보드                         |
+| Loki              | 3100        | 로그 수집                                 |
 
 MySQL 최초 기동 시 `docker/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다
 (`cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`, `cowork_notification`, `cowork_roadmap`).<br>
@@ -332,6 +403,10 @@ docker compose down             # 중지 (데이터 유지)
 docker compose down -v          # 중지 + 데이터 초기화
 ```
 
+> 로컬 DB·Kafka가 비어 있는 상태에서 처음 전체를 띄우는 절차, projection snapshot marker 확인,
+> 기동 실패 진단은 [`docs/local-run-guide.md`](./local-run-guide.md)를 따릅니다. 개별 서비스를
+> 호스트에서 직접 실행할 때는 `scripts/run/local/{service}.sh`를 사용합니다.
+
 ### 3단계 — 애플리케이션 서비스 기동 순서
 
 MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
@@ -339,36 +414,41 @@ MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
 ```
 1. cowork-config   (Eureka + Config Server — 가장 먼저 기동)
 2. cowork-gateway  (Config Server에 등록 후 기동)
-3. 비즈니스 서비스  (authorization, user, team, project, roadmap, channel, preference, notification, chat, voice)
+3. authorization
+4. user 및 나머지 비즈니스 서비스  (team, project, roadmap, channel, preference, notification, chat, voice)
 ```
 
-Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. 직접 실행할 때는 voice가 channel·LiveKit·Redis·MongoDB에, notification이 user·team·preference에 의존한다는 점을 함께 확인합니다.
+Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·Redis·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
 
 **서비스 포트 정보**
 
-| 서비스 | 포트 | 스택 |
-|---|---|---|
-| cowork-config | 8761 | Kotlin (Spring Cloud Config + Eureka) |
-| cowork-gateway | 8080 | Kotlin (Spring Cloud Gateway) |
-| cowork-authorization | 8081 | Go |
-| cowork-user | 8082 | Elixir |
-| cowork-channel | 8083 | Kotlin (Spring Boot) |
-| cowork-voice | 8089 | Go |
-| cowork-team | 8085 | Kotlin (Spring Boot) |
-| cowork-notification | 8086 | Go |
-| cowork-chat | 8087 | NestJS (TypeScript) |
-| cowork-project | 8084 | Kotlin (Spring Boot, Maven) |
-| cowork-roadmap | 8088 | Java (Spring Boot WebFlux + R2DBC) |
-| cowork-preference | 9001 | Kotlin (Vert.x, Kotlin Toolchain/Amper) |
+| 서비스               | 포트 | 스택                                    |
+|----------------------|------|-----------------------------------------|
+| cowork-config        | 8761 | Kotlin (Spring Cloud Config + Eureka)   |
+| cowork-gateway       | 8080 | Kotlin (Spring Cloud Gateway)           |
+| cowork-authorization | 8081 | Go                                      |
+| cowork-user          | 8082 | Elixir                                  |
+| cowork-channel       | 8083 | Kotlin (Spring Boot)                    |
+| cowork-voice         | 8089 | Go                                      |
+| cowork-team          | 8085 | Kotlin (Spring Boot)                    |
+| cowork-notification  | 8086 | Go                                      |
+| cowork-chat          | 8087 | NestJS (TypeScript)                     |
+| cowork-project       | 8084 | Kotlin (Spring Boot, Maven)             |
+| cowork-roadmap       | 8088 | Java (Spring Boot WebFlux + R2DBC)      |
+| cowork-preference    | 9001 | Kotlin (Vert.x, Kotlin Toolchain/Amper) |
 
 ### Makefile 명령어
 
 ```bash
-make version   # 현재 버전 출력
-make bump      # 버전 자동 증가
-make setup     # Go 서비스 swagger 생성 및 의존성 설치
-make init-logs # 로그 디렉터리 초기화
+make version   # VERSION 파일 내용 출력
+make bump      # scripts/bump.sh로 모든 빌드 파일에 버전 스탬프
+make setup     # Go 서비스(authorization·notification·voice) swagger 생성 및 의존성 설치
+make init-logs # scripts/init-log-dirs.sh로 로그 디렉터리 초기화
+make tag       # 버전 스탬프된 빌드 파일을 커밋하고 v{VERSION} 태그 생성
+make release   # make tag 후 origin main으로 태그까지 push
 ```
+
+`make release`는 `main`에 직접 push하므로 릴리스 시점에만 사용합니다.
 
 ---
 
@@ -376,7 +456,7 @@ make init-logs # 로그 디렉터리 초기화
 
 ### Swagger (Gateway 경유)
 
-Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시합니다. 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다. 프로파일별 지원 서비스와 직접 접속 주소는 `docs/api-documentation.md`를 기준으로 합니다.
+Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시합니다. 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다. 프로파일별 지원 서비스와 라우트는 `cowork-config/src/main/resources/configs/cowork-gateway-{local,prod}.yml`를 기준으로 합니다.
 
 ### Prometheus / Grafana
 

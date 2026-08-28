@@ -15,6 +15,10 @@ preference:
     port: ${REDIS_PORT:6379}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    team-member-consumer-group-id: ${KAFKA_GROUP_ID_TEAM_MEMBER_PROJECTION:cowork-preference-team-member-projection}
+    team-member-topic: ${KAFKA_TOPIC_TEAM_MEMBER_EVENT:team.member.event}
+    team-role-command-consumer-group-id: ${KAFKA_GROUP_ID_TEAM_ROLE_COMMAND:cowork-preference-team-role-command}
+    github-repo-setting-command-consumer-group-id: ${KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND:cowork-preference-github-repo-setting-command}
 
 eureka:
   url: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}

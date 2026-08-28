@@ -26,12 +26,12 @@ export class ChannelMemberRepository {
      * @returns 멤버로 등록되어 있으면 `true`, 그렇지 않으면 `false`
      */
     async exists(channelId: number, userId: number): Promise<boolean> {
-        const member = await this.memberModel.exists({ channelId, userId });
+        const member = await this.memberModel.exists({ channelId, userId, deleted: { $ne: true } });
         return member !== null;
     }
 
     async existsByTeam(teamId: number, userId: number): Promise<boolean> {
-        const member = await this.memberModel.exists({ teamId, userId });
+        const member = await this.memberModel.exists({ teamId, userId, deleted: { $ne: true } });
         return member !== null;
     }
 
@@ -45,7 +45,10 @@ export class ChannelMemberRepository {
      * @returns 팀 ID. 멤버십이 존재하지 않으면 `null`
      */
     async findTeamIdByChannelAndUser(channelId: number, userId: number): Promise<number | null> {
-        const member = await this.memberModel.findOne({ channelId, userId }, { teamId: 1 });
+        const member = await this.memberModel.findOne(
+            { channelId, userId, deleted: { $ne: true } },
+            { teamId: 1 },
+        );
         return member?.teamId ?? null;
     }
 
@@ -59,7 +62,9 @@ export class ChannelMemberRepository {
      * @returns 해당 사용자가 속한 채널 ID 배열. 가입된 채널이 없으면 빈 배열
      */
     async findChannelIdsByUser(userId: number): Promise<number[]> {
-        const memberships = await this.memberModel.find({ userId }, { channelId: 1 }).lean();
+        const memberships = await this.memberModel
+            .find({ userId, deleted: { $ne: true } }, { channelId: 1 })
+            .lean();
         return memberships.map((membership) => membership.channelId);
     }
 
@@ -73,7 +78,7 @@ export class ChannelMemberRepository {
      * @returns 채널에 속한 {@link ChannelMember} 객체 배열
      */
     findByChannelId(channelId: number): Promise<ChannelMember[]> {
-        return this.memberModel.find({ channelId }).lean();
+        return this.memberModel.find({ channelId, deleted: { $ne: true } }).lean();
     }
 
     /**
@@ -84,7 +89,9 @@ export class ChannelMemberRepository {
      */
     async findByChannelIds(channelIds: number[]): Promise<Map<number, ChannelMember[]>> {
         if (channelIds.length === 0) return new Map();
-        const members = await this.memberModel.find({ channelId: { $in: channelIds } }).lean();
+        const members = await this.memberModel
+            .find({ channelId: { $in: channelIds }, deleted: { $ne: true } })
+            .lean();
         const result = new Map<number, ChannelMember[]>();
         for (const member of members) {
             const list = result.get(member.channelId);
@@ -99,7 +106,7 @@ export class ChannelMemberRepository {
 
     async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
         await this.memberModel.updateOne(
-            { channelId, userId },
+            { channelId, userId, deleted: { $ne: true } },
             { $set: { lastReadMessageId: messageId } },
         );
     }
@@ -109,7 +116,10 @@ export class ChannelMemberRepository {
         userId: number,
     ): Promise<Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>> {
         const memberships = await this.memberModel
-            .find({ teamId, userId }, { channelId: 1, lastReadMessageId: 1 })
+            .find(
+                { teamId, userId, deleted: { $ne: true } },
+                { channelId: 1, lastReadMessageId: 1 },
+            )
             .lean();
         return memberships.map((m) => ({
             channelId: m.channelId,
@@ -128,7 +138,10 @@ export class ChannelMemberRepository {
         userId: number,
     ): Promise<{ teamId: number | null; channelType: string } | null> {
         const member = await this.memberModel
-            .findOne({ channelId, userId }, { teamId: 1, channelType: 1 })
+            .findOne(
+                { channelId, userId, deleted: { $ne: true } },
+                { teamId: 1, channelType: 1 },
+            )
             .lean();
         if (!member) return null;
         return {
@@ -146,7 +159,7 @@ export class ChannelMemberRepository {
     ): Promise<Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>> {
         const memberships = await this.memberModel
             .find(
-                { userId, channelType: 'DM', isHidden: { $ne: true } },
+                { userId, channelType: 'DM', isHidden: { $ne: true }, deleted: { $ne: true } },
                 { channelId: 1, lastReadMessageId: 1 },
             )
             .lean();
@@ -164,7 +177,10 @@ export class ChannelMemberRepository {
     async findOtherDmMembers(channelIds: number[], userId: number): Promise<Map<number, number>> {
         if (channelIds.length === 0) return new Map();
         const others = await this.memberModel
-            .find({ channelId: { $in: channelIds }, userId: { $ne: userId } }, { channelId: 1, userId: 1 })
+            .find(
+                { channelId: { $in: channelIds }, userId: { $ne: userId }, deleted: { $ne: true } },
+                { channelId: 1, userId: 1 },
+            )
             .lean();
         return new Map(others.map((m) => [m.channelId, m.userId]));
     }
@@ -176,7 +192,7 @@ export class ChannelMemberRepository {
      */
     async setHidden(channelId: number, userId: number, isHidden: boolean): Promise<boolean> {
         const result = await this.memberModel.updateOne(
-            { channelId, userId },
+            { channelId, userId, deleted: { $ne: true } },
             { $set: { isHidden } },
         );
         return result.matchedCount > 0;

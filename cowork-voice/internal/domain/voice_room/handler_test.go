@@ -54,7 +54,7 @@ func (s *stubService) GetSession(_ context.Context, sessionID string, userID int
 	return s.sessResp, s.sessErr
 }
 
-func TestJoin_InvalidChannelID_ReturnsBadRequest(t *testing.T) {
+func TestJoin_채널ID가_숫자가_아니면_400을_반환한다(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/voice/channels/not-a-number/join", nil)
@@ -139,7 +139,7 @@ func TestJoin_성공하면_200과_응답을_반환한다(t *testing.T) {
 	}
 }
 
-func TestLeave_InvalidChannelID_ReturnsBadRequest(t *testing.T) {
+func TestLeave_채널ID가_숫자가_아니면_400을_반환한다(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodPost, "/voice/channels/abc/leave", nil)
@@ -190,7 +190,7 @@ func TestLeave_성공하면_204와_빈_바디를_반환한다(t *testing.T) {
 	}
 }
 
-func TestParticipants_InvalidChannelID_ReturnsBadRequest(t *testing.T) {
+func TestParticipants_채널ID가_숫자가_아니면_400을_반환한다(t *testing.T) {
 	t.Parallel()
 
 	req := httptest.NewRequest(http.MethodGet, "/voice/channels/xyz/participants", nil)
@@ -315,7 +315,7 @@ func TestGetSession_성공하면_200과_응답을_반환한다(t *testing.T) {
 	}
 }
 
-func TestToAppError_SanitizesUnexpectedInternalError(t *testing.T) {
+func TestToAppError_알수없는_에러는_일반_서버_오류_메시지로_변환한다(t *testing.T) {
 	t.Parallel()
 
 	appErr := toAppError(errors.New("mongo timeout: replica set unavailable"))
@@ -328,7 +328,7 @@ func TestToAppError_SanitizesUnexpectedInternalError(t *testing.T) {
 	}
 }
 
-func TestToAppError_PreservesKnownAppError(t *testing.T) {
+func TestToAppError_이미_알려진_AppError는_그대로_보존한다(t *testing.T) {
 	t.Parallel()
 
 	appErr := toAppError(apperr.BadRequest("invalid channel_id"))
