@@ -10,7 +10,6 @@ import {
     Query,
     HttpCode,
     HttpStatus,
-    ParseIntPipe,
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
@@ -36,6 +35,7 @@ import { Throttle } from '../common/decorator/throttle.decorator';
 import { AddReactionDto } from './dto/add-reaction.dto';
 import { ReadChannelDto } from './dto/read-channel.dto';
 import { EMOJI_REGEX } from './util/emoji';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 /**
  * 채널 채팅 REST 컨트롤러.
@@ -44,8 +44,8 @@ import { EMOJI_REGEX } from './util/emoji';
  * 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` / `X-User-Role` 헤더로 사용자를 식별한다.
  */
 @ApiTags('Chat')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
-@ApiHeader({ name: 'X-User-Role', description: 'Gateway 주입 유저 역할 (ADMIN | MEMBER)', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
+@ApiHeader({ name: 'X-User-Role', description: 'Gateway 자동 주입 (ADMIN | MEMBER)', required: false })
 @Controller('channels/:channelId')
 export class ChatController {
     constructor(private readonly chatService: ChatService) {}
@@ -65,7 +65,7 @@ export class ChatController {
     @ApiResponse({ status: 201, type: CreateFileUploadUrlResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createFileUploadUrl(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: CreateFileUploadUrlRequestDto,
         @UserId() userId: number,
     ): Promise<CreateFileUploadUrlResponseDto> {
@@ -90,7 +90,7 @@ export class ChatController {
     @ApiResponse({ status: 409, description: '파일이 아직 업로드되지 않음' })
     @ApiResponse({ status: 413, description: '파일 크기 초과' })
     async confirmFileUpload(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: ConfirmFileUploadRequestDto,
         @UserId() userId: number,
     ): Promise<ConfirmFileUploadResponseDto> {
@@ -115,7 +115,7 @@ export class ChatController {
     @ApiResponse({ status: 400, description: 'FILE_SHARE 채널이 아님 또는 잘못된 커서/파라미터' })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async getFiles(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Query() query: FileListQueryDto,
         @UserId() userId: number,
     ): Promise<FileListResponseDto> {
@@ -147,7 +147,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     @ApiResponse({ status: 429, description: '메시지 전송 요청이 너무 많음' })
     async sendMessage(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: SendMessageDto,
         @UserId() userId: number,
         @UserRole() userRole: string,
@@ -157,7 +157,7 @@ export class ChatController {
     }
 
     /**
-     * @deprecated 신규 클라이언트는 `POST /channels/{channelId}/slash-commands`를 사용하세요.
+     * @deprecated 신규 클라이언트는 `POST /api/chat/chat/channels/{channelId}/slash-commands`를 사용하세요.
      *
      * GitHub 이슈 생성 커맨드를 Kafka로 비동기 발행한다.
      *
@@ -170,13 +170,14 @@ export class ChatController {
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({
         summary: '[Deprecated] GitHub 이슈 생성 (클라이언트 슬래시 커맨드 → Kafka 비동기)',
-        description: 'Deprecated: 신규 클라이언트는 POST /chat/channels/{channelId}/slash-commands 사용을 권장합니다.',
+        description:
+            'Deprecated: 신규 클라이언트는 POST /api/chat/chat/channels/{channelId}/slash-commands 사용을 권장합니다.',
         deprecated: true,
     })
     @ApiResponse({ status: 201, type: CreateGithubIssueResponseDto })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createGithubIssue(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: CreateGithubIssueDto,
         @UserId() userId: number,
     ): Promise<CreateGithubIssueResponseDto> {
@@ -204,7 +205,7 @@ export class ChatController {
     @ApiResponse({ status: 400, description: '지원하지 않는 커맨드 또는 유효하지 않은 payload' })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async createSlashCommand(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: SlashCommandDto,
         @UserId() userId: number,
     ): Promise<SlashCommandResponseDto> {
@@ -229,7 +230,7 @@ export class ChatController {
     @ApiResponse({ status: 400, description: '유효하지 않은 메시지 ID' })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async readChannel(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: ReadChannelDto,
         @UserId() userId: number,
     ): Promise<void> {
@@ -241,7 +242,7 @@ export class ChatController {
     @ApiResponse({ status: 200, type: [MessageResponseDto] })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async getMessages(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Query() query: GetMessagesDto,
         @UserId() userId: number,
     ) {
@@ -266,7 +267,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 본인 메시지 아님' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async editMessage(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Body() dto: EditMessageDto,
         @UserId() userId: number,
@@ -294,7 +295,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
     @ApiResponse({ status: 404, description: '파일(메시지)을 찾을 수 없음' })
     async deleteFile(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('fileId') fileId: string,
         @UserId() userId: number,
         @UserRole() userRole: string,
@@ -319,7 +320,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 본인 메시지 아님' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async deleteMessage(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @UserId() userId: number,
         @UserRole() userRole: string,
@@ -346,7 +347,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async pinMessage(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @UserId() userId: number,
         @UserRole() userRole: string,
@@ -372,7 +373,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님 또는 권한 없음' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async unpinMessage(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @UserId() userId: number,
         @UserRole() userRole: string,
@@ -399,7 +400,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async addReaction(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Body() dto: AddReactionDto,
         @UserId() userId: number,
@@ -427,7 +428,7 @@ export class ChatController {
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     @ApiResponse({ status: 404, description: '메시지 없음' })
     async removeReaction(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Param('messageId') messageId: string,
         @Param('emoji') emoji: string,
         @UserId() userId: number,
@@ -450,7 +451,7 @@ export class ChatController {
     @ApiResponse({ status: 200, type: [MessageResponseDto] })
     @ApiResponse({ status: 403, description: '채널 멤버 아님' })
     async getPinnedMessages(
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
         @UserId() userId: number,
     ) {
         return this.chatService.getPinnedMessages({ channelId, userId });

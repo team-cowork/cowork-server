@@ -39,6 +39,15 @@ export class ChannelMember {
 
     /** 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`. */
     @Prop({ type: Types.ObjectId, default: null }) lastReadMessageId!: Types.ObjectId | null;
+
+    /** `channel.member.event` DELETE tombstone 여부. */
+    @Prop({ required: true, default: false }) deleted!: boolean;
+
+    /** 마지막으로 적용한 원본 이벤트의 발생 시각. */
+    @Prop({ required: true, type: Date }) sourceOccurredAt!: Date;
+
+    /** 실제 ordering에 사용하는 원본 이벤트 epoch nanoseconds. */
+    @Prop({ required: true }) sourceVersion!: bigint;
 }
 
 /** {@link ChannelMember} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */

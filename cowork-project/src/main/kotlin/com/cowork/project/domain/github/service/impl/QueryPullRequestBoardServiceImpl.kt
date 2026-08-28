@@ -16,8 +16,8 @@ class QueryPullRequestBoardServiceImpl(
 ) : QueryPullRequestBoardService {
 
     @Transactional(readOnly = true)
-    override fun execute(userId: Long, projectId: Long): GithubPullRequestBoardResDto {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId)
+    override fun execute(userId: Long, projectId: Long, repoId: Long): GithubPullRequestBoardResDto {
+        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
         val pulls = callExecutor.execute { githubAppClient.listPullRequests(repo.owner, repo.repo, "open") }
         val (draft, inReview) = pulls.partition { it.draft }
         return GithubPullRequestBoardResDto(draft = draft, inReview = inReview)

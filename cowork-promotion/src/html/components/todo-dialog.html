@@ -1,0 +1,32 @@
+<dialog
+  class="todo-dialog"
+  data-todo-dialog
+  aria-labelledby="todo-document-title"
+>
+  <div class="todo-dialog__viewport">
+    <div class="todo-dialog__toolbar">
+      <button class="todo-dialog__back" type="button" data-todo-close>
+        목록으로 돌아가기
+      </button>
+    </div>
+
+    <div class="todo-dialog__scroller" data-todo-dialog-scroller>
+      <div class="todo-dialog__layout">
+        <article class="todo-document" data-todo-document>
+          <!-- data:todo-document:start -->
+          <!-- data:todo-document:end -->
+        </article>
+
+        <aside class="todo-toc-rail" data-todo-toc-rail hidden>
+          <nav class="todo-toc" aria-label="문서 목차">
+            <p class="todo-toc__label">목차</p>
+            <ol class="todo-toc__list" data-todo-toc>
+              <!-- data:todo-toc:start -->
+              <!-- data:todo-toc:end -->
+            </ol>
+          </nav>
+        </aside>
+      </div>
+    </div>
+  </div>
+</dialog>

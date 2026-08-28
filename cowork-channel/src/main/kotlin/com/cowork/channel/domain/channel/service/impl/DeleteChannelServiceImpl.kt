@@ -7,9 +7,9 @@ import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.DeleteChannelService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 @Service
 class DeleteChannelServiceImpl(
@@ -26,13 +26,16 @@ class DeleteChannelServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
-        val members = channelMemberRepository.findByChannelId(channelId)
-        channelRepository.delete(channel)
-        afterCommit {
-            members.forEach { member ->
-                channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-            }
-            channelEventPublisher.publishDeleted(channel)
+        val members = channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(channelId)
+        val requestedAt = Instant.now()
+        val channelVersion = channelEventPublisher.publishDeleted(channel, requestedAt)
+        members.forEach { member ->
+            channelMemberEventPublisher.publishLeave(
+                channel.id,
+                member.userId,
+                requestedAt = channelVersion,
+            )
         }
+        channelRepository.delete(channel)
     }
 }

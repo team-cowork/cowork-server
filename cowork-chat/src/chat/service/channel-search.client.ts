@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { getRequiredConfig } from '../../common/config/config.util';
-import { BaseHttpClient } from './base-http-client';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
+import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
 
 export interface ChannelSearchItem {
     id: number;
@@ -12,28 +11,28 @@ export interface ChannelSearchItem {
     isPrivate: boolean;
 }
 
+/** Kafka로 동기화된 로컬 채널 projection 검색기. */
 @Injectable()
-export class ChannelSearchClient extends BaseHttpClient {
-    protected readonly logger = new Logger(ChannelSearchClient.name);
-    protected readonly serviceName = 'channel-service';
-    private readonly channelServiceUrl: string;
+export class ChannelSearchClient {
+    constructor(
+        private readonly channelRepository: ChannelProjectionRepository,
+        private readonly memberRepository: TeamMemberProjectionRepository,
+    ) {}
 
-    constructor(private readonly configService: ConfigService) {
-        super();
-        this.channelServiceUrl = getRequiredConfig(this.configService, 'CHANNEL_SERVICE_URL').replace(/\/$/, '');
-    }
-
-    async searchChannels(teamId: number, q: string, userId: number): Promise<ChannelSearchItem[]> {
-        const url = `${this.channelServiceUrl}/search/channels?teamId=${teamId}&q=${encodeURIComponent(q)}`;
-        const res = await this.fetchWithRetry(url, {
-            headers: { 'X-User-Id': String(userId) },
-        }, 3000);
-
-        if (!res.ok) {
-            const message = await this.readErrorMessage(res);
-            throw new Error(`channel-service 오류: ${res.status}${message ? ` - ${message}` : ''}`);
+    async searchChannels(teamId: number, query: string, userId: number): Promise<ChannelSearchItem[]> {
+        if (!(await this.memberRepository.exists(teamId, userId))) {
+            throw new ForbiddenException('팀 접근 권한이 없습니다');
         }
+        if (query.trim().length === 0) return [];
 
-        return this.readJsonBody<ChannelSearchItem[]>(res);
+        const channels = await this.channelRepository.searchByTeamAndName(teamId, query);
+        return channels.map((channel) => ({
+            id: channel.channelId,
+            name: channel.name,
+            type: channel.type,
+            viewType: channel.viewType,
+            description: channel.description,
+            isPrivate: channel.isPrivate,
+        }));
     }
 }

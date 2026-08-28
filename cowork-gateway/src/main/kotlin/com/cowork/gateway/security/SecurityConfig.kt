@@ -74,18 +74,25 @@ class SecurityConfig(
             .authorizeExchange { exchanges ->
                 exchanges
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .pathMatchers(HttpMethod.GET, "/api/auth/signin", "/api/auth/callback").permitAll()
-                    .pathMatchers(HttpMethod.POST, "/api/auth/token", "/api/auth/refresh").permitAll()
+                    .pathMatchers(
+                        HttpMethod.POST,
+                        "/api/authorization/auth/token",
+                        "/api/authorization/auth/refresh",
+                    ).permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/api/health").permitAll()
+                    // TODO(temporary health dashboard): Remove this matcher with the temporary /health dashboard.
+                    .pathMatchers(HttpMethod.GET, "/health", "/health/**").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
-                    .pathMatchers(HttpMethod.POST, "/api/voice/webhook").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/chat/asyncapi.json").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/voice/voice/webhook").permitAll()
                     // DataGSM webhook은 Cowork JWT가 아닌 HMAC 서명으로 인증하므로 Gateway JWT 검증을 우회한다
-                    .pathMatchers(HttpMethod.POST, "/api/events/datagsm").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/authorization/events/datagsm").permitAll()
                     // OAuth provider가 사용자 브라우저를 리다이렉트하는 콜백이므로 Cowork JWT 없음
-                    .pathMatchers(HttpMethod.GET, "/api/channels/oauth/callback/**").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/channel/channels/oauth/callback/**").permitAll()
                     .anyExchange().authenticated()
             }
             .addFilterAt(jwtFilter, SecurityWebFiltersOrder.AUTHENTICATION)
