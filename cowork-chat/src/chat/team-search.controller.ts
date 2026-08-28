@@ -6,7 +6,7 @@ import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
 import { UserId } from '../common/decorator/user.decorator';
 
 @ApiTags('Search')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
 @Controller('search')
 export class TeamSearchController {
     constructor(private readonly chatService: ChatService) {}

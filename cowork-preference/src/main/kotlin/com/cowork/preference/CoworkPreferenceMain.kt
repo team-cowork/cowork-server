@@ -26,26 +26,9 @@ fun main() {
     System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory")
     val config = loadConfig()
     val appConfig = AppConfig.from(config)
+    requireDbCredentials(appConfig)
 
     runFlyway(appConfig)
-
-    val eurekaRegistrar = EurekaRegistrar(
-        eurekaUrl = appConfig.eurekaUrl,
-        appName = appConfig.eurekaAppName,
-        instanceHost = appConfig.eurekaInstanceHost,
-        port = appConfig.serverPort,
-    )
-    try {
-        eurekaRegistrar.register()
-    } catch (e: Exception) {
-        log.error("Critical: Eureka registration failed", e)
-        System.exit(1)
-    }
-    eurekaRegistrar.startHeartbeat()
-
-    Runtime.getRuntime().addShutdownHook(Thread {
-        eurekaRegistrar.deregister()
-    })
 
     val prometheusRegistry = PrometheusMeterRegistry(PrometheusConfig.DEFAULT)
     MetricsRegistry.registry = prometheusRegistry
@@ -53,7 +36,7 @@ fun main() {
     val vertxOptions = VertxOptions().setMetricsOptions(
         MicrometerMetricsOptions()
             .setPrometheusOptions(VertxPrometheusOptions().setEnabled(true))
-            .setEnabled(true)
+            .setEnabled(true),
     )
     val vertx = Vertx.builder()
         .with(vertxOptions)
@@ -67,6 +50,20 @@ fun main() {
             log.error("cowork-preference deployment failed", result.cause())
             vertx.close()
         }
+    }
+}
+
+private fun requireDbCredentials(appConfig: AppConfig) {
+    val missing = listOfNotNull(
+        "preference.db.username".takeIf { appConfig.db.username.isBlank() },
+        "preference.db.password".takeIf { appConfig.db.password.isBlank() },
+    )
+    if (missing.isNotEmpty()) {
+        log.error(
+            "Required config resolved to empty: {}. Check Vault secret/cowork-preference. Aborting startup.",
+            missing.joinToString(", "),
+        )
+        System.exit(1)
     }
 }
 
@@ -93,7 +90,12 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "REDIS_HOST" to "preference.redis.host",
             "REDIS_PORT" to "preference.redis.port",
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
-            "EUREKA_URL" to "eureka.url",
+            "KAFKA_GROUP_ID_TEAM_MEMBER_PROJECTION" to "preference.kafka.team-member-consumer-group-id",
+            "KAFKA_TOPIC_TEAM_MEMBER_EVENT" to "preference.kafka.team-member-topic",
+            "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
+            "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
+                "preference.kafka.github-repo-setting-command-consumer-group-id",
+            "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",
             "EUREKA_INSTANCE_HOST" to "eureka.instance.host",

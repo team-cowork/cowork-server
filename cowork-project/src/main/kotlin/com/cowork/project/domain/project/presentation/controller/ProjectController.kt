@@ -1,6 +1,5 @@
 package com.cowork.project.domain.project.presentation.controller
 
-import com.cowork.project.domain.github.presentation.data.request.LinkGithubRepoReqDto
 import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
@@ -8,15 +7,11 @@ import com.cowork.project.domain.project.presentation.data.response.ProjectResDt
 import com.cowork.project.domain.project.service.AddProjectMemberService
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.DeleteProjectService
-import com.cowork.project.domain.project.service.LinkGithubRepoService
 import com.cowork.project.domain.project.service.QueryMyProjectsService
-import com.cowork.project.domain.project.service.QueryProjectMemberService
 import com.cowork.project.domain.project.service.QueryProjectMembersService
 import com.cowork.project.domain.project.service.QueryProjectService
-import com.cowork.project.domain.project.service.QueryProjectTeamIdService
 import com.cowork.project.domain.project.service.QueryProjectsByTeamIdService
 import com.cowork.project.domain.project.service.RemoveProjectMemberService
-import com.cowork.project.domain.project.service.UnlinkGithubRepoService
 import com.cowork.project.domain.project.service.UpdateProjectMemberRoleService
 import com.cowork.project.domain.project.service.UpdateProjectService
 import com.cowork.project.domain.projectMember.presentation.data.request.AddProjectMemberReqDto
@@ -42,15 +37,11 @@ class ProjectController(
     private val queryProjectService: QueryProjectService,
     private val updateProjectService: UpdateProjectService,
     private val deleteProjectService: DeleteProjectService,
-    private val linkGithubRepoService: LinkGithubRepoService,
-    private val unlinkGithubRepoService: UnlinkGithubRepoService,
     private val queryProjectsByTeamIdService: QueryProjectsByTeamIdService,
     private val queryMyProjectsService: QueryMyProjectsService,
     private val addProjectMemberService: AddProjectMemberService,
     private val queryProjectMembersService: QueryProjectMembersService,
     private val updateProjectMemberRoleService: UpdateProjectMemberRoleService,
-    private val queryProjectMemberService: QueryProjectMemberService,
-    private val queryProjectTeamIdService: QueryProjectTeamIdService,
     private val removeProjectMemberService: RemoveProjectMemberService,
 ) {
 
@@ -103,33 +94,6 @@ class ProjectController(
         deleteProjectService.execute(userId, projectId)
         return ResponseEntity.noContent().build()
     }
-
-    @Operation(summary = "GitHub 레포지토리 연결", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "연결 성공"),
-        ApiResponse(responseCode = "400", description = "유효하지 않은 GitHub URL"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
-    )
-    @PutMapping("/{projectId}/github-repo")
-    fun linkGithubRepo(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable projectId: Long,
-        @RequestBody request: LinkGithubRepoReqDto,
-    ): ResponseEntity<ProjectDetailResDto> =
-        ResponseEntity.ok(linkGithubRepoService.execute(userId, projectId, request))
-
-    @Operation(summary = "GitHub 레포지토리 연결 해제", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "해제 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
-    )
-    @DeleteMapping("/{projectId}/github-repo")
-    fun unlinkGithubRepo(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable projectId: Long,
-    ): ResponseEntity<ProjectDetailResDto> = ResponseEntity.ok(unlinkGithubRepoService.execute(userId, projectId))
 
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -193,37 +157,6 @@ class ProjectController(
         @RequestBody request: UpdateProjectMemberRoleReqDto,
     ): ResponseEntity<ProjectMemberResDto> =
         ResponseEntity.ok(updateProjectMemberRoleService.execute(userId, projectId, memberId, request))
-
-    @Operation(
-        summary = "내 멤버십 확인 (내부 서비스용)",
-        description = "요청자가 해당 프로젝트 멤버이면 200, 아니면 404. 다른 서비스의 권한 검증에 사용됩니다.",
-        security = [SecurityRequirement(name = "BearerAuth")],
-    )
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "멤버임"),
-        ApiResponse(responseCode = "404", description = "멤버 아님 또는 프로젝트 없음"),
-    )
-    @GetMapping("/{projectId}/members/me")
-    fun getMyMembership(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable projectId: Long,
-    ): ResponseEntity<Void> = if (queryProjectMemberService.execute(projectId, userId)) {
-        ResponseEntity.ok().build()
-    } else {
-        ResponseEntity.notFound().build()
-    }
-
-    @Operation(
-        summary = "프로젝트의 팀 ID 조회 (내부 서비스용)",
-        description = "프로젝트가 속한 팀 ID를 반환합니다. 서비스 간 권한 위임에 사용됩니다.",
-    )
-    @ApiResponses(
-        ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
-    )
-    @GetMapping("/{projectId}/team-id")
-    fun getTeamId(@PathVariable projectId: Long): ResponseEntity<Long> =
-        ResponseEntity.ok(queryProjectTeamIdService.execute(projectId))
 
     @Operation(summary = "프로젝트 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

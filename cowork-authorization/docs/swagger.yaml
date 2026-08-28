@@ -1,4 +1,4 @@
-basePath: /api
+basePath: /api/authorization
 definitions:
   github_com_cowork_authorization_internal_service.TokenPair:
     properties:
@@ -15,7 +15,7 @@ info:
   contact: {}
   description: 인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
   title: Cowork Authorization API
-  version: "20260719.0"
+  version: "20260820.0"
 paths:
   /auth/refresh:
     post:
@@ -53,6 +53,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       summary: 액세스 토큰 갱신
       tags:
       - auth
@@ -84,6 +90,12 @@ paths:
             type: object
         "401":
           description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: authentication temporarily unavailable
           schema:
             additionalProperties:
               type: string
@@ -131,6 +143,12 @@ paths:
             additionalProperties:
               type: string
             type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
       summary: 토큰 발급 (PKCE code exchange)
       tags:
       - auth
@@ -138,8 +156,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user
-        동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+      description: DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로
+        전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
       parameters:
       - description: sha256=<HMAC-SHA256(secret, body)>
         in: header
@@ -170,19 +188,6 @@ paths:
       summary: DataGSM webhook 수신
       tags:
       - events
-  /health:
-    get:
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-      summary: 헬스체크
-      tags:
-      - health
 securityDefinitions:
   BearerAuth:
     description: '"Bearer {access_token}" 형식으로 입력하세요.'
