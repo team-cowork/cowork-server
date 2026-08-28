@@ -21,8 +21,13 @@ export class EurekaClient {
 
     static fromEnv(port: number): EurekaClient {
         const appName = process.env.EUREKA_APP_NAME ?? 'cowork-chat';
-        const host = requireEnv('EUREKA_INSTANCE_HOST');
-        const instanceId = process.env.EUREKA_INSTANCE_ID ?? `${host}:${appName}:${port}`;
+        const runtimeIdentity = os.hostname();
+        const useRuntimeIdentity = process.env.EUREKA_USE_RUNTIME_HOSTNAME === 'true';
+        const host = useRuntimeIdentity
+            ? (process.env.EUREKA_ADVERTISE_HOST ?? resolveIpAddress())
+            : requireEnv('EUREKA_INSTANCE_HOST');
+        const instanceId = process.env.EUREKA_INSTANCE_ID
+            ?? `${useRuntimeIdentity ? runtimeIdentity : host}:${appName}:${port}`;
 
         return new EurekaClient({
             enabled: process.env.EUREKA_ENABLED !== 'false',
@@ -47,13 +52,13 @@ export class EurekaClient {
                     instanceId: this.config.instanceId,
                     hostName: this.config.host,
                     app: this.config.appName.toUpperCase(),
-                    ipAddr: this.resolveIpAddress(),
+                    ipAddr: this.config.host,
                     vipAddress: this.config.appName,
                     secureVipAddress: this.config.appName,
                     status: 'UP',
                     port: { '$': this.config.port, '@enabled': 'true' },
                     securePort: { '$': 443, '@enabled': 'false' },
-                    healthCheckUrl: `http://${this.config.host}:${this.config.port}/health`,
+                    healthCheckUrl: `http://${this.config.host}:${this.config.port}/health/ready`,
                     statusPageUrl: `http://${this.config.host}:${this.config.port}/health`,
                     homePageUrl: `http://${this.config.host}:${this.config.port}/`,
                     dataCenterInfo: {
@@ -119,6 +124,7 @@ export class EurekaClient {
     private async request(path: string, init: RequestInit): Promise<void> {
         const response = await fetch(`${this.config.serverUrl}${path}`, {
             ...init,
+            signal: init.signal ?? AbortSignal.timeout(5_000),
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
@@ -130,16 +136,16 @@ export class EurekaClient {
             throw new Error(`Eureka request failed: ${init.method} ${path} -> ${response.status}`);
         }
     }
+}
 
-    private resolveIpAddress(): string {
-        for (const interfaces of Object.values(os.networkInterfaces())) {
-            for (const iface of interfaces ?? []) {
-                // Node.js 18 미만에서는 family가 숫자(4)였던 레거시 동작을 함께 지원한다.
-                if ((iface.family === 'IPv4' || (iface.family as unknown) === 4) && !iface.internal) {
-                    return iface.address;
-                }
+function resolveIpAddress(): string {
+    for (const interfaces of Object.values(os.networkInterfaces())) {
+        for (const iface of interfaces ?? []) {
+            // Node.js 18 미만에서는 family가 숫자(4)였던 레거시 동작을 함께 지원한다.
+            if ((iface.family === 'IPv4' || (iface.family as unknown) === 4) && !iface.internal) {
+                return iface.address;
             }
         }
-        return '127.0.0.1';
     }
+    throw new Error('No non-loopback IPv4 address is available for Eureka registration');
 }

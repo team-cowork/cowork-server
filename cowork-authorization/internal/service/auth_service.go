@@ -10,12 +10,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"github.com/cowork/authorization/internal/repository"
 	"gorm.io/gorm"
 )
+
+var ErrAuthenticationUnavailable = errors.New("authentication temporarily unavailable")
 
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
@@ -46,26 +46,57 @@ type DataGSMStudent struct {
 	IsLeaveSchool bool    `json:"isLeaveSchool"`
 }
 
+type RefreshTokenStore interface {
+	CreateSession(
+		ctx context.Context,
+		token *domain.RefreshToken,
+		occurredAt time.Time,
+		topic string,
+	) error
+	RotateSession(
+		ctx context.Context,
+		oldHash string,
+		newHash string,
+		newExpiresAt time.Time,
+		now time.Time,
+	) (*domain.RefreshToken, error)
+	RevokeSession(
+		ctx context.Context,
+		hash string,
+		userID int64,
+		occurredAt time.Time,
+		topic string,
+	) error
+}
+
+type IdentityCommitCoordinator interface {
+	EnsureUser(context.Context, domain.UserIdentityCommand) (int64, error)
+}
+
 type AuthService struct {
 	cfg              *config.AppConfig
 	httpClient       *http.Client
-	userClient       *client.UserClient
-	refreshTokenRepo *repository.RefreshTokenRepository
+	identity         IdentityCommitCoordinator
+	refreshTokenRepo RefreshTokenStore
 	tokenSvc         *TokenService
+	now              func() time.Time
 }
 
 func NewAuthService(
 	cfg *config.AppConfig,
-	userClient *client.UserClient,
-	refreshTokenRepo *repository.RefreshTokenRepository,
+	identity IdentityCommitCoordinator,
+	refreshTokenRepo RefreshTokenStore,
 	tokenSvc *TokenService,
 ) *AuthService {
 	return &AuthService{
 		cfg:              cfg,
 		httpClient:       &http.Client{Timeout: 5 * time.Second},
-		userClient:       userClient,
+		identity:         identity,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
+		now: func() time.Time {
+			return time.Now().UTC().Truncate(time.Microsecond)
+		},
 	}
 }
 
@@ -85,82 +116,114 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	}
 
 	st := userInfo.Student
+	platformRole, err := PlatformRoleFromDataGSM(userInfo.Role)
+	if err != nil {
+		return nil, err
+	}
+	operationID, err := domain.NewUUID()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user identity operation: %w", err)
+	}
 	grade := st.Grade
-	classNum := st.ClassNum
-	number := st.Number
+	classNumber := st.ClassNum
+	studentNumberInClass := st.Number
 	studentID := st.ID
-
-	upsertReq := client.UpsertUserRequest{
+	command := domain.UserIdentityCommand{
+		SchemaVersion:        domain.UserIdentitySchemaVersion,
+		OperationID:          operationID,
+		IdempotencyKey:       operationID,
+		CommandType:          domain.UserIdentityCommandUpsert,
+		UserID:               userInfo.ID,
 		Name:                 st.Name,
 		Email:                userInfo.Email,
 		Sex:                  st.Sex,
 		Grade:                &grade,
-		ClassNumber:          &classNum,
-		StudentNumberInClass: &number,
+		ClassNumber:          &classNumber,
+		StudentNumberInClass: &studentNumberInClass,
 		Major:                st.Major,
 		Role:                 st.Role,
 		GithubID:             st.GithubID,
 		DataGSMStudentID:     &studentID,
-		Status:               "online",
+		RequestedBy:          userInfo.ID,
+		OccurredAt:           s.now().UTC().Truncate(time.Microsecond),
 	}
-
-	userID, err := s.userClient.Upsert(ctx, userInfo.ID, upsertReq)
-	if err != nil {
-		return nil, fmt.Errorf("failed to upsert user: %w", err)
-	}
-
-	return s.issueTokenPair(userID, userInfo.Email, "MEMBER", st.Role, "", "")
+	return s.commitIdentityAndIssueSession(
+		ctx,
+		command,
+		userInfo.Email,
+		platformRole,
+		st.Role,
+		"",
+	)
 }
 
-func (s *AuthService) RefreshTokens(rawRefreshToken string) (*TokenPair, error) {
-	hash := HashToken(rawRefreshToken)
-
-	rt, err := s.refreshTokenRepo.FindByHash(hash)
+func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
+	rawRefresh, refreshHash, err := s.tokenSvc.GenerateRefreshToken()
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("%w: failed to generate refresh token: %v", ErrAuthenticationUnavailable, err)
+	}
+
+	now := s.now().UTC().Truncate(time.Microsecond)
+	source, err := s.refreshTokenRepo.RotateSession(
+		ctx,
+		HashToken(rawRefreshToken),
+		refreshHash,
+		now.Add(s.tokenSvc.RefreshExpire()),
+		now,
+	)
+	if err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			return nil, fmt.Errorf("refresh token not found")
+		case errors.Is(err, domain.ErrRefreshTokenExpired):
+			return nil, fmt.Errorf("refresh token expired")
+		default:
+			return nil, fmt.Errorf("%w: failed to rotate refresh token: %v", ErrAuthenticationUnavailable, err)
 		}
-		return nil, fmt.Errorf("failed to find refresh token: %w", err)
 	}
 
-	if time.Now().After(rt.ExpiresAt) {
-		return nil, fmt.Errorf("refresh token expired")
+	accessToken, err := s.tokenSvc.GenerateAccessToken(
+		source.UserID,
+		source.Email,
+		source.PlatformRole,
+		source.GsmRole,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to generate access token: %v", ErrAuthenticationUnavailable, err)
 	}
-
-	var deviceInfo string
-	if rt.DeviceInfo != nil {
-		deviceInfo = *rt.DeviceInfo
-	}
-	return s.issueTokenPair(rt.UserID, rt.Email, "MEMBER", rt.GsmRole, deviceInfo, hash)
+	return s.tokenPair(accessToken, rawRefresh), nil
 }
 
 func (s *AuthService) Logout(ctx context.Context, userID int64, rawRefreshToken string) error {
-	hash := HashToken(rawRefreshToken)
-	rt, err := s.refreshTokenRepo.FindByHash(hash)
+	err := s.refreshTokenRepo.RevokeSession(
+		ctx,
+		HashToken(rawRefreshToken),
+		userID,
+		s.now().UTC().Truncate(time.Microsecond),
+		s.cfg.KafkaTopicUserPresence,
+	)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			return fmt.Errorf("refresh token not found")
+		case errors.Is(err, domain.ErrRefreshTokenOwnerMismatch):
+			return fmt.Errorf("token does not belong to user")
+		default:
+			return fmt.Errorf("%w: failed to revoke refresh token: %v", ErrAuthenticationUnavailable, err)
 		}
-		return fmt.Errorf("failed to find refresh token: %w", err)
-	}
-	if rt.UserID != userID {
-		return fmt.Errorf("token does not belong to user")
-	}
-	if err := s.refreshTokenRepo.DeleteByHash(hash); err != nil {
-		return err
-	}
-
-	if err := s.userClient.UpdateStatus(ctx, userID, "offline"); err != nil {
-		return fmt.Errorf("failed to set user %d offline on logout: %w", userID, err)
 	}
 
 	return nil
 }
 
-// issueTokenPair는 액세스/리프레시 토큰을 새로 발급한다.
-// replaceHash가 주어지면(토큰 갱신) 기존 리프레시 토큰 삭제와 신규 토큰 저장을 하나의 트랜잭션으로 처리해
-// 저장 실패 시 세션이 소실되는 것을 방지한다.
-func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceInfo, replaceHash string) (*TokenPair, error) {
+func (s *AuthService) issueNewSession(
+	ctx context.Context,
+	userID int64,
+	email string,
+	role string,
+	gsmRole string,
+	deviceInfo string,
+) (*TokenPair, error) {
 	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
@@ -171,31 +234,70 @@ func (s *AuthService) issueTokenPair(userID int64, email, role, gsmRole, deviceI
 		return nil, fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 
+	occurredAt := s.now().UTC().Truncate(time.Microsecond)
 	rt := &domain.RefreshToken{
-		UserID:    userID,
-		TokenHash: refreshHash,
-		Email:     email,
-		GsmRole:   gsmRole,
-		ExpiresAt: time.Now().Add(s.tokenSvc.RefreshExpire()),
+		UserID:       userID,
+		TokenHash:    refreshHash,
+		Email:        email,
+		GsmRole:      gsmRole,
+		PlatformRole: role,
+		ExpiresAt:    occurredAt.Add(s.tokenSvc.RefreshExpire()),
 	}
 	if deviceInfo != "" {
 		rt.DeviceInfo = &deviceInfo
 	}
 
-	if replaceHash != "" {
-		if err := s.refreshTokenRepo.ReplaceInTransaction(replaceHash, rt); err != nil {
-			return nil, fmt.Errorf("failed to rotate refresh token: %w", err)
-		}
-	} else if err := s.refreshTokenRepo.Create(rt); err != nil {
-		return nil, fmt.Errorf("failed to store refresh token: %w", err)
+	if err := s.refreshTokenRepo.CreateSession(
+		ctx,
+		rt,
+		occurredAt,
+		s.cfg.KafkaTopicUserPresence,
+	); err != nil {
+		return nil, fmt.Errorf("failed to store refresh session: %w", err)
 	}
 
+	return s.tokenPair(accessToken, rawRefresh), nil
+}
+
+func (s *AuthService) commitIdentityAndIssueSession(
+	ctx context.Context,
+	command domain.UserIdentityCommand,
+	email string,
+	role string,
+	gsmRole string,
+	deviceInfo string,
+) (*TokenPair, error) {
+	userID, err := s.identity.EnsureUser(ctx, command)
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit user identity: %w", err)
+	}
+	pair, err := s.issueNewSession(ctx, userID, email, role, gsmRole, deviceInfo)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to issue session: %v", ErrAuthenticationUnavailable, err)
+	}
+	return pair, nil
+}
+
+// PlatformRoleFromDataGSM maps the provider's account role to the only two
+// platform-wide roles accepted by Gateway and downstream services.
+func PlatformRoleFromDataGSM(providerRole string) (string, error) {
+	switch providerRole {
+	case "ADMIN":
+		return "ADMIN", nil
+	case "USER":
+		return "MEMBER", nil
+	default:
+		return "", fmt.Errorf("unsupported DataGSM account role")
+	}
+}
+
+func (s *AuthService) tokenPair(accessToken, rawRefresh string) *TokenPair {
 	return &TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: rawRefresh,
 		TokenType:    "Bearer",
 		ExpiresIn:    int(s.cfg.JWTAccessExpire.Seconds()),
-	}, nil
+	}
 }
 
 func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (string, error) {
@@ -218,26 +320,26 @@ func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redi
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to call token endpoint: %w", err)
+		return "", fmt.Errorf("%w: failed to call token endpoint: %v", ErrAuthenticationUnavailable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read token response: %w", err)
+		return "", fmt.Errorf("%w: failed to read token response: %v", ErrAuthenticationUnavailable, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token endpoint returned %d: %s", resp.StatusCode, respBody)
+		return "", providerStatusError("token", resp.StatusCode)
 	}
 
 	var result struct {
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("failed to parse token response: %w", err)
+		return "", fmt.Errorf("%w: failed to parse token response: %v", ErrAuthenticationUnavailable, err)
 	}
 	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access_token in response")
+		return "", fmt.Errorf("%w: empty access_token in response", ErrAuthenticationUnavailable)
 	}
 	return result.AccessToken, nil
 }
@@ -251,22 +353,30 @@ func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*D
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to call userinfo endpoint: %w", err)
+		return nil, fmt.Errorf("%w: failed to call userinfo endpoint: %v", ErrAuthenticationUnavailable, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("userinfo endpoint returned status %d", resp.StatusCode)
+		return nil, providerStatusError("userinfo", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read userinfo response: %w", err)
+		return nil, fmt.Errorf("%w: failed to read userinfo response: %v", ErrAuthenticationUnavailable, err)
 	}
 
 	var info DataGSMUserInfo
 	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, fmt.Errorf("failed to parse userinfo response: %w", err)
+		return nil, fmt.Errorf("%w: failed to parse userinfo response: %v", ErrAuthenticationUnavailable, err)
 	}
 	return &info, nil
+}
+
+func providerStatusError(endpoint string, status int) error {
+	err := fmt.Errorf("%s endpoint returned status %d", endpoint, status)
+	if status >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: %v", ErrAuthenticationUnavailable, err)
+	}
+	return err
 }

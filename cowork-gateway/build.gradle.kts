@@ -40,8 +40,9 @@ dependencies {
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
-    testImplementation("io.kotest:kotest-runner-junit5-jvm:5.9.1")
-    testImplementation("io.kotest:kotest-assertions-core-jvm:5.9.1")
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 kotlin {

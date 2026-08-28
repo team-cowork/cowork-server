@@ -30,7 +30,7 @@ func TestStart_활성_라이브가_없으면_세션을_만들고_호스트_토�
 		createSessionCreated: true,
 	}
 	livekit := &stubLiveKitRoom{token: "host-token"}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 	resp, err := svc.Start(context.Background(), 123, 42)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestStart_동시_start_경쟁에서_지면_Conflict를_반환한다(t *test
 		createSessionResult:  activeSession(),
 		createSessionCreated: false,
 	}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	_, err := svc.Start(context.Background(), 123, 99)
 	assertConflict(t, err)
@@ -83,7 +83,7 @@ func TestStart_경쟁_세션이_재조회_전에_사라지면_재시도해서_�
 		createSessionCreateds: []bool{false, true},
 	}
 	livekit := &stubLiveKitRoom{token: "host-token"}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 	resp, err := svc.Start(context.Background(), 123, 42)
 	if err != nil {
@@ -105,7 +105,7 @@ func TestStart_LiveKit방_생성_실패시_생성된_세션을_정리한다(t *t
 		createSessionCreated: true,
 	}
 	lk := &stubLiveKitRoom{createErr: errors.New("livekit unavailable")}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, "wss://livekit.example")
 
 	if _, err := svc.Start(context.Background(), 123, 42); err == nil {
 		t.Fatal("Start() error = nil, want error")
@@ -124,7 +124,7 @@ func TestStart_토큰_발급_실패시_생성된_세션을_정리한다(t *testi
 		createSessionCreated: true,
 	}
 	lk := &stubLiveKitRoom{tokenErr: errors.New("token issuance failed")}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, lk, "wss://livekit.example")
 
 	if _, err := svc.Start(context.Background(), 123, 42); err == nil {
 		t.Fatal("Start() error = nil, want error")
@@ -138,7 +138,7 @@ func TestStart_토큰_발급_실패시_생성된_세션을_정리한다(t *testi
 func TestJoin_라이브가_없으면_NotFound를_반환한다(t *testing.T) {
 	t.Parallel()
 
-	svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	_, err := svc.Join(context.Background(), 123, 99)
 	if err == nil {
@@ -153,24 +153,18 @@ func TestJoin_라이브가_없으면_NotFound를_반환한다(t *testing.T) {
 	}
 }
 
-func TestJoin_시청자는_시청자_행을_만들고_구독_전용_토큰을_받는다(t *testing.T) {
+func TestJoin_시청자는_구독_전용_토큰을_받는다(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubRepository{findActiveSessionResult: activeSession()}
 	livekit := &stubLiveKitRoom{token: "viewer-token"}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 	resp, err := svc.Join(context.Background(), 123, 99)
 	if err != nil {
 		t.Fatalf("Join() error = %v", err)
 	}
 
-	if repo.insertViewer == nil {
-		t.Fatal("InsertViewer() was not called")
-	}
-	if repo.insertViewer.UserID != 99 {
-		t.Fatalf("viewer user_id = %d, want 99", repo.insertViewer.UserID)
-	}
 	if livekit.tokenIsHost {
 		t.Fatal("GenerateToken() isHost = true, want false")
 	}
@@ -184,15 +178,12 @@ func TestJoin_호스트_재입장이면_시청자_행_없이_호스트_토큰을
 
 	repo := &stubRepository{findActiveSessionResult: activeSession()}
 	livekit := &stubLiveKitRoom{token: "host-token"}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 	if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 		t.Fatalf("Join() error = %v", err)
 	}
 
-	if repo.insertViewer != nil {
-		t.Fatal("InsertViewer() was called, want no call for host")
-	}
 	if !livekit.tokenIsHost {
 		t.Fatal("GenerateToken() isHost = false, want true")
 	}
@@ -203,8 +194,7 @@ func TestLeave_호스트가_나가면_방을_삭제하고_세션_종료는_웹�
 
 	repo := &stubRepository{findActiveSessionResult: activeSession()}
 	livekit := &stubLiveKitRoom{}
-	publisher := &stubPublisher{}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, publisher, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 	if err := svc.Leave(context.Background(), 123, 42); err != nil {
 		t.Fatalf("Leave() error = %v", err)
@@ -216,8 +206,8 @@ func TestLeave_호스트가_나가면_방을_삭제하고_세션_종료는_웹�
 	if repo.endSessionCalls != 0 {
 		t.Fatalf("EndSession() calls = %d, want 0 (webhook이 처리)", repo.endSessionCalls)
 	}
-	if len(publisher.published) != 0 {
-		t.Fatalf("published events = %d, want 0 (webhook이 발행)", len(publisher.published))
+	if len(repo.enqueuedEvents) != 0 {
+		t.Fatalf("enqueued events = %d, want 0 (webhook이 처리)", len(repo.enqueuedEvents))
 	}
 }
 
@@ -230,8 +220,7 @@ func TestLeave_시청자_퇴장시_DB에_표시하고_VIEWER_LEFT를_발행한�
 		getViewerJoinedAtValue:  &joinedAt,
 		markViewerLeftFirst:     true,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, publisher, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	if err := svc.Leave(context.Background(), 123, 99); err != nil {
 		t.Fatalf("Leave() error = %v", err)
@@ -240,12 +229,12 @@ func TestLeave_시청자_퇴장시_DB에_표시하고_VIEWER_LEFT를_발행한�
 	if repo.markViewerLeftCalls != 1 {
 		t.Fatalf("MarkViewerLeft() calls = %d, want 1", repo.markViewerLeftCalls)
 	}
-	if len(publisher.published) != 1 {
-		t.Fatalf("published events = %d, want 1 (VIEWER_LEFT)", len(publisher.published))
+	if len(repo.enqueuedEvents) != 1 {
+		t.Fatalf("enqueued events = %d, want 1 (VIEWER_LEFT)", len(repo.enqueuedEvents))
 	}
-	evt, ok := publisher.published[0].(*kafka.ViewerLeftEvent)
+	evt, ok := repo.enqueuedEvents[0].(*kafka.ViewerLeftEvent)
 	if !ok {
-		t.Fatalf("published event type = %T, want *kafka.ViewerLeftEvent", publisher.published[0])
+		t.Fatalf("enqueued event type = %T, want *kafka.ViewerLeftEvent", repo.enqueuedEvents[0])
 	}
 	if evt.EventType != kafka.EventViewerLeft {
 		t.Fatalf("event_type = %q, want %q", evt.EventType, kafka.EventViewerLeft)
@@ -262,22 +251,21 @@ func TestLeave_웹훅이_먼저_표시했으면_중복_발행하지_않는다(t 
 		findActiveSessionResult: activeSession(),
 		markViewerLeftFirst:     false,
 	}
-	publisher := &stubPublisher{}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, publisher, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	if err := svc.Leave(context.Background(), 123, 99); err != nil {
 		t.Fatalf("Leave() error = %v", err)
 	}
 
-	if len(publisher.published) != 0 {
-		t.Fatalf("published events = %d, want 0 (already marked by webhook)", len(publisher.published))
+	if len(repo.enqueuedEvents) != 0 {
+		t.Fatalf("enqueued events = %d, want 0 (already marked by webhook)", len(repo.enqueuedEvents))
 	}
 }
 
 func TestGetStatus_라이브가_없으면_live_false를_반환한다(t *testing.T) {
 	t.Parallel()
 
-	svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	resp, err := svc.GetStatus(context.Background(), 123, 42)
 	if err != nil {
@@ -299,7 +287,7 @@ func TestGetStatus_활성_시청자_수를_Mongo에서_센다(t *testing.T) {
 		findActiveSessionResult:  activeSession(),
 		countActiveViewersResult: 2,
 	}
-	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, &stubPublisher{}, "wss://livekit.example")
+	svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 	resp, err := svc.GetStatus(context.Background(), 123, 99)
 	if err != nil {
@@ -400,10 +388,9 @@ type stubRepository struct {
 	createSessionResults     []*LiveSession
 	createSessionCreateds    []bool
 	createSessionHostUserID  int64
-	insertViewerErr          error
-	insertViewer             *LiveViewer
 	getViewerJoinedAtValue   *time.Time
 	markViewerLeftFirst      bool
+	enqueuedEvents           []any
 	createSessionCalls       int
 	markViewerLeftCalls      int
 	endSessionCalls          int
@@ -436,37 +423,52 @@ func (s *stubRepository) EndSession(_ context.Context, _ string, _ time.Time) (b
 	return s.endSessionErr == nil, s.endSessionErr
 }
 
-func (s *stubRepository) MarkSessionStarted(_ context.Context, _ string, _ time.Time) (bool, error) {
+func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ string, _ time.Time, _ any) (bool, error) {
 	return false, errors.New("unexpected call")
 }
 
-func (s *stubRepository) InsertViewer(_ context.Context, v *LiveViewer) error {
-	s.insertViewer = v
-	return s.insertViewerErr
+func (s *stubRepository) RecordViewerJoinedAndEnqueue(
+	_ context.Context,
+	_ *LiveViewer,
+	_ string,
+	_ any,
+) (bool, error) {
+	return false, errors.New("unexpected call")
 }
 
-func (s *stubRepository) MarkViewerLeft(_ context.Context, _ string, _ int64, _ time.Time) (bool, error) {
+func (s *stubRepository) MarkViewerLeftAndEnqueue(
+	_ context.Context,
+	_ string,
+	_ int64,
+	_ string,
+	_ time.Time,
+	event any,
+) (bool, error) {
 	s.markViewerLeftCalls++
+	if s.markViewerLeftFirst {
+		s.enqueuedEvents = append(s.enqueuedEvents, event)
+	}
 	return s.markViewerLeftFirst, nil
+}
+
+func (s *stubRepository) EndSessionAndEnqueue(
+	_ context.Context,
+	_ string,
+	_ time.Time,
+	_ any,
+	_ bool,
+) (bool, error) {
+	return false, errors.New("unexpected call")
 }
 
 func (s *stubRepository) CleanupOrphanViewers(_ context.Context, _ string, _ time.Time) (int64, error) {
 	return 0, errors.New("unexpected call")
 }
 
-func (s *stubRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64) (*time.Time, error) {
+func (s *stubRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64, _ string) (*time.Time, error) {
 	return s.getViewerJoinedAtValue, nil
 }
 
 func (s *stubRepository) CountActiveViewers(_ context.Context, _ string) (int, error) {
 	return s.countActiveViewersResult, s.countActiveViewersErr
-}
-
-type stubPublisher struct {
-	published []any
-}
-
-func (s *stubPublisher) Publish(_ context.Context, _ string, v any) error {
-	s.published = append(s.published, v)
-	return nil
 }

@@ -21,6 +21,11 @@ defmodule CoworkUser.MixProject do
   defp deps do
     [
       {:plug_cowboy, "~> 2.8"},
+      # Remove the override after Hex publishes a Cowlib release containing CVE-2026-43971's fix.
+      {:cowlib,
+       git: "https://github.com/ninenines/cowlib.git",
+       ref: "89da27ee4c241f5d649ba7d9b7f2188918af6cea",
+       override: true},
       {:jason, "~> 1.4"},
       {:ecto_sql, "~> 3.14"},
       {:myxql, "~> 0.9"},

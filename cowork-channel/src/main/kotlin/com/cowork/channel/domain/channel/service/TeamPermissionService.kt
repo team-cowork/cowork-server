@@ -1,15 +1,21 @@
 package com.cowork.channel.domain.channel.service
 
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
+import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class TeamPermissionService(private val teamMembershipRepository: TeamMembershipRepository) {
+class TeamPermissionService(
+    private val teamMembershipRepository: TeamMembershipRepository,
+    private val projectionReadinessGate: ProjectionReadinessGate,
+) {
 
-    fun teamRoleOf(teamId: Long, userId: Long): String? =
-        teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
+    fun teamRoleOf(teamId: Long, userId: Long): String? {
+        projectionReadinessGate.requireReady()
+        return teamMembershipRepository.findByTeamIdAndUserId(teamId, userId)?.role
+    }
 
     fun isTeamMember(teamId: Long, userId: Long): Boolean = teamRoleOf(teamId, userId) != null
 

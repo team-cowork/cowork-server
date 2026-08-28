@@ -18,7 +18,6 @@ import (
 	"time"
 
 	_ "github.com/cowork/authorization/docs"
-	"github.com/cowork/authorization/internal/client"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -76,16 +75,56 @@ func main() {
 	if err := mysqlinfra.Migrate(context.Background(), db, cfg.DBDSN); err != nil {
 		log.Fatalf("failed to migrate schema: %v", err)
 	}
-
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	processedEventRepo := repository.NewProcessedEventRepository(db)
-
-	userClient := client.NewUserClient(cfg.UserServiceURL)
-	tokenSvc := service.NewTokenService(cfg)
-	authSvc := service.NewAuthService(cfg, userClient, refreshTokenRepo, tokenSvc)
-
+	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
 	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
-	defer func() { _ = kafkaProducer.Close() }()
+	if err := refreshTokenRepo.DeleteExpiredSessions(
+		context.Background(),
+		time.Now().UTC().Truncate(time.Microsecond),
+		cfg.KafkaTopicUserPresence,
+	); err != nil {
+		log.Fatalf("failed to reconcile expired refresh sessions: %v", err)
+	}
+
+	tokenSvc := service.NewTokenService(cfg)
+	identityCoordinator := service.NewUserIdentityCoordinator(
+		identityOperationRepo,
+		cfg.KafkaTopicUserIdentityCommand,
+		cfg.KafkaIdentityCommandTimeout,
+	)
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc)
+	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
+	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
+		sqlDB,
+		cfg.KafkaTopicUserPresence,
+		kafkaProducer,
+	)
+	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
+		cfg.KafkaBootstrapServers,
+		cfg.KafkaTopicUserIdentityCommandResult,
+		cfg.KafkaGroupIDUserIdentityResult,
+		cfg.KafkaTopicUserIdentityResultDLT,
+		identityOperationRepo,
+		kafkaProducer,
+	)
+	outboxCtx, stopOutboxRelay := context.WithCancel(context.Background())
+	outboxDone := make(chan struct{})
+	go func() {
+		defer close(outboxDone)
+		outboxRelay.Run(outboxCtx)
+	}()
+	snapshotBarrierDone := make(chan struct{})
+	go func() {
+		defer close(snapshotBarrierDone)
+		snapshotBarrierPublisher.Run(outboxCtx)
+	}()
+	identityResultDone := make(chan struct{})
+	go func() {
+		defer close(identityResultDone)
+		identityResultConsumer.Run(outboxCtx)
+	}()
+
 	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
 
 	authHandler := handler.NewAuthHandler(authSvc)
@@ -139,8 +178,12 @@ func main() {
 		for {
 			select {
 			case <-ticker.C:
-				if err := refreshTokenRepo.DeleteExpired(); err != nil {
-					log.Printf("failed to delete expired refresh tokens: %v", err)
+				if err := refreshTokenRepo.DeleteExpiredSessions(
+					context.Background(),
+					time.Now().UTC().Truncate(time.Microsecond),
+					cfg.KafkaTopicUserPresence,
+				); err != nil {
+					log.Printf("failed to reconcile expired refresh sessions: %v", err)
 				}
 				if err := processedEventRepo.DeleteOlderThan(processedEventRetention); err != nil {
 					log.Printf("failed to delete old processed events: %v", err)
@@ -163,6 +206,28 @@ func main() {
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatalf("server forced to shutdown: %v", err)
+	}
+	stopOutboxRelay()
+	if err := identityResultConsumer.Close(); err != nil {
+		log.Printf("failed to close user identity result consumer: %v", err)
+	}
+	select {
+	case <-outboxDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization outbox relay did not stop within 5 seconds")
+	}
+	select {
+	case <-snapshotBarrierDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization snapshot marker publisher did not stop within 5 seconds")
+	}
+	select {
+	case <-identityResultDone:
+	case <-time.After(5 * time.Second):
+		log.Println("authorization identity result consumer did not stop within 5 seconds")
+	}
+	if err := kafkaProducer.Close(); err != nil {
+		log.Printf("failed to close Kafka producer: %v", err)
 	}
 	log.Println("server exited")
 }

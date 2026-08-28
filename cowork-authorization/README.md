@@ -1,42 +1,64 @@
 # cowork-authorization
 
-## 역할
+DataGSM OAuth2 PKCE 로그인, JWT 수명 주기, 로그인 세션에서 파생되는 presence를 담당합니다.
+사용자 account/profile identity의 durable owner는 `cowork-user`입니다.
 
-DataGSM OAuth2 PKCE 로그인과 JWT 수명 주기를 담당하는 인증 서비스입니다.
+## 주요 동작
 
-- `POST /auth/token`: 인가 코드를 DataGSM 토큰·사용자 정보와 교환하고 cowork JWT 발급
-- `POST /auth/refresh`: 저장된 리프레시 토큰을 검증·회전하고 새 토큰 쌍 발급
-- `POST /auth/signout`: 리프레시 토큰 폐기 및 WebSocket 인증 쿠키 삭제
-- `POST /events/datagsm`: HMAC 검증된 DataGSM 사용자 변경 웹훅을 받아 `user.data.sync` 발행
-- 로그인 시 `cowork-user`에 사용자 정보를 upsert
-- 로그인·갱신 응답에서 `cowork_ws_token` 쿠키(`HttpOnly`, `Secure`, `Path=/ws`)도 발급하여 Gateway의 `/ws/**` 인증 지원
+- `POST /auth/token`: DataGSM 인가 코드를 교환하고, user identity owner commit을 확인한 뒤 JWT 발급
+- `POST /auth/refresh`: 리프레시 토큰 검증·회전과 새 토큰 쌍 발급
+- `POST /auth/signout`: 리프레시 토큰 폐기와 마지막 세션 종료 시 offline event 기록
+- `POST /events/datagsm`: HMAC 검증된 `student.updated`를 기존 `user.data.sync`로 전달
 
-## 스택
+authorization은 user identity를 자체 source table에 저장하지 않습니다. 로그인 시
+`tb_user_identity_operations`의 `PENDING` row와 `user.identity.command` outbox를 같은 MySQL
+transaction으로 기록합니다. `cowork-user`가 account/profile과 `user.profile.event`, command result를
+원자적으로 commit한 뒤 `SUCCEEDED` 결과를 보내야만 authorization이 refresh session과 presence를
+저장하고 토큰을 응답합니다. `FAILED` 또는 timeout에서는 토큰과 세션을 만들지 않습니다.
 
-- Go 1.26 + Gin
-- GORM + MySQL
-- Kafka, Eureka Client, Spring Config 호환 클라이언트
+result consumer는 shared MySQL operation row를 갱신하므로 로그인 요청을 처리한 replica와 결과를
+소비한 replica가 달라도 동작합니다. operation/result 재전달은 canonical payload hash가 정확히 같은
+경우만 허용하고, 같은 idempotency key 또는 operation ID의 상충 payload는 fail-closed 처리합니다.
 
-## 포트와 운영 엔드포인트
+## Kafka 계약
 
-- 포트: `8081`
-- Health: `/health`
-- Prometheus: `/metrics`
-- Swagger UI: `/swagger/index.html`
+| 방향 | Topic | Key |
+|---|---|---|
+| produce | `user.identity.command` | user ID |
+| consume | `user.identity.command-result` | operation UUID |
+| produce | `user.identity.command-result-dlt` | rejected result의 원본 key |
+| produce | `user.data.sync` | DataGSM student ID |
+| produce | `user.presence.event` | user ID |
+
+identity command는 schema version 1, UUID operation ID, 최대 128자의 idempotency key와 기존
+`UpsertUserRequest`의 전체 account/profile 필드를 포함합니다. result는 `SUCCEEDED + userId` 또는
+`FAILED + bounded error` 중 하나만 허용합니다.
+잘못된 JSON/key/계약, unknown operation, 상충 result는 원본 key/payload와 source metadata를
+`user.identity.command-result-dlt`에 기록한 뒤 offset을 진행합니다. DLT 발행 실패와 DB 오류는 재시도합니다.
+
+`user.presence.event` outbox는 refresh session과 durable `tb_user_presence_states` 변경을 같은
+transaction으로 commit하며 at-least-once 발행합니다. startup/주기 snapshot은 모든 partition에
+완료 marker를 기록합니다.
 
 ## 의존성
 
-- MySQL: 리프레시 토큰과 처리한 웹훅 이벤트 저장
-- Kafka produce: `user.data.sync`
-- HTTP: DataGSM OAuth API, `cowork-user`
-- Eureka, Config Server(Compose 기동 시 필수)
+- MySQL: identity command operation, refresh token, presence source, Kafka outbox, webhook idempotency
+- Kafka: 위 네 topic
+- HTTP: DataGSM OAuth API
+- Config Server와 Eureka
 
 ## 환경 변수
 
-| 공급원 | 설정 |
-|---|---|
-| Compose | `APP_CONFIG_URL`, `APP_PROFILE` |
-| Config Server | 포트, DataGSM endpoint, 토큰 TTL, Kafka, Eureka, User 서비스 URL |
-| Vault | `DB_DSN`, `DATAGSM_CLIENT_ID`, `DATAGSM_WEBHOOK_SECRET`, `JWT_SECRET` |
+Compose에서는 `APP_CONFIG_URL`, `APP_PROFILE`로 Config Server를 사용합니다. 직접 실행 시 같은 이름의
+환경 변수가 config 값을 override합니다. 주요 Kafka 설정은 다음과 같습니다.
 
-직접 실행 시 같은 이름의 환경 변수로 값을 override할 수 있습니다. `APP_CONFIG_URL`을 지정한 상태에서 Config Server 조회에 실패하면 기동하지 않습니다.
+- `KAFKA_TOPIC_USER_SYNC`
+- `KAFKA_TOPIC_USER_IDENTITY_COMMAND`
+- `KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT`
+- `KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT`
+- `KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT`
+- `KAFKA_IDENTITY_COMMAND_TIMEOUT`
+- `KAFKA_TOPIC_USER_PRESENCE`
+
+일반 DB migration은 서비스 시작 시 실행합니다. zero-state에서는 빈 DB에 migration을 적용한 뒤 평소와
+같은 command/result 경로로 첫 사용자를 생성합니다.

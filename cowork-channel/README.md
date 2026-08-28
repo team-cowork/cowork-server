@@ -11,14 +11,14 @@
 - 회의록과 회의록 template/section 관리
 - `ACCOUNT_SHARE` 채널의 공유 계정·암호화된 credential 관리
 - GitHub, Notion, Jira, Google, Facebook 계정 연결 OAuth
-- 팀·사용자 lifecycle 이벤트에 따른 로컬 membership 정리
+- 팀 lifecycle 이벤트에 따른 로컬 membership 정리
 
 ## 스택
 
 - Spring Boot 4 / Kotlin / Java 25
 - Spring Data JPA + MySQL + Flyway
-- Spring Cloud Eureka·Config·OpenFeign
-- Spring Kafka, Resilience4j
+- Spring Cloud Eureka·Config
+- Spring Kafka
 
 ## 포트와 API
 
@@ -29,10 +29,18 @@
 
 ## 이벤트와 의존성
 
-- Kafka consume: `team.lifecycle`, `user.lifecycle`
+- Kafka consume: `team.lifecycle`, `team.member.event`, `project.event`
 - Kafka produce: `channel.event`, `channel.member.event`
-- HTTP: `cowork-team`, `cowork-project`
+- 서비스 간 조회: Kafka 기반 로컬 MySQL projection
 - MySQL, Eureka, Config Server
+
+### Projection 준비 상태
+
+각 state consumer는 projection 변경과 DB checkpoint를 같은 transaction으로 커밋합니다. 할당 시 공유 DB에 기록한
+전체 partition barrier와 source snapshot completion marker를 `project.event`, `team.member.event`, `team.lifecycle` 모두
+통과하기 전에는 projection 의존 API와 readiness가 503/OUT_OF_SERVICE로 fail-closed 됩니다.
+Kafka retention으로 checkpoint/marker가 현재 offset 범위를 벗어나거나 저장된 Kafka topic ID와 현재 topic ID가 다르면 자동으로
+ready 처리하지 않으므로 projection 데이터와 checkpoint/barrier를 함께 재구성해야 합니다.
 
 ## 환경 변수
 

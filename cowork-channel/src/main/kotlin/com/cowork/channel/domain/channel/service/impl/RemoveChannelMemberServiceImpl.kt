@@ -5,7 +5,6 @@ import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.RemoveChannelMemberService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
-import com.cowork.channel.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -43,9 +42,7 @@ class RemoveChannelMemberServiceImpl(
             throw ExpectedException("멤버 제거 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
 
+        channelMemberEventPublisher.publishLeave(channel.id, member.userId)
         channelMemberRepository.delete(member)
-        afterCommit {
-            channelMemberEventPublisher.publishLeave(channel.id, channel.teamId, member.userId, channel.type.name)
-        }
     }
 }

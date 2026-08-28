@@ -11,16 +11,14 @@
 
 - security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
 - configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
-- api: [외부 API 모듈 네임스페이스 통일](./items/10-api/public-route-namespace-migration.md)
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
-- security: [Gateway 내부 API 외부 노출 차단](./items/12-security/internal-api-gateway-access-control.md)
+- storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 
 ## 점검 스냅샷
 
 - [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
 - [20260723](./20260723_TODO.md) — Config Server 운영 구성 점검
-- [20260526](./20260526_TODO.md) — 클라이언트 계약 기준 기능 점검 (전체 완료)
 
 ## 새 TODO 작성 규칙
 
