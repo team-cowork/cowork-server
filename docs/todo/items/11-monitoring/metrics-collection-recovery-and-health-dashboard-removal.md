@@ -5,6 +5,11 @@
 - **관련 작업**: [Gateway canonical API 계약 모니터링](./gateway-canonical-api-monitoring.md)
 - **현재 상태**: 모니터링 도구가 일부 또는 전체 서비스의 메트릭을 정상 수집하지 못함. 장애 범위와 근본 원인은 아직 확정하지 않았으며, 개발자용 `GET /health` 화면을 임시 상태 확인 수단으로 추가함
 
+> **2026-08-28 진척:** Prometheus scrape 타깃을 `host.docker.internal:*`에서 Compose 네트워크 DNS
+> 이름(`cowork-config:8761` 등)으로 교체했고, 홈서버 배포용 모니터링 설정을 제거했다. 유력한 원인
+> 하나를 제거한 것이며 실제 수집 정상화 여부는 아직 검증하지 않았다. 임시 Health Dashboard
+> (`cowork-gateway/src/main/resources/health-dashboard/`)는 그대로 남아 있다.
+
 ## 문제
 
 현재 메트릭 수집 장애가 있다는 사실만 확인되었고, 실패가 service discovery, scrape 요청, 메트릭 응답, Prometheus 저장·조회, Grafana datasource·query 중 어느 단계에서 발생하는지는 아직 분리되지 않았다. 근거 없이 설정부터 변경하면 실제 원인을 가리거나 다른 서비스의 정상 수집까지 깨뜨릴 수 있으므로 복구 작업보다 문제 분석이 먼저다.

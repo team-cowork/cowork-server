@@ -54,7 +54,7 @@ Language and framework details live in each module's build file — read that, n
 
 ## Configuration
 
-Shared config is served by `cowork-config`, which is both the Config Server and the Eureka server, and which holds every service's `configs/cowork-{service}-{env}.yml`. Local-only overrides go in `application-local.yml` (gitignored). Startup order is encoded in `docker-compose.yml`'s `depends_on` — `cowork-config` first, then `cowork-gateway`, then the rest in any order.
+Shared config is served by `cowork-config`, which is both the Config Server and the Eureka server, and which holds every service's `configs/cowork-{service}-{env}.yml`. Local-only overrides go in `application-local.yml` (gitignored). Startup order is encoded in `docker-compose.yml`'s `depends_on` — `cowork-config` first, then `cowork-gateway`; `cowork-user` additionally waits for a healthy `cowork-authorization` presence source, while the remaining services may start independently.
 
 ---
 

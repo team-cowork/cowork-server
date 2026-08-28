@@ -57,7 +57,9 @@ func sign(body []byte) string {
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
-func TestVerifySignature(t *testing.T) {
+func TestVerifySignatureAcceptsOnlyAMatchingHMACSignature(t *testing.T) {
+	t.Parallel()
+
 	svc := newTestService(&fakePublisher{}, &fakeStore{})
 	body := []byte(`{"hello":"world"}`)
 
@@ -66,28 +68,32 @@ func TestVerifySignature(t *testing.T) {
 		signature string
 		want      bool
 	}{
-		{"valid", sign(body), true},
-		{"wrong secret", "sha256=" + hex.EncodeToString([]byte("nope")), false},
-		{"missing prefix", hex.EncodeToString([]byte("abc")), false},
-		{"empty", "", false},
+		{name: "valid signature matches", signature: sign(body), want: true},
+		{name: "wrong secret is rejected", signature: "sha256=" + hex.EncodeToString([]byte("nope")), want: false},
+		{name: "missing sha256 prefix is rejected", signature: hex.EncodeToString([]byte("abc")), want: false},
+		{name: "empty signature is rejected", signature: "", want: false},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := svc.VerifySignature(body, tt.signature); got != tt.want {
-				t.Errorf("VerifySignature() = %v, want %v", got, tt.want)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := svc.VerifySignature(body, test.signature); got != test.want {
+				t.Errorf("VerifySignature() = %v, want %v", got, test.want)
 			}
 		})
 	}
 }
 
-func TestVerifySignature_NoSecretConfigured(t *testing.T) {
+func TestVerifySignatureFailsClosedWhenNoSecretIsConfigured(t *testing.T) {
+	t.Parallel()
+
 	svc := NewEventService(&config.AppConfig{}, &fakePublisher{}, &fakeStore{})
 	body := []byte(`{}`)
 	if svc.SecretConfigured() {
-		t.Fatal("SecretConfigured() should be false")
+		t.Fatal("SecretConfigured() = true, want false")
 	}
 	if svc.VerifySignature(body, sign(body)) {
-		t.Error("VerifySignature() should fail when no secret configured")
+		t.Error("VerifySignature() = true, want false when no secret is configured")
 	}
 }
 
@@ -107,9 +113,10 @@ func envelope(t *testing.T, id, event string, objects ...string) []byte {
 	}
 
 	body, err := json.Marshal(WebhookEvent{
-		ID:    id,
-		Event: event,
-		Data:  mustMarshalRaw(t, map[string]any{"old": oldItems, "new": newItems}),
+		ID:        id,
+		Event:     event,
+		Timestamp: "2026-08-26T01:02:03.123456Z",
+		Data:      mustMarshalRaw(t, map[string]any{"old": oldItems, "new": newItems}),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -135,7 +142,9 @@ func mustMarshalRaw(t *testing.T, value any) json.RawMessage {
 	return body
 }
 
-func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
+func TestProcessEventPublishesMappedMessage(t *testing.T) {
+	t.Parallel()
+
 	pub := &fakePublisher{}
 	store := &fakeStore{}
 	svc := newTestService(pub, store)
@@ -162,12 +171,17 @@ func TestProcessEvent_PublishesMappedMessage(t *testing.T) {
 	if msg.EventType != "student.updated" || msg.StudentRole != "STUDENT_COUNCIL" || msg.DataGSMRefID != 1 {
 		t.Errorf("unexpected sync message: %+v", msg)
 	}
+	if msg.OccurredAt != "2026-08-26T01:02:03.123456Z" {
+		t.Errorf("occurred_at = %q", msg.OccurredAt)
+	}
 	if msg.StudentNumber == nil || *msg.StudentNumber != 2105 || msg.GithubID == nil || *msg.GithubID != "hong" {
 		t.Errorf("student fields not mapped: %+v", msg)
 	}
 }
 
-func TestProcessEvent_PublishesOneMessagePerStudentObject(t *testing.T) {
+func TestProcessEventPublishesOneMessagePerStudentObject(t *testing.T) {
+	t.Parallel()
+
 	pub := &fakePublisher{}
 	store := &fakeStore{}
 	svc := newTestService(pub, store)
@@ -194,84 +208,130 @@ func TestProcessEvent_PublishesOneMessagePerStudentObject(t *testing.T) {
 	}
 }
 
-func TestProcessEvent_UnsupportedEventSkipped(t *testing.T) {
-	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{})
+// TestProcessEventSkipsPublishingForNonPublishableInputs covers every input
+// that must reach zero Publish calls, whether because the event is not one
+// ProcessEvent maps (unsupported/duplicate) or because the payload itself
+// fails validation before mapping (malformed envelope, timestamp, or
+// student object).
+func TestProcessEventSkipsPublishingForNonPublishableInputs(t *testing.T) {
+	t.Parallel()
 
-	body := envelope(t, "evt_2", "club.updated", `{"club_id":1,"name":"더모먼트"}`)
-	if err := svc.ProcessEvent(context.Background(), body); err != nil {
-		t.Fatalf("ProcessEvent() error = %v", err)
+	const (
+		validEmail = "x@gsm.hs.kr"
+		validRole  = "GRADUATE"
+	)
+
+	badTimestampBody := func(t *testing.T) []byte {
+		t.Helper()
+		body := envelope(t, "evt_bad_time", "student.updated", studentObject(1, validEmail, validRole))
+		var event map[string]any
+		if err := json.Unmarshal(body, &event); err != nil {
+			t.Fatal(err)
+		}
+		event["timestamp"] = "not-a-timestamp"
+		return mustMarshalRaw(t, event)
 	}
-	if pub.calls != 0 {
-		t.Errorf("unsupported event should not publish, got %d calls", pub.calls)
+
+	missingStudentIDBody := func(t *testing.T) []byte {
+		t.Helper()
+		body, err := json.Marshal(WebhookEvent{
+			ID:        "evt_4",
+			Event:     "student.updated",
+			Timestamp: "2026-08-26T01:02:03Z",
+			Data:      json.RawMessage(`{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT"}}]}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+
+	tests := []struct {
+		name            string
+		store           *fakeStore
+		body            func(t *testing.T) []byte
+		wantErr         bool
+		wantInvalidType bool
+	}{
+		{
+			name:  "unsupported event type is skipped without error",
+			store: &fakeStore{},
+			body: func(t *testing.T) []byte {
+				return envelope(t, "evt_2", "club.updated", `{"club_id":1,"name":"더모먼트"}`)
+			},
+		},
+		{
+			name:  "already-processed event is skipped without error",
+			store: &fakeStore{exists: true},
+			body: func(t *testing.T) []byte {
+				return envelope(t, "evt_3", "student.updated", studentObject(1, validEmail, validRole))
+			},
+		},
+		{
+			name:            "missing student_id is an invalid payload error",
+			store:           &fakeStore{},
+			body:            missingStudentIDBody,
+			wantErr:         true,
+			wantInvalidType: true,
+		},
+		{
+			name:  "malformed envelope JSON is an invalid payload error",
+			store: &fakeStore{},
+			body: func(*testing.T) []byte {
+				return []byte("not json")
+			},
+			wantErr:         true,
+			wantInvalidType: true,
+		},
+		{
+			name:            "non-RFC3339 timestamp is an invalid payload error",
+			store:           &fakeStore{},
+			body:            badTimestampBody,
+			wantErr:         true,
+			wantInvalidType: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			pub := &fakePublisher{}
+			svc := newTestService(pub, test.store)
+
+			err := svc.ProcessEvent(context.Background(), test.body(t))
+			if (err != nil) != test.wantErr {
+				t.Fatalf("ProcessEvent() error = %v, wantErr %v", err, test.wantErr)
+			}
+			if test.wantInvalidType && !errors.Is(err, ErrInvalidPayload) {
+				t.Errorf("ProcessEvent() error = %v, want ErrInvalidPayload (400)", err)
+			}
+			if pub.calls != 0 {
+				t.Errorf("publish calls = %d, want 0", pub.calls)
+			}
+		})
 	}
 }
 
-func TestProcessEvent_DuplicateSkipped(t *testing.T) {
-	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{exists: true})
+func TestProcessEventToleratesMarkProcessedFailureAfterPublish(t *testing.T) {
+	t.Parallel()
 
-	body := envelope(t, "evt_3", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
-	if err := svc.ProcessEvent(context.Background(), body); err != nil {
-		t.Fatalf("ProcessEvent() error = %v", err)
-	}
-	if pub.calls != 0 {
-		t.Errorf("duplicate event should not publish, got %d calls", pub.calls)
-	}
-}
-
-func TestProcessEvent_MissingStudentID(t *testing.T) {
-	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{})
-
-	body, err := json.Marshal(WebhookEvent{
-		ID:    "evt_4",
-		Event: "student.updated",
-		Data:  json.RawMessage(`{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT"}}]}`),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = svc.ProcessEvent(context.Background(), body)
-	if err == nil {
-		t.Error("ProcessEvent() expected error for missing student_id")
-	}
-	if !errors.Is(err, ErrInvalidPayload) {
-		t.Errorf("missing student_id should be ErrInvalidPayload (400), got %v", err)
-	}
-	if pub.calls != 0 {
-		t.Errorf("should not publish on missing student_id, got %d calls", pub.calls)
-	}
-}
-
-func TestProcessEvent_InvalidEnvelopeIsPayloadError(t *testing.T) {
-	pub := &fakePublisher{}
-	svc := newTestService(pub, &fakeStore{})
-
-	err := svc.ProcessEvent(context.Background(), []byte("not json"))
-	if !errors.Is(err, ErrInvalidPayload) {
-		t.Errorf("invalid envelope should be ErrInvalidPayload (400), got %v", err)
-	}
-	if pub.calls != 0 {
-		t.Errorf("should not publish on invalid envelope, got %d calls", pub.calls)
-	}
-}
-
-func TestProcessEvent_MarkErrorAfterPublishIsNonFatal(t *testing.T) {
 	pub := &fakePublisher{}
 	store := &fakeStore{markErr: errTest}
 	svc := newTestService(pub, store)
 
 	body := envelope(t, "evt_5", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	if err := svc.ProcessEvent(context.Background(), body); err != nil {
-		t.Errorf("ProcessEvent() should not fail when mark fails after publish, got %v", err)
+		t.Errorf("ProcessEvent() error = %v, want nil when MarkProcessed fails after a successful publish", err)
 	}
 	if pub.calls != 1 {
 		t.Errorf("publish calls = %d, want 1", pub.calls)
 	}
 }
 
-func TestProcessEvent_PublishErrorReturnsError(t *testing.T) {
+func TestProcessEventReturnsInternalErrorWhenPublishFails(t *testing.T) {
+	t.Parallel()
+
 	pub := &fakePublisher{err: errTest}
 	store := &fakeStore{}
 	svc := newTestService(pub, store)
@@ -279,25 +339,27 @@ func TestProcessEvent_PublishErrorReturnsError(t *testing.T) {
 	body := envelope(t, "evt_6", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	err := svc.ProcessEvent(context.Background(), body)
 	if err == nil {
-		t.Error("ProcessEvent() expected error when publish fails")
+		t.Error("ProcessEvent() error = nil, want the publish failure")
 	}
 	if errors.Is(err, ErrInvalidPayload) {
-		t.Error("publish failure is an internal error (500), not ErrInvalidPayload")
+		t.Error("ProcessEvent() classified a publish failure as ErrInvalidPayload, want an internal error (500)")
 	}
 	if store.markCalls != 0 {
-		t.Errorf("MarkProcessed must not run when publish fails, got %d", store.markCalls)
+		t.Errorf("MarkProcessed calls = %d, want 0 when publish fails", store.markCalls)
 	}
 }
 
-func TestProcessEvent_ExistsErrorReturnsError(t *testing.T) {
+func TestProcessEventReturnsErrorWhenExistsCheckFails(t *testing.T) {
+	t.Parallel()
+
 	pub := &fakePublisher{}
 	svc := newTestService(pub, &fakeStore{existsErr: errTest})
 
 	body := envelope(t, "evt_7", "student.updated", studentObject(1, "x@gsm.hs.kr", "GRADUATE"))
 	if err := svc.ProcessEvent(context.Background(), body); err == nil {
-		t.Error("ProcessEvent() expected error when Exists fails")
+		t.Error("ProcessEvent() error = nil, want the Exists() failure")
 	}
 	if pub.calls != 0 {
-		t.Errorf("should not publish when Exists fails, got %d calls", pub.calls)
+		t.Errorf("publish calls = %d, want 0 when Exists() fails", pub.calls)
 	}
 }
