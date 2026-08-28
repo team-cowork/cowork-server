@@ -42,7 +42,7 @@
 | `secret/cowork-preference`    | PostgreSQL username/password                          |
 | `secret/cowork-project`       | GitHub App internal key                               |
 | `secret/cowork-team`          | GitHub App callback state 서명 키·app slug            |
-| `secret/cowork-user`          | MySQL username/password                              |
+| `secret/cowork-user`          | MySQL username/password                               |
 | `secret/cowork-voice`         | MongoDB URI, LiveKit key/secret                       |
 
 로컬에서는 `vault-init`이 `.env`의 인프라 계정·애플리케이션 시크릿을 위 경로에 기록한다. `.env`는 로컬 Vault와 Config Server를 준비하는 bootstrap 입력이며, 애플리케이션 컨테이너는 이 파일을 직접 설정 소스로 사용하지 않는다. 운영에서는 `vault-init`을 실행하지 않고 외부 Vault를 사전에 준비한다.
@@ -52,14 +52,14 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 운영에서는 다음 이중 입력이 정확히 같은 credential을 가리켜야 한다. Compose와 Vault를 따로
 갱신해 값이 어긋나면 컨테이너 health가 열려도 실제 애플리케이션 요청은 인증에 실패한다.
 
-| Compose bootstrap 입력 | 외부 Vault 대상 | 일치 계약 |
-|---|---|---|
-| `MYSQL_USER`, `MYSQL_PASSWORD` | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login을 사용하고 DSN은 각 서비스 DB 이름과 `mysql:3306`을 가리킨다. |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD` | `secret/application`의 동명 key, `secret/cowork-preference`의 `preference.db.username`·`preference.db.password` | 같은 PostgreSQL login을 사용한다. |
-| `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | `secret/cowork-chat`·`secret/cowork-voice`의 `MONGODB_URI` | 같은 root login을 URI에 넣고 서비스별 DB 이름과 `authSource=admin`을 사용한다. |
-| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | `secret/application`의 동명 key | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다. |
-| `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | `secret/cowork-voice`의 동명 key | LiveKit server와 voice token 발급기가 같은 key pair를 사용한다. |
-| JWT signing secret | `secret/application`의 `JWT_SECRET`, `secret/cowork-gateway`의 `jwt.secret`, `secret/cowork-authorization`의 `JWT_SECRET` | authorization 서명, Gateway HTTP 검증, chat WebSocket 검증에 동일한 secret을 사용한다. |
+| Compose bootstrap 입력                       | 외부 Vault 대상                                                                                                                                                        | 일치 계약                                                                              |
+|----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login을 사용하고 DSN은 각 서비스 DB 이름과 `mysql:3306`을 가리킨다.         |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`         | `secret/application`의 동명 key, `secret/cowork-preference`의 `preference.db.username`·`preference.db.password`                                                        | 같은 PostgreSQL login을 사용한다.                                                      |
+| `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | `secret/cowork-chat`·`secret/cowork-voice`의 `MONGODB_URI`                                                                                                             | 같은 root login을 URI에 넣고 서비스별 DB 이름과 `authSource=admin`을 사용한다.         |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY`             | `secret/application`의 동명 key                                                                                                                                        | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다.                |
+| `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`      | `secret/cowork-voice`의 동명 key                                                                                                                                       | LiveKit server와 voice token 발급기가 같은 key pair를 사용한다.                        |
+| JWT signing secret                           | `secret/application`의 `JWT_SECRET`, `secret/cowork-gateway`의 `jwt.secret`, `secret/cowork-authorization`의 `JWT_SECRET`                                              | authorization 서명, Gateway HTTP 검증, chat WebSocket 검증에 동일한 secret을 사용한다. |
 
 ## 서비스별 부트스트랩
 
