@@ -1,7 +1,21 @@
 // @title           Cowork Voice API
-// @version         20260820.0
+// @version         20260828.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
-// @BasePath        /api
+// @description
+// @description     ## 미디어 연결 (LiveKit)
+// @description     이 서비스는 WebSocket을 직접 제공하지 않습니다. 아래 REST 엔드포인트가 LiveKit 접속
+// @description     토큰을 발급하고, 클라이언트는 응답의 `livekit_url`(wss)로 **LiveKit 서버에 직접 연결**합니다.
+// @description     이 연결은 Gateway를 경유하지 않습니다.
+// @description
+// @description     | 구분 | 입장 | 발급 토큰 권한 |
+// @description     |------|------|----------------|
+// @description     | `voice` — 상시 음성 채널 | `POST /voice/channels/{channel_id}/join` | 전원 publish + subscribe |
+// @description     | `live` — 라이브 방송 | `POST /live/channels/{channel_id}/start` (호스트) | publish (마이크·화면공유) |
+// @description     | | `POST /live/channels/{channel_id}/join` (시청자) | subscribe 전용 |
+// @description
+// @description     응답의 `room_name`이 LiveKit room 식별자이며, `session_id`로 서버 측 세션을 조회합니다.
+// @description     참가자 입퇴장은 LiveKit이 `POST /voice/webhook`으로 통보하고 서버가 세션 상태를 갱신합니다.
+// @BasePath        /api/voice
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
@@ -72,6 +86,16 @@ func main() {
 		slog.Error("mongodb index creation failed", "err", err)
 		os.Exit(1)
 	}
+	if err := channel.CreateIndexes(indexCtx, db); err != nil {
+		indexCancel()
+		slog.Error("channel membership projection index creation failed", "err", err)
+		os.Exit(1)
+	}
+	if err := channel.CreateCheckpointIndexes(indexCtx, db); err != nil {
+		indexCancel()
+		slog.Error("channel membership projection checkpoint index creation failed", "err", err)
+		os.Exit(1)
+	}
 	indexCancel()
 
 	kafkaProducer := kafkadomain.NewProducer(
@@ -94,7 +118,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	channelClient := channel.NewClient(cfg.ChannelServiceURL)
+	channelMemberships := channel.NewProjection(db)
+	projectionReadiness := health.NewReadiness()
+	channelMembershipConsumer, err := channel.NewConsumer(
+		cfg.KafkaBrokers,
+		cfg.KafkaTopicChannelMember,
+		cfg.KafkaGroupIDChannelMember,
+		channel.NewEventHandler(channelMemberships),
+		channel.NewMongoCheckpointStore(db),
+		projectionReadiness,
+	)
+	if err != nil {
+		slog.Error("channel membership consumer init failed", "err", err)
+		os.Exit(1)
+	}
+	channelMemberships.SetCurrentHighChecker(channelMembershipConsumer)
+	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
+	channelMembershipConsumer.Start(runtimeCtx)
 	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
 	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
 	outboxRepo := mongoinfra.NewOutboxRepository(db)
@@ -104,9 +144,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelClient, livekitRoom, outboxRepo, cfg.LiveKitWsURL)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelMemberships, livekitRoom, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
-	webhookSvc := webhookdomain.NewWebhookService(sessionRepo, outboxRepo)
+	webhookSvc := webhookdomain.NewWebhookService(sessionRepo)
 
 	// live: 방송형(1:N) 라이브. 세션은 Mongo 직행(캐시 미적용), 이벤트는 동일 outbox 경유
 	liveMongoRepo := mongoinfra.NewMongoLiveSessionRepository(db)
@@ -116,9 +156,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelClient, liveLKRoom, outboxRepo, cfg.LiveKitWsURL)
+	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelMemberships, liveLKRoom, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
-	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom, outboxRepo)
+	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
 
 	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
 	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
@@ -136,6 +176,7 @@ func main() {
 	r.Use(monitoring.HTTPMetricsMiddleware)
 
 	r.Get("/health", health.Handler)
+	r.Get("/health/ready", health.ReadyHandler(projectionReadiness))
 	r.Handle("/metrics", promhttp.Handler())
 	r.Get("/swagger/*", httpSwagger.Handler(
 		httpSwagger.URL("/swagger/doc.json"),
@@ -143,6 +184,7 @@ func main() {
 	r.Post("/voice/webhook", webhookHandler.Handle)
 
 	r.Group(func(r chi.Router) {
+		r.Use(health.RequireReady(projectionReadiness))
 		r.Use(middleware.ExtractAuthUser)
 		r.Post("/voice/channels/{channel_id}/join", roomHandler.Join)
 		r.Post("/voice/channels/{channel_id}/leave", roomHandler.Leave)
@@ -159,17 +201,16 @@ func main() {
 		Handler: r,
 	}
 
-	eurekaClient := eureka.New(cfg)
-	if err := eurekaClient.Register(cfg); err != nil {
-		slog.Error("critical: eureka registration failed", "err", err)
-		os.Exit(1)
-	}
-	eurekaClient.StartHeartbeat(cfg)
-
 	done := make(chan os.Signal, 1)
 	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	exitCode := 0
+	eurekaClient := eureka.New(cfg)
+	eurekaDone := make(chan struct{})
+	go func() {
+		defer close(eurekaDone)
+		eurekaClient.Run(runtimeCtx, cfg, projectionReadiness)
+	}()
 
 	go func() {
 		slog.Info("cowork-voice starting", "port", cfg.Port)
@@ -186,7 +227,8 @@ func main() {
 		exitCode = 1
 	}
 
-	_ = eurekaClient.Deregister(cfg)
+	runtimeCancel()
+	<-eurekaDone
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
@@ -195,6 +237,9 @@ func main() {
 		slog.Error("server shutdown error", "err", err)
 	}
 	outboxRelay.Stop()
+	if err := channelMembershipConsumer.Stop(); err != nil {
+		slog.Error("channel membership consumer close error", "err", err)
+	}
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
 	}
