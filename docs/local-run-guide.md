@@ -109,51 +109,16 @@ State marker는 모두 동시에 생기지 않는다. 빈 상태에서도 upstre
 `user.profile.event`·`project.event`, `channel.event`, `project.github-repo.event` 순으로 marker가 열리며,
 이 인과 순서를 기다리는 동안 dependent service가 `starting`인 것은 정상이다.
 
-### 사용자 상태 계약
+### 로컬 기동에 영향을 주는 제약
 
-- account와 profile identity의 authoritative owner는 `cowork-user`다. 공개 profile API의 `name`과
-  `github_id`도 user가 검증하고 저장한다.
-- `cowork-authorization`은 DataGSM 인증, 세션·토큰과 login presence를 소유한다. 로그인 시 operation과
-  `user.identity.command` outbox를 같은 transaction으로 접수하고, user의
-  `user.identity.command-result`가 성공한 뒤에만 세션과 토큰을 발급한다.
-- DataGSM webhook의 학생 정보 변경은 `user.data.sync`로 user에 전달한다. user는 account/profile 변경과
-  profile event outbox를 자신의 transaction으로 커밋한다.
-- identity command와 result는 action stream이므로 snapshot marker나 projection readiness 대상이 아니다.
-  `cowork-user`의 readiness는 `user.presence.event`와 `team.member.event`의 초기 snapshot·checkpoint로
-  판단한다.
-- Kafka는 user identity 생성·동기화의 유일한 서비스 간 경로다. `cowork-user`에 `KAFKA_ENABLED=false`를 주면
-  기동 시 fail-fast 하므로 로컬에서도 Kafka와 `kafka-init`을 함께 올린다.
-
-### 팀 역할 소유권
-
-팀의 built-in 멤버십 역할(`OWNER`, `ADMIN`, `MEMBER`)은 `cowork-team`이 소유하고, 사용자 정의 역할의
-정의·권한·할당은 `cowork-preference`의 PostgreSQL 상태다. team의 공개 쓰기 API는 작업과
-`preference.team-role.command` outbox를 같은 MySQL transaction으로 접수해 `202`를 반환한다. preference가
-command를 중복 안전하게 처리한 뒤 역할 state와 결과를 발행하고, team은 local projection에 해당 state가
-반영된 뒤에만 작업을 `SUCCEEDED`로 확정한다. 빈 DB에서는 양쪽 Flyway가 source와 projection 테이블을
-만들므로 기존 데이터 이관 절차는 필요하지 않다.
-
-### 프로젝트·GitHub 저장소 projection
-
-- `cowork-project`는 `channel.event`와 `user.profile.event`를 로컬 MySQL projection으로 소비하며,
-  초기 snapshot 전에는 projection 의존 API와 readiness를 열지 않는다.
-- GitHub 저장소 연결과 webhook 대상은 project DB와 outbox에 함께 기록되고 compacted
-  `project.github-repo.event`로 발행된다.
-- `label_auto_apply`는 `cowork-preference`의 `GITHUB_REPO` 설정이다. project의 공개 쓰기 API는
-  `preference.github-repo.setting.command`를 비동기로 접수하고 compacted
-  `preference.github-repo.setting.state`를 local projection으로 소비한다.
-- `cowork-chat`은 저장소 연결 state를 소비해 GitHub 이슈 생성과 webhook 대상을 조회하며 project의
-  내부 HTTP API를 호출하지 않는다. label policy는 project가 preference projection에서 조회한다.
-
-별도 `cowork-github-app` 저장소의 프로세스는 이 Compose에 포함되지 않는다. 기본 stack과 Kafka projection은
-그 프로세스 없이 기동할 수 있다. GitHub 조직 저장소와 PR 목록·상세·파일 HTTP 조회를 확인하려면 github-app을
-host `3000`에 별도로 실행하고 내부 API key를 양쪽에 동일하게 설정한다. 현재 외부 github-app에는 이슈·댓글·라벨
-HTTP route와 그에 대응하는 Kafka command/result 계약이 없어 해당 project API는 동작하지 않는다.
-
-직전 PR #284에서 다룬 이슈 생성·PR merge·approve command API는 이번 점검의 명시적 보류 범위다.
-`github.issue.create`는 기본 Compose가 provision하지만, `github.pr.merge`·`github.pr.approve`는 아직 provision하지
-않으므로 두 보류 API를 zero-state에서 호출하면 실패한다. 외부 consumer 계약을 확정한 뒤 topic을 명시적으로
-추가해야 하며 Broker auto-create에는 의존하지 않는다.
+- `cowork-user`는 Kafka가 유일한 서비스 간 경로다. `KAFKA_ENABLED=false`로는 기동하지 않고 fail-fast 하므로
+  로컬에서도 Kafka와 `kafka-init`을 함께 올린다.
+- 빈 DB에서는 각 서비스의 Flyway가 source와 projection 테이블을 모두 만들므로 별도 데이터 이관 절차가 없다.
+- 별도 `cowork-github-app` 저장소의 프로세스는 이 Compose에 포함되지 않는다. 기본 stack과 Kafka projection은
+  그 프로세스 없이 기동한다. GitHub 조직 저장소와 PR 조회까지 확인하려면 github-app을 host `3000`에 별도로
+  실행하고 내부 API key를 양쪽에 동일하게 설정한다.
+- `github.pr.merge`·`github.pr.approve` topic은 기본 Compose가 provision하지 않는다. 빈 상태에서 해당 API를
+  호출하면 실패하며, Broker auto-create에 의존하지 말고 topic을 명시적으로 추가해야 한다.
 
 ## 5. 기동 확인
 

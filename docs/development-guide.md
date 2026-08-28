@@ -35,15 +35,19 @@ cowork-server/
 ├── cowork-chat/          채팅 메시지 (MongoDB + Elasticsearch) — NestJS (TypeScript)
 ├── cowork-voice/         음성 채널 (MongoDB + Redis) — Go
 ├── cowork-notification/  알림 (FCM 푸시 + SSE) — Go
-├── cowork-promotion/     서비스 소개 페이지 — Nuxt.js (Vue)
+├── cowork-promotion/     서비스 소개 페이지 — TypeScript 정적 사이트 (프레임워크 없음)
 └── cowork-monitoring/    Prometheus/Grafana 설정 (앱 없음)
 ```
 
 ### 모듈 네이밍 규칙
 
 - 모든 서비스 디렉터리명은 `cowork-` 접두사로 시작합니다.
-- Spring Boot / Vert.x 기반 JVM 서비스는 `settings.gradle.kts`에 등록합니다.
-- JVM 외 서비스(NestJS, Go, Elixir, Nuxt.js 등)는 Gradle에 포함하지 않습니다.
+- JVM 서비스는 `settings.gradle.kts`에 등록합니다. 현재 등록된 모듈은 `cowork-gateway`, `cowork-config`,
+  `cowork-channel`, `cowork-project`, `cowork-team`, `cowork-preference`, `cowork-roadmap` 7개입니다.
+- 등록되어 있어도 빌드 소유권은 다를 수 있습니다. `cowork-project`는 Maven(`pom.xml`), `cowork-preference`는
+  Amper(`module.yaml`)가 source of truth이고 `build.gradle.kts`는 위임만 합니다.
+- JVM 외 서비스(NestJS, Go, Elixir, 정적 사이트)는 Gradle에 포함하지 않습니다.
+- 새 모듈을 만들면 `scripts/bump.sh`(`make bump`)에도 추가해 릴리스 버전이 스탬프되게 합니다.
 
 ---
 
@@ -211,34 +215,34 @@ ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완�
 transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
 낮은 sequence 행을 볼 수 없습니다.
 
-| 토픽 | Producer | Consumer | 용도 |
-|---|---|---|---|
-| `user.data.sync` | cowork-authorization | cowork-user | DataGSM webhook의 계정·프로필 변경 요청 |
-| `user.identity.command` | cowork-authorization | cowork-user | 로그인 시 계정·프로필 생성 또는 동기화 command |
-| `user.identity.command-result` | cowork-user | cowork-authorization | identity command의 owner commit 결과 |
-| `team.lifecycle` | cowork-team | cowork-channel, cowork-project, cowork-notification | team key별 최신 생명주기 상태·삭제와 연쇄 정리 |
-| `team.member.event` | cowork-team | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection |
-| `user.profile.event` | cowork-user | cowork-project, cowork-chat, cowork-notification | 사용자 표시·GitHub identity 정보 projection |
-| `user.presence.event` | cowork-authorization | cowork-user | 사용자 접속 상태 projection |
-| `channel.event` | cowork-channel | cowork-project, cowork-chat | 채널 메타데이터와 GitHub webhook 대상 정합성 projection |
-| `channel.member.event` | cowork-channel | cowork-chat, cowork-voice | 채널 멤버십 projection |
-| `project.event` | cowork-project | cowork-channel, cowork-chat | 프로젝트 메타데이터 projection |
-| `project.member.event` | cowork-project | cowork-chat | 프로젝트 멤버십 projection |
-| `project.github-repo.event` | cowork-project | cowork-chat | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
-| `preference.channel-notification.changed` | cowork-preference | cowork-notification | 채널 알림 설정 projection |
-| `preference.team-role.command` | cowork-team | cowork-preference | 사용자 정의 팀 역할·할당 비동기 command |
-| `preference.team-role.changed` | cowork-preference | cowork-team | 사용자 정의 팀 역할·할당 상태 projection |
-| `preference.team-role.command-result` | cowork-preference | cowork-team | 팀 역할 command 처리 결과 |
-| `preference.github-repo.setting.command` | cowork-project | cowork-preference | GitHub 저장소 설정 비동기 command |
-| `preference.github-repo.setting.state` | cowork-preference | cowork-project | GitHub 저장소 설정 상태 projection |
-| `preference.github-repo.setting.result` | cowork-preference | cowork-project | GitHub 저장소 설정 command 처리 결과 |
-| `chat.message` | cowork-chat | cowork-chat | 메시지 비동기 저장·브로드캐스트 |
-| `notification.trigger` | cowork-team, cowork-chat | cowork-notification | FCM·SSE 알림 발송 |
-| `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat | GitHub 이슈 slash command |
-| `github.repo.event` | 외부 GitHub App 연동 | cowork-chat | GitHub 저장소 action stream |
-| `voice.event` | cowork-voice | 연동 서비스 | 음성 세션 이벤트 |
-| `preference.status.changed` | cowork-preference | 연동 서비스 | 사용자 상태 변경 |
-| `preference.team.setting.changed` | cowork-preference | 연동 서비스 | 팀 설정 변경 |
+| 토픽                                          | Producer                       | Consumer                                                                 | 용도                                                       |
+|-----------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
+| `user.data.sync`                              | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
+| `user.identity.command`                       | cowork-authorization           | cowork-user                                                              | 로그인 시 계정·프로필 생성 또는 동기화 command             |
+| `user.identity.command-result`                | cowork-user                    | cowork-authorization                                                     | identity command의 owner commit 결과                       |
+| `team.lifecycle`                              | cowork-team                    | cowork-channel, cowork-project, cowork-notification                      | team key별 최신 생명주기 상태·삭제와 연쇄 정리             |
+| `team.member.event`                           | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
+| `user.profile.event`                          | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
+| `user.presence.event`                         | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
+| `channel.event`                               | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
+| `channel.member.event`                        | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
+| `project.event`                               | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
+| `project.member.event`                        | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
+| `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
+| `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
+| `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
+| `preference.team-role.changed`                | cowork-preference              | cowork-team                                                              | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.team-role.command-result`         | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
+| `preference.github-repo.setting.command`      | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
+| `preference.github-repo.setting.state`        | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |
+| `preference.github-repo.setting.result`       | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 command 처리 결과                       |
+| `chat.message`                                | cowork-chat                    | cowork-chat                                                              | 메시지 비동기 저장·브로드캐스트                            |
+| `notification.trigger`                        | cowork-team, cowork-chat       | cowork-notification                                                      | FCM·SSE 알림 발송                                          |
+| `github.issue.create` / `github.issue.result` | cowork-chat / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat                                           | GitHub 이슈 slash command                                  |
+| `github.repo.event`                           | 외부 GitHub App 연동           | cowork-chat                                                              | GitHub 저장소 action stream                                |
+| `voice.event`                                 | cowork-voice                   | 연동 서비스                                                              | 음성 세션 이벤트                                           |
+| `preference.status.changed`                   | cowork-preference              | 연동 서비스                                                              | 사용자 상태 변경                                           |
+| `preference.team.setting.changed`             | cowork-preference              | 연동 서비스                                                              | 팀 설정 변경                                               |
 
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
 계정과 프로필 identity는 `cowork-user`가 소유합니다. authorization은 DataGSM 인증 정보로
@@ -262,9 +266,9 @@ command/result와 local state projection으로 비동기 처리합니다. GitHub
 
 ### Gateway가 하위 서비스로 전달하는 헤더
 
-| 헤더 | 값 | 설명 |
-|---|---|---|
-| `X-User-Id` | `Long` | 사용자 ID |
+| 헤더          | 값       | 설명                        |
+|---------------|----------|-----------------------------|
+| `X-User-Id`   | `Long`   | 사용자 ID                   |
 | `X-User-Role` | `String` | 사용자 권한 (ADMIN, MEMBER) |
 
 ### 하위 서비스 처리 원칙
@@ -281,12 +285,12 @@ command/result와 local state projection으로 비동기 처리합니다. GitHub
 
 ### 원칙
 
-| 종류 | 관리 방법 |
-|---|---|
-| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입 |
-| 서비스별 일반 설정 | `cowork-config` Config Server (`local`/`prod` 모두 classpath `configs/`) |
-| 저장소 공통 로컬 설정 | `cowork-config/src/main/resources/configs/*-local.yml` |
-| 개발자 머신별 값 | 루트 `.env` 또는 gitignored 로컬 override |
+| 종류                                | 관리 방법                                                                |
+|-------------------------------------|--------------------------------------------------------------------------|
+| DB 접속 정보, JWT 시크릿 등 민감 값 | HashiCorp Vault, 배포 시 CI/CD secret으로 주입                           |
+| 서비스별 일반 설정                  | `cowork-config` Config Server (`local`/`prod` 모두 classpath `configs/`) |
+| 저장소 공통 로컬 설정               | `cowork-config/src/main/resources/configs/*-local.yml`                   |
+| 개발자 머신별 값                    | 루트 `.env` 또는 gitignored 로컬 override                                |
 
 ### Vault (로컬 개발)
 
@@ -362,22 +366,22 @@ docker compose up -d mysql mongodb kafka
 
 **인프라 포트 정보**
 
-| 서비스 | 호스트 포트 | 비고 |
-|---|---|---|
-| MySQL | 3306 | 서비스별 DB 자동 생성 (7개) |
-| PostgreSQL | 5432 | cowork-preference 전용 |
-| MongoDB | 27017 | cowork-chat, cowork-voice |
-| Kafka | 9094 | 호스트 접근용 (컨테이너 간: 9092) |
-| Kafka UI | 8090 | 브라우저에서 토픽/메시지 확인 |
-| Vault | 8200 | 시크릿 관리 (토큰: `dev-root-token`) |
-| SeaweedFS | 9000 | S3 호환 오브젝트 스토리지 |
-| SeaweedFS Console | 9002 | 브라우저 UI |
-| Elasticsearch | 9200 | 채팅 메시지 검색 (cowork-chat) |
-| Redis | 6379 | Gateway rate limit, chat·voice·preference |
-| LiveKit | 7880 | 음성 서버 |
-| Prometheus | 9090 | 메트릭 수집 |
-| Grafana | 3001 | 모니터링 대시보드 |
-| Loki | 3100 | 로그 수집 |
+| 서비스            | 호스트 포트 | 비고                                      |
+|-------------------|-------------|-------------------------------------------|
+| MySQL             | 3306        | 서비스별 DB 자동 생성 (7개)               |
+| PostgreSQL        | 5432        | cowork-preference 전용                    |
+| MongoDB           | 27017       | cowork-chat, cowork-voice                 |
+| Kafka             | 9094        | 호스트 접근용 (컨테이너 간: 9092)         |
+| Kafka UI          | 8090        | 브라우저에서 토픽/메시지 확인             |
+| Vault             | 8200        | 시크릿 관리 (토큰: `dev-root-token`)      |
+| SeaweedFS         | 9000        | S3 호환 오브젝트 스토리지                 |
+| SeaweedFS Console | 9002        | 브라우저 UI                               |
+| Elasticsearch     | 9200        | 채팅 메시지 검색 (cowork-chat)            |
+| Redis             | 6379        | Gateway rate limit, chat·voice·preference |
+| LiveKit           | 7880        | 음성 서버                                 |
+| Prometheus        | 9090        | 메트릭 수집                               |
+| Grafana           | 3001        | 모니터링 대시보드                         |
+| Loki              | 3100        | 로그 수집                                 |
 
 MySQL 최초 기동 시 `docker/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다
 (`cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`, `cowork_notification`, `cowork_roadmap`).<br>
@@ -399,6 +403,10 @@ docker compose down             # 중지 (데이터 유지)
 docker compose down -v          # 중지 + 데이터 초기화
 ```
 
+> 로컬 DB·Kafka가 비어 있는 상태에서 처음 전체를 띄우는 절차, projection snapshot marker 확인,
+> 기동 실패 진단은 [`docs/local-run-guide.md`](./local-run-guide.md)를 따릅니다. 개별 서비스를
+> 호스트에서 직접 실행할 때는 `scripts/run/local/{service}.sh`를 사용합니다.
+
 ### 3단계 — 애플리케이션 서비스 기동 순서
 
 MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
@@ -414,29 +422,33 @@ Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. user
 
 **서비스 포트 정보**
 
-| 서비스 | 포트 | 스택 |
-|---|---|---|
-| cowork-config | 8761 | Kotlin (Spring Cloud Config + Eureka) |
-| cowork-gateway | 8080 | Kotlin (Spring Cloud Gateway) |
-| cowork-authorization | 8081 | Go |
-| cowork-user | 8082 | Elixir |
-| cowork-channel | 8083 | Kotlin (Spring Boot) |
-| cowork-voice | 8089 | Go |
-| cowork-team | 8085 | Kotlin (Spring Boot) |
-| cowork-notification | 8086 | Go |
-| cowork-chat | 8087 | NestJS (TypeScript) |
-| cowork-project | 8084 | Kotlin (Spring Boot, Maven) |
-| cowork-roadmap | 8088 | Java (Spring Boot WebFlux + R2DBC) |
-| cowork-preference | 9001 | Kotlin (Vert.x, Kotlin Toolchain/Amper) |
+| 서비스               | 포트 | 스택                                    |
+|----------------------|------|-----------------------------------------|
+| cowork-config        | 8761 | Kotlin (Spring Cloud Config + Eureka)   |
+| cowork-gateway       | 8080 | Kotlin (Spring Cloud Gateway)           |
+| cowork-authorization | 8081 | Go                                      |
+| cowork-user          | 8082 | Elixir                                  |
+| cowork-channel       | 8083 | Kotlin (Spring Boot)                    |
+| cowork-voice         | 8089 | Go                                      |
+| cowork-team          | 8085 | Kotlin (Spring Boot)                    |
+| cowork-notification  | 8086 | Go                                      |
+| cowork-chat          | 8087 | NestJS (TypeScript)                     |
+| cowork-project       | 8084 | Kotlin (Spring Boot, Maven)             |
+| cowork-roadmap       | 8088 | Java (Spring Boot WebFlux + R2DBC)      |
+| cowork-preference    | 9001 | Kotlin (Vert.x, Kotlin Toolchain/Amper) |
 
 ### Makefile 명령어
 
 ```bash
-make version   # 현재 버전 출력
-make bump      # 버전 자동 증가
-make setup     # Go 서비스 swagger 생성 및 의존성 설치
-make init-logs # 로그 디렉터리 초기화
+make version   # VERSION 파일 내용 출력
+make bump      # scripts/bump.sh로 모든 빌드 파일에 버전 스탬프
+make setup     # Go 서비스(authorization·notification·voice) swagger 생성 및 의존성 설치
+make init-logs # scripts/init-log-dirs.sh로 로그 디렉터리 초기화
+make tag       # 버전 스탬프된 빌드 파일을 커밋하고 v{VERSION} 태그 생성
+make release   # make tag 후 origin main으로 태그까지 push
 ```
+
+`make release`는 `main`에 직접 push하므로 릴리스 시점에만 사용합니다.
 
 ---
 
@@ -444,7 +456,7 @@ make init-logs # 로그 디렉터리 초기화
 
 ### Swagger (Gateway 경유)
 
-Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시합니다. 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다. 프로파일별 지원 서비스와 직접 접속 주소는 `docs/api-documentation.md`를 기준으로 합니다.
+Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시합니다. 로컬 통합 Swagger UI는 `http://localhost:8080/swagger-ui.html`에서 확인합니다. 프로파일별 지원 서비스와 라우트는 `cowork-config/src/main/resources/configs/cowork-gateway-{local,prod}.yml`를 기준으로 합니다.
 
 ### Prometheus / Grafana
 
