@@ -1,4 +1,4 @@
-basePath: /
+basePath: /api/notification
 definitions:
   internal_domain_token.registerTokenRequest:
     properties:
@@ -11,21 +11,8 @@ info:
   contact: {}
   description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
   title: cowork-notification API
-  version: "20260719.0"
+  version: "20260820.0"
 paths:
-  /health:
-    get:
-      description: 서비스 생존 여부 확인
-      produces:
-      - text/plain
-      responses:
-        "200":
-          description: ok
-          schema:
-            type: string
-      summary: 헬스 체크
-      tags:
-      - system
   /notifications/stream:
     get:
       description: 인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive

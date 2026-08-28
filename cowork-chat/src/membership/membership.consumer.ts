@@ -7,6 +7,18 @@ import { Server } from 'socket.io';
 import { ChannelMember } from '../chat/schema/channel-member.schema';
 import { ChannelMemberEvent } from './event/membership.event';
 import { getRequiredCsvConfig } from '../common/config/config.util';
+import { parseEventTime } from '../common/util/event-time.util';
+import { isSafePositiveInteger } from '../common/util/safe-integer.util';
+import { PROJECTION_STREAMS, ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { applyProjectionMessage, ProjectionContractError } from '../common/kafka/projection-message.processor';
+import {
+    activeProjectionCondition,
+    deletedProjectionCondition,
+    projectionUpdateApplied,
+    projectionSourceVersion,
+    projectionTimestampFields,
+    PROJECTION_EPOCH,
+} from '../chat/repository/versioned-projection.util';
 
 @Injectable()
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
@@ -17,6 +29,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     constructor(
         @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
         private readonly configService: ConfigService,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -28,24 +41,30 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             clientId: 'cowork-chat-membership',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.consumer = kafka.consumer({ groupId: 'cowork-chat-membership' });
+        const stream = PROJECTION_STREAMS.channelMember;
+        this.consumer = kafka.consumer({ groupId: stream.groupId });
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: 'channel.member.event', fromBeginning: false });
+        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer
             .run({
-                eachMessage: async ({ message }) => {
-                    if (!message.value) return;
-                    try {
-                        const event = JSON.parse(message.value.toString()) as ChannelMemberEvent;
-                        await this.handleEvent(event);
-                    } catch (err) {
-                        this.logger.error('Exception while processing channel.member.event Kafka message', err);
-                        if (!(err instanceof SyntaxError)) throw err;
-                    }
+                eachMessage: async ({ partition, message }) => {
+                    await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
+                        return applyProjectionMessage(
+                            stream,
+                            partition,
+                            message,
+                            this.projectionReadiness,
+                            (payload, key) => this.handleEvent(payload, key),
+                        );
+                    });
                 },
             })
-            .catch((err) => this.logger.error('channel.member.event Kafka consumer failed', err));
+            .catch((err) => {
+                this.logger.error('channel.member.event Kafka consumer failed; exiting for restart', err);
+                process.exit(1);
+            });
         this.logger.log('Kafka consumer started: channel.member.event');
     }
 
@@ -53,33 +72,114 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         await this.consumer.disconnect();
     }
 
-    private async handleEvent(event: ChannelMemberEvent): Promise<void> {
-        if (!event || !event.eventType || !event.channelId || !event.userId) {
-            this.logger.warn('Invalid membership event payload: ' + JSON.stringify(event));
-            return;
+    private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
+        if (!this.isChannelMemberEvent(payload)) {
+            throw new ProjectionContractError('invalid channel member event payload');
         }
+        const event = payload;
+        const expectedKey = `${event.channelId}:${event.userId}`;
+        if (messageKey !== expectedKey) {
+            throw new ProjectionContractError(
+                `channel member event key mismatch [key=${messageKey ?? '<missing>'}, expected=${expectedKey}]`,
+            );
+        }
+        const eventTime = parseEventTime(event.occurredAt);
+        if (!eventTime) throw new ProjectionContractError('channel member event occurredAt must be RFC3339');
+        const { occurredAt, sourceVersion } = eventTime;
         const { eventType, channelId, teamId, userId, role } = event;
         const channelType = event.channelType ?? 'TEXT';
 
         try {
-            if (eventType === 'JOIN') {
-                await this.memberModel.updateOne(
+            if (eventType === 'JOIN' || eventType === 'ROLE_CHANGE') {
+                const shouldApply = activeProjectionCondition(sourceVersion);
+                const result = await this.memberModel.updateOne(
                     { channelId, userId },
-                    { $set: { teamId: teamId ?? null, role, channelType } },
-                    { upsert: true },
+                    [{
+                        $set: {
+                            channelId,
+                            userId,
+                            teamId: {
+                                $cond: [shouldApply, { $literal: teamId ?? null }, { $ifNull: ['$teamId', null] }],
+                            },
+                            role: { $cond: [shouldApply, { $literal: role }, { $ifNull: ['$role', 'MEMBER'] }] },
+                            channelType: {
+                                $cond: [
+                                    shouldApply,
+                                    { $literal: channelType },
+                                    { $ifNull: ['$channelType', 'TEXT'] },
+                                ],
+                            },
+                            isHidden: { $ifNull: ['$isHidden', false] },
+                            lastReadMessageId: { $ifNull: ['$lastReadMessageId', null] },
+                            deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                            sourceOccurredAt: {
+                                $cond: [
+                                    shouldApply,
+                                    occurredAt,
+                                    { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                                ],
+                            },
+                            sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
+                            ...projectionTimestampFields(shouldApply, occurredAt),
+                        },
+                    }],
+                    { upsert: true, timestamps: false },
                 );
+                if (!projectionUpdateApplied(result)) return;
+                if (event.snapshot === true) return;
+                if (eventType === 'ROLE_CHANGE') {
+                    this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
+                    return;
+                }
                 this.broadcast(channelId, 'member:joined', { channelId, teamId, userId, role });
             } else if (eventType === 'LEAVE') {
-                await this.memberModel.deleteOne({ channelId, userId });
+                const shouldApply = deletedProjectionCondition(sourceVersion);
+                const result = await this.memberModel.updateOne(
+                    { channelId, userId },
+                    [{
+                        $set: {
+                            channelId,
+                            userId,
+                            teamId: { $ifNull: ['$teamId', { $literal: teamId ?? null }] },
+                            role: { $ifNull: ['$role', { $literal: role }] },
+                            channelType: { $ifNull: ['$channelType', { $literal: channelType }] },
+                            isHidden: { $ifNull: ['$isHidden', false] },
+                            lastReadMessageId: { $ifNull: ['$lastReadMessageId', null] },
+                            deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                            sourceOccurredAt: {
+                                $cond: [
+                                    shouldApply,
+                                    occurredAt,
+                                    { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                                ],
+                            },
+                            sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
+                            ...projectionTimestampFields(shouldApply, occurredAt),
+                        },
+                    }],
+                    { upsert: true, timestamps: false },
+                );
+                if (!projectionUpdateApplied(result)) return;
+                if (event.snapshot === true) return;
                 this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
-            } else if (eventType === 'ROLE_CHANGE') {
-                await this.memberModel.updateOne({ channelId, userId }, { $set: { teamId: teamId ?? null, role, channelType } });
-                this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
             }
         } catch (err) {
             this.logger.error(`Failed to handle membership event [${eventType}]`, err);
             throw err;
         }
+    }
+
+    private isChannelMemberEvent(payload: unknown): payload is ChannelMemberEvent {
+        if (typeof payload !== 'object' || payload === null) return false;
+        const event = payload as Partial<ChannelMemberEvent>;
+        return (event.eventType === 'JOIN' || event.eventType === 'LEAVE' || event.eventType === 'ROLE_CHANGE')
+            && isSafePositiveInteger(event.channelId)
+            && (event.teamId === null || isSafePositiveInteger(event.teamId))
+            && isSafePositiveInteger(event.userId)
+            && typeof event.role === 'string'
+            && typeof event.channelType === 'string'
+            && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
+            && parseEventTime(event.occurredAt) !== null;
     }
 
     private broadcast(channelId: number, event: string, payload: unknown): void {

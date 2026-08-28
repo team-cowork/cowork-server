@@ -1,0 +1,35 @@
+server:
+  port: 8084
+
+spring:
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: ${MYSQL_USER}
+    password: ${MYSQL_PASSWORD}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+eureka:
+  client:
+    healthcheck:
+      enabled: true
+    service-url:
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    initial-status: STARTING
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000
+
+github-app:
+  service-url: ${GITHUB_APP_SERVICE_URL}

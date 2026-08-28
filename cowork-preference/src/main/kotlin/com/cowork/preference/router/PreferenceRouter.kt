@@ -5,7 +5,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
-import com.cowork.preference.handler.TeamRoleHandler
+import com.cowork.preference.messaging.ProjectionReadiness
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
@@ -15,7 +15,7 @@ fun buildRouter(
     preferenceHandler: PreferenceHandler,
     notificationHandler: NotificationHandler,
     projectRoleHandler: ProjectRoleHandler,
-    teamRoleHandler: TeamRoleHandler,
+    projectionReadiness: ProjectionReadiness,
 ): Router {
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
@@ -24,6 +24,19 @@ fun buildRouter(
         ctx.response()
             .putHeader("Content-Type", "application/json")
             .end("""{"status":"UP"}""")
+    }
+
+    router.get("/health/ready").handler { ctx ->
+        val snapshot = projectionReadiness.snapshot()
+        ctx.response()
+            .setStatusCode(if (snapshot.ready) 200 else 503)
+            .putHeader("Content-Type", "application/json")
+            .end(
+                io.vertx.core.json.JsonObject()
+                    .put("status", if (snapshot.ready) "UP" else "OUT_OF_SERVICE")
+                    .put("reason", snapshot.reason)
+                    .encode(),
+            )
     }
 
     router.get("/metrics").handler { ctx ->
@@ -48,15 +61,6 @@ fun buildRouter(
     // TEAM
     router.get("/preferences/team/:id").handler(preferenceHandler.getSettings(ResourceType.TEAM))
     router.put("/preferences/team/:id").handler(preferenceHandler.updateSettings(ResourceType.TEAM))
-    router.get("/preferences/team/:teamId/roles").handler(teamRoleHandler::getRoles)
-    router.post("/preferences/team/:teamId/roles").handler(teamRoleHandler::createRole)
-    router.patch("/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::updateRole)
-    router.delete("/preferences/team/:teamId/roles/:roleId").handler(teamRoleHandler::deleteRole)
-    router.get("/preferences/team/:teamId/roles/members").handler(teamRoleHandler::getMemberRoles)
-    router.get("/preferences/team/:teamId/roles/members/:accountId").handler(teamRoleHandler::getMemberRoleDefinitions)
-    router.delete("/preferences/team/:teamId/roles/members/:accountId").handler(teamRoleHandler::removeMemberRoles)
-    router.post("/preferences/team/:teamId/roles/:roleId/members").handler(teamRoleHandler::assignRole)
-    router.delete("/preferences/team/:teamId/roles/:roleId/members/:accountId").handler(teamRoleHandler::removeRole)
 
     // PROJECT
     router.get("/preferences/project/:id").handler(preferenceHandler.getSettings(ResourceType.PROJECT))
@@ -66,7 +70,9 @@ fun buildRouter(
     router.delete("/preferences/project/:projectId/roles/:roleName").handler(projectRoleHandler::deleteRole)
     router.get("/preferences/project/:projectId/roles/members").handler(projectRoleHandler::getMemberRoles)
     router.post("/preferences/project/:projectId/roles/:roleName/members").handler(projectRoleHandler::assignRole)
-    router.delete("/preferences/project/:projectId/roles/:roleName/members/:accountId").handler(projectRoleHandler::removeRole)
+    router.delete(
+        "/preferences/project/:projectId/roles/:roleName/members/:accountId",
+    ).handler(projectRoleHandler::removeRole)
 
     // VOICE_CHANNEL
     router.get("/preferences/voice-channel/:id").handler(preferenceHandler.getSettings(ResourceType.VOICE_CHANNEL))

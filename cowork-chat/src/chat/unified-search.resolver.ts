@@ -18,7 +18,7 @@ export class UnifiedSearchResolver {
 
     @Query(() => UnifiedSearchResult, {
         description:
-            '팀 범위 통합 검색. 메시지(Elasticsearch)와 채널(channel-service)을 병렬로 조회한다.\n\n' +
+            '팀 범위 통합 검색. 메시지(Elasticsearch)와 Kafka 동기화 채널 projection을 병렬로 조회한다.\n\n' +
             '- `X-User-Id` 헤더 필수 (Gateway가 주입)\n' +
             '- 요청자가 접근 가능한 채널 내 메시지만 반환\n' +
             '- 한국어 nori 형태소 분석 + fuzzy matching 적용\n' +
@@ -35,7 +35,7 @@ export class UnifiedSearchResolver {
         @Args('before', { nullable: true }) before?: string,
         @Args('limit', { type: () => Int, nullable: true }) limit?: number,
     ): Promise<UnifiedSearchResult> {
-        const userId = RequestContextUtil.getUserId(req.headers as Record<string, string | string[] | undefined>);
+        const userId = RequestContextUtil.getUserId(req.headers);
 
         const dto = plainToInstance(SearchTeamMessagesDto, { teamId, q, channelId, authorId, type, hasFile, before, limit });
         const errors = await validate(dto);
