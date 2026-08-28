@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 레포지토리의 PR 조회/머지/승인 API")
 @RestController
-@RequestMapping("/projects/{projectId}/github/pulls")
+@RequestMapping("/projects/{projectId}/github-repos/{repoId}/pulls")
 class GithubPullRequestBoardController(private val queryPullRequestBoardService: QueryPullRequestBoardService) {
 
     @Operation(
@@ -35,5 +35,6 @@ class GithubPullRequestBoardController(private val queryPullRequestBoardService:
     fun getBoard(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-    ): GithubPullRequestBoardResDto = queryPullRequestBoardService.execute(userId, projectId)
+        @PathVariable repoId: Long,
+    ): GithubPullRequestBoardResDto = queryPullRequestBoardService.execute(userId, projectId, repoId)
 }

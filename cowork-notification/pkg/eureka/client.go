@@ -1,6 +1,7 @@
 package eureka
 
 import (
+	"fmt"
 	"log/slog"
 	"strconv"
 	"time"
@@ -33,6 +34,10 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	)
 	instance.VipAddress = cfg.EurekaAppName
 	instance.SecureVipAddress = cfg.EurekaAppName
+	instance.InstanceID = cfg.EurekaInstanceID
+	instance.HomePageUrl = fmt.Sprintf("http://%s:%d/", cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
+	instance.StatusPageUrl = fmt.Sprintf("http://%s:%d/health", cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
+	instance.HealthCheckUrl = fmt.Sprintf("http://%s:%d/health/ready", cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
 	instance.Metadata = &eurekaclient.MetaData{
 		Map: map[string]string{
 			"startup":           time.Now().String(),
@@ -53,7 +58,7 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 			case <-c.stopCh:
 				return
 			case <-ticker.C:
-				if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceHost); err != nil {
+				if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceID); err != nil {
 					slog.Warn("eureka heartbeat failed", "err", err)
 					if registerErr := c.Register(cfg); registerErr != nil {
 						slog.Warn("eureka re-registration failed", "err", registerErr)
@@ -66,5 +71,5 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 
 func (c *Client) Deregister(cfg *config.AppConfig) error {
 	close(c.stopCh)
-	return c.inner.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceHost)
+	return c.inner.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceID)
 }

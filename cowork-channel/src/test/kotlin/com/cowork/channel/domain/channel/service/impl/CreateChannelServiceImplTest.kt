@@ -13,13 +13,10 @@ import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTem
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
 
 class CreateChannelServiceImplTest {
@@ -39,16 +36,6 @@ class CreateChannelServiceImplTest {
         channelEventPublisher,
         createDefaultMeetingNoteTemplateService,
     )
-
-    @BeforeEach
-    fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
-    }
 
     @Test
     fun `createChannel은 팀 비멤버이면 FORBIDDEN`() {

@@ -1,21 +1,82 @@
 package com.cowork.project.domain.project.event
 
 import com.cowork.project.domain.project.entity.Project
-import org.slf4j.LoggerFactory
-import org.springframework.kafka.core.KafkaTemplate
+import com.cowork.project.domain.project.repository.ProjectEventTombstoneRepository
+import com.cowork.project.global.outbox.OutboxWriter
+import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
+import java.time.Instant
 
 private const val TOPIC = "project.event"
 
 @Component
-class ProjectEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
-    private val log = LoggerFactory.getLogger(ProjectEventPublisher::class.java)
+class ProjectEventPublisher(
+    private val entityManager: EntityManager,
+    private val outboxWriter: OutboxWriter,
+    private val tombstoneRepository: ProjectEventTombstoneRepository,
+) {
+    fun publishCreated(project: Project, occurredAt: Instant = Instant.now()) = publishActive(
+        ProjectEventType.CREATED,
+        project,
+        occurredAt,
+    )
 
-    fun publishCreated(project: Project) = publish(ProjectEventType.CREATED, project)
-    fun publishUpdated(project: Project) = publish(ProjectEventType.UPDATED, project)
-    fun publishDeleted(project: Project) = publish(ProjectEventType.DELETED, project)
+    fun publishUpdated(project: Project, occurredAt: Instant = Instant.now()) = publishActive(
+        ProjectEventType.UPDATED,
+        project,
+        occurredAt,
+    )
 
-    private fun publish(eventType: ProjectEventType, project: Project) {
+    fun publishDeleted(project: Project, occurredAt: Instant = Instant.now()) {
+        val tombstone = tombstoneRepository.findByProjectIdForUpdate(project.id)
+        val currentVersion = maxOf(project.stateOccurredAt, tombstone?.stateOccurredAt ?: Instant.EPOCH)
+        val eventVersion = nextMonotonicStateVersion(currentVersion, occurredAt)
+        project.stateOccurredAt = eventVersion
+        if (tombstone == null) {
+            tombstoneRepository.save(ProjectEventTombstone.from(project, eventVersion))
+        } else {
+            tombstone.replaceFrom(project, eventVersion)
+        }
+        publish(ProjectEventType.DELETED, project, eventVersion)
+    }
+
+    fun publishSnapshot(project: Project) = publish(
+        ProjectEventType.UPDATED,
+        project,
+        project.stateOccurredAt,
+        snapshot = true,
+    )
+
+    fun publishSnapshot(tombstone: ProjectEventTombstone) {
+        val event = ProjectEvent(
+            eventType = ProjectEventType.DELETED,
+            projectId = tombstone.projectId,
+            teamId = tombstone.teamId,
+            name = tombstone.name,
+            description = tombstone.description,
+            status = tombstone.status,
+            position = tombstone.position,
+            occurredAt = tombstone.stateOccurredAt,
+            snapshot = true,
+        )
+        enqueue(tombstone.projectId, event)
+    }
+
+    private fun publishActive(eventType: ProjectEventType, project: Project, occurredAt: Instant) {
+        val tombstone = tombstoneRepository.findByProjectIdForUpdate(project.id)
+        val currentVersion = maxOf(project.stateOccurredAt, tombstone?.stateOccurredAt ?: Instant.EPOCH)
+        val eventVersion = nextMonotonicStateVersion(currentVersion, occurredAt)
+        project.stateOccurredAt = eventVersion
+        tombstone?.let(tombstoneRepository::delete)
+        publish(eventType, project, eventVersion)
+    }
+
+    private fun publish(
+        eventType: ProjectEventType,
+        project: Project,
+        occurredAt: Instant,
+        snapshot: Boolean = false,
+    ) {
         val event = ProjectEvent(
             eventType = eventType,
             projectId = project.id,
@@ -23,24 +84,15 @@ class ProjectEventPublisher(private val kafkaTemplate: KafkaTemplate<String, Any
             name = project.name,
             description = project.description,
             status = project.status,
+            position = project.position,
+            occurredAt = occurredAt,
+            snapshot = snapshot,
         )
-        kafkaTemplate.send(TOPIC, project.teamId.toString(), event)
-            .whenComplete { result, ex ->
-                if (ex != null) {
-                    log.error(
-                        "프로젝트 이벤트 발행 실패 [eventType={}, projectId={}]",
-                        eventType,
-                        project.id,
-                        ex,
-                    )
-                } else {
-                    log.info(
-                        "프로젝트 이벤트 발행 성공 [eventType={}, projectId={}, offset={}]",
-                        eventType,
-                        project.id,
-                        result.recordMetadata.offset(),
-                    )
-                }
-            }
+        enqueue(project.id, event)
+    }
+
+    private fun enqueue(projectId: Long, event: ProjectEvent) {
+        entityManager.flush()
+        outboxWriter.enqueue(TOPIC, projectId.toString(), event)
     }
 }

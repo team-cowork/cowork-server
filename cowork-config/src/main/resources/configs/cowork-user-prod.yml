@@ -1,0 +1,33 @@
+# DB_USERNAME, DB_PASSWORD는 Vault secret/cowork-user 에서 주입됨
+# Elixir 런타임은 원격 문자열의 ${ENV}를 해석하지 않는다.
+# s3_* 는 Config Server overrides의 대문자 키(S3_*)가 우선 조회되므로 그 값이 사용된다.
+server_port: 8082
+
+DB_HOST: mysql
+DB_PORT: 3306
+DB_NAME: cowork_user
+DB_JDBC_URL: jdbc:mysql://mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+
+eureka_app_name: cowork-user
+eureka_server_url: http://cowork-config:8761/eureka/
+eureka_instance_host: cowork-user
+eureka_instance_port: 8082
+
+kafka_bootstrap_servers: kafka:9092
+kafka_topic: user.data.sync
+kafka_group_id: cowork-user
+kafka_identity_command_topic: user.identity.command
+kafka_identity_command_group_id: cowork-user.user-identity-command
+kafka_identity_command_result_topic: user.identity.command-result
+kafka_team_member_topic: team.member.event
+kafka_team_member_group_id: cowork-user.team-member
+kafka_presence_topic: user.presence.event
+kafka_presence_group_id: cowork-user.user-presence
+kafka_profile_topic: user.profile.event
+kafka_profile_snapshot_interval_ms: 300000
+
+s3_region: us-east-1
+s3_path_style_access_enabled: true
+
+redis_host: redis
+redis_port: 6379

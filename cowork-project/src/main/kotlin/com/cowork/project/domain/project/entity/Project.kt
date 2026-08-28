@@ -3,6 +3,7 @@ package com.cowork.project.domain.project.entity
 import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import org.hibernate.annotations.UpdateTimestamp
+import java.time.Instant
 import java.time.LocalDateTime
 
 @Entity
@@ -32,9 +33,6 @@ class Project(
     @Column(name = "created_by", nullable = false)
     val createdBy: Long,
 
-    @Column(name = "github_repo_url", length = 512)
-    var githubRepoUrl: String? = null,
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
@@ -42,6 +40,9 @@ class Project(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    @Column(name = "state_occurred_at", nullable = false)
+    var stateOccurredAt: Instant = Instant.EPOCH,
 ) {
     fun updateName(newName: String) {
         name = newName
@@ -57,13 +58,5 @@ class Project(
 
     fun updatePosition(position: Int) {
         this.position = position
-    }
-
-    fun linkGithubRepo(url: String) {
-        githubRepoUrl = url
-    }
-
-    fun unlinkGithubRepo() {
-        githubRepoUrl = null
     }
 }
