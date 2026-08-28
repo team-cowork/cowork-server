@@ -20,21 +20,19 @@ type Repository interface {
 	CreateSession(ctx context.Context, channelID, teamID int64) (*VoiceSession, bool, error)
 	GetSession(ctx context.Context, sessionID string) (*VoiceSession, error)
 	// EndSession은 active 세션을 ended로 전환하고, 실제로 전환이 일어났으면 true를 반환한다.
-	// 이미 종료된 세션(웹훅 재전송 등)이면 false → 호출 측이 SESSION_ENDED 중복 발행을 막는다.
+	// 보상 정리 전용이며 외부로 알려야 하는 정상 종료에는 EndSessionAndEnqueue를 사용한다.
 	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
-	MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error)
-	InsertParticipant(ctx context.Context, p *VoiceParticipant) error
-	MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error)
+	// 아래 메서드는 authoritative 상태와 outbox event를 같은 Mongo document update에 기록한다.
+	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
+	RecordParticipantJoinedAndEnqueue(ctx context.Context, p *VoiceParticipant, occurrenceID string, event any) (bool, error)
+	MarkParticipantLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
+	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any) (bool, error)
 	CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error)
-	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error)
+	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 }
 
 type MembershipChecker interface {
 	VerifyMembership(ctx context.Context, channelID, userID int64) (int64, error)
-}
-
-type EventPublisher interface {
-	Publish(ctx context.Context, sessionID string, v any) error
 }
 
 type LiveKitParticipant struct {

@@ -3,6 +3,7 @@ package com.cowork.channel.domain.channel.service.impl
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import io.mockk.every
@@ -17,8 +18,9 @@ class ReorderTeamChannelsServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
+    private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
 
-    private val service = ReorderTeamChannelsServiceImpl(channelRepository, teamPermission)
+    private val service = ReorderTeamChannelsServiceImpl(channelRepository, teamPermission, channelEventPublisher)
 
     private fun channel(
         id: Long = 1L,
@@ -39,19 +41,21 @@ class ReorderTeamChannelsServiceImplTest {
         val first = channel(id = 1L, position = 0)
         val second = channel(id = 2L, position = 1)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns listOf(first, second)
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
 
         val result = service.execute(7L, 100L, listOf(2L, 1L))
 
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
         assertEquals(0, second.position)
+        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(second, any()) }
+        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(first, any()) }
     }
 
     @Test
     fun `reorderTeamChannels는 팀 채널 ID 누락 시 BAD_REQUEST`() {
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdOrderByPositionAscIdAsc(100L) } returns
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns
             listOf(channel(id = 1L), channel(id = 2L))
 
         val ex = assertThrows(ExpectedException::class.java) {

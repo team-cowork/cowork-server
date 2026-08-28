@@ -71,6 +71,15 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "503": {
+                        "description": "authentication temporarily unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
@@ -124,6 +133,15 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "authentication temporarily unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -193,13 +211,22 @@ const docTemplate = `{
                                 "type": "string"
                             }
                         }
+                    },
+                    "503": {
+                        "description": "authentication temporarily unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
         },
         "/events/datagsm": {
             "post": {
-                "description": "DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user 동기화 스트림으로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.",
+                "description": "DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -249,26 +276,6 @@ const docTemplate = `{
                     }
                 }
             }
-        },
-        "/health": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "health"
-                ],
-                "summary": "헬스체크",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
@@ -302,9 +309,9 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "20260719.0",
+	Version:          "20260820.0",
 	Host:             "",
-	BasePath:         "/api",
+	BasePath:         "/api/authorization",
 	Schemes:          []string{},
 	Title:            "Cowork Authorization API",
 	Description:      "인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",

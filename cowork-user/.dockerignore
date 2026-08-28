@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+*.log
+_build/
+deps/
+cover/
+docs/
+.idea/
+.vscode/

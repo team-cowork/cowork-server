@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260820.0"
+version = "20260828.0"
 
 java {
     toolchain {
@@ -40,6 +40,9 @@ dependencies {
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 kotlin {
@@ -50,4 +53,8 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    systemProperty(
+        "gateway.config.dir",
+        rootProject.file("cowork-config/src/main/resources/configs").absolutePath,
+    )
 }

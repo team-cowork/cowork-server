@@ -34,7 +34,7 @@ find .claude/rules -name "*.md" 2>/dev/null
 
 Read each returned file in full. These are the authoritative rules for judging each review comment.
 
-**Rule priority**: `CLAUDE.md` > `.claude/rules/**` > `.gemini/styleguide.md` > `CONTRIBUTING.md`
+**Rule priority**: `CLAUDE.md` > `.claude/rules/**` > `CONTRIBUTING.md`
 
 For each comment in `pr_comments.json`, apply the following **layered judgment criteria**:
 

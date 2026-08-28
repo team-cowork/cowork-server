@@ -28,16 +28,38 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
         spring.json.add.type.headers: false
+    consumer:
+      auto-offset-reset: earliest
+
+team-github:
+  state-secret: ${TEAM_GITHUB_STATE_SECRET}
+  app-slug: ${GITHUB_APP_SLUG}
 
 eureka:
   client:
+    healthcheck:
+      enabled: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
+    initial-status: STARTING
     prefer-ip-address: true
     metadata-map:
       prometheus.scrape: "true"
       prometheus.path: /actuator/prometheus
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000
 
 springdoc:
   api-docs:
@@ -66,7 +88,6 @@ sdk:
     group: "team"
     paths-to-match:
       - "/teams/**"
-      - "/team-members/**"
 
 spring.cloud.aws:
   region:

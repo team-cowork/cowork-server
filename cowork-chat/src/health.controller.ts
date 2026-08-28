@@ -4,6 +4,7 @@ import { Connection, ConnectionStates } from 'mongoose';
 import { Public } from './common/guard/public.decorator';
 import { RedisRateLimiter } from './common/util/redis-rate-limiter';
 import { ChatMessageProducer } from './chat/kafka/chat-message.producer';
+import { ProjectionReadinessService } from './common/kafka/projection-readiness.service';
 
 @Public()
 @Controller('health')
@@ -12,6 +13,7 @@ export class HealthController {
         @InjectConnection() private readonly mongoConnection: Connection,
         private readonly redisRateLimiter: RedisRateLimiter,
         private readonly chatMessageProducer: ChatMessageProducer,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     @Get()
@@ -29,6 +31,7 @@ export class HealthController {
             mongo: this.mongoConnection.readyState === ConnectionStates.connected,
             redis: await this.redisRateLimiter.ping(),
             kafka: this.chatMessageProducer.isReady(),
+            projections: this.projectionReadiness.isReady(),
         };
 
         const isReady = Object.values(dependencies).every(Boolean);

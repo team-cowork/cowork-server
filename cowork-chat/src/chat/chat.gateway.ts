@@ -15,6 +15,7 @@ import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
@@ -23,10 +24,13 @@ import { UserRole } from '../common/enum/user-role.enum';
 import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
+import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 
 const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
 const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
 const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
+const PROJECTION_NOT_READY_MESSAGE = 'Kafka projections are synchronizing';
 
 export interface ChatSocketData {
     userId: number;
@@ -54,7 +58,7 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
     path: '/ws/chat',
     connectionStateRecovery: {
         maxDisconnectionDuration: 2 * 60 * 1000,
-        skipMiddlewares: true,
+        skipMiddlewares: false,
     },
     cors: {
         origin: true, // Gateway에서 이미 제어되지만, 필요시 ConfigService로 주입 가능
@@ -75,12 +79,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
+        private readonly githubRepoEventConsumer: GithubRepoEventConsumer,
         private readonly channelEventConsumer: ChannelEventConsumer,
         private readonly projectEventConsumer: ProjectEventConsumer,
         private readonly membershipConsumer: MembershipConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {
         this.typingRateLimitWindowMs = Number(
             getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
@@ -97,8 +103,23 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param server - 초기화된 Socket.IO 서버 인스턴스
      */
     afterInit(server: Server) {
+        server.use((_socket, next) => {
+            if (!this.projectionReadiness.isReady()) {
+                next(new Error(PROJECTION_NOT_READY_MESSAGE));
+                return;
+            }
+            _socket.use((_packet, packetNext) => {
+                if (!this.projectionReadiness.isReady()) {
+                    packetNext(new Error(PROJECTION_NOT_READY_MESSAGE));
+                    return;
+                }
+                packetNext();
+            });
+            next();
+        });
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
+        this.githubRepoEventConsumer.setSocketServer(server);
         this.channelEventConsumer.setSocketServer(server);
         this.projectEventConsumer.setSocketServer(server);
         this.membershipConsumer.setSocketServer(server);
@@ -113,6 +134,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * @param client - 연결된 Socket.IO 소켓
      */
     async handleConnection(client: ChatSocket) {
+        if (!this.projectionReadiness.isReady()) {
+            this.logger.warn(`Projection synchronization incomplete, rejecting connection: ${client.id}`);
+            client.emit('exception', { message: PROJECTION_NOT_READY_MESSAGE });
+            client.disconnect();
+            return;
+        }
         try {
             const { userId, userRole } = await this.resolveIdentity(client);
 
@@ -137,7 +164,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         const headerUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
         if (typeof headerUserId === 'string') {
             const userId = Number(headerUserId);
-            if (isNaN(userId) || userId <= 0) {
+            if (!isSafePositiveInteger(userId)) {
                 throw new Error('X-User-Id 헤더가 유효하지 않습니다');
             }
             const rawUserRole = client.handshake.headers['x-user-role'];
@@ -153,7 +180,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         const payload = await this.jwtService.verifyAsync<{ sub: string; role?: string }>(token);
         const userId = Number(payload.sub);
-        if (isNaN(userId) || userId <= 0) {
+        if (!isSafePositiveInteger(userId)) {
             throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
         }
         return { userId, userRole: payload.role ?? UserRole.USER };
@@ -177,6 +204,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('join')
     async handleJoin(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        if (!payload || !isSafePositiveInteger(payload.channelId)) {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
         const { userId } = client.data;
         const isMember = await this.chatService.isMember(payload.channelId, userId);
         if (!isMember) {
@@ -195,6 +226,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave')
     handleLeave(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
+        if (!payload || !isSafePositiveInteger(payload.channelId)) {
+            client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
+            return;
+        }
         this.leaveRoom(client, `chat:${payload.channelId}`);
     }
 
@@ -214,7 +249,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     private async relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
-        if (!payload || typeof payload.channelId !== 'number') return;
+        if (!payload || !isSafePositiveInteger(payload.channelId)) return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
         const allowed = await this.rateLimiter.tryAcquire(
@@ -236,7 +271,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('join:team')
     async handleJoinTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
-        if (!payload || typeof payload.teamId !== 'number') {
+        if (!payload || !isSafePositiveInteger(payload.teamId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
@@ -254,7 +289,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave:team')
     handleLeaveTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
-        if (!payload || typeof payload.teamId !== 'number') {
+        if (!payload || !isSafePositiveInteger(payload.teamId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }

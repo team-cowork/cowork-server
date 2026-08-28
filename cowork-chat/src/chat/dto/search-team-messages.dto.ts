@@ -7,13 +7,13 @@ export class SearchTeamMessagesDto {
     @IsString() @MinLength(1) q!: string;
 
     @ApiProperty({ description: '팀 ID' })
-    @IsInt() @Type(() => Number) teamId!: number;
+    @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) @Type(() => Number) teamId!: number;
 
     @ApiPropertyOptional({ description: '특정 채널로 범위 축소' })
-    @IsInt() @IsOptional() @Type(() => Number) channelId?: number;
+    @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) @IsOptional() @Type(() => Number) channelId?: number;
 
     @ApiPropertyOptional({ description: '특정 작성자 필터' })
-    @IsInt() @IsOptional() @Type(() => Number) authorId?: number;
+    @IsInt() @Min(1) @Max(Number.MAX_SAFE_INTEGER) @IsOptional() @Type(() => Number) authorId?: number;
 
     @ApiPropertyOptional({ enum: ['TEXT', 'FILE', 'SYSTEM'], description: '메시지 타입 필터' })
     @IsEnum(['TEXT', 'FILE', 'SYSTEM']) @IsOptional() type?: string;

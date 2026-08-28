@@ -7,5 +7,10 @@ import reactor.core.publisher.Flux;
 
 public interface ListRoadmapsService {
 
-    Flux<RoadmapResDto> execute(RoadmapScope scope, String category, Long teamId, Long projectId);
+    Flux<RoadmapResDto> execute(Long userId,
+            String userRole,
+            RoadmapScope scope,
+            String category,
+            Long teamId,
+            Long projectId);
 }

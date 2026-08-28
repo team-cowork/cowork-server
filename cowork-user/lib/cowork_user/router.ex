@@ -7,15 +7,24 @@ defmodule CoworkUser.Router do
   alias CoworkUser.Metrics
   alias CoworkUser.OpenAPI
 
-  plug Plug.RequestId
-  plug Plug.Logger
-  plug :measure_request
-  plug :match
-  plug Plug.Parsers, parsers: [:json], pass: ["application/json"], json_decoder: Jason
-  plug :dispatch
+  plug(Plug.RequestId)
+  plug(Plug.Logger)
+  plug(:measure_request)
+  plug(:match)
+  plug(Plug.Parsers, parsers: [:json], pass: ["application/json"], json_decoder: Jason)
+  plug(CoworkUser.Kafka.ProjectionReadinessGate)
+  plug(:dispatch)
 
   get "/actuator/health" do
     JSON.send(conn, 200, %{status: "UP"})
+  end
+
+  get "/actuator/health/readiness" do
+    if CoworkUser.Kafka.ProjectionReadiness.ready?() do
+      JSON.send(conn, 200, %{status: "UP"})
+    else
+      JSON.send(conn, 503, %{status: "OUT_OF_SERVICE"})
+    end
   end
 
   get "/actuator/prometheus" do
@@ -102,10 +111,26 @@ defmodule CoworkUser.Router do
   end
 
   get "/users/search" do
-    with {:ok, result} <- Accounts.search_users(conn.params) do
-      JSON.send(conn, 200, result)
+    if Map.has_key?(conn.params, "teamId") and
+         not CoworkUser.Kafka.ProjectionReadiness.team_ready?() do
+      JSON.error(conn, 503, "팀 멤버 투영을 동기화하는 중입니다.")
     else
-      {:error, {:team_service, _}} -> JSON.error(conn, 503, "팀 서비스에 접근할 수 없습니다.")
+      with {:ok, user_id} <- user_id_from_header(conn),
+           {:ok, result} <- Accounts.search_users(user_id, conn.params) do
+        JSON.send(conn, 200, result)
+      else
+        {:error, :missing_user_id} ->
+          JSON.error(conn, 400, "X-User-Id 헤더가 누락되었습니다.")
+
+        {:error, :forbidden} ->
+          JSON.error(conn, 403, "해당 팀의 멤버만 사용자를 검색할 수 있습니다.")
+
+        {:error, {:validation, message}} ->
+          JSON.error(conn, 400, message)
+
+        {:error, {:team_projection, _}} ->
+          JSON.error(conn, 503, "팀 멤버 투영을 조회할 수 없습니다.")
+      end
     end
   end
 
@@ -128,22 +153,10 @@ defmodule CoworkUser.Router do
     end
   end
 
-  put "/users/:user_id" do
-    with {:ok, user_id} <- parse_integer(user_id, "user_id"),
-         {:ok, profile} <- Accounts.upsert_user(user_id, conn.body_params) do
-      JSON.send(conn, 200, profile)
-    else
-      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
-    end
-  end
-
-  patch "/users/:user_id/status" do
-    with {:ok, user_id} <- parse_integer(user_id, "user_id"),
-         {:ok, profile} <- Accounts.update_my_status(user_id, conn.body_params) do
-      JSON.send(conn, 200, profile)
-    else
+  get "/users/by-github/:github_username" do
+    case Accounts.get_by_github(github_username) do
+      {:ok, profile} -> JSON.send(conn, 200, profile)
       {:error, :not_found} -> JSON.error(conn, 404, "사용자를 찾을 수 없습니다.")
-      {:error, {:validation, message}} -> JSON.error(conn, 400, message)
     end
   end
 

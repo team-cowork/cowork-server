@@ -18,7 +18,7 @@
 
     <groupId>com.cowork</groupId>
     <artifactId>cowork-project</artifactId>
-    <version>20260820.0</version>
+    <version>20260828.0</version>
 
     <properties>
         <java.version>25</java.version>
@@ -75,6 +75,11 @@
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
+        <!-- httpclient5는 Eureka client가 이미 끌어오지만, Feign이 이를 쓰려면 이 어댑터가 별도로 필요하다. -->
+        <dependency>
+            <groupId>io.github.openfeign</groupId>
+            <artifactId>feign-hc5</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-kafka</artifactId>
@@ -92,6 +97,10 @@
         <dependency>
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.flywaydb</groupId>

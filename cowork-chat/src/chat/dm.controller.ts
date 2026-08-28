@@ -1,10 +1,11 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseIntPipe } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, HttpStatus, Param } from '@nestjs/common';
 import { ApiHeader, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { UserId } from '../common/decorator/user.decorator';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 @ApiTags('DM')
-@ApiHeader({ name: 'X-User-Id', description: 'Gateway 주입 유저 ID', required: true })
+@ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })
 @Controller('dms')
 export class DmController {
     constructor(private readonly chatService: ChatService) {}
@@ -23,7 +24,7 @@ export class DmController {
     @ApiNoContentResponse({ description: '숨김 성공' })
     hideDm(
         @UserId() userId: number,
-        @Param('channelId', ParseIntPipe) channelId: number,
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
     ) {
         return this.chatService.hideDm(channelId, userId);
     }

@@ -5,7 +5,6 @@ import com.cowork.project.domain.project.presentation.data.request.UpdateProject
 import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.UpdateProjectService
-import com.cowork.project.global.support.afterCommit
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -17,14 +16,14 @@ class UpdateProjectServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }
         request.status?.let { project.updateStatus(it) }
 
-        afterCommit { projectEventPublisher.publishUpdated(project) }
+        projectEventPublisher.publishUpdated(project)
 
         return ProjectResDto.of(project)
     }

@@ -2,8 +2,6 @@ name: cowork stage CI Workflow
 
 on:
   pull_request:
-    branches:
-      - 'develop'
   push:
     branches:
       - 'develop'
@@ -110,6 +108,7 @@ jobs:
               - 'cowork-preference/**'
             cowork-promotion:
               - 'cowork-promotion/**'
+              - 'docs/todo/**'
             cowork-channel:
               - 'cowork-channel/**'
             cowork-team:
@@ -175,6 +174,9 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
+            [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]') && \
+              SERVICES="${SERVICES:+$SERVICES, }cowork-promotion"
             [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
               SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
@@ -385,7 +387,7 @@ jobs:
             const modules = fs.readdirSync('.', { withFileTypes: true })
               .filter(d => d.isDirectory() && d.name.startsWith('cowork-'))
               .map(d => d.name).sort();
-            const AI = new Set(['.harness', '.claude', '.agents', '.codex', '.gemini']);
+            const AI = new Set(['.harness', '.claude', '.agents', '.codex']);
             const classify = (p) => {
               const top = p.split('/')[0];
               if (modules.includes(top)) return top;
