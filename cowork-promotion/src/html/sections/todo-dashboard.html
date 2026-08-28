@@ -1,0 +1,48 @@
+<main
+  id="main-content"
+  class="todo-dashboard"
+  data-todo-dashboard
+  tabindex="-1"
+>
+  <header class="todo-dashboard__header">
+    <h1 class="todo-dashboard__title">개발 진행 현황</h1>
+    <form class="todo-search" role="search" action="/todo" method="get">
+      <label class="sr-only" for="todo-search-input">진행 중인 작업 검색</label>
+      <span class="todo-search__icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+          <circle cx="11" cy="11" r="6.75" stroke="currentColor" stroke-width="1.5"></circle>
+          <path d="m16 16 4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+        </svg>
+      </span>
+      <input
+        id="todo-search-input"
+        class="todo-search__input"
+        data-todo-search
+        type="search"
+        name="q"
+        placeholder="진행 중인 작업 검색"
+        autocomplete="off"
+        enterkeyhint="search"
+      />
+    </form>
+  </header>
+
+  <section class="todo-section" aria-label="진행 중인 작업">
+    <ol class="todo-list" data-todo-items>
+      <!-- data:todo-items:start -->
+      <!-- data:todo-items:end -->
+    </ol>
+    <p class="todo-list__empty" data-todo-empty role="status" hidden>
+      검색 결과가 없습니다.
+    </p>
+    <p class="sr-only" data-todo-live aria-live="polite" aria-atomic="true"></p>
+  </section>
+
+  <section class="todo-history" aria-labelledby="todo-history-title">
+    <h2 id="todo-history-title" class="todo-history__title">점검 기록</h2>
+    <ol class="todo-list todo-list--history" data-todo-history>
+      <!-- data:todo-history:start -->
+      <!-- data:todo-history:end -->
+    </ol>
+  </section>
+</main>
