@@ -28,28 +28,35 @@ spring:
 
 eureka:
   client:
+    healthcheck:
+      enabled: true
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:
+    initial-status: STARTING
     prefer-ip-address: true
     metadata-map:
       prometheus.scrape: "true"
       prometheus.path: /actuator/prometheus
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000
 
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      cowork-team:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
 
 sdk:
   logging:
@@ -69,5 +76,8 @@ sdk:
     paths-to-match:
       - "/teams/**"
       - "/channels/**"
+      - "/projects/**"
+      - "/search/**"
+      - "/dms"
   exception:
     enabled: false

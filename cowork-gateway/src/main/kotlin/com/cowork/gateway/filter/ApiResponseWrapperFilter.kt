@@ -31,6 +31,8 @@ class ApiResponseWrapperFilter(private val objectMapper: ObjectMapper) :
         "/swagger-ui.html",
         "/swagger-ui/**",
         "/webjars/**",
+        "/api/chat/graphql",
+        "/api/chat/asyncapi.json",
     )
     private val matcher = AntPathMatcher()
 

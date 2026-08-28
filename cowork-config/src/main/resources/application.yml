@@ -5,10 +5,9 @@ spring:
   application:
     name: cowork-config
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+    active: ${SPRING_PROFILES_ACTIVE:local}
     group:
       local: composite
-      dev: composite
       prod: composite
 
   cloud:
@@ -56,43 +55,8 @@ spring:
           S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
           S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:http://localhost:9000}
           S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
-        composite:
-          - type: vault
-            host: ${VAULT_HOST:localhost}
-            port: ${VAULT_PORT:8200}
-            scheme: ${VAULT_SCHEME:http}
-            authentication: TOKEN
-            token: ${VAULT_TOKEN:dev-root-token}
-            kv-version: 2
-            backend: secret
-            profile-separator: "/"
-            default-context: application
-          - type: native
-            search-locations: classpath:/configs/
-
----
-spring:
-  config:
-    activate:
-      on-profile: native
-  cloud:
-    config:
-      server:
-        native:
-          search-locations: classpath:/configs/
-
----
-spring:
-  config:
-    activate:
-      on-profile: dev
-  cloud:
-    config:
-      server:
-        overrides:
-          S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
-          S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:http://localhost:9000}
-          S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
+          LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
+          LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:ws://localhost:7880}
         composite:
           - type: vault
             host: ${VAULT_HOST:localhost}
@@ -115,6 +79,15 @@ spring:
   cloud:
     config:
       server:
+        overrides:
+          S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
+          S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
+          S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
+          PUBLIC_WEB_ORIGIN: ${PUBLIC_WEB_ORIGIN}
+          PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
+          GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
+          LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
+          LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
         composite:
           - type: vault
             host: ${VAULT_HOST}
@@ -126,10 +99,5 @@ spring:
             backend: secret
             profile-separator: "/"
             default-context: application
-          - type: git
-            uri: ${CONFIG_GIT_URI}
-            username: ${CONFIG_GIT_USERNAME}
-            password: ${CONFIG_GIT_PASSWORD}
-            default-label: main
-            clone-on-start: true
-            force-pull: true
+          - type: native
+            search-locations: classpath:/configs/

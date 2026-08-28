@@ -14,12 +14,11 @@ type RoomService struct {
 	repo         Repository
 	membership   MembershipChecker
 	livekit      LiveKitRoom
-	publisher    EventPublisher
 	livekitWsURL string
 }
 
-func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, publisher EventPublisher, livekitWsURL string) *RoomService {
-	return &RoomService{repo: repo, membership: membership, livekit: livekit, publisher: publisher, livekitWsURL: livekitWsURL}
+func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
+	return &RoomService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
 func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
@@ -54,17 +53,13 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 		return nil, err
 	}
 
-	if err := s.repo.InsertParticipant(ctx, &VoiceParticipant{
-		SessionID: voiceSession.SessionID,
-		UserID:    userID,
-		ChannelID: channelID,
-		JoinedAt:  time.Now().UTC(),
-	}); err != nil {
-		return nil, err
-	}
-
 	token, err := s.livekit.GenerateToken(userID, voiceSession.RoomName)
 	if err != nil {
+		if sessionCreatedByUs {
+			if _, endErr := s.repo.EndSession(context.WithoutCancel(ctx), voiceSession.SessionID, time.Now().UTC()); endErr != nil {
+				slog.Error("failed to end session after token issuance failure", "err", endErr, "session_id", voiceSession.SessionID)
+			}
+		}
 		return nil, err
 	}
 
@@ -95,20 +90,9 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 	}
 
 	now := time.Now().UTC()
-	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID)
+	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID, "")
 	if err != nil {
-		slog.Warn("failed to get participant joined_at", "err", err, "session_id", voiceSession.SessionID)
-	}
-
-	// MarkParticipantLeft가 dedup 게이트 역할을 한다. participant_left 웹훅과 경쟁하더라도
-	// 먼저 left_at을 기록한 쪽만 USER_LEFT를 발행해 이벤트 중복/유실을 방지한다.
-	firstLeave, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, now)
-	if err != nil {
-		slog.Warn("failed to mark participant left", "err", err, "session_id", voiceSession.SessionID)
-		return nil
-	}
-	if !firstLeave {
-		return nil
+		return err
 	}
 
 	var durationSeconds int64
@@ -118,7 +102,7 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 			durationSeconds = int64(diff)
 		}
 	}
-	if err := s.publisher.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
+	_, err = s.repo.MarkParticipantLeftAndEnqueue(ctx, voiceSession.SessionID, userID, "", now, &kafkadomain.UserLeftEvent{
 		EventType:       kafkadomain.EventUserLeft,
 		SessionID:       voiceSession.SessionID,
 		ChannelID:       channelID,
@@ -126,11 +110,8 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 		UserID:          userID,
 		DurationSeconds: durationSeconds,
 		Timestamp:       now.Format(time.RFC3339),
-	}); err != nil {
-		slog.Error("failed to publish USER_LEFT", "err", err, "session_id", voiceSession.SessionID)
-	}
-
-	return nil
+	})
+	return err
 }
 
 func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error) {

@@ -4,7 +4,7 @@ defmodule CoworkUser.MixProject do
   def project do
     [
       app: :cowork_user,
-      version: "20260820.0.0",
+      version: "20260828.0.0",
       elixir: "~> 1.18",
       start_permanent: Mix.env() == :prod,
       deps: deps()
@@ -21,6 +21,11 @@ defmodule CoworkUser.MixProject do
   defp deps do
     [
       {:plug_cowboy, "~> 2.8"},
+      # Remove the override after Hex publishes a Cowlib release containing CVE-2026-43971's fix.
+      {:cowlib,
+       git: "https://github.com/ninenines/cowlib.git",
+       ref: "89da27ee4c241f5d649ba7d9b7f2188918af6cea",
+       override: true},
       {:jason, "~> 1.4"},
       {:ecto_sql, "~> 3.14"},
       {:myxql, "~> 0.9"},
