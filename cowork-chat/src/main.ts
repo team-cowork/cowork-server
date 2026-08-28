@@ -6,12 +6,14 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
+import { NextFunction, Request, Response } from 'express';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import { EurekaClient } from './eureka/eureka-client';
 import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
 import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
 import { RedisIoAdapter } from './common/adapter/redis-io.adapter';
+import { ProjectionReadinessService } from './common/kafka/projection-readiness.service';
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -29,7 +31,7 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
-    app.setGlobalPrefix('chat', { exclude: ['health'] });
+    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready'] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
@@ -62,7 +64,7 @@ async function bootstrap() {
             '`GET /api/chat/chat/channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n' +
             '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n' +
             '## 통합 검색 (GraphQL)\n' +
-            '`POST /api/chat/graphql` — 메시지(Elasticsearch)와 채널(channel-service)을 단일 요청으로 병렬 검색.\n\n' +
+            '`POST /api/chat/graphql` — 메시지(Elasticsearch)와 Kafka 동기화 채널 projection을 단일 요청으로 병렬 검색.\n\n' +
             '```graphql\n' +
             'query {\n' +
             '  unifiedSearch(teamId: 1, q: "배포") {\n' +
@@ -98,7 +100,7 @@ async function bootstrap() {
         .build();
 
     const document = SwaggerModule.createDocument(app, config);
-    for (const path of ['/health', '/chat/health/ready']) {
+    for (const path of ['/health', '/health/ready']) {
         const operation = document.paths[path]?.get;
         if (operation) {
             operation.security = [];
@@ -106,22 +108,77 @@ async function bootstrap() {
     }
     SwaggerModule.setup('api', app, document, { jsonDocumentUrl: 'api-json' });
 
+    const projectionReadiness = app.get(ProjectionReadinessService);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+        const operationalPath = req.path === '/health'
+            || req.path === '/health/ready'
+            || req.path === '/metrics'
+            || req.path === '/api'
+            || req.path === '/api-json'
+            || req.path === '/asyncapi.json';
+        if (!operationalPath && !projectionReadiness.isReady()) {
+            res.status(503).json({ statusCode: 503, message: 'Kafka projections are synchronizing' });
+            return;
+        }
+        next();
+    });
+
     const port = Number(requireEnv('PORT'));
     debugStartup(`listening on ${port}`);
     await app.listen(port);
     debugStartup('HTTP server listening');
 
     const eureka = EurekaClient.fromEnv(port);
-    debugStartup('registering with Eureka');
-    await eureka.register().catch((err: unknown) => {
-        new Logger('Eureka').warn(`registration failed: ${err instanceof Error ? err.message : String(err)}`);
+    let shuttingDown = false;
+    let eurekaRegistered = false;
+    let eurekaRegistration: Promise<void> | undefined;
+
+    void projectionReadiness.whenReady().then(() => {
+        if (shuttingDown) return;
+        debugStartup('projection replay complete; registering with Eureka');
+        eurekaRegistration = (async () => {
+            while (!shuttingDown && !eurekaRegistered) {
+                try {
+                    await eureka.register();
+                    eurekaRegistered = true;
+                    debugStartup('Eureka registration completed');
+                    return;
+                } catch (err: unknown) {
+                    new Logger('Eureka').warn(
+                        `registration failed; retrying: ${err instanceof Error ? err.message : String(err)}`,
+                    );
+                    await new Promise((resolve) => setTimeout(resolve, 1_000));
+                }
+            }
+        })()
+            .then(() => {
+                if (shuttingDown) debugStartup('Eureka registration stopped during shutdown');
+            });
+        return eurekaRegistration;
     });
-    debugStartup('Eureka registration attempted');
+
+    projectionReadiness.onFatalInvariantViolation((reason) => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        new Logger('ProjectionReadiness').error(`fatal projection invariant violation: ${reason}`);
+        void (async () => {
+            await eurekaRegistration;
+            if (eurekaRegistered) {
+                await eureka.deregister().catch(() => undefined);
+            }
+            await app.close();
+            process.exit(1);
+        })();
+    });
 
     const shutdown = async () => {
-        await eureka.deregister().catch((err: unknown) => {
-            new Logger('Eureka').warn(`deregister failed: ${err instanceof Error ? err.message : String(err)}`);
-        });
+        shuttingDown = true;
+        await eurekaRegistration;
+        if (eurekaRegistered) {
+            await eureka.deregister().catch((err: unknown) => {
+                new Logger('Eureka').warn(`deregister failed: ${err instanceof Error ? err.message : String(err)}`);
+            });
+        }
         await app.close();
         process.exit(0);
     };
