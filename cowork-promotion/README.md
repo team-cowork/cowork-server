@@ -9,8 +9,8 @@ cowork 제품을 소개하는 바닐라 HTML 기반 정적 프로모션 웹사�
 - HTML
 - CSS
 - JavaScript ES modules
-- 단일 HTML 프로덕션 번들
-- YAML / XML 빌드 데이터
+- self-contained HTML 프로덕션 번들
+- YAML / XML / Markdown 빌드 데이터
 - Server-Sent Events 기반 개발용 라이브 리로드
 - npm(`package-lock.json`)
 
@@ -22,7 +22,7 @@ npm run dev
 ```
 
 - 개발 서버 기본 포트: `3000`
-- `npm run dev`는 소스 변경을 감지해 재빌드하고 SSE로 브라우저를 새로고침합니다.
+- `npm run dev`는 promotion 소스와 `../docs/todo/**/*.md` 변경을 감지해 재빌드하고 SSE로 브라우저를 새로고침합니다.
 - 정적 빌드: `npm run build` (`public/`에 배포 파일 생성)
 - 프로덕션 빌드/미리보기: `npm run preview`
 
@@ -32,7 +32,7 @@ npm run dev
 src/
 ├── html/
 │   ├── components/    # 내비게이션, 구분선, 푸터 등 공용 partial
-│   └── sections/      # Hero, Repository, Feature, Position 등 페이지 섹션
+│   └── sections/      # Hero, Repository, Feature, Position, TODO 페이지 섹션
 ├── css/               # base, utility, component, animation, responsive 레이어
 └── js/
     ├── core/          # 상태 저장소, 앱 생명주기, DOM/transition primitive
@@ -49,8 +49,19 @@ HTML은 `<!-- @include ... -->` 지시문을 빌드 시 조합합니다. 클라�
 - `data/tech-stacks.yaml`: 기술 스택 그룹과 포지션별 설명·색상·기술 목록
 - `data/team-members.xml`: 팀원의 이름, GitHub 계정, 기수, 포지션, 강조 색상
 - `data/feature-states.json`: 기능 소개 스크롤 장면
+- `../docs/todo/README.md`: 공개 진행 목록과 점검 기록의 기준
+- `../docs/todo/items/**/*.md`, `../docs/todo/*_TODO.md`: TODO 상세 문서와 점검 스냅샷
 
-`npm run build`는 YAML/XML을 검증하고 기술 스택, 포지션 장면, 팀원 마키 마크업을 생성합니다. 분리된 CSS·JavaScript 모듈·상태 JSON·로고는 `public/index.html` 하나에 인라인되므로 런타임 YAML/XML 파서나 동일 출처의 추가 정적 파일 요청이 필요하지 않습니다.
+`npm run build`는 YAML/XML과 TODO Markdown을 검증하고 홈 화면 및 TODO 문서를 생성합니다. 분리된 CSS·JavaScript 모듈·상태 JSON·로고는 각 HTML에 인라인되므로 런타임 데이터 요청이 필요하지 않습니다.
+
+주요 빌드 결과:
+
+```text
+public/index.html
+public/todo/index.html
+public/todo/items/{번호-범주}/{slug}/index.html
+public/todo/history/{YYYYMMDD}/index.html
+```
 
 GitHub 아바타와 저장소 언어 그래프, Google Fonts처럼 외부에서 최신 상태를 공급받는 미디어는 빌드에 고정하지 않고 외부 요청으로 유지합니다.
 
@@ -58,7 +69,9 @@ GitHub 아바타와 저장소 언어 그래프, Google Fonts처럼 외부에서 
 
 ## 배포
 
-Vercel은 프레임워크를 `Other`로 고정하고 `npm run build`가 생성하는 `public/`을 배포합니다. 로컬에서 Vercel 설정까지 확인하려면 다음을 실행합니다.
+Vercel은 프레임워크를 `Other`로 고정하고 `npm run build`가 생성하는 `public/`을 배포합니다. 프로젝트 Root Directory가 `cowork-promotion`이면 **Include source files outside Root Directory in the Build Step**을 활성화해 `docs/todo`를 빌드 입력에 포함해야 합니다. Git Integration의 Ignored Build Step도 `docs/todo/**` 변경을 배포 대상에서 제외하면 안 됩니다.
+
+로컬에서 Vercel 설정까지 확인하려면 다음을 실행합니다.
 
 ```bash
 vercel build
