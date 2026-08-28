@@ -133,6 +133,7 @@ jobs:
               - 'cowork-chat/**'
             cowork-promotion:
               - 'cowork-promotion/**'
+              - 'docs/todo/**'
             cowork-notification:
               - 'cowork-notification/**'
             cowork-preference:
