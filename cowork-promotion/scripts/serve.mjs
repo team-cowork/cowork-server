@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { build } from "./build.mjs";
 
 const projectDirectory = resolve(fileURLToPath(new URL("../", import.meta.url)));
+const todoDirectory = resolve(projectDirectory, "../docs/todo");
 const rootDirectory = resolve(process.argv[2] ?? ".");
 const watchMode = process.argv.includes("--watch");
 const port = Number(process.env.PORT ?? 3000);
@@ -113,7 +114,7 @@ const server = createServer(async (request, response) => {
     }
 });
 
-let sourceWatcher;
+const sourceWatchers = [];
 let rebuildTimer;
 let building = false;
 let rebuildQueued = false;
@@ -148,19 +149,23 @@ async function rebuild() {
     }
 }
 
-function scheduleRebuild(filename) {
-    if (!shouldRebuild(filename)) return;
-    latestChangedPath = relative(projectDirectory, resolve(projectDirectory, filename));
+function scheduleRebuild(changedPath) {
+    latestChangedPath = relative(projectDirectory, changedPath);
     clearTimeout(rebuildTimer);
     rebuildTimer = setTimeout(rebuild, 80);
 }
 
 if (watchMode) {
     await build();
-    sourceWatcher = watch(
-        projectDirectory,
-        { recursive: true },
-        (_eventType, filename) => scheduleRebuild(filename),
+    sourceWatchers.push(
+        watch(projectDirectory, { recursive: true }, (_eventType, filename) => {
+            if (!shouldRebuild(filename)) return;
+            scheduleRebuild(resolve(projectDirectory, String(filename)));
+        }),
+        watch(todoDirectory, { recursive: true }, (_eventType, filename) => {
+            if (!filename || !String(filename).endsWith(".md")) return;
+            scheduleRebuild(resolve(todoDirectory, String(filename)));
+        }),
     );
 }
 
@@ -174,7 +179,7 @@ server.listen(port, "127.0.0.1", () => {
 function shutdown() {
     clearInterval(heartbeat);
     clearTimeout(rebuildTimer);
-    sourceWatcher?.close();
+    sourceWatchers.forEach((watcher) => watcher.close());
     liveReloadClients.forEach((client) => client.end());
     server.close();
 }
