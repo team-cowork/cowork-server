@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260820.0"
+version = "20260828.0"
 
 java {
     toolchain {
