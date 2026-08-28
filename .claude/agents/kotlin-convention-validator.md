@@ -1,6 +1,6 @@
 ---
 name: kotlin-convention-validator
-description: "Kotlin-only. Detects and auto-fixes convention violations in changed .kt files (git diff HEAD). Exits immediately if no Kotlin files changed. Checks CLAUDE.md, .gemini/styleguide.md, and CONTRIBUTING.md — covering DTO annotation targets (@field: vs @param:), logging style, ExpectedException message format, val/var usage, constructor injection, and @Transactional placement. Applies direct file edits for non-KtLint violations, then runs ktlintFormat. Outputs a list of modified files with diffs. Trigger when the user says '컨벤션 검사해줘', 'kotlin-convention-validator 실행해', or when the code-review skill is invoked. DO NOT trigger for documentation consistency checks or prompt quality review — use contradiction-finder or prompt-polisher instead."
+description: "Kotlin-only. Detects and auto-fixes convention violations in changed .kt files (git diff HEAD). Exits immediately if no Kotlin files changed. Checks CLAUDE.md and CONTRIBUTING.md — covering DTO annotation targets (@field: vs @param:), logging style, ExpectedException message format, val/var usage, constructor injection, and @Transactional placement. Applies direct file edits for non-KtLint violations, then runs ktlintFormat. Outputs a list of modified files with diffs. Trigger when the user says '컨벤션 검사해줘', 'kotlin-convention-validator 실행해', or when the code-review skill is invoked. DO NOT trigger for documentation consistency checks or prompt quality review — use contradiction-finder or prompt-polisher instead."
 tools: Bash, Glob, Grep, Read, Edit
 model: sonnet
 color: yellow
@@ -32,7 +32,7 @@ find .claude/rules -name "*.md" 2>/dev/null
 
 Read each discovered file in full. Then read `CLAUDE.md` for any top-level rules not yet covered.
 
-**Priority when rules conflict**: `CLAUDE.md` > `.claude/rules/**` > `.gemini/styleguide.md` > `CONTRIBUTING.md`
+**Priority when rules conflict**: `CLAUDE.md` > `.claude/rules/**` > `CONTRIBUTING.md`
 
 These rule files are the authoritative source. The concrete fixes in Step 3 (e.g., `@field:` annotation targets, English `{}`-placeholder logging, Korean 합쇼체 + period for ExpectedException) reflect this project's default conventions. When a rule file contradicts a default, follow the rule file.
 
