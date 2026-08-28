@@ -16,11 +16,11 @@ Config Server는 Vault에서 조회한 데이터베이스 비밀번호, JWT·세
 
 같은 포트를 공유하는 다음 엔드포인트를 구분해서 정책을 설계해야 한다.
 
-| 범위 | 대표 경로 | 필요한 정책 |
-|---|---|---|
+| 범위       | 대표 경로                  | 필요한 정책                                 |
+|------------|----------------------------|---------------------------------------------|
 | Config API | `/{application}/{profile}` | Config Client 인증, 서비스별 설정 조회 권한 |
-| Eureka API | `/eureka/**` | Eureka Client 인증 및 등록·조회 권한 |
-| Actuator | `/actuator/**` | 운영자 전용 접근, 불필요한 endpoint 비공개 |
+| Eureka API | `/eureka/**`               | Eureka Client 인증 및 등록·조회 권한        |
+| Actuator   | `/actuator/**`             | 운영자 전용 접근, 불필요한 endpoint 비공개  |
 
 Config API에만 인증을 추가하면서 Eureka Client 기동을 깨뜨리거나, 반대로 Eureka 호환성을 위해 전체 포트를 익명 공개하는 구성이 되지 않도록 엔드포인트별 보안 규칙을 검증한다.
 
