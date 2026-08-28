@@ -6,7 +6,6 @@ import com.cowork.project.domain.project.service.support.ProjectMemberLookupSupp
 import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
-import com.cowork.project.global.support.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,9 +21,9 @@ class RemoveProjectMemberServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, memberId: Long) {
-        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
-        val member = projectMemberLookupSupport.findMemberOrThrow(memberId)
+        val member = projectMemberLookupSupport.findMemberForUpdateOrThrow(memberId)
 
         if (member.projectId != projectId) {
             throw ExpectedException("해당 프로젝트의 멤버가 아닙니다.", HttpStatus.BAD_REQUEST)
@@ -34,8 +33,7 @@ class RemoveProjectMemberServiceImpl(
             throw ExpectedException("OWNER는 제거할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
 
+        projectMemberEventPublisher.publishRemoved(member)
         projectMemberRepository.delete(member)
-
-        afterCommit { projectMemberEventPublisher.publishRemoved(projectId, member.userId) }
     }
 }

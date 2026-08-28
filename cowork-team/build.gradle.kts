@@ -35,7 +35,6 @@ dependencies {
     implementation(libs.spring.boot.starter.data.jpa)
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
-    implementation(libs.spring.cloud.starter.openfeign)
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.mysql.connector.j)
@@ -51,11 +50,11 @@ dependencies {
     implementation(libs.springdoc.openapi.webmvc.ui)
 
     implementation(libs.awspring.cloud.s3)
-    implementation(libs.shedlock.spring)
-    implementation(libs.shedlock.provider.jdbc.template)
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 kotlin {

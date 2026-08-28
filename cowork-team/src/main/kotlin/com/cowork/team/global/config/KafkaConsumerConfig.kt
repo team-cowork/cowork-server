@@ -2,8 +2,15 @@ package com.cowork.team.global.config
 
 import com.cowork.team.global.consumer.TeamGithubConnectedPayload
 import com.cowork.team.global.consumer.TeamGithubDisconnectedPayload
+import com.cowork.team.global.projection.ProjectionAssignmentCoordinator
+import com.cowork.team.global.projection.ProjectionCheckpointStore
+import com.cowork.team.global.projection.ProjectionReadinessState
+import com.cowork.team.global.projection.ProjectionStreams
+import com.cowork.team.global.projection.ProjectionTopicGenerationRegistry
+import com.cowork.team.global.projection.ProjectionTopicIdentityProvider
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.clients.producer.ProducerConfig
+import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.kafka.common.serialization.StringSerializer
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties
@@ -21,16 +28,18 @@ import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
 import org.springframework.kafka.support.serializer.JacksonJsonDeserializer
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer
-import org.springframework.util.backoff.FixedBackOff
+import org.springframework.util.backoff.BackOff
 
 @Configuration
 @EnableKafka
-class KafkaConsumerConfig(private val kafkaProperties: KafkaProperties) {
-
-    companion object {
-        private const val RETRY_INTERVAL_MS = 1_000L
-        private const val RETRY_MAX_ATTEMPTS = 3L
-    }
+class KafkaConsumerConfig(
+    private val kafkaProperties: KafkaProperties,
+    private val checkpointStore: ProjectionCheckpointStore,
+    private val readinessState: ProjectionReadinessState,
+    private val streams: ProjectionStreams,
+    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val topicGenerations: ProjectionTopicGenerationRegistry,
+) {
 
     // DeadLetterPublishingRecoverer용 범용 KafkaTemplate. 기존 KafkaConfig의 kafkaTemplate은
     // KafkaTemplate<String, TeamEventPayload>로 타입이 고정돼 있어 DLQ 발행용으로 재사용할 수 없다.
@@ -60,25 +69,75 @@ class KafkaConsumerConfig(private val kafkaProperties: KafkaProperties) {
 
     private fun <T : Any> listenerContainerFactory(
         targetType: Class<T>,
+        backOff: BackOff,
     ): ConcurrentKafkaListenerContainerFactory<String, T> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, T>()
         factory.setConsumerFactory(consumerFactory(targetType))
-        factory.setCommonErrorHandler(
-            DefaultErrorHandler(
-                DeadLetterPublishingRecoverer(teamGithubDlqKafkaTemplate()),
-                FixedBackOff(RETRY_INTERVAL_MS, RETRY_MAX_ATTEMPTS),
-            ),
-        )
+        factory.setCommonErrorHandler(errorHandler(backOff))
         return factory
+    }
+
+    private fun stringConsumerFactory(): ConsumerFactory<String, String> {
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
+        props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
+        return DefaultKafkaConsumerFactory<String, String>(props)
+    }
+
+    private fun projectionListenerContainerFactory(
+        rebalanceListener: ProjectionAssignmentCoordinator,
+    ): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(stringConsumerFactory())
+        factory.setCommonErrorHandler(DefaultErrorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
+        factory.containerProperties.setConsumerRebalanceListener(rebalanceListener)
+        return factory
+    }
+
+    private fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+        val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
+        factory.setConsumerFactory(stringConsumerFactory())
+        factory.setCommonErrorHandler(errorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
+        return factory
+    }
+
+    private fun errorHandler(backOff: BackOff): DefaultErrorHandler {
+        val recoverer = DeadLetterPublishingRecoverer(teamGithubDlqKafkaTemplate()) { record, _ ->
+            TopicPartition(KafkaConsumerRetryPolicy.deadLetterTopic(record.topic()), record.partition())
+        }
+        recoverer.setFailIfSendResultIsError(true)
+        return DefaultErrorHandler(recoverer, backOff).apply {
+            addNotRetryableExceptions(IllegalArgumentException::class.java)
+        }
     }
 
     @Bean
     fun teamGithubConnectedListenerContainerFactory():
         ConcurrentKafkaListenerContainerFactory<String, TeamGithubConnectedPayload> =
-        listenerContainerFactory(TeamGithubConnectedPayload::class.java)
+        listenerContainerFactory(
+            TeamGithubConnectedPayload::class.java,
+            KafkaConsumerRetryPolicy.externalEventBackOff(),
+        )
 
     @Bean
     fun teamGithubDisconnectedListenerContainerFactory():
         ConcurrentKafkaListenerContainerFactory<String, TeamGithubDisconnectedPayload> =
-        listenerContainerFactory(TeamGithubDisconnectedPayload::class.java)
+        listenerContainerFactory(
+            TeamGithubDisconnectedPayload::class.java,
+            KafkaConsumerRetryPolicy.externalEventBackOff(),
+        )
+
+    @Bean
+    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(
+        ProjectionAssignmentCoordinator(
+            streams.teamRole,
+            checkpointStore,
+            readinessState,
+            topicIdentityProvider,
+            topicGenerations,
+        ),
+    )
+
+    @Bean
+    fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

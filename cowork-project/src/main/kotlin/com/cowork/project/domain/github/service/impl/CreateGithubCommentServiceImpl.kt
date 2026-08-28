@@ -11,8 +11,7 @@ import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.GithubRepoRef
 import com.cowork.project.domain.github.service.GithubUsernameResolver
-import com.cowork.project.global.client.UserClient
-import feign.FeignException
+import com.cowork.project.domain.user.service.UserProfileProjectionReader
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +22,7 @@ class CreateGithubCommentServiceImpl(
     private val usernameResolver: GithubUsernameResolver,
     private val callExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
-    private val userClient: UserClient,
+    private val profileReader: UserProfileProjectionReader,
     private val notificationPublisher: GithubCommentNotificationPublisher,
 ) : CreateGithubCommentService {
     private val logger = LoggerFactory.getLogger(CreateGithubCommentServiceImpl::class.java)
@@ -53,7 +52,12 @@ class CreateGithubCommentServiceImpl(
         return comment
     }
 
-    private fun notifyParentAuthor(repo: GithubRepoRef, parentType: GithubCommentParentType, number: Int, comment: GithubCommentResDto) {
+    private fun notifyParentAuthor(
+        repo: GithubRepoRef,
+        parentType: GithubCommentParentType,
+        number: Int,
+        comment: GithubCommentResDto,
+    ) {
         runCatching {
             val parentAuthorGithubUsername = when (parentType) {
                 GithubCommentParentType.ISSUE ->
@@ -63,9 +67,9 @@ class CreateGithubCommentServiceImpl(
             }
             if (parentAuthorGithubUsername == comment.author) return
 
-            val account = userClient.getUserProfileByGithub(parentAuthorGithubUsername)
+            val targetUserId = profileReader.resolveUniqueUserId(parentAuthorGithubUsername)
             notificationPublisher.publishCommentCreated(
-                targetUserId = account.id,
+                targetUserId = targetUserId,
                 data = mapOf(
                     "repo" to "${repo.owner}/${repo.repo}",
                     "number" to number,
@@ -76,11 +80,7 @@ class CreateGithubCommentServiceImpl(
                 ),
             )
         }.onFailure { ex ->
-            if (ex is FeignException.NotFound) {
-                logger.info("댓글 알림 대상이 cowork 사용자가 아니어서 건너뜀 [repo={}/{}, number={}]", repo.owner, repo.repo, number)
-            } else {
-                logger.warn("댓글 생성 알림 처리 실패 (댓글 생성 자체는 성공) [repo={}/{}, number={}]", repo.owner, repo.repo, number, ex)
-            }
+            logger.warn("댓글 생성 알림 처리 실패 (댓글 생성 자체는 성공) [repo={}/{}, number={}]", repo.owner, repo.repo, number, ex)
         }
     }
 }

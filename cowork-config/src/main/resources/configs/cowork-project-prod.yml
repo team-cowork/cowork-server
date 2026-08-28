@@ -11,12 +11,25 @@ spring:
 
 eureka:
   client:
+    healthcheck:
+      enabled: true
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    initial-status: STARTING
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,projectionReadiness
+
+projection:
+  readiness:
+    poll-interval-ms: 1000
 
 github-app:
   service-url: ${GITHUB_APP_SERVICE_URL}
-
-# cowork-team과 동일한 값이 배포돼야 서로 발급한 state를 검증할 수 있다.
-team-github:
-  state-secret: ${TEAM_GITHUB_STATE_SECRET}

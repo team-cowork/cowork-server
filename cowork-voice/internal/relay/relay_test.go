@@ -45,18 +45,22 @@ func (f *fakeOutbox) FetchUnsent(_ context.Context, limit int) ([]mongoinfra.Out
 	return out, nil
 }
 
-func (f *fakeOutbox) MarkSent(_ context.Context, id bson.ObjectID, _ time.Time) error {
-	f.sent[id] = true
+func (f *fakeOutbox) RecoverPendingCleanup(_ context.Context, _ int) error {
 	return nil
 }
 
-func (f *fakeOutbox) IncrementAttempts(_ context.Context, id bson.ObjectID) error {
-	f.attempts[id]++
+func (f *fakeOutbox) MarkSent(_ context.Context, message mongoinfra.OutboxMessage, _ time.Time) error {
+	f.sent[message.ID] = true
 	return nil
 }
 
-func (f *fakeOutbox) MarkFailed(_ context.Context, id bson.ObjectID, _ time.Time) error {
-	f.failed[id] = true
+func (f *fakeOutbox) IncrementAttempts(_ context.Context, message mongoinfra.OutboxMessage) error {
+	f.attempts[message.ID]++
+	return nil
+}
+
+func (f *fakeOutbox) MarkFailed(_ context.Context, message mongoinfra.OutboxMessage, _ time.Time) error {
+	f.failed[message.ID] = true
 	return nil
 }
 

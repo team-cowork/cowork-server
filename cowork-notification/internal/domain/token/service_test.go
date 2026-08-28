@@ -61,10 +61,6 @@ type mockPref struct {
 	err     error
 }
 
-func (m *mockPref) IsNotificationEnabled(_ context.Context, _, _ int64) (bool, error) {
-	return m.enabled, m.err
-}
-
 func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64, _ int64) (map[int64]bool, error) {
 	if m.err != nil {
 		return nil, m.err
@@ -106,7 +102,7 @@ func TestService_Notify_sendsToAllUsers(t *testing.T) {
 	fcm := &mockFCM{}
 	svc := token.NewService(repo, fcm, &mockPref{enabled: true})
 
-	err := svc.Notify(context.Background(), []int64{1, 2}, nil, "title", "body", 0)
+	_, err := svc.Notify(context.Background(), []int64{1, 2}, nil, "title", "body", 0)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledTokens)
 }
@@ -118,9 +114,10 @@ func TestService_Notify_skipsDisabledChannel(t *testing.T) {
 	fcm := &mockFCM{}
 	svc := token.NewService(repo, fcm, &mockPref{enabled: false})
 
-	err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
+	enabledIDs, err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
 	require.NoError(t, err)
 	assert.Nil(t, fcm.calledTokens)
+	assert.Empty(t, enabledIDs)
 }
 
 func TestService_Notify_forcedBypassesMute(t *testing.T) {
@@ -132,10 +129,11 @@ func TestService_Notify_forcedBypassesMute(t *testing.T) {
 	// 뮤트 설정이지만 user 2는 forced
 	svc := token.NewService(repo, fcm, &mockPref{enabled: false})
 
-	err := svc.Notify(context.Background(), []int64{1, 2}, []int64{2}, "title", "body", 42)
+	enabledIDs, err := svc.Notify(context.Background(), []int64{1, 2}, []int64{2}, "title", "body", 42)
 	require.NoError(t, err)
 	// user 1은 뮤트로 제외, user 2는 forced라 포함
 	assert.Equal(t, []string{"t2"}, fcm.calledTokens)
+	assert.Equal(t, []int64{2}, enabledIDs)
 }
 
 func TestService_Notify_deletesInvalidTokens(t *testing.T) {
@@ -145,12 +143,12 @@ func TestService_Notify_deletesInvalidTokens(t *testing.T) {
 	fcm := &mockFCM{invalid: []string{"bad-token"}}
 	svc := token.NewService(repo, fcm, &mockPref{enabled: true})
 
-	err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 0)
+	_, err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 0)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"bad-token"}, repo.deletedBulk)
 }
 
-func TestService_Notify_preferenceFailDefaultsToEnabled(t *testing.T) {
+func TestService_Notify_preferenceFailureRetriesWithoutSending(t *testing.T) {
 	repo := &mockRepo{tokens: map[int64][]token.DeviceToken{
 		1: {{Token: "t1", AccountID: 1}},
 	}}
@@ -158,7 +156,7 @@ func TestService_Notify_preferenceFailDefaultsToEnabled(t *testing.T) {
 	pref := &mockPref{err: errors.New("preference service unreachable")}
 	svc := token.NewService(repo, fcm, pref)
 
-	err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"t1"}, fcm.calledTokens)
+	_, err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
+	require.Error(t, err)
+	assert.Nil(t, fcm.calledTokens)
 }

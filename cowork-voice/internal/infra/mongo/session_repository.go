@@ -33,15 +33,15 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 		{
 			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
 		},
+		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
 	}
 	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
 		return fmt.Errorf("voice_sessions index creation failed: %w", err)
 	}
 
 	participantIndexes := []mongo.IndexModel{
-		// 세션당 user는 "활성 참가자(left_at=null)" 한 명만 허용(재입장은 left_at이 채워진 옛 문서를
-		// 인덱스에서 제외하므로 허용). InsertParticipant가 left_at을 항상 명시적으로 null로 set하므로
-		// "missing vs null" 모호성은 발생하지 않으며, null 동등 필터는 누락 필드까지 포함해 더 안전하다.
+		// 세션당 user는 "활성 참가자(left_at=null)" 한 명만 허용(재입장은 left_at이 채워진 문서를
+		// 인덱스에서 제외하므로 허용). RecordParticipantJoinedAndEnqueue가 left_at을 항상 null로 기록한다.
 		{
 			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "user_id", Value: 1}},
 			Options: options.Index().
@@ -51,25 +51,16 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 		{
 			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "joined_at", Value: 1}},
 		},
+		{
+			Keys: bson.D{{Key: "session_id", Value: 1}, {Key: "occurrence_id", Value: 1}},
+			Options: options.Index().
+				SetUnique(true).
+				SetPartialFilterExpression(bson.D{{Key: "occurrence_id", Value: bson.D{{Key: "$type", Value: "string"}}}}),
+		},
+		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
 	}
 	if _, err := participants.Indexes().CreateMany(ctx, participantIndexes); err != nil {
 		return fmt.Errorf("voice_participants index creation failed: %w", err)
-	}
-
-	outbox := db.Collection(CollectionOutbox)
-	outboxIndexes := []mongo.IndexModel{
-		// relay 조회: 미전송(sent_at=null)·미격리(failed_at=null) 메시지를 생성 순서대로 스캔
-		{
-			Keys: bson.D{{Key: "sent_at", Value: 1}, {Key: "failed_at", Value: 1}, {Key: "created_at", Value: 1}},
-		},
-		// 전송 완료된 메시지를 24h 후 자동 정리(TTL). sent_at이 없는 미전송 문서는 대상 아님.
-		{
-			Keys:    bson.D{{Key: "sent_at", Value: 1}},
-			Options: options.Index().SetExpireAfterSeconds(24 * 60 * 60),
-		},
-	}
-	if _, err := outbox.Indexes().CreateMany(ctx, outboxIndexes); err != nil {
-		return fmt.Errorf("voice_outbox index creation failed: %w", err)
 	}
 
 	return CreateLiveIndexes(ctx, db)
@@ -163,17 +154,30 @@ func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID strin
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {
+func (r *mongoSessionRepository) MarkSessionStartedAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	startedAt time.Time,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, startedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "status", Value: room.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "started_at", Value: startedAt},
-		{Key: "started_event_sent_at", Value: startedAt},
-	}}}
+	update := bson.D{
+		{Key: "$set", Value: bson.D{
+			{Key: "started_at", Value: startedAt},
+			// This timestamp records durable enqueue, not Kafka delivery.
+			{Key: "started_event_sent_at", Value: startedAt},
+		}},
+		{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+	}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return false, apperr.Internal(err.Error())
@@ -181,37 +185,61 @@ func (r *mongoSessionRepository) MarkSessionStarted(ctx context.Context, session
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoSessionRepository) InsertParticipant(ctx context.Context, p *room.VoiceParticipant) error {
+func (r *mongoSessionRepository) RecordParticipantJoinedAndEnqueue(
+	ctx context.Context,
+	p *room.VoiceParticipant,
+	occurrenceID string,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(p.SessionID, event, p.JoinedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(room.CollectionParticipants)
-	filter := bson.D{
+
+	document := bson.D{
 		{Key: "session_id", Value: p.SessionID},
 		{Key: "user_id", Value: p.UserID},
+		{Key: "channel_id", Value: p.ChannelID},
+		{Key: "occurrence_id", Value: occurrenceID},
+		{Key: "joined_at", Value: p.JoinedAt},
 		{Key: "left_at", Value: nil},
+		{Key: outboxField, Value: bson.A{message}},
 	}
-	update := bson.D{
-		{Key: "$setOnInsert", Value: bson.D{
-			{Key: "session_id", Value: p.SessionID},
-			{Key: "user_id", Value: p.UserID},
-			{Key: "channel_id", Value: p.ChannelID},
-			{Key: "joined_at", Value: p.JoinedAt},
-			{Key: "left_at", Value: nil},
-		}},
+	if _, err := col.InsertOne(ctx, document); err != nil {
+		if mongo.IsDuplicateKeyError(err) {
+			return false, nil
+		}
+		return false, apperr.Internal(err.Error())
 	}
-	_, err := col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
-	if err != nil {
-		return apperr.Internal(err.Error())
-	}
-	return nil
+	return true, nil
 }
 
-func (r *mongoSessionRepository) MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error) {
+func (r *mongoSessionRepository) MarkParticipantLeftAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+	now time.Time,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, now)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
 	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
 		{Key: "left_at", Value: nil},
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}}}
+	if occurrenceID != "" {
+		filter = append(filter, bson.E{Key: "occurrence_id", Value: occurrenceID})
+	}
+	update := bson.D{
+		{Key: "$set", Value: bson.D{{Key: "left_at", Value: now}}},
+		{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+	}
 	result, err := col.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return false, apperr.Internal(err.Error())
@@ -230,15 +258,33 @@ func (r *mongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, 
 	if err != nil {
 		return 0, apperr.Internal(err.Error())
 	}
+	if _, err := r.db.Collection(room.CollectionSessions).UpdateOne(
+		ctx,
+		bson.D{{Key: "session_id", Value: sessionID}, {Key: "cleanup_pending", Value: true}},
+		bson.D{
+			{Key: "$set", Value: bson.D{{Key: "cleanup_completed_at", Value: time.Now().UTC()}}},
+			{Key: "$unset", Value: bson.D{{Key: "cleanup_pending", Value: ""}}},
+		},
+	); err != nil {
+		return result.ModifiedCount, apperr.Internal(err.Error())
+	}
 	return result.ModifiedCount, nil
 }
 
-func (r *mongoSessionRepository) GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error) {
+func (r *mongoSessionRepository) GetParticipantJoinedAt(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+) (*time.Time, error) {
 	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
 		{Key: "left_at", Value: nil},
+	}
+	if occurrenceID != "" {
+		filter = append(filter, bson.E{Key: "occurrence_id", Value: occurrenceID})
 	}
 	var p room.VoiceParticipant
 	err := col.FindOne(ctx, filter).Decode(&p)
@@ -249,4 +295,32 @@ func (r *mongoSessionRepository) GetParticipantJoinedAt(ctx context.Context, ses
 		return nil, apperr.Internal(err.Error())
 	}
 	return &p.JoinedAt, nil
+}
+
+func (r *mongoSessionRepository) EndSessionAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	endedAt time.Time,
+	event any,
+) (bool, error) {
+	message, err := newOutboxMessage(sessionID, event, endedAt)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	result, err := r.db.Collection(room.CollectionSessions).UpdateOne(
+		ctx,
+		bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: room.StatusActive}},
+		bson.D{
+			{Key: "$set", Value: bson.D{
+				{Key: "status", Value: room.StatusEnded},
+				{Key: "ended_at", Value: endedAt},
+				{Key: "cleanup_pending", Value: true},
+			}},
+			{Key: "$push", Value: bson.D{{Key: outboxField, Value: message}}},
+		},
+	)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	return result.ModifiedCount == 1, nil
 }

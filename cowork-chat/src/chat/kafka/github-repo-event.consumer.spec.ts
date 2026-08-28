@@ -6,6 +6,7 @@ import { GithubRepoEventConsumer } from './github-repo-event.consumer';
 import { ChatService } from '../chat.service';
 import { ProjectClient } from '../service/project.client';
 import { GithubRepoEvent } from './event/github-repo.event';
+import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 
 type ConsumerWithPrivates = Omit<GithubRepoEventConsumer, 'handleRepoEvent'> & {
     handleRepoEvent: (event: GithubRepoEvent) => Promise<void>;
@@ -21,6 +22,12 @@ const mockChatService = {
 
 const mockProjectClient = {
     getGithubWebhookTargets: mockGetGithubWebhookTargets,
+};
+
+const mockProjectionReadiness = {
+    checkCatchup: jest.fn().mockResolvedValue(undefined),
+    whenReady: jest.fn().mockResolvedValue(undefined),
+    isReady: jest.fn().mockReturnValue(true),
 };
 
 const mockEmit = jest.fn();
@@ -50,6 +57,10 @@ describe('GithubRepoEventConsumer', () => {
                     provide: DicoshotService,
                     useValue: { sendCustom: jest.fn().mockResolvedValue(true) },
                 },
+                {
+                    provide: ProjectionReadinessService,
+                    useValue: mockProjectionReadiness,
+                },
             ],
         }).compile();
 
@@ -61,7 +72,7 @@ describe('GithubRepoEventConsumer', () => {
     const callHandleRepoEvent = (event: GithubRepoEvent) => (consumer as unknown as ConsumerWithPrivates).handleRepoEvent(event);
 
     describe('GitHub 알림 채널이 지정되지 않은 경우', () => {
-        it('project-service가 대상을 하나도 찾지 못하면(빈 배열) 아무 것도 하지 않는다', async () => {
+        it('로컬 projection에 대상이 없으면 아무 것도 하지 않는다', async () => {
             mockGetGithubWebhookTargets.mockResolvedValue([]);
 
             const event: GithubRepoEvent = {
@@ -173,6 +184,7 @@ describe('GithubRepoEventConsumer', () => {
                 mockProjectClient as unknown as ProjectClient,
                 { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
                 { sendCustom: jest.fn().mockResolvedValue(true) } as unknown as DicoshotService,
+                mockProjectionReadiness as unknown as ProjectionReadinessService,
             );
             mockGetGithubWebhookTargets.mockResolvedValue([{ teamId: 1, projectId: 100, channelId: 5 }]);
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });

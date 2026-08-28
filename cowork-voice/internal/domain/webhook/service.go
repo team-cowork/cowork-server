@@ -13,20 +13,14 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-type EventPublisher interface {
-	Publish(ctx context.Context, sessionID string, v any) error
-}
-
 type WebhookService struct {
-	repo  SessionRepository
-	kafka EventPublisher
-	now   func() time.Time
+	repo SessionRepository
+	now  func() time.Time
 }
 
-func NewWebhookService(repo SessionRepository, kafka EventPublisher) *WebhookService {
+func NewWebhookService(repo SessionRepository) *WebhookService {
 	return &WebhookService{
-		repo:  repo,
-		kafka: kafka,
+		repo: repo,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -77,33 +71,34 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 		return nil
 	}
 
-	firstStart, err := s.repo.MarkSessionStarted(ctx, voiceSession.SessionID, now)
+	_, err = s.repo.MarkSessionStartedAndEnqueue(ctx, voiceSession.SessionID, now, &kafkadomain.SessionStartedEvent{
+		EventType: kafkadomain.EventSessionStarted,
+		SessionID: voiceSession.SessionID,
+		ChannelID: parsedRoom.ChannelID,
+		TeamID:    voiceSession.TeamID,
+		UserID:    userID,
+		Timestamp: nowStr,
+	})
 	if err != nil {
-		slog.Error("failed to mark session started", "err", err, "session_id", voiceSession.SessionID)
+		slog.Error("failed to mark session started and enqueue event", "err", err, "session_id", voiceSession.SessionID)
 		return err
 	}
-	if firstStart {
-		if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionStartedEvent{
-			EventType: kafkadomain.EventSessionStarted,
-			SessionID: voiceSession.SessionID,
-			ChannelID: parsedRoom.ChannelID,
-			TeamID:    voiceSession.TeamID,
-			UserID:    userID,
-			Timestamp: nowStr,
-		}); err != nil {
-			slog.Error("failed to publish SESSION_STARTED", "err", err)
-		}
-	}
-
-	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserJoinedEvent{
+	_, err = s.repo.RecordParticipantJoinedAndEnqueue(ctx, &roomdomain.VoiceParticipant{
+		SessionID: voiceSession.SessionID,
+		UserID:    userID,
+		ChannelID: parsedRoom.ChannelID,
+		JoinedAt:  now,
+	}, participantOccurrenceID(event), &kafkadomain.UserJoinedEvent{
 		EventType: kafkadomain.EventUserJoined,
 		SessionID: voiceSession.SessionID,
 		ChannelID: parsedRoom.ChannelID,
 		TeamID:    voiceSession.TeamID,
 		UserID:    userID,
 		Timestamp: nowStr,
-	}); err != nil {
-		slog.Error("failed to publish USER_JOINED", "err", err)
+	})
+	if err != nil {
+		slog.Error("failed to record participant and enqueue USER_JOINED", "err", err)
+		return err
 	}
 	return nil
 }
@@ -137,18 +132,11 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 		return nil
 	}
 
-	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID)
+	occurrenceID := participantOccurrenceID(event)
+	joinedAt, err := s.repo.GetParticipantJoinedAt(ctx, voiceSession.SessionID, userID, occurrenceID)
 	if err != nil {
 		slog.Error("failed to get participant joined_at", "err", err)
-	}
-
-	firstLeave, err := s.repo.MarkParticipantLeft(ctx, voiceSession.SessionID, userID, now)
-	if err != nil {
-		slog.Error("failed to mark participant left", "err", err)
 		return err
-	}
-	if !firstLeave {
-		return nil
 	}
 
 	var durationSeconds int64
@@ -159,7 +147,7 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 		}
 	}
 
-	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.UserLeftEvent{
+	_, err = s.repo.MarkParticipantLeftAndEnqueue(ctx, voiceSession.SessionID, userID, occurrenceID, now, &kafkadomain.UserLeftEvent{
 		EventType:       kafkadomain.EventUserLeft,
 		SessionID:       voiceSession.SessionID,
 		ChannelID:       parsedRoom.ChannelID,
@@ -167,8 +155,10 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 		UserID:          userID,
 		DurationSeconds: durationSeconds,
 		Timestamp:       nowStr,
-	}); err != nil {
-		slog.Error("failed to publish USER_LEFT", "err", err)
+	})
+	if err != nil {
+		slog.Error("failed to mark participant left and enqueue USER_LEFT", "err", err)
+		return err
 	}
 	return nil
 }
@@ -193,7 +183,20 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		return nil
 	}
 
-	ended, err := s.repo.EndSession(ctx, voiceSession.SessionID, now)
+	var durationSeconds int64
+	// clock skew 등으로 now < StartedAt이면 음수가 될 수 있어 0으로 보정한다.
+	if diff := now.Sub(voiceSession.StartedAt).Seconds(); diff > 0 {
+		durationSeconds = int64(diff)
+	}
+
+	ended, err := s.repo.EndSessionAndEnqueue(ctx, voiceSession.SessionID, now, &kafkadomain.SessionEndedEvent{
+		EventType:       kafkadomain.EventSessionEnded,
+		SessionID:       voiceSession.SessionID,
+		ChannelID:       parsedRoom.ChannelID,
+		TeamID:          voiceSession.TeamID,
+		DurationSeconds: durationSeconds,
+		Timestamp:       nowStr,
+	})
 	if err != nil {
 		slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
 		return err
@@ -210,22 +213,6 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 		slog.Info("orphan participants cleaned up", "session_id", voiceSession.SessionID, "count", count)
 	}
 
-	var durationSeconds int64
-	// clock skew 등으로 now < StartedAt이면 음수가 될 수 있어 0으로 보정한다.
-	if diff := now.Sub(voiceSession.StartedAt).Seconds(); diff > 0 {
-		durationSeconds = int64(diff)
-	}
-
-	if err := s.kafka.Publish(ctx, voiceSession.SessionID, &kafkadomain.SessionEndedEvent{
-		EventType:       kafkadomain.EventSessionEnded,
-		SessionID:       voiceSession.SessionID,
-		ChannelID:       parsedRoom.ChannelID,
-		TeamID:          voiceSession.TeamID,
-		DurationSeconds: durationSeconds,
-		Timestamp:       nowStr,
-	}); err != nil {
-		slog.Error("failed to publish SESSION_ENDED", "err", err)
-	}
 	return nil
 }
 

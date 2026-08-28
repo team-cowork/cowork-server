@@ -10,15 +10,11 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
-import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class UpdateProjectServiceImplTest {
 
@@ -27,7 +23,7 @@ class UpdateProjectServiceImplTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository)
+        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
 
     private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard)
 
@@ -37,22 +33,12 @@ class UpdateProjectServiceImplTest {
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
 
-    @BeforeEach
-    fun setUp() {
-        TransactionSynchronizationManager.initSynchronization()
-    }
-
-    @AfterEach
-    fun tearDown() {
-        TransactionSynchronizationManager.clear()
-    }
-
     @Test
     fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
 
         val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
         assertEquals("newName", response.name)
@@ -61,9 +47,9 @@ class UpdateProjectServiceImplTest {
     @Test
     fun `updateProject은 팀 비멤버이면 FORBIDDEN`() {
         val proj = project()
-        every { projectRepository.findById(1L) } returns Optional.of(proj)
+        every { projectRepository.findByIdForUpdate(1L) } returns proj
         every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findByTeamIdAndUserId(100L, 99L) } returns null
+        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(99L, 1L, UpdateProjectReqDto(name = "x"))

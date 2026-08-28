@@ -39,7 +39,6 @@ if [ -n "${APP_CONFIG_URL:-}" ]; then
   set_from_config DB_USERNAME DB_USERNAME db_username
   set_from_config DB_PASSWORD DB_PASSWORD db_password
   set_from_config DB_POOL_SIZE DB_POOL_SIZE db_pool_size
-  set_from_config SECRET_KEY_BASE SECRET_KEY_BASE secret_key_base
 fi
 
 : "${DB_HOST:?DB_HOST is required}"
@@ -48,7 +47,6 @@ fi
 : "${DB_JDBC_URL:?DB_JDBC_URL is required}"
 : "${DB_USERNAME:?DB_USERNAME is required}"
 : "${DB_PASSWORD:?DB_PASSWORD is required}"
-: "${SECRET_KEY_BASE:?SECRET_KEY_BASE is required}"
 
 if [ -n "${DB_JDBC_URL:-}" ]; then
   export FLYWAY_URL="${DB_JDBC_URL}"
