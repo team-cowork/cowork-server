@@ -2,7 +2,11 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +15,20 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func jsonResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     make(http.Header),
+	}
+}
 
 type fakeRefreshTokenStore struct {
 	createdToken    *domain.RefreshToken
@@ -328,5 +346,179 @@ func TestLogoutDoesNotSplitRevocationFromPresenceFailure(t *testing.T) {
 	}
 	if store.revokeCallCount != 1 {
 		t.Fatalf("atomic revoke calls = %d, want 1", store.revokeCallCount)
+	}
+}
+
+// newExchangeUnitAuthService wires an AuthService whose DataGSM HTTP calls are
+// stubbed via RoundTripper (following client/user_client_test.go's pattern)
+// and whose identity commit goes through a fakeIdentityCoordinator, so
+// ExchangeCode is exercised end-to-end without any real network, Kafka, or
+// database dependency.
+func newExchangeUnitAuthService(
+	dataGSM roundTripFunc,
+	identity *fakeIdentityCoordinator,
+	store RefreshTokenStore,
+) *AuthService {
+	cfg := &config.AppConfig{
+		JWTSecret:              "unit-test-secret",
+		JWTAccessExpire:        30 * time.Minute,
+		JWTRefreshExpire:       24 * time.Hour,
+		KafkaTopicUserPresence: "user.presence.event",
+		DataGSMClientID:        "unit-test-client",
+		DataGSMTokenURL:        "https://datagsm.invalid/oauth/token",
+		DataGSMUserInfoURL:     "https://datagsm.invalid/oauth/userinfo",
+	}
+
+	svc := NewAuthService(cfg, identity, store, NewTokenService(cfg))
+	svc.httpClient = &http.Client{Transport: dataGSM}
+	return svc
+}
+
+func dataGSMUserInfoBody(t *testing.T, info DataGSMUserInfo) string {
+	t.Helper()
+	body, err := json.Marshal(info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(body)
+}
+
+func TestExchangeCodePropagatesNonStudentRejectionBeforeCommittingIdentity(t *testing.T) {
+	t.Parallel()
+
+	identity := &fakeIdentityCoordinator{userID: 1}
+	info := DataGSMUserInfo{ID: 99, Email: "staff@example.com", Role: "USER", IsStudent: false}
+	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.String(), "/oauth/token") {
+			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		}
+		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+	}, identity, &fakeRefreshTokenStore{})
+
+	pair, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
+	if err == nil || pair != nil {
+		t.Fatalf("ExchangeCode() = %+v, %v; want rejection for non-student accounts", pair, err)
+	}
+	if identity.calls != 0 {
+		t.Fatalf("identity commit calls = %d, want 0 for a non-student account", identity.calls)
+	}
+}
+
+func TestExchangeCodeIssuesSessionAfterCommittingStudentIdentity(t *testing.T) {
+	t.Parallel()
+
+	info := DataGSMUserInfo{
+		ID:        99,
+		Email:     "student@example.com",
+		Role:      "USER",
+		IsStudent: true,
+		Student: &DataGSMStudent{
+			ID:       501,
+			Name:     "Student",
+			Sex:      "MAN",
+			Grade:    2,
+			ClassNum: 3,
+			Number:   14,
+			Major:    "SW_DEVELOPMENT",
+			Role:     "GENERAL_STUDENT",
+		},
+	}
+	store := &fakeRefreshTokenStore{}
+	identity := &fakeIdentityCoordinator{userID: 99}
+	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.String(), "/oauth/token") {
+			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		}
+		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+	}, identity, store)
+
+	pair, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
+	if err != nil {
+		t.Fatalf("ExchangeCode() error = %v", err)
+	}
+	if pair.AccessToken == "" || pair.RefreshToken == "" {
+		t.Fatalf("issued pair = %+v, want populated tokens", pair)
+	}
+	if identity.calls != 1 {
+		t.Fatalf("identity commit calls = %d, want 1", identity.calls)
+	}
+	if store.createdToken == nil || store.createdToken.UserID != 99 {
+		t.Fatalf("session stored for user %+v, want the id returned by EnsureUser (99)", store.createdToken)
+	}
+	if store.createdToken.PlatformRole != "MEMBER" {
+		t.Fatalf("stored platform role = %q, want MEMBER (mapped from provider role USER)", store.createdToken.PlatformRole)
+	}
+}
+
+func TestExchangeCodeRejectsUnsupportedProviderRoleBeforeCommittingIdentity(t *testing.T) {
+	t.Parallel()
+
+	identity := &fakeIdentityCoordinator{userID: 1}
+	info := DataGSMUserInfo{
+		ID:        99,
+		Email:     "student@example.com",
+		Role:      "SUPER_ADMIN",
+		IsStudent: true,
+		Student:   &DataGSMStudent{ID: 501, Name: "Student", Role: "GENERAL_STUDENT"},
+	}
+	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.String(), "/oauth/token") {
+			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		}
+		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+	}, identity, &fakeRefreshTokenStore{})
+
+	if _, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback"); err == nil {
+		t.Fatal("ExchangeCode() expected error for an unsupported provider role")
+	}
+	if identity.calls != 0 {
+		t.Fatalf("identity commit calls = %d, want 0 when the provider role cannot be mapped", identity.calls)
+	}
+}
+
+func TestExchangeCodeWrapsTokenEndpointFailure(t *testing.T) {
+	t.Parallel()
+
+	svc := newExchangeUnitAuthService(func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusUnauthorized, `{"error":"invalid_grant"}`), nil
+	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
+
+	_, err := svc.ExchangeCode(context.Background(), "bad-code", "verifier", "https://app.example.com/callback")
+	if err == nil {
+		t.Fatal("ExchangeCode() expected error when the token endpoint rejects the code")
+	}
+	if !strings.Contains(err.Error(), "failed to exchange code") {
+		t.Fatalf("ExchangeCode() error = %q, want it wrapped with %%w context: %q", err.Error(), "failed to exchange code")
+	}
+}
+
+func TestExchangeCodeWrapsUserInfoEndpointFailure(t *testing.T) {
+	t.Parallel()
+
+	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
+		if strings.Contains(req.URL.String(), "/oauth/token") {
+			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		}
+		return jsonResponse(http.StatusServiceUnavailable, `{}`), nil
+	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
+
+	_, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
+	if err == nil {
+		t.Fatal("ExchangeCode() expected error when the userinfo endpoint fails")
+	}
+	if !strings.Contains(err.Error(), "failed to fetch user info") {
+		t.Fatalf("ExchangeCode() error = %q, want it wrapped with %%w context: %q", err.Error(), "failed to fetch user info")
+	}
+}
+
+func TestExchangeCodeRejectsEmptyAccessTokenInTokenResponse(t *testing.T) {
+	t.Parallel()
+
+	svc := newExchangeUnitAuthService(func(*http.Request) (*http.Response, error) {
+		return jsonResponse(http.StatusOK, `{"access_token":""}`), nil
+	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
+
+	if _, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback"); err == nil {
+		t.Fatal("ExchangeCode() expected error for an empty access_token")
 	}
 }
