@@ -63,4 +63,4 @@ Shared config is served by `cowork-config`, which is both the Config Server and 
 
 ---
 
-Kotlin/Java code style lives in `.gemini/styleguide.md`.
+File-type-scoped rules (SQL migrations, Spring config, JVM sources) live in `.claude/rules/`. Kotlin/Java code style lives in `CONTRIBUTING.md`.
