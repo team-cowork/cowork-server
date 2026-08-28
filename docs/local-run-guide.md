@@ -26,17 +26,17 @@ cp .env.example .env
 `.env`에서 최소한 다음 값을 채운다. `scripts/run/local/infra.sh`가 기동 전에 이 항목을
 검사한다.
 
-| 키 | 용도 |
-|---|---|
-| `MYSQL_ROOT_PASSWORD`, `MYSQL_USER`, `MYSQL_PASSWORD` | MySQL 기동과 서비스 접속 |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD` | PostgreSQL과 `cowork-preference` 접속 |
-| `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | MongoDB와 chat·voice 접속 |
-| `JWT_SECRET` | Gateway JWT 검증과 authorization 발급 |
-| `DATAGSM_CLIENT_ID` | authorization 설정 검증 |
-| `ACCOUNT_CREDENTIAL_ENCRYPTION_KEY` | channel AccountShare 자격 증명 암호화 |
-| `ACCOUNT_SHARE_OAUTH_STATE_SECRET` | channel OAuth state 서명 |
-| `TEAM_GITHUB_STATE_SECRET` | team GitHub 설치 state 서명 및 서비스 기동 검증 |
-| `GITHUB_APP_SLUG` | team GitHub 설치 URL 생성 및 서비스 기동 검증 |
+| 키                                                    | 용도                                            |
+|-------------------------------------------------------|-------------------------------------------------|
+| `MYSQL_ROOT_PASSWORD`, `MYSQL_USER`, `MYSQL_PASSWORD` | MySQL 기동과 서비스 접속                        |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`                  | PostgreSQL과 `cowork-preference` 접속           |
+| `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD`          | MongoDB와 chat·voice 접속                       |
+| `JWT_SECRET`                                          | Gateway JWT 검증과 authorization 발급           |
+| `DATAGSM_CLIENT_ID`                                   | authorization 설정 검증                         |
+| `ACCOUNT_CREDENTIAL_ENCRYPTION_KEY`                   | channel AccountShare 자격 증명 암호화           |
+| `ACCOUNT_SHARE_OAUTH_STATE_SECRET`                    | channel OAuth state 서명                        |
+| `TEAM_GITHUB_STATE_SECRET`                            | team GitHub 설치 state 서명 및 서비스 기동 검증 |
+| `GITHUB_APP_SLUG`                                     | team GitHub 설치 URL 생성 및 서비스 기동 검증   |
 
 암호화·서명 키는 서로 다른 값으로 생성한다.
 
@@ -170,16 +170,16 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 ### 주요 접속 주소
 
-| 용도 | URL |
-|---|---|
-| Gateway | `http://localhost:8080` |
-| Eureka | `http://localhost:8761` |
-| Kafka UI | `http://localhost:8090` |
-| Vault | `http://localhost:8200` |
-| SeaweedFS Console | `http://localhost:9002` |
-| Elasticsearch | `http://localhost:9200/_cluster/health` |
-| Prometheus | `http://localhost:9090` |
-| Grafana | `http://localhost:3001` |
+| 용도              | URL                                     |
+|-------------------|-----------------------------------------|
+| Gateway           | `http://localhost:8080`                 |
+| Eureka            | `http://localhost:8761`                 |
+| Kafka UI          | `http://localhost:8090`                 |
+| Vault             | `http://localhost:8200`                 |
+| SeaweedFS Console | `http://localhost:9002`                 |
+| Elasticsearch     | `http://localhost:9200/_cluster/health` |
+| Prometheus        | `http://localhost:9090`                 |
+| Grafana           | `http://localhost:3001`                 |
 
 외부 HTTP 요청은 Gateway로 보낸다. 개별 서비스 포트는 로컬 진단에만 사용한다.
 

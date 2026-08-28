@@ -22,13 +22,13 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 
 ## 취약점과 고정 커밋
 
-| 항목 | 값 |
-|---|---|
-| 식별자 | CVE-2026-43971 / [GHSA-gg23-fwhr-prjh](https://github.com/advisories/GHSA-gg23-fwhr-prjh) |
-| 심각도 | medium (CVSS v4 6.3) |
-| 영향 범위 | cowlib 2.9.0 이상 전체, Hex 패치 릴리스 없음 |
-| 내용 | `cow_link:do_link/1`이 target URI·rel 값·속성 키를 이스케이프 없이 `Link:` 헤더에 직렬화해 directive smuggling 허용 |
-| 고정 커밋 | `89da27ee4c241f5d649ba7d9b7f2188918af6cea` (2026-08-18, `git describe`: `2.19.0-3-g89da27e`) |
+| 항목      | 값                                                                                                                  |
+|-----------|---------------------------------------------------------------------------------------------------------------------|
+| 식별자    | CVE-2026-43971 / [GHSA-gg23-fwhr-prjh](https://github.com/advisories/GHSA-gg23-fwhr-prjh)                           |
+| 심각도    | medium (CVSS v4 6.3)                                                                                                |
+| 영향 범위 | cowlib 2.9.0 이상 전체, Hex 패치 릴리스 없음                                                                        |
+| 내용      | `cow_link:do_link/1`이 target URI·rel 값·속성 키를 이스케이프 없이 `Link:` 헤더에 직렬화해 directive smuggling 허용 |
+| 고정 커밋 | `89da27ee4c241f5d649ba7d9b7f2188918af6cea` (2026-08-18, `git describe`: `2.19.0-3-g89da27e`)                        |
 
 고정 커밋은 `2.19.0` 태그에 픽스 관련 커밋 3개를 더한 지점이다. `cowork-user`의 애플리케이션
 코드는 `cow_link`를 직접 호출하지 않으므로 실제 노출은 `cowboy`가 `Link:` 헤더를 직렬화하는
