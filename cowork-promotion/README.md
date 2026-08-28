@@ -69,7 +69,7 @@ GitHub 아바타와 저장소 언어 그래프, Google Fonts처럼 외부에서 
 
 ## 배포
 
-Vercel은 프레임워크를 `Other`로 고정하고 `npm run build`가 생성하는 `public/`을 배포합니다. 프로젝트 Root Directory가 `cowork-promotion`이면 **Include source files outside Root Directory in the Build Step**을 활성화해 `docs/todo`를 빌드 입력에 포함해야 합니다. Git Integration의 Ignored Build Step도 `docs/todo/**` 변경을 배포 대상에서 제외하면 안 됩니다.
+Vercel은 프레임워크를 `Other`로 고정하고 `npm run build`가 생성하는 `public/`을 배포합니다. 프로젝트 Root Directory가 `cowork-promotion`이면 **Settings > Build and Deployment > Root Directory**에서 **Include source files outside Root Directory in the Build Step**을 활성화해 `docs/todo`를 빌드 입력에 포함해야 합니다. Git Integration의 Ignored Build Step도 `docs/todo/**` 변경을 배포 대상에서 제외하면 안 됩니다.
 
 로컬에서 Vercel 설정까지 확인하려면 다음을 실행합니다.
 
