@@ -1,7 +1,19 @@
 * text=auto eol=lf
 
 /gradlew text eol=lf
+cowork-project/mvnw text eol=lf
 *.sh text eol=lf
 *.bat text eol=crlf
+*.cmd text eol=crlf
 
 *.jar binary
+
+*.kt   diff=kotlin
+*.kts  diff=kotlin
+*.java diff=java
+*.go   diff=golang
+*.ex   diff=elixir
+*.exs  diff=elixir
+*.md   diff=markdown
+*.css  diff=css
+*.html diff=html

@@ -3,29 +3,30 @@ package com.cowork.preference.service
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingSchema
-import com.cowork.preference.messaging.PreferenceProducer
+import com.cowork.preference.messaging.PreferenceEvents
+import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import io.vertx.core.json.JsonObject
 
 class PreferenceService(
     private val repository: PreferenceRepository,
     private val cache: PreferenceCache,
-    private val producer: PreferenceProducer,
+    private val outboxRepository: PreferenceOutboxRepository,
 ) {
 
     suspend fun getSettings(resourceType: ResourceType, resourceId: Long): JsonObject {
-        cache.getSettings(resourceType, resourceId)?.let { return it }
-        val settings = repository.findSettings(resourceId, resourceType) ?: JsonObject()
+        cache.getSettings(resourceType, resourceId)?.let { return normalizeSettings(resourceType, it) }
+        val settings = normalizeSettings(resourceType, repository.findSettings(resourceId, resourceType))
         cache.setSettings(resourceType, resourceId, settings)
         return settings
     }
 
-    /** 여러 리소스의 설정을 한 번의 DB 조회로 반환 (호출자의 N+1 원격 호출 방지용) */
     suspend fun getSettingsBulk(resourceType: ResourceType, resourceIds: List<Long>): Map<Long, JsonObject> {
         if (resourceIds.isEmpty()) return emptyMap()
         val found = repository.findSettingsForResources(resourceIds, resourceType)
-        found.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
-        return resourceIds.associateWith { found[it] ?: JsonObject() }
+        val normalized = resourceIds.associateWith { normalizeSettings(resourceType, found[it]) }
+        normalized.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
+        return normalized
     }
 
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
@@ -35,28 +36,52 @@ class PreferenceService(
         if (validationError != null) return Result.failure(IllegalArgumentException(validationError))
 
         val needPrevStatus = resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")
-        val (updatedSettings, previousStatus) = repository.upsertSettings(resourceId, resourceType, filtered, fetchPreviousStatus = needPrevStatus)
-        val updated = updatedSettings ?: filtered
-        cache.setSettings(resourceType, resourceId, updated)
-
-        if (resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")) {
-            producer.publishStatusChanged(
-                accountId = resourceId,
-                previousStatus = previousStatus,
-                newStatus = filtered.getString("status"),
-                reason = "MANUAL",
+        val changedNicknameSettings = nicknameFormatSettings(filtered)
+        val updated = outboxRepository.inTransaction { connection ->
+            val result = repository.upsertSettings(
+                client = connection,
+                resourceId = resourceId,
+                resourceType = resourceType,
+                settings = filtered,
+                fetchPreviousStatus = needPrevStatus,
             )
-        }
-        if (resourceType == ResourceType.TEAM) {
-            val changedNicknameSettings = nicknameFormatSettings(filtered)
-            if (changedNicknameSettings.size() > 0) {
-                producer.publishTeamSettingsChanged(
-                    teamId = resourceId,
-                    changedSettings = changedNicknameSettings,
-                    settings = updated,
+            if (needPrevStatus) {
+                outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.statusChanged(
+                        accountId = resourceId,
+                        previousStatus = result.previousStatus,
+                        newStatus = filtered.getString("status"),
+                        reason = "MANUAL",
+                        occurredAt = result.updatedAt,
+                    ),
                 )
             }
+            if (resourceType == ResourceType.TEAM && changedNicknameSettings.size() > 0) {
+                outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.teamSettingsChanged(
+                        teamId = resourceId,
+                        changedSettings = changedNicknameSettings,
+                        settings = result.settings,
+                        occurredAt = result.updatedAt,
+                    ),
+                )
+            }
+            if (resourceType == ResourceType.GITHUB_REPO) {
+                outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.githubRepoSettingState(
+                        repoId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
+            }
+            normalizeSettings(resourceType, result.settings)
         }
+        cache.setSettings(resourceType, resourceId, updated)
 
         return Result.success(updated)
     }
@@ -72,7 +97,11 @@ class PreferenceService(
         return result
     }
 
-    private suspend fun validationTarget(resourceType: ResourceType, resourceId: Long, filtered: JsonObject): JsonObject {
+    private suspend fun validationTarget(
+        resourceType: ResourceType,
+        resourceId: Long,
+        filtered: JsonObject,
+    ): JsonObject {
         if (resourceType != ResourceType.TEAM || !containsNicknameFormatSettings(filtered)) return filtered
         val merged = getSettings(resourceType, resourceId).copy()
         filtered.forEach { entry -> merged.put(entry.key, entry.value) }
@@ -81,6 +110,12 @@ class PreferenceService(
 
     private fun containsNicknameFormatSettings(settings: JsonObject): Boolean =
         settings.containsKey(NICKNAME_FORMAT_ENFORCED) || settings.containsKey(NICKNAME_FORMAT_EXAMPLE)
+
+    private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
+        if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
+        return JsonObject()
+            .put("label_auto_apply", settings?.getBoolean("label_auto_apply", true) ?: true)
+    }
 
     companion object {
         private const val NICKNAME_FORMAT_ENFORCED = "nickname_format_enforced"

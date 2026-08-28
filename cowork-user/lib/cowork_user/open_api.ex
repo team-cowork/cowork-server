@@ -1,4 +1,6 @@
 defmodule CoworkUser.OpenAPI do
+  alias CoworkUser.Accounts.Account
+
   def spec do
     %{
       openapi: "3.0.3",
@@ -20,7 +22,7 @@ defmodule CoworkUser.OpenAPI do
         },
         "/users/me/status" => %{
           patch: %{
-            summary: "상태 및 커스텀 상태 메시지 설정",
+            summary: "커스텀 상태 및 상태 메시지 설정",
             requestBody: json_body(update_status_schema()),
             responses: responses(user_schema())
           }
@@ -88,11 +90,33 @@ defmodule CoworkUser.OpenAPI do
           get: %{
             summary: "사용자 검색",
             parameters: [
+              %{
+                in: "query",
+                name: "teamId",
+                schema: %{type: "integer", minimum: 1},
+                description: "활성 멤버인 팀의 사용자로 검색 범위를 제한"
+              },
+              %{in: "query", name: "q", schema: %{type: "string"}},
+              %{
+                in: "query",
+                name: "query",
+                schema: %{type: "string"},
+                description: "q의 호환 alias"
+              },
               %{in: "query", name: "name", schema: %{type: "string"}},
               %{in: "query", name: "nickname", schema: %{type: "string"}},
               %{in: "query", name: "major", schema: %{type: "string"}},
               %{in: "query", name: "student_role", schema: %{type: "string"}},
-              %{in: "query", name: "status", schema: %{type: "string"}},
+              %{
+                in: "query",
+                name: "status",
+                schema: %{type: "string", enum: ["online", "offline"]}
+              },
+              %{
+                in: "query",
+                name: "custom_status",
+                schema: %{type: "string", maxLength: Account.custom_status_max_length()}
+              },
               %{in: "query", name: "role", schema: %{type: "string"}},
               %{in: "query", name: "page", schema: %{type: "integer", default: 1}},
               %{in: "query", name: "page_size", schema: %{type: "integer", default: 20}},
@@ -103,7 +127,13 @@ defmodule CoworkUser.OpenAPI do
                 schema: %{type: "string", enum: ["asc", "desc"], default: "asc"}
               }
             ],
-            responses: responses(search_schema())
+            responses:
+              responses(search_schema())
+              |> Map.merge(%{
+                "400" => gateway_error_response(400, "BAD_REQUEST", "잘못된 검색 조건"),
+                "403" => gateway_error_response(403, "FORBIDDEN", "팀 멤버가 아님"),
+                "503" => gateway_error_response(503, "SERVICE_UNAVAILABLE", "팀 투영 동기화/조회 실패")
+              })
           }
         }
       },
@@ -148,7 +178,39 @@ defmodule CoworkUser.OpenAPI do
     %{
       "200" => %{
         description: "OK",
-        content: %{"application/json" => %{schema: schema}}
+        content: %{"application/json" => %{schema: common_api_response_schema(schema)}}
+      }
+    }
+  end
+
+  defp common_api_response_schema(data_schema) do
+    %{
+      type: "object",
+      required: ["status", "code", "message", "data"],
+      properties: %{
+        status: %{type: "string", enum: ["OK"], example: "OK"},
+        code: %{type: "integer", enum: [200], example: 200},
+        message: %{type: "string", example: "OK"},
+        data: data_schema
+      }
+    }
+  end
+
+  defp gateway_error_response(code, status, description) do
+    %{
+      description: description,
+      content: %{
+        "application/json" => %{
+          schema: %{
+            type: "object",
+            required: ["status", "code", "message"],
+            properties: %{
+              status: %{type: "string", enum: [status]},
+              code: %{type: "integer", enum: [code]},
+              message: %{type: "string"}
+            }
+          }
+        }
       }
     }
   end
@@ -180,10 +242,19 @@ defmodule CoworkUser.OpenAPI do
   defp update_status_schema do
     %{
       type: "object",
-      required: ["status"],
+      required: ["custom_status"],
       properties: %{
-        status: %{type: "string", example: "DO_NOT_DISTURB"},
-        message: %{type: "string", nullable: true, example: "집중 중"},
+        custom_status: %{
+          type: "string",
+          maxLength: Account.custom_status_max_length(),
+          example: "DO_NOT_DISTURB"
+        },
+        message: %{
+          type: "string",
+          maxLength: Account.status_message_max_length(),
+          nullable: true,
+          example: "집중 중"
+        },
         expiresAt: %{
           type: "string",
           format: "date-time",
@@ -232,8 +303,18 @@ defmodule CoworkUser.OpenAPI do
         student_number: %{type: "string", nullable: true},
         major: %{type: "string", nullable: true},
         specialty: %{type: "string", nullable: true},
-        status: %{type: "string"},
-        status_message: %{type: "string", nullable: true},
+        status: %{type: "string", enum: ["online", "offline"]},
+        custom_status: %{
+          type: "string",
+          maxLength: Account.custom_status_max_length(),
+          nullable: true,
+          example: "DO_NOT_DISTURB"
+        },
+        status_message: %{
+          type: "string",
+          maxLength: Account.status_message_max_length(),
+          nullable: true
+        },
         status_expires_at: %{type: "string", format: "date-time", nullable: true},
         profile_image_url: %{type: "string", nullable: true},
         nickname: %{type: "string", nullable: true},

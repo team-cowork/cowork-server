@@ -12,9 +12,9 @@ RUN apt-get update \
 
 RUN mix local.hex --force && mix local.rebar --force
 
-COPY cowork-user/mix.exs ./
+COPY cowork-user/mix.exs cowork-user/mix.lock ./
 COPY cowork-user/config config
-RUN mix deps.get
+RUN mix deps.get --only prod
 RUN mix deps.compile
 
 COPY cowork-user/lib lib

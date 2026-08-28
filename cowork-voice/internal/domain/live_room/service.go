@@ -14,12 +14,11 @@ type LiveService struct {
 	repo         Repository
 	membership   MembershipChecker
 	livekit      LiveKitRoom
-	publisher    EventPublisher
 	livekitWsURL string
 }
 
-func NewLiveService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, publisher EventPublisher, livekitWsURL string) *LiveService {
-	return &LiveService{repo: repo, membership: membership, livekit: livekit, publisher: publisher, livekitWsURL: livekitWsURL}
+func NewLiveService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *LiveService {
+	return &LiveService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
 func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*StartResponse, error) {
@@ -96,16 +95,6 @@ func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}
 
 	isHost := userID == liveSession.HostUserID
-	if !isHost {
-		if err := s.repo.InsertViewer(ctx, &LiveViewer{
-			SessionID: liveSession.SessionID,
-			UserID:    userID,
-			ChannelID: channelID,
-			JoinedAt:  time.Now().UTC(),
-		}); err != nil {
-			return nil, err
-		}
-	}
 
 	// 호스트 재입장이면 publish 권한 토큰을 재발급한다(시청자 행 미생성).
 	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, isHost)
@@ -147,27 +136,16 @@ func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error 
 	}
 
 	now := time.Now().UTC()
-	joinedAt, err := s.repo.GetViewerJoinedAt(ctx, liveSession.SessionID, userID)
+	joinedAt, err := s.repo.GetViewerJoinedAt(ctx, liveSession.SessionID, userID, "")
 	if err != nil {
-		slog.Warn("failed to get viewer joined_at", "err", err, "session_id", liveSession.SessionID)
-	}
-
-	// MarkViewerLeft가 dedup 게이트 역할을 한다. participant_left 웹훅과 경쟁하더라도
-	// 먼저 left_at을 기록한 쪽만 VIEWER_LEFT를 발행해 이벤트 중복/유실을 방지한다.
-	firstLeave, err := s.repo.MarkViewerLeft(ctx, liveSession.SessionID, userID, now)
-	if err != nil {
-		slog.Warn("failed to mark viewer left", "err", err, "session_id", liveSession.SessionID)
-		return nil
-	}
-	if !firstLeave {
-		return nil
+		return err
 	}
 
 	var durationSeconds int64
 	if joinedAt != nil {
 		durationSeconds = DurationSecondsSince(now, *joinedAt)
 	}
-	if err := s.publisher.Publish(ctx, liveSession.SessionID, &kafkadomain.ViewerLeftEvent{
+	_, err = s.repo.MarkViewerLeftAndEnqueue(ctx, liveSession.SessionID, userID, "", now, &kafkadomain.ViewerLeftEvent{
 		EventType:       kafkadomain.EventViewerLeft,
 		SessionID:       liveSession.SessionID,
 		ChannelID:       channelID,
@@ -175,11 +153,8 @@ func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error 
 		UserID:          userID,
 		DurationSeconds: durationSeconds,
 		Timestamp:       now.Format(time.RFC3339),
-	}); err != nil {
-		slog.Error("failed to publish VIEWER_LEFT", "err", err, "session_id", liveSession.SessionID)
-	}
-
-	return nil
+	})
+	return err
 }
 
 func (s *LiveService) GetStatus(ctx context.Context, channelID, userID int64) (*StatusResponse, error) {

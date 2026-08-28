@@ -58,8 +58,11 @@ public class RoadmapController {
 
     @Operation(summary = "로드맵 목록 조회", description = "teamId/projectId가 있으면 커스텀 로드맵, 없으면 scope(기본 GLOBAL) 기준 조회")
     @GetMapping
-    public Flux<RoadmapResDto> listRoadmaps(@Valid @ModelAttribute QueryRoadmapReqDto request) {
-        return listRoadmapsService.execute(request.scope(), request.category(), request.teamId(), request.projectId());
+    public Flux<RoadmapResDto> listRoadmaps(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
+            @Valid @ModelAttribute QueryRoadmapReqDto request) {
+        return listRoadmapsService
+                .execute(userId, userRole, request.scope(), request.category(), request.teamId(), request.projectId());
     }
 
     @Operation(summary = "로드맵 메타 조회")
