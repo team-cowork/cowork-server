@@ -2,11 +2,13 @@ defmodule CoworkUser.Accounts do
   import Ecto.Query
   require Logger
 
-  alias Ecto.Multi
   alias CoworkUser.Accounts.{Account, Profile, ProfileRole}
+  alias CoworkUser.Kafka.{PresenceProjection, ProfileEventPublisher}
   alias CoworkUser.Repo
   alias CoworkUser.Storage.ObjectStorage
-  alias CoworkUser.TeamClient
+  alias CoworkUser.TeamMembershipProjection
+
+  @initial_presence_updated_at ~U[1970-01-01 00:00:00.000000Z]
 
   def get_my_profile(user_id), do: get_user_profile(user_id)
 
@@ -14,6 +16,18 @@ defmodule CoworkUser.Accounts do
     case load_profile(user_id) do
       nil -> {:error, :not_found}
       profile -> {:ok, to_user_response(profile)}
+    end
+  end
+
+  @doc """
+  GitHub 로그인명(`tb_accounts.github`, 유니크)으로 cowork 사용자를 역조회한다.
+
+  공개 user API 소비자가 GitHub identity와 cowork profile을 연결할 때 사용한다.
+  """
+  def get_by_github(username) do
+    case Repo.get_by(Account, github: username) do
+      nil -> {:error, :not_found}
+      account -> get_user_profile(account.id)
     end
   end
 
@@ -25,8 +39,7 @@ defmodule CoworkUser.Accounts do
   @doc """
   여러 사용자의 표시 이름(name/nickname)만 일괄 조회한다.
 
-  N개의 user_id에 대해 N번 `GET /users/:id`를 호출하던 N+1 패턴(예: chat 서비스의
-  파일 업로더 이름 조회)을 대체하기 위한 배치 조회 API.
+  N개의 user_id에 대해 공개 `GET /users/:id`를 반복하는 대신 사용하는 배치 조회 API.
   `to_user_response/1`(전체 프로필 + profile_roles preload + 프로필 이미지 presigned URL 생성)을
   N명분 재사용하면 배치 호출 1번이 오히려 더 무거워지므로, JOIN 1번으로 필요한 컬럼만 조회한다.
 
@@ -54,57 +67,84 @@ defmodule CoworkUser.Accounts do
   end
 
   def update_my_profile(user_id, attrs) do
-    with %Profile{} = profile <- load_profile(user_id) do
-      roles = attrs["roles"] |> normalize_roles()
-      account_update_attrs = build_profile_account_attrs(attrs, user_id)
+    roles = attrs["roles"] |> normalize_roles()
+    account_update_attrs = build_profile_account_attrs(attrs, user_id)
 
-      multi =
-        Multi.new()
-        |> Multi.update(:profile, Profile.changeset(profile, %{
-          nickname: Map.get(attrs, "nickname"),
-          description: Map.get(attrs, "description"),
-          last_modified_by: user_id
-        }))
-        |> replace_roles(profile.id, roles)
-
-      multi =
-        if map_size(account_update_attrs) > 1 do
-          Multi.update(multi, :account, Account.profile_update_changeset(profile.account, account_update_attrs))
-        else
-          multi
-        end
-
-      multi
-      |> Repo.transaction()
-      |> case do
-        {:ok, _} -> get_my_profile(user_id)
-        {:error, _step, changeset, _} -> {:error, {:validation, format_changeset_errors(changeset)}}
+    Repo.transaction(fn ->
+      with %Account{} = account <- lock_account(user_id),
+           %Profile{} = profile <- lock_profile(user_id),
+           {:ok, _profile} <-
+             profile
+             |> Profile.changeset(%{
+               nickname: Map.get(attrs, "nickname"),
+               description: Map.get(attrs, "description"),
+               last_modified_by: user_id
+             })
+             |> Repo.update(),
+           :ok <- replace_roles_in_transaction(profile.id, roles),
+           {:ok, _account} <- maybe_update_profile_account(account, account_update_attrs) do
+        ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
+        :ok
+      else
+        nil -> Repo.rollback(:not_found)
+        {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback({:validation, changeset})
       end
-    else
-      nil -> {:error, :not_found}
+    end)
+    |> case do
+      {:ok, :ok} ->
+        get_my_profile(user_id)
+
+      {:error, :not_found} ->
+        {:error, :not_found}
+
+      {:error, {:validation, changeset}} ->
+        {:error, {:validation, format_changeset_errors(changeset)}}
     end
   end
 
+  defp maybe_update_profile_account(account, attrs) when map_size(attrs) > 1 do
+    account
+    |> Account.profile_update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp maybe_update_profile_account(account, _attrs), do: {:ok, account}
+
+  defp replace_roles_in_transaction(profile_id, roles) do
+    Repo.delete_all(from(pr in ProfileRole, where: pr.profile_id == ^profile_id))
+
+    if roles != [] do
+      Repo.insert_all(ProfileRole, Enum.map(roles, &%{profile_id: profile_id, role: &1}))
+    end
+
+    :ok
+  end
+
+  defp lock_account(user_id) do
+    Account
+    |> where([account], account.id == ^user_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
+  defp lock_profile(user_id) do
+    Profile
+    |> where([profile], profile.account_id == ^user_id)
+    |> lock("FOR UPDATE")
+    |> Repo.one()
+  end
+
   def update_my_status(user_id, attrs) do
-    if Map.has_key?(attrs, "status") do
+    if Map.has_key?(attrs, "custom_status") do
       case load_profile(user_id) do
-        nil -> {:error, :not_found}
+        nil ->
+          {:error, :not_found}
+
         profile ->
-          status_attrs =
-            Enum.reduce(
-              [{"status", :status}, {"message", :status_message}, {"expiresAt", :status_expires_at}],
-              %{last_modified_by: user_id},
-              fn {key, field}, acc ->
-                if Map.has_key?(attrs, key) do
-                  Map.put(acc, field, attrs[key])
-                else
-                  acc
-                end
-              end
-            )
+          status_attrs = custom_status_attrs(user_id, attrs)
 
           profile.account
-          |> Account.status_changeset(status_attrs)
+          |> Account.custom_status_changeset(status_attrs)
           |> Repo.update()
           |> case do
             {:ok, _} -> get_my_profile(user_id)
@@ -112,8 +152,23 @@ defmodule CoworkUser.Accounts do
           end
       end
     else
-      {:error, {:validation, "status 필드는 필수입니다."}}
+      {:error, {:validation, "custom_status 필드는 필수입니다."}}
     end
+  end
+
+  @doc false
+  def custom_status_attrs(user_id, attrs) do
+    Enum.reduce(
+      [
+        {"custom_status", :custom_status},
+        {"message", :status_message},
+        {"expiresAt", :status_expires_at}
+      ],
+      %{last_modified_by: user_id},
+      fn {key, field}, acc ->
+        if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
+      end
+    )
   end
 
   def generate_presigned_url(user_id, %{"content_type" => content_type}) do
@@ -122,7 +177,6 @@ defmodule CoworkUser.Accounts do
     with %Profile{} <- load_profile(user_id),
          :ok <- ObjectStorage.validate_content_type(content_type),
          {:ok, upload_url} <- ObjectStorage.presigned_put_url(object_key, content_type) do
-
       {:ok,
        %{
          upload_url: upload_url,
@@ -134,7 +188,8 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  def generate_presigned_url(_user_id, _attrs), do: {:error, {:validation, "content_type 값이 필요합니다."}}
+  def generate_presigned_url(_user_id, _attrs),
+    do: {:error, {:validation, "content_type 값이 필요합니다."}}
 
   def confirm_upload(user_id, %{"object_key" => object_key}) do
     with %Profile{} = profile <- load_profile(user_id),
@@ -169,121 +224,107 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  def upsert_user(user_id, attrs) do
-    with :ok <- validate_upsert(attrs) do
-      Repo.transaction(fn ->
-        account =
-          Repo.get(Account, user_id)
-          |> case do
-            nil ->
-              %Account{}
-              |> Account.changeset(account_attrs(user_id, attrs))
-              |> Repo.insert!()
+  @doc """
+  Applies an authorization login command to the cowork-user-owned account and
+  profile inside the caller's transaction. The caller also stores the inbox and
+  result outbox in that same transaction.
+  """
+  def apply_identity_command(command) when is_map(command) do
+    if Repo.in_transaction?() do
+      existing = lock_account(command.user_id)
 
-            existing ->
-              existing
-              |> Account.changeset(account_attrs(user_id, attrs))
-              |> Repo.update!()
-          end
+      attrs =
+        %{
+          id: command.user_id,
+          name: command.name,
+          email: command.email,
+          sex: command.sex,
+          github: command.github_id,
+          student_role: command.role,
+          student_number: build_student_number_from_command(command),
+          datagsm_student_id: command.datagsm_student_id,
+          major: command.major,
+          last_modified_by: command.requested_by
+        }
+        |> Map.merge(presence_attrs_for_upsert(existing))
+        |> maybe_mark_creator(existing, command.requested_by)
 
-        Repo.get_by(Profile, account_id: user_id)
-        |> case do
-          nil ->
-            %Profile{}
-            |> Profile.changeset(%{account_id: account.id})
-            |> Repo.insert!()
-
-          profile ->
-            profile
-        end
-      end)
-      |> case do
-        {:ok, _} -> get_user_profile(user_id)
-        {:error, %Ecto.Changeset{} = changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
-        {:error, reason} -> {:error, {:validation, inspect(reason)}}
+      with {:ok, account} <- persist_command_account(existing, attrs),
+           {:ok, _profile} <- ensure_profile(account.id),
+           :ok <- PresenceProjection.reconcile_account(account.id) do
+        ProfileEventPublisher.enqueue_current_upsert!(Repo, account.id)
+        {:ok, account.id}
+      else
+        {:error, %Ecto.Changeset{}} -> {:error, :validation}
+        {:error, reason} -> {:error, {:storage, reason}}
       end
+    else
+      {:error, {:storage, :identity_command_requires_transaction}}
     end
-  end
-
-  def upsert_user_from_sync_event(event) when is_map(event) do
-    user_id = Map.get(event, "user_id") || Map.get(event, "userId")
-
-    attrs = %{
-      "name" => Map.get(event, "name"),
-      "email" => Map.get(event, "email"),
-      "sex" => Map.get(event, "sex"),
-      "github_id" => Map.get(event, "github_id") || Map.get(event, "github"),
-      "student_role" => Map.get(event, "student_role") || Map.get(event, "st_role") || Map.get(event, "stRole"),
-      "student_number" => Map.get(event, "student_number") || Map.get(event, "st_num") || Map.get(event, "stNum"),
-      "datagsm_student_id" => Map.get(event, "datagsm_student_id"),
-      "major" => Map.get(event, "major"),
-      "role" => Map.get(event, "role"),
-      "specialty" => Map.get(event, "specialty") || Map.get(event, "spe"),
-      "status" => Map.get(event, "status") || "offline",
-      "account_description" => Map.get(event, "account_description") || Map.get(event, "description")
-    }
-
-    Repo.transaction(fn ->
-      account =
-        Repo.get(Account, user_id)
-        |> case do
-          nil ->
-            %Account{}
-            |> Account.changeset(Map.put(account_attrs(user_id, attrs), :description, Map.get(attrs, "account_description")))
-            |> Repo.insert!()
-
-          existing ->
-            existing
-            |> Account.changeset(Map.put(account_attrs(existing.id, attrs), :description, Map.get(attrs, "account_description")))
-            |> Repo.update!()
-        end
-
-      Repo.get_by(Profile, account_id: account.id) ||
-        Repo.insert!(Profile.changeset(%Profile{}, %{account_id: account.id}))
-    end)
   rescue
-    exception in [Ecto.InvalidChangesetError] ->
-      {:error, {:validation, format_changeset_errors(exception.changeset)}}
-
-    exception in [Ecto.ConstraintError] ->
-      {:error, {:validation, Exception.message(exception)}}
-
-    exception ->
-      {:error, {:transient, Exception.message(exception)}}
+    _exception in [Ecto.ConstraintError] -> {:error, :validation}
+    exception -> {:error, {:storage, exception}}
   end
 
   @doc """
   DataGSM webhook에서 전달된 student.updated 이벤트를 반영한다.
 
-  전체 upsert(`upsert_user_from_sync_event/1`)와 달리 불변인 `datagsm_student_id`로 기존
-  account를 찾아 학생 정보를 부분 갱신한다. 이메일은 변경될 수 있어 조인 키로 쓰지 않는다.
-  접속 상태(status)는 Cowork 내부 상태이므로 보존한다.
-  cowork에 아직 가입(로그인)하지 않은 사용자(account 없음)는 갱신 대상이 없으므로 skip한다.
+  불변인 `datagsm_student_id`로 기존 account를 찾아 학생 정보를 부분 갱신한다.
+  cowork에 아직 가입하지 않은 사용자는 owner table에 생성하지 않고 skip한다.
   """
-  def apply_student_event(%{"datagsm_student_id" => student_id} = event) when is_integer(student_id) do
+  def apply_student_event(%{"datagsm_student_id" => student_id} = event)
+      when is_integer(student_id) do
     student_role = Map.get(event, "student_role") || Map.get(event, "role")
 
-    if blank?(student_role) do
-      {:error, :invalid_student_event}
-    else
-      case Repo.get_by(Account, datagsm_student_id: student_id) do
-        nil ->
-          {:skip, :account_not_found}
+    with false <- blank?(student_role),
+         {:ok, occurred_at} <- parse_student_event_time(event) do
+      Repo.transaction(fn ->
+        account =
+          Account
+          |> where([account], account.datagsm_student_id == ^student_id)
+          |> lock("FOR UPDATE")
+          |> Repo.one()
 
-        account ->
-          attrs =
-            event
-            |> Map.put("student_role", student_role)
-            |> student_event_account_attrs()
+        cond do
+          is_nil(account) ->
+            {:skip, :account_not_found}
 
-          account
-          |> Account.datagsm_sync_changeset(attrs)
-          |> Repo.update()
-          |> case do
-            {:ok, _} -> :ok
-            {:error, changeset} -> {:error, {:validation, format_changeset_errors(changeset)}}
-          end
+          not student_event_newer?(account.datagsm_updated_at, occurred_at) ->
+            {:skip, :stale_student_event}
+
+          true ->
+            attrs =
+              event
+              |> Map.put("student_role", student_role)
+              |> student_event_account_attrs()
+              |> Map.put(:datagsm_updated_at, occurred_at)
+
+            case account |> Account.datagsm_sync_changeset(attrs) |> Repo.update() do
+              {:ok, updated} ->
+                ProfileEventPublisher.enqueue_current_upsert!(Repo, updated.id)
+                {:updated, updated.id}
+
+              {:error, changeset} ->
+                Repo.rollback({:validation, changeset})
+            end
+        end
+      end)
+      |> case do
+        {:ok, {:updated, _account_id}} ->
+          :ok
+
+        {:ok, {:skip, reason}} ->
+          {:skip, reason}
+
+        {:error, {:validation, changeset}} ->
+          {:error, {:validation, format_changeset_errors(changeset)}}
+
+        {:error, reason} ->
+          {:error, {:transient, inspect(reason)}}
       end
+    else
+      true -> {:error, :invalid_student_event}
+      {:error, :invalid_occurred_at} -> {:error, :invalid_student_event}
     end
   rescue
     exception in [Ecto.ConstraintError] -> {:error, {:validation, Exception.message(exception)}}
@@ -292,8 +333,18 @@ defmodule CoworkUser.Accounts do
 
   def apply_student_event(_event), do: {:error, :invalid_student_event}
 
-  def search_users(params) do
-    with {:ok, params} <- resolve_team(params) do
+  @doc false
+  def student_event_newer?(nil, %DateTime{}), do: true
+
+  def student_event_newer?(%DateTime{} = current, %DateTime{} = incoming) do
+    DateTime.compare(incoming, current) == :gt
+  end
+
+  def student_event_newer?(_, _), do: false
+
+  def search_users(requester_user_id, params) do
+    with :ok <- validate_search_filters(params),
+         {:ok, params} <- authorize_team_search(requester_user_id, params) do
       page = parse_positive_int(Map.get(params, "page"), 1)
       page_size = parse_positive_int(Map.get(params, "page_size"), 20) |> min(100)
       sort_by = Map.get(params, "sort_by", "id")
@@ -308,6 +359,7 @@ defmodule CoworkUser.Accounts do
         |> maybe_equals(:major, Map.get(params, "major"), :account)
         |> maybe_equals(:student_role, Map.get(params, "student_role"), :account)
         |> maybe_equals(:status, Map.get(params, "status"), :account)
+        |> maybe_equals(:custom_status, Map.get(params, "custom_status"), :account)
         |> maybe_role(Map.get(params, "role"))
         |> maybe_query(Map.get(params, "q") || Map.get(params, "query"))
         |> maybe_user_ids(Map.get(params, "user_ids"))
@@ -322,59 +374,133 @@ defmodule CoworkUser.Accounts do
       items =
         filtered_query
         |> order_by(^sort_clause(sort_by, sort_order))
-        |> limit(^ (page_size + 1))
-        |> offset(^ ((page - 1) * page_size))
+        |> limit(^(page_size + 1))
+        |> offset(^((page - 1) * page_size))
         |> Repo.all()
         |> Repo.preload([:account, :profile_roles])
 
       has_next = length(items) > page_size
 
-      {:ok, %{
-        items: items |> Enum.take(page_size) |> Enum.map(&to_user_response/1),
-        page: page,
-        page_size: page_size,
-        total_count: total_count,
-        has_next: has_next
-      }}
+      {:ok,
+       %{
+         items: items |> Enum.take(page_size) |> Enum.map(&to_user_response/1),
+         page: page,
+         page_size: page_size,
+         total_count: total_count,
+         has_next: has_next
+       }}
     end
   end
 
-  defp resolve_team(params) do
+  @doc false
+  def validate_search_filters(params) do
+    with :ok <- validate_presence_status_filter(Map.get(params, "status")),
+         :ok <- validate_custom_status_filter(Map.get(params, "custom_status")) do
+      :ok
+    end
+  end
+
+  defp validate_presence_status_filter(status) do
+    case status do
+      nil -> :ok
+      status when status in ["online", "offline"] -> :ok
+      _invalid -> {:error, {:validation, "status 값은 online 또는 offline이어야 합니다."}}
+    end
+  end
+
+  defp validate_custom_status_filter(nil), do: :ok
+
+  defp validate_custom_status_filter(custom_status) when is_binary(custom_status) do
+    if String.length(custom_status) <= Account.custom_status_max_length() do
+      :ok
+    else
+      {:error, {:validation, "custom_status 값은 #{Account.custom_status_max_length()}자 이하여야 합니다."}}
+    end
+  end
+
+  defp validate_custom_status_filter(_invalid) do
+    {:error, {:validation, "custom_status 값은 문자열이어야 합니다."}}
+  end
+
+  @doc false
+  def authorize_team_search(
+        requester_user_id,
+        params,
+        projection \\ TeamMembershipProjection
+      ) do
     case Map.get(params, "teamId") do
-      nil -> {:ok, params}
+      nil ->
+        {:ok, params}
+
       team_id ->
-        case TeamClient.get_member_ids(team_id) do
-          {:ok, ids} -> {:ok, Map.put(params, "user_ids", ids)}
-          {:error, reason} -> {:error, {:team_service, reason}}
+        case projection.member_ids_for_requester(team_id, requester_user_id) do
+          {:ok, ids} ->
+            {:ok, Map.put(params, "user_ids", ids)}
+
+          {:error, :forbidden} ->
+            {:error, :forbidden}
+
+          {:error, :invalid_team_id} ->
+            {:error, {:validation, "teamId 값이 올바르지 않습니다."}}
+
+          {:error, :invalid_requester_user_id} ->
+            {:error, {:validation, "X-User-Id 값이 올바르지 않습니다."}}
+
+          {:error, reason} ->
+            {:error, {:team_projection, reason}}
         end
     end
   end
 
   defp build_profile_account_attrs(attrs, user_id) do
-    Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key, field}, acc ->
-      if Map.has_key?(attrs, key) do
-        Map.put(acc, field, attrs[key])
-      else
-        acc
-      end
+    Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key,
+                                                                                             field},
+                                                                                            acc ->
+      if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
     end)
   end
 
-  defp account_attrs(user_id, attrs) do
-    %{
-      id: user_id,
-      name: Map.get(attrs, "name"),
-      email: Map.get(attrs, "email"),
-      sex: Map.get(attrs, "sex"),
-      github: Map.get(attrs, "github_id"),
-      description: Map.get(attrs, "account_description"),
-      student_role: Map.get(attrs, "student_role") || Map.get(attrs, "role"),
-      student_number: normalize_student_number(Map.get(attrs, "student_number")) || build_student_number(attrs),
-      datagsm_student_id: Map.get(attrs, "datagsm_student_id"),
-      major: Map.get(attrs, "major"),
-      specialty: Map.get(attrs, "specialty"),
-      status: Map.get(attrs, "status", "offline")
-    }
+  @doc false
+  def presence_attrs_for_upsert(nil) do
+    %{status: "offline", presence_updated_at: @initial_presence_updated_at}
+  end
+
+  def presence_attrs_for_upsert(%{status: status, presence_updated_at: occurred_at}) do
+    %{status: status, presence_updated_at: occurred_at}
+  end
+
+  defp persist_command_account(nil, attrs) do
+    %Account{}
+    |> Account.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  defp persist_command_account(%Account{} = account, attrs) do
+    account
+    |> Account.changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp ensure_profile(user_id) do
+    case lock_profile(user_id) do
+      %Profile{} = profile -> {:ok, profile}
+      nil -> %Profile{} |> Profile.changeset(%{account_id: user_id}) |> Repo.insert()
+    end
+  end
+
+  defp maybe_mark_creator(attrs, nil, user_id),
+    do: Map.put(attrs, :created_by, user_id)
+
+  defp maybe_mark_creator(attrs, _existing, _user_id), do: attrs
+
+  defp build_student_number_from_command(command) do
+    with grade when is_integer(grade) <- command.grade,
+         class_number when is_integer(class_number) <- command.class_number,
+         number when is_integer(number) <- command.student_number_in_class do
+      "#{grade}#{class_number}#{number |> Integer.to_string() |> String.pad_leading(2, "0")}"
+    else
+      _ -> nil
+    end
   end
 
   defp student_event_account_attrs(event) do
@@ -389,45 +515,27 @@ defmodule CoworkUser.Accounts do
     ]
 
     Enum.reduce(mappings, %{}, fn {key, field}, acc ->
-      if Map.has_key?(event, key) do
-        Map.put(acc, field, Map.get(event, key))
-      else
-        acc
-      end
+      if Map.has_key?(event, key), do: Map.put(acc, field, event[key]), else: acc
     end)
     |> maybe_put_student_number(event)
   end
 
-  defp maybe_put_student_number(attrs, event) do
-    cond do
-      not is_nil(Map.get(event, "student_number")) ->
-        Map.put(attrs, :student_number, normalize_student_number(Map.get(event, "student_number")))
-
-      has_student_number_parts?(event) ->
-        Map.put(attrs, :student_number, build_student_number(event))
-
-      Map.has_key?(event, "student_number") ->
-        Map.put(attrs, :student_number, nil)
-
-      true ->
-        attrs
-    end
-  end
-
-  defp build_student_number(attrs) do
-    with {:ok, grade} <- get_int(attrs, "grade"),
-         {:ok, class_number} <- get_int(attrs, "class_number", "class_num"),
-         {:ok, student_number_in_class} <- get_int(attrs, "student_number_in_class", "number") do
-      "#{grade}#{class_number}#{student_number_in_class |> Integer.to_string() |> String.pad_leading(2, "0")}"
+  defp parse_student_event_time(event) do
+    with occurred_at when is_binary(occurred_at) <-
+           Map.get(event, "occurred_at") || Map.get(event, "occurredAt"),
+         {:ok, parsed, _offset} <- DateTime.from_iso8601(occurred_at) do
+      {:ok, DateTime.truncate(parsed, :microsecond)}
     else
-      _ -> nil
+      _ -> {:error, :invalid_occurred_at}
     end
   end
 
-  defp has_student_number_parts?(event) do
-    Map.has_key?(event, "grade") and
-      (Map.has_key?(event, "class_number") or Map.has_key?(event, "class_num")) and
-      (Map.has_key?(event, "student_number_in_class") or Map.has_key?(event, "number"))
+  defp maybe_put_student_number(attrs, event) do
+    if Map.has_key?(event, "student_number") do
+      Map.put(attrs, :student_number, normalize_student_number(event["student_number"]))
+    else
+      attrs
+    end
   end
 
   defp normalize_student_number(nil), do: nil
@@ -435,29 +543,9 @@ defmodule CoworkUser.Accounts do
   defp normalize_student_number(value) when is_binary(value), do: value
   defp normalize_student_number(value), do: to_string(value)
 
-  defp get_int(map, key), do: get_int(map, key, nil)
-
-  defp get_int(map, key, fallback_key) do
-    value =
-      case Map.fetch(map, key) do
-        {:ok, value} -> value
-        :error when is_binary(fallback_key) -> Map.get(map, fallback_key)
-        :error -> nil
-      end
-
-    case value do
-      nil -> {:error, :missing}
-      value when is_integer(value) -> {:ok, value}
-      value when is_binary(value) ->
-        case Integer.parse(value) do
-          {parsed, ""} -> {:ok, parsed}
-          _ -> {:error, :invalid}
-        end
-
-      _ ->
-        {:error, :invalid}
-    end
-  end
+  defp blank?(nil), do: true
+  defp blank?(""), do: true
+  defp blank?(_), do: false
 
   defp query_display_names([]), do: []
 
@@ -469,7 +557,7 @@ defmodule CoworkUser.Accounts do
   end
 
   defp profile_with_account_query do
-    from p in Profile, join: a in assoc(p, :account)
+    from(p in Profile, join: a in assoc(p, :account))
   end
 
   defp fetch_cached_display_names([]), do: %{}
@@ -494,8 +582,11 @@ defmodule CoworkUser.Accounts do
 
   defp put_if_cached(acc, id, json) do
     case Jason.decode(json) do
-      {:ok, %{"name" => name, "nickname" => nickname}} -> Map.put(acc, id, %{id: id, name: name, nickname: nickname})
-      _ -> acc
+      {:ok, %{"name" => name, "nickname" => nickname}} ->
+        Map.put(acc, id, %{id: id, name: name, nickname: nickname})
+
+      _ ->
+        acc
     end
   end
 
@@ -503,7 +594,14 @@ defmodule CoworkUser.Accounts do
     rows
     |> Enum.map(fn row ->
       payload = Jason.encode!(%{name: row.name, nickname: row.nickname})
-      ["SET", display_name_cache_key(row.id), payload, "EX", Integer.to_string(@display_name_cache_ttl_seconds)]
+
+      [
+        "SET",
+        display_name_cache_key(row.id),
+        payload,
+        "EX",
+        Integer.to_string(@display_name_cache_ttl_seconds)
+      ]
     end)
     |> persist_cache_commands()
   end
@@ -511,7 +609,13 @@ defmodule CoworkUser.Accounts do
   defp cache_not_found(ids) do
     ids
     |> Enum.map(fn id ->
-      ["SET", display_name_cache_key(id), @not_found_marker, "EX", Integer.to_string(@display_name_not_found_ttl_seconds)]
+      [
+        "SET",
+        display_name_cache_key(id),
+        @not_found_marker,
+        "EX",
+        Integer.to_string(@display_name_not_found_ttl_seconds)
+      ]
     end)
     |> persist_cache_commands()
   end
@@ -520,7 +624,9 @@ defmodule CoworkUser.Accounts do
 
   defp persist_cache_commands(commands) do
     case Redix.pipeline(:redix, commands) do
-      {:ok, _results} -> :ok
+      {:ok, _results} ->
+        :ok
+
       {:error, reason} ->
         Logger.warning("표시 이름 캐시 저장 실패: #{inspect(reason)}")
         :ok
@@ -538,18 +644,6 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  defp replace_roles(multi, profile_id, roles) do
-    multi
-    |> Multi.delete_all(:delete_roles, from(pr in ProfileRole, where: pr.profile_id == ^profile_id))
-    |> Multi.run(:insert_roles, fn repo, _changes ->
-      if roles == [] do
-        {:ok, {0, nil}}
-      else
-        {:ok, repo.insert_all(ProfileRole, Enum.map(roles, &%{profile_id: profile_id, role: &1}))}
-      end
-    end)
-  end
-
   defp normalize_roles(nil), do: []
 
   defp normalize_roles(roles) when is_list(roles) do
@@ -561,33 +655,20 @@ defmodule CoworkUser.Accounts do
     |> Enum.sort()
   end
 
-  defp validate_upsert(attrs) do
-    required = ~w(name email sex major role)a
-
-    case Enum.find(required, fn key -> blank?(Map.get(attrs, Atom.to_string(key))) end) do
-      nil -> :ok
-      key -> {:error, {:validation, "#{key} 값이 필요합니다."}}
-    end
-  end
-
-  defp blank?(nil), do: true
-  defp blank?(""), do: true
-  defp blank?(_), do: false
-
   defp maybe_like(query, _field, value, _source) when value in [nil, ""], do: query
 
   defp maybe_like(query, field, value, :account) do
-    from [p, a] in query, where: like(field(a, ^field), ^"%#{value}%")
+    from([p, a] in query, where: like(field(a, ^field), ^"%#{value}%"))
   end
 
   defp maybe_like(query, field, value, :profile) do
-    from [p, _a] in query, where: like(field(p, ^field), ^"%#{value}%")
+    from([p, _a] in query, where: like(field(p, ^field), ^"%#{value}%"))
   end
 
   defp maybe_equals(query, _field, value, _source) when value in [nil, ""], do: query
 
   defp maybe_equals(query, field, value, :account) do
-    from [p, a] in query, where: field(a, ^field) == ^value
+    from([p, a] in query, where: field(a, ^field) == ^value)
   end
 
   defp maybe_query(query, value) when value in [nil, ""], do: query
@@ -595,7 +676,7 @@ defmodule CoworkUser.Accounts do
   defp maybe_query(query, q) do
     escaped = String.replace(q, ~r/[%_\\]/, &("\\" <> &1))
     pattern = "%#{escaped}%"
-    from [p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern)
+    from([p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern))
   end
 
   defp maybe_user_ids(query, nil), do: query
@@ -603,13 +684,13 @@ defmodule CoworkUser.Accounts do
   defp maybe_user_ids(query, []), do: from([_p, a] in query, where: false)
 
   defp maybe_user_ids(query, ids) when is_list(ids) do
-    from [_p, a] in query, where: a.id in ^ids
+    from([_p, a] in query, where: a.id in ^ids)
   end
 
   defp maybe_user_ids(query, ids_str) when is_binary(ids_str) do
     case parse_int_csv(ids_str) do
-      [] -> from [_p, a] in query, where: false
-      ids -> from [_p, a] in query, where: a.id in ^ids
+      [] -> from([_p, a] in query, where: false)
+      ids -> from([_p, a] in query, where: a.id in ^ids)
     end
   end
 
@@ -637,10 +718,11 @@ defmodule CoworkUser.Accounts do
   defp maybe_role(query, ""), do: query
 
   defp maybe_role(query, role) do
-    from [p, _a] in query,
+    from([p, _a] in query,
       join: pr in ProfileRole,
       on: pr.profile_id == p.id,
       where: pr.role == ^role
+    )
   end
 
   defp sort_clause("name", "desc"), do: [desc: dynamic([_p, a], a.name)]
@@ -655,7 +737,9 @@ defmodule CoworkUser.Accounts do
   defp to_user_response(profile) do
     image_url =
       case profile.profile_image_key do
-        nil -> nil
+        nil ->
+          nil
+
         key ->
           case ObjectStorage.presigned_get_url(key) do
             {:ok, url} -> url
@@ -675,6 +759,7 @@ defmodule CoworkUser.Accounts do
       major: profile.account.major,
       specialty: profile.account.specialty,
       status: profile.account.status,
+      custom_status: profile.account.custom_status,
       status_message: profile.account.status_message,
       status_expires_at: profile.account.status_expires_at,
       profile_image_url: image_url,

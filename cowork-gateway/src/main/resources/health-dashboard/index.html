@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- TODO(temporary health dashboard): Remove this file with the temporary /health dashboard. -->
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Cowork Service Health</title>
+  <link rel="stylesheet" href="/health/health.css">
+  <script src="/health/health.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <h1><span>COWORK /</span> SERVICE HEALTH</h1>
+      <button id="refresh" class="refresh" type="button">다시 확인</button>
+    </header>
+
+    <div class="readout" aria-live="polite" aria-atomic="true">
+      <p id="meta" class="meta">서비스 상태를 확인하고 있어요.</p>
+    </div>
+
+    <section id="signal-board" class="signal-board" aria-label="모듈별 서비스 상태" aria-busy="true">
+      <p id="empty-state" class="empty-state">서비스 상태를 확인하고 있어요.</p>
+      <ul id="service-list" class="service-list" hidden></ul>
+    </section>
+  </main>
+</body>
+</html>

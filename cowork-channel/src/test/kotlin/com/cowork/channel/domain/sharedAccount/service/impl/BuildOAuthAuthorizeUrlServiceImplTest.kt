@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
+import org.springframework.web.util.UriComponentsBuilder
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.Optional
@@ -136,5 +137,9 @@ class BuildOAuthAuthorizeUrlServiceImplTest {
         assertTrue(url.startsWith("https://github.com/login/oauth/authorize"))
         assertTrue(url.contains("client_id=gh-id"))
         assertTrue(url.contains("state="))
+        assertEquals(
+            "https://example.com/api/channel/channels/oauth/callback/github",
+            UriComponentsBuilder.fromUriString(url).build().queryParams.getFirst("redirect_uri"),
+        )
     }
 }

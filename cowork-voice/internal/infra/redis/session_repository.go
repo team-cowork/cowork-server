@@ -145,8 +145,13 @@ func (r *cachedSessionRepository) EndSession(ctx context.Context, sessionID stri
 	return ended, nil
 }
 
-func (r *cachedSessionRepository) MarkSessionStarted(ctx context.Context, sessionID string, startedAt time.Time) (bool, error) {
-	updated, err := r.mongo.MarkSessionStarted(ctx, sessionID, startedAt)
+func (r *cachedSessionRepository) MarkSessionStartedAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	startedAt time.Time,
+	event any,
+) (bool, error) {
+	updated, err := r.mongo.MarkSessionStartedAndEnqueue(ctx, sessionID, startedAt, event)
 	if err != nil {
 		return false, err
 	}
@@ -163,20 +168,62 @@ func (r *cachedSessionRepository) MarkSessionStarted(ctx context.Context, sessio
 	return true, nil
 }
 
-func (r *cachedSessionRepository) InsertParticipant(ctx context.Context, p *room.VoiceParticipant) error {
-	return r.mongo.InsertParticipant(ctx, p)
+func (r *cachedSessionRepository) RecordParticipantJoinedAndEnqueue(
+	ctx context.Context,
+	p *room.VoiceParticipant,
+	occurrenceID string,
+	event any,
+) (bool, error) {
+	return r.mongo.RecordParticipantJoinedAndEnqueue(ctx, p, occurrenceID, event)
 }
 
-func (r *cachedSessionRepository) MarkParticipantLeft(ctx context.Context, sessionID string, userID int64, now time.Time) (bool, error) {
-	return r.mongo.MarkParticipantLeft(ctx, sessionID, userID, now)
+func (r *cachedSessionRepository) MarkParticipantLeftAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+	now time.Time,
+	event any,
+) (bool, error) {
+	return r.mongo.MarkParticipantLeftAndEnqueue(ctx, sessionID, userID, occurrenceID, now, event)
 }
 
 func (r *cachedSessionRepository) CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error) {
 	return r.mongo.CleanupOrphanParticipants(ctx, sessionID, now)
 }
 
-func (r *cachedSessionRepository) GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64) (*time.Time, error) {
-	return r.mongo.GetParticipantJoinedAt(ctx, sessionID, userID)
+func (r *cachedSessionRepository) GetParticipantJoinedAt(
+	ctx context.Context,
+	sessionID string,
+	userID int64,
+	occurrenceID string,
+) (*time.Time, error) {
+	return r.mongo.GetParticipantJoinedAt(ctx, sessionID, userID, occurrenceID)
+}
+
+func (r *cachedSessionRepository) EndSessionAndEnqueue(
+	ctx context.Context,
+	sessionID string,
+	endedAt time.Time,
+	event any,
+) (bool, error) {
+	s, err := r.getFromCache(ctx, sessionKey(sessionID))
+	if err != nil {
+		slog.Warn("redis: EndSessionAndEnqueue cache lookup failed", "err", err, "session_id", sessionID)
+	}
+	if s == nil {
+		if stored, lookupErr := r.mongo.GetSession(ctx, sessionID); lookupErr == nil {
+			s = stored
+		}
+	}
+	ended, err := r.mongo.EndSessionAndEnqueue(ctx, sessionID, endedAt, event)
+	if err != nil {
+		return false, err
+	}
+	if ended && s != nil {
+		r.evictSession(ctx, s)
+	}
+	return ended, nil
 }
 
 // Ping verifies connectivity to Redis.
