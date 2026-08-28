@@ -6,17 +6,17 @@
 
 ## 진행 상태 (2026-08-20)
 
-| 단계 | 상태 |
-|---|---|
-| 1. 외부 Git·운영 env property inventory | ❌ 미수행 (외부 저장소 접근 불가) |
-| 2. key 분류 (native / Vault / topology / client env) | ✅ 완료 |
-| 3. `cowork-*-prod.yml` 11개 추가 | ✅ 완료 |
-| 4. 런타임별 placeholder·우선순위 보완 | ✅ 완료 |
-| 5. prod composite Git → native 교체 | ✅ 완료 |
-| 6. `CONFIG_GIT_*` 제거 | ✅ 완료 |
-| 7. 문서 갱신 | ✅ 완료 |
-| 8. staging 검증 후 단계적 전환 | ❌ 미수행 |
-| 9. 외부 Git 저장소·자격 증명 폐기 | ❌ 미수행 |
+| 단계                                                 | 상태                              |
+|------------------------------------------------------|-----------------------------------|
+| 1. 외부 Git·운영 env property inventory              | ❌ 미수행 (외부 저장소 접근 불가) |
+| 2. key 분류 (native / Vault / topology / client env) | ✅ 완료                           |
+| 3. `cowork-*-prod.yml` 11개 추가                     | ✅ 완료                           |
+| 4. 런타임별 placeholder·우선순위 보완                | ✅ 완료                           |
+| 5. prod composite Git → native 교체                  | ✅ 완료                           |
+| 6. `CONFIG_GIT_*` 제거                               | ✅ 완료                           |
+| 7. 문서 갱신                                         | ✅ 완료                           |
+| 8. staging 검증 후 단계적 전환                       | ❌ 미수행                         |
+| 9. 외부 Git 저장소·자격 증명 폐기                    | ❌ 미수행                         |
 
 > **2026-08-28:** 남은 1·8·9는 모두 외부 저장소 접근과 staging 배포가 필요한 작업이라
 > 저장소 안에서 진행할 수 있는 단계는 없다.
@@ -29,9 +29,9 @@
 
 Config Server는 native 설정의 `${...}`를 **해석하지 않고 그대로 클라이언트에 전달한다.** 따라서 런타임별로 사용 방식이 다르다.
 
-| 구분 | 서비스 | 규칙 |
-|---|---|---|
-| Spring | gateway, channel, project, roadmap, team, preference | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}` 사용 가능. 기본값이 없는 이름은 Config Server `overrides`에 등록해 응답에 포함시켜야 한다. |
+| 구분     | 서비스                                                                | 규칙                                                                                                                                                                                 |
+|----------|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Spring   | gateway, channel, project, roadmap, team, preference                  | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}` 사용 가능. 기본값이 없는 이름은 Config Server `overrides`에 등록해 응답에 포함시켜야 한다.                               |
 | 비Spring | authorization, notification, voice (Go), chat (NestJS), user (Elixir) | 원격 문자열의 placeholder를 해석하지 않는다. **리터럴 값만 사용한다.** 배포 환경에서 바꿔야 하는 값은 `overrides`에 같은 키 이름으로 등록하거나 해당 컨테이너의 환경변수로 덮어쓴다. |
 
 `overrides`에 등록된 flat 키는 Spring 클라이언트의 placeholder 해석 소스가 되는 동시에, 비Spring 클라이언트가 키 이름으로 직접 읽는 값이 된다. 현재 등록 대상은 `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL`이다.
@@ -59,12 +59,12 @@ staging에서 기동을 검증한 뒤 기존 저장소와 자격 증명을 폐�
 
 현재 설정 소유권은 다음과 같다.
 
-| 설정 종류 | 목표 공급원 | 예시 |
-|---|---|---|
-| 시크릿 | Vault | DB 자격 증명, JWT 키, OAuth client secret, LiveKit·SeaweedFS 자격 증명 |
-| 버전 관리할 일반 설정 | `cowork-config` classpath native | 포트, topic 이름, timeout, 기능 제한값, 고정된 provider endpoint |
-| 배포 토폴로지 공유값 | 배포 환경 또는 배포별 native 값 | Kafka·Redis·DB·SeaweedFS·Elasticsearch 주소, 보류된 GitHub App endpoint |
-| 인스턴스별 값 | 각 Config Client의 환경변수 | Eureka instance host/port, 인스턴스마다 다른 공개 URL |
+| 설정 종류             | 목표 공급원                      | 예시                                                                    |
+|-----------------------|----------------------------------|-------------------------------------------------------------------------|
+| 시크릿                | Vault                            | DB 자격 증명, JWT 키, OAuth client secret, LiveKit·SeaweedFS 자격 증명  |
+| 버전 관리할 일반 설정 | `cowork-config` classpath native | 포트, topic 이름, timeout, 기능 제한값, 고정된 provider endpoint        |
+| 배포 토폴로지 공유값  | 배포 환경 또는 배포별 native 값  | Kafka·Redis·DB·SeaweedFS·Elasticsearch 주소, 보류된 GitHub App endpoint |
+| 인스턴스별 값         | 각 Config Client의 환경변수      | Eureka instance host/port, 인스턴스마다 다른 공개 URL                   |
 
 ## 남은 외부 검증
 
@@ -80,19 +80,19 @@ staging에서 기동을 검증한 뒤 기존 저장소와 자격 증명을 폐�
 
 아래 11개 application의 `cowork-{service}-prod.yml`을 현재 관리한다. `cowork-promotion`은 Config Client가 아니므로 대상에서 제외한다.
 
-| application | prod에서 확인할 일반·토폴로지 설정 |
-|---|---|
-| `cowork-authorization` | DataGSM endpoint, Kafka, JWT 만료 시간, Eureka instance |
-| `cowork-channel` | MySQL, Kafka, Eureka, AccountShare callback/redirect와 provider endpoint |
-| `cowork-chat` | Elasticsearch, MongoDB, Kafka, Redis, SeaweedFS, Eureka, 업로드 제한 |
-| `cowork-gateway` | 전체 route, CORS, Redis, Kafka, Eureka, Swagger, circuit breaker |
-| `cowork-notification` | Kafka, Firebase 파일 경로, Eureka instance |
-| `cowork-preference` | PostgreSQL, Redis, Kafka, Eureka instance |
-| `cowork-project` | MySQL, Kafka, Eureka, GitHub App service URL |
-| `cowork-roadmap` | R2DBC·Flyway MySQL, Kafka, Eureka |
-| `cowork-team` | MySQL, Kafka, SeaweedFS 내부·공개 endpoint, Eureka |
-| `cowork-user` | MySQL, Kafka, Redis, SeaweedFS, Eureka instance |
-| `cowork-voice` | MongoDB, Redis, LiveKit API·WebSocket, Kafka, Eureka instance |
+| application            | prod에서 확인할 일반·토폴로지 설정                                       |
+|------------------------|--------------------------------------------------------------------------|
+| `cowork-authorization` | DataGSM endpoint, Kafka, JWT 만료 시간, Eureka instance                  |
+| `cowork-channel`       | MySQL, Kafka, Eureka, AccountShare callback/redirect와 provider endpoint |
+| `cowork-chat`          | Elasticsearch, MongoDB, Kafka, Redis, SeaweedFS, Eureka, 업로드 제한     |
+| `cowork-gateway`       | 전체 route, CORS, Redis, Kafka, Eureka, Swagger, circuit breaker         |
+| `cowork-notification`  | Kafka, Firebase 파일 경로, Eureka instance                               |
+| `cowork-preference`    | PostgreSQL, Redis, Kafka, Eureka instance                                |
+| `cowork-project`       | MySQL, Kafka, Eureka, GitHub App service URL                             |
+| `cowork-roadmap`       | R2DBC·Flyway MySQL, Kafka, Eureka                                        |
+| `cowork-team`          | MySQL, Kafka, SeaweedFS 내부·공개 endpoint, Eureka                       |
+| `cowork-user`          | MySQL, Kafka, Redis, SeaweedFS, Eureka instance                          |
+| `cowork-voice`         | MongoDB, Redis, LiveKit API·WebSocket, Kafka, Eureka instance            |
 
 공통 `configs/application.yml`에 있는 Kafka와 Eureka localhost 기본값도 prod에서 실수로 사용되지 않도록 함께 점검한다.
 
