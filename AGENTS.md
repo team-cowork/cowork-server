@@ -6,22 +6,22 @@ Team collaboration platform backend — polyglot microservices monorepo.
 
 Language and framework details live in each module's build file — read that, not this table, for versions and dependencies. What the table records is the part you cannot infer from any single file: **which build system owns the module**.
 
-| Module | Language | Built by |
-|---|---|---|
-| `cowork-gateway` | Kotlin | Gradle |
-| `cowork-config` | Kotlin | Gradle |
-| `cowork-channel` | Kotlin | Gradle |
-| `cowork-team` | Kotlin | Gradle |
-| `cowork-roadmap` | Java | Gradle |
-| `cowork-project` | Kotlin | **Maven** — `pom.xml` is the source of truth; `build.gradle.kts` only delegates to `mvnw` |
-| `cowork-preference` | Kotlin (Vert.x) | **Amper** — `module.yaml` is the source of truth; `build.gradle.kts` only delegates to the Kotlin CLI |
-| `cowork-user` | Elixir (Plug/Cowboy + Ecto — no Phoenix) | Mix |
-| `cowork-authorization` | Go (Chi) | Go modules + per-module `Makefile` |
-| `cowork-notification` | Go (Gin) | Go modules + per-module `Makefile` |
-| `cowork-voice` | Go (Chi, LiveKit) | Go modules + per-module `Makefile` |
-| `cowork-chat` | TypeScript (NestJS) | npm |
-| `cowork-promotion` | TypeScript (static site, no framework) | npm + `scripts/build.mjs` |
-| `cowork-monitoring` | — | Prometheus/Grafana/Loki/Alertmanager config only |
+| Module                 | Language                                 | Built by                                                                                              |
+|------------------------|------------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `cowork-gateway`       | Kotlin                                   | Gradle                                                                                                |
+| `cowork-config`        | Kotlin                                   | Gradle                                                                                                |
+| `cowork-channel`       | Kotlin                                   | Gradle                                                                                                |
+| `cowork-team`          | Kotlin                                   | Gradle                                                                                                |
+| `cowork-roadmap`       | Java                                     | Gradle                                                                                                |
+| `cowork-project`       | Kotlin                                   | **Maven** — `pom.xml` is the source of truth; `build.gradle.kts` only delegates to `mvnw`             |
+| `cowork-preference`    | Kotlin (Vert.x)                          | **Amper** — `module.yaml` is the source of truth; `build.gradle.kts` only delegates to the Kotlin CLI |
+| `cowork-user`          | Elixir (Plug/Cowboy + Ecto — no Phoenix) | Mix                                                                                                   |
+| `cowork-authorization` | Go (Chi)                                 | Go modules + per-module `Makefile`                                                                    |
+| `cowork-notification`  | Go (Gin)                                 | Go modules + per-module `Makefile`                                                                    |
+| `cowork-voice`         | Go (Chi, LiveKit)                        | Go modules + per-module `Makefile`                                                                    |
+| `cowork-chat`          | TypeScript (NestJS)                      | npm                                                                                                   |
+| `cowork-promotion`     | TypeScript (static site, no framework)   | npm + `scripts/build.mjs`                                                                             |
+| `cowork-monitoring`    | —                                        | Prometheus/Grafana/Loki/Alertmanager config only                                                      |
 
 `settings.gradle.kts` includes only the seven JVM modules; a directory absent from it is not a Gradle project. `scripts/bump.sh` (`make bump`) stamps the release version into every build file — add a new module there when you create one.
 
