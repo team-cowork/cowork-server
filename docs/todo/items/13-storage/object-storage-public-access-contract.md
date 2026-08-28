@@ -21,11 +21,11 @@ URL도 서명한다. 외부 클라이언트가 internal hostname에 접근할 �
 
 객체 종류별로 아래 선택지 중 하나를 명시한다.
 
-| 객체 종류 | 공개 GET 후보 | 인증/인가 GET 후보 | 결정 시 확인할 점 |
-|---|---|---|---|
-| team icon | 영구 public URL 또는 public prefix | 짧은 presigned GET | 캐시·공개 프로필 범위 |
-| user profile image | public URL 또는 presigned GET | 사용자/팀 가시성 검사 후 presigned GET | 현재 응답에서 URL 재발급 방식 |
-| chat attachment | 공개 URL | 채널 권한 검사 후 proxy 또는 presigned GET | 채널 탈퇴·메시지 삭제 후 접근 차단 |
+| 객체 종류          | 공개 GET 후보                      | 인증/인가 GET 후보                         | 결정 시 확인할 점                  |
+|--------------------|------------------------------------|--------------------------------------------|------------------------------------|
+| team icon          | 영구 public URL 또는 public prefix | 짧은 presigned GET                         | 캐시·공개 프로필 범위              |
+| user profile image | public URL 또는 presigned GET      | 사용자/팀 가시성 검사 후 presigned GET     | 현재 응답에서 URL 재발급 방식      |
+| chat attachment    | 공개 URL                           | 채널 권한 검사 후 proxy 또는 presigned GET | 채널 탈퇴·메시지 삭제 후 접근 차단 |
 
 - 공개 객체와 비공개 객체를 별도 bucket으로 나눌지, 하나의 bucket 안에서 prefix별 policy를 적용할지
   결정한다.
