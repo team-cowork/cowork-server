@@ -23,3 +23,4 @@ export class ChannelProjection {
 export const ChannelProjectionSchema = SchemaFactory.createForClass(ChannelProjection);
 ChannelProjectionSchema.index({ channelId: 1 }, { unique: true });
 ChannelProjectionSchema.index({ teamId: 1, position: 1, channelId: 1 });
+ChannelProjectionSchema.index({ projectId: 1, deleted: 1, channelId: 1 });

@@ -10,6 +10,7 @@ import { GithubRepoEvent } from './event/github-repo.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 /** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
 const MESSAGE_CONTENT_MAX_LENGTH = 25000;
@@ -34,6 +35,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
         private readonly projectionReadiness: ProjectionReadinessService,
+        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
     ) {}
 
     /**
@@ -124,7 +126,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         for (const target of targets) {
             const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary, target.projectId);
-            this.notifyClient(target.channelId, saved.toObject());
+            await this.notifyClient(target.channelId, saved.toObject());
         }
     }
 
@@ -174,11 +176,11 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      * @param channelId - 브로드캐스트 대상 채널 ID
      * @param message - 전송할 메시지 객체
      */
-    private notifyClient(channelId: number, message: unknown): void {
+    private async notifyClient(channelId: number, message: unknown): Promise<void> {
         if (!this.io) {
             this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
             return;
         }
-        this.io.to(`chat:${channelId}`).emit('message', message);
+        await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, 'message', message);
     }
 }
