@@ -19,6 +19,9 @@ import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
+import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
+import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
+import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
 import { JoinChannelDto } from './dto/join-channel.dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { getOptionalConfig } from '../common/config/config.util';
@@ -83,6 +86,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly channelEventConsumer: ChannelEventConsumer,
         private readonly projectEventConsumer: ProjectEventConsumer,
         private readonly membershipConsumer: MembershipConsumer,
+        private readonly teamRoleEventConsumer: TeamRoleEventConsumer,
+        private readonly channelRolePolicyEventConsumer: ChannelRolePolicyEventConsumer,
+        private readonly teamMemberEventConsumer: TeamMemberEventConsumer,
         private readonly configService: ConfigService,
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
@@ -123,6 +129,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.channelEventConsumer.setSocketServer(server);
         this.projectEventConsumer.setSocketServer(server);
         this.membershipConsumer.setSocketServer(server);
+        this.membershipConsumer.setReadAccessEvaluator((channelId, userId) =>
+            this.chatService.isMember(channelId, userId));
+        this.membershipConsumer.setReadableEmitter((channelId, event, payload) =>
+            this.chatService.emitToReadableChannelUsers(channelId, event, payload));
+        this.teamRoleEventConsumer.setSocketServer(server);
+        this.channelRolePolicyEventConsumer.setSocketServer(server);
+        this.teamMemberEventConsumer.setSocketServer(server);
     }
 
     /**
@@ -252,17 +265,27 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         if (!payload || !isSafePositiveInteger(payload.channelId)) return;
         const room = `chat:${payload.channelId}`;
         if (!client.rooms.has(room)) return;
+        if (!(await this.chatService.isMember(payload.channelId, client.data.userId))) {
+            await client.leave(room);
+            client.emit('channel:access:revoked', { channelId: payload.channelId });
+            return;
+        }
         const allowed = await this.rateLimiter.tryAcquire(
             `${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
             this.typingRateLimitWindowMs,
             this.typingRateLimitMaxRequests,
         );
         if (!allowed) return;
-        client.to(room).emit('typing', {
-            channelId: payload.channelId,
-            userId: client.data.userId,
-            isTyping,
-        });
+        await this.chatService.emitToReadableChannelUsers(
+            payload.channelId,
+            'typing',
+            {
+                channelId: payload.channelId,
+                userId: client.data.userId,
+                isTyping,
+            },
+            client.id,
+        );
     }
 
     /**
