@@ -22,3 +22,20 @@ data class AccountTeamRole(
     val sourceMembershipVersion: Instant? = null,
     val updatedAt: OffsetDateTime? = null,
 )
+
+data class TeamRoleState(
+    val teamId: Long,
+    val roleId: Long,
+    val role: TeamRoleDefinition?,
+    val stateOccurredAt: Instant,
+)
+
+data class TeamRoleAssignmentState(
+    val teamId: Long,
+    val accountId: Long,
+    val roleId: Long,
+    val assignment: AccountTeamRole?,
+    val stateOccurredAt: Instant,
+)
+
+data class TeamRoleMemberFence(val teamId: Long, val accountId: Long, val stateOccurredAt: Instant)
