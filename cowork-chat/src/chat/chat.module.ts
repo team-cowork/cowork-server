@@ -23,6 +23,8 @@ import { ProjectMemberEventConsumer } from './kafka/project-member-event.consume
 import { ProjectGithubRepoEventConsumer } from './kafka/project-github-repo-event.consumer';
 import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
 import { UserProfileEventConsumer } from './kafka/user-profile-event.consumer';
+import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
+import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
 import { ProjectClient } from './service/project.client';
 import { UnreadCounterService } from './service/unread-counter.service';
 import { ChannelClient } from './service/channel.client';
@@ -40,6 +42,16 @@ import {
 } from './schema/project-github-repo-projection.schema';
 import { TeamMemberProjection, TeamMemberProjectionSchema } from './schema/team-member-projection.schema';
 import { UserProfileProjection, UserProfileProjectionSchema } from './schema/user-profile-projection.schema';
+import { TeamRoleProjection, TeamRoleProjectionSchema } from './schema/team-role-projection.schema';
+import {
+    TeamRoleAssignmentProjection,
+    TeamRoleAssignmentProjectionSchema,
+} from './schema/team-role-assignment-projection.schema';
+import { TeamRoleMemberTombstone, TeamRoleMemberTombstoneSchema } from './schema/team-role-member-tombstone.schema';
+import {
+    ChannelRolePolicyProjection,
+    ChannelRolePolicyProjectionSchema,
+} from './schema/channel-role-policy-projection.schema';
 import { MessageRepository } from './repository/message.repository';
 import { ChannelMemberRepository } from './repository/channel-member.repository';
 import { ChannelProjectionRepository } from './repository/channel-projection.repository';
@@ -48,6 +60,9 @@ import { ProjectProjectionRepository } from './repository/project-projection.rep
 import { ProjectGithubRepoProjectionRepository } from './repository/project-github-repo-projection.repository';
 import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
 import { UserProfileProjectionRepository } from './repository/user-profile-projection.repository';
+import { TeamRoleProjectionRepository } from './repository/team-role-projection.repository';
+import { ChannelRolePolicyProjectionRepository } from './repository/channel-role-policy-projection.repository';
+import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
 import { MembershipModule } from '../membership/membership.module';
 import { BlockModule } from '../block/block.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
@@ -77,6 +92,10 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             { name: ProjectGithubRepoProjection.name, schema: ProjectGithubRepoProjectionSchema },
             { name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema },
             { name: UserProfileProjection.name, schema: UserProfileProjectionSchema },
+            { name: TeamRoleProjection.name, schema: TeamRoleProjectionSchema },
+            { name: TeamRoleAssignmentProjection.name, schema: TeamRoleAssignmentProjectionSchema },
+            { name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema },
+            { name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema },
         ]),
         DicoshotModule.registerAsync({
             imports: [ConfigModule],
@@ -113,6 +132,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ProjectGithubRepoEventConsumer,
         TeamMemberEventConsumer,
         UserProfileEventConsumer,
+        TeamRoleEventConsumer,
+        ChannelRolePolicyEventConsumer,
         ProjectClient,
         UnreadCounterService,
         ChannelClient,
@@ -124,6 +145,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ProjectGithubRepoProjectionRepository,
         TeamMemberProjectionRepository,
         UserProfileProjectionRepository,
+        TeamRoleProjectionRepository,
+        ChannelRolePolicyProjectionRepository,
+        ChannelMessageReadAccessService,
         UnifiedSearchResolver,
         RedisRateLimiter,
         ThrottleGuard,
