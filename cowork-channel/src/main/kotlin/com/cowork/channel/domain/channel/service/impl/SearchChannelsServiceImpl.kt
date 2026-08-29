@@ -4,6 +4,7 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.SearchChannelsService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -11,12 +12,16 @@ import org.springframework.transaction.annotation.Transactional
 class SearchChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
+    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : SearchChannelsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
-        return channelRepository.searchByTeamIdAndName(teamId, q).map { ChannelResponse.of(it) }
+        val structurallyVisible = channelRepository.searchVisibleByTeamIdAndName(teamId, userId, q)
+        return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
+            ChannelResponse.of(it)
+        }
     }
 }
