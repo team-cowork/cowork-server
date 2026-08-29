@@ -21,6 +21,7 @@ data class KafkaConfig(
     val teamMemberTopic: String,
     val teamRoleCommandConsumerGroupId: String,
     val githubRepoSettingCommandConsumerGroupId: String,
+    val channelRolePolicyCommandConsumerGroupId: String,
 )
 
 data class AppConfig(
@@ -91,6 +92,10 @@ data class AppConfig(
                     githubRepoSettingCommandConsumerGroupId = kafka.getString(
                         "github-repo-setting-command-consumer-group-id",
                         "cowork-preference-github-repo-setting-command",
+                    ),
+                    channelRolePolicyCommandConsumerGroupId = kafka.getString(
+                        "channel-role-policy-command-consumer-group-id",
+                        "cowork-preference-channel-role-policy-command",
                     ),
                 ),
                 eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
