@@ -7,6 +7,7 @@ import { ChatService } from '../chat.service';
 import { ProjectClient } from '../service/project.client';
 import { GithubRepoEvent } from './event/github-repo.event';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 type ConsumerWithPrivates = Omit<GithubRepoEventConsumer, 'handleRepoEvent'> & {
     handleRepoEvent: (event: GithubRepoEvent) => Promise<void>;
@@ -33,6 +34,12 @@ const mockProjectionReadiness = {
 const mockEmit = jest.fn();
 const mockTo = jest.fn(() => ({ emit: mockEmit }));
 const mockIo = { to: mockTo } as unknown as Server;
+const mockChannelMessageReadAccess = {
+    emitToReadableChannelUsers: jest.fn((io: Server, channelId: number, event: string, payload: unknown) => {
+        io.to(`chat:${channelId}`).emit(event, payload);
+        return Promise.resolve();
+    }),
+};
 
 describe('GithubRepoEventConsumer', () => {
     let consumer: GithubRepoEventConsumer;
@@ -61,6 +68,7 @@ describe('GithubRepoEventConsumer', () => {
                     provide: ProjectionReadinessService,
                     useValue: mockProjectionReadiness,
                 },
+                { provide: ChannelMessageReadAccessService, useValue: mockChannelMessageReadAccess },
             ],
         }).compile();
 
@@ -185,6 +193,7 @@ describe('GithubRepoEventConsumer', () => {
                 { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
                 { sendCustom: jest.fn().mockResolvedValue(true) } as unknown as DicoshotService,
                 mockProjectionReadiness as unknown as ProjectionReadinessService,
+                mockChannelMessageReadAccess as unknown as ChannelMessageReadAccessService,
             );
             mockGetGithubWebhookTargets.mockResolvedValue([{ teamId: 1, projectId: 100, channelId: 5 }]);
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
