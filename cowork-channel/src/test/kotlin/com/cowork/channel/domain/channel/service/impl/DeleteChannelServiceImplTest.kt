@@ -27,7 +27,11 @@ class DeleteChannelServiceImplTest {
     private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
-    private val channelPermissionSupport = ChannelPermissionSupport(channelMemberRepository, teamPermission)
+    private val channelPermissionSupport = ChannelPermissionSupport(
+        channelMemberRepository,
+        teamPermission,
+        mockk(relaxed = true),
+    )
 
     private val service = DeleteChannelServiceImpl(
         channelRepository,
