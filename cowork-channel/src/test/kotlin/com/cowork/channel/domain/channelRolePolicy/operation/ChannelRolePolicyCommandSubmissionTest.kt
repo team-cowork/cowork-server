@@ -1,5 +1,6 @@
 package com.cowork.channel.domain.channelRolePolicy.operation
 
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.global.outbox.OutboxWriter
@@ -135,5 +136,33 @@ class ChannelRolePolicyCommandSubmissionTest {
 
         assertEquals(existing.operationId, response.operationId)
         verify(exactly = 0) { outboxWriter.enqueue(any(), any(), any()) }
+    }
+
+    @Test
+    fun `무시되는 입력 키와 누락된 기본값은 동일한 request hash를 생성함`() {
+        val schema = ChannelRolePolicyPermissionSchema()
+        val unknownOnly = schema.normalize(
+            mapOf("future_permission" to listOf(1, 2, 3)),
+        )
+        val missing = schema.normalize(emptyMap())
+
+        val unknownOnlyHash = submission.requestHash(
+            ChannelRolePolicyCommandType.UPSERT,
+            10L,
+            3L,
+            5L,
+            7L,
+            unknownOnly,
+        )
+        val missingHash = submission.requestHash(
+            ChannelRolePolicyCommandType.UPSERT,
+            10L,
+            3L,
+            5L,
+            7L,
+            missing,
+        )
+
+        assertEquals(missingHash, unknownOnlyHash)
     }
 }

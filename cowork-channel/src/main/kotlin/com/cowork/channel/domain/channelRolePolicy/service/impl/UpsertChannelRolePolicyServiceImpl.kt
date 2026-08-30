@@ -8,16 +8,16 @@ import com.cowork.channel.domain.channelRolePolicy.presentation.data.request.Ups
 import com.cowork.channel.domain.channelRolePolicy.presentation.data.response.ChannelRolePolicyOperationResponse
 import com.cowork.channel.domain.channelRolePolicy.service.UpsertChannelRolePolicyService
 import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyAccessSupport
-import org.springframework.http.HttpStatus
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class UpsertChannelRolePolicyServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
     private val policyAccessSupport: ChannelRolePolicyAccessSupport,
+    private val permissionSchema: ChannelRolePolicyPermissionSchema,
     private val commandSubmission: ChannelRolePolicyCommandSubmission,
 ) : UpsertChannelRolePolicyService {
     @Transactional
@@ -28,15 +28,7 @@ class UpsertChannelRolePolicyServiceImpl(
         idempotencyKey: String,
         request: UpsertChannelRolePolicyRequest,
     ): ChannelRolePolicyOperationResponse {
-        if (
-            request.permissions.keys != setOf(MESSAGE_READ_KEY) ||
-            request.permissions[MESSAGE_READ_KEY] == null
-        ) {
-            throw ExpectedException(
-                "permissions에는 message_read boolean 하나만 지정해야 합니다.",
-                HttpStatus.BAD_REQUEST,
-            )
-        }
+        val permissions = permissionSchema.normalize(request.permissions)
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         return commandSubmission.submit(
@@ -46,14 +38,10 @@ class UpsertChannelRolePolicyServiceImpl(
             channelId = channelId,
             roleId = roleId,
             actorId = actorId,
-            permissions = request.permissions,
+            permissions = permissions,
         ) {
             channelPermissionSupport.requireChannelManager(channel, actorId)
             policyAccessSupport.requireRole(teamId, roleId)
         }
-    }
-
-    private companion object {
-        const val MESSAGE_READ_KEY = "message_read"
     }
 }
