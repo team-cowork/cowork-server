@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 import java.util.UUID
@@ -122,12 +123,7 @@ object ChannelRolePolicyCommandParser {
 
     private fun parsePermissions(value: Any?): JsonObject {
         val permissions = value as? JsonObject ?: error("UPSERT permissions must be an object")
-        require(permissions.fieldNames() == setOf(MESSAGE_READ_PERMISSION)) {
-            "permissions must contain only message_read"
-        }
-        val messageRead = permissions.getValue(MESSAGE_READ_PERMISSION) as? Boolean
-            ?: error("message_read must be boolean")
-        return JsonObject().put(MESSAGE_READ_PERMISSION, messageRead)
+        return ChannelRolePolicyPermissions.canonicalize(permissions)
     }
 
     private fun requiredString(json: JsonObject, field: String): String =
@@ -147,7 +143,7 @@ object ChannelRolePolicyCommandParser {
 
     fun policyKey(teamId: Long, channelId: Long, roleId: Long): String = "policy:$teamId:$channelId:$roleId"
 
-    const val MESSAGE_READ_PERMISSION = "message_read"
+    const val MESSAGE_READ_PERMISSION = ChannelRolePolicyPermissions.MESSAGE_READ
     private val REQUEST_HASH = Regex("^[0-9a-f]{64}$")
 }
 
