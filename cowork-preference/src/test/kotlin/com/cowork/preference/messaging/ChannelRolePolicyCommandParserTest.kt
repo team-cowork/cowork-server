@@ -8,14 +8,36 @@ import org.junit.jupiter.api.Test
 class ChannelRolePolicyCommandParserTest {
 
     @Test
-    fun `valid UPSERT accepts only the message_read boolean contract`() {
-        val decision = ChannelRolePolicyCommandParser.parse(POLICY_KEY, command().encode())
+    fun `UPSERT preserves message_read and drops unknown permissions`() {
+        val payload = command().put(
+            "permissions",
+            JsonObject().put("message_read", true).put("message_write", true),
+        )
+
+        val decision = ChannelRolePolicyCommandParser.parse(POLICY_KEY, payload.encode())
 
         assertTrue(decision is ChannelRolePolicyCommandDecision.Apply)
         val parsed = (decision as ChannelRolePolicyCommandDecision.Apply).command
         assertEquals(ChannelRolePolicyCommandType.UPSERT, parsed.commandType)
-        assertEquals(false, parsed.permissions?.getBoolean("message_read"))
+        assertEquals(true, parsed.permissions?.getBoolean("message_read"))
         assertEquals(setOf("message_read"), parsed.permissions?.fieldNames())
+    }
+
+    @Test
+    fun `UPSERT defaults missing message_read to false`() {
+        val payloads = listOf(
+            command().put("permissions", JsonObject()),
+            command().put("permissions", JsonObject().put("message_write", true)),
+        )
+
+        payloads.forEach { payload ->
+            val decision = ChannelRolePolicyCommandParser.parse(POLICY_KEY, payload.encode())
+
+            assertTrue(decision is ChannelRolePolicyCommandDecision.Apply)
+            val permissions = (decision as ChannelRolePolicyCommandDecision.Apply).command.permissions
+            assertEquals(false, permissions?.getBoolean("message_read"))
+            assertEquals(setOf("message_read"), permissions?.fieldNames())
+        }
     }
 
     @Test
@@ -30,11 +52,11 @@ class ChannelRolePolicyCommandParserTest {
     }
 
     @Test
-    fun `empty unknown and non-boolean permissions are rejected with a terminal envelope`() {
+    fun `non-boolean message_read is rejected with a terminal envelope`() {
         val invalidPermissions = listOf(
-            JsonObject(),
-            JsonObject().put("message_read", false).put("message_write", true),
             JsonObject().put("message_read", "false"),
+            JsonObject().put("message_read", 0),
+            JsonObject().put("message_read", null),
         )
 
         invalidPermissions.forEach { permissions ->
@@ -42,6 +64,23 @@ class ChannelRolePolicyCommandParserTest {
                 POLICY_KEY,
                 command().put("permissions", permissions).encode(),
             )
+            assertTrue(decision is ChannelRolePolicyCommandDecision.Reject)
+        }
+    }
+
+    @Test
+    fun `missing null and non-object permissions are rejected`() {
+        val payloads = listOf(
+            command().apply { remove("permissions") },
+            command().put("permissions", null),
+            command().put("permissions", "message_read"),
+            command().put("permissions", 1),
+            command().put("permissions", listOf(false)),
+        )
+
+        payloads.forEach { payload ->
+            val decision = ChannelRolePolicyCommandParser.parse(POLICY_KEY, payload.encode())
+
             assertTrue(decision is ChannelRolePolicyCommandDecision.Reject)
         }
     }

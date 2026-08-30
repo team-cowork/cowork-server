@@ -1,6 +1,7 @@
 package com.cowork.preference.messaging
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.TeamRoleDefinition
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -165,18 +166,21 @@ object PreferenceEvents {
         permissions: JsonObject?,
         occurredAt: Instant,
         snapshot: Boolean,
-    ): PreferenceEvent = PreferenceEvent(
-        topic = CHANNEL_ROLE_POLICY_STATE_TOPIC,
-        key = ChannelRolePolicyCommandParser.policyKey(teamId, channelId, roleId),
-        payload = basePayload(if (permissions == null) "DELETE" else "UPSERT", occurredAt)
-            .put("schemaVersion", 1)
-            .put("teamId", teamId)
-            .put("channelId", channelId)
-            .put("roleId", roleId)
-            .put("permissions", permissions?.copy())
-            .put("snapshot", snapshot),
-        occurredAt = occurredAt,
-    )
+    ): PreferenceEvent {
+        val canonicalPermissions = permissions?.let(ChannelRolePolicyPermissions::canonicalize)
+        return PreferenceEvent(
+            topic = CHANNEL_ROLE_POLICY_STATE_TOPIC,
+            key = ChannelRolePolicyCommandParser.policyKey(teamId, channelId, roleId),
+            payload = basePayload(if (canonicalPermissions == null) "DELETE" else "UPSERT", occurredAt)
+                .put("schemaVersion", 1)
+                .put("teamId", teamId)
+                .put("channelId", channelId)
+                .put("roleId", roleId)
+                .put("permissions", canonicalPermissions?.copy())
+                .put("snapshot", snapshot),
+            occurredAt = occurredAt,
+        )
+    }
 
     fun channelRolePolicyCommandResult(operationId: String, result: JsonObject, occurredAt: Instant): PreferenceEvent =
         PreferenceEvent(
