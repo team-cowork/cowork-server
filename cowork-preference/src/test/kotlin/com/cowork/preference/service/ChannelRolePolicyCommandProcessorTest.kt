@@ -33,6 +33,55 @@ import java.time.OffsetDateTime
 class ChannelRolePolicyCommandProcessorTest {
 
     @Test
+    fun `UPSERT canonicalizes repository event result and inbox permissions`() = runBlocking {
+        val fixture = Fixture()
+        val rawCommand = COMMAND.copy(
+            operationId = "00000000-0000-0000-0000-000000000004",
+            idempotencyKey = "policy-default-1",
+            requestHash = "c".repeat(64),
+            permissions = JsonObject().put("message_write", true),
+        )
+        val canonicalPermissions = JsonObject().put("message_read", false)
+        val canonicalCommand = rawCommand.copy(permissions = canonicalPermissions)
+        val stateVersion = Instant.parse("2026-08-30T01:02:07.123456Z")
+        val repositoryPermissions = slot<JsonObject>()
+        val states = slot<Iterable<PreferenceEvent>>()
+        val inboxCommand = slot<ChannelRolePolicyCommand>()
+        val storedResult = slot<JsonObject>()
+        fixture.stubCommon(canonicalCommand)
+        coEvery {
+            fixture.policyRepository.upsertPolicy(
+                fixture.connection,
+                canonicalCommand.teamId,
+                canonicalCommand.channelId,
+                canonicalCommand.roleId,
+                capture(repositoryPermissions),
+            )
+        } returns ChannelRolePolicyState(
+            canonicalCommand.teamId,
+            canonicalCommand.channelId,
+            canonicalCommand.roleId,
+            canonicalPermissions.copy().put("legacy_permission", true),
+            stateVersion,
+        )
+        coEvery { fixture.outboxRepository.enqueueAll(fixture.connection, capture(states)) } returns Unit
+        coEvery { fixture.outboxRepository.enqueue(fixture.connection, any()) } returns Unit
+        coEvery {
+            fixture.inboxRepository.insert(fixture.connection, capture(inboxCommand), capture(storedResult))
+        } returns Unit
+
+        fixture.processor.process(rawCommand)
+
+        assertEquals(canonicalPermissions, repositoryPermissions.captured)
+        assertEquals(canonicalPermissions, inboxCommand.captured.permissions)
+        val statePermissions = states.captured.single().payload.getJsonObject("permissions")
+        assertEquals(canonicalPermissions, statePermissions)
+        assertEquals(canonicalPermissions, storedResult.captured.getJsonObject("permissions"))
+        assertEquals(setOf("message_read"), repositoryPermissions.captured.fieldNames())
+        assertEquals(setOf("message_read"), statePermissions.fieldNames())
+    }
+
+    @Test
     fun `UPSERT validates membership and same-team role then stores state result and inbox atomically`() = runBlocking {
         val fixture = Fixture()
         val stateVersion = Instant.parse("2026-08-30T01:02:05.123456Z")
@@ -165,9 +214,13 @@ class ChannelRolePolicyCommandProcessorTest {
     }
 
     @Test
-    fun `same actor and idempotency key replays terminal result without another mutation`() = runBlocking {
+    fun `unknown permission을 제거한 동일 요청은 terminal result를 재생함`() = runBlocking {
         val fixture = Fixture()
-        val replay = COMMAND.copy(operationId = "00000000-0000-0000-0000-000000000003")
+        val replay = COMMAND.copy(
+            operationId = "00000000-0000-0000-0000-000000000003",
+            permissions = requireNotNull(COMMAND.permissions).copy().put("future_permission", JsonObject()),
+        )
+        val canonicalReplay = replay.copy(permissions = COMMAND.permissions)
         val storedResult = JsonObject()
             .put("schemaVersion", 1)
             .put("operationId", COMMAND.operationId)
@@ -190,7 +243,7 @@ class ChannelRolePolicyCommandProcessorTest {
         coEvery { fixture.outboxRepository.inTransaction<Unit>(any()) } coAnswers {
             firstArg<suspend (SqlConnection) -> Unit>().invoke(fixture.connection)
         }
-        coEvery { fixture.inboxRepository.findMatches(fixture.connection, replay) } returns
+        coEvery { fixture.inboxRepository.findMatches(fixture.connection, canonicalReplay) } returns
             ProcessedChannelRolePolicyCommandMatches(null, existing)
         coEvery { fixture.outboxRepository.enqueue(fixture.connection, capture(replayed)) } returns Unit
 
