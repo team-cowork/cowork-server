@@ -1,5 +1,6 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.messaging.ChannelRolePolicyCommand
 import com.cowork.preference.messaging.ChannelRolePolicyCommandEnvelope
@@ -29,7 +30,8 @@ class ChannelRolePolicyCommandProcessor(
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadiness,
 ) {
-    suspend fun process(command: ChannelRolePolicyCommand) {
+    suspend fun process(rawCommand: ChannelRolePolicyCommand) {
+        val command = rawCommand.canonicalized()
         outboxRepository.inTransaction { connection ->
             val matches = inboxRepository.findMatches(connection, command)
             matches.byOperationId?.let { existing ->
@@ -144,24 +146,25 @@ class ChannelRolePolicyCommandProcessor(
     }
 
     private fun success(command: ChannelRolePolicyCommand, state: ChannelRolePolicyState): CommandOutcome {
+        val permissions = state.permissions?.let(ChannelRolePolicyPermissions::canonicalize)
         val stateEvent = PreferenceEvents.channelRolePolicyState(
             teamId = state.teamId,
             channelId = state.channelId,
             roleId = state.roleId,
-            permissions = state.permissions,
+            permissions = permissions,
             occurredAt = state.stateOccurredAt,
             snapshot = false,
         )
         val occurredAt = now()
         val result = baseResult(command.envelope(), "SUCCEEDED", occurredAt)
-            .put("permissions", state.permissions?.copy())
+            .put("permissions", permissions?.copy())
             .put("error", null)
             .put(
                 "projection",
                 JsonObject()
                     .put("key", stateEvent.key)
                     .put("occurredAt", state.stateOccurredAt.toString())
-                    .put("deleted", state.permissions == null),
+                    .put("deleted", permissions == null),
             )
         return CommandOutcome(listOf(stateEvent), result, occurredAt)
     }
@@ -238,6 +241,13 @@ class ChannelRolePolicyCommandProcessor(
             channelId = channelId,
             roleId = roleId,
         )
+
+    private fun ChannelRolePolicyCommand.canonicalized(): ChannelRolePolicyCommand = when (commandType) {
+        ChannelRolePolicyCommandType.UPSERT -> copy(
+            permissions = ChannelRolePolicyPermissions.canonicalize(requireNotNull(permissions)),
+        )
+        ChannelRolePolicyCommandType.DELETE -> copy(permissions = null)
+    }
 
     private fun now(): Instant = Instant.now().truncatedTo(ChronoUnit.MICROS)
 
