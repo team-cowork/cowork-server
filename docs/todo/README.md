@@ -37,6 +37,7 @@
 - reliability: [Authorization 웹훅 멱등 처리와 outbox 원자화](./items/34-reliability/authorization-webhook-atomicity.md)
 - reliability: [종료 음성 세션의 Redis stale cache 차단](./items/35-reliability/voice-session-cache-staleness.md)
 - security: [역할 기반 채널·메시지 읽기 권한 적용](./items/36-security/role-based-channel-message-read-authorization.md)
+- performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
 
 ## 점검 스냅샷
 
