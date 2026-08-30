@@ -46,6 +46,10 @@ CREATE TABLE tb_channel_role_policy_projections
     message_read       BOOLEAN      NULL,
     deleted            BOOLEAN      NOT NULL DEFAULT FALSE,
     source_occurred_at DATETIME(6)  NOT NULL,
+    CONSTRAINT ck_tb_channel_role_policy_projections_state CHECK (
+        (deleted = FALSE AND message_read IS NOT NULL)
+            OR (deleted = TRUE AND message_read IS NULL)
+    ),
     PRIMARY KEY (policy_key),
     INDEX idx_tb_channel_role_policy_projections_channel_role (channel_id, role_id),
     INDEX idx_tb_channel_role_policy_projections_team_channel (team_id, channel_id)
