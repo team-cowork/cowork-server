@@ -2,9 +2,10 @@
 
 - **서비스**: cowork-preference, cowork-team, cowork-channel, cowork-chat
 - **우선순위**: 🔴 높음
-- **현재 상태**: 1차 구현 및 회귀 검증 완료 — 채널 삭제 시 authoritative 정책 정리와 운영 전환 절차는 후속 보강 필요
+- **현재 상태**: 완료 — 역할 기반 채널·메시지 읽기 인가가 적용되어 있고 남은 운영 범위는 별도 TODO로 분리되어 있다
 - **관련 작업**: [Preference 리소스별 권한 검증](../15-security/preference-resource-authorization.md), [멤버십 회수 시 WebSocket 구독 강제 해제](../25-security/websocket-membership-revocation.md)
 - **파생 원본**: [통합 검색의 비공개 채널 노출 차단](../24-security/private-channel-search-visibility.md)
+- **결론**: [기존 역할·채널 정책의 운영 전환](../38-security/existing-channel-role-policy-transition.md)과 [채널 삭제 시 역할 정책 정리와 재생성 차단](../39-security/channel-deletion-role-policy-fence.md)은 독립 후속 작업으로 분리되어 있다
 
 > **2026-08-30 정책 구상:** 역할과 채널의 다대다 바인딩마다 `{"message_read": false}` 같은 권한 JSON을 저장하고,
 > 한 사용자가 가진 여러 역할은 역할 priority 순으로 평가하는 리소스 단위 IAM 모델을 적용한다.
@@ -13,6 +14,9 @@
 > 바인딩 자체가 없으면 다음 낮은 priority로 상속한다. 명시적으로 제출한 바인딩에서 알려진 키가 빠지면 키별 기본값을
 > 채우며, 현재 `message_read` 기본값은 `false`다. 같은 priority의 값이 충돌하면 `false`를 적용하고 끝까지 바인딩이 없으면
 > 거부한다. built-in `OWNER`만 허용하되 비공개 채널의 활성 멤버십 조건은 우회하지 않는다.
+>
+> **2026-08-30 완료:** 역할·채널 정책 저장, 우선순위 합성, 기본 거부, HTTP·검색·WebSocket·알림 인가와 projection
+> 무결성 범위를 구현했다. 기존 데이터의 운영 전환과 채널 삭제 수명주기는 각각 독립 TODO로 분리했다.
 
 ## 문제
 
@@ -70,8 +74,9 @@ projection이 준비된 뒤 모든 읽기 경로에 같은 effective policy 판�
   재발행해 토픽 generation 교체 뒤 오래된 allow가 되살아나지 않도록 했다.
 - 정책 command-result의 계약 오류는 원본 payload를 보존한 DLT로 격리하고, 일시 오류는 유한 재시도 뒤 DLT로
   전송해 단일 레코드가 consumer partition을 영구 정지시키지 않도록 했다.
-- 채널 삭제 후 `cowork-preference`의 authoritative 정책을 정리하는 수명주기 이벤트와 실제 운영 데이터 전환 절차는
-  아직 남아 있어 이 TODO는 열린 상태로 유지한다.
+- 기존 데이터의 운영 전환은 [기존 역할·채널 정책의 운영 전환](../38-security/existing-channel-role-policy-transition.md)으로,
+  채널 삭제 후 authoritative 정책 정리는
+  [채널 삭제 시 역할 정책 정리와 재생성 차단](../39-security/channel-deletion-role-policy-fence.md)으로 분리했다.
 
 ## 할 일
 
@@ -79,11 +84,13 @@ projection이 준비된 뒤 모든 읽기 경로에 같은 effective policy 판�
 
 - ~~`cowork-preference`에 역할·채널 다대다 정책 테이블과 JSON object 형태 검증을 추가한다.~~
 - ~~알려진 권한 키의 타입 검증과 키별 기본값 보충을 추가하고 알 수 없는 키를 저장·이벤트에서 제거한다.~~
-- built-in 역할의 기본값과 기존 사용자 정의 역할의 backfill을 migration 또는 명시적인 전환 작업으로 적용한다.
+- ~~built-in 역할의 기본값과 기존 사용자 정의 역할의 backfill을 migration 또는 명시적인 전환 작업으로 적용한다.~~
+  — 구현 완료가 아니라 [기존 역할·채널 정책의 운영 전환](../38-security/existing-channel-role-policy-transition.md)으로 범위 이관이 완료되어 있다.
 - ~~역할·채널·허용 또는 거부 상태를 표현하는 compacted state event와 삭제 tombstone을 추가한다.~~
 - ~~`cowork-channel`과 `cowork-chat`이 역할 정의·할당·삭제 tombstone·snapshot completion을 로컬 projection으로 소비한다.~~
 - ~~projection이 불완전하거나 readiness가 닫힌 상태에서는 권한이 필요한 요청을 `503`으로 fail-closed한다.~~
-- 채널 삭제 event를 `cowork-preference`의 authoritative 정책 tombstone 정리와 queued command fence에 연결한다.
+- ~~채널 삭제 event를 `cowork-preference`의 authoritative 정책 tombstone 정리와 queued command fence에 연결한다.~~
+  — 구현 완료가 아니라 [채널 삭제 시 역할 정책 정리와 재생성 차단](../39-security/channel-deletion-role-policy-fence.md)으로 범위 이관이 완료되어 있다.
 
 ### 공통 읽기 인가
 
@@ -111,13 +118,11 @@ projection이 준비된 뒤 모든 읽기 경로에 같은 effective policy 판�
 - 읽기 권한이 없는 사용자가 채널 ID·이름·설명, 메시지 본문, pin·file·unread·알림 본문을 받지 못하는지 검증한다.
 - 권한 회수 전에 연결한 WebSocket도 회수 후 실시간 메시지와 채널 이벤트를 받지 못하는지 검증한다.
 - 역할 정의·할당 tombstone과 snapshot replay 뒤에도 동일한 판정이 유지되는지 검증한다.
-- 기존 빈 권한 데이터의 전환 전후에 의도하지 않은 전체 차단이나 우회 허용이 없는지 검증한다.
 
 ## 완료 조건
 
-- 허용 권한 이름, 키별 타입·기본값, 알 수 없는 키 제거, 합성 규칙, built-in 기본값과 기존 데이터 전환 정책이 코드와 계약
-  문서에 일치한다.
+- 허용 권한 이름, 키별 타입·기본값, 알 수 없는 키 제거, 합성 규칙과 built-in `OWNER` 예외가 코드와 계약 문서에 일치한다.
 - `cowork-channel`과 `cowork-chat`은 준비된 로컬 projection만으로 effective permission을 판정한다.
 - 읽기 권한이 없는 역할은 모든 HTTP·검색·WebSocket·알림 경로에서 채널 메타데이터와 메시지 본문을 받지 않는다.
 - 비공개 채널은 정책에서 정한 멤버십과 역할 권한 조건을 모두 충족한 사용자에게만 노출된다.
-- 권한 삭제·할당 회수·팀 또는 채널 삭제가 적용된 뒤 기존 연결과 캐시를 통해 접근이 되살아나지 않는다.
+- 권한 삭제·할당 회수·팀 삭제가 적용된 뒤 기존 연결과 캐시를 통해 접근이 되살아나지 않는다.
