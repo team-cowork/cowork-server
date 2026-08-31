@@ -1,4 +1,4 @@
-name: cowork CD (pilot: team, channel)
+name: "cowork CD (pilot: team, channel)"
 
 on:
   workflow_run:
