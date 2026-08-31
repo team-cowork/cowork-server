@@ -24,10 +24,13 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 20
+      - name: Resolve base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          base: ${{ github.event.workflow_run.head_sha }}~1
+          base: ${{ steps.base.outputs.sha }}
           filters: |
             team:
               - 'cowork-team/**'
