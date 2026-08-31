@@ -1,0 +1,55 @@
+name: cowork CD (pilot: team, channel)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      team: ${{ steps.filter.outputs.team }}
+      channel: ${{ steps.filter.outputs.channel }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            team:
+              - 'cowork-team/**'
+            channel:
+              - 'cowork-channel/**'
+
+  deploy-team:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.team == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy cowork-team
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.COWORK_SSH_HOST }}
+          port: ${{ secrets.TEAM_SSH_PORT }}
+          username: ${{ secrets.TEAM_SSH_USER }}
+          password: ${{ secrets.TEAM_SSH_PASSWORD }}
+          script_stop: true
+          command_timeout: 15m
+          script: bash ~/deploy-team.sh
+
+  deploy-channel:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.channel == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy cowork-channel
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.COWORK_SSH_HOST }}
+          port: ${{ secrets.CHANNEL_SSH_PORT }}
+          username: ${{ secrets.CHANNEL_SSH_USER }}
+          password: ${{ secrets.CHANNEL_SSH_PASSWORD }}
+          script_stop: true
+          command_timeout: 15m
+          script: bash ~/deploy-channel.sh
