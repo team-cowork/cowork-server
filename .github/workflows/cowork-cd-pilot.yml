@@ -5,14 +5,22 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     outputs:
       team: ${{ steps.filter.outputs.team }}
       channel: ${{ steps.filter.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 20
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -26,6 +34,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.team == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Deploy cowork-team
         uses: appleboy/ssh-action@v1
@@ -42,6 +52,8 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.channel == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Deploy cowork-channel
         uses: appleboy/ssh-action@v1
