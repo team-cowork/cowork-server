@@ -47,7 +47,7 @@ jobs:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ secrets.TEAM_SSH_PORT }}
           username: ${{ secrets.TEAM_SSH_USER }}
-          password: ${{ secrets.TEAM_SSH_PASSWORD }}
+          key: ${{ secrets.TEAM_SSH_KEY }}
           script_stop: true
           command_timeout: 15m
           script: bash ~/deploy-team.sh
@@ -65,7 +65,7 @@ jobs:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ secrets.CHANNEL_SSH_PORT }}
           username: ${{ secrets.CHANNEL_SSH_USER }}
-          password: ${{ secrets.CHANNEL_SSH_PASSWORD }}
+          key: ${{ secrets.CHANNEL_SSH_KEY }}
           script_stop: true
           command_timeout: 15m
           script: bash ~/deploy-channel.sh
