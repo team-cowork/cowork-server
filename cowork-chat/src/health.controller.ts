@@ -33,11 +33,15 @@ export class HealthController {
             kafka: this.chatMessageProducer.isReady(),
             projections: this.projectionReadiness.isReady(),
         };
+        const projectionDetails = this.projectionReadiness.getDetailedStatus();
 
         const isReady = Object.values(dependencies).every(Boolean);
         if (!isReady) {
-            throw new HttpException({ status: 'DOWN', dependencies }, HttpStatus.SERVICE_UNAVAILABLE);
+            throw new HttpException(
+                { status: 'DOWN', dependencies, projectionDetails },
+                HttpStatus.SERVICE_UNAVAILABLE,
+            );
         }
-        return { status: 'UP', dependencies };
+        return { status: 'UP', dependencies, projectionDetails };
     }
 }
