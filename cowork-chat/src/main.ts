@@ -13,7 +13,27 @@ import { requireEnv } from './common/config/config.util';
 import { loadConfigServerEnv } from './common/config/config-server';
 import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
 import { RedisIoAdapter } from './common/adapter/redis-io.adapter';
-import { ProjectionReadinessService } from './common/kafka/projection-readiness.service';
+import {
+    PROJECTION_STREAMS,
+    ProjectionName,
+    ProjectionReadinessService,
+} from './common/kafka/projection-readiness.service';
+
+const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
+
+function requiredProjectionStreams(path: string): ProjectionName[] {
+    if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/projections')) return [];
+    if (path.startsWith('/chat/dms')) return ['channelMember', 'userProfile'];
+    if (path.startsWith('/chat/projects/')) return ['projectMember', 'channelMember', 'userProfile'];
+    if (path.startsWith('/chat/teams/')) return ['channelMember'];
+    if (path.startsWith('/chat/search')) return ['channel', 'teamMember', 'channelMember', 'userProfile'];
+    if (path === '/graphql') return ['channel', 'teamMember', 'userProfile'];
+    if (path.includes('/github/issues')) {
+        return ['channelMember', 'projectMember', 'projectGithubRepo', 'userProfile'];
+    }
+    if (path.startsWith('/chat/channels/')) return ['channelMember', 'channel', 'teamMember', 'userProfile'];
+    return ALL_PROJECTION_STREAMS;
+}
 
 function debugStartup(message: string) {
     if (process.env.DEBUG_STARTUP === 'true') {
@@ -115,9 +135,16 @@ async function bootstrap() {
             || req.path === '/metrics'
             || req.path === '/api'
             || req.path === '/api-json'
-            || req.path === '/asyncapi.json';
-        if (!operationalPath && !projectionReadiness.isReady()) {
-            res.status(503).json({ statusCode: 503, message: 'Kafka projections are synchronizing' });
+            || req.path === '/asyncapi.json'
+            || req.path.startsWith('/chat/admin/projections');
+        const requiredStreams = operationalPath ? [] : requiredProjectionStreams(req.path);
+        if (!projectionReadiness.areReady(requiredStreams)) {
+            const unavailableStreams = requiredStreams.filter((stream) => !projectionReadiness.areReady([stream]));
+            res.status(503).json({
+                statusCode: 503,
+                message: 'Required Kafka projections are unavailable',
+                unavailableStreams,
+            });
             return;
         }
         next();
