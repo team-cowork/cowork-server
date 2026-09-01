@@ -13,6 +13,8 @@ import {
     ProjectionReadinessService,
     StartupPartitionOffset,
 } from './projection-readiness.service';
+import { ProjectionDatasetRepository, ProjectionDatasetState } from './projection-dataset.repository';
+import { ProjectionMetricsService } from './projection-metrics.service';
 
 describe('ProjectionReadinessService', () => {
     let service: ProjectionReadinessService | undefined;
@@ -24,8 +26,29 @@ describe('ProjectionReadinessService', () => {
         const listeners = new Map<string, Array<(event: never) => void>>();
         const rows = new Map<string, ProjectionCheckpointOffset>();
         const rowKey = (topic: string, partition: number) => `${topic}:${partition}`;
+        const datasetGeneration = 'dataset-generation-1';
+        const datasetByStream = new Map<string, ProjectionDatasetState>();
+        if (storedOffsets.length > 0) datasetByStream.set('channel', {
+            stream: 'channel',
+            groupId: PROJECTION_STREAMS.channel.groupId,
+            topic: PROJECTION_STREAMS.channel.topic,
+            sourceGeneration: PROJECTION_STREAMS.channel.sourceGeneration,
+            datasetGeneration,
+            mode: 'INCREMENTAL',
+            status: 'ACTIVE',
+            activationDocumentCount: 0,
+            baseOffsets: topicOffsets.map(({ partition, low }) => ({ partition, offset: low })),
+            targetOffsets: topicOffsets.map(({ partition, high }) => ({ partition, offset: high })),
+        });
         for (const offset of storedOffsets) {
-            rows.set(rowKey(PROJECTION_STREAMS.channel.topic, offset.partition), offset);
+            rows.set(rowKey(PROJECTION_STREAMS.channel.topic, offset.partition), {
+                ...offset,
+                datasetGeneration,
+                sourceGeneration: PROJECTION_STREAMS.channel.sourceGeneration,
+                ...(offset.snapshotCompletedOffset === undefined && BigInt(offset.offset) > 0n
+                    ? { snapshotCompletedOffset: (BigInt(offset.offset) - 1n).toString() }
+                    : {}),
+            });
         }
         const leaseFor = (topic: string, partition: number): ProjectionAssignmentLease => ({
             assignmentEpoch: `epoch-${topic}-${partition}`,
@@ -63,21 +86,29 @@ describe('ProjectionReadinessService', () => {
                 .filter(([key]) => key.startsWith(`${topic}:`))
                 .map(([, row]) => row),
         ));
+        const findAll = jest.fn((_groupId: string, topic: string) => find(_groupId, topic));
         const claimForAssignment = jest.fn((
             _groupId: string,
             topic: string,
             partition: number,
             earliestOffset: string,
+            claimedDatasetGeneration: string,
+            claimedSourceGeneration: string,
         ) => {
             const lease = leaseFor(topic, partition);
-            rows.set(rowKey(topic, partition), {
+            const existing = rows.get(rowKey(topic, partition));
+            const checkpoint: ProjectionCheckpointOffset = {
+                ...existing,
                 partition,
-                offset: earliestOffset,
+                offset: existing?.offset ?? earliestOffset,
+                datasetGeneration: claimedDatasetGeneration,
+                sourceGeneration: claimedSourceGeneration,
                 assignmentEpoch: lease.assignmentEpoch,
                 assignmentMemberId: lease.memberId,
                 assignmentGenerationId: lease.groupGenerationId,
-            });
-            return Promise.resolve(lease);
+            };
+            rows.set(rowKey(topic, partition), checkpoint);
+            return Promise.resolve({ lease, checkpoint });
         });
         const advance = jest.fn((
             _groupId: string,
@@ -87,7 +118,9 @@ describe('ProjectionReadinessService', () => {
             nextOffset: string,
             snapshotBarrier?: SnapshotBarrierReceipt,
         ) => {
+            const existing = rows.get(rowKey(topic, partition));
             rows.set(rowKey(topic, partition), {
+                ...existing,
                 partition,
                 offset: nextOffset,
                 assignmentEpoch: lease.assignmentEpoch,
@@ -96,17 +129,115 @@ describe('ProjectionReadinessService', () => {
                 ...(snapshotBarrier ? {
                     snapshotCompletedOffset: snapshotBarrier.offset,
                     snapshotId: snapshotBarrier.snapshotId,
+                    snapshotOccurredAt: snapshotBarrier.occurredAt,
                 } : {}),
             });
             return Promise.resolve();
         });
         const checkpoints = {
             find,
+            findAll,
             advance,
             claimForAssignment,
             renewAssignment: jest.fn().mockResolvedValue(undefined),
             releaseAssignment: jest.fn().mockResolvedValue(true),
+            acknowledgeRebuildPause: jest.fn().mockResolvedValue(undefined),
+            hasUnacknowledgedActiveAssignments: jest.fn().mockResolvedValue(false),
+            resetForRebuild: jest.fn((groupId, topic, offsets, nextDatasetGeneration, nextSourceGeneration) => {
+                for (const { partition, offset } of offsets) {
+                    const existing = rows.get(rowKey(topic, partition));
+                    rows.set(rowKey(topic, partition), {
+                        ...existing,
+                        partition,
+                        offset,
+                        datasetGeneration: nextDatasetGeneration,
+                        sourceGeneration: nextSourceGeneration,
+                        snapshotCompletedOffset: undefined,
+                        snapshotId: undefined,
+                        invalidRecordOffset: undefined,
+                    });
+                }
+                return Promise.resolve();
+            }),
         } as unknown as ProjectionCheckpointRepository;
+        const resetProjection = jest.fn().mockResolvedValue(undefined);
+        const datasets = {
+            find: jest.fn((streamName: string) => Promise.resolve(datasetByStream.get(streamName))),
+            countProjection: jest.fn().mockResolvedValue(0),
+            createBootstrap: jest.fn((stream, baseOffsets, targetOffsets) => {
+                const dataset: ProjectionDatasetState = {
+                    stream: stream.name,
+                    groupId: stream.groupId,
+                    topic: stream.topic,
+                    sourceGeneration: stream.sourceGeneration,
+                    datasetGeneration,
+                    mode: 'BOOTSTRAP',
+                    status: 'INITIALIZING',
+                    activationDocumentCount: 0,
+                    baseOffsets,
+                    targetOffsets,
+                };
+                datasetByStream.set(stream.name, dataset);
+                return Promise.resolve(dataset);
+            }),
+            markRebuildRequired: jest.fn((stream, reason) => {
+                const dataset: ProjectionDatasetState = {
+                    ...(datasetByStream.get(stream.name) ?? {
+                        stream: stream.name,
+                        groupId: stream.groupId,
+                        topic: stream.topic,
+                        sourceGeneration: stream.sourceGeneration,
+                        datasetGeneration,
+                        mode: 'REBUILD',
+                        activationDocumentCount: 0,
+                        baseOffsets: [],
+                        targetOffsets: [],
+                    }),
+                    status: 'REBUILD_REQUIRED',
+                    reason,
+                };
+                datasetByStream.set(stream.name, dataset);
+                return Promise.resolve(dataset);
+            }),
+            markActive: jest.fn((streamName: string) => {
+                const dataset = datasetByStream.get(streamName);
+                if (dataset) datasetByStream.set(streamName, { ...dataset, status: 'ACTIVE', mode: 'INCREMENTAL' });
+                return Promise.resolve();
+            }),
+            requestRebuild: jest.fn((stream, reason, baseOffsets, targetOffsets) => {
+                const next: ProjectionDatasetState = {
+                    stream: stream.name,
+                    groupId: stream.groupId,
+                    topic: stream.topic,
+                    sourceGeneration: stream.sourceGeneration,
+                    datasetGeneration: 'dataset-generation-2',
+                    mode: 'REBUILD',
+                    status: 'REBUILD_REQUESTED',
+                    reason,
+                    rebuildRequestedAt: new Date('2026-08-26T11:00:00Z'),
+                    activationDocumentCount: 0,
+                    baseOffsets,
+                    targetOffsets,
+                };
+                datasetByStream.set(stream.name, next);
+                return Promise.resolve(next);
+            }),
+            tryBeginReset: jest.fn().mockResolvedValue(true),
+            resetProjection,
+            setDataset: (streamName: string, value: ProjectionDatasetState) => {
+                datasetByStream.set(streamName, value);
+            },
+            markRebuilding: jest.fn((streamName: string) => {
+                const current = datasetByStream.get(streamName);
+                if (current) datasetByStream.set(streamName, { ...current, status: 'REBUILDING' });
+                return Promise.resolve();
+            }),
+        } as unknown as ProjectionDatasetRepository;
+        const metrics = {
+            recordReplay: jest.fn(),
+            recordCatchup: jest.fn(),
+            recordRebuild: jest.fn(),
+        } as unknown as ProjectionMetricsService;
 
         const emit = (eventName: string, event: unknown) => {
             for (const listener of listeners.get(eventName) ?? []) listener(event as never);
@@ -117,6 +248,12 @@ describe('ProjectionReadinessService', () => {
             consumer,
             admin,
             checkpoints,
+            datasets,
+            metrics,
+            resetProjection,
+            setDataset: (streamName: string, value: ProjectionDatasetState) => {
+                datasetByStream.set(streamName, value);
+            },
             find,
             advance,
             seek,
@@ -125,7 +262,11 @@ describe('ProjectionReadinessService', () => {
                 for (const key of [...rows.keys()]) {
                     if (key.startsWith(`${topic}:`)) rows.delete(key);
                 }
-                for (const offset of offsets) rows.set(rowKey(topic, offset.partition), offset);
+                for (const offset of offsets) rows.set(rowKey(topic, offset.partition), {
+                    ...offset,
+                    datasetGeneration: offset.datasetGeneration ?? datasetGeneration,
+                    sourceGeneration: offset.sourceGeneration ?? PROJECTION_STREAMS.channel.sourceGeneration,
+                });
             },
             activate: async (stream: typeof PROJECTION_STREAMS[keyof typeof PROJECTION_STREAMS], partitions: number[]) => {
                 emit('consumer.group_join', {
@@ -225,7 +366,7 @@ describe('ProjectionReadinessService', () => {
 
     it('fresh Mongo에는 broker group commit 대신 earliest offset으로 seek한다', async () => {
         const harness = createHarness([{ partition: 0, low: '3', high: '10', offset: '10' }]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
@@ -237,12 +378,12 @@ describe('ProjectionReadinessService', () => {
         });
     });
 
-    it('shared checkpoint가 있어도 새 assignment는 earliest offset부터 재생한다', async () => {
+    it('유효한 shared checkpoint가 있으면 저장된 next offset부터 증분 재개한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '3', high: '10', offset: '10' }],
             [{ partition: 0, offset: '7' }],
         );
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
@@ -250,42 +391,36 @@ describe('ProjectionReadinessService', () => {
         expect(harness.seek).toHaveBeenCalledWith({
             topic: PROJECTION_STREAMS.channel.topic,
             partition: 0,
-            offset: '3',
+            offset: '7',
         });
     });
 
-    it('retention 이전 checkpoint가 있어도 새 assignment는 retained earliest에서 복구한다', async () => {
+    it('retention 이전 checkpoint는 자동 low seek 없이 명시적 rebuild를 요구한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '3', high: '10', offset: '10' }],
             [{ partition: 0, offset: '1' }],
         );
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
         expect(service.isReady()).toBe(false);
-        expect(harness.seek).toHaveBeenCalledWith({
-            topic: PROJECTION_STREAMS.channel.topic,
-            partition: 0,
-            offset: '3',
-        });
+        expect(harness.seek).not.toHaveBeenCalled();
+        expect(service.getDetailedStatus().channel?.status).toBe('REBUILD_REQUIRED');
     });
 
-    it('재생성된 topic도 새 assignment epoch에서 earliest부터 복구한다', async () => {
+    it('checkpoint가 새 topic high보다 크면 자동 replay 없이 명시적 rebuild를 요구한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '0', high: '2', offset: '2' }],
             [{ partition: 0, offset: '9' }],
         );
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
 
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
         expect(service.isReady()).toBe(false);
-        expect(harness.seek).toHaveBeenCalledWith({
-            topic: PROJECTION_STREAMS.channel.topic,
-            partition: 0,
-            offset: '0',
-        });
+        expect(harness.seek).not.toHaveBeenCalled();
+        expect(service.getDetailedStatus().channel?.status).toBe('REBUILD_REQUIRED');
     });
 
     it('checkpoint replay 가능 범위는 earliest와 high-watermark를 모두 포함한다', () => {
@@ -295,6 +430,69 @@ describe('ProjectionReadinessService', () => {
         expect(isCheckpointWithinRetainedRange('10', target)).toBe(true);
         expect(isCheckpointWithinRetainedRange('2', target)).toBe(false);
         expect(isCheckpointWithinRetainedRange('11', target)).toBe(false);
+    });
+
+    it('dataset과 configured source generation이 다르면 checkpoint를 seek하지 않는다', async () => {
+        const harness = createHarness(
+            [{ partition: 0, low: '0', high: '10', offset: '10' }],
+            [{ partition: 0, offset: '10', snapshotCompletedOffset: '9' }],
+        );
+        harness.setDataset('channel', {
+            stream: 'channel',
+            groupId: PROJECTION_STREAMS.channel.groupId,
+            topic: PROJECTION_STREAMS.channel.topic,
+            sourceGeneration: 'old-source-generation',
+            datasetGeneration: 'dataset-generation-1',
+            mode: 'INCREMENTAL',
+            status: 'ACTIVE',
+            activationDocumentCount: 0,
+            baseOffsets: [{ partition: 0, offset: '0' }],
+            targetOffsets: [{ partition: 0, offset: '10' }],
+        });
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
+
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
+
+        expect(harness.seek).not.toHaveBeenCalled();
+        expect(service.getDetailedStatus().channel).toEqual(expect.objectContaining({
+            status: 'REBUILD_REQUIRED',
+            reason: expect.stringContaining('source generation mismatch'),
+        }));
+    });
+
+    it('명시적 rebuild는 projection을 초기화하고 fresh snapshot 뒤에만 dataset을 활성화한다', async () => {
+        const harness = createHarness(
+            [{ partition: 0, low: '0', high: '1', offset: '1' }],
+            [{ partition: 0, offset: '1', snapshotCompletedOffset: '0' }],
+        );
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await harness.activate(PROJECTION_STREAMS.channel, [0]);
+
+        const requested = await service.requestRebuild('channel', 'operator requested rebuild');
+
+        expect(requested.status).toBe('REBUILDING');
+        expect(harness.resetProjection).toHaveBeenCalledWith('channel');
+        expect(harness.seek).toHaveBeenLastCalledWith({
+            topic: PROJECTION_STREAMS.channel.topic,
+            partition: 0,
+            offset: '0',
+        });
+        expect(service.getStatus().channel).toBe(false);
+
+        await service.processMessage(PROJECTION_STREAMS.channel, 0, '0', () => Promise.resolve({
+            snapshotBarrier: {
+                offset: '0',
+                snapshotId: '93b19168-4a63-49cd-b01d-b8d0667a1cb5',
+                source: 'cowork-channel',
+                occurredAt: new Date('2026-08-26T11:00:01Z'),
+            },
+        }));
+        await service.checkCatchup();
+
+        expect(service.getStatus().channel).toBe(true);
+        expect(service.getDetailedStatus().channel?.status).toBe('ACTIVE');
     });
 
     it('projection 적용이 끝난 뒤 정확한 next offset을 checkpoint로 저장한다', async () => {
@@ -309,7 +507,7 @@ describe('ProjectionReadinessService', () => {
             callOrder.push('checkpoint');
             return Promise.resolve();
         });
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
@@ -339,7 +537,7 @@ describe('ProjectionReadinessService', () => {
 
     it('격리 가능한 invalid record도 handler 반환 후 checkpoint를 전진시킨다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
@@ -356,7 +554,7 @@ describe('ProjectionReadinessService', () => {
 
     it('projection 저장 실패 시 checkpoint를 전진시키지 않는다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
 
@@ -371,7 +569,7 @@ describe('ProjectionReadinessService', () => {
 
     it('runtime high-watermark보다 shared checkpoint가 뒤처지면 readiness를 열지 않는다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '10', offset: '10' }]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
         const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
@@ -393,12 +591,12 @@ describe('ProjectionReadinessService', () => {
         expect(harness.admin.fetchTopicOffsets).toHaveBeenCalledTimes(3);
     });
 
-    it('ready 후 runtime topic 재생성을 감지하면 readiness를 닫고 재시작을 요청한다', async () => {
+    it('ready 후 runtime topic 재생성을 감지하면 해당 stream에 명시적 rebuild를 요구한다', async () => {
         const harness = createHarness(
             [{ partition: 0, low: '0', high: '10', offset: '10' }],
             [{ partition: 0, offset: '10', snapshotCompletedOffset: '9' }],
         );
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
         const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
@@ -413,8 +611,6 @@ describe('ProjectionReadinessService', () => {
         await service.checkCatchup();
         expect(service.getStatus().channel).toBe(true);
 
-        const violations: string[] = [];
-        service.onFatalInvariantViolation((reason) => violations.push(reason));
         harness.admin.fetchTopicOffsets.mockResolvedValue([
             { partition: 0, low: '0', high: '2', offset: '2' },
         ]);
@@ -422,8 +618,10 @@ describe('ProjectionReadinessService', () => {
         await service.checkCatchup();
 
         expect(service.getStatus().channel).toBe(false);
-        expect(violations).toHaveLength(1);
-        expect(violations[0]).toContain('outside the retained log');
+        expect(service.getDetailedStatus().channel).toEqual(expect.objectContaining({
+            status: 'REBUILD_REQUIRED',
+            reason: expect.stringContaining('outside the retained log'),
+        }));
     });
 
     it('ready 후 snapshot marker receipt가 소실되면 readiness를 다시 닫는다', async () => {
@@ -431,7 +629,7 @@ describe('ProjectionReadinessService', () => {
             [{ partition: 0, low: '0', high: '10', offset: '10' }],
             [{ partition: 0, offset: '10', snapshotCompletedOffset: '9' }],
         );
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0]);
         const lease = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
@@ -467,7 +665,7 @@ describe('ProjectionReadinessService', () => {
             { partition: 0, offset: '10', snapshotCompletedOffset: '9' },
             { partition: 1, offset: '20', snapshotCompletedOffset: '19' },
         ]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
         await harness.activate(PROJECTION_STREAMS.channel, [0, 1]);
         const lease0 = harness.leaseFor(PROJECTION_STREAMS.channel.topic, 0);
@@ -508,7 +706,7 @@ describe('ProjectionReadinessService', () => {
 
     it('필수 projection이 모두 등록되고 snapshot marker까지 처리되어야 readiness가 열린다', async () => {
         const harness = createHarness([{ partition: 0, low: '0', high: '1', offset: '1' }]);
-        service = new ProjectionReadinessService(harness.checkpoints);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
         let readyResolved = false;
         void service.whenReady().then(() => {
             readyResolved = true;
