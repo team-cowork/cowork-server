@@ -99,27 +99,32 @@ GitHub 이슈 생성과 webhook 대상 조회도 `project.github-repo.event`의 
 `user.profile.event` producer는 현재 상태 전체를
 startup/주기 snapshot으로 발행해야 한다. 토픽은 엔티티 키(`channelId`, `channelId:userId`, `projectId`, `repoId`,
 `projectId:userId`, `teamId:userId`, `userId`) 기준 compact 정책을 사용하고,
-consumer는 `fromBeginning: true`로 replay한다. 새 환경은 snapshot 발행 완료와 consumer lag 0을 확인한 뒤
-트래픽을 연다. producer는 snapshot outbox 뒤에 `__cowork_projection_snapshot_complete__:{partition}` marker를 각
-partition에 명시적으로 발행한다. chat readiness는 모든 partition의 marker receipt와 next offset을 같은 Mongo checkpoint
-update로 저장한다. KafkaJS가 broker topic UUID를 노출하지 않으므로 매 partition assignment마다 consumer를 잠시 멈추고
-같은 member의 첫 fresh broker heartbeat에서 generation을 확인한다. 그 뒤 Mongo DB time 기반 renewable lease를 claim하고
-checkpoint를 retained earliest와 새 random fencing epoch로 원자 reset하며 기존 marker receipt를 제거한 뒤 earliest부터
-full replay한다. 다른 owner는 generation 값과 무관하게 active lease를 덮지 못하고, 성공한 heartbeat는 lease를 renew하며
-rebalance/disconnect에서는 exact owner lease를 release한다. advance와 invalid-record latch도 유효한 epoch/member/generation
-lease를 모두 요구한다. 새 epoch에서 다시 관측한 marker와 현재 broker high-watermark가 정확히 일치한 뒤에만 readiness를
-연다. 따라서 신규 빈 topic도 snapshot 전에 ready로
-오판하지 않는다. 계약/JSON 오류는 원문을 `projection_quarantine_records`에 먼저 영속화한 뒤 checkpoint를 전진하며,
-Mongo 저장 실패 같은 런타임 오류는 offset을 유지해 재시도한다. 운영에서 Kafka topic/cluster 세대를 교체하면 관련
-projection과 Mongo checkpoint를 함께 재구축한다. broker consumer-group offset은 복구 기준으로 재사용하지 않는다.
+consumer는 `fromBeginning: true`로 구독하지만 실제 시작 위치는 MongoDB의 `projection_datasets`와
+`projection_checkpoints`로 결정한다. dataset/source generation이 일치하고 checkpoint가 broker의 `[low, high]` 범위에
+있으면 정상 재시작과 rebalance는 저장된 `nextOffset`부터 증분 재개한다. assignment claim은 lease/epoch만 교체하며
+`nextOffset`, snapshot receipt, invalid-record 상태를 덮어쓰지 않는다. dataset과 checkpoint가 모두 없는 최초 bootstrap만
+retained low부터 시작한다. 빈 collection에 checkpoint만 남거나 collection만 남은 부분 초기화, generation 불일치,
+retention gap, invalid record는 자동 low replay로 숨기지 않고 해당 stream을 `REBUILD_REQUIRED`로 닫는다.
 
-Assignment replay는 projection collection을 purge하지 않고 저장된 `occurredAt`/DELETE 우선 LWW로 merge한다. 따라서 모든
-활성 key와 삭제 key의 durable tombstone을 producer snapshot이 계속 재발행한다는 계약에서만 완전 수렴한다. source가
-tombstone ledger를 잃었거나 새 topic/source 세대가 예전 key를 단순 누락하면 stale projection을 자동으로 제거할 수 없다.
-다중 partition/replica가 공유하는 collection을 한 consumer가 임의 purge하지 않으며, 이 경우 projection과 checkpoint를
-함께 명시적으로 rebuild해야 한다. 그러므로 fencing replay를 추가해도 production의 `delete.topic.enable=false`, immutable
-state topic 이름, 세대 교체 시 coordinated rebuild 운영 계약은 유지한다. 같은 이름의 topic이 실행 중 offset 범위까지
-겹치게 재생성되는 상황은 KafkaJS metadata만으로 즉시 식별할 수 없고 다음 assignment 전까지 탐지되지 않는다.
+producer는 snapshot outbox 뒤에 `__cowork_projection_snapshot_complete__:{partition}` marker를 각 partition에 명시적으로
+발행한다. bootstrap/rebuild는 모든 partition의 full snapshot marker와 요청 당시 high-watermark를 확인한 뒤 dataset을
+활성화한다. 정상 증분 재개는 이전 dataset의 marker receipt를 재사용하고 시작 시 high-watermark까지만 따라잡는다.
+다른 owner는 generation 값과 무관하게 active Mongo DB-time lease를 덮지 못하며, heartbeat renew와 exact-owner release,
+checkpoint advance fencing은 기존과 동일하다. broker consumer-group offset은 복구 기준으로 사용하지 않는다.
+
+KafkaJS가 broker topic UUID를 노출하지 않으므로 source identity는 `CHAT_PROJECTION_SOURCE_GENERATION` 또는 stream별 override로
+명시한다. topic/cluster 또는 authoritative source dataset을 교체할 때는 generation 값을 반드시 변경하고 명시적 rebuild를
+수행한다. 동일 이름·동일 offset 범위의 topic 교체는 generation 변경 없이는 탐지할 수 없으므로 production topic 이름은
+불변으로 유지한다.
+
+관리자는 Gateway가 주입한 `X-User-Role: ADMIN`으로 `POST /chat/admin/projections/:stream/rebuild`에
+`{"reason":"..."}`을 보내 in-place rebuild를 요청하고 `GET /chat/admin/projections` 또는 `/health/ready`에서 진행 상태를
+확인한다. 모든 active replica가 대상 stream을 pause한 뒤 projection-only collection과 checkpoint를 함께 초기화한다.
+`channelMember` rebuild는 `isHidden`, `lastReadMessageId`를 보존하고 projection 필드만 tombstone으로 되돌린다. 요청 이후의
+fresh snapshot marker와 high-watermark가 확인되어야 `ACTIVE`가 된다. rebuild source가 즉시 snapshot을 발행하지 않는다면
+해당 producer의 snapshot 작업을 실행하거나 producer를 재시작한다. 대상 projection이 필요한 HTTP 경로만 `503`이며
+`block`과 관리자 경로는 계속 사용할 수 있다. 하나의 Socket.IO namespace가 여러 projection 기능을 함께 제공하므로 WS와
+Eureka readiness는 모든 stream이 준비된 뒤 열린다.
 
 현재 numeric JSON ID 계약은 유지하되 모든 projection ID와 공개 HTTP/WebSocket ID 입력은 양의 JavaScript safe integer만
 허용한다. `Number.MAX_SAFE_INTEGER`를 넘는 값은 key 비교나 Mongo 저장 전에 계약 오류로 격리하거나 요청을 거부한다.
@@ -141,5 +146,11 @@ consumer는 projection 상태는 반영하되 Redis 무효화나 Socket 변경 �
 | Compose | `APP_CONFIG_URL`, `APP_PROFILE` |
 | Config Server | 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, S3(SeaweedFS) endpoint/정책, rate limit |
 | Vault | `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3(SeaweedFS) access/secret key |
+
+Projection source generation 기본값은 `CHAT_PROJECTION_SOURCE_GENERATION`(미설정 시 `1`)이다. stream별로
+`CHAT_PROJECTION_CHANNEL_SOURCE_GENERATION`, `CHAT_PROJECTION_PROJECT_SOURCE_GENERATION`,
+`CHAT_PROJECTION_CHANNEL_MEMBER_SOURCE_GENERATION`, `CHAT_PROJECTION_PROJECT_MEMBER_SOURCE_GENERATION`,
+`CHAT_PROJECTION_PROJECT_GITHUB_REPO_SOURCE_GENERATION`, `CHAT_PROJECTION_TEAM_MEMBER_SOURCE_GENERATION`,
+`CHAT_PROJECTION_USER_PROFILE_SOURCE_GENERATION`을 우선 적용할 수 있다.
 
 Config Server가 내려준 값은 비어 있는 `process.env`에만 채워지므로 직접 환경변수가 최우선입니다. Compose 기동에서는 Config Server 조회 실패 시 즉시 종료합니다.
