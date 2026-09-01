@@ -11,13 +11,16 @@ describe('HealthController', () => {
     let mongoConnection: { readyState: number };
     let redisRateLimiter: { ping: jest.Mock };
     let chatMessageProducer: { isReady: jest.Mock };
-    let projectionReadiness: { isReady: jest.Mock };
+    let projectionReadiness: { isReady: jest.Mock; getDetailedStatus: jest.Mock };
 
     beforeEach(async () => {
         mongoConnection = { readyState: 1 };
         redisRateLimiter = { ping: jest.fn().mockResolvedValue(true) };
         chatMessageProducer = { isReady: jest.fn().mockReturnValue(true) };
-        projectionReadiness = { isReady: jest.fn().mockReturnValue(true) };
+        projectionReadiness = {
+            isReady: jest.fn().mockReturnValue(true),
+            getDetailedStatus: jest.fn().mockReturnValue({}),
+        };
 
         const module: TestingModule = await Test.createTestingModule({
             controllers: [HealthController],
@@ -40,6 +43,7 @@ describe('HealthController', () => {
         await expect(controller.ready()).resolves.toEqual({
             status: 'UP',
             dependencies: { mongo: true, redis: true, kafka: true, projections: true },
+            projectionDetails: {},
         });
     });
 
@@ -48,7 +52,11 @@ describe('HealthController', () => {
 
         await expect(controller.ready()).rejects.toMatchObject({
             status: 503,
-            response: { status: 'DOWN', dependencies: { mongo: false, redis: true, kafka: true, projections: true } },
+            response: {
+                status: 'DOWN',
+                dependencies: { mongo: false, redis: true, kafka: true, projections: true },
+                projectionDetails: {},
+            },
         } as unknown as HttpException);
     });
 
@@ -72,6 +80,7 @@ describe('HealthController', () => {
             response: {
                 status: 'DOWN',
                 dependencies: { mongo: true, redis: true, kafka: true, projections: false },
+                projectionDetails: {},
             },
         } as unknown as HttpException);
     });
