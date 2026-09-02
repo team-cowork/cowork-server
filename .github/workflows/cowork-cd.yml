@@ -1,4 +1,4 @@
-name: "cowork CD (pilot: 9 services)"
+name: "cowork server CD Workflow"
 
 on:
   workflow_run:
