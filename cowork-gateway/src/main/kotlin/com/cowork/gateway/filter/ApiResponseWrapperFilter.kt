@@ -7,129 +7,154 @@ import org.springframework.cloud.gateway.filter.GlobalFilter
 import org.springframework.cloud.gateway.filter.NettyWriteResponseFilter
 import org.springframework.core.Ordered
 import org.springframework.core.io.buffer.DataBuffer
-import org.springframework.core.io.buffer.DataBufferUtils
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator
 import org.springframework.stereotype.Component
-import org.springframework.util.AntPathMatcher
 import org.springframework.web.server.ServerWebExchange
-import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
 @Component
-class ApiResponseWrapperFilter(private val objectMapper: ObjectMapper) :
-    GlobalFilter,
+class ApiResponseWrapperFilter(
+    private val objectMapper: ObjectMapper,
+    properties: ApiResponseWrapperProperties,
+    private val metrics: ApiResponseWrapperMetrics,
+) : GlobalFilter,
     Ordered {
 
-    // 래핑하지 않을 경로 (actuator, fallback 등)
-    private val skipPatterns = listOf(
-        "/actuator/**",
-        "/fallback",
-        "/v3/api-docs/**",
-        "/swagger-ui.html",
-        "/swagger-ui/**",
-        "/webjars/**",
-        "/api/chat/graphql",
-        "/api/chat/asyncapi.json",
-    )
-    private val matcher = AntPathMatcher()
-
-    // 이 크기를 초과하는 응답은 버퍼링 OOM 위험이 있으므로 래핑 스킵 (1MB)
-    private val maxWrappableBytes = 1024 * 1024L
+    private val policy = ApiResponseWrappingPolicy(properties)
+    private val transformer = BoundedResponseBodyTransformer(properties.maxWrappableBytes())
 
     // NettyWriteResponseFilter 직전에 실행되어야 응답 바디를 가로챌 수 있음
     override fun getOrder(): Int = NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
-        val path = exchange.request.uri.path
-        if (skipPatterns.any { matcher.match(it, path) }) {
-            return chain.filter(exchange)
-        }
-
         val decoratedResponse = object : ServerHttpResponseDecorator(exchange.response) {
             override fun writeWith(body: Publisher<out DataBuffer>): Mono<Void> {
-                val contentType = headers.contentType
-                // JSON 응답이 아니면 그대로 통과
-                if (contentType == null || !contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+                val decision = policy.decide(
+                    path = exchange.request.uri.path,
+                    method = exchange.request.method,
+                    statusCode = statusCode,
+                    headers = headers,
+                )
+                if (decision != ApiResponseWrappingDecision.WRAP_BOUNDED) {
+                    metrics.record(
+                        exchange = exchange,
+                        outcome = decision.toOutcome(),
+                        sourceBytes = headers.contentLength.takeIf { it >= 0 },
+                    )
                     return super.writeWith(body)
                 }
 
-                // 1단계: Content-Length가 명시된 경우 collectList 전에 조기 반환 (OOM 방지)
-                val contentLength = headers.contentLength
-                if (contentLength > maxWrappableBytes) {
-                    return super.writeWith(body)
-                }
-
-                // 2단계: 버퍼를 전부 수집한 뒤 실제 크기를 재검증 (Chunked 응답 대응)
-                val modifiedBody: Mono<DataBuffer> = Flux.from(body)
-                    .collectList()
-                    .flatMap { buffers ->
-                        val totalSize = buffers.sumOf { it.readableByteCount() }
-
-                        // 수집 후에도 임계값 초과 시 버퍼를 그대로 합쳐 통과
-                        if (totalSize > maxWrappableBytes) {
-                            return@flatMap DataBufferUtils.join(Flux.fromIterable(buffers))
-                        }
-
-                        val bytes = ByteArray(totalSize)
-                        var offset = 0
-                        buffers.forEach { buf ->
-                            val len = buf.readableByteCount()
-                            buf.read(bytes, offset, len)
-                            DataBufferUtils.release(buf)
-                            offset += len
-                        }
-
-                        val httpStatus = statusCode?.let {
-                            runCatching { HttpStatus.valueOf(it.value()) }.getOrNull()
-                        } ?: HttpStatus.OK
-
-                        val wrapped = buildWrappedResponse(bytes, httpStatus)
-                        val wrappedBytes = objectMapper.writeValueAsBytes(wrapped)
-
-                        // Content-Length 갱신 (Chunked였던 경우에도 명시)
-                        headers.contentLength = wrappedBytes.size.toLong()
-
-                        Mono.just(bufferFactory().wrap(wrappedBytes))
+                val startedAt = System.nanoTime()
+                val transformedBody = transformer.transform(
+                    body = body,
+                    onThresholdExceeded = { totalBytes ->
+                        metrics.record(
+                            exchange = exchange,
+                            outcome = ApiResponseWrappingOutcome.BYPASS_THRESHOLD,
+                            sourceBytes = totalBytes.toLong(),
+                            durationNanos = System.nanoTime() - startedAt,
+                        )
+                    },
+                    onEmpty = {
+                        metrics.record(
+                            exchange = exchange,
+                            outcome = ApiResponseWrappingOutcome.BYPASS_EMPTY,
+                            durationNanos = System.nanoTime() - startedAt,
+                        )
+                    },
+                ) { bytes ->
+                    val httpStatus = statusCode?.let {
+                        runCatching { HttpStatus.valueOf(it.value()) }.getOrNull()
+                    } ?: HttpStatus.OK
+                    val response = prepareResponse(bytes, httpStatus)
+                    if (response.wasTransformed) {
+                        updateHeadersForTransformedBody(response.bytes)
                     }
+                    metrics.record(
+                        exchange = exchange,
+                        outcome = response.outcome,
+                        sourceBytes = bytes.size.toLong(),
+                        resultBytes = response.bytes.size.toLong(),
+                        durationNanos = System.nanoTime() - startedAt,
+                    )
+                    bufferFactory().wrap(response.bytes)
+                }.doOnError {
+                    metrics.record(
+                        exchange = exchange,
+                        outcome = ApiResponseWrappingOutcome.ERROR,
+                        durationNanos = System.nanoTime() - startedAt,
+                    )
+                }
 
-                return super.writeWith(modifiedBody)
+                return super.writeWith(transformedBody)
             }
 
-            // chunked transfer-encoding 응답(writeAndFlushWith)도 처리
-            override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> =
-                writeWith(Flux.from(body).flatMapSequential { it })
+            override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
+                metrics.record(
+                    exchange = exchange,
+                    outcome = ApiResponseWrappingOutcome.BYPASS_STREAMING,
+                )
+                return super.writeAndFlushWith(body)
+            }
+
+            private fun updateHeadersForTransformedBody(bytes: ByteArray) {
+                headers.remove(HttpHeaders.TRANSFER_ENCODING)
+                headers.remove(HttpHeaders.ETAG)
+                headers.remove("Content-MD5")
+                headers.remove("Digest")
+                headers.contentLength = bytes.size.toLong()
+            }
         }
 
         return chain.filter(exchange.mutate().response(decoratedResponse).build())
     }
 
-    private fun buildWrappedResponse(bytes: ByteArray, status: HttpStatus): CommonApiResponse<*> {
-        // 빈 바디 (204 No Content 등)
-        if (bytes.isEmpty()) {
-            return CommonApiResponse.noContent()
-        }
-
-        // 에러 응답 (4xx, 5xx)
-        if (status.isError) {
-            val message = runCatching {
-                val node = objectMapper.readTree(bytes)
-                node.get("message")?.asText() ?: status.reasonPhrase
-            }.getOrDefault(status.reasonPhrase)
-
-            return CommonApiResponse.error(status, message)
-        }
-
-        // 정상 응답 — 이미 CommonApiResponse 형태면 그대로 통과
+    private fun prepareResponse(bytes: ByteArray, status: HttpStatus): PreparedResponse {
         val jsonNode = runCatching { objectMapper.readTree(bytes) }.getOrNull()
-        if (jsonNode != null && jsonNode.has("code") && jsonNode.has("status") && jsonNode.has("message")) {
-            return objectMapper.treeToValue(jsonNode, CommonApiResponse::class.java)
+        if (jsonNode.isCommonApiResponse()) {
+            return PreparedResponse(
+                bytes = bytes,
+                outcome = ApiResponseWrappingOutcome.ALREADY_WRAPPED,
+                wasTransformed = false,
+            )
         }
 
-        // 그 외 정상 응답은 data 필드에 넣어 래핑
-        val data = runCatching { objectMapper.readValue(bytes, Any::class.java) }.getOrNull()
-        return CommonApiResponse.success(data)
+        val body = if (status.isError) {
+            val message = jsonNode?.get("message")?.asString() ?: status.reasonPhrase
+            CommonApiResponse.error(status, message)
+        } else {
+            val data = jsonNode?.let { objectMapper.treeToValue(it, Any::class.java) }
+            CommonApiResponse.success(data)
+        }
+
+        return PreparedResponse(
+            bytes = objectMapper.writeValueAsBytes(body),
+            outcome = ApiResponseWrappingOutcome.WRAPPED,
+            wasTransformed = true,
+        )
     }
+
+    private fun JsonNode?.isCommonApiResponse(): Boolean = this != null &&
+        has("code") &&
+        has("status") &&
+        has("message")
+
+    private fun ApiResponseWrappingDecision.toOutcome(): ApiResponseWrappingOutcome = when (this) {
+        ApiResponseWrappingDecision.BYPASS_PATH -> ApiResponseWrappingOutcome.BYPASS_PATH
+        ApiResponseWrappingDecision.BYPASS_CONTENT_TYPE -> ApiResponseWrappingOutcome.BYPASS_CONTENT_TYPE
+        ApiResponseWrappingDecision.BYPASS_KNOWN_LARGE -> ApiResponseWrappingOutcome.BYPASS_KNOWN_LARGE
+        ApiResponseWrappingDecision.BYPASS_EMPTY -> ApiResponseWrappingOutcome.BYPASS_EMPTY
+        ApiResponseWrappingDecision.BYPASS_STREAMING -> ApiResponseWrappingOutcome.BYPASS_STREAMING
+        ApiResponseWrappingDecision.WRAP_BOUNDED -> error("wrapping decision must not be recorded as a bypass")
+    }
+
+    private data class PreparedResponse(
+        val bytes: ByteArray,
+        val outcome: ApiResponseWrappingOutcome,
+        val wasTransformed: Boolean,
+    )
 }
