@@ -1,12 +1,18 @@
 port: 7880
+
 rtc:
   tcp_port: 7881
   port_range_start: 50000
   port_range_end: 60000
-  use_external_ip: true
+  use_external_ip: false
+  node_ip: 141.164.42.34
+
+turn:
+  enabled: true
+  udp_port: 3478
 
 keys:
-  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
+  devkey: devsecret
 
 logging:
-  level: info
+  level: debug
