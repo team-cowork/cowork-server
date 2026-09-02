@@ -1,4 +1,4 @@
-name: "cowork CD (pilot: team, channel)"
+name: "cowork CD (pilot: 9 services)"
 
 on:
   workflow_run:
@@ -17,8 +17,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      team: ${{ steps.filter.outputs.team }}
-      channel: ${{ steps.filter.outputs.channel }}
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,39 +35,59 @@ jobs:
               - 'cowork-team/**'
             channel:
               - 'cowork-channel/**'
+            authorization:
+              - 'cowork-authorization/**'
+            user:
+              - 'cowork-user/**'
+            project:
+              - 'cowork-project/**'
+            preference:
+              - 'cowork-preference/**'
+            chat:
+              - 'cowork-chat/**'
+            voice:
+              - 'cowork-voice/**'
+            notification:
+              - 'cowork-notification/**'
+      - name: Build deploy matrix
+        id: build-matrix
+        run: |
+          INCLUDE="[]"
+          add() {
+            local name=$1 port=$2 changed=$3
+            if [ "$changed" == "true" ]; then
+              INCLUDE=$(echo "$INCLUDE" | jq -c --arg n "$name" --arg p "$port" '. += [{"service":$n,"port":$p}]')
+            fi
+          }
+          add team           21108 "${{ steps.filter.outputs.team }}"
+          add channel        24118 "${{ steps.filter.outputs.channel }}"
+          add authorization  24125 "${{ steps.filter.outputs.authorization }}"
+          add user           21133 "${{ steps.filter.outputs.user }}"
+          add project        24134 "${{ steps.filter.outputs.project }}"
+          add preference     24153 "${{ steps.filter.outputs.preference }}"
+          add chat           27108 "${{ steps.filter.outputs.chat }}"
+          add voice          27109 "${{ steps.filter.outputs.voice }}"
+          add notification   27110 "${{ steps.filter.outputs.notification }}"
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+          echo "Deploy matrix: $INCLUDE"
 
-  deploy-team:
+  deploy:
     needs: detect-changes
-    if: needs.detect-changes.outputs.team == 'true'
+    if: needs.detect-changes.outputs.matrix != '{"include":[]}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
     steps:
-      - name: Deploy cowork-team
+      - name: Deploy cowork-${{ matrix.service }}
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
-          port: ${{ secrets.TEAM_SSH_PORT }}
-          username: ${{ secrets.TEAM_SSH_USER }}
-          key: ${{ secrets.TEAM_SSH_KEY }}
+          port: ${{ matrix.port }}
+          username: ubuntu
+          key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
           script_stop: true
-          command_timeout: 15m
-          script: bash ~/deploy-team.sh
-
-  deploy-channel:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.channel == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-      - name: Deploy cowork-channel
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.COWORK_SSH_HOST }}
-          port: ${{ secrets.CHANNEL_SSH_PORT }}
-          username: ${{ secrets.CHANNEL_SSH_USER }}
-          key: ${{ secrets.CHANNEL_SSH_KEY }}
-          script_stop: true
-          command_timeout: 15m
-          script: bash ~/deploy-channel.sh
+          command_timeout: 20m
+          script: bash ~/deploy-${{ matrix.service }}.sh
