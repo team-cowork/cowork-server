@@ -6,6 +6,10 @@ export class ProjectionCheckpoint {
     @Prop({ required: true }) groupId!: string;
     @Prop({ required: true }) topic!: string;
     @Prop({ required: true }) partition!: number;
+    /** checkpoint가 가리키는 Mongo projection dataset identity. */
+    @Prop({ required: true }) datasetGeneration!: string;
+    /** topic 재생성/producer 세대 교체 시 운영자가 변경하는 source identity. */
+    @Prop({ required: true }) sourceGeneration!: string;
     /** 현재 partition assignment owner만 checkpoint를 전진시킬 수 있는 fencing token. */
     @Prop({ type: String, default: null }) assignmentEpoch!: string | null;
     /** Kafka가 발급한 현재 owner identity. generation만으로 active owner를 선점할 수 없다. */
@@ -13,6 +17,8 @@ export class ProjectionCheckpoint {
     @Prop({ type: Number, default: null }) assignmentGenerationId!: number | null;
     /** Mongo DB time으로 갱신되는 lease heartbeat. 애플리케이션 clock은 fencing에 사용하지 않는다. */
     @Prop({ type: Date, default: null }) assignmentLeaseRenewedAt!: Date | null;
+    /** 명시적 rebuild 중 현재 owner가 consumption pause를 확인한 generation. */
+    @Prop({ type: String, default: null }) rebuildPausedGeneration!: string | null;
     @Prop({ required: true }) nextOffset!: bigint;
     /** 이 partition에서 마지막으로 정상 검증한 full snapshot 완료 marker offset. */
     @Prop({ type: BigInt, default: null }) snapshotCompletedOffset!: bigint | null;
