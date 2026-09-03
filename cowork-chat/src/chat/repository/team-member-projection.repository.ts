@@ -31,6 +31,17 @@ export class TeamMemberProjectionRepository {
         return (await this.model.exists({ teamId, userId, deleted: { $ne: true } })) !== null;
     }
 
+    async findByTeamIdsAndUserIds(
+        teamIds: number[],
+        userIds: number[],
+    ): Promise<TeamMemberProjectionView[]> {
+        if (teamIds.length === 0 || userIds.length === 0) return [];
+        return this.model.find(
+            { teamId: { $in: teamIds }, userId: { $in: userIds }, deleted: { $ne: true } },
+            { _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1 },
+        ).lean<TeamMemberProjectionView[]>();
+    }
+
     async upsert(member: VersionedTeamMemberProjectionView): Promise<boolean> {
         const shouldApply = activeProjectionCondition(member.sourceVersion);
         const result = await this.model.updateOne(

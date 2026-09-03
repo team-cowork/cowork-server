@@ -5,6 +5,7 @@ import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import com.cowork.channel.domain.project.entity.ProjectProjection
 import com.cowork.channel.domain.project.repository.ProjectProjectionRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
@@ -25,6 +26,7 @@ class ListProjectChannelsServiceImplTest {
     private val teamPermission = mockk<TeamPermissionService>()
     private val projectProjectionRepository = mockk<ProjectProjectionRepository>()
     private val projectionReadinessGate = mockk<ProjectionReadinessGate>(relaxed = true)
+    private val evaluator = mockk<ChannelMessageReadPolicyEvaluator>()
 
     private val service =
         ListProjectChannelsServiceImpl(
@@ -32,6 +34,7 @@ class ListProjectChannelsServiceImplTest {
             teamPermission,
             projectProjectionRepository,
             projectionReadinessGate,
+            evaluator,
         )
 
     private fun channel(id: Long = 1L, teamId: Long = 100L) = Channel(
@@ -45,11 +48,13 @@ class ListProjectChannelsServiceImplTest {
         every { projectProjectionRepository.findById(5L) } returns
             Optional.of(ProjectProjection(5L, 100L, sourceOccurredAt = Instant.EPOCH))
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
-        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns listOf(ch)
+        every { channelRepository.findVisibleByProjectIdOrderByIdAsc(5L, 1L) } returns listOf(ch)
+        every { evaluator.filterReadable(100L, 1L, listOf(ch)) } returns listOf(ch)
 
         val result = service.execute(1L, 5L)
         assertEquals(1, result.size)
         verify { teamPermission.requireTeamMember(100L, 1L) }
+        verify { channelRepository.findVisibleByProjectIdOrderByIdAsc(5L, 1L) }
     }
 
     @Test
@@ -70,7 +75,8 @@ class ListProjectChannelsServiceImplTest {
         every { projectProjectionRepository.findById(5L) } returns
             Optional.of(ProjectProjection(5L, 100L, sourceOccurredAt = Instant.EPOCH))
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
-        every { channelRepository.findAllByProjectIdOrderByIdAsc(5L) } returns emptyList()
+        every { channelRepository.findVisibleByProjectIdOrderByIdAsc(5L, 1L) } returns emptyList()
+        every { evaluator.filterReadable(100L, 1L, emptyList()) } returns emptyList()
 
         val result = service.execute(1L, 5L)
         assertEquals(0, result.size)
