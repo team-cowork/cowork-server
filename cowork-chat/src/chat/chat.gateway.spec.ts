@@ -11,6 +11,9 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
+import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
+import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
@@ -43,6 +46,7 @@ const mockSocket = (authToken?: string, headers: Record<string, string> = {}) =>
 const mockChatService = {
     isMember: jest.fn(),
     isTeamMember: jest.fn(),
+    emitToReadableChannelUsers: jest.fn(),
 };
 
 const mockConsumer = {
@@ -67,6 +71,20 @@ const mockProjectEventConsumer = {
 
 const mockMembershipConsumer = {
     setSocketServer: jest.fn(),
+    setReadAccessEvaluator: jest.fn(),
+    setReadableEmitter: jest.fn(),
+};
+
+const mockTeamRoleEventConsumer = {
+    setSocketServer: jest.fn(),
+};
+
+const mockChannelRolePolicyEventConsumer = {
+    setSocketServer: jest.fn(),
+};
+
+const mockTeamMemberEventConsumer = {
+    setSocketServer: jest.fn(),
 };
 
 describe('ChatGateway', () => {
@@ -76,6 +94,8 @@ describe('ChatGateway', () => {
         jest.clearAllMocks();
         mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'MEMBER' });
         mockProjectionReadiness.isReady.mockReturnValue(true);
+        mockChatService.isMember.mockResolvedValue(true);
+        mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -87,6 +107,9 @@ describe('ChatGateway', () => {
                 { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
                 { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
                 { provide: MembershipConsumer, useValue: mockMembershipConsumer },
+                { provide: TeamRoleEventConsumer, useValue: mockTeamRoleEventConsumer },
+                { provide: ChannelRolePolicyEventConsumer, useValue: mockChannelRolePolicyEventConsumer },
+                { provide: TeamMemberEventConsumer, useValue: mockTeamMemberEventConsumer },
                 { provide: ConfigService, useValue: mockConfigService },
                 { provide: JwtService, useValue: mockJwtService },
                 { provide: RedisRateLimiter, useValue: mockRateLimiter },
@@ -245,14 +268,15 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
-            const emit = jest.fn();
-            client.to = jest.fn(() => ({ emit }));
-
             await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
 
             expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:typingrate:42', expect.any(Number), expect.any(Number));
-            expect(client.to).toHaveBeenCalledWith('chat:1');
-            expect(emit).toHaveBeenCalledWith('typing', { channelId: 1, userId: 42, isTyping: true });
+            expect(mockChatService.emitToReadableChannelUsers).toHaveBeenCalledWith(
+                1,
+                'typing',
+                { channelId: 1, userId: 42, isTyping: true },
+                'socket-1',
+            );
         });
 
         it('rate limiter가 한도 초과를 반환하면 typing 이벤트를 조용히 무시한다', async () => {
@@ -260,12 +284,22 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
-            const emit = jest.fn();
-            client.to = jest.fn(() => ({ emit }));
+            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(mockChatService.emitToReadableChannelUsers).not.toHaveBeenCalled();
+        });
+
+        it('typing 시점에 권한이 회수됐으면 sender를 room에서 제거하고 이벤트를 보내지 않는다', async () => {
+            mockChatService.isMember.mockResolvedValueOnce(false);
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+            client.rooms.add('chat:1');
 
             await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(emit).not.toHaveBeenCalled();
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
+            expect(client.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 1 });
+            expect(mockChatService.emitToReadableChannelUsers).not.toHaveBeenCalled();
         });
     });
 });

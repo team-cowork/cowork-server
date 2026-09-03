@@ -15,12 +15,14 @@ import { ChannelMemberRepository } from './repository/channel-member.repository'
 import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
 import { BlockService } from '../block/block.service';
 import { UnreadCounterService } from './service/unread-counter.service';
+import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
-const mockTo = jest.fn(() => ({
-    emit: mockEmit,
-}));
+const mockTo = jest.fn((room: string) => {
+    void room;
+    return { emit: mockEmit };
+});
 
 const makeMockMessage = (overrides = {}) => ({
     _id: new Types.ObjectId(mockMessageId),
@@ -65,6 +67,16 @@ const mockChannelMemberRepository = {
 
 const mockTeamMemberRepository = {
     exists: jest.fn(),
+};
+
+const mockChannelMessageReadAccess = {
+    canReadChannel: jest.fn().mockResolvedValue(true),
+    requireCanRead: jest.fn().mockResolvedValue(undefined),
+    findReadableProjectChannelIds: jest.fn(),
+    findReadableTeamChannelIds: jest.fn(),
+    filterReadableChannelIds: jest.fn(),
+    filterReadableUsersByChannel: jest.fn(),
+    emitToReadableChannelUsers: jest.fn(),
 };
 
 const mockBlockService = {
@@ -128,6 +140,7 @@ describe('ChatService', () => {
                 { provide: MessageRepository, useValue: mockMessageRepository },
                 { provide: ChannelMemberRepository, useValue: mockChannelMemberRepository },
                 { provide: TeamMemberProjectionRepository, useValue: mockTeamMemberRepository },
+                { provide: ChannelMessageReadAccessService, useValue: mockChannelMessageReadAccess },
                 { provide: ElasticsearchService, useValue: mockElasticsearchService },
                 { provide: ObjectStorageService, useValue: mockObjectStorageService },
                 { provide: ChatMessageProducer, useValue: mockChatMessageProducer },
@@ -143,16 +156,33 @@ describe('ChatService', () => {
 
         service = module.get<ChatService>(ChatService);
         jest.clearAllMocks();
+        mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
+        mockChannelMessageReadAccess.requireCanRead.mockResolvedValue(undefined);
+        mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
+        mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([]);
+        mockChannelMessageReadAccess.filterReadableChannelIds.mockImplementation(
+            (_teamId: number, _userId: number, channelIds: number[]) => Promise.resolve(channelIds),
+        );
+        mockChannelMessageReadAccess.filterReadableUsersByChannel.mockImplementation(
+            (usersByChannel: Map<number, number[]>) => Promise.resolve(usersByChannel),
+        );
+        mockChannelMessageReadAccess.emitToReadableChannelUsers.mockImplementation(
+            (_io: typeof mockChatGateway.server, channelId: number, event: string, payload: unknown) => {
+                mockTo(`chat:${channelId}`);
+                mockEmit(event, payload);
+                return Promise.resolve();
+            },
+        );
     });
 
     describe('isMember', () => {
         it('채널 멤버이면 true를 반환한다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
             await expect(service.isMember(1, 42)).resolves.toBe(true);
         });
 
         it('채널 멤버가 아니면 false를 반환한다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(false);
+            mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(false);
             await expect(service.isMember(1, 99)).resolves.toBe(false);
         });
     });
@@ -184,14 +214,25 @@ describe('ChatService', () => {
         });
     });
 
+    describe('searchProjectMessages', () => {
+        it('프로젝트 멤버지만 읽을 수 있는 가입 채널이 없으면 ES를 호출하지 않고 빈 결과를 반환한다', async () => {
+            mockProjectClient.isMember.mockResolvedValue(true);
+            mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
+
+            await expect(service.searchProjectMessages(7, { q: '배포' }, { userId: 42 }))
+                .resolves.toEqual({ messages: [], nextCursor: null });
+
+            expect(mockElasticsearchService.searchMessages).not.toHaveBeenCalled();
+        });
+    });
+
     describe('checkMembership', () => {
         it('멤버이면 예외 없이 통과한다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(true);
             await expect(service.checkMembership(1, 42)).resolves.toBeUndefined();
         });
 
         it('멤버가 아니면 ForbiddenException을 던진다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(false);
+            mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
             await expect(service.checkMembership(1, 99)).rejects.toThrow(ForbiddenException);
         });
     });
@@ -431,7 +472,7 @@ describe('ChatService', () => {
         });
 
         it('채널 멤버가 아니면 ForbiddenException을 던진다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(false);
+            mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
 
             await expect(service.getMessages({ channelId: 1, userId: 99 })).rejects.toThrow(ForbiddenException);
         });
@@ -686,7 +727,7 @@ describe('ChatService', () => {
         const msgId = new Types.ObjectId();
 
         it('멤버가 아니면 ForbiddenException을 던진다', async () => {
-            mockChannelMemberRepository.exists.mockResolvedValue(false);
+            mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
 
             await expect(
                 service.readChannel({ channelId: 1, userId: 42 }, msgId.toString()),
@@ -820,7 +861,7 @@ describe('ChatService', () => {
             expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith(10, 1, '이슈가 생성됐어요', 100, 0);
         });
 
-        it('채널 멤버(SYSTEM_AUTHOR_ID 제외)의 안읽음 수를 증가시킨다', async () => {
+        it('message_read가 허용된 팀 멤버(SYSTEM_AUTHOR_ID 제외)의 안읽음 수를 증가시킨다', async () => {
             mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([
                 { userId: 7 },

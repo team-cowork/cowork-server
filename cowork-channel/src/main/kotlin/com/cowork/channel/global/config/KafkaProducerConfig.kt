@@ -10,6 +10,8 @@ import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.core.ProducerFactory
 import org.springframework.kafka.support.serializer.JacksonJsonSerializer
 
+internal const val CHANNEL_ROLE_POLICY_RESULT_DLT_TEMPLATE_BEAN = "channelRolePolicyResultDltKafkaTemplate"
+
 @Configuration
 class KafkaProducerConfig(private val kafkaProperties: KafkaProperties) {
 
@@ -24,4 +26,16 @@ class KafkaProducerConfig(private val kafkaProperties: KafkaProperties) {
 
     @Bean
     fun kafkaTemplate(): KafkaTemplate<String, Any> = KafkaTemplate(producerFactory())
+
+    @Bean
+    fun channelRolePolicyResultDltProducerFactory(): ProducerFactory<String, String> {
+        val props = kafkaProperties.buildProducerProperties().toMutableMap<String, Any>()
+        props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
+        props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
+        return DefaultKafkaProducerFactory(props)
+    }
+
+    @Bean(name = [CHANNEL_ROLE_POLICY_RESULT_DLT_TEMPLATE_BEAN])
+    fun channelRolePolicyResultDltKafkaTemplate(): KafkaTemplate<String, String> =
+        KafkaTemplate(channelRolePolicyResultDltProducerFactory())
 }

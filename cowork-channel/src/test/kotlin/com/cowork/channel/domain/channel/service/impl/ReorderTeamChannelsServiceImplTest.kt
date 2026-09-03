@@ -6,6 +6,7 @@ import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,8 +20,14 @@ class ReorderTeamChannelsServiceImplTest {
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
+    private val messageReadPolicyEvaluator = mockk<ChannelMessageReadPolicyEvaluator>()
 
-    private val service = ReorderTeamChannelsServiceImpl(channelRepository, teamPermission, channelEventPublisher)
+    private val service = ReorderTeamChannelsServiceImpl(
+        channelRepository,
+        teamPermission,
+        channelEventPublisher,
+        messageReadPolicyEvaluator,
+    )
 
     private fun channel(
         id: Long = 1L,
@@ -42,6 +49,9 @@ class ReorderTeamChannelsServiceImplTest {
         val second = channel(id = 2L, position = 1)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
+        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
+            listOf(first, second)
 
         val result = service.execute(7L, 100L, listOf(2L, 1L))
 
@@ -55,12 +65,35 @@ class ReorderTeamChannelsServiceImplTest {
     @Test
     fun `reorderTeamChannels는 팀 채널 ID 누락 시 BAD_REQUEST`() {
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
-        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns
-            listOf(channel(id = 1L), channel(id = 2L))
+        val first = channel(id = 1L)
+        val second = channel(id = 2L)
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
+        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
+            listOf(first, second)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(7L, 100L, listOf(1L))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `reorderTeamChannels는 보이지 않는 채널 ID를 요구하거나 응답하지 않고 기존 위치를 유지함`() {
+        val first = channel(id = 1L, position = 0)
+        val hidden = channel(id = 2L, isPrivate = true, position = 1)
+        val third = channel(id = 3L, position = 2)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, hidden, third)
+        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, third)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, third)) } returns
+            listOf(first, third)
+
+        val result = service.execute(7L, 100L, listOf(3L, 1L))
+
+        assertEquals(listOf(3L, 1L), result.map { it.id })
+        assertEquals(2, first.position)
+        assertEquals(1, hidden.position)
+        assertEquals(0, third.position)
     }
 }

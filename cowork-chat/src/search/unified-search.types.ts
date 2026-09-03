@@ -59,6 +59,8 @@ export class UnifiedSearchResult {
     @Field(() => String, { nullable: true, description: '다음 페이지 커서. 마지막 페이지이면 null' })
     messageNextCursor?: string | null;
 
-    @Field(() => [SearchChannelItem], { description: '채널명 키워드 검색 결과' })
+    @Field(() => [SearchChannelItem], {
+        description: '공개 채널과 요청자가 가입한 비공개 채널의 채널명 키워드 검색 결과',
+    })
     channels!: SearchChannelItem[];
 }
