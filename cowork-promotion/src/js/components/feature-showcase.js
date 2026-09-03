@@ -1,5 +1,5 @@
 import { createBackgroundTransition, createSceneTransition } from "../core/transition.js";
-import { readMotionDuration } from "../core/design-tokens.js";
+import { readMotionDuration } from "../../design-system/tokens.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
 
 export function createFeatureShowcase(root) {
