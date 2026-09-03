@@ -1,0 +1,213 @@
+/* Shared UI components consume the design-system tokens. */
+.ui-container {
+    width: 100%;
+    max-width: var(--container-wide);
+    margin-inline: auto;
+}
+
+.ui-container--content {
+    max-width: var(--container-content);
+}
+
+.ui-section {
+    padding: var(--section-space) var(--page-gutter);
+}
+
+.ui-section-heading {
+    text-align: center;
+    margin-bottom: var(--space-14);
+}
+
+.ui-section-heading h2 {
+    margin-bottom: var(--space-3);
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--space-9);
+}
+
+.ui-section-heading p {
+    color: var(--color-text-muted);
+}
+
+:where(a, button, input, select, textarea):focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: var(--focus-offset);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.ui-icon {
+    width: var(--icon-size, 18px);
+    height: var(--icon-size, 18px);
+    flex-shrink: 0;
+}
+
+.ui-brand-mark {
+    width: var(--brand-width, 28px);
+    height: var(--brand-height, 21px);
+    color: var(--color-brand);
+}
+
+.ui-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2-5);
+    padding: var(--space-3-5) var(--space-7);
+    border-radius: var(--radius-full);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--space-5);
+    transition: color var(--duration-fast) var(--ease-standard), background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard);
+}
+
+.ui-button--primary {
+    background: var(--color-text);
+    color: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+}
+
+.ui-button--primary:hover {
+    background: var(--color-text-secondary);
+}
+
+.ui-button--secondary {
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.ui-button--secondary:hover {
+    background: var(--color-surface-subtle);
+    border-color: rgb(var(--palette-gray-300));
+}
+
+.ui-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-2-5);
+    background: var(--color-surface-muted);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--space-4);
+}
+
+.ui-badge--generation {
+    padding: var(--space-0-5) var(--space-1-5);
+    color: var(--color-text-subtle);
+}
+
+.ui-badge--technology {
+    padding: var(--space-1-5) var(--space-3-5);
+    border: 1px solid var(--color-border-subtle);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-secondary);
+    font-size: var(--font-size-sm);
+    line-height: var(--space-5);
+}
+
+.ui-badge--accent {
+    background: rgb(var(--ui-accent-rgb) / 0.082);
+    color: rgb(var(--ui-accent-rgb));
+    font-weight: var(--font-weight-semibold);
+}
+
+.ui-dot {
+    display: inline-block;
+    width: var(--space-2);
+    height: var(--space-2);
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    background: rgb(var(--ui-accent-rgb));
+}
+
+.ui-dot--small {
+    width: var(--space-1-5);
+    height: var(--space-1-5);
+}
+
+.ui-avatar {
+    width: var(--avatar-size, var(--space-8));
+    height: var(--avatar-size, var(--space-8));
+    border-radius: var(--radius-full);
+    object-fit: cover;
+    background: var(--color-surface-muted);
+    flex-shrink: 0;
+}
+
+.ui-avatar--profile {
+    --avatar-size: var(--space-11);
+    box-shadow: 0 0 0 2px var(--color-border-subtle);
+}
+
+.ui-member-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2-5);
+    padding: var(--space-2-5) var(--space-4);
+    border: 1px solid rgb(var(--ui-accent-rgb, var(--palette-gray-200)) / 0.19);
+    border-radius: var(--radius-xl);
+    background: rgb(var(--ui-accent-rgb) / 0.07);
+}
+
+.ui-member-card--profile {
+    min-width: 200px;
+    flex-shrink: 0;
+    gap: var(--space-3);
+    padding-block: var(--space-3);
+    border-color: var(--color-border-subtle);
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+    user-select: none;
+}
+
+.ui-member-card__name {
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: var(--leading-tight);
+}
+
+.ui-member-card__generation {
+    color: var(--color-text-subtle);
+    font-size: var(--font-size-xs);
+    line-height: var(--space-4);
+}
+
+.ui-card {
+    padding: var(--space-6);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-2xl);
+    background: var(--color-surface);
+}
+
+.ui-card--interactive {
+    transition: border-color var(--duration-normal) var(--ease-standard), box-shadow var(--duration-normal) var(--ease-standard);
+}
+
+.ui-card--interactive:hover {
+    border-color: rgb(var(--palette-red-200));
+    box-shadow: var(--shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .ui-button, .ui-card--interactive {
+        transition: none;
+    }
+}
