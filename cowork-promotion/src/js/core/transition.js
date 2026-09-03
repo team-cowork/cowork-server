@@ -1,5 +1,5 @@
 import { elementFromMarkup } from "./dom.js";
-import { readMotionDuration } from "./design-tokens.js";
+import { readMotionDuration } from "../../design-system/tokens.js";
 
 function createScheduler() {
     const timers = new Set();
