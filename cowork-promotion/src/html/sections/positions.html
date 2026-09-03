@@ -1,6 +1,6 @@
         <section
           id="positions"
-          style="height: calc(6 * 50vh + 100vh)"
+          style="height: calc({{positions:count}} * 50vh + 100vh)"
           class="relative"
         >
           <div
@@ -10,18 +10,8 @@
               class="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden"
               aria-hidden="true"
             >
-              <span
-                class="font-black leading-none transition-all duration-700"
-                style="
-                  font-size: clamp(160px, 28vw, 380px);
-                  opacity: 0.04;
-                  line-height: 1;
-                  padding-left: 4vw;
-                  color: #8b5cf6;
-                "
-              >
-                01
-              </span>
+              <!-- data:positions-background:start -->
+              <!-- data:positions-background:end -->
             </div>
             <div class="max-w-6xl mx-auto px-6 w-full relative z-10">
               <div class="flex items-center justify-between mb-8">
@@ -30,46 +20,23 @@
                 >
                   Position
                 </span>
-                <span class="text-xs text-gray-400 font-medium tabular-nums">
-                  01 / 06
+                <span data-showcase-counter class="text-xs text-gray-400 font-medium tabular-nums">
+                  <!-- data:positions-counter:start -->
+                  <!-- data:positions-counter:end -->
                 </span>
               </div>
               <div class="relative" style="height: 46vh; min-height: 300px">
                 <div
+                  data-showcase-scene
                   class="absolute inset-0 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center"
                 >
-                  <!-- data:position-initial:start -->
-                  <!-- Generated from tech-stacks.yaml and team-members.xml. -->
-                  <!-- data:position-initial:end -->
+                  <!-- data:positions-initial:start -->
+                  <!-- data:positions-initial:end -->
                 </div>
               </div>
               <div class="flex items-center gap-2 mt-8">
-                <!--[-->
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 32px; background-color: #8b5cf6"
-                ></button>
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 8px; background-color: #e5e7eb"
-                ></button>
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 8px; background-color: #e5e7eb"
-                ></button>
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 8px; background-color: #e5e7eb"
-                ></button>
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 8px; background-color: #e5e7eb"
-                ></button>
-                <button
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: 8px; background-color: #e5e7eb"
-                ></button>
-                <!--]-->
+                <!-- data:positions-dots:start -->
+                <!-- data:positions-dots:end -->
               </div>
             </div>
           </div>

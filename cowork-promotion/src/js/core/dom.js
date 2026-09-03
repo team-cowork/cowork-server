@@ -15,9 +15,3 @@ export function scrollToSectionState(section, count, index, reducedMotion) {
         behavior: reducedMotion.matches ? "auto" : "smooth",
     });
 }
-
-export function elementFromMarkup(markup) {
-    const template = document.createElement("template");
-    template.innerHTML = markup.trim();
-    return template.content.firstElementChild;
-}

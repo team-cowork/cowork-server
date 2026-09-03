@@ -1,11 +1,12 @@
 import { sectionProgress, scrollToSectionState } from "../core/dom.js";
 import { createStore } from "../core/store.js";
+import { showcaseCounter } from "../core/showcase-state.js";
 import { loadStates } from "../data/load-states.js";
 
 function updateDots(buttons, index, activeColor, activeWidth, inactiveColor) {
     buttons.forEach((button, buttonIndex) => {
         const active = buttonIndex === index;
-        button.style.width = active ? activeWidth : "8px";
+        button.style.width = active ? activeWidth : "var(--indicator-size)";
         button.style.backgroundColor = active ? activeColor : inactiveColor;
         button.setAttribute("aria-current", active ? "step" : "false");
     });
@@ -14,7 +15,6 @@ function updateDots(buttons, index, activeColor, activeWidth, inactiveColor) {
 export function createStickyShowcase({
     activeDotWidth,
     inactiveDotColor,
-    label,
     onProgress,
     onStateChange,
     reducedMotion,
@@ -22,8 +22,8 @@ export function createStickyShowcase({
     statesUrl,
 }) {
     const store = createStore({ activeIndex: 0, progress: 0, states: [] });
-    const counter = root.querySelector(".tabular-nums");
-    const dots = Array.from(root.querySelectorAll("button"));
+    const counter = root.querySelector("[data-showcase-counter]");
+    const dots = Array.from(root.querySelectorAll("[data-showcase-dot]"));
     const cleanups = [];
     let scrollFrame = 0;
     let unsubscribe = () => {};
@@ -32,7 +32,7 @@ export function createStickyShowcase({
         const state = snapshot.states[snapshot.activeIndex];
         if (!state) return;
 
-        if (counter) counter.textContent = state.counterText;
+        if (counter) counter.textContent = showcaseCounter(snapshot.activeIndex, snapshot.states.length);
         updateDots(
             dots,
             snapshot.activeIndex,
@@ -73,8 +73,6 @@ export function createStickyShowcase({
         unsubscribe = store.subscribe(render);
 
         dots.forEach((button, index) => {
-            button.type = "button";
-            button.setAttribute("aria-label", `${label} ${index + 1} / ${states.length}`);
             const handleClick = () =>
                 scrollToSectionState(root, states.length, index, reducedMotion);
             button.addEventListener("click", handleClick);
