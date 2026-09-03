@@ -25,6 +25,8 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MembershipConsumer.name);
     private consumer!: Consumer;
     private io?: Server;
+    private readAccessEvaluator?: (channelId: number, userId: number) => Promise<boolean>;
+    private readableEmitter?: (channelId: number, event: string, payload: unknown) => Promise<void>;
 
     constructor(
         @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
@@ -34,6 +36,14 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
 
     setSocketServer(io: Server) {
         this.io = io;
+    }
+
+    setReadAccessEvaluator(evaluator: (channelId: number, userId: number) => Promise<boolean>): void {
+        this.readAccessEvaluator = evaluator;
+    }
+
+    setReadableEmitter(emitter: (channelId: number, event: string, payload: unknown) => Promise<void>): void {
+        this.readableEmitter = emitter;
     }
 
     async onModuleInit() {
@@ -128,10 +138,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 if (!projectionUpdateApplied(result)) return;
                 if (event.snapshot === true) return;
                 if (eventType === 'ROLE_CHANGE') {
-                    this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
+                    await this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
                     return;
                 }
-                this.broadcast(channelId, 'member:joined', { channelId, teamId, userId, role });
+                await this.broadcast(channelId, 'member:joined', { channelId, teamId, userId, role });
             } else if (eventType === 'LEAVE') {
                 const shouldApply = deletedProjectionCondition(sourceVersion);
                 const result = await this.memberModel.updateOne(
@@ -159,9 +169,15 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     }],
                     { upsert: true, timestamps: false },
                 );
-                if (!projectionUpdateApplied(result)) return;
-                if (event.snapshot === true) return;
-                this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
+                const applied = projectionUpdateApplied(result);
+                if (this.io && this.readAccessEvaluator && !(await this.readAccessEvaluator(channelId, userId))) {
+                    this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
+                    if (event.snapshot !== true) {
+                        this.io.to(`user:${userId}`).emit('channel:access:revoked', { channelId });
+                    }
+                }
+                if (event.snapshot === true || !applied) return;
+                await this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
             }
         } catch (err) {
             this.logger.error(`Failed to handle membership event [${eventType}]`, err);
@@ -182,11 +198,11 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && parseEventTime(event.occurredAt) !== null;
     }
 
-    private broadcast(channelId: number, event: string, payload: unknown): void {
-        if (!this.io) {
-            this.logger.warn(`Socket.IO server not initialized yet, dropping ${event} event (channelId=${channelId})`);
+    private async broadcast(channelId: number, event: string, payload: unknown): Promise<void> {
+        if (!this.io || !this.readableEmitter) {
+            this.logger.warn(`Readable socket emitter not initialized yet, dropping ${event} event (channelId=${channelId})`);
             return;
         }
-        this.io.to(`chat:${channelId}`).emit(event, payload);
+        await this.readableEmitter(channelId, event, payload);
     }
 }

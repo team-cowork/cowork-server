@@ -132,6 +132,10 @@ services:
         preference.team-role.command
         preference.team-role.command-result
         preference.team-role.command-result-dlt
+        preference.channel-role-policy.command
+        preference.channel-role-policy.changed
+        preference.channel-role-policy.command-result
+        preference.channel-role-policy.command-result-dlt
         preference.github-repo.setting.command
         preference.github-repo.setting.state
         preference.github-repo.setting.result
@@ -148,6 +152,7 @@ services:
         project.github-repo.event
         preference.channel-notification.changed
         preference.team-role.changed
+        preference.channel-role-policy.changed
         preference.github-repo.setting.state
     entrypoint: ["/bin/sh", "-c"]
     command:

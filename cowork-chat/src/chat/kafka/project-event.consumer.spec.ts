@@ -2,6 +2,7 @@ import { mongo } from 'mongoose';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
 import { ProjectEventConsumer } from './project-event.consumer';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 type ConsumerWithHandle = {
     handleEvent(event: unknown, messageKey?: string): Promise<void>;
@@ -15,12 +16,14 @@ describe('ProjectEventConsumer', () => {
         upsert: jest.fn().mockResolvedValue(true),
         remove: jest.fn().mockResolvedValue(true),
     };
+    const accessService = { emitToActiveTeamUsers: jest.fn().mockResolvedValue(undefined) };
     const consumer = new ProjectEventConsumer(
         { get: jest.fn() } as never,
         { sendCustom: jest.fn() } as never,
         projectRepository as unknown as ProjectProjectionRepository,
         memberRepository as unknown as ProjectMemberProjectionRepository,
         {} as never,
+        accessService as unknown as ChannelMessageReadAccessService,
     );
     const socket = { to: jest.fn().mockReturnValue({ emit: jest.fn() }) };
     consumer.setSocketServer(socket as never);
@@ -47,6 +50,12 @@ describe('ProjectEventConsumer', () => {
             5,
             new Date('2026-08-26T00:00:00Z'),
             SOURCE_VERSION,
+        );
+        expect(accessService.emitToActiveTeamUsers).toHaveBeenCalledWith(
+            socket,
+            10,
+            'project:deleted',
+            { projectId: 5, teamId: 10 },
         );
     });
 
@@ -81,6 +90,7 @@ describe('ProjectEventConsumer', () => {
         }, '5');
 
         expect(projectRepository.upsert).toHaveBeenCalled();
+        expect(accessService.emitToActiveTeamUsers).not.toHaveBeenCalled();
         expect(socket.to).not.toHaveBeenCalled();
     });
 
