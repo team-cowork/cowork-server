@@ -4,10 +4,14 @@ import { randomUUID } from 'crypto';
 import { Model } from 'mongoose';
 import { ChannelMember } from '../../chat/schema/channel-member.schema';
 import { ChannelProjection } from '../../chat/schema/channel-projection.schema';
+import { ChannelRolePolicyProjection } from '../../chat/schema/channel-role-policy-projection.schema';
 import { ProjectGithubRepoProjection } from '../../chat/schema/project-github-repo-projection.schema';
 import { ProjectMemberProjection } from '../../chat/schema/project-member-projection.schema';
 import { ProjectProjection } from '../../chat/schema/project-projection.schema';
 import { TeamMemberProjection } from '../../chat/schema/team-member-projection.schema';
+import { TeamRoleAssignmentProjection } from '../../chat/schema/team-role-assignment-projection.schema';
+import { TeamRoleMemberTombstone } from '../../chat/schema/team-role-member-tombstone.schema';
+import { TeamRoleProjection } from '../../chat/schema/team-role-projection.schema';
 import { UserProfileProjection } from '../../chat/schema/user-profile-projection.schema';
 import {
     ProjectionDataset,
@@ -23,6 +27,8 @@ export type ProjectionStreamName =
     | 'projectMember'
     | 'projectGithubRepo'
     | 'teamMember'
+    | 'teamRole'
+    | 'channelRolePolicy'
     | 'userProfile';
 
 export interface ProjectionDatasetState {
@@ -50,7 +56,7 @@ interface ProjectionDatasetStream {
 
 @Injectable()
 export class ProjectionDatasetRepository {
-    private readonly projectionModels: Record<ProjectionStreamName, Model<unknown>>;
+    private readonly projectionModels: Record<ProjectionStreamName, Model<unknown>[]>;
 
     constructor(
         @InjectModel(ProjectionDataset.name) private readonly datasets: Model<ProjectionDataset>,
@@ -61,16 +67,22 @@ export class ProjectionDatasetRepository {
         @InjectModel(ProjectGithubRepoProjection.name) projectGithubRepo: Model<ProjectGithubRepoProjection>,
         @InjectModel(TeamMemberProjection.name) teamMember: Model<TeamMemberProjection>,
         @InjectModel(UserProfileProjection.name) userProfile: Model<UserProfileProjection>,
+        @InjectModel(TeamRoleProjection.name) teamRole: Model<TeamRoleProjection>,
+        @InjectModel(TeamRoleAssignmentProjection.name) teamRoleAssignment: Model<TeamRoleAssignmentProjection>,
+        @InjectModel(TeamRoleMemberTombstone.name) teamRoleMemberTombstone: Model<TeamRoleMemberTombstone>,
+        @InjectModel(ChannelRolePolicyProjection.name) channelRolePolicy: Model<ChannelRolePolicyProjection>,
     ) {
         this.projectionModels = {
-            channel,
-            project,
-            channelMember,
-            projectMember,
-            projectGithubRepo,
-            teamMember,
-            userProfile,
-        } as Record<ProjectionStreamName, Model<unknown>>;
+            channel: [channel],
+            project: [project],
+            channelMember: [channelMember],
+            projectMember: [projectMember],
+            projectGithubRepo: [projectGithubRepo],
+            teamMember: [teamMember],
+            userProfile: [userProfile],
+            teamRole: [teamRole, teamRoleAssignment, teamRoleMemberTombstone],
+            channelRolePolicy: [channelRolePolicy],
+        } as Record<ProjectionStreamName, Model<unknown>[]>;
     }
 
     async find(stream: ProjectionStreamName): Promise<ProjectionDatasetState | undefined> {
@@ -197,17 +209,20 @@ export class ProjectionDatasetRepository {
     }
 
     async countProjection(stream: ProjectionStreamName): Promise<number> {
-        return this.projectionModels[stream].countDocuments({});
+        const counts = await Promise.all(this.projectionModels[stream].map((model) => model.countDocuments({})));
+        return counts.reduce((total, count) => total + count, 0);
     }
 
     /** projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다. */
     async resetProjection(stream: ProjectionStreamName): Promise<void> {
-        const model = this.projectionModels[stream];
+        const models = this.projectionModels[stream];
         if (stream !== 'channelMember') {
-            await model.deleteMany({});
+            for (const model of models) {
+                await model.deleteMany({});
+            }
             return;
         }
-        await model.updateMany({}, {
+        await models[0].updateMany({}, {
             $set: {
                 deleted: true,
                 sourceOccurredAt: new Date(0),
