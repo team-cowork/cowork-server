@@ -59,6 +59,28 @@ class PreferenceEventsTest {
     }
 
     @Test
+    fun `channel role policy state has stable key and full-state payload`() {
+        val permissions = JsonObject().put("message_read", false)
+
+        val event = PreferenceEvents.channelRolePolicyState(
+            teamId = 3L,
+            channelId = 7L,
+            roleId = 11L,
+            permissions = permissions,
+            occurredAt = occurredAt,
+            snapshot = false,
+        )
+
+        assertEquals("preference.channel-role-policy.changed", event.topic)
+        assertEquals("policy:3:7:11", event.key)
+        assertEquals(1, event.payload.getInteger("schemaVersion"))
+        assertEquals("UPSERT", event.payload.getString("eventType"))
+        assertEquals(permissions, event.payload.getJsonObject("permissions"))
+        assertEquals(false, event.payload.getBoolean("snapshot"))
+        assertEquals(occurredAt.toString(), event.payload.getString("occurredAt"))
+    }
+
+    @Test
     fun `snapshot completion emits one explicit marker for every state topic partition`() {
         val events = ProjectionSnapshotCompletionEvents.create(
             topicPartitions = mapOf(

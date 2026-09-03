@@ -11,6 +11,7 @@ import com.cowork.preference.messaging.TeamRoleCommandEnvelope
 import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.messaging.TeamRoleCommandRoleInput
 import com.cowork.preference.messaging.TeamRoleCommandType
+import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommand
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -30,6 +31,7 @@ class TeamRoleCommandProcessor(
     private val inboxRepository: TeamRoleCommandInboxRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadiness,
+    private val channelRolePolicyRepository: ChannelRolePolicyRepository,
 ) {
     suspend fun process(command: TeamRoleCommand) {
         outboxRepository.inTransaction { connection ->
@@ -215,11 +217,53 @@ class TeamRoleCommandProcessor(
         requireManageable(actor, role.priority)
         val occurredAt = now()
         val assignments = roleRepository.findMemberRoles(connection, command.teamId).filter { it.roleId == roleId }
-        roleRepository.deleteRole(connection, command.teamId, roleId)
-        val roleEvent = PreferenceEvents.roleDeleted(command.teamId, roleId, occurredAt)
-        val events = assignments.map { PreferenceEvents.assignmentDeleted(it, occurredAt) } + roleEvent
+        val policyEvents = deleteChannelRolePoliciesForRole(connection, command.teamId, roleId)
+        val assignmentTombstones = assignments.map { assignment ->
+            roleRepository.deleteAssignment(
+                connection,
+                assignment.accountId,
+                assignment.teamId,
+                assignment.roleId,
+                occurredAt,
+            )
+        }
+        val roleTombstone = roleRepository.deleteRoleWithTombstone(
+            connection,
+            command.teamId,
+            roleId,
+            occurredAt,
+        )
+        val roleEvent = PreferenceEvents.roleDeleted(command.teamId, roleId, roleTombstone.stateOccurredAt)
+        val events = policyEvents + assignmentTombstones.map { tombstone ->
+            PreferenceEvents.assignmentDeleted(
+                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                tombstone.stateOccurredAt,
+            )
+        } + roleEvent
         return success(command, null, roleEvent, deleted = true, stateEvents = events)
     }
+
+    private suspend fun deleteChannelRolePoliciesForRole(
+        connection: SqlConnection,
+        teamId: Long,
+        roleId: Long,
+    ): List<PreferenceEvent> =
+        channelRolePolicyRepository.findPoliciesByRole(connection, teamId, roleId).map { policy ->
+            val tombstone = channelRolePolicyRepository.deletePolicy(
+                connection,
+                policy.teamId,
+                policy.channelId,
+                policy.roleId,
+            )
+            PreferenceEvents.channelRolePolicyState(
+                teamId = tombstone.teamId,
+                channelId = tombstone.channelId,
+                roleId = tombstone.roleId,
+                permissions = null,
+                occurredAt = tombstone.stateOccurredAt,
+                snapshot = false,
+            )
+        }
 
     private suspend fun assign(
         connection: SqlConnection,
@@ -269,10 +313,15 @@ class TeamRoleCommandProcessor(
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
         requireManageable(actor, role.priority)
-        roleRepository.removeRole(connection, targetId, command.teamId, roleId)
-        val occurredAt = now()
+        val tombstone = roleRepository.deleteAssignment(
+            connection,
+            targetId,
+            command.teamId,
+            roleId,
+            now(),
+        )
         val assignment = AccountTeamRole(targetId, command.teamId, roleId)
-        val event = PreferenceEvents.assignmentDeleted(assignment, occurredAt)
+        val event = PreferenceEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
         return success(command, role, event, deleted = true)
     }
 

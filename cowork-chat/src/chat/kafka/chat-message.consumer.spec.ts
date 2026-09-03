@@ -5,6 +5,7 @@ import { ChatMessageEvent } from './event/chat-message.event';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { MessageRepository } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 type ConsumerWithPrivates = Omit<ChatMessageConsumer, 'handleMessageEvent'> & {
     handleMessageEvent: (event: ChatMessageEvent) => Promise<void>;
@@ -30,6 +31,10 @@ const mockDicoshotService = {
     sendCustom: jest.fn().mockResolvedValue(true),
 };
 
+const mockChannelMessageReadAccess = {
+    emitToReadableChannelUsers: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('ChatMessageConsumer', () => {
     let consumer: ChatMessageConsumer;
 
@@ -40,6 +45,7 @@ describe('ChatMessageConsumer', () => {
             mockConfigService as unknown as ConfigService,
             mockElasticsearchService as unknown as ElasticsearchService,
             mockDicoshotService as unknown as DicoshotService,
+            mockChannelMessageReadAccess as unknown as ChannelMessageReadAccessService,
         );
         jest.clearAllMocks();
     });

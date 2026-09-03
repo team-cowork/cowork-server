@@ -87,4 +87,130 @@ describe('MembershipConsumer projection ordering', () => {
         expect(memberModel.updateOne).toHaveBeenCalled();
         expect(socket.to).not.toHaveBeenCalled();
     });
+
+    it('membership metadata 이벤트도 readable recipient 필터를 거쳐 전송한다', async () => {
+        const emitter = jest.fn().mockResolvedValue(undefined);
+        const isolatedConsumer = new MembershipConsumer(memberModel as never, { get: jest.fn() } as never, {} as never);
+        isolatedConsumer.setSocketServer({} as never);
+        isolatedConsumer.setReadableEmitter(emitter);
+
+        await (isolatedConsumer as unknown as ConsumerWithHandle).handleEvent({
+            eventType: 'JOIN',
+            channelId: 3,
+            teamId: 10,
+            userId: 42,
+            role: 'MEMBER',
+            channelType: 'TEXT',
+            occurredAt: '2026-08-26T00:00:00Z',
+        }, '3:42');
+
+        expect(emitter).toHaveBeenCalledWith(
+            3,
+            'member:joined',
+            { channelId: 3, teamId: 10, userId: 42, role: 'MEMBER' },
+        );
+    });
+
+    it('LEAVE 후 message_read도 없으면 사용자 socket을 channel room에서 강제 퇴장시킨다', async () => {
+        const socketsLeave = jest.fn();
+        const emit = jest.fn();
+        const socket = {
+            in: jest.fn().mockReturnValue({ socketsLeave }),
+            to: jest.fn().mockReturnValue({ emit }),
+        };
+        const isolatedConsumer = new MembershipConsumer(memberModel as never, { get: jest.fn() } as never, {} as never);
+        isolatedConsumer.setSocketServer(socket as never);
+        isolatedConsumer.setReadAccessEvaluator(jest.fn().mockResolvedValue(false));
+
+        await (isolatedConsumer as unknown as ConsumerWithHandle).handleEvent({
+            eventType: 'LEAVE',
+            channelId: 3,
+            teamId: 10,
+            userId: 42,
+            role: 'MEMBER',
+            channelType: 'TEXT',
+            occurredAt: '2026-08-26T00:00:00Z',
+        }, '3:42');
+
+        expect(socket.in).toHaveBeenCalledWith('user:42');
+        expect(socketsLeave).toHaveBeenCalledWith('chat:3');
+        expect(emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 3 });
+    });
+
+    it('snapshot LEAVE도 live 알림 없이 현재 권한 기준으로 channel room을 정리한다', async () => {
+        const socketsLeave = jest.fn();
+        const emit = jest.fn();
+        const socket = {
+            in: jest.fn().mockReturnValue({ socketsLeave }),
+            to: jest.fn().mockReturnValue({ emit }),
+        };
+        const isolatedConsumer = new MembershipConsumer(memberModel as never, { get: jest.fn() } as never, {} as never);
+        isolatedConsumer.setSocketServer(socket as never);
+        isolatedConsumer.setReadAccessEvaluator(jest.fn().mockResolvedValue(false));
+
+        await (isolatedConsumer as unknown as ConsumerWithHandle).handleEvent({
+            eventType: 'LEAVE',
+            channelId: 3,
+            teamId: 10,
+            userId: 42,
+            role: 'MEMBER',
+            channelType: 'TEXT',
+            occurredAt: '2026-08-26T00:00:00Z',
+            snapshot: true,
+        }, '3:42');
+
+        expect(socketsLeave).toHaveBeenCalledWith('chat:3');
+        expect(emit).not.toHaveBeenCalled();
+    });
+
+    it('stale snapshot LEAVE 뒤 현재 권한이 복구됐으면 channel room을 유지한다', async () => {
+        memberModel.updateOne.mockResolvedValueOnce({ modifiedCount: 0, upsertedCount: 0 });
+        const socketsLeave = jest.fn();
+        const socket = {
+            in: jest.fn().mockReturnValue({ socketsLeave }),
+            to: jest.fn().mockReturnValue({ emit: jest.fn() }),
+        };
+        const isolatedConsumer = new MembershipConsumer(memberModel as never, { get: jest.fn() } as never, {} as never);
+        isolatedConsumer.setSocketServer(socket as never);
+        isolatedConsumer.setReadAccessEvaluator(jest.fn().mockResolvedValue(true));
+
+        await (isolatedConsumer as unknown as ConsumerWithHandle).handleEvent({
+            eventType: 'LEAVE',
+            channelId: 3,
+            teamId: 10,
+            userId: 42,
+            role: 'MEMBER',
+            channelType: 'TEXT',
+            occurredAt: '2026-08-26T00:00:00Z',
+            snapshot: true,
+        }, '3:42');
+
+        expect(socketsLeave).not.toHaveBeenCalled();
+    });
+
+    it('같은 LEAVE 재처리에서 projection 변경이 없어도 room 회수를 복구한다', async () => {
+        memberModel.updateOne.mockResolvedValueOnce({ modifiedCount: 0, upsertedCount: 0 });
+        const socketsLeave = jest.fn();
+        const emit = jest.fn();
+        const socket = {
+            in: jest.fn().mockReturnValue({ socketsLeave }),
+            to: jest.fn().mockReturnValue({ emit }),
+        };
+        const isolatedConsumer = new MembershipConsumer(memberModel as never, { get: jest.fn() } as never, {} as never);
+        isolatedConsumer.setSocketServer(socket as never);
+        isolatedConsumer.setReadAccessEvaluator(jest.fn().mockResolvedValue(false));
+
+        await (isolatedConsumer as unknown as ConsumerWithHandle).handleEvent({
+            eventType: 'LEAVE',
+            channelId: 3,
+            teamId: 10,
+            userId: 42,
+            role: 'MEMBER',
+            channelType: 'TEXT',
+            occurredAt: '2026-08-26T00:00:00Z',
+        }, '3:42');
+
+        expect(socketsLeave).toHaveBeenCalledWith('chat:3');
+        expect(socket.to).not.toHaveBeenCalledWith('chat:3');
+    });
 });
