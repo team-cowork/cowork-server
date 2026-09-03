@@ -1,4 +1,5 @@
 import { createBackgroundTransition, createSceneTransition } from "../core/transition.js";
+import { readMotionDuration } from "../core/design-tokens.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
 
 export function createFeatureShowcase(root) {
@@ -6,8 +7,8 @@ export function createFeatureShowcase(root) {
     const sceneTransition = createSceneTransition(
         root.querySelector('.relative[style*="min-height"] > div'),
         {
-            enterDuration: 500,
-            leaveDuration: 300,
+            enterDuration: readMotionDuration("--duration-scene", root),
+            leaveDuration: readMotionDuration("--duration-feature-leave", root),
             name: "feature-fade",
             reducedMotion,
         },
@@ -18,8 +19,8 @@ export function createFeatureShowcase(root) {
     );
     const progressBar = root.querySelector(".flex-1.h-1 > div");
     const showcase = createStickyShowcase({
-        activeDotWidth: "24px",
-        inactiveDotColor: "rgba(255, 255, 255, 0.2)",
+        activeDotWidth: "var(--indicator-feature-active)",
+        inactiveDotColor: "var(--color-indicator-inverse)",
         label: "기능",
         onProgress(progress, state) {
             if (!progressBar) return;
