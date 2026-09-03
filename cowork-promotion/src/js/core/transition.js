@@ -1,4 +1,3 @@
-import { elementFromMarkup } from "./dom.js";
 import { readMotionDuration } from "../../design-system/tokens.js";
 
 function createScheduler() {
@@ -81,7 +80,7 @@ export function createBackgroundTransition(element, reducedMotion) {
     const scheduler = createScheduler();
     let version = 0;
 
-    function render(markup) {
+    function render({ text, color }) {
         if (!element) return;
 
         const currentVersion = ++version;
@@ -94,9 +93,8 @@ export function createBackgroundTransition(element, reducedMotion) {
         scheduler.after(duration, () => {
             if (!isCurrent()) return;
 
-            const nextBackground = elementFromMarkup(markup);
-            element.textContent = nextBackground?.textContent ?? "";
-            element.style.color = nextBackground?.style.color ?? "";
+            element.textContent = text;
+            element.style.color = color;
             element.classList.remove("bg-index-leave-active", "bg-index-leave-to");
             element.classList.add("bg-index-enter-active", "bg-index-enter-from");
 

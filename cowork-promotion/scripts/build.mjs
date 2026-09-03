@@ -252,12 +252,14 @@ export async function build(options = {}) {
     );
     generatedHomeHtml = renderShowcase(generatedHomeHtml, "features", featureStates, {
         label: "기능",
+        backgroundClass: "feature-index",
         dotClass: "h-1.5 rounded-full transition-all duration-300 cursor-pointer",
         activeDotWidth: "var(--indicator-feature-active)",
         inactiveDotColor: "var(--color-indicator-inverse)",
     });
     generatedHomeHtml = renderShowcase(generatedHomeHtml, "positions", positionStates, {
         label: "포지션",
+        backgroundClass: "position-index",
         dotClass: "h-1 rounded-full transition-all duration-500 cursor-pointer",
         activeDotWidth: "var(--indicator-active)",
         inactiveDotColor: "var(--color-indicator)",
