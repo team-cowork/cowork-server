@@ -9,6 +9,8 @@ import { ChannelMemberRepository } from '../repository/channel-member.repository
 import { UnreadCounterService } from '../service/unread-counter.service';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE = 10;
@@ -43,6 +45,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         private readonly triggerProducer: NotificationTriggerProducer,
         private readonly unreadCounterService: UnreadCounterService,
         private readonly dicoshot: DicoshotService,
+        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     /**
@@ -58,6 +62,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     }
 
     private async runPollCycle(): Promise<void> {
+        if (!this.projectionReadiness.isReady()) return;
         if (this.isPolling) return;
         this.isPolling = true;
         try {
@@ -123,8 +128,18 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         const channelIds = [...new Set(msgs.map((m) => m.channelId))];
         const membersByChannel = await this.channelMemberRepository.findByChannelIds(channelIds);
+        const readableUsersByChannel = await this.channelMessageReadAccess.filterReadableUsersByChannel(
+            new Map(channelIds.map((channelId) => [
+                channelId,
+                (membersByChannel.get(channelId) ?? []).map(({ userId }) => userId),
+            ])),
+        );
         for (const channelId of channelIds) {
-            memberCache.set(String(channelId), membersByChannel.get(channelId) ?? []);
+            const readableUserIds = new Set(readableUsersByChannel.get(channelId) ?? []);
+            memberCache.set(
+                String(channelId),
+                (membersByChannel.get(channelId) ?? []).filter(({ userId }) => readableUserIds.has(userId)),
+            );
         }
 
         // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
