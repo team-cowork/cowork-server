@@ -37,7 +37,11 @@ class TeamChannelController(
         @PathVariable teamId: Long,
     ): List<ChannelResponse> = listTeamChannelsService.execute(userId, teamId).map(ChannelResponse::of)
 
-    @Operation(summary = "팀 채널 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "팀 채널 순서 변경",
+        description = "요청자가 현재 조회 가능한 채널 ID만 모두 전달하며, 조회할 수 없는 채널의 위치는 유지합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "변경 성공"),
         ApiResponse(responseCode = "400", description = "유효하지 않은 채널 순서"),

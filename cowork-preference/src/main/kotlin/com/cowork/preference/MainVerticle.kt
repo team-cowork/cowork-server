@@ -6,6 +6,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
+import com.cowork.preference.messaging.ChannelRolePolicyCommandConsumer
 import com.cowork.preference.messaging.GithubRepoSettingCommandConsumer
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.messaging.PreferenceOutboxDispatcher
@@ -15,6 +16,8 @@ import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionConsumer
 import com.cowork.preference.messaging.TeamRoleCommandConsumer
+import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
+import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.GithubRepoSettingCommandInboxRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
@@ -25,6 +28,7 @@ import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
+import com.cowork.preference.service.ChannelRolePolicyCommandProcessor
 import com.cowork.preference.service.GithubRepoSettingCommandProcessor
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
@@ -50,12 +54,14 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainVerticle : AbstractVerticle() {
 
     companion object {
         private const val HEARTBEAT_INTERVAL_MS = 30_000L
         private const val EUREKA_READINESS_INTERVAL_MS = 1_000L
+        private const val INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS = 1_000L
         private const val PROJECTION_SNAPSHOT_INTERVAL_MS = 300_000L
     }
 
@@ -70,6 +76,7 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var teamMemberProjectionConsumer: TeamMemberProjectionConsumer
     private lateinit var teamRoleCommandConsumer: TeamRoleCommandConsumer
     private lateinit var githubRepoSettingCommandConsumer: GithubRepoSettingCommandConsumer
+    private lateinit var channelRolePolicyCommandConsumer: ChannelRolePolicyCommandConsumer
     private lateinit var projectionTopicIdentity: ProjectionTopicIdentityProvider
     private lateinit var eurekaRegistration: EurekaRegistration
     private var eurekaReadinessTimerId: Long? = null
@@ -94,10 +101,12 @@ class MainVerticle : AbstractVerticle() {
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
         val teamRoleRepo = TeamRoleRepository(pool)
+        val channelRolePolicyRepo = ChannelRolePolicyRepository(pool)
         val teamMemberProjectionRepo = TeamMemberProjectionRepository()
         val checkpointRepository = ProjectionCheckpointRepository(pool)
         val commandInboxRepository = TeamRoleCommandInboxRepository(pool)
         val githubRepoSettingCommandInboxRepository = GithubRepoSettingCommandInboxRepository(pool)
+        val channelRolePolicyCommandInboxRepository = ChannelRolePolicyCommandInboxRepository(pool)
         val outboxRepository = PreferenceOutboxRepository(pool)
         val projectionReadiness = ProjectionReadiness()
         projectionTopicIdentity = ProjectionTopicIdentityProvider(appConfig.kafka.bootstrapServers)
@@ -105,19 +114,28 @@ class MainVerticle : AbstractVerticle() {
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
         val notifService = NotificationService(notifRepo, outboxRepository)
         val roleService = ProjectRoleService(roleRepo)
-        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository)
+        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo)
         val teamRoleCommandProcessor = TeamRoleCommandProcessor(
             roleRepository = teamRoleRepo,
             memberRepository = teamMemberProjectionRepo,
             inboxRepository = commandInboxRepository,
             outboxRepository = outboxRepository,
             readiness = projectionReadiness,
+            channelRolePolicyRepository = channelRolePolicyRepo,
         )
         val githubRepoSettingCommandProcessor = GithubRepoSettingCommandProcessor(
             preferenceRepository = prefRepo,
             inboxRepository = githubRepoSettingCommandInboxRepository,
             outboxRepository = outboxRepository,
             cache = preferenceCache,
+        )
+        val channelRolePolicyCommandProcessor = ChannelRolePolicyCommandProcessor(
+            policyRepository = channelRolePolicyRepo,
+            roleRepository = teamRoleRepo,
+            memberRepository = teamMemberProjectionRepo,
+            inboxRepository = channelRolePolicyCommandInboxRepository,
+            outboxRepository = outboxRepository,
+            readiness = projectionReadiness,
         )
 
         val prefHandler = PreferenceHandler(prefService, scope)
@@ -137,8 +155,10 @@ class MainVerticle : AbstractVerticle() {
             notificationRepository = notifRepo,
             preferenceRepository = prefRepo,
             teamRoleRepository = teamRoleRepo,
+            channelRolePolicyRepository = channelRolePolicyRepo,
             outboxRepository = outboxRepository,
             topicIdentity = projectionTopicIdentity,
+            upstreamReadiness = projectionReadiness,
         )
         scheduleProjectionSnapshots(snapshotPublisher)
 
@@ -183,6 +203,16 @@ class MainVerticle : AbstractVerticle() {
             scope = scope,
         )
         githubRepoSettingCommandConsumer.start()
+
+        channelRolePolicyCommandConsumer = ChannelRolePolicyCommandConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.channelRolePolicyCommandConsumerGroupId,
+            processor = channelRolePolicyCommandProcessor,
+            inboxRepository = channelRolePolicyCommandInboxRepository,
+            scope = scope,
+        )
+        channelRolePolicyCommandConsumer.start()
 
         vertx.createHttpServer()
             .requestHandler(router)
@@ -237,8 +267,16 @@ class MainVerticle : AbstractVerticle() {
     }
 
     private fun scheduleProjectionSnapshots(snapshotPublisher: PreferenceSnapshotPublisher) {
-        scope.launch(vertx.dispatcher()) {
-            snapshotPublisher.publishAllIfLeader()
+        val startupAttemptInProgress = AtomicBoolean(false)
+        vertx.setPeriodic(INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS) { timerId ->
+            if (!startupAttemptInProgress.compareAndSet(false, true)) return@setPeriodic
+            scope.launch(vertx.dispatcher()) {
+                try {
+                    if (snapshotPublisher.publishAllIfLeader()) vertx.cancelTimer(timerId)
+                } finally {
+                    startupAttemptInProgress.set(false)
+                }
+            }
         }
         vertx.setPeriodic(PROJECTION_SNAPSHOT_INTERVAL_MS) {
             scope.launch(vertx.dispatcher()) {
@@ -329,6 +367,9 @@ class MainVerticle : AbstractVerticle() {
         val quiesceFutures = mutableListOf<Future<Void>>()
         if (::githubRepoSettingCommandConsumer.isInitialized) {
             quiesceFutures.add(githubRepoSettingCommandConsumer.close())
+        }
+        if (::channelRolePolicyCommandConsumer.isInitialized) {
+            quiesceFutures.add(channelRolePolicyCommandConsumer.close())
         }
         if (::teamRoleCommandConsumer.isInitialized) quiesceFutures.add(teamRoleCommandConsumer.close())
         if (::teamMemberProjectionConsumer.isInitialized) quiesceFutures.add(teamMemberProjectionConsumer.close())

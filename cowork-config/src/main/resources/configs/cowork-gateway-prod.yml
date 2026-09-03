@@ -3,6 +3,10 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
 
+gateway:
+  response-wrapper:
+    max-wrappable-size: 1MB
+
 cowork:
   swagger-ui:
     primary-name: user

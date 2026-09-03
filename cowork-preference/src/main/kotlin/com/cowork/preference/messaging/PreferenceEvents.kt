@@ -1,6 +1,7 @@
 package com.cowork.preference.messaging
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.TeamRoleDefinition
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -22,6 +23,9 @@ object PreferenceEvents {
     const val GITHUB_REPO_SETTING_COMMAND_TOPIC = "preference.github-repo.setting.command"
     const val GITHUB_REPO_SETTING_STATE_TOPIC = "preference.github-repo.setting.state"
     const val GITHUB_REPO_SETTING_RESULT_TOPIC = "preference.github-repo.setting.result"
+    const val CHANNEL_ROLE_POLICY_COMMAND_TOPIC = "preference.channel-role-policy.command"
+    const val CHANNEL_ROLE_POLICY_STATE_TOPIC = "preference.channel-role-policy.changed"
+    const val CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC = "preference.channel-role-policy.command-result"
     const val STATUS_CHANGED_TOPIC = "preference.status.changed"
     const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
     val OUTBOX_TOPICS = setOf(
@@ -30,6 +34,8 @@ object PreferenceEvents {
         TEAM_ROLE_COMMAND_RESULT_TOPIC,
         GITHUB_REPO_SETTING_STATE_TOPIC,
         GITHUB_REPO_SETTING_RESULT_TOPIC,
+        CHANNEL_ROLE_POLICY_STATE_TOPIC,
+        CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC,
         STATUS_CHANGED_TOPIC,
         TEAM_SETTING_CHANGED_TOPIC,
     )
@@ -41,7 +47,8 @@ object PreferenceEvents {
         require(
             topic == CHANNEL_NOTIFICATION_TOPIC ||
                 topic == TEAM_ROLE_TOPIC ||
-                topic == GITHUB_REPO_SETTING_STATE_TOPIC,
+                topic == GITHUB_REPO_SETTING_STATE_TOPIC ||
+                topic == CHANNEL_ROLE_POLICY_STATE_TOPIC,
         ) {
             "unsupported projection snapshot topic '$topic'"
         }
@@ -147,6 +154,37 @@ object PreferenceEvents {
     fun githubRepoSettingResult(operationId: String, result: JsonObject, occurredAt: Instant): PreferenceEvent =
         PreferenceEvent(
             topic = GITHUB_REPO_SETTING_RESULT_TOPIC,
+            key = operationId,
+            payload = result,
+            occurredAt = occurredAt,
+        )
+
+    fun channelRolePolicyState(
+        teamId: Long,
+        channelId: Long,
+        roleId: Long,
+        permissions: JsonObject?,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent {
+        val canonicalPermissions = permissions?.let(ChannelRolePolicyPermissions::canonicalize)
+        return PreferenceEvent(
+            topic = CHANNEL_ROLE_POLICY_STATE_TOPIC,
+            key = ChannelRolePolicyCommandParser.policyKey(teamId, channelId, roleId),
+            payload = basePayload(if (canonicalPermissions == null) "DELETE" else "UPSERT", occurredAt)
+                .put("schemaVersion", 1)
+                .put("teamId", teamId)
+                .put("channelId", channelId)
+                .put("roleId", roleId)
+                .put("permissions", canonicalPermissions?.copy())
+                .put("snapshot", snapshot),
+            occurredAt = occurredAt,
+        )
+    }
+
+    fun channelRolePolicyCommandResult(operationId: String, result: JsonObject, occurredAt: Instant): PreferenceEvent =
+        PreferenceEvent(
+            topic = CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC,
             key = operationId,
             payload = result,
             occurredAt = occurredAt,
