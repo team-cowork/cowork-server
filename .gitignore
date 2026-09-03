@@ -44,11 +44,6 @@ node_modules/
 vendor/
 bin/
 
-### Test Coverage ###
-/coverage/
-/cowork-*/coverage/
-__pycache__/
-
 ### Environment ###
 .env
 .env.*
