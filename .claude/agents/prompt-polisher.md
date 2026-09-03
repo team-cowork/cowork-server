@@ -102,7 +102,7 @@ Flag when:
 
 ## Output Format (per file)
 
-```
+````markdown
 ### [File: <relative path from project root>]
 
 #### Issue <N> — <Area>: <Short title>
@@ -118,7 +118,7 @@ Flag when:
 ```
 
 **Reason:** <one sentence>
-```
+````
 
 If a file has no issues:
 ```
@@ -134,7 +134,7 @@ Limit to the **5 most impactful issues per file**. Do not nitpick stylistic pref
 
 | File                         | Issues Found | Areas Affected           |
 |------------------------------|--------------|--------------------------|
-| .claude/agents/test-fixer.md | 2            | Grammar, Trigger Phrases |
+| .claude/agents/kotlin-test-fixer.md | 2            | Grammar, Trigger Phrases |
 | CLAUDE.md                    | 0            | —                        |
 ```
 
