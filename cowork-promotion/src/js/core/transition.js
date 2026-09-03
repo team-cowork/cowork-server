@@ -1,4 +1,5 @@
 import { elementFromMarkup } from "./dom.js";
+import { readMotionDuration } from "./design-tokens.js";
 
 function createScheduler() {
     const timers = new Set();
@@ -85,7 +86,7 @@ export function createBackgroundTransition(element, reducedMotion) {
 
         const currentVersion = ++version;
         const isCurrent = () => currentVersion === version;
-        const duration = reducedMotion.matches ? 0 : 500;
+        const duration = reducedMotion.matches ? 0 : readMotionDuration("--duration-scene", element);
 
         element.classList.remove("bg-index-enter-active", "bg-index-enter-from");
         element.classList.add("bg-index-leave-active", "bg-index-leave-to");
