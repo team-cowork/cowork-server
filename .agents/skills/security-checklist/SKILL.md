@@ -9,36 +9,21 @@ description: Verify security vulnerabilities — hardcoded secrets, SQL injectio
 
 ### 1. Hardcoded Secrets
 - [ ] No API Key, Secret, Password in code?
-- [ ] Using environment variables or config files?
+- [ ] Injecting secrets through Vault, environment variables, or secret volumes instead of committing values to config files?
 
-Verification commands:
-```bash
-# Basic search in Kotlin files
-grep -r "password.*=.*\"" --include="*.kt"
-grep -r "secret.*=.*\"" --include="*.kt"
-grep -r "apiKey.*=.*\"" --include="*.kt"
-
-# Check YAML/Properties files
-grep -r "password\|secret\|apiKey" --include="*.yml" --include="*.yaml" --include="*.properties"
-
-# Check for base64 encoded strings (potential secrets)
-grep -rE "['\"]([A-Za-z0-9+/]{40,}={0,2})['\"]" --include="*.kt"
-```
-
-**Limitations:**
-- May miss secrets encoded in base64 or other formats
-- May not detect secrets loaded from external sources at runtime
-- May not find secrets in configuration files outside the codebase
-- Manual review is still recommended for sensitive areas
+Inspect the changed source and configuration files, including relevant Kotlin, Java, Go, TypeScript, and Elixir code. Use file-name-only searches first and redact any discovered values in the report; a matching key name is not proof of a leaked secret.
 
 ### 2. SQL Injection
-- [ ] Using PreparedStatement or JPA/QueryDSL?
+- [ ] Binding parameters in every SQL/JPQL path with the runtime's query API?
 - [ ] Not concatenating SQL strings directly?
 
-### 3. JWT Verification
-- [ ] Verifying JWT signature?
-- [ ] Checking expiration time?
-- [ ] Validating claims?
+### 3. Authentication Boundary
+- [ ] Gateway validates access-token signatures, expiration, and required claims?
+- [ ] Downstream HTTP handlers use Gateway-forwarded `X-User-Id`/`X-User-Role` and do not add JWT parsing or validation?
+- [ ] Chat's documented WebSocket handshake exception validates its token and keeps that exception scoped to WebSocket authentication/CORS?
+- [ ] Production networking prevents external callers from bypassing Gateway and forging identity headers?
+
+Authorization issues tokens; do not confuse token issuance or external-provider credentials with downstream access-token validation.
 
 ### 4. API Key Security
 - [ ] Masking API Key in responses?
@@ -48,15 +33,12 @@ grep -rE "['\"]([A-Za-z0-9+/]{40,}={0,2})['\"]" --include="*.kt"
 - [ ] Not logging sensitive info (password, token, etc.)?
 - [ ] Appropriate log level?
 
-### 6. Authorization
-- [ ] Using `@PreAuthorize` or Security Filter for auth-required endpoints?
-- [ ] Verifying access to own resources only?
+### 6. Resource Authorization
+- [ ] Services verify the caller's team/project/channel membership, role, and resource ownership as required by the operation?
+- [ ] HTTP, search, GraphQL, WebSocket, and administrative routes enforce their own applicable access contracts?
+- [ ] Projection-dependent authorization returns `503` while required state is unavailable instead of a false `403` or partial success?
+- [ ] Existing access guards/local projections are used without assuming `@PreAuthorize` is configured in every runtime?
 
 ## References
 
-Locate reference files at runtime:
-
-```bash
-find . -name "ApiKeyService.kt" ! -path "*/build/*"
-find . -type d -name "security" -path "*/main/*" ! -path "*/build/*"
-```
+Read `AGENTS.md`, `CLAUDE.md`, `.claude/rules/security.md`, and `CONTRIBUTING.md`. Locate actual Gateway security and domain access guards with `rg --files cowork-gateway cowork-team cowork-channel cowork-project`; do not use unrelated API-key examples as the project's authorization model.
