@@ -6,6 +6,7 @@ paths:
   - "**/*.ts"
   - "**/*.ex"
   - "**/*.exs"
+  - "docker-compose*.yml"
 ---
 
 # Security Rules
@@ -14,3 +15,4 @@ paths:
   - The one documented exception is `cowork-chat`'s WebSocket handshake (`src/chat/chat.gateway.ts`); do not extend it to HTTP routes.
 - Treat those headers as authenticated input, but still authorize: having a valid `X-User-Id` does not mean that user may touch the requested team, project, or channel.
 - Don't add per-service HTTP CORS configuration — CORS is handled at the Gateway. The documented `cowork-chat` WebSocket handshake also owns its CORS configuration; do not extend that exception to HTTP routes.
+- Do not publish downstream service ports outside the Docker network in production-oriented Compose configuration; external application HTTP traffic enters through the Gateway.
