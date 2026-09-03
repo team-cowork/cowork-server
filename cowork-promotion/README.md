@@ -14,6 +14,8 @@ cowork 제품과 개발 진행 현황을 소개하는 정적 웹사이트입니�
 - YAML·XML·Markdown 빌드 데이터
 - 단일 HTML 번들 / Vercel
 
+공통 토큰과 컴포넌트 사용법은 [디자인 시스템](./DESIGN_SYSTEM.md)을 참고합니다.
+
 ## 포트
 
 | 용도               | 기본 포트 | 비고                   |
