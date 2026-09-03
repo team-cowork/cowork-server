@@ -1391,15 +1391,15 @@ jobs:
                   },
                   "options": {
                       "cutoutPercentage": 70,
-                      "legend": {"position": "bottom"},
+                      "legend": {"position": "bottom", "labels": {"boxWidth": 12, "fontSize": 10}},
                       "plugins": {
                           "datalabels": {"display": False},
-                          "doughnutlabel": {"labels": [{"text": center_label, "font": {"size": 28}, "color": "#24292f"}]},
+                          "doughnutlabel": {"labels": [{"text": center_label, "font": {"size": 20}, "color": "#24292f"}]},
                       },
                   },
               }
               return "https://quickchart.io/chart?" + urlencode({
-                  "version": "2", "width": 360, "height": 220, "backgroundColor": "white",
+                  "version": "2", "width": 240, "height": 160, "devicePixelRatio": 2, "backgroundColor": "white",
                   "c": json.dumps(chart, separators=(",", ":")),
               })
 
@@ -1449,7 +1449,7 @@ jobs:
               overall_change = delta(base, pr) if complete and not unit_changed else None
               lines = [MARKER, "## 테스트 커버리지", ""]
               if complete and pr.total:
-                  lines += [f"![PR 전체 커버리지 {percentage(pr.percent)}]({donut_url(pr.covered, pr.total)})", ""]
+                  lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="PR 전체 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
 
               lines += ["```diff", coverage_line("전체", pr.percent if complete else None, overall_change)]
               for module in modules:
