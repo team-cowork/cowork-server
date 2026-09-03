@@ -1,9 +1,9 @@
 /* Scroll showcase transitions and scene animations. */
 .feature-fade-enter-active[data-v-108e738d] {
-  transition: opacity 0.5s ease;
+  transition: opacity var(--duration-scene) ease;
 }
 .feature-fade-leave-active[data-v-108e738d] {
-  transition: opacity 0.3s ease;
+  transition: opacity var(--duration-feature-leave) ease;
 }
 .feature-fade-enter-from[data-v-108e738d],
 .feature-fade-leave-to[data-v-108e738d] {
@@ -12,8 +12,8 @@
 .bg-index-enter-active[data-v-108e738d],
 .bg-index-leave-active[data-v-108e738d] {
   transition:
-    opacity 0.5s ease,
-    transform 0.5s ease;
+    opacity var(--duration-scene) ease,
+    transform var(--duration-scene) ease;
 }
 .bg-index-enter-from[data-v-108e738d] {
   opacity: 0;

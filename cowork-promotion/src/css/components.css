@@ -16,10 +16,10 @@
     }
 }
 .marquee-left {
-    animation: scroll-left 90s linear infinite;
+    animation: scroll-left var(--duration-marquee) linear infinite;
 }
 .marquee-right {
-    animation: scroll-right 90s linear infinite;
+    animation: scroll-right var(--duration-marquee) linear infinite;
 }
 .marquee-track:hover .marquee-left,
 .marquee-track:hover .marquee-right {
@@ -27,13 +27,13 @@
 }
 .pos-panel-enter-active {
     transition:
-        opacity 0.5s ease,
-        transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        opacity var(--duration-scene) ease,
+        transform var(--duration-scene) var(--ease-enter);
 }
 .pos-panel-leave-active {
     transition:
-        opacity 0.25s ease,
-        transform 0.25s ease;
+        opacity var(--duration-panel-leave) ease,
+        transform var(--duration-panel-leave) ease;
 }
 .pos-panel-enter-from {
     opacity: 0;
@@ -55,47 +55,46 @@
 }
 .pos-member-entry {
     opacity: 0;
-    animation: pos-member-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    animation: pos-member-in 0.45s var(--ease-enter) forwards;
 }
 .hover\:border-gray-300:hover {
     --tw-border-opacity: 1;
-    border-color: rgb(209 213 219 / var(--tw-border-opacity, 1));
+    border-color: rgb(var(--palette-gray-300) / var(--tw-border-opacity, 1));
 }
 .hover\:border-red-200:hover {
     --tw-border-opacity: 1;
-    border-color: rgb(254 202 202 / var(--tw-border-opacity, 1));
+    border-color: rgb(var(--palette-red-200) / var(--tw-border-opacity, 1));
 }
 .hover\:bg-gray-50:hover {
     --tw-bg-opacity: 1;
-    background-color: rgb(249 250 251 / var(--tw-bg-opacity, 1));
+    background-color: rgb(var(--palette-gray-50) / var(--tw-bg-opacity, 1));
 }
 .hover\:bg-gray-700:hover {
     --tw-bg-opacity: 1;
-    background-color: rgb(55 65 81 / var(--tw-bg-opacity, 1));
+    background-color: rgb(var(--palette-gray-700) / var(--tw-bg-opacity, 1));
 }
 .hover\:text-gray-600:hover {
     --tw-text-opacity: 1;
-    color: rgb(75 85 99 / var(--tw-text-opacity, 1));
+    color: rgb(var(--palette-gray-600) / var(--tw-text-opacity, 1));
 }
 .hover\:text-gray-900:hover {
     --tw-text-opacity: 1;
-    color: rgb(17 24 39 / var(--tw-text-opacity, 1));
+    color: rgb(var(--palette-gray-900) / var(--tw-text-opacity, 1));
 }
 .hover\:shadow-md:hover {
-    --tw-shadow:
-        0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --tw-shadow: var(--shadow-md);
     --tw-shadow-colored:
         0 4px 6px -1px var(--tw-shadow-color),
         0 2px 4px -2px var(--tw-shadow-color);
     box-shadow:
-        var(--tw-ring-offset-shadow, 0 0 #0000),
-        var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+        var(--tw-ring-offset-shadow, 0 0 rgb(var(--palette-black) / 0)),
+        var(--tw-ring-shadow, 0 0 rgb(var(--palette-black) / 0)), var(--tw-shadow);
 }
 .group:hover .group-hover\:text-red-300 {
     --tw-text-opacity: 1;
-    color: rgb(252 165 165 / var(--tw-text-opacity, 1));
+    color: rgb(var(--palette-red-300) / var(--tw-text-opacity, 1));
 }
 .group:hover .group-hover\:text-red-500 {
     --tw-text-opacity: 1;
-    color: rgb(239 68 68 / var(--tw-text-opacity, 1));
+    color: rgb(var(--palette-red-500) / var(--tw-text-opacity, 1));
 }

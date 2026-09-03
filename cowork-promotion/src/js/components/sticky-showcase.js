@@ -5,7 +5,7 @@ import { loadStates } from "../data/load-states.js";
 function updateDots(buttons, index, activeColor, activeWidth, inactiveColor) {
     buttons.forEach((button, buttonIndex) => {
         const active = buttonIndex === index;
-        button.style.width = active ? activeWidth : "8px";
+        button.style.width = active ? activeWidth : "var(--indicator-size)";
         button.style.backgroundColor = active ? activeColor : inactiveColor;
         button.setAttribute("aria-current", active ? "step" : "false");
     });
