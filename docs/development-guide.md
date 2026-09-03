@@ -232,7 +232,11 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 | `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
 | `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
 | `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
-| `preference.team-role.changed`                | cowork-preference              | cowork-team                                                              | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.team-role.changed`                | cowork-preference              | cowork-team, cowork-channel, cowork-chat                                 | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.channel-role-policy.command`       | cowork-channel                 | cowork-preference                                                        | 채널별 역할 권한 정책 비동기 변경 command                  |
+| `preference.channel-role-policy.changed`       | cowork-preference              | cowork-channel, cowork-chat                                               | 채널별 역할 권한 정책 compacted state projection           |
+| `preference.channel-role-policy.command-result` | cowork-preference             | cowork-channel                                                           | 채널별 역할 권한 정책 변경 결과                            |
+| `preference.channel-role-policy.command-result-dlt` | cowork-channel            | 운영 격리                                                               | 유효하지 않거나 처리할 수 없는 정책 변경 결과 원문         |
 | `preference.team-role.command-result`         | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
 | `preference.github-repo.setting.command`      | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
 | `preference.github-repo.setting.state`        | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |
