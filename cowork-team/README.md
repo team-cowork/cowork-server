@@ -20,17 +20,17 @@
 ## 포트
 
 | 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
-| --- | --- | --- |
-| HTTP | `8085` | `8085` |
+|------|---------------|--------------------------|
+| HTTP | `8085`        | `8085`                   |
 
 ## 환경변수
 
 아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
 
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 (`local` 또는 `prod`) |
-| `SPRING_CONFIG_IMPORT` | `configserver:http://cowork-config:8761` | 필수 Config Server 연결 |
+| 변수                     | 기본값                                   | 설명                                |
+|--------------------------|------------------------------------------|-------------------------------------|
+| `SPRING_PROFILES_ACTIVE` | `local`                                  | 설정 프로파일 (`local` 또는 `prod`) |
+| `SPRING_CONFIG_IMPORT`   | `configserver:http://cowork-config:8761` | 필수 Config Server 연결             |
 
 - Config Server: 포트, MySQL URL, Kafka, Eureka, S3 endpoint·region, GitHub App 연결 설정.
 - Vault: MySQL 계정, S3 access·secret key, GitHub 연동 state secret.
