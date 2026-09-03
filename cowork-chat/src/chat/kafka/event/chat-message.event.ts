@@ -12,8 +12,10 @@ import { AttachmentDto } from '../../dto/send-message.dto';
  * `occurredAt`은 ISO 8601 문자열이며 서버 시각 기준이다.
  */
 export interface ChatMessageEvent {
+    /** producer와 consumer가 공유하는 이벤트 계약 버전 */
+    contractVersion: 1;
     /** Kafka 라우팅용 이벤트 종류 식별자 */
-    eventType: string;
+    eventType: 'MESSAGE_SENT';
     /** DM 채널 메시지는 팀에 속하지 않으므로 null */
     teamId: number | null;
     /** 프로젝트 채널일 때만 설정; 팀 채널은 null 또는 undefined */
