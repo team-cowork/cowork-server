@@ -1,0 +1,17 @@
+:root {
+    --duration-fast: 150ms;
+    --duration-normal: 200ms;
+    --duration-panel-leave: 250ms;
+    --duration-feature-leave: 300ms;
+    --duration-scene: 500ms;
+    --duration-slow: 700ms;
+    --duration-dialog: 180ms;
+    --duration-marquee: 90s;
+    --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+    --indicator-size: 8px;
+    --indicator-active: 32px;
+    --indicator-feature-active: 24px;
+    --color-indicator: var(--color-border);
+    --color-indicator-inverse: rgb(var(--palette-white) / 0.2);
+}

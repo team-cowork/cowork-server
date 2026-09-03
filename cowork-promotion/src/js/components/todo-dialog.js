@@ -1,4 +1,4 @@
-import { readMotionDuration } from "../core/design-tokens.js";
+import { readMotionDuration } from "../../design-system/tokens.js";
 
 function appendTodoMetadata(header, metadata, priority) {
     if (!metadata.length) return;

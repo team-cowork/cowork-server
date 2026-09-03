@@ -1,4 +1,4 @@
-import { escapeHtml, expectColor } from "./validation.mjs";
+import { escapeHtml, expectColor } from "../../scripts/lib/validation.mjs";
 
 export function accentStyle(color) {
     const hex = expectColor(color, "component.accent");

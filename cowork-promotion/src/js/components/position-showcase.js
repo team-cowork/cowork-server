@@ -1,5 +1,5 @@
 import { elementFromMarkup } from "../core/dom.js";
-import { readMotionDuration } from "../core/design-tokens.js";
+import { readMotionDuration } from "../../design-system/tokens.js";
 import { createSceneTransition } from "../core/transition.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
 
