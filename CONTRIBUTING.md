@@ -43,7 +43,7 @@ An action prefix is optional for shared or generic DTOs. Request and response DT
 
 Current domain entities use the domain name, such as `Team`, `Channel`, `Project`, and `Roadmap`. The package and mapping annotations identify the storage technology; these classes are not named `TeamJpaEntity` or `RoadmapJpaEntity`.
 
-`Team`, `Channel`, and `Project` are JPA entities. `Roadmap` uses Spring Data relational mapping for R2DBC. Follow the module's existing mapping model and the table conventions in `CLAUDE.md`.
+`Team`, `Channel`, and `Project` are JPA entities. `Roadmap` uses Spring Data relational mapping for R2DBC. Follow the module's existing mapping model and the table conventions in `.claude/rules/database.md`.
 
 ### Repositories
 
@@ -390,7 +390,7 @@ The Amper wrapper uses `KOTLIN_CLI`, defaulting to `~/.local/bin/kotlin`; instal
 
 ### No Hardcoded Secrets
 
-Inject secrets through environment variables, Vault, or configured secret providers. For Spring values, use constructor injection or configuration properties. JWT validation belongs to the Gateway, with the documented chat WebSocket exception in `CLAUDE.md`.
+Inject secrets through environment variables, Vault, or configured secret providers. For Spring values, use constructor injection or configuration properties. JWT validation belongs to the Gateway, with the documented chat WebSocket exception in `.claude/rules/security.md`.
 
 ```yaml
 # Config Server YAML; resolve this through a supported client or secret source.
