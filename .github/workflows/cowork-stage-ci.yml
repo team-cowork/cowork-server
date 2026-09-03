@@ -1463,18 +1463,12 @@ jobs:
               lines += ["```", ""]
               if not complete:
                   lines += ["일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
-              lines += ["각 줄은 PR의 현재 커버리지(%)와 Base 대비 증감(%p)입니다. 증감은 반올림 전 수치로 계산한 뒤 소수점 첫째 자리까지 표시합니다. 표시값이 0.0%p인 경우 부호와 색을 붙이지 않습니다.", ""]
-              lines += ["전체는 모듈별 퍼센트의 단순 평균이 아니라 covered/total 합산값입니다. JVM·JavaScript·Elixir의 라인과 Go의 구문을 합친 혼합 지표입니다. 분모가 0이면 N/A로 표시하며, 한쪽 리비전에 없는 모듈은 해당 리비전 합산에서 제외합니다.", ""]
               if unit_changed:
                   lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
               if any(result.status == "absent" for result in results.values()):
                   lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 달라질 수 있습니다. 해당 모듈의 개별 증감은 N/A입니다.", ""]
               if diagnostics:
                   lines += ["보고서 검증 오류:", ""] + [f"- {text(message[:500])}" for message in diagnostics] + [""]
-              # Workflow metadata is display-only; escape syntax before embedding it.
-              lines += [f"Base: `{text(args.base_sha)}` · PR 병합: `{text(args.pr_sha)}` · PR head: `{text(args.head_sha)}`", ""]
-              run_url = args.run_url.replace("(", "%28").replace(")", "%29").replace("\n", "").replace("\r", "")
-              lines += [f"[CI 실행 및 원본 보고서]({run_url}) · 커버리지 하락과 최소 수치는 CI 실패 조건으로 사용하지 않습니다.", ""]
               body = "\n".join(lines)
               args.output.parent.mkdir(parents=True, exist_ok=True)
               args.output.write_text(body, encoding="utf-8")
@@ -1497,10 +1491,6 @@ jobs:
               renderer = commands.add_parser("render", help="render all module results as a Markdown comment")
               renderer.add_argument("--artifacts", type=Path, required=True)
               renderer.add_argument("--manifest", type=Path, required=True)
-              renderer.add_argument("--base-sha", required=True)
-              renderer.add_argument("--pr-sha", required=True)
-              renderer.add_argument("--head-sha", required=True)
-              renderer.add_argument("--run-url", required=True)
               renderer.add_argument("--output", type=Path, required=True)
               renderer.set_defaults(handler=render)
               args = parser.parse_args()
@@ -1784,16 +1774,9 @@ jobs:
           pattern: coverage-cowork-*
           path: ${{ runner.temp }}/coverage-artifacts
       - name: Render Coverage Comment
-        env:
-          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          COVERAGE_PR_SHA: ${{ github.sha }}
-          COVERAGE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          COVERAGE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           python3 "$RUNNER_TEMP/coverage-tools/report.py" render \
             --artifacts "$RUNNER_TEMP/coverage-artifacts" --manifest "$RUNNER_TEMP/coverage-tools/modules.json" \
-            --base-sha "$COVERAGE_BASE_SHA" --pr-sha "$COVERAGE_PR_SHA" \
-            --head-sha "$COVERAGE_HEAD_SHA" --run-url "$COVERAGE_RUN_URL" \
             --output "$RUNNER_TEMP/coverage-comment.md"
           cat "$RUNNER_TEMP/coverage-comment.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Update Coverage Comment
