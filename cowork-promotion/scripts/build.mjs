@@ -33,22 +33,21 @@ const sourceDirectory = new URL("../src/", import.meta.url);
 const htmlDirectory = new URL("html/", sourceDirectory);
 const defaultOutputDirectory = new URL("../public/", import.meta.url);
 const defaultTodoDirectory = fileURLToPath(new URL("../../docs/todo/", import.meta.url));
-const homeStylesheetPaths = [
+const sharedStylesheetPaths = [
     ...foundationStylesheets,
-    "css/showcase.css",
     "css/base.css",
     "css/utilities.css",
-    "css/components.css",
     "css/responsive.css",
     ...componentStylesheets,
+    "css/site.css",
+];
+const homeStylesheetPaths = [
+    ...sharedStylesheetPaths,
+    "css/home.css",
+    "css/showcase.css",
 ];
 const todoStylesheetPaths = [
-    ...foundationStylesheets,
-    "css/base.css",
-    "css/utilities.css",
-    "css/components.css",
-    "css/responsive.css",
-    ...componentStylesheets,
+    ...sharedStylesheetPaths,
     "css/todo.css",
 ];
 
