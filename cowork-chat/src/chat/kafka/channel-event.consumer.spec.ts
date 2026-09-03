@@ -1,6 +1,7 @@
 import { mongo } from 'mongoose';
 import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
 import { ChannelEventConsumer } from './channel-event.consumer';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 type ConsumerWithHandle = {
     handleEvent(event: unknown, messageKey?: string): Promise<void>;
@@ -12,14 +13,37 @@ describe('ChannelEventConsumer', () => {
     const repository = {
         upsert: jest.fn().mockResolvedValue(undefined),
         remove: jest.fn().mockResolvedValue(undefined),
+        findById: jest.fn().mockResolvedValue(null),
+    };
+    const socketEmit = jest.fn();
+    const socketsLeave = jest.fn();
+    const socket = {
+        to: jest.fn((room: string) => {
+            void room;
+            return { emit: socketEmit };
+        }),
+        in: jest.fn((room: string) => {
+            void room;
+            return { socketsLeave };
+        }),
+    };
+    const accessService = {
+        emitChannelEventToVisibleTeamUsers: jest.fn().mockImplementation(
+            (io: typeof socket, teamId: number, _channelId: number, event: string, payload: unknown) => {
+                io.to(`team:${teamId}`).emit(event, payload);
+                return Promise.resolve();
+            },
+        ),
+        captureVisibleTeamSocketIds: jest.fn().mockResolvedValue(['socket-allowed']),
+        evictUnauthorizedSockets: jest.fn().mockResolvedValue(undefined),
     };
     const consumer = new ChannelEventConsumer(
         { get: jest.fn() } as never,
         { sendCustom: jest.fn() } as never,
         repository as unknown as ChannelProjectionRepository,
         {} as never,
+        accessService as unknown as ChannelMessageReadAccessService,
     );
-    const socket = { to: jest.fn().mockReturnValue({ emit: jest.fn() }) };
     consumer.setSocketServer(socket as never);
     const handle = (event: unknown, messageKey: string) =>
         (consumer as unknown as ConsumerWithHandle).handleEvent(event, messageKey);
@@ -48,6 +72,11 @@ describe('ChannelEventConsumer', () => {
             occurredAt: new Date('2026-08-26T00:00:00Z'),
             sourceVersion: SOURCE_VERSION,
         });
+        if (eventType === 'UPDATED') {
+            expect(accessService.evictUnauthorizedSockets).toHaveBeenCalledWith(socket, [3]);
+        } else {
+            expect(accessService.evictUnauthorizedSockets).not.toHaveBeenCalled();
+        }
     });
 
     it('DELETED 이벤트를 projection에 반영한다', async () => {
@@ -71,9 +100,13 @@ describe('ChannelEventConsumer', () => {
             SOURCE_VERSION,
         );
         expect(repository.upsert).not.toHaveBeenCalled();
+        expect(accessService.captureVisibleTeamSocketIds).toHaveBeenCalledWith(socket, 10, 3);
+        expect(socket.to).toHaveBeenCalledWith('socket-allowed');
+        expect(socket.in).toHaveBeenCalledWith('chat:3');
+        expect(socketsLeave).toHaveBeenCalledWith('chat:3');
     });
 
-    it('이미 반영된 UPDATED snapshot이면 socket 이벤트를 다시 보내지 않는다', async () => {
+    it('이미 반영된 UPDATED 재처리도 room 회수는 복구하고 metadata 이벤트는 중복 전송하지 않는다', async () => {
         repository.upsert.mockResolvedValueOnce(false);
 
         await handle({
@@ -89,6 +122,7 @@ describe('ChannelEventConsumer', () => {
             occurredAt: '2026-08-26T00:00:00Z',
         }, '3');
 
+        expect(accessService.evictUnauthorizedSockets).toHaveBeenCalledWith(socket, [3]);
         expect(socket.to).not.toHaveBeenCalled();
     });
 
@@ -110,6 +144,41 @@ describe('ChannelEventConsumer', () => {
         }, '3');
 
         expect(repository.upsert).toHaveBeenCalled();
+        expect(accessService.evictUnauthorizedSockets).toHaveBeenCalledWith(socket, [3]);
+        expect(socket.to).not.toHaveBeenCalled();
+    });
+
+    it('snapshot DELETED도 live 알림 없이 channel room을 정리한다', async () => {
+        repository.remove.mockResolvedValueOnce(true);
+
+        await handle({
+            eventType: 'DELETED',
+            channelId: 3,
+            teamId: 10,
+            occurredAt: '2026-08-26T00:00:00Z',
+            snapshot: true,
+        }, '3');
+
+        expect(repository.remove).toHaveBeenCalled();
+        expect(accessService.captureVisibleTeamSocketIds).not.toHaveBeenCalled();
+        expect(socketsLeave).toHaveBeenCalledWith('chat:3');
+        expect(socket.to).not.toHaveBeenCalled();
+    });
+
+    it('stale snapshot DELETED 뒤 채널이 재생성됐으면 channel room을 유지한다', async () => {
+        repository.remove.mockResolvedValueOnce(false);
+        repository.findById.mockResolvedValueOnce({ channelId: 3 });
+
+        await handle({
+            eventType: 'DELETED',
+            channelId: 3,
+            teamId: 10,
+            occurredAt: '2026-08-26T00:00:00Z',
+            snapshot: true,
+        }, '3');
+
+        expect(repository.findById).toHaveBeenCalledWith(3);
+        expect(socketsLeave).not.toHaveBeenCalled();
         expect(socket.to).not.toHaveBeenCalled();
     });
 
