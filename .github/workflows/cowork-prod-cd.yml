@@ -1,4 +1,4 @@
-name: "cowork server CD Workflow"
+name: cowork prod CD Workflow
 
 on:
   workflow_run:
