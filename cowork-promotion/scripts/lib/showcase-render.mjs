@@ -1,9 +1,10 @@
-import { showcaseCounter } from "../../src/js/core/showcase-state.js";
+import { showcaseCounter, showcaseNumber } from "../../src/js/core/showcase-state.js";
 import { replaceGeneratedRegion } from "./template.mjs";
 import { escapeHtml } from "./validation.mjs";
 
 export function renderShowcase(html, name, states, {
     label,
+    backgroundClass,
     dotClass,
     activeDotWidth,
     inactiveDotColor,
@@ -16,7 +17,7 @@ export function renderShowcase(html, name, states, {
         return `<button type="button" data-showcase-dot aria-label="${escapeHtml(label)} ${index + 1} / ${states.length}" aria-current="${active ? "step" : "false"}" class="${escapeHtml(dotClass)}" style="width: ${escapeHtml(width)}; background-color: ${escapeHtml(color)}"></button>`;
     }).join("\n");
     const regions = {
-        background: initial.backgroundOuterHTML.replace("<span", "<span data-showcase-background"),
+        background: `<span data-showcase-background class="${escapeHtml(backgroundClass)}" style="color: ${escapeHtml(initial.color)}">${showcaseNumber(0)}</span>`,
         counter: showcaseCounter(0, states.length),
         initial: initial.sceneInnerHTML,
         dots,
