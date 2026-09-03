@@ -21,6 +21,20 @@ import java.time.Instant
 class PreferenceServiceTest {
 
     @Test
+    fun `GitHub repository read fills label default and drops unknown settings`() = runBlocking {
+        val repository = mockk<PreferenceRepository>()
+        val cache = mockk<PreferenceCache>()
+        val outboxRepository = mockk<PreferenceOutboxRepository>()
+        val cached = JsonObject().put("legacy_setting", true)
+        coEvery { cache.getSettings(ResourceType.GITHUB_REPO, 77) } returns cached
+
+        val result = PreferenceService(repository, cache, outboxRepository)
+            .getSettings(ResourceType.GITHUB_REPO, 77)
+
+        assertEquals(JsonObject().put("label_auto_apply", true), result)
+    }
+
+    @Test
     fun `manual account status mutation and action event share one transaction`() = runBlocking {
         val repository = mockk<PreferenceRepository>()
         val cache = mockk<PreferenceCache>()

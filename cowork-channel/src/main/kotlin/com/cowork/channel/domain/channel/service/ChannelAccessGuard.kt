@@ -14,6 +14,9 @@ class ChannelAccessGuard(private val channelRepository: ChannelRepository) {
         ExpectedException("채널을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
+    fun findChannelForUpdateOrThrow(channelId: Long): Channel = channelRepository.findByIdForUpdate(channelId)
+        ?: throw ExpectedException("채널을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+
     /** DM 채널이면 거부하고, 팀 채널이면 non-null teamId를 반환한다. */
     fun requireTeamChannel(channel: Channel): Long {
         val teamId = channel.teamId
