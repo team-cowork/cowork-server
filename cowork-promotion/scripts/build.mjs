@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -33,6 +34,7 @@ const sourceDirectory = new URL("../src/", import.meta.url);
 const htmlDirectory = new URL("html/", sourceDirectory);
 const defaultOutputDirectory = new URL("../public/", import.meta.url);
 const defaultTodoDirectory = fileURLToPath(new URL("../../docs/todo/", import.meta.url));
+const defaultRepositoryDirectory = fileURLToPath(new URL("../../", import.meta.url));
 const sharedStylesheetPaths = [
     ...foundationStylesheets,
     "css/base.css",
@@ -65,6 +67,27 @@ function directoryUrl(value, fallback) {
 
     const directoryPath = `${resolve(String(value))}/`;
     return pathToFileURL(directoryPath);
+}
+
+function repositorySourceUrl(repositoryDirectory) {
+    let revision = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+
+    if (!revision) {
+        try {
+            revision = execFileSync("git", ["rev-parse", "HEAD"], {
+                cwd: repositoryDirectory,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+        } catch (error) {
+            throw new Error(
+                "Cannot determine the repository revision; provide repositorySourceUrl when building without Git metadata.",
+                { cause: error },
+            );
+        }
+    }
+
+    return `https://github.com/team-cowork/cowork-server/blob/${encodeURIComponent(revision)}/`;
 }
 
 function inlineStyles(paths, sources) {
@@ -198,6 +221,9 @@ export async function build(options = {}) {
     const todoDirectory = options.todoDirectory
         ? resolve(String(options.todoDirectory))
         : defaultTodoDirectory;
+    const repositoryDirectory = options.repositoryDirectory
+        ? resolve(String(options.repositoryDirectory))
+        : defaultRepositoryDirectory;
     const [
         sourceHtml,
         todoTemplate,
@@ -227,7 +253,12 @@ export async function build(options = {}) {
         Promise.all(
             todoStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8")),
         ),
-        loadTodoContent({ todoDirectory }),
+        loadTodoContent({
+            todoDirectory,
+            repositoryDirectory,
+            repositorySourceUrl: options.repositorySourceUrl
+                ?? repositorySourceUrl(repositoryDirectory),
+        }),
     ]);
 
     const { team, techStacks } = parseContent({
