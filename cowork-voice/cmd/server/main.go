@@ -1,5 +1,5 @@
 // @title           Cowork Voice API
-// @version         20260828.0
+// @version         20260903.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @description
 // @description     ## 미디어 연결 (LiveKit)
