@@ -1,126 +1,48 @@
 ---
 name: database-schema
 description: Database schema design guide — table naming, column conventions, index strategy, and JPA entity mapping patterns.
-allowed-tools: AskUserQuestion
 ---
 
 # Database Schema Design Guide
 
-Before providing schema guidance, ask the user about their migration tooling:
+## Determine the Storage and Migration Owner
 
-```
-AskUserQuestion: "DB 마이그레이션 도구로 무엇을 사용하고 있나요?"
-options:
-  - Flyway
-  - Liquibase
-  - 사용하지 않음 (JPA DDL auto)
-```
+Read the target service's build file, migrations, and `AGENTS.md`/`CLAUDE.md` before proposing a schema. Existing tooling is already defined:
 
-Then provide the relevant migration section below along with the core conventions.
+- Spring MySQL services: Flyway; roadmap queries through R2DBC.
+- Authorization/notification: MySQL with a custom `V{n}__*.sql` runner.
+- User: MySQL with Flyway CLI in the container entrypoint, Ecto at runtime.
+- Preference: PostgreSQL with Flyway and Vert.x SQL clients.
+- Chat/voice: MongoDB schemas/models, without SQL migrations.
 
----
+Do not ask the user to choose Flyway versus Liquibase for an existing service.
 
 ## Naming Conventions
 
-- Tables: `snake_case`, plural (`users`, `api_keys`)
-- Columns: `snake_case` (`created_at`, `is_active`)
-- FK columns: `{referenced_table_singular}_id` (`user_id`, `club_id`)
-- Index names: `idx_{table}_{columns}` (`idx_users_email`)
-- UK names: `uq_{table}_{columns}` (`uq_users_email`)
-
-## Standard Columns
-
-Include in every entity table:
+- New relational tables use `tb_` plus snake_case domain names, such as `tb_projects`.
+- Columns use `snake_case`; reference IDs use `<domain>_id`.
+- Index, unique, and foreign-key constraints use `idx_tb_{table}_{column}`, `uq_tb_{table}_{column}`, and `fk_tb_{table}_{target}`.
+- Preserve the four pre-existing unprefixed preference tables and third-party `shedlock`; do not extend those exceptions.
+- Never create cross-service foreign keys or ORM relationships. Store the owner service's ID as a scalar and document its source in a column comment.
 
 ```sql
-id         BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
-created_at DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-updated_at DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
 ```
 
-## Index Strategy
+PostgreSQL uses `COMMENT ON COLUMN` for the equivalent source annotation. A real FK is only appropriate when both tables belong to the same service.
 
-- Single column used frequently in WHERE: simple index
-- WHERE + ORDER BY combination: composite index (WHERE column first)
-- Low-cardinality columns (`is_active`, `status` enum): indexing rarely helps
+## Columns and Indexes
 
-```sql
--- Composite index example
-CREATE INDEX idx_posts_user_created ON posts (user_id, created_at DESC);
-```
+Match the service's existing ID and timestamp representation. MySQL `AUTO_INCREMENT`/`DATETIME(6)` is not PostgreSQL syntax, and projection/checkpoint tables can have composite keys. Do not force the same columns onto every table.
 
-## Migration — Flyway
+Choose indexes from the actual filters, joins, uniqueness requirements, and ordering. Check execution plans for performance changes; low-cardinality fields are not an automatic reason to add or reject an index.
 
-_(Include this section if the user selected Flyway)_
+## Migrations
 
-File naming: `V{version}__{description}.sql`
+Place new relational migrations in `src/main/resources/db/migration/V{n}__{snake_case_description}.sql`. Choose the next unused version within that service. Never edit a committed migration; add a new version.
 
-```
-db/migration/
-  V1__create_users.sql
-  V2__add_api_keys.sql
-  V3__add_index_users_email.sql
-```
-
-```sql
--- V2__add_api_keys.sql
-CREATE TABLE api_keys (
-    id         BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    user_id    BIGINT      NOT NULL,
-    key_value  VARCHAR(64) NOT NULL,
-    created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
-    CONSTRAINT fk_api_keys_user FOREIGN KEY (user_id) REFERENCES users (id),
-    CONSTRAINT uq_api_keys_value UNIQUE (key_value)
-);
-```
-
-## Migration — Liquibase
-
-_(Include this section if the user selected Liquibase)_
-
-File naming: `db/changelog/{version}-{description}.yaml`
-
-```yaml
-# db/changelog/002-add-api-keys.yaml
-databaseChangeLog:
-  - changeSet:
-      id: 002-add-api-keys
-      author: dev
-      changes:
-        - createTable:
-            tableName: api_keys
-            columns:
-              - column:
-                  name: id
-                  type: BIGINT
-                  autoIncrement: true
-                  constraints:
-                    primaryKey: true
-              - column:
-                  name: user_id
-                  type: BIGINT
-                  constraints:
-                    nullable: false
-              - column:
-                  name: key_value
-                  type: VARCHAR(64)
-                  constraints:
-                    nullable: false
-                    unique: true
-```
+Keep JPA `ddl-auto: none` as configured and apply migrations through the service's existing startup runner. MongoDB changes belong in the service's schema/model code and relevant schema documentation.
 
 ## JPA Entity Mapping
 
-```kotlin
-@Entity
-@Table(name = "api_keys")
-class ApiKey(
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    val user: User,
-
-    @Column(name = "key_value", nullable = false, unique = true, length = 64)
-    val keyValue: String,
-) : BaseEntity()
-```
+Apply this section only to team/channel/project. Follow the local entity and repository naming conventions, keep cross-service IDs scalar, and use lazy associations only for relationships owned by the same service. Keep entity mappings and migration column names/types consistent. Roadmap, preference, and the non-JVM services use their own persistence APIs.
