@@ -344,6 +344,221 @@ jobs:
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
 
+  coverage-plan:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout Coverage Tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate Coverage Reporter
+        run: |
+          python3 -m unittest discover -s scripts/coverage -p 'test_*.py'
+          node --test scripts/coverage/comment.test.cjs
+      - name: Plan All Module Measurements
+        id: matrix
+        run: |
+          matrix=$(python3 scripts/coverage/run.py matrix --source .)
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  coverage:
+    name: coverage (${{ matrix.module }}, ${{ matrix.snapshot }})
+    needs: coverage-plan
+    if: needs.coverage-plan.outputs.matrix != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix: ${{ fromJSON(needs.coverage-plan.outputs.matrix) }}
+    steps:
+      - name: Initialize Coverage Result
+        env:
+          COVERAGE_MODULE: ${{ matrix.module }}
+          COVERAGE_SNAPSHOT: ${{ matrix.snapshot }}
+          COVERAGE_RUNNER: ${{ matrix.runner }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          output = Path('coverage-output')
+          output.mkdir()
+          result = {
+              'module': os.environ['COVERAGE_MODULE'],
+              'snapshot': os.environ['COVERAGE_SNAPSHOT'],
+              'metric': 'statement' if os.environ['COVERAGE_RUNNER'] == 'go' else 'line',
+              'status': 'missing', 'covered': None, 'total': None,
+              'reason': 'Measurement did not finish; check runner setup and test logs',
+          }
+          (output / 'result.json').write_text(json.dumps(result))
+          PY
+      - name: Mark Measurement Pending
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.module }}-${{ matrix.snapshot }}
+          path: coverage-output/result.json
+          overwrite: true
+          retention-days: 7
+      - name: Checkout Coverage Tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          path: coverage-tools
+          sparse-checkout: scripts/coverage
+          persist-credentials: false
+      - name: Checkout Measurement Source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.snapshot == 'base' && github.event.pull_request.base.sha || github.sha }}
+          path: source
+          persist-credentials: false
+      - name: Check Module Presence
+        id: module
+        env:
+          COVERAGE_MODULE: ${{ matrix.module }}
+        run: |
+          if [ -d "source/$COVERAGE_MODULE" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Setup JDK
+        if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","amper"]'), matrix.runner)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '25'
+          distribution: temurin
+      - name: Setup Gradle
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'gradle'
+        uses: gradle/actions/setup-gradle@v6
+      - name: Cache Maven Dependencies
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'maven'
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-coverage-maven-${{ hashFiles('source/cowork-project/pom.xml') }}
+          restore-keys: ${{ runner.os }}-coverage-maven-
+      - name: Setup Kotlin Toolchain
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'amper'
+        env:
+          KOTLIN_CLI_VERSION: '0.11.0'
+          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+        run: |
+          mkdir -p "$RUNNER_TEMP/kotlin-bin"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kotlin-bin/kotlin" \
+            "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper"
+          echo "${KOTLIN_CLI_WRAPPER_SHA256}  $RUNNER_TEMP/kotlin-bin/kotlin" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/kotlin-bin/kotlin"
+          echo "$RUNNER_TEMP/kotlin-bin" >> "$GITHUB_PATH"
+      - name: Setup Go
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'go'
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: source/${{ matrix.module }}/go.mod
+          cache-dependency-path: source/${{ matrix.module }}/go.sum
+      - name: Setup Node.js
+        if: steps.module.outputs.present == 'true' && contains(fromJSON('["jest","node"]'), matrix.runner)
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: source/${{ matrix.module }}/package-lock.json
+      - name: Setup Elixir
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18.4'
+          otp-version: '27.3.4'
+      - name: Cache Elixir Dependencies
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
+        uses: actions/cache@v6
+        with:
+          path: |
+            source/cowork-user/deps
+            source/cowork-user/_build
+          key: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ hashFiles('source/cowork-user/mix.lock') }}
+          restore-keys: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-
+      - name: Measure Module Coverage
+        env:
+          COVERAGE_MODULE: ${{ matrix.module }}
+          COVERAGE_SNAPSHOT: ${{ matrix.snapshot }}
+          MIX_ENV: test
+          SECRET_KEY_BASE: ci-test-secret-key-base-ci-test-secret-key-base-ci-test-secret-key-base
+          DB_HOST: localhost
+          DB_PORT: '3306'
+          DB_NAME: cowork_test
+          DB_USERNAME: cowork
+          DB_PASSWORD: cowork
+        run: |
+          python3 coverage-tools/scripts/coverage/run.py measure \
+            --module "$COVERAGE_MODULE" --snapshot "$COVERAGE_SNAPSHOT" \
+            --source "$GITHUB_WORKSPACE/source" --output "$GITHUB_WORKSPACE/coverage-output"
+      - name: Upload Coverage Results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.module }}-${{ matrix.snapshot }}
+          path: coverage-output/
+          overwrite: true
+          if-no-files-found: warn
+          retention-days: 7
+
+  coverage-comment:
+    needs: [coverage-plan, coverage]
+    if: always() && github.event_name == 'pull_request' && !cancelled()
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout Coverage Tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          sparse-checkout: scripts/coverage
+          persist-credentials: false
+      - name: Download Coverage Results
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-cowork-*
+          path: coverage-artifacts
+      - name: Render Coverage Comment
+        env:
+          COVERAGE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          COVERAGE_PR_SHA: ${{ github.sha }}
+          COVERAGE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          COVERAGE_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python3 scripts/coverage/report.py render \
+            --artifacts coverage-artifacts --manifest scripts/coverage/modules.json \
+            --base-sha "$COVERAGE_BASE_SHA" --pr-sha "$COVERAGE_PR_SHA" \
+            --head-sha "$COVERAGE_HEAD_SHA" --run-url "$COVERAGE_RUN_URL" \
+            --output coverage-comment.md
+          cat coverage-comment.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Update Coverage Comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const postCoverage = require('./scripts/coverage/comment.cjs');
+            await postCoverage({
+              github, context, core,
+              body: fs.readFileSync('coverage-comment.md', 'utf8'),
+            });
+
   contrib-delta:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
