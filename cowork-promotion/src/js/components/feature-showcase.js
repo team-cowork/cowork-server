@@ -21,7 +21,6 @@ export function createFeatureShowcase(root) {
     const showcase = createStickyShowcase({
         activeDotWidth: "var(--indicator-feature-active)",
         inactiveDotColor: "var(--color-indicator-inverse)",
-        label: "기능",
         onProgress(progress, state) {
             if (!progressBar) return;
             progressBar.style.width = `${progress * 100}%`;
