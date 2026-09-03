@@ -24,7 +24,7 @@
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md)
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md)
 - reliability: [Preference Redis cache 실패 격리](./items/23-reliability/preference-cache-failure-isolation.md)
-- security: [통합 검색의 비공개 채널 노출 차단](./items/24-security/private-channel-search-visibility.md)
+- ~~security: [통합 검색의 비공개 채널 노출 차단](./items/24-security/private-channel-search-visibility.md)~~
 - security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md)
 - reliability: [chat.message poison record 격리](./items/27-reliability/chat-message-poison-quarantine.md)
@@ -36,9 +36,14 @@
 - reliability: [FCM 개별 전송 실패의 선택적 재시도](./items/33-reliability/fcm-partial-failure-retry.md)
 - reliability: [Authorization 웹훅 멱등 처리와 outbox 원자화](./items/34-reliability/authorization-webhook-atomicity.md)
 - reliability: [종료 음성 세션의 Redis stale cache 차단](./items/35-reliability/voice-session-cache-staleness.md)
+- ~~security: [역할 기반 채널·메시지 읽기 권한 적용](./items/36-security/role-based-channel-message-read-authorization.md)~~
+- performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
+- security: [기존 역할·채널 정책의 운영 전환](./items/38-security/existing-channel-role-policy-transition.md)
+- security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
 
 ## 점검 스냅샷
 
+- [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
 - [20260828](./20260828_TODO.md) — 서버 의존성·애플리케이션 코드 점검
 - [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
 - [20260723](./20260723_TODO.md) — Config Server 운영 구성 점검

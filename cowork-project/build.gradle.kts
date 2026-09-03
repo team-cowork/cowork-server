@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260828.0"
+version = "20260903.0"
 
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val mvnw = file(if (isWindows) "mvnw.cmd" else "mvnw").absolutePath

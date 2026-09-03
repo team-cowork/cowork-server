@@ -1,5 +1,7 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
@@ -13,31 +15,44 @@ class PreferenceSnapshotPublisher(
     private val notificationRepository: NotificationRepository,
     private val preferenceRepository: PreferenceRepository,
     private val teamRoleRepository: TeamRoleRepository,
+    private val channelRolePolicyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
+    private val upstreamReadiness: ProjectionReadiness,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
-    suspend fun publishAllIfLeader() {
-        runCatching {
+    suspend fun publishAllIfLeader(): Boolean {
+        if (!upstreamReadiness.isReady) {
+            log.info("Preference projection snapshot deferred until team.member.event projection is ready")
+            return false
+        }
+        return runCatching {
             outboxRepository.withProjectionSnapshotLock { connection ->
                 val notificationCount = publishNotificationSettings(connection)
                 val roleCount = publishRoles(connection)
                 val assignmentCount = publishAssignments(connection)
+                val memberFenceCount = publishMemberFences(connection)
                 val githubRepoSettingCount = publishGithubRepoSettings(connection)
+                val channelRolePolicyCount = publishChannelRolePolicies(connection)
+                check(upstreamReadiness.isReady) {
+                    "team.member.event projection became unavailable during preference snapshot"
+                }
                 publishCompletionMarkers(connection)
                 log.info(
                     "Preference projection snapshot published notificationCount={} roleCount={} " +
-                        "assignmentCount={} githubRepoSettingCount={}",
+                        "assignmentCount={} memberFenceCount={} githubRepoSettingCount={} channelRolePolicyCount={}",
                     notificationCount,
                     roleCount,
                     assignmentCount,
+                    memberFenceCount,
                     githubRepoSettingCount,
+                    channelRolePolicyCount,
                 )
             }
         }.onFailure {
             log.error("Preference projection snapshot failed; next scheduled run will retry", it)
-        }
+        }.getOrDefault(false)
     }
 
     private suspend fun publishCompletionMarkers(connection: io.vertx.sqlclient.SqlConnection) {
@@ -87,27 +102,32 @@ class PreferenceSnapshotPublisher(
     }
 
     private suspend fun publishRoles(connection: io.vertx.sqlclient.SqlConnection): Int {
-        var afterRoleId = 0L
+        var afterTeamId = -1L
+        var afterRoleId = -1L
         var published = 0
         while (true) {
             val page = outboxRepository.inTransaction(connection) { transactionConnection ->
-                val lockedPage = teamRoleRepository.findRolePage(transactionConnection, afterRoleId, PAGE_SIZE)
+                val lockedPage = teamRoleRepository.findRoleStatePage(
+                    transactionConnection,
+                    afterTeamId,
+                    afterRoleId,
+                    PAGE_SIZE,
+                )
                 outboxRepository.enqueueAll(
                     transactionConnection,
-                    lockedPage.map { role ->
-                        PreferenceEvents.roleUpserted(
-                            role,
-                            requireNotNull(role.updatedAt ?: role.createdAt) {
-                                "Role ${role.id} has no source timestamp"
-                            }.toInstant(),
-                        )
+                    lockedPage.map { state ->
+                        state.role?.let { role ->
+                            PreferenceEvents.roleUpserted(role, state.stateOccurredAt)
+                        } ?: PreferenceEvents.roleDeleted(state.teamId, state.roleId, state.stateOccurredAt)
                     },
                 )
                 lockedPage
             }
             if (page.isEmpty()) return published
             published += page.size
-            afterRoleId = page.last().id
+            val last = page.last()
+            afterTeamId = last.teamId
+            afterRoleId = last.roleId
         }
     }
 
@@ -118,7 +138,7 @@ class PreferenceSnapshotPublisher(
         var published = 0
         while (true) {
             val page = outboxRepository.inTransaction(connection) { transactionConnection ->
-                val lockedPage = teamRoleRepository.findAssignmentPage(
+                val lockedPage = teamRoleRepository.findAssignmentStatePage(
                     transactionConnection,
                     afterTeamId,
                     afterAccountId,
@@ -127,12 +147,16 @@ class PreferenceSnapshotPublisher(
                 )
                 outboxRepository.enqueueAll(
                     transactionConnection,
-                    lockedPage.map { assignment ->
-                        PreferenceEvents.assignmentUpserted(
-                            assignment,
-                            requireNotNull(assignment.updatedAt) {
-                                "Assignment ${assignment.teamId}:${assignment.accountId}:${assignment.roleId} has no source timestamp"
-                            }.toInstant(),
+                    lockedPage.map { state ->
+                        state.assignment?.let { assignment ->
+                            PreferenceEvents.assignmentUpserted(assignment, state.stateOccurredAt)
+                        } ?: PreferenceEvents.assignmentDeleted(
+                            AccountTeamRole(
+                                state.accountId,
+                                state.teamId,
+                                state.roleId,
+                            ),
+                            state.stateOccurredAt,
                         )
                     },
                 )
@@ -144,6 +168,38 @@ class PreferenceSnapshotPublisher(
             afterTeamId = last.teamId
             afterAccountId = last.accountId
             afterRoleId = last.roleId
+        }
+    }
+
+    private suspend fun publishMemberFences(connection: io.vertx.sqlclient.SqlConnection): Int {
+        var afterTeamId = -1L
+        var afterAccountId = -1L
+        var published = 0
+        while (true) {
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
+                val lockedPage = teamRoleRepository.findMemberFencePage(
+                    transactionConnection,
+                    afterTeamId,
+                    afterAccountId,
+                    PAGE_SIZE,
+                )
+                outboxRepository.enqueueAll(
+                    transactionConnection,
+                    lockedPage.map { fence ->
+                        PreferenceEvents.memberAssignmentsDeleted(
+                            fence.teamId,
+                            fence.accountId,
+                            fence.stateOccurredAt,
+                        )
+                    },
+                )
+                lockedPage
+            }
+            if (page.isEmpty()) return published
+            published += page.size
+            val last = page.last()
+            afterTeamId = last.teamId
+            afterAccountId = last.accountId
         }
     }
 
@@ -176,12 +232,51 @@ class PreferenceSnapshotPublisher(
         }
     }
 
+    private suspend fun publishChannelRolePolicies(connection: io.vertx.sqlclient.SqlConnection): Int {
+        var afterTeamId = -1L
+        var afterChannelId = -1L
+        var afterRoleId = -1L
+        var published = 0
+        while (true) {
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
+                val lockedPage = channelRolePolicyRepository.findPolicyPage(
+                    transactionConnection,
+                    afterTeamId,
+                    afterChannelId,
+                    afterRoleId,
+                    PAGE_SIZE,
+                )
+                outboxRepository.enqueueAll(
+                    transactionConnection,
+                    lockedPage.map { policy ->
+                        PreferenceEvents.channelRolePolicyState(
+                            teamId = policy.teamId,
+                            channelId = policy.channelId,
+                            roleId = policy.roleId,
+                            permissions = policy.permissions,
+                            occurredAt = policy.stateOccurredAt,
+                            snapshot = true,
+                        )
+                    },
+                )
+                lockedPage
+            }
+            if (page.isEmpty()) return published
+            published += page.size
+            val last = page.last()
+            afterTeamId = last.teamId
+            afterChannelId = last.channelId
+            afterRoleId = last.roleId
+        }
+    }
+
     private companion object {
         const val PAGE_SIZE = 500
         val SNAPSHOT_TOPICS = setOf(
             PreferenceEvents.CHANNEL_NOTIFICATION_TOPIC,
             PreferenceEvents.TEAM_ROLE_TOPIC,
             PreferenceEvents.GITHUB_REPO_SETTING_STATE_TOPIC,
+            PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC,
         )
     }
 }

@@ -176,9 +176,10 @@ UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니
 Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
 `(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록합니다. Client가
 broker topic UUID를 제공하면 checkpoint와 함께 저장해 assignment와 range 검사 때 동일성을 검증합니다.
-UUID를 제공하지 못하는 client는 프로세스 재시작·강제 복구마다 durable replay generation을 만들고,
-assignment 시 checkpoint와 snapshot barrier를 broker earliest로 원자적으로 초기화하며 이전 replica의
-lease를 fencing합니다. 숫자 checkpoint만으로 이전 topic의 연속성을 추정하지 않습니다.
+UUID를 제공하지 못하는 client는 운영자가 관리하는 source generation과 로컬 projection dataset generation을
+checkpoint에 함께 저장합니다. 두 generation과 retained offset 범위가 모두 일치할 때만 저장된 next offset에서
+증분 재개합니다. topic/source 교체, retention gap, dataset 부분 초기화에서는 숫자 checkpoint를 신뢰하지 않고
+fail closed한 뒤 명시적 rebuild로 projection과 checkpoint를 함께 새 generation에 초기화합니다.
 
 기동 시점에 관련된 모든 topic partition의 end offset을 고정한 뒤 shared checkpoint가 전부 도달할 때만
 readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축, consumer group offset 선행, 다중 replica 환경에서도
@@ -231,7 +232,11 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 | `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
 | `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
 | `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
-| `preference.team-role.changed`                | cowork-preference              | cowork-team                                                              | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.team-role.changed`                | cowork-preference              | cowork-team, cowork-channel, cowork-chat                                 | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.channel-role-policy.command`       | cowork-channel                 | cowork-preference                                                        | 채널별 역할 권한 정책 비동기 변경 command                  |
+| `preference.channel-role-policy.changed`       | cowork-preference              | cowork-channel, cowork-chat                                               | 채널별 역할 권한 정책 compacted state projection           |
+| `preference.channel-role-policy.command-result` | cowork-preference             | cowork-channel                                                           | 채널별 역할 권한 정책 변경 결과                            |
+| `preference.channel-role-policy.command-result-dlt` | cowork-channel            | 운영 격리                                                               | 유효하지 않거나 처리할 수 없는 정책 변경 결과 원문         |
 | `preference.team-role.command-result`         | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
 | `preference.github-repo.setting.command`      | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
 | `preference.github-repo.setting.state`        | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |

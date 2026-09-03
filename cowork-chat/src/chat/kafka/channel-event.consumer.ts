@@ -10,6 +10,7 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository/channel-projection.repository';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 interface ChannelEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -40,6 +41,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly dicoshot: DicoshotService,
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
+        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -100,6 +102,16 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         const eventTime = parseEventTime(event.occurredAt);
         if (!eventTime) throw new ProjectionContractError('channel event occurredAt must be RFC3339');
         const { occurredAt, sourceVersion } = eventTime;
+        const deletionRecipientSocketIds = event.eventType === 'DELETED'
+            && event.snapshot !== true
+            && event.teamId !== null
+            && this.io
+            ? await this.channelMessageReadAccess.captureVisibleTeamSocketIds(
+                this.io,
+                event.teamId,
+                event.channelId,
+            )
+            : [];
         let applied: boolean;
         if (event.eventType === 'DELETED') {
             applied = await this.channelRepository.remove(event.channelId, occurredAt, sourceVersion);
@@ -120,19 +132,46 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             };
             applied = await this.channelRepository.upsert(projectionEvent);
         }
-        if (applied === false) return;
-        if (event.snapshot === true) return;
+        if (!this.io) return;
+        if (event.eventType === 'UPDATED') {
+            await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, [event.channelId]);
+        }
+        if (event.snapshot === true) {
+            if (event.eventType === 'DELETED'
+                && (applied !== false || await this.channelRepository.findById(event.channelId) === null)) {
+                this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
+            }
+            return;
+        }
 
-        if (event.teamId === null || !this.io) return;
-        const room = `team:${event.teamId}`;
         const { eventType, snapshot, ...projectionPayload } = event;
         void snapshot;
-        if (eventType === 'CREATED') {
-            this.io.to(room).emit('channel:created', projectionPayload);
+        if (eventType === 'DELETED') {
+            if (applied === false && await this.channelRepository.findById(event.channelId) !== null) return;
+            for (const socketId of deletionRecipientSocketIds) {
+                this.io.to(socketId).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
+            }
+            this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
+        } else if (event.teamId === null) {
+            return;
+        } else if (eventType === 'CREATED') {
+            if (applied === false) return;
+            await this.channelMessageReadAccess.emitChannelEventToVisibleTeamUsers(
+                this.io,
+                event.teamId,
+                event.channelId,
+                'channel:created',
+                projectionPayload,
+            );
         } else if (eventType === 'UPDATED') {
-            this.io.to(room).emit('channel:updated', projectionPayload);
-        } else {
-            this.io.to(room).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
+            if (applied === false) return;
+            await this.channelMessageReadAccess.emitChannelEventToVisibleTeamUsers(
+                this.io,
+                event.teamId,
+                event.channelId,
+                'channel:updated',
+                projectionPayload,
+            );
         }
     }
 

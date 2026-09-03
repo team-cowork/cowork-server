@@ -10,6 +10,7 @@ import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { MessageRepository } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 /**
  * Kafka `chat.message` 토픽을 구독하여 채팅 메시지를 처리하는 컨슈머.
@@ -31,6 +32,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly configService: ConfigService,
         private readonly elasticsearchService: ElasticsearchService,
         private readonly dicoshot: DicoshotService,
+        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
     ) {}
 
     /**
@@ -154,7 +156,12 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             if (!this.io) {
                 this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
             } else {
-                this.io.to(`chat:${event.channelId}`).emit('message', saved.toObject());
+                await this.channelMessageReadAccess.emitToReadableChannelUsers(
+                    this.io,
+                    event.channelId,
+                    'message',
+                    saved.toObject(),
+                );
             }
             void this.channelMemberRepository
                 .updateLastRead(event.channelId, event.authorId, saved._id)

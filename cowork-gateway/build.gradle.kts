@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260828.0"
+version = "20260903.0"
 
 java {
     toolchain {
@@ -43,6 +43,7 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.reactor.test)
 }
 
 kotlin {
