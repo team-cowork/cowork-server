@@ -5,7 +5,7 @@ import { createStickyShowcase } from "./sticky-showcase.js";
 export function createFeatureShowcase(root) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
     const sceneTransition = createSceneTransition(
-        root.querySelector('.relative[style*="min-height"] > div'),
+        root.querySelector("[data-showcase-scene]"),
         {
             enterDuration: readMotionDuration("--duration-scene", root),
             leaveDuration: readMotionDuration("--duration-feature-leave", root),
@@ -14,10 +14,10 @@ export function createFeatureShowcase(root) {
         },
     );
     const backgroundTransition = createBackgroundTransition(
-        root.querySelector('[aria-hidden="true"] > span'),
+        root.querySelector("[data-showcase-background]"),
         reducedMotion,
     );
-    const progressBar = root.querySelector(".flex-1.h-1 > div");
+    const progressBar = root.querySelector("[data-showcase-progress]");
     const showcase = createStickyShowcase({
         activeDotWidth: "var(--indicator-feature-active)",
         inactiveDotColor: "var(--color-indicator-inverse)",
