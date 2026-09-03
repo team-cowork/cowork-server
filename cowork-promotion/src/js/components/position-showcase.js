@@ -5,9 +5,9 @@ import { createStickyShowcase } from "./sticky-showcase.js";
 
 export function createPositionShowcase(root) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const background = root.querySelector('[aria-hidden="true"] > span');
+    const background = root.querySelector("[data-showcase-background]");
     const sceneTransition = createSceneTransition(
-        root.querySelector('.relative[style*="height: 46vh"] > div'),
+        root.querySelector("[data-showcase-scene]"),
         {
             enterDuration: readMotionDuration("--duration-scene", root),
             leaveDuration: readMotionDuration("--duration-panel-leave", root),

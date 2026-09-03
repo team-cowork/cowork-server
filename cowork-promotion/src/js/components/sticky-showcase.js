@@ -22,8 +22,8 @@ export function createStickyShowcase({
     statesUrl,
 }) {
     const store = createStore({ activeIndex: 0, progress: 0, states: [] });
-    const counter = root.querySelector(".tabular-nums");
-    const dots = Array.from(root.querySelectorAll("button"));
+    const counter = root.querySelector("[data-showcase-counter]");
+    const dots = Array.from(root.querySelectorAll("[data-showcase-dot]"));
     const cleanups = [];
     let scrollFrame = 0;
     let unsubscribe = () => {};
