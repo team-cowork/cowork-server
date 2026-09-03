@@ -352,116 +352,194 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
+      has-modules: ${{ steps.matrix.outputs.has-modules }}
     steps:
       - name: Checkout PR Source
         uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
+          path: source-pr
+          persist-credentials: false
+      - name: Checkout Base Source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: source-base
           persist-credentials: false
       - name: Define Coverage Inventory and Runner
         run: |
           mkdir -p "$RUNNER_TEMP/coverage-tools"
-          cat > "$RUNNER_TEMP/coverage-tools/modules.json" <<'COVERAGE_MODULES_JSON_0'
-          {
-            "modules": [
-              {"module": "cowork-gateway", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-config", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-channel", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-team", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-roadmap", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-project", "runner": "maven", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-preference", "runner": "amper", "metric": "line", "format": "jacoco", "report": "report.xml"},
-              {"module": "cowork-authorization", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
-              {"module": "cowork-notification", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
-              {"module": "cowork-voice", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
-              {"module": "cowork-chat", "runner": "jest", "metric": "line", "format": "istanbul", "report": "report.json"},
-              {"module": "cowork-user", "runner": "elixir", "metric": "line", "format": "counts", "report": "report.json"},
-              {"module": "cowork-promotion", "runner": "node", "metric": "line", "format": "istanbul", "report": "report.json"}
-            ],
-            "excluded": [
-              {"module": "cowork-monitoring", "reason": "설정 전용 모듈 — 실행 코드 없음"}
-            ]
-          }
-          COVERAGE_MODULES_JSON_0
-          cat > "$RUNNER_TEMP/coverage-tools/run.py" <<'COVERAGE_RUN_PY_1'
+          cat > "$RUNNER_TEMP/coverage-tools/run.py" <<'COVERAGE_RUN_PY_0'
           #!/usr/bin/env python3
-          """Run identical coverage tooling against either source checkout."""
+          """Discover both source snapshots and measure supported modules without a registry."""
 
           import argparse
           import json
+          import os
+          import re
           import subprocess
           import sys
           from pathlib import Path
 
           TOOLS = Path(__file__).resolve().parent
+          RUNNERS = {
+              'gradle': ('line', 'jacoco', 'report.xml'),
+              'maven': ('line', 'jacoco', 'report.xml'),
+              'amper': ('line', 'jacoco', 'report.xml'),
+              'go': ('statement', 'go', 'report.out'),
+              'elixir': ('line', 'counts', 'report.json'),
+              'jest': ('line', 'istanbul', 'report.json'),
+              'node': ('line', 'istanbul', 'report.json'),
+          }
+          IGNORED = {'.git', 'node_modules', 'build', 'target', '_build', 'deps', 'vendor', 'coverage', 'dist', '__pycache__', '.gradle', '.kotlin'}
+          CONFIG_EXTENSIONS = {'.yml', '.yaml', '.json', '.md', '.txt', '.conf', '.ini', '.cfg', '.properties', '.xml', '.csv', '.svg', '.png', '.jpg', '.jpeg', '.ico', '.crt', '.pem', '.key', '.sql'}
+          CONFIG_NAMES = {'.gitignore', '.gitkeep', '.dockerignore', '.env.example', 'LICENSE', 'Dockerfile'}
+          OTHER_BUILDS = {'Cargo.toml', 'pyproject.toml', 'requirements.txt', 'setup.py', 'Gemfile', 'composer.json', 'CMakeLists.txt', 'Makefile', 'build.sbt', 'Package.swift', 'pubspec.yaml', 'build.zig'}
 
 
-          def build_matrix(manifest, source):
-              registered = [entry["module"] for entry in manifest["modules"] + manifest["excluded"]]
-              if len(set(registered)) != len(registered):
-                  raise ValueError("Duplicate coverage module registration")
-              discovered = {path.name for path in source.glob("cowork-*") if path.is_dir()}
-              unknown = discovered - set(registered)
-              if unknown:
-                  raise ValueError(f"Register coverage for new modules in .github/workflows/cowork-stage-ci.yml: {', '.join(sorted(unknown))}")
-              return {"include": [
-                  {"module": entry["module"], "runner": entry["runner"], "snapshot": snapshot}
-                  for entry in manifest["modules"]
-                  for snapshot in ("base", "pr")
-              ]}
+          def metadata(runner, reason=''):
+              metric, report_format, filename = RUNNERS.get(runner, ('line', 'counts', 'report.json'))
+              return dict(runner=runner, metric=metric, format=report_format, report=filename, reason=reason)
+
+
+          def test_commands(scripts, name='test', seen=None):
+              seen = set() if seen is None else seen
+              if name in seen or not isinstance(scripts.get(name), str):
+                  return ''
+              seen.add(name)
+              command = scripts[name]
+              npm_flags = r'(?:(?:--silent|-s|--quiet|-q)\s+)*'
+              nested = re.findall(r'\bnpm\s+' + npm_flags + r'(?:run|run-script)\s+' + npm_flags + r'([\w:.-]+)', command)
+              return ' ; '.join([command] + [test_commands(scripts, child, seen) for child in nested])
+
+
+          def classify(directory):
+              if directory.is_symlink():
+                  return metadata('unsupported', 'Module directories must not be symbolic links')
+              if not directory.exists():
+                  return metadata('absent', 'Module does not exist at this revision')
+              # Owner build files take precedence over delegating Gradle wrappers.
+              for filename, runner in [('module.yaml', 'amper'), ('pom.xml', 'maven'), ('go.mod', 'go'), ('mix.exs', 'elixir')]:
+                  if (directory / filename).is_file():
+                      return metadata(runner)
+              package_file = directory / 'package.json'
+              if package_file.is_file():
+                  try:
+                      package = json.loads(package_file.read_text())
+                      if not isinstance(package, dict):
+                          raise ValueError('package.json must be an object')
+                      scripts = package.get('scripts', {})
+                      if not isinstance(scripts, dict):
+                          raise ValueError('package.json scripts must be an object')
+                      command = test_commands(scripts)
+                      if re.search(r'(?:^|[\s;&|])jest(?:\s|$)', command):
+                          return metadata('jest')
+                      if re.search(r'(?:^|[\s;&|])node\s+[^;&|]*--test(?:\s|=|$)', command):
+                          return metadata('node')
+                      # A direct Jest dependency is sufficient when no test command is declared.
+                      dependencies = {}
+                      for key in ('dependencies', 'devDependencies'):
+                          value = package.get(key, {})
+                          if not isinstance(value, dict):
+                              raise ValueError(f'package.json {key} must be an object')
+                          dependencies.update(value)
+                      if not command and 'jest' in dependencies:
+                          return metadata('jest')
+                      return metadata('unsupported', 'package.json does not declare a supported Jest or node --test runner')
+                  except (ValueError, OSError) as error:
+                      return metadata('unsupported', f'Unable to classify package.json: {error}')
+              if any((directory / filename).is_file() for filename in ('build.gradle.kts', 'build.gradle')):
+                  return metadata('gradle')
+              for current, subdirectories, filenames in os.walk(directory):
+                  subdirectories[:] = [name for name in subdirectories if name not in IGNORED]
+                  for filename in filenames:
+                      path = Path(current) / filename
+                      if (filename in OTHER_BUILDS or path.suffix not in CONFIG_EXTENSIONS) and filename not in CONFIG_NAMES:
+                          return metadata('unsupported', f'No supported build definition for {path.relative_to(directory)}')
+              return metadata('excluded', '설정 전용 모듈 — 실행 코드 없음')
+
+
+          def discover(base_source, pr_source):
+              for source in (base_source, pr_source):
+                  if not source.is_dir():
+                      raise ValueError(f'Source checkout does not exist: {source}')
+              names = sorted({path.name for source in (base_source, pr_source) for path in source.glob('cowork-*') if path.is_dir() or path.is_symlink()})
+              modules, excluded = [], []
+              for name in names:
+                  snapshots = {snapshot: classify(source / name) for snapshot, source in [('base', base_source), ('pr', pr_source)]}
+                  if all(info['runner'] in {'absent', 'excluded'} for info in snapshots.values()):
+                      excluded.append(dict(module=name, reason='설정 전용 모듈 — 실행 코드 없음'))
+                      continue
+                  preferred = next((snapshots[snapshot] for snapshot in ('pr', 'base') if snapshots[snapshot]['runner'] in RUNNERS), metadata('unsupported'))
+                  for info in snapshots.values():
+                      if info['runner'] not in RUNNERS:
+                          info['metric'] = preferred['metric']
+                  modules.append(dict(module=name, metric=preferred['metric'], snapshots=snapshots))
+              return dict(modules=modules, excluded=excluded)
+
+
+          def build_matrix(manifest):
+              return {'include': [dict(module=entry['module'], snapshot=snapshot, **entry['snapshots'][snapshot])
+                                  for entry in manifest['modules'] for snapshot in ('base', 'pr')]}
 
 
           def measure(entry, snapshot, source, output):
               if not source.is_dir():
-                  raise ValueError(f"Source checkout does not exist: {source}")
+                  raise ValueError(f'Source checkout does not exist: {source}')
+              info = entry['snapshots'][snapshot]
               output.mkdir(parents=True, exist_ok=True)
-              report = output / entry["report"]
-              result = output / "result.json"
-              # Never reuse a previous measurement, even when a local output directory is reused.
+              report = output / info['report']
+              result = output / 'result.json'
               report.unlink(missing_ok=True)
               result.unlink(missing_ok=True)
-              collect = [
-                  sys.executable, str(TOOLS / "report.py"), "collect",
-                  "--module", entry["module"], "--snapshot", snapshot,
-                  "--format", entry["format"], "--metric", entry["metric"],
-                  "--input", str(report), "--output", str(result),
-              ]
-              if not (source / entry["module"]).is_dir():
-                  return subprocess.run(collect + ["--absent"], check=False).returncode
-
-              adapter = "run-jvm.sh" if entry["runner"] in {"gradle", "maven", "amper"} else "run-native.sh"
-              completed = subprocess.run([
-                  "bash", str(TOOLS / adapter), entry["runner"], entry["module"], str(source), str(output),
-              ], check=False)
+              runner = info['runner']
+              present = (source / entry['module']).is_dir()
+              if runner not in RUNNERS or not present:
+                  status = {'absent': 'absent', 'excluded': 'excluded'}.get(runner, 'failed')
+                  reason = info['reason']
+                  if (runner == 'absent' and present) or (runner in RUNNERS and not present):
+                      status, reason = 'failed', 'Source checkout does not match the discovered module inventory'
+                  result.write_text(json.dumps(dict(module=entry['module'], snapshot=snapshot, metric=info['metric'],
+                                                   status=status, covered=None, total=None, reason=reason), ensure_ascii=False) + '\n')
+                  return 1 if status == 'failed' else 0
+              adapter = 'run-jvm.sh' if runner in {'gradle', 'maven', 'amper'} else 'run-native.sh'
+              completed = subprocess.run(['bash', str(TOOLS / adapter), runner, entry['module'], str(source), str(output)], check=False)
               exit_code = completed.returncode if completed.returncode >= 0 else 128 - completed.returncode
-              normalized = subprocess.run(collect + ["--exit-code", str(exit_code)], check=False)
+              normalized = subprocess.run([
+                  sys.executable, str(TOOLS / 'report.py'), 'collect', '--module', entry['module'], '--snapshot', snapshot,
+                  '--format', info['format'], '--metric', info['metric'], '--input', str(report), '--output', str(result),
+                  '--exit-code', str(exit_code),
+              ], check=False)
               return exit_code or normalized.returncode
 
 
           def main():
               parser = argparse.ArgumentParser(description=__doc__)
-              commands = parser.add_subparsers(dest="command", required=True)
-              matrix = commands.add_parser("matrix")
-              matrix.add_argument("--source", type=Path, required=True)
-              run = commands.add_parser("measure")
-              run.add_argument("--module", required=True)
-              run.add_argument("--snapshot", choices=["base", "pr"], required=True)
-              run.add_argument("--source", type=Path, required=True)
-              run.add_argument("--output", type=Path, required=True)
+              commands = parser.add_subparsers(dest='command', required=True)
+              discovery = commands.add_parser('discover')
+              discovery.add_argument('--base-source', type=Path, required=True)
+              discovery.add_argument('--pr-source', type=Path, required=True)
+              run = commands.add_parser('measure')
+              run.add_argument('--module', required=True)
+              run.add_argument('--snapshot', choices=['base', 'pr'], required=True)
+              run.add_argument('--source', type=Path, required=True)
+              run.add_argument('--output', type=Path, required=True)
               args = parser.parse_args()
-              manifest = json.loads((TOOLS / "modules.json").read_text())
-              if args.command == "matrix":
-                  print(json.dumps(build_matrix(manifest, args.source.resolve()), separators=(",", ":")))
+              if args.command == 'discover':
+                  manifest = discover(args.base_source.resolve(), args.pr_source.resolve())
+                  (TOOLS / 'modules.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+                  print(json.dumps(build_matrix(manifest), separators=(',', ':')))
                   return 0
-              entries = {entry["module"]: entry for entry in manifest["modules"]}
+              manifest = json.loads((TOOLS / 'modules.json').read_text())
+              entries = {entry['module']: entry for entry in manifest['modules']}
               if args.module not in entries:
-                  parser.error(f"Unregistered module: {args.module}")
+                  parser.error(f'Module was not discovered: {args.module}')
               return measure(entries[args.module], args.snapshot, args.source.resolve(), args.output.resolve())
 
 
-          if __name__ == "__main__":
+          if __name__ == '__main__':
               sys.exit(main())
-          COVERAGE_RUN_PY_1
+          COVERAGE_RUN_PY_0
       - name: Define JVM Measurement
         run: |
           cat > "$RUNNER_TEMP/coverage-tools/jacoco.init.gradle" <<'COVERAGE_JACOCO_INIT_GRADLE_0'
@@ -471,15 +549,22 @@ jobs:
           import org.gradle.testing.jacoco.tasks.JacocoReport
 
           // Kept outside the measured checkout so base and PR use identical instrumentation.
-          def coverageModule = gradle.startParameter.projectProperties['coverageModule']
+          def coverageProjectDir = gradle.startParameter.projectProperties['coverageProjectDir']
           def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
-          if (!coverageModule || !coverageOutput) {
-              throw new GradleException('coverageModule and coverageOutput are required')
+          if (!coverageProjectDir || !coverageOutput) {
+              throw new GradleException('coverageProjectDir and coverageOutput are required')
           }
 
           gradle.beforeProject { project ->
-              if (project.path != ":${coverageModule}") {
+              if (project.projectDir.canonicalFile != new File(coverageProjectDir).canonicalFile) {
                   return
+              }
+              // Coverage must not rewrite production sources, even if compilation depends on formatting.
+              // Disable apply tasks themselves because disabling the aggregate task leaves dependencies active.
+              project.tasks.configureEach { task ->
+                  if (task.name.startsWith('spotless') && task.name.endsWith('Apply')) {
+                      task.enabled = false
+                  }
               }
               // Maven and Amper wrapper projects have only the base plugin and must stay untouched.
               project.pluginManager.withPlugin('java') {
@@ -521,17 +606,28 @@ jobs:
           module=$2
           [[ $3 = /* && $4 = /* ]] || { echo 'Source and output paths must be absolute.' >&2; exit 2; }
           source_root=$(cd "$3" && pwd -P)
+          mkdir -p "$4"
           output=$(cd "$4" && pwd -P)
           script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
-          case "$runner:$module" in
-            gradle:cowork-gateway|gradle:cowork-config|gradle:cowork-channel|gradle:cowork-team|gradle:cowork-roadmap) ;;
-            maven:cowork-project|amper:cowork-preference) ;;
-            *) echo "Unsupported JVM runner/module: $runner/$module" >&2; exit 2 ;;
+          case "$runner" in
+            gradle|maven|amper) ;;
+            *) echo "Unsupported JVM coverage runner: $runner" >&2; exit 2 ;;
           esac
 
-          module_dir="$source_root/$module"
-          [[ -d "$module_dir" ]] || { echo "Module is absent: $module" >&2; exit 1; }
+          module_dir=$(python3 - "$source_root" "$module" <<'PY'
+          import sys
+          from pathlib import Path
+          root = Path(sys.argv[1]).resolve()
+          relative = Path(sys.argv[2])
+          module = (root / relative).resolve()
+          if relative.is_absolute() or '..' in relative.parts or module == root or not module.is_relative_to(root):
+              raise SystemExit('Module must be a relative directory inside the source checkout')
+          if not module.is_dir():
+              raise SystemExit(f'Module is absent: {relative}')
+          print(module)
+          PY
+          )
           case "$output/" in
             "$module_dir/build/"*|"$module_dir/target/"*)
               echo 'Coverage output must be outside the cleaned build/target directory.' >&2
@@ -550,7 +646,7 @@ jobs:
           from xml.etree import ElementTree as ET
 
           directory = Path(sys.argv[1])
-          reports = list(directory.glob('TEST-*.xml'))
+          reports = list(directory.rglob('TEST-*.xml'))
           if not reports:
               raise SystemExit(f'No fresh JUnit reports found in {directory}')
           tests = failures = errors = skipped = 0
@@ -601,21 +697,29 @@ jobs:
 
           case "$runner" in
             gradle)
-              cd "$source_root"
-              gradle_args=(--no-daemon --console=plain --no-build-cache --no-configuration-cache
-                --init-script "$script_dir/jacoco.init.gradle"
-                "-PcoverageModule=$module" "-PcoverageOutput=$output"
-                ":$module:clean" ":$module:coworkCoverageReport")
-              if [[ "$module" == cowork-roadmap ]]; then
-                # compileJava depends on a formatter that writes source files; coverage must not.
-                gradle_args+=(-x :cowork-roadmap:spotlessApply)
+              gradle_wrapper="$module_dir/gradlew"
+              if [[ ! -f "$gradle_wrapper" ]]; then
+                gradle_wrapper="$source_root/gradlew"
               fi
-              bash ./gradlew "${gradle_args[@]}"
+              [[ -f "$gradle_wrapper" ]] || { echo 'Gradle wrapper not found.' >&2; exit 1; }
+              gradle_args=(--no-daemon --console=plain --no-build-cache --no-configuration-cache
+                --project-dir "$module_dir"
+                --init-script "$script_dir/jacoco.init.gradle"
+                "-PcoverageProjectDir=$module_dir" "-PcoverageOutput=$output"
+                clean coworkCoverageReport)
+              bash "$gradle_wrapper" "${gradle_args[@]}"
               validate_tests "$module_dir/build/test-results/test"
               ;;
             maven)
               cd "$module_dir"
-              bash ./mvnw --batch-mode --no-transfer-progress \
+              if [[ -f "$module_dir/mvnw" ]]; then
+                maven_command=(bash "$module_dir/mvnw")
+              elif [[ -f "$source_root/mvnw" ]]; then
+                maven_command=(bash "$source_root/mvnw")
+              else
+                maven_command=(mvn)
+              fi
+              "${maven_command[@]}" --batch-mode --no-transfer-progress \
                 -Dmaven.test.skip=false -DskipTests=false -Dmaven.test.failure.ignore=false -DfailIfNoTests=true \
                 "-Djacoco.destFile=$output/jacoco.exec" "-Djacoco.dataFile=$output/jacoco.exec" \
                 -Djacoco.append=true \
@@ -642,21 +746,28 @@ jobs:
               cd "$module_dir"
               "$kotlin_cli" clean
               "$kotlin_cli" test --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
-              validate_tests "$module_dir/build/reports/$module/jvm"
-              classes="$module_dir/build/artifacts/CompiledJvmArtifact/${module}jvm"
-              # Amper 0.11.0 separates main and test artifacts. Never scan the test artifact.
-              python3 - "$classes/kotlin-output" <<'PY'
+              validate_tests "$module_dir/build/reports"
+              # Artifact names use Amper's module identity, which need not match the directory.
+              # The pinned JVM layout gives production artifacts a jvm suffix and tests jvmTest.
+              python3 - "$module_dir/build/artifacts/CompiledJvmArtifact" "$output/amper-classdirs.txt" <<'PY'
           import sys
           from pathlib import Path
-          if not any(Path(sys.argv[1]).rglob('*.class')):
-              raise SystemExit(f'Amper production classes not found at {sys.argv[1]}')
+          artifacts = Path(sys.argv[1])
+          class_dirs = sorted(
+              output for artifact in artifacts.glob('*jvm') if artifact.is_dir()
+              for name in ('kotlin-output', 'java-output')
+              if (output := artifact / name).is_dir() and any(output.rglob('*.class'))
+          )
+          if not class_dirs:
+              raise SystemExit(f'Amper production classes not found at {artifacts}')
+          Path(sys.argv[2]).write_text(''.join(f'{path}\n' for path in class_dirs))
           PY
-              class_args=(--classfiles "$classes/kotlin-output")
-              if [[ -d "$classes/java-output" ]]; then
-                class_args+=(--classfiles "$classes/java-output")
-              fi
+              class_args=()
+              while IFS= read -r classes; do
+                class_args+=(--classfiles "$classes")
+              done < "$output/amper-classdirs.txt"
               java -jar "$cli" report "$output/jacoco.exec" \
-                "${class_args[@]}" --sourcefiles "$module_dir/src/main/kotlin" \
+                "${class_args[@]}" --sourcefiles "$module_dir/src" \
                 --name "$module" --xml "$output/report.xml"
               ;;
           esac
@@ -728,16 +839,31 @@ jobs:
             /*:/*) ;;
             *) echo "Source and output directories must be absolute paths." >&2; exit 2 ;;
           esac
-          case "$runner:$module" in
-            go:cowork-authorization|go:cowork-notification|go:cowork-voice|jest:cowork-chat|node:cowork-promotion|elixir:cowork-user) ;;
-            *) echo "Unsupported coverage runner/module: $runner/$module" >&2; exit 2 ;;
+          case "$runner" in
+            go|jest|node|elixir) ;;
+            *) echo "Unsupported coverage runner: $runner" >&2; exit 2 ;;
           esac
 
+          source_root=$(cd "$source_root" && pwd -P)
+          module_dir=$(python3 - "$source_root" "$module" <<'PY'
+          import sys
+          from pathlib import Path
+          root = Path(sys.argv[1]).resolve()
+          relative = Path(sys.argv[2])
+          module = (root / relative).resolve()
+          if relative.is_absolute() or '..' in relative.parts or module == root or not module.is_relative_to(root):
+              raise SystemExit('Module must be a relative directory inside the source checkout')
+          if not module.is_dir():
+              raise SystemExit(f'Module is absent: {relative}')
+          print(module)
+          PY
+          )
           mkdir -p "$output_dir"
+          output_dir=$(cd "$output_dir" && pwd -P)
           rm -f "$output_dir/report.json" "$output_dir/report.out" \
             "$output_dir/raw-go.out" "$output_dir/coverage-summary.json" \
             "$output_dir/coverage.coverdata"
-          cd "$source_root/$module"
+          cd "$module_dir"
 
           case "$runner" in
             go)
@@ -749,17 +875,92 @@ jobs:
               ;;
             jest)
               npm ci --no-audit --no-fund
-              npm run test:cov -- --runInBand \
-                --rootDir="$source_root/$module/src" \
+              # Reuse test's configuration flags and environment for both invocations. Extra
+              # separators preserve appended Jest arguments through ordinary npm run chains.
+              forwarding=$(python3 - <<'PY'
+          import json
+          import re
+          import shlex
+          from pathlib import Path
+          scripts = json.loads(Path('package.json').read_text()).get('scripts', {})
+          script = scripts.get('test')
+          if not script:
+              print(-1)
+              raise SystemExit(0)
+          seen = set()
+          separators = 0
+          name = 'test'
+          while True:
+              if name in seen:
+                  raise SystemExit('Cyclic npm test-script forwarding is unsupported')
+              seen.add(name)
+              lexer = shlex.shlex(script, posix=True, punctuation_chars=';&|<>')
+              lexer.whitespace_split = True
+              tokens = list(lexer)
+              if any(token and all(character in ';&|<>' for character in token) for token in tokens):
+                  raise SystemExit('Jest test scripts with shell chains or redirection need an explicit adapter')
+              if tokens and tokens[0] in ('cross-env', 'env'):
+                  tokens.pop(0)
+              while tokens and re.match(r'^[A-Za-z_][A-Za-z0-9_]*=', tokens[0]):
+                  tokens.pop(0)
+              if not tokens or tokens[0] != 'npm':
+                  break
+              tokens = tokens[1:]
+              while tokens and tokens[0] in ('--silent', '-s', '--quiet', '-q'):
+                  tokens.pop(0)
+              if not tokens or tokens[0] not in ('run', 'run-script'):
+                  raise SystemExit('Only npm run <script> forwarding is supported for Jest test scripts')
+              tokens = tokens[1:]
+              while tokens and tokens[0] in ('--silent', '-s', '--quiet', '-q'):
+                  tokens.pop(0)
+              if not tokens or tokens[0].startswith('-'):
+                  raise SystemExit('The forwarded npm test script could not be resolved')
+              name = tokens[0]
+              if '--' not in tokens[1:]:
+                  separators += 1
+              script = scripts.get(name)
+              if not script:
+                  raise SystemExit(f'Forwarded npm test script does not exist: {name}')
+          print(separators)
+          PY
+          )
+              if [[ "$forwarding" -lt 0 ]]; then
+                jest_command=(npm exec --yes=false -- jest)
+              else
+                jest_command=(npm --silent test --)
+                while [[ "$forwarding" -gt 0 ]]; do
+                  jest_command+=(--)
+                  forwarding=$((forwarding - 1))
+                done
+              fi
+              # Resolve the module's own root, transforms, test selection and coverage scope.
+              # Only append shared exclusions; never replace a declared production-file scope.
+              "${jest_command[@]}" --showConfig > "$output_dir/jest-config.json"
+              python3 - "$output_dir/jest-config.json" "$output_dir/jest-coverage-globs.txt" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          configs = json.loads(Path(sys.argv[1]).read_text())['configs']
+          scopes = [config.get('collectCoverageFrom') or ['**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'] for config in configs]
+          if not scopes or any(scope != scopes[0] for scope in scopes):
+              raise SystemExit('Jest projects with different coverage scopes require a project-aware adapter')
+          patterns = scopes[0] + [
+              '!**/*.{spec,test}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+              '!**/*.d.{ts,mts,cts}',
+              '!**/{test,tests,__tests__,node_modules,generated,build,dist,coverage}/**',
+          ]
+          if any(not isinstance(pattern, str) or '\n' in pattern or '\r' in pattern for pattern in patterns):
+              raise SystemExit('Invalid Jest coverage glob')
+          Path(sys.argv[2]).write_text(''.join(f'{pattern}\n' for pattern in patterns))
+          PY
+              coverage_args=()
+              while IFS= read -r pattern; do
+                coverage_args+=("--collectCoverageFrom=$pattern")
+              done < "$output_dir/jest-coverage-globs.txt"
+              "${jest_command[@]}" --coverage --runInBand \
                 --coverageDirectory="$output_dir" \
                 --coverageReporters=json-summary --coverageReporters=text-summary \
-                --coverageThreshold='{}' \
-                --collectCoverageFrom='**/*.{ts,js}' \
-                --collectCoverageFrom='!**/*.{spec,test}.{ts,js}' \
-                --collectCoverageFrom='!**/*.d.ts' \
-                --collectCoverageFrom='!**/__tests__/**' \
-                --collectCoverageFrom='!**/node_modules/**' \
-                --collectCoverageFrom='!**/generated/**'
+                --coverageThreshold='{}' "${coverage_args[@]}"
               cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
               ;;
             node)
@@ -771,11 +972,10 @@ jobs:
               printf '{}\n' > "$coverage_temp/config.json"
               npm exec --yes --package=c8@12.0.0 -- c8 \
                 --config="$coverage_temp/config.json" \
-                --all --src=src --src=scripts \
-                --include='src/**/*.{js,mjs,cjs,ts}' --include='scripts/**/*.{js,mjs,cjs,ts}' \
-                --exclude='**/*.{spec,test}.{js,mjs,cjs,ts}' \
-                --exclude='**/*.d.ts' --exclude='**/node_modules/**' \
-                --exclude='**/generated/**' --exclude='**/__tests__/**' \
+                --all --src=. --include='**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}' \
+                --exclude='**/*.{spec,test}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}' \
+                --exclude='**/*.d.{ts,mts,cts}' \
+                --exclude='**/{test,tests,__tests__,node_modules,generated,build,dist,coverage}/**' \
                 --check-coverage=false \
                 --reporter=json-summary --reporter=text-summary \
                 --reports-dir="$output_dir" --temp-directory="$coverage_temp/v8" \
@@ -829,7 +1029,7 @@ jobs:
 
 
           MARKER = "<!-- coverage-report-bot -->"
-          STATUSES = {"ok", "failed", "missing", "absent"}
+          STATUSES = {"ok", "failed", "missing", "absent", "excluded"}
           METRICS = {"line", "statement"}
           SNAPSHOTS = {"base", "pr"}
 
@@ -1073,7 +1273,7 @@ jobs:
 
 
           def load_results(artifacts: Path, modules: list[dict[str, Any]]) -> tuple[dict[tuple[str, str], Result], list[str]]:
-              expected = {module["module"]: module["metric"] for module in modules}
+              expected = {module["module"]: module for module in modules}
               candidates: dict[tuple[str, str], list[Any]] = {}
               diagnostics = []
               for path in sorted(artifacts.rglob("result.json")):
@@ -1091,8 +1291,9 @@ jobs:
                       diagnostics.append(f"{path.relative_to(artifacts)}: {error}")
 
               results = {}
-              for module, metric in expected.items():
+              for module, entry in expected.items():
                   for snapshot in ("base", "pr"):
+                      metric = entry.get("snapshots", {}).get(snapshot, entry)["metric"]
                       key = (module, snapshot)
                       values = candidates.get(key, [])
                       if not values:
@@ -1117,7 +1318,7 @@ jobs:
 
 
           def delta(base: Result, pr: Result) -> Decimal | None:
-              if base.percent is None or pr.percent is None:
+              if base.percent is None or pr.percent is None or base.metric != pr.metric:
                   return None
               with localcontext() as context:
                   context.prec = 50
@@ -1132,7 +1333,7 @@ jobs:
 
 
           def aggregate(results: list[Result], snapshot: str) -> Result:
-              if any(result.status not in {"ok", "absent"} for result in results):
+              if any(result.status not in {"ok", "absent", "excluded"} for result in results):
                   return Result("전체", snapshot, "mixed", "missing", reason="Incomplete coverage")
               return Result(
                   "전체", snapshot, "mixed", "ok",
@@ -1158,6 +1359,8 @@ jobs:
                   if result.status in {"failed", "missing"}:
                       label = "실패" if result.status == "failed" else "누락"
                       problems.append(f"{result.snapshot}: {label} — {text(result.reason[:500])}")
+                  elif result.status == "excluded":
+                      problems.append(f"{result.snapshot}: {text(result.reason)}")
                   elif result.status == "ok" and result.total == 0:
                       problems.append(f"{result.snapshot}: 측정 항목 없음")
               if problems:
@@ -1168,6 +1371,8 @@ jobs:
                   return "모듈 추가 (base 없음)"
               if pr.status == "absent":
                   return "모듈 삭제 (PR 없음)"
+              if base.metric != pr.metric:
+                  return "측정 단위 변경 — 증감 비교 불가"
               return "완료"
 
 
@@ -1196,8 +1401,8 @@ jobs:
 
           def read_manifest(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
               manifest = read_json(path)
-              if not isinstance(manifest, dict) or not isinstance(manifest.get("modules"), list) or not manifest["modules"]:
-                  raise CoverageError("manifest requires a nonempty modules array")
+              if not isinstance(manifest, dict) or not isinstance(manifest.get("modules"), list):
+                  raise CoverageError("manifest requires a modules array")
               modules = manifest["modules"]
               seen = set()
               for module in modules:
@@ -1205,6 +1410,13 @@ jobs:
                       raise CoverageError("manifest module requires a nonempty module name")
                   if module["module"] in seen or not isinstance(module.get("metric"), str) or module["metric"] not in METRICS:
                       raise CoverageError("manifest contains a duplicate module or invalid metric")
+                  if "snapshots" in module:
+                      snapshots = module["snapshots"]
+                      if not isinstance(snapshots, dict) or set(snapshots) != SNAPSHOTS:
+                          raise CoverageError("manifest snapshots must contain base and pr")
+                      for info in snapshots.values():
+                          if not isinstance(info, dict) or not isinstance(info.get("metric"), str) or info["metric"] not in METRICS:
+                              raise CoverageError("manifest snapshot has an invalid metric")
                   seen.add(module["module"])
               excluded = manifest.get("excluded", [])
               if not isinstance(excluded, list):
@@ -1224,9 +1436,15 @@ jobs:
               base = aggregate([results[(module["module"], "base")] for module in modules], "base")
               pr = aggregate([results[(module["module"], "pr")] for module in modules], "pr")
               complete = base.status == pr.status == "ok" and not diagnostics
+              unit_changed = any(
+                  results[(module["module"], "base")].status == results[(module["module"], "pr")].status == "ok"
+                  and results[(module["module"], "base")].metric != results[(module["module"], "pr")].metric
+                  for module in modules
+              )
+              overall_change = delta(base, pr) if complete and not unit_changed else None
               lines = [MARKER, "## 테스트 커버리지", ""]
               if complete:
-                  lines += [f"**전체 (라인/구문 가중 합산): {percentage(base.percent)} → {percentage(pr.percent)} · {delta_text(delta(base, pr))}**", ""]
+                  lines += [f"**전체 (라인/구문 가중 합산): {percentage(base.percent)} → {percentage(pr.percent)} · {delta_text(overall_change)}**", ""]
                   lines += [f"Base: {base.covered:,}/{base.total:,} · PR: {pr.covered:,}/{pr.total:,} (covered/total)", ""]
                   if pr.total:
                       lines += [f"![PR 전체 커버리지 {percentage(pr.percent)} — covered {pr.covered}, total {pr.total}]({donut_url(pr.covered, pr.total)})", ""]
@@ -1234,12 +1452,13 @@ jobs:
                   lines += ["**전체: N/A · 증감: N/A**", "", "일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
 
               lines += ["| 모듈 | 단위 | Base | PR | 증감 | 상태 |", "| --- | --- | ---: | ---: | ---: | --- |"]
-              changes: list[tuple[str, Decimal | None]] = [("전체", delta(base, pr) if complete else None)]
+              changes: list[tuple[str, Decimal | None]] = [("전체", overall_change)]
               for module in modules:
                   name = module["module"]
                   previous, current = results[(name, "base")], results[(name, "pr")]
                   change = delta(previous, current)
-                  metric = "라인" if module["metric"] == "line" else "구문"
+                  units = {"line": "라인", "statement": "구문"}
+                  metric = units[previous.metric] if previous.metric == current.metric else f"{units[previous.metric]} → {units[current.metric]}"
                   lines.append(f"| {text(name)} | {metric} | {measurement(previous)} | {measurement(current)} | {delta_text(change)} | {row_status(previous, current)} |")
                   changes.append((name, change))
               for module in excluded:
@@ -1251,6 +1470,8 @@ jobs:
                   lines.append(f"{prefix} {text(name)}: {delta_text(change)}")
               lines += ["```", "", "증감은 PR − Base의 퍼센트포인트(%p)이며, 반올림 전 수치로 계산한 뒤 소수점 첫째 자리까지 표시합니다. 표시값이 0.0%p인 경우 부호와 색을 붙이지 않습니다.", ""]
               lines += ["전체는 모듈별 퍼센트의 단순 평균이 아니라 covered/total 합산값입니다. JVM·JavaScript·Elixir의 라인과 Go의 구문을 합친 혼합 지표입니다. 분모가 0이면 N/A로 표시하며, 한쪽 리비전에 없는 모듈은 해당 리비전 합산에서 제외합니다.", ""]
+              if unit_changed:
+                  lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
               if any(result.status == "absent" for result in results.values()):
                   lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 달라질 수 있습니다. 해당 모듈의 개별 증감은 N/A입니다.", ""]
               if diagnostics:
@@ -1378,6 +1599,17 @@ jobs:
 
           module.exports.MARKER = MARKER;
           COVERAGE_COMMENT_CJS_0
+      - name: Discover Modules from Both Snapshots
+        id: matrix
+        run: |
+          matrix=$(python3 "$RUNNER_TEMP/coverage-tools/run.py" discover \
+            --base-source "$GITHUB_WORKSPACE/source-base" --pr-source "$GITHUB_WORKSPACE/source-pr")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$matrix" = '{"include":[]}' ]; then
+            echo "has-modules=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-modules=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Upload Coverage Toolkit
         uses: actions/upload-artifact@v7
         with:
@@ -1391,16 +1623,11 @@ jobs:
           python3 -m py_compile "$RUNNER_TEMP/coverage-tools/report.py" "$RUNNER_TEMP/coverage-tools/run.py"
           bash -n "$RUNNER_TEMP/coverage-tools/run-jvm.sh" "$RUNNER_TEMP/coverage-tools/run-native.sh"
           node --check "$RUNNER_TEMP/coverage-tools/comment.cjs"
-      - name: Plan All Module Measurements
-        id: matrix
-        run: |
-          matrix=$(python3 "$RUNNER_TEMP/coverage-tools/run.py" matrix --source "$GITHUB_WORKSPACE")
-          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   coverage:
     name: coverage (${{ matrix.module }}, ${{ matrix.snapshot }})
     needs: coverage-plan
-    if: needs.coverage-plan.outputs.matrix != ''
+    if: needs.coverage-plan.outputs.has-modules == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     continue-on-error: true
@@ -1415,7 +1642,7 @@ jobs:
         env:
           COVERAGE_MODULE: ${{ matrix.module }}
           COVERAGE_SNAPSHOT: ${{ matrix.snapshot }}
-          COVERAGE_RUNNER: ${{ matrix.runner }}
+          COVERAGE_METRIC: ${{ matrix.metric }}
         run: |
           python3 - <<'PY'
           import json
@@ -1426,7 +1653,7 @@ jobs:
           result = {
               'module': os.environ['COVERAGE_MODULE'],
               'snapshot': os.environ['COVERAGE_SNAPSHOT'],
-              'metric': 'statement' if os.environ['COVERAGE_RUNNER'] == 'go' else 'line',
+              'metric': os.environ['COVERAGE_METRIC'],
               'status': 'missing', 'covered': None, 'total': None,
               'reason': 'Measurement did not finish; check runner setup and test logs',
           }
@@ -1474,7 +1701,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-coverage-maven-${{ hashFiles('source/cowork-project/pom.xml') }}
+          key: ${{ runner.os }}-coverage-maven-${{ hashFiles(format('source/{0}/pom.xml', matrix.module)) }}
           restore-keys: ${{ runner.os }}-coverage-maven-
       - name: Setup Kotlin Toolchain
         if: steps.module.outputs.present == 'true' && matrix.runner == 'amper'
@@ -1512,10 +1739,10 @@ jobs:
         uses: actions/cache@v6
         with:
           path: |
-            source/cowork-user/deps
-            source/cowork-user/_build
-          key: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ hashFiles('source/cowork-user/mix.lock') }}
-          restore-keys: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-
+            source/${{ matrix.module }}/deps
+            source/${{ matrix.module }}/_build
+          key: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-${{ hashFiles(format('source/{0}/mix.lock', matrix.module)) }}
+          restore-keys: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-
       - name: Measure Module Coverage
         env:
           COVERAGE_MODULE: ${{ matrix.module }}
