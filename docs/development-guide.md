@@ -2,6 +2,8 @@
 
 cowork-server MSA 모노레포 개발 지침서입니다.
 
+JVM 코드 컨벤션과 모듈별 테스트·포맷 명령은 [CONTRIBUTING.md](../CONTRIBUTING.md)를 참고합니다.
+
 ---
 
 ## 목차
@@ -62,16 +64,19 @@ cowork-server/
    - Maven: project (`pom.xml`, Gradle 파일은 위임 wrapper)
    - Kotlin Toolchain(Amper): preference (`module.yaml`, Gradle 파일은 위임 wrapper)
 4. `cowork-{name}/README.md` 작성 (스택, 역할, 포트, DB 명시)
-5. `.gitignore` 추가 (Gradle 기반 템플릿 사용)
-6. MySQL 사용 시 [DB 스키마 관리](#3-db-스키마-관리) 절차 따르기
-7. Eureka Client 등록 (`spring.application.name: cowork-{name}`)
+5. 선택한 빌드 도구에 맞는 `.gitignore` 추가
+6. 관계형 DB 사용 시 [DB 스키마 관리](#3-db-스키마-관리) 절차 따르기
+7. 런타임에 맞는 Config Server client와 Eureka 등록 설정 추가
+8. `local`/`prod` Config Server 설정, Docker Compose 의존성, `scripts/bump.sh` 등록 추가
 
-### JVM 외 서비스 (NestJS / Go / Elixir / Nuxt.js 등)
+### JVM 외 서비스 (NestJS / Go / Elixir / 정적 사이트)
 
 1. 루트에 `cowork-{name}/` 디렉터리 생성
 2. `cowork-{name}/README.md` 작성
 3. 언어에 맞는 `.gitignore` 추가
 4. Gradle에는 **포함하지 않음**
+5. backend service는 Config Server·Eureka·Compose에 연결하고 `scripts/bump.sh`에 버전 반영 추가
+   (정적 사이트는 Config Server·Eureka client를 사용하지 않음)
 
 ---
 
@@ -91,7 +96,7 @@ cowork-{name}/
     └── V3__create_index.sql
 ```
 
-**application.yml 설정**
+**Config Server의 `configs/cowork-{name}-{local,prod}.yml` 설정 (JPA 서비스)**
 
 ```yaml
 spring:
@@ -132,7 +137,8 @@ V{버전}__{설명}.sql
 
 ### 테이블 네이밍 규칙
 
-- 모든 테이블명은 `tb_` 접두사로 시작합니다.
+- 새 관계형 테이블명은 `tb_` 접두사로 시작합니다. 기존 예외인 preference의 네 테이블과
+  third-party `shedlock`은 유지하며, 예외를 새 테이블에 확대하지 않습니다.
 - 인덱스: `idx_tb_{테이블}_{컬럼}`
 - 유니크 키: `uq_tb_{테이블}_{컬럼}`
 - 외래 키: `fk_tb_{테이블}_{참조대상}`
@@ -176,10 +182,15 @@ UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니
 Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
 `(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록합니다. Client가
 broker topic UUID를 제공하면 checkpoint와 함께 저장해 assignment와 range 검사 때 동일성을 검증합니다.
-UUID를 제공하지 못하는 client는 운영자가 관리하는 source generation과 로컬 projection dataset generation을
-checkpoint에 함께 저장합니다. 두 generation과 retained offset 범위가 모두 일치할 때만 저장된 next offset에서
-증분 재개합니다. topic/source 교체, retention gap, dataset 부분 초기화에서는 숫자 checkpoint를 신뢰하지 않고
-fail closed한 뒤 명시적 rebuild로 projection과 checkpoint를 함께 새 generation에 초기화합니다.
+UUID를 제공하지 못하는 client의 공통 규칙은 프로세스 재시작·강제 복구 시 durable replay generation을
+만들고, 이전 replica lease를 차단한 뒤 checkpoint와 snapshot barrier를 broker earliest offset부터
+재구축하는 것입니다. 자세한 계약은 [Kafka Projection Rules](../.claude/rules/kafka-projections.md)를 따릅니다.
+
+현재 `cowork-chat` 구현은 이 규칙과 차이가 있습니다. 운영자가 설정한 source generation과 MongoDB
+dataset generation, retained offset 범위가 일치하면 저장된 `nextOffset`에서 증분 재개하고, 세대 불일치나
+retention gap에서는 fail closed 후 명시적 rebuild를 요구합니다. 수동 source generation은 broker topic UUID를
+검증한 것과 같지 않으므로 이를 다른 client의 일반 규칙으로 적용하지 않습니다. 구현된 부분과 남은 정책·복구
+검증은 [채팅 projection 재개 TODO](./todo/items/31-performance/projection-incremental-resume.md)에서 관리합니다.
 
 기동 시점에 관련된 모든 topic partition의 end offset을 고정한 뒤 shared checkpoint가 전부 도달할 때만
 readiness와 Eureka 트래픽을 엽니다. 따라서 DB 재구축, consumer group offset 선행, 다중 replica 환경에서도
@@ -278,8 +289,10 @@ command/result와 local state projection으로 비동기 처리합니다. GitHub
 
 ### 하위 서비스 처리 원칙
 
-- 하위 서비스는 JWT를 직접 파싱하지 않습니다.
-- `X-User-Id`, `X-User-Role` 헤더를 신뢰하고 사용합니다.
+- 하위 서비스의 HTTP API는 JWT를 직접 파싱하지 않습니다.
+- `cowork-chat` WebSocket handshake는 Gateway의 헤더 변경 필터를 거치지 않으므로 JWT 검증과
+  CORS를 직접 처리하는 문서화된 예외입니다. HTTP API에 이 예외를 적용하지 않습니다.
+- `X-User-Id`, `X-User-Role` 헤더로 호출자를 식별한 뒤 팀·프로젝트·채널별 접근 권한을 별도로 검증합니다.
 - Gateway를 우회한 직접 호출을 운영 환경에서는 차단합니다.
 
 ---
@@ -304,12 +317,13 @@ command/result와 local state projection으로 비동기 처리합니다. GitHub
 
 - Vault UI: `http://localhost:8200` (토큰: `dev-root-token`)
 - 시크릿 경로: `secret/application` (공통), `secret/cowork-{name}` (서비스별)
-  - 자동 주입 경로: gateway, authorization, notification, preference, user, project, voice, chat, channel
-  - team·roadmap은 `secret/application`의 공통 DB/SeaweedFS 값을 사용합니다.
+  - 자동 주입 경로: gateway, authorization, notification, preference, user, project, voice, chat, channel, team
+  - team은 전용 경로의 GitHub 설정과 공통 DB/SeaweedFS 값을 사용하고, roadmap은 공통 DB 값을 사용합니다.
 
 ### application.yml 작성 원칙
 
-민감한 값은 Vault에서 주입하고 Config 파일에는 placeholder 또는 property 이름만 둡니다.
+민감한 값은 Vault에서 주입합니다. 아래 placeholder 예시는 Spring client용입니다. 비-Spring client의
+치환 지원 여부와 정확한 key 이름은 [설정 규칙](../.claude/rules/config.md)을 확인합니다.
 
 ```yaml
 # 올바른 예
@@ -414,16 +428,16 @@ docker compose down -v          # 중지 + 데이터 초기화
 
 ### 3단계 — 애플리케이션 서비스 기동 순서
 
-MSA 서비스 간 의존성이 있으므로 아래 순서로 기동합니다.
+Compose가 각 서비스의 인프라·init job·Config Server 의존성을 처리합니다. 호스트에서 직접 실행할 때도
+같은 의존 관계를 따릅니다.
 
 ```
-1. cowork-config   (Eureka + Config Server — 가장 먼저 기동)
-2. cowork-gateway  (Config Server에 등록 후 기동)
-3. authorization
-4. user 및 나머지 비즈니스 서비스  (team, project, roadmap, channel, preference, notification, chat, voice)
+인프라 + kafka-init/vault-init → cowork-config → Gateway 및 backend 서비스
+authorization healthy → user 기동
+각 필수 projection의 snapshot/catch-up 완료 → 해당 서비스 readiness 허용
 ```
 
-Compose 실행 시 세부 의존 순서는 `depends_on`이 처리합니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·Redis·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
+Gateway 자체가 모든 backend의 기동 선행 조건은 아닙니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·Redis·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
 
 **서비스 포트 정보**
 
@@ -470,4 +484,4 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 
-Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 `docs/grafana-logging-spec.md`를 참고합니다.
+Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 가이드](grafana-logging-spec.md)를 참고합니다.
