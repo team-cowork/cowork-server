@@ -6,6 +6,7 @@ import { SendMessageDto } from '../dto/send-message.dto';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
 
 /**
  * 채팅 메시지 이벤트를 Kafka `chat.message` 토픽으로 발행하는 프로듀서.
@@ -83,6 +84,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     async sendMessage(channelId: number, dto: SendMessageDto, authorId: number, authorRole: string): Promise<void> {
         await this.ensureConnected();
         const event: ChatMessageEvent = {
+            contractVersion: CHAT_MESSAGE_CONTRACT_VERSION,
             eventType: 'MESSAGE_SENT',
             teamId: dto.teamId ?? null,
             projectId: dto.projectId ?? null,
