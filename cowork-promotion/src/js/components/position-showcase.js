@@ -18,7 +18,6 @@ export function createPositionShowcase(root) {
     const showcase = createStickyShowcase({
         activeDotWidth: "var(--indicator-active)",
         inactiveDotColor: "var(--color-indicator)",
-        label: "포지션",
         onStateChange(state) {
             const nextBackground = elementFromMarkup(state.backgroundOuterHTML);
             if (background) {
