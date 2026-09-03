@@ -5,7 +5,6 @@ import { expectArray, expectColor, expectString } from "./validation.mjs";
 export function parseFeatureStates(source) {
     return expectArray(JSON.parse(source), "feature-states").map((state, index) => ({
         color: expectColor(state?.color, `feature-states[${index}].color`),
-        backgroundOuterHTML: expectString(state?.backgroundOuterHTML, `feature-states[${index}].backgroundOuterHTML`),
         sceneInnerHTML: expectString(state?.sceneInnerHTML, `feature-states[${index}].sceneInnerHTML`),
     }));
 }

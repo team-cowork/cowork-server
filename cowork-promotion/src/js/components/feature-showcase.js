@@ -1,6 +1,7 @@
 import { createBackgroundTransition, createSceneTransition } from "../core/transition.js";
 import { readMotionDuration } from "../../design-system/tokens.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
+import { showcaseNumber } from "../core/showcase-state.js";
 
 export function createFeatureShowcase(root) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -26,8 +27,8 @@ export function createFeatureShowcase(root) {
             progressBar.style.width = `${progress * 100}%`;
             progressBar.style.backgroundColor = state.color;
         },
-        onStateChange(state) {
-            backgroundTransition.render(state.backgroundOuterHTML);
+        onStateChange(state, index) {
+            backgroundTransition.render({ text: showcaseNumber(index), color: state.color });
             sceneTransition.render(state.sceneInnerHTML);
         },
         reducedMotion,
