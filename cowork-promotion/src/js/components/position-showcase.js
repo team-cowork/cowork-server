@@ -1,4 +1,4 @@
-import { elementFromMarkup } from "../core/dom.js";
+import { showcaseNumber } from "../core/showcase-state.js";
 import { readMotionDuration } from "../../design-system/tokens.js";
 import { createSceneTransition } from "../core/transition.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
@@ -18,11 +18,10 @@ export function createPositionShowcase(root) {
     const showcase = createStickyShowcase({
         activeDotWidth: "var(--indicator-active)",
         inactiveDotColor: "var(--color-indicator)",
-        onStateChange(state) {
-            const nextBackground = elementFromMarkup(state.backgroundOuterHTML);
+        onStateChange(state, index) {
             if (background) {
-                background.textContent = nextBackground?.textContent ?? "";
-                background.style.color = nextBackground?.style.color ?? "";
+                background.textContent = showcaseNumber(index);
+                background.style.color = state.color;
             }
             sceneTransition.render(state.sceneInnerHTML);
         },
