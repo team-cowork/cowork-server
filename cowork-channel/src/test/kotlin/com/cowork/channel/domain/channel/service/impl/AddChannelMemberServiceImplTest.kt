@@ -39,7 +39,11 @@ class AddChannelMemberServiceImplTest :
             teamPermission = mockk()
             channelMemberEventPublisher = mockk(relaxed = true)
             channelAccessGuard = ChannelAccessGuard(channelRepository)
-            channelPermissionSupport = ChannelPermissionSupport(channelMemberRepository, teamPermission)
+            channelPermissionSupport = ChannelPermissionSupport(
+                channelMemberRepository,
+                teamPermission,
+                mockk(relaxed = true),
+            )
             service = AddChannelMemberServiceImpl(
                 channelMemberRepository,
                 teamPermission,

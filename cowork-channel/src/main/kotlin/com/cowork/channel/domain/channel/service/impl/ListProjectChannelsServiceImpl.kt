@@ -4,6 +4,7 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.ListProjectChannelsService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import com.cowork.channel.domain.project.repository.ProjectProjectionRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
@@ -17,6 +18,7 @@ class ListProjectChannelsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val projectProjectionRepository: ProjectProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
+    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : ListProjectChannelsService {
 
     @Transactional(readOnly = true)
@@ -30,6 +32,9 @@ class ListProjectChannelsServiceImpl(
         }
         val teamId = projection.teamId
         teamPermissionService.requireTeamMember(teamId, userId)
-        return channelRepository.findAllByProjectIdOrderByIdAsc(projectId).map { ChannelResponse.of(it) }
+        val structurallyVisible = channelRepository.findVisibleByProjectIdOrderByIdAsc(projectId, userId)
+        return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
+            ChannelResponse.of(it)
+        }
     }
 }

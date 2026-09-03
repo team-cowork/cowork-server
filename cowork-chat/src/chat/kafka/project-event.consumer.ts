@@ -11,6 +11,7 @@ import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kaf
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 interface ProjectEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -37,6 +38,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly projectRepository: ProjectProjectionRepository,
         private readonly projectMemberRepository: ProjectMemberProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
+        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
     ) {}
 
     setSocketServer(io: Server) {
@@ -122,15 +124,23 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (event.snapshot === true) return;
 
         if (!this.io) return;
-        const room = `team:${event.teamId}`;
         const { eventType, snapshot, ...projectionPayload } = event;
         void snapshot;
         if (eventType === 'CREATED') {
-            this.io.to(room).emit('project:created', projectionPayload);
+            await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                this.io, event.teamId, 'project:created', projectionPayload,
+            );
         } else if (eventType === 'UPDATED') {
-            this.io.to(room).emit('project:updated', projectionPayload);
+            await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                this.io, event.teamId, 'project:updated', projectionPayload,
+            );
         } else if (eventType === 'DELETED') {
-            this.io.to(room).emit('project:deleted', { projectId: event.projectId, teamId: event.teamId });
+            await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                this.io,
+                event.teamId,
+                'project:deleted',
+                { projectId: event.projectId, teamId: event.teamId },
+            );
         }
     }
 
