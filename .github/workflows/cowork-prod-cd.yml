@@ -1,9 +1,10 @@
 name: cowork prod CD Workflow
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["cowork prod CI Workflow"]
+    types: [completed]
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,6 +13,7 @@ concurrency:
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     permissions:
       contents: read
     outputs:
@@ -23,6 +25,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Resolve release version
@@ -97,6 +100,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -119,10 +124,10 @@ jobs:
           sbom: true
           tags: |
             ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:v${{ needs.prepare.outputs.version }}
-            ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:sha-${{ github.sha }}
+            ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
             org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
@@ -140,6 +145,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
       - name: Create release and tag
@@ -148,7 +154,7 @@ jobs:
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           gh release create "v${VERSION}" \
-            --target "${GITHUB_SHA}" \
+            --target "${{ github.event.workflow_run.head_sha }}" \
             --title "v${VERSION}" \
             --generate-notes
 
@@ -194,3 +200,93 @@ jobs:
           status: ${{ steps.result.outputs.status }}
           title: "cowork Server Prod CD"
           description: ${{ steps.result.outputs.description }}
+
+  detect-changes:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.build-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 20
+      - name: Resolve base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          base: ${{ steps.base.outputs.sha }}
+          filters: |
+            team:
+              - 'cowork-team/**'
+            channel:
+              - 'cowork-channel/**'
+            authorization:
+              - 'cowork-authorization/**'
+            user:
+              - 'cowork-user/**'
+            project:
+              - 'cowork-project/**'
+            preference:
+              - 'cowork-preference/**'
+            chat:
+              - 'cowork-chat/**'
+            voice:
+              - 'cowork-voice/**'
+            notification:
+              - 'cowork-notification/**'
+      - name: Build deploy matrix
+        id: build-matrix
+        run: |
+          INCLUDE="[]"
+          add() {
+            local name=$1 port=$2 changed=$3
+            if [ "$changed" == "true" ]; then
+              INCLUDE=$(echo "$INCLUDE" | jq -c --arg n "$name" --arg p "$port" '. += [{"service":$n,"port":$p}]')
+            fi
+          }
+          add team           21108 "${{ steps.filter.outputs.team }}"
+          add channel        24118 "${{ steps.filter.outputs.channel }}"
+          add authorization  24125 "${{ steps.filter.outputs.authorization }}"
+          add user           21133 "${{ steps.filter.outputs.user }}"
+          add project        24134 "${{ steps.filter.outputs.project }}"
+          add preference     24153 "${{ steps.filter.outputs.preference }}"
+          add chat           27108 "${{ steps.filter.outputs.chat }}"
+          add voice          27109 "${{ steps.filter.outputs.voice }}"
+          add notification   27110 "${{ steps.filter.outputs.notification }}"
+          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+          echo "Deploy matrix: $INCLUDE"
+
+  deploy:
+    needs:
+      - prepare
+      - build-images
+      - release
+      - detect-changes
+    if: >
+      always() &&
+      needs.detect-changes.outputs.matrix != '{"include":[]}' &&
+      (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') &&
+      (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') &&
+      (needs.release.result == 'success' || needs.release.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - name: Deploy cowork-${{ matrix.service }}
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.COWORK_SSH_HOST }}
+          port: ${{ matrix.port }}
+          username: ubuntu
+          key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: bash ~/deploy-${{ matrix.service }}.sh
