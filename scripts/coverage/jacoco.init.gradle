@@ -1,0 +1,42 @@
+import org.gradle.api.tasks.testing.Test
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
+// Kept outside the measured checkout so base and PR use identical instrumentation.
+def coverageModule = gradle.startParameter.projectProperties['coverageModule']
+def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
+if (!coverageModule || !coverageOutput) {
+    throw new GradleException('coverageModule and coverageOutput are required')
+}
+
+gradle.beforeProject { project ->
+    if (project.path != ":${coverageModule}") {
+        return
+    }
+    // Maven and Amper wrapper projects have only the base plugin and must stay untouched.
+    project.pluginManager.withPlugin('java') {
+        project.pluginManager.apply('jacoco')
+        project.extensions.configure(JacocoPluginExtension) { jacoco ->
+            jacoco.toolVersion = '0.8.14'
+        }
+        def executionFile = new File(coverageOutput, 'jacoco.exec')
+        def testTask = project.tasks.named('test', Test) { test ->
+            test.ignoreFailures = false
+            test.outputs.upToDateWhen { false }
+            test.outputs.cacheIf { false }
+            test.extensions.configure(JacocoTaskExtension) { jacoco ->
+                jacoco.destinationFile = executionFile
+            }
+        }
+        project.tasks.register('coworkCoverageReport', JacocoReport) { report ->
+            report.dependsOn(testTask)
+            report.executionData(executionFile)
+            report.sourceSets(project.extensions.getByName('sourceSets').main)
+            report.reports.xml.required = true
+            report.reports.xml.outputLocation = new File(coverageOutput, 'report.xml')
+            report.reports.html.required = false
+            report.reports.csv.required = false
+        }
+    }
+}
