@@ -17,18 +17,18 @@
 
 ## 포트
 
-| 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
-| --- | --- | --- |
-| HTTP / SSE | `8086` | `8086` |
+| 용도       | 컨테이너 포트 | Compose 기본 호스트 포트 |
+|------------|---------------|--------------------------|
+| HTTP / SSE | `8086`        | `8086`                   |
 
 ## 환경변수
 
 아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
 
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
-| `APP_PROFILE` | `local` | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
+| 변수             | 기본값                      | 설명                                                      |
+|------------------|-----------------------------|-----------------------------------------------------------|
+| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
+| `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
 
 - Config Server: 포트, Kafka topic·group, Eureka, FCM 파일 경로.
 - Vault: `db.dsn`.
