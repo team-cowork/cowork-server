@@ -6,7 +6,8 @@ import {
     inlineJson,
     replaceBundleMarker,
 } from "./lib/bundle.mjs";
-import { parseContent } from "./lib/content.mjs";
+import { parseContent, parseRepositories } from "./lib/content.mjs";
+import { renderRepositoryCard } from "./lib/ui.mjs";
 import {
     generatePositionStates,
     renderTeamMembers,
@@ -28,17 +29,21 @@ const htmlDirectory = new URL("html/", sourceDirectory);
 const defaultOutputDirectory = new URL("../public/", import.meta.url);
 const defaultTodoDirectory = fileURLToPath(new URL("../../docs/todo/", import.meta.url));
 const homeStylesheetPaths = [
+    "css/tokens.css",
     "css/showcase.css",
     "css/base.css",
     "css/utilities.css",
     "css/components.css",
     "css/responsive.css",
+    "css/ui.css",
 ];
 const todoStylesheetPaths = [
+    "css/tokens.css",
     "css/base.css",
     "css/utilities.css",
     "css/components.css",
     "css/responsive.css",
+    "css/ui.css",
     "css/todo.css",
 ];
 
@@ -193,6 +198,7 @@ export async function build(options = {}) {
         sourceHtml,
         todoTemplate,
         techStackSource,
+        repositorySource,
         teamSource,
         featureStateSource,
         logoSource,
@@ -205,6 +211,7 @@ export async function build(options = {}) {
         composeTemplate(new URL("index.html", htmlDirectory), htmlDirectory),
         composeTemplate(new URL("todo.html", htmlDirectory), htmlDirectory),
         readFile(projectUrl("data/tech-stacks.yaml"), "utf8"),
+        readFile(projectUrl("data/repositories.json"), "utf8"),
         readFile(projectUrl("data/team-members.xml"), "utf8"),
         readFile(projectUrl("data/feature-states.json"), "utf8"),
         readFile(projectUrl("logo.svg"), "utf8"),
@@ -228,7 +235,11 @@ export async function build(options = {}) {
     const generatedHomeHtml = replaceGeneratedRegion(
         replaceGeneratedRegion(
             replaceGeneratedRegion(
-                sourceHtml,
+                replaceGeneratedRegion(
+                    sourceHtml,
+                    "repositories",
+                    parseRepositories(repositorySource).map(renderRepositoryCard).join("\n"),
+                ),
                 "tech-stacks",
                 renderTechStacks(techStacks.categories),
             ),
