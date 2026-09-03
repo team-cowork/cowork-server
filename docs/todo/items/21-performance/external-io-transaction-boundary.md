@@ -6,7 +6,7 @@
 
 ## 문제
 
-`cowork-project`의 다수 GitHub 조회·댓글·라벨 service가 `@Transactional(readOnly = true)` 안에서 프로젝트, 팀 멤버십, repository link, 사용자 profile projection을 조회한 뒤 `GithubAppClient`를 호출한다. Feign 연결 timeout은 3초, 읽기 timeout은 10초로 설정되어 있어 외부 지연 동안 persistence context와 transaction이 유지된다. connection release 정책에 따라 DB connection도 네트워크 응답을 기다리며 점유될 수 있다.
+`cowork-project`의 다수 GitHub 조회·댓글·라벨 service가 `@Transactional(readOnly = true)` 안에서 프로젝트, 팀 멤버십, repository link, 사용자 profile projection을 조회한 뒤 `GithubAppClient`를 호출한다. 외부 지연 동안 persistence context와 transaction이 유지되며, connection release 정책에 따라 DB connection도 네트워크 응답을 기다리며 점유될 수 있다. 연결 3초·읽기 10초 선언은 구형 `feign.client.config` prefix에 남아 있어 현재 의존성에 적용된다고 가정할 수 없다. [Feign 설정 조사](../../../../cowork-project/docs/feign-hc5-pooling.md)의 미해결 설정 문제를 함께 확인한다.
 
 `CreateGithubIssueServiceImpl`, `MergePullRequestServiceImpl`, `ApprovePullRequestServiceImpl`은 같은 read-only transaction에서 `GithubActionCommandPublisher`를 호출한다. publisher는 Kafka acknowledgement를 최대 5초 동기 대기하므로 broker 지연도 DB transaction 수명에 포함된다.
 
