@@ -19,9 +19,9 @@
 
 ## 포트
 
-| 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
-| --- | --- | --- |
-| HTTP / WebSocket | `8087` | `8087` |
+| 용도             | 컨테이너 포트 | Compose 기본 호스트 포트 |
+|------------------|---------------|--------------------------|
+| HTTP / WebSocket | `8087`        | `8087`                   |
 
 운영 WebSocket 연결은 Gateway의 `/ws/chat`을 사용합니다. 서비스 직접 연결은 운영에 노출하지 않습니다.
 
@@ -29,11 +29,11 @@
 
 아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
 
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
-| `APP_PROFILE` | `local` | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
-| `CHAT_PROJECTION_SOURCE_GENERATION` | `1` (앱 기본값) | Kafka source 교체를 구분하는 운영 세대 값. 필요한 경우 명시적으로 주입 |
+| 변수                                | 기본값                      | 설명                                                                   |
+|-------------------------------------|-----------------------------|------------------------------------------------------------------------|
+| `APP_CONFIG_URL`                    | `http://cowork-config:8761` | 필수 Config Server 연결                                                |
+| `APP_PROFILE`                       | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용              |
+| `CHAT_PROJECTION_SOURCE_GENERATION` | `1` (앱 기본값)             | Kafka source 교체를 구분하는 운영 세대 값. 필요한 경우 명시적으로 주입 |
 
 - Config Server: 포트, MongoDB 옵션, Elasticsearch, Kafka, Redis, Eureka, S3 endpoint·정책, rate limit.
 - Vault: `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3 access·secret key.

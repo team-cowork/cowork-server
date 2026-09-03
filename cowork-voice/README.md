@@ -18,8 +18,8 @@ LiveKit 기반 음성 채널과 1:N 라이브 룸을 관리합니다.
 ## 포트
 
 | 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
-| --- | --- | --- |
-| HTTP | `8089` | `8089` |
+|------|---------------|--------------------------|
+| HTTP | `8089`        | `8089`                   |
 
 LiveKit 미디어 서버 포트는 이 서비스 포트와 별개이며 [Docker Compose](../docker-compose.yml)에서 관리합니다.
 
@@ -27,10 +27,10 @@ LiveKit 미디어 서버 포트는 이 서비스 포트와 별개이며 [Docker 
 
 아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
 
-| 변수 | 기본값 | 설명 |
-| --- | --- | --- |
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
-| `APP_PROFILE` | `local` | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
+| 변수             | 기본값                      | 설명                                                      |
+|------------------|-----------------------------|-----------------------------------------------------------|
+| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
+| `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
 
 - Config Server: 포트, MongoDB DB명, Redis, LiveKit API·WebSocket endpoint, Kafka topic·group, Eureka.
 - Vault: `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
