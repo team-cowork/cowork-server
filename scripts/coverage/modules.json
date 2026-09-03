@@ -1,0 +1,20 @@
+{
+  "modules": [
+    {"module": "cowork-gateway", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-config", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-channel", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-team", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-roadmap", "runner": "gradle", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-project", "runner": "maven", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-preference", "runner": "amper", "metric": "line", "format": "jacoco", "report": "report.xml"},
+    {"module": "cowork-authorization", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
+    {"module": "cowork-notification", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
+    {"module": "cowork-voice", "runner": "go", "metric": "statement", "format": "go", "report": "report.out"},
+    {"module": "cowork-chat", "runner": "jest", "metric": "line", "format": "istanbul", "report": "report.json"},
+    {"module": "cowork-user", "runner": "elixir", "metric": "line", "format": "counts", "report": "report.json"},
+    {"module": "cowork-promotion", "runner": "node", "metric": "line", "format": "istanbul", "report": "report.json"}
+  ],
+  "excluded": [
+    {"module": "cowork-monitoring", "reason": "설정 전용 모듈 — 실행 코드 없음"}
+  ]
+}
