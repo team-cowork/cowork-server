@@ -1,0 +1,3 @@
+interface:
+  display_name: "Write Release Notes"
+  short_description: "Match past release notes and refresh the GitHub body"
