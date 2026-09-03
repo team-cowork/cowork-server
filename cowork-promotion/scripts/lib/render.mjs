@@ -1,4 +1,5 @@
 import { escapeHtml } from "./validation.mjs";
+import { showcaseNumber } from "../../src/js/core/showcase-state.js";
 import { accentStyle, renderBadge, renderMemberCard } from "../../src/design-system/index.mjs";
 
 const marqueeCopiesPerRow = 4;
@@ -40,15 +41,11 @@ function renderPositionScene(position, members) {
 
 export function generatePositionStates(positions, members) {
     return positions.map((position, index) => {
-        const number = String(index + 1).padStart(2, "0");
+        const number = showcaseNumber(index);
         const color = escapeHtml(position.color);
         return {
+            color: position.color,
             backgroundOuterHTML: `<span class="position-index" style="color: ${color}">${number}</span>`,
-            counterText: `${number} / ${String(positions.length).padStart(2, "0")}`,
-            dots: positions.map((_, dotIndex) => dotIndex === index
-                ? `width: var(--indicator-active); background-color: ${color};`
-                : "width: var(--indicator-size); background-color: var(--color-indicator);"),
-            heading: position.name,
             sceneInnerHTML: renderPositionScene(position, members),
         };
     });
