@@ -39,3 +39,5 @@
 - Vault: `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3 access·secret key.
 
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 가이드](../docs/configuration.md)를 참고합니다.
+
+메시지·채널 멤버 MongoDB 구조와 인덱스는 [스키마 문서](schema/message.schema.md)를 참고합니다.
