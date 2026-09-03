@@ -1,3 +1,5 @@
+import { readMotionDuration } from "../../design-system/tokens.js";
+
 function appendTodoMetadata(header, metadata, priority) {
     if (!metadata.length) return;
 
@@ -215,7 +217,7 @@ export function createTodoDialog(dialog, options = {}) {
             }
 
             dialog.classList.add("todo-dialog--closing");
-            const timeout = window.setTimeout(finish, 220);
+            const timeout = window.setTimeout(finish, readMotionDuration("--duration-dialog", dialog) + 40);
             dialog.addEventListener(
                 "animationend",
                 (event) => {
