@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix"
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts"
   },
   "keywords": [],
   "author": "",
