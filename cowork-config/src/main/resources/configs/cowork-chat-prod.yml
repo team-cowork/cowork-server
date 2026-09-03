@@ -21,3 +21,5 @@ S3_CHAT_MAX_FILE_SIZE_BYTES: 104857600
 S3_CHAT_ALLOWED_CONTENT_TYPES: video/mp4,video/quicktime,video/x-msvideo,audio/mpeg,audio/ogg,audio/wav,audio/mp4,image/jpeg,image/png,image/gif,image/webp,application/pdf,text/plain
 S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS: 60000
 S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS: 20
+# chat.message poison record의 원문 보존 기간 (MongoDB TTL)
+CHAT_MESSAGE_QUARANTINE_RETENTION_DAYS: 30
