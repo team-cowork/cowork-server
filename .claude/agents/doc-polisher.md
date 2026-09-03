@@ -84,7 +84,7 @@ Flag when:
 
 Flag when:
 - A pattern found 3+ times in relevant source files is not mentioned in documentation for that module or framework
-- A constraint enforced by a hook (`.claude/hooks/*.sh`) or `settings.json` is not mentioned in `CLAUDE.md` or `AGENTS.md`
+- A non-obvious project decision needed for the task is undocumented and is not already supplied by a scoped rule
 
 ### Type D — Structural Issues
 
@@ -98,8 +98,8 @@ Flag when:
 For each identified issue, apply the edit using the Edit tool:
 
 1. **Type A (stale snippets)**: Replace the old code block with a pattern matching the codebase snapshot. Preserve the surrounding prose unless it also needs correction.
-2. **Type B (verbosity)**: Shorten phrasing while preserving all semantic content. Do not remove rules — compress wording.
-3. **Type C (missing conventions)**: Insert the new convention into the most relevant existing section. Do not create new top-level sections unless no suitable section exists.
+2. **Type B (verbosity)**: Remove redundant explanations and shorten unclear phrasing. Preserve non-obvious project decisions; if moving one to a scoped rule, ensure the intended harness can discover it for the relevant tasks.
+3. **Type C (missing conventions)**: Put a project-specific decision in the narrowest relevant document or scoped rule. Keep `CLAUDE.md` and `AGENTS.md` minimal: omit general model knowledge, facts discoverable from source/build/config files, and descriptions or restatements of rules/hooks already supplied or enforced by the harness. Do not replace removed content with blanket instructions to read a larger document; scope references to the needed sections.
 4. **Type D (structural)**: Reorder headings or fix table-of-contents entries. Limit to the specific misaligned section — do not reorganize entire files.
 
 **Priority when rules conflict**: CLAUDE.md > `.claude/rules/**` > `CONTRIBUTING.md`
