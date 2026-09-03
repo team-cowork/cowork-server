@@ -16,14 +16,14 @@ Language and framework details live in each module's build file — read that, n
 | `cowork-project`       | Kotlin                                   | **Maven** — `pom.xml` is the source of truth; `build.gradle.kts` only delegates to `mvnw`             |
 | `cowork-preference`    | Kotlin (Vert.x)                          | **Amper** — `module.yaml` is the source of truth; `build.gradle.kts` only delegates to the Kotlin CLI |
 | `cowork-user`          | Elixir (Plug/Cowboy + Ecto — no Phoenix) | Mix                                                                                                   |
-| `cowork-authorization` | Go (Chi)                                 | Go modules + per-module `Makefile`                                                                    |
-| `cowork-notification`  | Go (Gin)                                 | Go modules + per-module `Makefile`                                                                    |
+| `cowork-authorization` | Go (Gin)                                 | Go modules + per-module `Makefile`                                                                    |
+| `cowork-notification`  | Go (Chi)                                 | Go modules + per-module `Makefile`                                                                    |
 | `cowork-voice`         | Go (Chi, LiveKit)                        | Go modules + per-module `Makefile`                                                                    |
 | `cowork-chat`          | TypeScript (NestJS)                      | npm                                                                                                   |
 | `cowork-promotion`     | TypeScript (static site, no framework)   | npm + `scripts/build.mjs`                                                                             |
 | `cowork-monitoring`    | —                                        | Prometheus/Grafana/Loki/Alertmanager config only                                                      |
 
-`settings.gradle.kts` includes only the seven JVM modules; a directory absent from it is not a Gradle project. `scripts/bump.sh` (`make bump`) stamps the release version into every build file — add a new module there when you create one.
+`settings.gradle.kts` includes only the seven JVM modules; a directory absent from it is not a Gradle project. `scripts/bump.sh` (`make bump`) updates the release-version locations it lists — register a new module's version there when you create one. Formatting and test tasks are build-system-specific; see `CONTRIBUTING.md` before assuming a root Gradle command covers every module.
 
 ## Data Stores
 
@@ -47,19 +47,27 @@ Language and framework details live in each module's build file — read that, n
 ## Database Conventions
 
 - Never modify a committed migration (`V{n}__*.sql`); add a new version instead.
-- Relational tables use the `tb_` prefix, with `idx_tb_{table}_{column}` / `uq_tb_{table}_{column}` / `fk_tb_{table}_{target}` constraint names. Pre-existing exceptions — `cowork-preference`'s four tables and the third-party `shedlock` table — stay as they are; don't add new ones.
+- Relational tables use the `tb_` prefix, with `idx_tb_{table}_{column}` / `uq_tb_{table}_{column}` / `fk_tb_{table}_{target}` constraint names. Pre-existing exceptions — `cowork-preference`'s `account_channel_notification`, `resource_setting`, `project_role_definition`, and `account_project_role` tables and the third-party `shedlock` table — stay as they are; don't add new ones.
 - Never create real cross-service foreign keys. Store another service's ID as a plain column and document the source in its `COMMENT`:
 
   ```sql
   team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
   ```
 
-- The `V{n}__` naming matters beyond Flyway: the Go services run a hand-rolled migration runner (`internal/infra/mysql/migrate.go`) that parses the same filename pattern from `/app/db/migration`.
-- MongoDB-backed services don't use migrations — keep schema definitions alongside the code (`cowork-chat/src/chat/schema/*.schema.ts`).
+- The `V{n}__` naming matters beyond Flyway: the MySQL-backed Go services (`cowork-authorization`, `cowork-notification`) run a custom migration runner (`internal/infra/mysql/migrate.go`) that parses the same filename pattern. It uses `/app/db/migration` in containers and also supports local migration directories.
+- MongoDB-backed services do not use the SQL/Flyway migration runner. Keep document schemas and index setup alongside the code (`cowork-chat/src/chat/schema/*.schema.ts` and `cowork-voice/internal/infra/mongo/`).
 
 ## Configuration
 
-Shared config is served by `cowork-config`, which is both the Config Server and the Eureka server, and which holds every service's `configs/cowork-{service}-{env}.yml`. Local-only overrides go in `application-local.yml` (gitignored). Startup order is encoded in `docker-compose.yml`'s `depends_on` — `cowork-config` first, then `cowork-gateway`; `cowork-user` additionally waits for a healthy `cowork-authorization` presence source, while the remaining services may start independently.
+Shared service config is served by `cowork-config`, which is both the Config Server and the Eureka server. Its `configs/cowork-{service}-{env}.yml` files hold runtime service settings; bootstrap/client setup and framework-specific wiring also exist in each service. Spring local-only overrides go in `application-local.yml` (gitignored); other runtimes follow their own configuration loaders. See `.claude/rules/config.md` before using `${VAR}` placeholders in Config Server files, since client support differs.
+
+Follow `docker-compose.yml`'s actual `depends_on` health and initialization conditions: Config Server and infrastructure readiness precede application startup; `cowork-user` also waits for a healthy `cowork-authorization` presence source. Services are not globally sequenced behind the Gateway. Projection consumers additionally gate readiness on replay progress and complete snapshots, as defined in `.claude/rules/kafka-projections.md`.
+
+### Agent Tooling
+
+Project hooks require Bash and `jq`. Their command guards reject destructive disk/root operations and direct download-to-shell commands; command logging records supported shell calls in `.claude/command.log` or `.codex/command.log`, so do not place secrets in command arguments. Format hooks attempt root KtLint/Spotless only for recognized edit events; their targets and limitations are documented in `CONTRIBUTING.md`.
+
+Secret-guard scripts check recognized write payloads for common credential patterns and skip `.env` paths; this is not permission to commit secrets. Claude's current `PreToolUse` matcher is `Bash`, so it does not dispatch those scripts for `Edit`/`Write`. Codex hook coverage likewise depends on the emitted tool name and payload. Review changes explicitly rather than assuming every tool write was checked.
 
 ---
 
