@@ -12,7 +12,7 @@ cowork 제품과 개발 진행 현황을 소개하는 정적 웹사이트입니�
 - HTML / CSS / JavaScript ES modules
 - npm / Node.js 빌드 스크립트
 - YAML·XML·Markdown 빌드 데이터
-- 단일 HTML 번들 / Vercel
+- 페이지별 HTML 번들 (`public/index.html`, `public/todo/`와 문서별 경로) / Vercel
 
 ## 포트
 
