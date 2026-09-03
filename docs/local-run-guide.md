@@ -3,8 +3,13 @@
 이 문서는 로컬 DB와 Kafka에 기존 데이터가 없는 상태에서 `cowork-server` 전체를 처음 배포하는
 방법을 설명한다. 기존 환경 업그레이드 절차는 다루지 않는다.
 
-기준 구성은 `docker-compose.yml`, `docker-compose.override.yml`, 각 서비스 `Dockerfile`,
+기준 구성은 `docker-compose.yml`, `docker-compose.override.yml`, 각 서비스 `local.dockerfile`,
 `cowork-config/src/main/resources/configs/*-local.yml`이다.
+
+일반 `docker compose` 명령은 두 Compose 파일을 자동 병합한다. 기본 파일의 `prod.dockerfile`
+지정은 로컬 override의 `local.dockerfile`과 build context로 교체된다. 이 가이드에서는
+`docker compose -f docker-compose.yml ...`처럼 기본 파일만 지정하지 않는다. 그렇게 실행하면
+로컬 override가 빠져 production Dockerfile로 빌드된다.
 
 ## 1. 준비
 
@@ -97,7 +102,8 @@ docker compose config --quiet
 3. `vault-init`이 `.env`의 값을 로컬 Vault에 기록하고, `seaweedfs-init`이 bucket과 로컬 CORS를
    준비한다.
 4. `cowork-config`가 Config Server와 Eureka로 기동한다.
-5. 각 서비스가 자체 마이그레이션을 순서대로 적용하고 로컬 설정을 읽는다.
+5. 각 서비스가 로컬 설정을 읽고, 관계형 DB를 사용하는 서비스는 자체 migration을 버전 순서대로 적용한다.
+   MongoDB를 사용하는 chat·voice는 SQL migration을 실행하지 않는다.
 6. Kafka state source가 빈 DB에서도 topic partition별 `PROJECTION_SNAPSHOT_COMPLETED` marker를
    발행하고, consumer가 자신의 checkpoint와 초기 high-watermark까지 처리한다.
 
@@ -113,7 +119,8 @@ State marker는 모두 동시에 생기지 않는다. 빈 상태에서도 upstre
 
 - `cowork-user`는 Kafka가 유일한 서비스 간 경로다. `KAFKA_ENABLED=false`로는 기동하지 않고 fail-fast 하므로
   로컬에서도 Kafka와 `kafka-init`을 함께 올린다.
-- 빈 DB에서는 각 서비스의 Flyway가 source와 projection 테이블을 모두 만들므로 별도 데이터 이관 절차가 없다.
+- 빈 관계형 DB에서는 Flyway 또는 Go migration runner가 source와 projection 테이블을 생성한다.
+  MongoDB 컬렉션은 해당 서비스의 schema·repository 초기화 경로를 따른다.
 - 별도 `cowork-github-app` 저장소의 프로세스는 이 Compose에 포함되지 않는다. 기본 stack과 Kafka projection은
   그 프로세스 없이 기동한다. GitHub 조직 저장소와 PR 조회까지 확인하려면 github-app을 host `3000`에 별도로
   실행하고 내부 API key를 양쪽에 동일하게 설정한다.
@@ -132,7 +139,7 @@ docker compose ps --all
 
 - `kafka-init`, `vault-init`, `seaweedfs-init`, `alertmanager-config-init` 등의 init job:
   `Exited (0)`
-- 장기 실행 애플리케이션과 인프라: `running` 및 `healthy`
+- 장기 실행 애플리케이션과 인프라: `running`, healthcheck가 정의된 컨테이너는 `healthy`
 - `cowork-user`: presence·team-member projection 준비 후 `healthy`
 - `cowork-project`: team·channel·user-profile·GitHub repo setting projection 준비 후 `healthy`
 - `cowork-chat`: project GitHub repo를 포함한 필수 projection 준비 후 `healthy`
