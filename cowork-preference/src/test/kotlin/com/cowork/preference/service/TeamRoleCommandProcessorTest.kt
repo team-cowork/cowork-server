@@ -1,8 +1,11 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.domain.TeamMemberProjection
+import com.cowork.preference.domain.TeamRoleAssignmentState
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.domain.TeamRoleState
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.TeamRoleCommand
@@ -10,6 +13,7 @@ import com.cowork.preference.messaging.TeamRoleCommandEnvelope
 import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.messaging.TeamRoleCommandRoleInput
 import com.cowork.preference.messaging.TeamRoleCommandType
+import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommand
 import com.cowork.preference.repository.ProcessedTeamRoleCommandMatches
@@ -32,6 +36,8 @@ import java.time.Instant
 import java.time.OffsetDateTime
 
 class TeamRoleCommandProcessorTest {
+
+    private val channelRolePolicyRepository = mockk<ChannelRolePolicyRepository>(relaxed = true)
 
     @Test
     fun `owner의 역할 생성은 authoritative mutation state result inbox를 한 transaction에 적재한다`() = runBlocking {
@@ -90,6 +96,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(COMMAND)
@@ -139,6 +146,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         val error = runCatching { processor.process(COMMAND) }.exceptionOrNull()
@@ -179,6 +187,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(COMMAND)
@@ -222,6 +231,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(command)
@@ -295,6 +305,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(command)
@@ -309,6 +320,84 @@ class TeamRoleCommandProcessorTest {
                 requireNotNull(command.targetMembershipVersion),
             )
         }
+    }
+
+    @Test
+    fun `revoke publishes the DB-monotonic durable tombstone version`() = runBlocking {
+        val command = ASSIGN_COMMAND.copy(
+            operationId = "00000000-0000-0000-0000-000000000077",
+            idempotencyKey = "role-revoke-1",
+            requestHash = "7".repeat(64),
+            commandType = TeamRoleCommandType.REVOKE,
+        )
+        val roleRepository = mockk<TeamRoleRepository>()
+        val memberRepository = mockk<TeamMemberProjectionRepository>()
+        val inboxRepository = mockk<TeamRoleCommandInboxRepository>()
+        val outboxRepository = mockk<PreferenceOutboxRepository>()
+        val readiness = mockk<ProjectionReadiness>()
+        val connection = mockk<SqlConnection>()
+        val roleVersion = OffsetDateTime.parse("2026-08-27T01:02:03.123456Z")
+        val tombstoneVersion = Instant.parse("2099-08-27T01:02:03.123457Z")
+        val role = TeamRoleDefinition(
+            id = requireNotNull(command.roleId),
+            teamId = command.teamId,
+            name = "Reviewer",
+            colorHex = "#5865F2",
+            priority = 10,
+            mentionable = true,
+            permissions = emptySet(),
+            createdAt = roleVersion,
+            updatedAt = roleVersion,
+        )
+        val stateEvents = slot<Iterable<PreferenceEvent>>()
+        val storedResult = slot<JsonObject>()
+        every { readiness.isReady } returns true
+        coEvery { outboxRepository.inTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
+        }
+        coEvery { inboxRepository.findMatches(connection, command) } returns noTeamRoleCommandMatches()
+        coEvery { roleRepository.isTeamDeleted(connection, command.teamId) } returns false
+        coEvery { memberRepository.find(connection, command.teamId, command.actorId) } returns member(
+            command.actorId,
+            command.actorMembershipVersion,
+            "OWNER",
+        )
+        coEvery { memberRepository.find(connection, command.teamId, TARGET_ID) } returns member(
+            TARGET_ID,
+            requireNotNull(command.targetMembershipVersion),
+        )
+        coEvery { roleRepository.findRole(connection, command.teamId, role.id) } returns role
+        coEvery {
+            roleRepository.deleteAssignment(connection, TARGET_ID, command.teamId, role.id, any())
+        } returns TeamRoleAssignmentState(
+            command.teamId,
+            TARGET_ID,
+            role.id,
+            null,
+            tombstoneVersion,
+        )
+        coEvery { outboxRepository.enqueueAll(connection, capture(stateEvents)) } returns Unit
+        coEvery { outboxRepository.enqueue(connection, any()) } returns Unit
+        coEvery { inboxRepository.insert(connection, command, capture(storedResult)) } returns Unit
+        val processor = TeamRoleCommandProcessor(
+            roleRepository,
+            memberRepository,
+            inboxRepository,
+            outboxRepository,
+            readiness,
+            channelRolePolicyRepository,
+        )
+
+        processor.process(command)
+
+        val state = stateEvents.captured.single()
+        assertEquals("ASSIGNMENT_DELETED", state.payload.getString("eventType"))
+        assertEquals(tombstoneVersion, state.occurredAt)
+        assertEquals(tombstoneVersion.toString(), storedResult.captured.getString("occurredAt"))
+        assertEquals(
+            tombstoneVersion.toString(),
+            storedResult.captured.getJsonObject("projection").getString("occurredAt"),
+        )
     }
 
     @Test
@@ -335,6 +424,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(COMMAND)
@@ -372,6 +462,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(replayCommand)
@@ -412,6 +503,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.process(conflictingCommand)
@@ -460,6 +552,7 @@ class TeamRoleCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            channelRolePolicyRepository,
         )
 
         processor.rejectInvalid(envelope, quarantine, quarantine.reason)
@@ -469,6 +562,92 @@ class TeamRoleCommandProcessorTest {
         coVerifyOrder {
             inboxRepository.quarantine(connection, quarantine)
             outboxRepository.enqueue(connection, any())
+        }
+    }
+
+    @Test
+    fun `role deletion persists policy tombstone before deleting the FK target role`() = runBlocking {
+        val roleRepository = mockk<TeamRoleRepository>()
+        val memberRepository = mockk<TeamMemberProjectionRepository>()
+        val inboxRepository = mockk<TeamRoleCommandInboxRepository>()
+        val outboxRepository = mockk<PreferenceOutboxRepository>()
+        val readiness = mockk<ProjectionReadiness>()
+        val connection = mockk<SqlConnection>()
+        val roleVersion = OffsetDateTime.parse("2026-08-30T01:02:03Z")
+        val role = TeamRoleDefinition(
+            id = 9L,
+            teamId = COMMAND.teamId,
+            name = "Restricted",
+            colorHex = "#123ABC",
+            priority = 10,
+            mentionable = false,
+            permissions = emptySet(),
+            createdAt = roleVersion,
+            updatedAt = roleVersion,
+        )
+        val command = COMMAND.copy(
+            operationId = "00000000-0000-0000-0000-000000000009",
+            idempotencyKey = "role-delete-9",
+            requestHash = "d".repeat(64),
+            commandType = TeamRoleCommandType.DELETE,
+            roleId = role.id,
+            role = null,
+        )
+        val policy = ChannelRolePolicyState(
+            teamId = command.teamId,
+            channelId = 21L,
+            roleId = role.id,
+            permissions = JsonObject().put("message_read", false),
+            stateOccurredAt = roleVersion.toInstant(),
+        )
+        val tombstone = policy.copy(
+            permissions = null,
+            stateOccurredAt = roleVersion.toInstant().plusNanos(1_000),
+        )
+        val stateEvents = slot<Iterable<PreferenceEvent>>()
+        every { readiness.isReady } returns true
+        coEvery { outboxRepository.inTransaction<Unit>(any()) } coAnswers {
+            firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
+        }
+        coEvery { inboxRepository.findMatches(connection, command) } returns noTeamRoleCommandMatches()
+        coEvery { roleRepository.isTeamDeleted(connection, command.teamId) } returns false
+        coEvery { memberRepository.find(connection, command.teamId, command.actorId) } returns
+            member(command.actorId, command.actorMembershipVersion, "OWNER")
+        coEvery { roleRepository.findRole(connection, command.teamId, role.id) } returns role
+        coEvery { roleRepository.findMemberRoles(connection, command.teamId) } returns emptyList()
+        coEvery {
+            channelRolePolicyRepository.findPoliciesByRole(connection, command.teamId, role.id)
+        } returns listOf(policy)
+        coEvery {
+            channelRolePolicyRepository.deletePolicy(connection, command.teamId, policy.channelId, role.id)
+        } returns tombstone
+        val roleTombstoneVersion = roleVersion.toInstant().plusNanos(2_000)
+        coEvery {
+            roleRepository.deleteRoleWithTombstone(connection, command.teamId, role.id, any())
+        } returns TeamRoleState(command.teamId, role.id, null, roleTombstoneVersion)
+        coEvery { outboxRepository.enqueueAll(connection, capture(stateEvents)) } returns Unit
+        coEvery { outboxRepository.enqueue(connection, any()) } returns Unit
+        coEvery { inboxRepository.insert(connection, command, any()) } returns Unit
+        val processor = TeamRoleCommandProcessor(
+            roleRepository,
+            memberRepository,
+            inboxRepository,
+            outboxRepository,
+            readiness,
+            channelRolePolicyRepository,
+        )
+
+        processor.process(command)
+
+        assertEquals(
+            listOf("DELETE", "ROLE_DELETED"),
+            stateEvents.captured.map { it.payload.getString("eventType") },
+        )
+        coVerifyOrder {
+            channelRolePolicyRepository.findPoliciesByRole(connection, command.teamId, role.id)
+            channelRolePolicyRepository.deletePolicy(connection, command.teamId, policy.channelId, role.id)
+            roleRepository.deleteRoleWithTombstone(connection, command.teamId, role.id, any())
+            outboxRepository.enqueueAll(connection, any())
         }
     }
 

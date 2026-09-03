@@ -21,6 +21,7 @@ export class UnifiedSearchResolver {
             '팀 범위 통합 검색. 메시지(Elasticsearch)와 Kafka 동기화 채널 projection을 병렬로 조회한다.\n\n' +
             '- `X-User-Id` 헤더 필수 (Gateway가 주입)\n' +
             '- 요청자가 접근 가능한 채널 내 메시지만 반환\n' +
+            '- 채널은 공개 채널과 요청자가 가입한 비공개 채널만 반환\n' +
             '- 한국어 nori 형태소 분석 + fuzzy matching 적용\n' +
             '- `messageNextCursor`를 다음 요청의 `before`에 전달해 페이지네이션',
     })

@@ -14,7 +14,19 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query("SELECT c FROM Channel c WHERE c.id = :channelId")
     fun findByIdForUpdate(@Param("channelId") channelId: Long): Channel?
 
-    fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Channel>
+    @Query(
+        "SELECT c FROM Channel c " +
+            "WHERE c.teamId = :teamId " +
+            "AND (c.isPrivate = false OR EXISTS (" +
+            "SELECT cm.id FROM ChannelMember cm " +
+            "WHERE cm.channelId = c.id AND cm.userId = :userId" +
+            ")) " +
+            "ORDER BY c.position ASC, c.id ASC",
+    )
+    fun findVisibleByTeamIdOrderByPositionAscIdAsc(
+        @Param("teamId") teamId: Long,
+        @Param("userId") userId: Long,
+    ): List<Channel>
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Channel c WHERE c.teamId = :teamId ORDER BY c.id")
@@ -24,7 +36,19 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
 
     fun existsByIdAndType(id: Long, type: ChannelType): Boolean
 
-    fun findAllByProjectIdOrderByIdAsc(projectId: Long): List<Channel>
+    @Query(
+        "SELECT c FROM Channel c " +
+            "WHERE c.projectId = :projectId " +
+            "AND (c.isPrivate = false OR EXISTS (" +
+            "SELECT cm.id FROM ChannelMember cm " +
+            "WHERE cm.channelId = c.id AND cm.userId = :userId" +
+            ")) " +
+            "ORDER BY c.id ASC",
+    )
+    fun findVisibleByProjectIdOrderByIdAsc(
+        @Param("projectId") projectId: Long,
+        @Param("userId") userId: Long,
+    ): List<Channel>
 
     @Query("SELECT COALESCE(MAX(c.position), -1) FROM Channel c WHERE c.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
@@ -33,7 +57,18 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     fun findAllIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
     @Query(
-        "SELECT c FROM Channel c WHERE c.teamId = :teamId AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) ORDER BY c.position ASC, c.id ASC",
+        "SELECT c FROM Channel c " +
+            "WHERE c.teamId = :teamId " +
+            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) " +
+            "AND (c.isPrivate = false OR EXISTS (" +
+            "SELECT cm.id FROM ChannelMember cm " +
+            "WHERE cm.channelId = c.id AND cm.userId = :userId" +
+            ")) " +
+            "ORDER BY c.position ASC, c.id ASC",
     )
-    fun searchByTeamIdAndName(@Param("teamId") teamId: Long, @Param("q") q: String): List<Channel>
+    fun searchVisibleByTeamIdAndName(
+        @Param("teamId") teamId: Long,
+        @Param("userId") userId: Long,
+        @Param("q") q: String,
+    ): List<Channel>
 }

@@ -5,6 +5,7 @@ import { DicoshotService } from 'dicoshot-nest';
 import { GithubIssueResultConsumer } from './github-issue-result.consumer';
 import { ChatService } from '../chat.service';
 import { GithubIssueResultEvent } from './event/github-issue.event';
+import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
 type ConsumerWithPrivates = Omit<GithubIssueResultConsumer, 'handleResultEvent'> & {
     handleResultEvent: (event: GithubIssueResultEvent) => Promise<void>;
@@ -20,6 +21,12 @@ const mockChatService = {
 const mockEmit = jest.fn();
 const mockTo = jest.fn(() => ({ emit: mockEmit }));
 const mockIo = { to: mockTo } as unknown as Server;
+const mockChannelMessageReadAccess = {
+    emitToReadableChannelUsers: jest.fn((io: Server, channelId: number, event: string, payload: unknown) => {
+        io.to(`chat:${channelId}`).emit(event, payload);
+        return Promise.resolve();
+    }),
+};
 
 describe('GithubIssueResultConsumer', () => {
     let consumer: GithubIssueResultConsumer;
@@ -40,6 +47,7 @@ describe('GithubIssueResultConsumer', () => {
                     provide: DicoshotService,
                     useValue: { sendCustom: jest.fn().mockResolvedValue(true) },
                 },
+                { provide: ChannelMessageReadAccessService, useValue: mockChannelMessageReadAccess },
             ],
         }).compile();
 
@@ -120,6 +128,7 @@ describe('GithubIssueResultConsumer', () => {
                 mockChatService as unknown as ChatService,
                 { get: jest.fn().mockReturnValue('localhost:9092') } as unknown as ConfigService,
                 { sendCustom: jest.fn().mockResolvedValue(true) } as unknown as DicoshotService,
+                mockChannelMessageReadAccess as unknown as ChannelMessageReadAccessService,
             );
             mockSaveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
 
