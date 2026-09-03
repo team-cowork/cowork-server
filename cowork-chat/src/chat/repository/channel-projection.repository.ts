@@ -37,10 +37,37 @@ export class ChannelProjectionRepository {
         return this.model.findOne({ channelId, deleted: { $ne: true } }).lean<ChannelProjectionView>();
     }
 
-    async searchByTeamAndName(teamId: number, query: string): Promise<ChannelProjectionView[]> {
+    async findByIds(channelIds: number[]): Promise<ChannelProjectionView[]> {
+        if (channelIds.length === 0) return [];
+        return this.model.find(
+            { channelId: { $in: channelIds }, deleted: { $ne: true } },
+        ).lean<ChannelProjectionView[]>();
+    }
+
+    async findIdsByTeamId(teamId: number): Promise<number[]> {
+        return this.model.distinct('channelId', { teamId, deleted: { $ne: true } });
+    }
+
+    async findIdsByProjectId(projectId: number): Promise<number[]> {
+        return this.model.distinct('channelId', { projectId, deleted: { $ne: true } });
+    }
+
+    async searchVisibleByTeamAndName(
+        teamId: number,
+        query: string,
+        memberChannelIds: number[],
+    ): Promise<ChannelProjectionView[]> {
         const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         return this.model
-            .find({ teamId, deleted: { $ne: true }, name: { $regex: escapedQuery, $options: 'i' } })
+            .find({
+                teamId,
+                deleted: { $ne: true },
+                name: { $regex: escapedQuery, $options: 'i' },
+                $or: [
+                    { isPrivate: false },
+                    { isPrivate: true, channelId: { $in: memberChannelIds } },
+                ],
+            })
             .sort({ position: 1, channelId: 1 })
             .lean<ChannelProjectionView[]>();
     }
