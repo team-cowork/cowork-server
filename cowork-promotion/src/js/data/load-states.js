@@ -1,9 +1,3 @@
-import { elementFromMarkup } from "../core/dom.js";
-
-function stateColor(state, fallback = "#111827") {
-    return elementFromMarkup(state.backgroundOuterHTML)?.style.color || fallback;
-}
-
 function embeddedStates(url) {
     const element = Array.from(
         document.querySelectorAll('script[type="application/json"][data-state-url]'),
@@ -26,5 +20,5 @@ export async function loadStates(url) {
         throw new Error(`${url}에 표시할 상태가 없습니다.`);
     }
 
-    return states.map((state) => ({ ...state, color: stateColor(state) }));
+    return states;
 }
