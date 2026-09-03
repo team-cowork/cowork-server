@@ -2,16 +2,26 @@
 
 - **서비스**: cowork-chat
 - **우선순위**: 🔴 높음
-- **현재 상태**: 연결 중 확인한 멤버십이 회수되어도 기존 소켓은 보호된 Socket.IO room에 계속 남아 있음
+- **현재 상태**: 채널·팀 멤버십 회수와 채널 삭제의 room 해제, 타이핑 재인가가 구현되어 있으며 다중 replica 전달·Redis 장애·재연결 경합 검증이 남아 있음
 - **관련 작업**: [Socket.IO Redis adapter 준비 상태와 복구 보장](../29-reliability/socketio-redis-adapter-readiness.md)
+
+## 진행 상태 (2026-09-03)
+
+| 경로 | 코드에서 확인한 상태 |
+|------|---------------------|
+| `MembershipConsumer` | `LEAVE` projection 뒤 현재 읽기 권한이 없으면 `user:{userId}` 소켓의 `chat:{channelId}` room을 제거함 |
+| `TeamMemberEventConsumer` | 팀 채널의 읽기 권한을 다시 평가해 소켓을 제거하고, 유효한 팀 삭제 상태이면 팀 room도 제거함 |
+| `ChannelEventConsumer` | 삭제 이벤트와 삭제 snapshot 적용 뒤 채널 room을 비움 |
+| `ChatGateway.relayTyping` | room 가입 여부와 현재 읽기 권한을 다시 확인하고 거부된 소켓을 room에서 제거함 |
+| 남은 범위 | 실제 여러 replica의 remote room 해제, adapter 장애 중 회수 보장, reconnect·동시 발행 경합을 이번 문서 점검에서 검증하지 않음 |
 
 ## 문제
 
-`cowork-chat/src/chat/chat.gateway.ts`의 `ChatGateway.handleJoin`과 `ChatGateway.handleJoinTeam`은 각각 `join`, `join:team` 요청 시점에 멤버십을 확인한 뒤 소켓을 `chat:{channelId}` 또는 `team:{teamId}` room에 가입시킨다. 이후 브로드캐스트 시점에는 room 구성원을 다시 인가하지 않으므로 이 가입 상태가 실시간 이벤트 수신 권한으로 사용된다.
+최초 점검 당시 `ChatGateway.handleJoin`과 `ChatGateway.handleJoinTeam`에서 검사한 가입 상태만 실시간 이벤트 수신에 사용하고, 탈퇴 projection 반영 뒤 기존 room을 회수하지 않는 문제가 있었다. 이후 역할 기반 읽기 권한 작업에서 회수와 브로드캐스트 재인가 경로가 추가되었으므로 이 문제가 모든 경로에 그대로 남아 있다고 표현하지 않는다.
 
-`MembershipConsumer.handleEvent`는 `channel.member.event`의 `LEAVE`를 MongoDB tombstone으로 반영하고 `member:left`를 브로드캐스트하지만, 회수 대상 사용자의 기존 소켓을 `chat:{channelId}`에서 제거하지 않는다. `TeamMemberEventConsumer.handleEvent`도 `team.member.event`의 `DELETE` projection만 갱신하며 Socket.IO 서버를 사용하지 않는다. `ChannelEventConsumer.handleEvent`의 `DELETED` 역시 삭제 알림만 보내고 해당 채널 room을 비우지 않는다.
+현재 `MembershipConsumer`는 채널 탈퇴 후 `socketsLeave`를 호출하고, `TeamMemberEventConsumer`는 `ChannelMessageReadAccessService.evictUnauthorizedSockets`로 팀 채널의 접근을 다시 평가한다. `ChannelEventConsumer`는 삭제된 채널 room을 비우고, `ChatGateway.relayTyping`도 현재 인가를 재확인한다. 사용자에게는 `channel:access:revoked` 또는 `team:access:revoked` 이벤트를 보낸다.
 
-따라서 연결을 유지한 사용자는 탈퇴·강제 제거·채널 삭제 이후에도 room에 남아 새 메시지와 멤버십·채널 이벤트를 받을 수 있다. `ChatGateway.relayTyping`도 현재 room 가입 여부만 확인하므로 멤버십이 회수된 소켓이 타이핑 이벤트를 계속 보낼 수 있다.
+다만 `RedisIoAdapter`의 초기 실패 시 in-memory fallback과 adapter 준비 상태를 반영하지 않는 readiness 문제는 남아 있다. room 회수 코드가 존재한다는 사실만으로 다른 replica의 소켓까지 회수가 완료되었다고 판정할 수 없다. 이 항목은 해당 장애 경계와 재연결·동시 발행 시나리오까지 검증한 뒤 완료한다.
 
 ## 회수 이벤트별 처리 범위
 
@@ -26,14 +36,13 @@ projection 저장 성공 후 room 해제를 수행하고, 해제가 완료된 �
 
 ## 할 일
 
-### 강제 구독 해제
+### 구현된 회수 경로의 검증과 보완
 
-- `ChatGateway.handleConnection`에서 가입하는 `user:{userId}` room을 회수 대상 소켓 선택에 활용한다.
-- `MembershipConsumer`가 `LEAVE` 적용 성공 후 대상 사용자의 모든 소켓에서 `chat:{channelId}` room을 제거하도록 구현한다.
-- `TeamMemberEventConsumer`와 `ChannelEventConsumer`에 필요한 Socket.IO 협력 경계를 추가하고 팀 제거 및 채널 삭제를 처리한다.
-- 팀 제거 시 해제할 채널 목록을 projection에서 일괄 조회하고 채널마다 사용자별 소켓을 순회하지 않도록 설계한다.
+- `user:{userId}` room 기반 선택이 동일 사용자의 여러 소켓과 remote replica까지 포함하는지 검증한다.
+- `MembershipConsumer`, `TeamMemberEventConsumer`, `ChannelEventConsumer`의 현재 회수 동작을 duplicate·stale event·snapshot 조건별로 검증한다.
+- 팀 채널의 일괄 권한 평가와 소켓 조회가 대규모 팀에서도 허용 가능한 비용인지 확인한다.
 - room 해제 실패를 로그만 남기고 끝내지 않고 재시도 또는 연결 종료로 수렴시키는 정책을 적용한다.
-- 회수 대상 소켓이 권한 변경을 인지할 수 있도록 사용자 전용 room에 안정적인 이벤트 이름과 payload를 정의한다.
+- 이미 구현된 `channel:access:revoked`·`team:access:revoked`의 payload와 클라이언트 재가입 동작을 계약으로 고정한다.
 
 ### 다중 replica 보장
 
