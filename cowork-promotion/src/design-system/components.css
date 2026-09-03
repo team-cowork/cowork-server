@@ -1,4 +1,4 @@
-/* Shared components. Layout utilities can be composed without changing these contracts. */
+/* Shared UI components consume the design-system tokens. */
 .ui-container {
     width: 100%;
     max-width: var(--container-wide);
