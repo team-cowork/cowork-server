@@ -1,0 +1,124 @@
+/* Landing-page composition; reusable UI primitives live in design-system. */
+.hero {
+    --brand-width: 160px;
+    --brand-height: 119px;
+}
+
+.repo-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-5);
+}
+
+.repo-card {
+    display: flex;
+    flex-direction: column;
+}
+
+.repo-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+}
+
+.repo-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--space-10);
+    height: var(--space-10);
+    border-radius: var(--radius-xl);
+    background: var(--color-brand-surface);
+    color: var(--color-brand);
+}
+
+.repo-card__title {
+    margin-bottom: var(--space-2);
+    font-family: var(--font-mono);
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.375;
+    transition: color var(--duration-fast);
+}
+
+.repo-card__description {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+    line-height: var(--leading-relaxed);
+}
+
+.repo-card__footer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1-5);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border-subtle);
+    color: rgb(var(--palette-gray-300));
+    font-size: var(--font-size-xs);
+    line-height: var(--space-4);
+    transition: color var(--duration-fast);
+}
+
+.repo-card:hover .repo-card__title {
+    color: var(--color-brand);
+}
+
+.repo-card:hover .repo-card__footer {
+    color: rgb(var(--palette-red-300));
+}
+
+@keyframes scroll-left {
+    0% {
+        transform: translate(0);
+    }
+    to {
+        transform: translate(-50%);
+    }
+}
+@keyframes scroll-right {
+    0% {
+        transform: translate(-50%);
+    }
+    to {
+        transform: translate(0);
+    }
+}
+.marquee-left {
+    animation: scroll-left var(--duration-marquee) linear infinite;
+}
+.marquee-right {
+    animation: scroll-right var(--duration-marquee) linear infinite;
+}
+.marquee-track:hover .marquee-left,
+.marquee-track:hover .marquee-right {
+    animation-play-state: paused;
+}
+
+@media (min-width: 640px) {
+    .repo-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1024px) {
+    .repo-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+    .repo-card {
+        grid-column: span 2 / span 2;
+    }
+    .repo-card--centered {
+        grid-column-start: 2;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .repo-card__title, .repo-card__footer {
+        transition: none;
+    }
+    .marquee-left, .marquee-right {
+        animation-play-state: paused;
+    }
+}
