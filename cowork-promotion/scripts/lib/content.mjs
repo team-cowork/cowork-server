@@ -2,6 +2,14 @@ import { XMLParser } from "fast-xml-parser";
 import { parse as parseYaml } from "yaml";
 import { expectArray, expectColor, expectString } from "./validation.mjs";
 
+export function parseFeatureStates(source) {
+    return expectArray(JSON.parse(source), "feature-states").map((state, index) => ({
+        color: expectColor(state?.color, `feature-states[${index}].color`),
+        backgroundOuterHTML: expectString(state?.backgroundOuterHTML, `feature-states[${index}].backgroundOuterHTML`),
+        sceneInnerHTML: expectString(state?.sceneInnerHTML, `feature-states[${index}].sceneInnerHTML`),
+    }));
+}
+
 export function parseRepositories(source) {
     const names = new Set();
     return expectArray(JSON.parse(source), "repositories").map((repository, index) => {

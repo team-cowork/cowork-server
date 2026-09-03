@@ -1,6 +1,6 @@
         <section
           id="positions"
-          style="height: calc(6 * 50vh + 100vh)"
+          style="height: calc({{positions:count}} * 50vh + 100vh)"
           class="relative"
         >
           <div
@@ -10,12 +10,8 @@
               class="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden"
               aria-hidden="true"
             >
-              <span
-                data-showcase-background
-                class="position-index" style="color: #8b5cf6"
-              >
-                01
-              </span>
+              <!-- data:positions-background:start -->
+              <!-- data:positions-background:end -->
             </div>
             <div class="max-w-6xl mx-auto px-6 w-full relative z-10">
               <div class="flex items-center justify-between mb-8">
@@ -25,7 +21,8 @@
                   Position
                 </span>
                 <span data-showcase-counter class="text-xs text-gray-400 font-medium tabular-nums">
-                  01 / 06
+                  <!-- data:positions-counter:start -->
+                  <!-- data:positions-counter:end -->
                 </span>
               </div>
               <div class="relative" style="height: 46vh; min-height: 300px">
@@ -33,38 +30,13 @@
                   data-showcase-scene
                   class="absolute inset-0 grid grid-cols-1 lg:grid-cols-2 gap-10 items-center"
                 >
-                  <!-- data:position-initial:start -->
-                  <!-- Generated from tech-stacks.yaml and team-members.xml. -->
-                  <!-- data:position-initial:end -->
+                  <!-- data:positions-initial:start -->
+                  <!-- data:positions-initial:end -->
                 </div>
               </div>
               <div class="flex items-center gap-2 mt-8">
-                <!--[-->
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-active); background-color: #8b5cf6"
-                ></button>
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-size); background-color: var(--color-indicator)"
-                ></button>
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-size); background-color: var(--color-indicator)"
-                ></button>
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-size); background-color: var(--color-indicator)"
-                ></button>
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-size); background-color: var(--color-indicator)"
-                ></button>
-                <button data-showcase-dot
-                  class="h-1 rounded-full transition-all duration-500 cursor-pointer"
-                  style="width: var(--indicator-size); background-color: var(--color-indicator)"
-                ></button>
-                <!--]-->
+                <!-- data:positions-dots:start -->
+                <!-- data:positions-dots:end -->
               </div>
             </div>
           </div>
