@@ -1,0 +1,46 @@
+:root {
+    --palette-white: 255 255 255;
+    --palette-black: 0 0 0;
+    --palette-gray-50: 249 250 251;
+    --palette-gray-100: 243 244 246;
+    --palette-gray-200: 229 231 235;
+    --palette-gray-300: 209 213 219;
+    --palette-gray-400: 156 163 175;
+    --palette-gray-500: 107 114 128;
+    --palette-gray-600: 75 85 99;
+    --palette-gray-700: 55 65 81;
+    --palette-gray-800: 31 41 55;
+    --palette-gray-900: 17 24 39;
+    --palette-gray-950: 3 7 18;
+    --palette-red-50: 254 242 242;
+    --palette-red-200: 254 202 202;
+    --palette-red-300: 252 165 165;
+    --palette-red-500: 239 68 68;
+    --palette-red-600: 220 38 38;
+    --palette-red-700: 185 28 28;
+    --palette-red-800: 153 27 27;
+    --palette-amber-700: 180 83 9;
+    --palette-green-700: 21 128 61;
+    --palette-emerald-500: 16 185 129;
+    --palette-emerald-600: 5 150 105;
+    --palette-blue-500: 59 130 246;
+
+    --color-surface: rgb(var(--palette-white));
+    --color-surface-subtle: rgb(var(--palette-gray-50));
+    --color-surface-muted: rgb(var(--palette-gray-100));
+    --color-text: rgb(var(--palette-gray-900));
+    --color-text-strong: rgb(var(--palette-gray-800));
+    --color-text-secondary: rgb(var(--palette-gray-700));
+    --color-text-muted: rgb(var(--palette-gray-500));
+    --color-text-subtle: rgb(var(--palette-gray-400));
+    --color-border: rgb(var(--palette-gray-200));
+    --color-border-subtle: rgb(var(--palette-gray-100));
+    --color-brand: rgb(var(--palette-red-500));
+    --color-brand-surface: rgb(var(--palette-red-50));
+    --color-link: rgb(var(--palette-red-700));
+    --color-link-hover: rgb(var(--palette-red-800));
+    --color-priority-high: rgb(var(--palette-red-600));
+    --color-priority-medium: rgb(var(--palette-amber-700));
+    --color-priority-low: rgb(var(--palette-green-700));
+    --color-priority-unknown: rgb(var(--palette-gray-600));
+}
