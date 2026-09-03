@@ -88,12 +88,14 @@ export const PROJECTION_STREAMS = {
         topic: 'preference.team-role.changed',
         groupId: 'cowork-chat-team-role-event-v1-projection',
         expectedSource: 'cowork-preference',
+        sourceGeneration: sourceGeneration('TEAM_ROLE'),
     },
     channelRolePolicy: {
         name: 'channelRolePolicy',
         topic: 'preference.channel-role-policy.changed',
         groupId: 'cowork-chat-channel-role-policy-event-v1-projection',
         expectedSource: 'cowork-preference',
+        sourceGeneration: sourceGeneration('CHANNEL_ROLE_POLICY'),
     },
     userProfile: {
         name: 'userProfile',
@@ -102,7 +104,7 @@ export const PROJECTION_STREAMS = {
         expectedSource: 'cowork-user',
         sourceGeneration: sourceGeneration('USER_PROFILE'),
     },
-} as const satisfies Record<string, ProjectionStream>;
+} as const satisfies Record<ProjectionStreamName, ProjectionStream>;
 
 export type ProjectionName = keyof typeof PROJECTION_STREAMS;
 
