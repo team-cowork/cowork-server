@@ -1,6 +1,6 @@
 @media (min-width: 640px) {
     .sm\:inset-5 {
-        inset: 1.25rem;
+        inset: var(--space-5);
     }
     .sm\:grid-cols-2 {
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9,12 +9,12 @@
         flex-direction: row;
     }
     .sm\:p-5 {
-        padding: 1.25rem;
+        padding: var(--space-5);
     }
 }
 @media (min-width: 768px) {
     .md\:gap-12 {
-        gap: 3rem;
+        gap: var(--space-12);
     }
 }
 @media (min-width: 1024px) {
@@ -31,11 +31,11 @@
         grid-template-columns: repeat(6, minmax(0, 1fr));
     }
     .lg\:text-6xl {
-        font-size: 3.75rem;
+        font-size: var(--font-size-6xl);
         line-height: 1;
     }
     .lg\:text-lg {
-        font-size: 1.125rem;
-        line-height: 1.75rem;
+        font-size: var(--font-size-lg);
+        line-height: var(--space-7);
     }
 }
