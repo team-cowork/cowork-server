@@ -7,7 +7,11 @@ import {
     replaceBundleMarker,
 } from "./lib/bundle.mjs";
 import { parseContent, parseRepositories } from "./lib/content.mjs";
-import { renderRepositoryCard } from "./lib/ui.mjs";
+import {
+    componentStylesheets,
+    foundationStylesheets,
+    renderRepositoryCard,
+} from "../src/design-system/index.mjs";
 import {
     generatePositionStates,
     renderTeamMembers,
@@ -29,21 +33,21 @@ const htmlDirectory = new URL("html/", sourceDirectory);
 const defaultOutputDirectory = new URL("../public/", import.meta.url);
 const defaultTodoDirectory = fileURLToPath(new URL("../../docs/todo/", import.meta.url));
 const homeStylesheetPaths = [
-    "css/tokens.css",
+    ...foundationStylesheets,
     "css/showcase.css",
     "css/base.css",
     "css/utilities.css",
     "css/components.css",
     "css/responsive.css",
-    "css/ui.css",
+    ...componentStylesheets,
 ];
 const todoStylesheetPaths = [
-    "css/tokens.css",
+    ...foundationStylesheets,
     "css/base.css",
     "css/utilities.css",
     "css/components.css",
     "css/responsive.css",
-    "css/ui.css",
+    ...componentStylesheets,
     "css/todo.css",
 ];
 
@@ -215,8 +219,8 @@ export async function build(options = {}) {
         readFile(projectUrl("data/team-members.xml"), "utf8"),
         readFile(projectUrl("data/feature-states.json"), "utf8"),
         readFile(projectUrl("logo.svg"), "utf8"),
-        bundleJavaScript(sourceUrl("js/main.js"), sourceUrl("js/")),
-        bundleJavaScript(sourceUrl("js/todo-main.js"), sourceUrl("js/")),
+        bundleJavaScript(sourceUrl("js/main.js"), sourceDirectory),
+        bundleJavaScript(sourceUrl("js/todo-main.js"), sourceDirectory),
         Promise.all(
             homeStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8")),
         ),
