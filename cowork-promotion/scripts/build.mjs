@@ -6,7 +6,7 @@ import {
     inlineJson,
     replaceBundleMarker,
 } from "./lib/bundle.mjs";
-import { parseContent, parseRepositories } from "./lib/content.mjs";
+import { parseContent, parseFeatureStates, parseRepositories } from "./lib/content.mjs";
 import {
     componentStylesheets,
     foundationStylesheets,
@@ -18,6 +18,7 @@ import {
     renderTechStacks,
 } from "./lib/render.mjs";
 import { composeTemplate, replaceGeneratedRegion } from "./lib/template.mjs";
+import { renderShowcase } from "./lib/showcase-render.mjs";
 import { loadTodoContent } from "./lib/todo-content.mjs";
 import {
     renderTodoDocument,
@@ -235,24 +236,32 @@ export async function build(options = {}) {
         techStackYaml: techStackSource,
     });
     const positionStates = generatePositionStates(techStacks.positions, team);
-    const featureStates = JSON.parse(featureStateSource);
-    const generatedHomeHtml = replaceGeneratedRegion(
+    const featureStates = parseFeatureStates(featureStateSource);
+    let generatedHomeHtml = replaceGeneratedRegion(
         replaceGeneratedRegion(
             replaceGeneratedRegion(
-                replaceGeneratedRegion(
-                    sourceHtml,
-                    "repositories",
-                    parseRepositories(repositorySource).map(renderRepositoryCard).join("\n"),
-                ),
-                "tech-stacks",
-                renderTechStacks(techStacks.categories),
+                sourceHtml,
+                "repositories",
+                parseRepositories(repositorySource).map(renderRepositoryCard).join("\n"),
             ),
-            "team-members",
-            renderTeamMembers(team),
+            "tech-stacks",
+            renderTechStacks(techStacks.categories),
         ),
-        "position-initial",
-        positionStates[0].sceneInnerHTML,
+        "team-members",
+        renderTeamMembers(team),
     );
+    generatedHomeHtml = renderShowcase(generatedHomeHtml, "features", featureStates, {
+        label: "기능",
+        dotClass: "h-1.5 rounded-full transition-all duration-300 cursor-pointer",
+        activeDotWidth: "var(--indicator-feature-active)",
+        inactiveDotColor: "var(--color-indicator-inverse)",
+    });
+    generatedHomeHtml = renderShowcase(generatedHomeHtml, "positions", positionStates, {
+        label: "포지션",
+        dotClass: "h-1 rounded-full transition-all duration-500 cursor-pointer",
+        activeDotWidth: "var(--indicator-active)",
+        inactiveDotColor: "var(--color-indicator)",
+    });
     const homeStateData = [
         ["/data/feature-states.json", featureStates],
         ["/data/position-states.json", positionStates],
