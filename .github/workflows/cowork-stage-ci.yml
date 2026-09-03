@@ -1343,24 +1343,23 @@ jobs:
 
 
           def text(value: Any) -> str:
-              """Keep metadata and native error text inside one Markdown table cell."""
+              """Keep metadata inside one Markdown line."""
               return html.escape(" ".join(str(value).split()), quote=False).replace("|", "&#124;").replace("`", "&#96;")
 
 
-          def measurement(result: Result) -> str:
-              if result.percent is None:
-                  return "N/A"
-              return f"{percentage(result.percent)} ({result.covered:,}/{result.total:,})"
+          def code_text(value: Any) -> str:
+              """Keep names and errors on one line without closing the code fence."""
+              return " ".join(str(value).split()).replace("`", "'")
 
 
-          def row_status(base: Result, pr: Result) -> str:
+          def measurement_status(base: Result, pr: Result) -> str:
               problems = []
               for result in (base, pr):
                   if result.status in {"failed", "missing"}:
                       label = "실패" if result.status == "failed" else "누락"
-                      problems.append(f"{result.snapshot}: {label} — {text(result.reason[:500])}")
+                      problems.append(f"{result.snapshot}: {label} — {code_text(result.reason[:500])}")
                   elif result.status == "excluded":
-                      problems.append(f"{result.snapshot}: {text(result.reason)}")
+                      problems.append(f"{result.snapshot}: {code_text(result.reason)}")
                   elif result.status == "ok" and result.total == 0:
                       problems.append(f"{result.snapshot}: 측정 항목 없음")
               if problems:
@@ -1374,6 +1373,12 @@ jobs:
               if base.metric != pr.metric:
                   return "측정 단위 변경 — 증감 비교 불가"
               return "완료"
+
+
+          def coverage_line(name: str, current: Decimal | None, change: Decimal | None, status: str = "") -> str:
+              prefix = "-" if change is not None and change < 0 else "+" if change is not None and change > 0 else " "
+              annotation = f"  ({code_text(status)})" if status and status != "완료" else ""
+              return f"{prefix} {code_text(name)}: {percentage(current)}  {delta_text(change)}{annotation}"
 
 
           def donut_url(covered: int, total: int) -> str:
@@ -1443,32 +1448,22 @@ jobs:
               )
               overall_change = delta(base, pr) if complete and not unit_changed else None
               lines = [MARKER, "## 테스트 커버리지", ""]
-              if complete:
-                  lines += [f"**전체 (라인/구문 가중 합산): {percentage(base.percent)} → {percentage(pr.percent)} · {delta_text(overall_change)}**", ""]
-                  lines += [f"Base: {base.covered:,}/{base.total:,} · PR: {pr.covered:,}/{pr.total:,} (covered/total)", ""]
-                  if pr.total:
-                      lines += [f"![PR 전체 커버리지 {percentage(pr.percent)} — covered {pr.covered}, total {pr.total}]({donut_url(pr.covered, pr.total)})", ""]
-              else:
-                  lines += ["**전체: N/A · 증감: N/A**", "", "일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
+              if complete and pr.total:
+                  lines += [f"![PR 전체 커버리지 {percentage(pr.percent)}]({donut_url(pr.covered, pr.total)})", ""]
 
-              lines += ["| 모듈 | 단위 | Base | PR | 증감 | 상태 |", "| --- | --- | ---: | ---: | ---: | --- |"]
-              changes: list[tuple[str, Decimal | None]] = [("전체", overall_change)]
+              lines += ["```diff", coverage_line("전체", pr.percent if complete else None, overall_change)]
               for module in modules:
                   name = module["module"]
                   previous, current = results[(name, "base")], results[(name, "pr")]
                   change = delta(previous, current)
-                  units = {"line": "라인", "statement": "구문"}
-                  metric = units[previous.metric] if previous.metric == current.metric else f"{units[previous.metric]} → {units[current.metric]}"
-                  lines.append(f"| {text(name)} | {metric} | {measurement(previous)} | {measurement(current)} | {delta_text(change)} | {row_status(previous, current)} |")
-                  changes.append((name, change))
+                  lines.append(coverage_line(name, current.percent, change, measurement_status(previous, current)))
               for module in excluded:
-                  lines.append(f"| {text(module['module'])} | — | N/A | N/A | N/A | {text(module['reason'])} |")
+                  lines.append(coverage_line(module["module"], None, None, module["reason"]))
 
-              lines += ["", "```diff"]
-              for name, change in changes:
-                  prefix = "-" if change is not None and change < 0 else "+" if change is not None and change > 0 else " "
-                  lines.append(f"{prefix} {text(name)}: {delta_text(change)}")
-              lines += ["```", "", "증감은 PR − Base의 퍼센트포인트(%p)이며, 반올림 전 수치로 계산한 뒤 소수점 첫째 자리까지 표시합니다. 표시값이 0.0%p인 경우 부호와 색을 붙이지 않습니다.", ""]
+              lines += ["```", ""]
+              if not complete:
+                  lines += ["일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
+              lines += ["각 줄은 PR의 현재 커버리지(%)와 Base 대비 증감(%p)입니다. 증감은 반올림 전 수치로 계산한 뒤 소수점 첫째 자리까지 표시합니다. 표시값이 0.0%p인 경우 부호와 색을 붙이지 않습니다.", ""]
               lines += ["전체는 모듈별 퍼센트의 단순 평균이 아니라 covered/total 합산값입니다. JVM·JavaScript·Elixir의 라인과 Go의 구문을 합친 혼합 지표입니다. 분모가 0이면 N/A로 표시하며, 한쪽 리비전에 없는 모듈은 해당 리비전 합산에서 제외합니다.", ""]
               if unit_changed:
                   lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
@@ -1627,7 +1622,7 @@ jobs:
   coverage:
     name: coverage (${{ matrix.module }}, ${{ matrix.snapshot }})
     needs: coverage-plan
-    if: needs.coverage-plan.outputs.has-modules == 'true'
+    if: github.event_name == 'pull_request' && needs.coverage-plan.outputs.has-modules == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 40
     continue-on-error: true
