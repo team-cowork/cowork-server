@@ -1,5 +1,5 @@
 import { escapeHtml } from "./validation.mjs";
-import { accentStyle, renderBadge, renderMemberCard } from "./ui.mjs";
+import { accentStyle, renderBadge, renderMemberCard } from "../../src/design-system/index.mjs";
 
 const marqueeCopiesPerRow = 4;
 
