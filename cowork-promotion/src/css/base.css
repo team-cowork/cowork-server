@@ -26,12 +26,12 @@
     --tw-numeric-fraction: ;
     --tw-ring-inset: ;
     --tw-ring-offset-width: 0px;
-    --tw-ring-offset-color: #fff;
-    --tw-ring-color: #3b82f680;
-    --tw-ring-offset-shadow: 0 0 #0000;
-    --tw-ring-shadow: 0 0 #0000;
-    --tw-shadow: 0 0 #0000;
-    --tw-shadow-colored: 0 0 #0000;
+    --tw-ring-offset-color: var(--color-surface);
+    --tw-ring-color: rgb(var(--palette-blue-500) / 0.502);
+    --tw-ring-offset-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-ring-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow-colored: 0 0 rgb(var(--palette-black) / 0);
     --tw-blur: ;
     --tw-brightness: ;
     --tw-contrast: ;
@@ -60,7 +60,7 @@ html {
     line-height: 1.5;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-feature-settings: normal;
     font-variation-settings: normal;
     -webkit-tap-highlight-color: transparent;
@@ -91,26 +91,26 @@ progress {
     user-select: none;
 }
 .from-transparent {
-    --tw-gradient-from: #0000 var(--tw-gradient-from-position);
-    --tw-gradient-to: #0000 var(--tw-gradient-to-position);
+    --tw-gradient-from: rgb(var(--palette-black) / 0) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(var(--palette-black) / 0) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 .from-white\/\[0\.07\] {
-    --tw-gradient-from: #ffffff12 var(--tw-gradient-from-position);
-    --tw-gradient-to: #fff0 var(--tw-gradient-to-position);
+    --tw-gradient-from: rgb(var(--palette-white) / 0.0706) var(--tw-gradient-from-position);
+    --tw-gradient-to: rgb(var(--palette-white) / 0) var(--tw-gradient-to-position);
     --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
 }
 .via-gray-200 {
-    --tw-gradient-to: #e5e7eb00 var(--tw-gradient-to-position);
+    --tw-gradient-to: rgb(var(--palette-gray-200) / 0) var(--tw-gradient-to-position);
     --tw-gradient-stops:
-        var(--tw-gradient-from), #e5e7eb var(--tw-gradient-via-position),
+        var(--tw-gradient-from), var(--color-border) var(--tw-gradient-via-position),
         var(--tw-gradient-to);
 }
 .to-transparent {
-    --tw-gradient-to: #0000 var(--tw-gradient-to-position);
+    --tw-gradient-to: rgb(var(--palette-black) / 0) var(--tw-gradient-to-position);
 }
 .to-white\/\[0\.02\] {
-    --tw-gradient-to: #ffffff05 var(--tw-gradient-to-position);
+    --tw-gradient-to: rgb(var(--palette-white) / 0.0196) var(--tw-gradient-to-position);
 }
 .object-contain {
     object-fit: contain;
@@ -119,24 +119,24 @@ progress {
     object-fit: cover;
 }
 .shadow-2xl {
-    --tw-shadow: 0 25px 50px -12px #00000040;
+    --tw-shadow: 0 25px 50px -12px rgb(var(--palette-black) / 0.251);
     --tw-shadow-colored: 0 25px 50px -12px var(--tw-shadow-color);
 }
 .shadow-sm {
-    --tw-shadow: 0 1px 2px 0 #0000000d;
+    --tw-shadow: 0 1px 2px 0 rgb(var(--palette-black) / 0.051);
     --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color);
 }
 .ring-white\/10 {
-    --tw-ring-color: #ffffff1a;
+    --tw-ring-color: rgb(var(--palette-white) / 0.102);
 }
 .hover\:shadow-md:hover {
-    --tw-shadow: 0 4px 6px -1px #0000001a, 0 2px 4px -2px #0000001a;
+    --tw-shadow: 0 4px 6px -1px rgb(var(--palette-black) / 0.102), 0 2px 4px -2px rgb(var(--palette-black) / 0.102);
     --tw-shadow-colored:
         0 4px 6px -1px var(--tw-shadow-color),
         0 2px 4px -2px var(--tw-shadow-color);
     box-shadow:
-        var(--tw-ring-offset-shadow, 0 0 #0000),
-        var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
+        var(--tw-ring-offset-shadow, 0 0 rgb(var(--palette-black) / 0)),
+        var(--tw-ring-shadow, 0 0 rgb(var(--palette-black) / 0)), var(--tw-shadow);
 }
 *,
 :after,
@@ -164,12 +164,12 @@ progress {
     --tw-numeric-fraction: ;
     --tw-ring-inset: ;
     --tw-ring-offset-width: 0px;
-    --tw-ring-offset-color: #fff;
-    --tw-ring-color: rgba(59, 130, 246, 0.5);
-    --tw-ring-offset-shadow: 0 0 #0000;
-    --tw-ring-shadow: 0 0 #0000;
-    --tw-shadow: 0 0 #0000;
-    --tw-shadow-colored: 0 0 #0000;
+    --tw-ring-offset-color: var(--color-surface);
+    --tw-ring-color: rgb(var(--palette-blue-500) / 0.5);
+    --tw-ring-offset-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-ring-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow-colored: 0 0 rgb(var(--palette-black) / 0);
     --tw-blur: ;
     --tw-brightness: ;
     --tw-contrast: ;
@@ -217,12 +217,12 @@ progress {
     --tw-numeric-fraction: ;
     --tw-ring-inset: ;
     --tw-ring-offset-width: 0px;
-    --tw-ring-offset-color: #fff;
-    --tw-ring-color: rgba(59, 130, 246, 0.5);
-    --tw-ring-offset-shadow: 0 0 #0000;
-    --tw-ring-shadow: 0 0 #0000;
-    --tw-shadow: 0 0 #0000;
-    --tw-shadow-colored: 0 0 #0000;
+    --tw-ring-offset-color: var(--color-surface);
+    --tw-ring-color: rgb(var(--palette-blue-500) / 0.5);
+    --tw-ring-offset-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-ring-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow: 0 0 rgb(var(--palette-black) / 0);
+    --tw-shadow-colored: 0 0 rgb(var(--palette-black) / 0);
     --tw-blur: ;
     --tw-brightness: ;
     --tw-contrast: ;
@@ -250,7 +250,7 @@ progress {
 :after,
 :before {
     box-sizing: border-box;
-    border: 0 solid #e5e7eb;
+    border: 0 solid var(--color-border);
 }
 :after,
 :before {
@@ -263,7 +263,7 @@ html {
     -moz-tab-size: 4;
     -o-tab-size: 4;
     tab-size: 4;
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
     font-feature-settings: normal;
     font-variation-settings: normal;
     -webkit-tap-highlight-color: transparent;
@@ -303,7 +303,7 @@ kbd,
 pre,
 samp {
     font-family:
-        ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        var(--font-mono);
     font-feature-settings: normal;
     font-variation-settings: normal;
     font-size: 1em;
@@ -422,12 +422,12 @@ textarea {
 input::-moz-placeholder,
 textarea::-moz-placeholder {
     opacity: 1;
-    color: #9ca3af;
+    color: var(--color-text-subtle);
 }
 input::placeholder,
 textarea::placeholder {
     opacity: 1;
-    color: #9ca3af;
+    color: var(--color-text-subtle);
 }
 [role="button"],
 button {
@@ -456,7 +456,7 @@ video {
     display: none;
 }
 html {
-    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-sans);
     scroll-behavior: smooth;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

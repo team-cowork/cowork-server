@@ -1,4 +1,5 @@
 import { elementFromMarkup } from "../core/dom.js";
+import { readMotionDuration } from "../core/design-tokens.js";
 import { createSceneTransition } from "../core/transition.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
 
@@ -8,15 +9,15 @@ export function createPositionShowcase(root) {
     const sceneTransition = createSceneTransition(
         root.querySelector('.relative[style*="height: 46vh"] > div'),
         {
-            enterDuration: 500,
-            leaveDuration: 250,
+            enterDuration: readMotionDuration("--duration-scene", root),
+            leaveDuration: readMotionDuration("--duration-panel-leave", root),
             name: "pos-panel",
             reducedMotion,
         },
     );
     const showcase = createStickyShowcase({
-        activeDotWidth: "32px",
-        inactiveDotColor: "#E5E7EB",
+        activeDotWidth: "var(--indicator-active)",
+        inactiveDotColor: "var(--color-indicator)",
         label: "포지션",
         onStateChange(state) {
             const nextBackground = elementFromMarkup(state.backgroundOuterHTML);
