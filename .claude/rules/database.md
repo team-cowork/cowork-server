@@ -14,7 +14,7 @@ See CLAUDE.md for the table-naming and cross-service-FK conventions. This file c
 
 ## Migrations (`V{n}__*.sql`)
 
-- Never edit a committed migration — Flyway validates checksums, and the Go services' migration runner tracks applied scripts the same way. Add a new version file.
+- Never edit a committed migration — Flyway validates checksums; the Go services' runner records applied versions and skips them on later starts, so edits to an applied script are not reapplied. Add a new version file.
 - Name new files `V{n}__{snake_case_description}.sql`, e.g. `V2__add_github_id.sql`.
 - Pick `{n}` by looking at the highest existing version **in that service only** — version sequences are per-service, not global.
 
