@@ -70,6 +70,15 @@ import { SearchModule } from '../search/search.module';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { ThrottleGuard } from '../common/guard/throttle.guard';
+import {
+    ChatMessageQuarantineRecord,
+    ChatMessageQuarantineRecordSchema,
+} from './schema/chat-message-quarantine.schema';
+import { ChatMessageQuarantineRepository } from './repository/chat-message-quarantine.repository';
+import { ChatMessageQuarantineService } from './service/chat-message-quarantine.service';
+import { ChatMessageScopeValidator } from './kafka/chat-message-scope-validator';
+import { ChatMessageProcessor } from './kafka/chat-message.processor';
+import { ChatMessageQuarantinePoller } from './kafka/chat-message-quarantine.poller';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -96,6 +105,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             { name: TeamRoleAssignmentProjection.name, schema: TeamRoleAssignmentProjectionSchema },
             { name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema },
             { name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema },
+            { name: ChatMessageQuarantineRecord.name, schema: ChatMessageQuarantineRecordSchema },
         ]),
         DicoshotModule.registerAsync({
             imports: [ConfigModule],
@@ -121,6 +131,11 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelMemberRepository,
         ChatMessageProducer,
         ChatMessageConsumer,
+        ChatMessageProcessor,
+        ChatMessageScopeValidator,
+        ChatMessageQuarantineRepository,
+        ChatMessageQuarantineService,
+        ChatMessageQuarantinePoller,
         NotificationTriggerProducer,
         NotificationOutboxPoller,
         GithubIssueProducer,
