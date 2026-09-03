@@ -1,5 +1,6 @@
 package com.cowork.gateway
 
+import com.cowork.gateway.filter.ApiResponseWrapperProperties
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldContainAll
@@ -26,6 +27,9 @@ class GatewayConfigBindingTest :
                 val globalCorsProperties = binder
                     .bind("${GatewayProperties.PREFIX}.globalcors", GlobalCorsProperties::class.java)
                     .orElseGet(::GlobalCorsProperties)
+                val responseWrapperProperties = binder
+                    .bind("gateway.response-wrapper", ApiResponseWrapperProperties::class.java)
+                    .orElseGet(::ApiResponseWrapperProperties)
 
                 it("현재 Spring Cloud Gateway 버전에 라우트를 바인딩한다") {
                     gatewayProperties.routes.map { it.id } shouldContainAll listOf(
@@ -128,6 +132,10 @@ class GatewayConfigBindingTest :
                         Boolean::class.java,
                         false,
                     ) shouldBe true
+                }
+
+                it("응답 wrapper의 최대 집계 크기를 1MB로 제한한다") {
+                    responseWrapperProperties.maxWrappableBytes() shouldBe 1024 * 1024
                 }
             }
         }

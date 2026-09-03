@@ -2,7 +2,9 @@ package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
+import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlClient
@@ -12,6 +14,7 @@ import java.time.temporal.ChronoUnit
 class TeamRoleService(
     private val repository: TeamRoleRepository,
     private val outboxRepository: PreferenceOutboxRepository,
+    private val channelRolePolicyRepository: ChannelRolePolicyRepository,
 ) {
 
     private val colorPattern = Regex("^#[0-9A-Fa-f]{6}$")
@@ -96,7 +99,16 @@ class TeamRoleService(
         if (repository.findRole(teamId, roleId) == null) {
             return runCatching {
                 outboxRepository.inTransaction { connection ->
-                    outboxRepository.enqueue(connection, PreferenceEvents.roleDeleted(teamId, roleId, Instant.now()))
+                    val tombstone = repository.deleteRoleWithTombstone(
+                        connection,
+                        teamId,
+                        roleId,
+                        Instant.now(),
+                    )
+                    outboxRepository.enqueue(
+                        connection,
+                        PreferenceEvents.roleDeleted(teamId, roleId, tombstone.stateOccurredAt),
+                    )
                 }
             }
                 .fold(
@@ -109,11 +121,25 @@ class TeamRoleService(
         return runCatching {
             outboxRepository.inTransaction { connection ->
                 val assignments = repository.findMemberRoles(connection, teamId).filter { it.roleId == roleId }
-                repository.deleteRole(connection, teamId, roleId)
+                val policyEvents = deleteChannelRolePoliciesForRole(connection, teamId, roleId)
+                val assignmentTombstones = assignments.map { assignment ->
+                    repository.deleteAssignment(
+                        connection,
+                        assignment.accountId,
+                        assignment.teamId,
+                        assignment.roleId,
+                        occurredAt,
+                    )
+                }
+                val roleTombstone = repository.deleteRoleWithTombstone(connection, teamId, roleId, occurredAt)
                 outboxRepository.enqueueAll(
                     connection,
-                    assignments.map { PreferenceEvents.assignmentDeleted(it, occurredAt) } +
-                        PreferenceEvents.roleDeleted(teamId, roleId, occurredAt),
+                    policyEvents + assignmentTombstones.map { tombstone ->
+                        PreferenceEvents.assignmentDeleted(
+                            AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                            tombstone.stateOccurredAt,
+                        )
+                    } + PreferenceEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
                 )
             }
         }
@@ -147,10 +173,19 @@ class TeamRoleService(
 
     suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {
         outboxRepository.inTransaction { connection ->
-            repository.removeRole(connection, accountId, teamId, roleId)
+            val tombstone = repository.deleteAssignment(
+                connection,
+                accountId,
+                teamId,
+                roleId,
+                Instant.now(),
+            )
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.assignmentDeleted(AccountTeamRole(accountId, teamId, roleId), Instant.now()),
+                PreferenceEvents.assignmentDeleted(
+                    AccountTeamRole(accountId, teamId, roleId),
+                    tombstone.stateOccurredAt,
+                ),
             )
         }
     }
@@ -171,9 +206,24 @@ class TeamRoleService(
         val tombstoneVersion = nextProjectionVersion(
             sequenceOf(occurredAt) + removedAssignments.asSequence().mapNotNull { it.updatedAt?.toInstant() },
         )
-        outboxRepository.enqueue(
+        val memberFence = repository.upsertMemberFence(client, teamId, accountId, tombstoneVersion)
+        val assignmentTombstones = removedAssignments.map { assignment ->
+            repository.deleteAssignment(
+                client,
+                assignment.accountId,
+                assignment.teamId,
+                assignment.roleId,
+                memberFence.stateOccurredAt,
+            )
+        }
+        outboxRepository.enqueueAll(
             client,
-            PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, tombstoneVersion),
+            assignmentTombstones.map { tombstone ->
+                PreferenceEvents.assignmentDeleted(
+                    AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                    tombstone.stateOccurredAt,
+                )
+            } + PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, memberFence.stateOccurredAt),
         )
     }
 
@@ -187,17 +237,64 @@ class TeamRoleService(
         repository.markTeamDeleted(client, teamId, occurredAt)
         val assignments = repository.findMemberRoles(client, teamId)
         val roles = repository.findRoles(client, teamId)
-        val tombstoneVersion = nextProjectionVersion(
-            sequenceOf(occurredAt) +
-                assignments.asSequence().mapNotNull { it.updatedAt?.toInstant() } +
-                roles.asSequence().mapNotNull { (it.updatedAt ?: it.createdAt)?.toInstant() },
-        )
-
-        repository.deleteTeamRoles(client, teamId)
+        val policyEvents = deleteChannelRolePoliciesForTeam(client, teamId)
+        val memberFences = assignments.groupBy(AccountTeamRole::accountId).mapValues { (accountId, memberAssignments) ->
+            val minimum = nextProjectionVersion(
+                sequenceOf(occurredAt) + memberAssignments.asSequence().mapNotNull { it.updatedAt?.toInstant() },
+            )
+            repository.upsertMemberFence(client, teamId, accountId, minimum)
+        }
+        val assignmentTombstones = assignments.map { assignment ->
+            repository.deleteAssignment(
+                client,
+                assignment.accountId,
+                assignment.teamId,
+                assignment.roleId,
+                requireNotNull(memberFences[assignment.accountId]).stateOccurredAt,
+            )
+        }
+        val roleTombstones = roles.map { role ->
+            repository.deleteRoleWithTombstone(client, teamId, role.id, occurredAt)
+        }
         outboxRepository.enqueueAll(
             client,
-            assignments.map { PreferenceEvents.assignmentDeleted(it, tombstoneVersion) } +
-                roles.map { PreferenceEvents.roleDeleted(teamId, it.id, tombstoneVersion) },
+            policyEvents + assignmentTombstones.map { tombstone ->
+                PreferenceEvents.assignmentDeleted(
+                    AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                    tombstone.stateOccurredAt,
+                )
+            } + memberFences.values.map { fence ->
+                PreferenceEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
+            } + roleTombstones.map { tombstone ->
+                PreferenceEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+            },
+        )
+    }
+
+    private suspend fun deleteChannelRolePoliciesForRole(client: SqlClient, teamId: Long, roleId: Long) =
+        channelRolePolicyRepository.findPoliciesByRole(client, teamId, roleId).map { policy ->
+            deleteChannelRolePolicy(client, policy.teamId, policy.channelId, policy.roleId)
+        }
+
+    private suspend fun deleteChannelRolePoliciesForTeam(client: SqlClient, teamId: Long) =
+        channelRolePolicyRepository.findPoliciesByTeam(client, teamId).map { policy ->
+            deleteChannelRolePolicy(client, policy.teamId, policy.channelId, policy.roleId)
+        }
+
+    private suspend fun deleteChannelRolePolicy(
+        client: SqlClient,
+        teamId: Long,
+        channelId: Long,
+        roleId: Long,
+    ): PreferenceEvent {
+        val tombstone = channelRolePolicyRepository.deletePolicy(client, teamId, channelId, roleId)
+        return PreferenceEvents.channelRolePolicyState(
+            teamId = tombstone.teamId,
+            channelId = tombstone.channelId,
+            roleId = tombstone.roleId,
+            permissions = null,
+            occurredAt = tombstone.stateOccurredAt,
+            snapshot = false,
         )
     }
 
