@@ -104,6 +104,31 @@ export class ChannelMemberRepository {
         return result;
     }
 
+    /**
+     * 여러 접근 요청을 평가할 때 필요한 사용자 멤버십만 단일 쿼리로 조회합니다.
+     * 채널 전체 멤버를 메모리에 올리지 않아 대규모 채널에서도 평가 비용이 요청 수에 비례합니다.
+     */
+    async findByChannelIdsAndUserIds(
+        channelIds: number[],
+        userIds: number[],
+    ): Promise<Map<number, ChannelMember[]>> {
+        if (channelIds.length === 0 || userIds.length === 0) return new Map();
+        const members = await this.memberModel
+            .find({
+                channelId: { $in: channelIds },
+                userId: { $in: userIds },
+                deleted: { $ne: true },
+            })
+            .lean();
+        const result = new Map<number, ChannelMember[]>();
+        for (const member of members) {
+            const list = result.get(member.channelId);
+            if (list) list.push(member);
+            else result.set(member.channelId, [member]);
+        }
+        return result;
+    }
+
     async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
         await this.memberModel.updateOne(
             { channelId, userId, deleted: { $ne: true } },
