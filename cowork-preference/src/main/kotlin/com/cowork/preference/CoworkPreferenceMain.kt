@@ -95,6 +95,8 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
             "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
                 "preference.kafka.github-repo-setting-command-consumer-group-id",
+            "KAFKA_GROUP_ID_CHANNEL_ROLE_POLICY_COMMAND" to
+                "preference.kafka.channel-role-policy-command-consumer-group-id",
             "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",

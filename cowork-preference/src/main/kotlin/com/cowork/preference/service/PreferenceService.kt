@@ -2,6 +2,7 @@ package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.domain.SettingDefaultsResolver
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.PreferenceOutboxRepository
@@ -113,12 +114,15 @@ class PreferenceService(
 
     private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
         if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
+        val resolved = SettingDefaultsResolver.resolve(settings, GITHUB_REPO_DEFAULTS)
         return JsonObject()
-            .put("label_auto_apply", settings?.getBoolean("label_auto_apply", true) ?: true)
+            .put(LABEL_AUTO_APPLY, resolved.getBoolean(LABEL_AUTO_APPLY))
     }
 
     companion object {
         private const val NICKNAME_FORMAT_ENFORCED = "nickname_format_enforced"
         private const val NICKNAME_FORMAT_EXAMPLE = "nickname_format_example"
+        private const val LABEL_AUTO_APPLY = "label_auto_apply"
+        private val GITHUB_REPO_DEFAULTS: Map<String, Any> = mapOf(LABEL_AUTO_APPLY to true)
     }
 }
