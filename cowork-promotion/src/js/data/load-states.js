@@ -1,6 +1,6 @@
 import { elementFromMarkup } from "../core/dom.js";
 
-function stateColor(state, fallback = "#111827") {
+function stateColor(state, fallback = "var(--color-text)") {
     return elementFromMarkup(state.backgroundOuterHTML)?.style.color || fallback;
 }
 
