@@ -144,7 +144,10 @@ const rewriteUrl = ({ url, sourcePath, resolveLink }) => {
   }
 
   const route = resolveLink({ sourcePath, pathname: safeDecodeURIComponent(pathname), url });
-  return `${route}${query}${rewrittenFragment}`;
+  const resolvedFragment = /^https?:\/\//i.test(route)
+    ? (fragment ? `#${fragment}` : '')
+    : rewrittenFragment;
+  return `${route}${query}${resolvedFragment}`;
 };
 
 export const rewriteMarkdownLinks = (tree, { sourcePath, resolveLink }) => {

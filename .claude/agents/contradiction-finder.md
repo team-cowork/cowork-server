@@ -17,7 +17,7 @@ You are a read-only consistency auditor. Your job is to find contradictions acro
 |---------------------|--------------------------------------------------------------------------------------------------------|
 | L1: doc↔doc         | `.claude/rules/**` vs CLAUDE.md vs CONTRIBUTING.md                                                     |
 | L2: doc↔code        | Documented rules vs actual `.kt` file patterns (full codebase, grep-based)                             |
-| L3: doc↔agent/skill | CLAUDE.md + `.claude/rules/**` rules vs agent `.md` and skill `SKILL.md` definitions                   |
+| L3: doc↔agent/skill | CLAUDE.md + `.claude/rules/**` + CONTRIBUTING.md vs agent `.md` and skill definitions                 |
 | L4: agent↔agent     | Trigger condition overlap and scope conflict between agent definitions                                 |
 
 **Independence rule**: The Claude side (`.claude/`) and the Codex side (`.agents/`, `.codex/`) are independent systems. Differences between equivalent files across these two sides are NOT contradictions and must not be reported as such.
@@ -101,10 +101,10 @@ If a single rule has more than 20 violations, report the count and the first 3 s
 
 For each agent file in `.claude/agents/*.md` and each skill file in `.claude/skills/**/*.md`, read the body and check:
 
-1. **kotlin-convention-validator**: Does it check all rules listed in CLAUDE.md §Coding Rules? Are any rules missing or stated differently?
-2. **kotlin-test-fixer**: Does it reference Kotest as the test framework (not JUnit directly)?
+1. **kotlin-convention-validator**: Does it load the applicable `.claude/rules/**` and `CONTRIBUTING.md` sections (DTO Annotations, Kotlin Style, Logging, Error Handling, and Transaction Management)? Are rules missing or stated differently within its Kotlin scope?
+2. **kotlin-test-fixer**: Does it respect the module's configured Kotest or JUnit 5 framework and Gradle, Maven, or Amper test command, as documented in `CONTRIBUTING.md` §Testing?
 3. **All skill files** that reference project conventions: Do they cite the correct priority order (CLAUDE.md > .claude/rules/** > CONTRIBUTING.md)?
-4. **Any agent/skill** that states a rule contradicting CLAUDE.md (e.g., allowing a forbidden pattern in a specific context)?
+4. **Any agent/skill** that contradicts an applicable rule in CLAUDE.md, `.claude/rules/**`, or CONTRIBUTING.md (e.g., allowing a forbidden pattern in a specific context)?
 
 Also check `.agents/skills/**/*.md` independently for the same issues.
 

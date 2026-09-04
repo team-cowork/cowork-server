@@ -154,7 +154,7 @@ describe('MessageRepository', () => {
             expect(mockFindOneAndUpdate).toHaveBeenCalledWith(
                 { _id: messageId, channelId: 1 },
                 expect.any(Array),
-                { new: false },
+                { new: false, updatePipeline: true },
             );
         });
     });

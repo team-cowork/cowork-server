@@ -1,28 +1,27 @@
-import { elementFromMarkup } from "../core/dom.js";
+import { showcaseNumber } from "../core/showcase-state.js";
+import { readMotionDuration } from "../../design-system/tokens.js";
 import { createSceneTransition } from "../core/transition.js";
 import { createStickyShowcase } from "./sticky-showcase.js";
 
 export function createPositionShowcase(root) {
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const background = root.querySelector('[aria-hidden="true"] > span');
+    const background = root.querySelector("[data-showcase-background]");
     const sceneTransition = createSceneTransition(
-        root.querySelector('.relative[style*="height: 46vh"] > div'),
+        root.querySelector("[data-showcase-scene]"),
         {
-            enterDuration: 500,
-            leaveDuration: 250,
+            enterDuration: readMotionDuration("--duration-scene", root),
+            leaveDuration: readMotionDuration("--duration-panel-leave", root),
             name: "pos-panel",
             reducedMotion,
         },
     );
     const showcase = createStickyShowcase({
-        activeDotWidth: "32px",
-        inactiveDotColor: "#E5E7EB",
-        label: "포지션",
-        onStateChange(state) {
-            const nextBackground = elementFromMarkup(state.backgroundOuterHTML);
+        activeDotWidth: "var(--indicator-active)",
+        inactiveDotColor: "var(--color-indicator)",
+        onStateChange(state, index) {
             if (background) {
-                background.textContent = nextBackground?.textContent ?? "";
-                background.style.color = nextBackground?.style.color ?? "";
+                background.textContent = showcaseNumber(index);
+                background.style.color = state.color;
             }
             sceneTransition.render(state.sceneInnerHTML);
         },
