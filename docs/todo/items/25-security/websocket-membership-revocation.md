@@ -38,8 +38,8 @@ projection 저장 성공 후 room 해제를 수행하고, 해제가 완료된 �
 
 ### 구현된 회수 경로의 검증과 보완
 
-- `user:{userId}` room 기반 선택이 동일 사용자의 여러 소켓과 remote replica까지 포함하는지 검증한다.
-- `MembershipConsumer`, `TeamMemberEventConsumer`, `ChannelEventConsumer`의 현재 회수 동작을 duplicate·stale event·snapshot 조건별로 검증한다.
+- `user:{userId}` room 기반 선택이 동일 사용자의 여러 소켓과 remote replica까지 포함하는지 Socket.IO adapter 계약과 운영 상태로 확인한다.
+- `MembershipConsumer`, `TeamMemberEventConsumer`, `ChannelEventConsumer`의 duplicate·stale event·snapshot 처리는 호출 흐름과 상태 전이로 점검한다.
 - 팀 채널의 일괄 권한 평가와 소켓 조회가 대규모 팀에서도 허용 가능한 비용인지 확인한다.
 - room 해제 실패를 로그만 남기고 끝내지 않고 재시도 또는 연결 종료로 수렴시키는 정책을 적용한다.
 - 이미 구현된 `channel:access:revoked`·`team:access:revoked`의 payload와 클라이언트 재가입 동작을 계약으로 고정한다.
@@ -52,11 +52,10 @@ projection 저장 성공 후 room 해제를 수행하고, 해제가 완료된 �
 
 ## 검증
 
-- 한 사용자가 여러 브라우저와 여러 replica에 연결된 상태에서 `LEAVE`가 적용되면 모든 소켓이 해당 채널 room에서 빠지는지 검증한다.
-- `DELETE`로 팀 멤버십을 회수한 뒤 기존 소켓이 팀 및 팀 소속 채널 이벤트를 받거나 타이핑 이벤트를 전송하지 못하는지 검증한다.
-- 채널 삭제 뒤 `chat:{channelId}` room이 비워지고 재가입도 거부되는지 검증한다.
-- 중복 `LEAVE`·`DELETE` 이벤트와 이미 해제된 room에 대한 처리가 예외 없이 완료되는지 검증한다.
-- 회수 처리와 동시에 메시지가 발행되는 경합 테스트에서 projection 반영 이후의 메시지가 회수 대상에게 전달되지 않는지 검증한다.
+- 멤버십이 없는 사용자의 join·typing·재가입을 거부하는 핵심 권한 판단을 gateway와 access service 단위 테스트로 검증한다.
+- 팀 멤버십 회수 뒤 팀·채널 접근을 거부하는 정책을 단위 테스트로 검증한다.
+- 여러 브라우저·replica의 room 해제, 중복·stale event, reconnect, 동시 메시지 발행 결과는 metric과 staging 운영 rehearsal로 확인한다.
+- Socket.IO adapter, Redis, Kafka projection, room 전달 경합을 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
