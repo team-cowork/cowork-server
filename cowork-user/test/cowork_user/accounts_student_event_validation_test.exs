@@ -55,6 +55,5 @@ defmodule CoworkUser.AccountsStudentEventValidationTest do
                "occurred_at" => "not-a-timestamp"
              }) == {:error, :invalid_student_event}
     end
-
   end
 end
