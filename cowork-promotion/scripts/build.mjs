@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -6,13 +7,19 @@ import {
     inlineJson,
     replaceBundleMarker,
 } from "./lib/bundle.mjs";
-import { parseContent } from "./lib/content.mjs";
+import { parseContent, parseFeatureStates, parseRepositories } from "./lib/content.mjs";
+import {
+    componentStylesheets,
+    foundationStylesheets,
+    renderRepositoryCard,
+} from "../src/design-system/index.mjs";
 import {
     generatePositionStates,
     renderTeamMembers,
     renderTechStacks,
 } from "./lib/render.mjs";
 import { composeTemplate, replaceGeneratedRegion } from "./lib/template.mjs";
+import { renderShowcase } from "./lib/showcase-render.mjs";
 import { loadTodoContent } from "./lib/todo-content.mjs";
 import {
     renderTodoDocument,
@@ -27,18 +34,22 @@ const sourceDirectory = new URL("../src/", import.meta.url);
 const htmlDirectory = new URL("html/", sourceDirectory);
 const defaultOutputDirectory = new URL("../public/", import.meta.url);
 const defaultTodoDirectory = fileURLToPath(new URL("../../docs/todo/", import.meta.url));
-const homeStylesheetPaths = [
-    "css/showcase.css",
+const defaultRepositoryDirectory = fileURLToPath(new URL("../../", import.meta.url));
+const sharedStylesheetPaths = [
+    ...foundationStylesheets,
     "css/base.css",
     "css/utilities.css",
-    "css/components.css",
     "css/responsive.css",
+    ...componentStylesheets,
+    "css/site.css",
+];
+const homeStylesheetPaths = [
+    ...sharedStylesheetPaths,
+    "css/home.css",
+    "css/showcase.css",
 ];
 const todoStylesheetPaths = [
-    "css/base.css",
-    "css/utilities.css",
-    "css/components.css",
-    "css/responsive.css",
+    ...sharedStylesheetPaths,
     "css/todo.css",
 ];
 
@@ -56,6 +67,27 @@ function directoryUrl(value, fallback) {
 
     const directoryPath = `${resolve(String(value))}/`;
     return pathToFileURL(directoryPath);
+}
+
+function repositorySourceUrl(repositoryDirectory) {
+    let revision = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA;
+
+    if (!revision) {
+        try {
+            revision = execFileSync("git", ["rev-parse", "HEAD"], {
+                cwd: repositoryDirectory,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "ignore"],
+            }).trim();
+        } catch (error) {
+            throw new Error(
+                "Cannot determine the repository revision; provide repositorySourceUrl when building without Git metadata.",
+                { cause: error },
+            );
+        }
+    }
+
+    return `https://github.com/team-cowork/cowork-server/blob/${encodeURIComponent(revision)}/`;
 }
 
 function inlineStyles(paths, sources) {
@@ -189,10 +221,14 @@ export async function build(options = {}) {
     const todoDirectory = options.todoDirectory
         ? resolve(String(options.todoDirectory))
         : defaultTodoDirectory;
+    const repositoryDirectory = options.repositoryDirectory
+        ? resolve(String(options.repositoryDirectory))
+        : defaultRepositoryDirectory;
     const [
         sourceHtml,
         todoTemplate,
         techStackSource,
+        repositorySource,
         teamSource,
         featureStateSource,
         logoSource,
@@ -205,18 +241,24 @@ export async function build(options = {}) {
         composeTemplate(new URL("index.html", htmlDirectory), htmlDirectory),
         composeTemplate(new URL("todo.html", htmlDirectory), htmlDirectory),
         readFile(projectUrl("data/tech-stacks.yaml"), "utf8"),
+        readFile(projectUrl("data/repositories.json"), "utf8"),
         readFile(projectUrl("data/team-members.xml"), "utf8"),
         readFile(projectUrl("data/feature-states.json"), "utf8"),
         readFile(projectUrl("logo.svg"), "utf8"),
-        bundleJavaScript(sourceUrl("js/main.js"), sourceUrl("js/")),
-        bundleJavaScript(sourceUrl("js/todo-main.js"), sourceUrl("js/")),
+        bundleJavaScript(sourceUrl("js/main.js"), sourceDirectory),
+        bundleJavaScript(sourceUrl("js/todo-main.js"), sourceDirectory),
         Promise.all(
             homeStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8")),
         ),
         Promise.all(
             todoStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8")),
         ),
-        loadTodoContent({ todoDirectory }),
+        loadTodoContent({
+            todoDirectory,
+            repositoryDirectory,
+            repositorySourceUrl: options.repositorySourceUrl
+                ?? repositorySourceUrl(repositoryDirectory),
+        }),
     ]);
 
     const { team, techStacks } = parseContent({
@@ -224,20 +266,34 @@ export async function build(options = {}) {
         techStackYaml: techStackSource,
     });
     const positionStates = generatePositionStates(techStacks.positions, team);
-    const featureStates = JSON.parse(featureStateSource);
-    const generatedHomeHtml = replaceGeneratedRegion(
+    const featureStates = parseFeatureStates(featureStateSource);
+    let generatedHomeHtml = replaceGeneratedRegion(
         replaceGeneratedRegion(
             replaceGeneratedRegion(
                 sourceHtml,
-                "tech-stacks",
-                renderTechStacks(techStacks.categories),
+                "repositories",
+                parseRepositories(repositorySource).map(renderRepositoryCard).join("\n"),
             ),
-            "team-members",
-            renderTeamMembers(team),
+            "tech-stacks",
+            renderTechStacks(techStacks.categories),
         ),
-        "position-initial",
-        positionStates[0].sceneInnerHTML,
+        "team-members",
+        renderTeamMembers(team),
     );
+    generatedHomeHtml = renderShowcase(generatedHomeHtml, "features", featureStates, {
+        label: "기능",
+        backgroundClass: "feature-index",
+        dotClass: "h-1.5 rounded-full transition-all duration-300 cursor-pointer",
+        activeDotWidth: "var(--indicator-feature-active)",
+        inactiveDotColor: "var(--color-indicator-inverse)",
+    });
+    generatedHomeHtml = renderShowcase(generatedHomeHtml, "positions", positionStates, {
+        label: "포지션",
+        backgroundClass: "position-index",
+        dotClass: "h-1 rounded-full transition-all duration-500 cursor-pointer",
+        activeDotWidth: "var(--indicator-active)",
+        inactiveDotColor: "var(--color-indicator)",
+    });
     const homeStateData = [
         ["/data/feature-states.json", featureStates],
         ["/data/position-states.json", positionStates],
