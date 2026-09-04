@@ -56,7 +56,7 @@ export class UserProfileProjectionRepository {
                     ...projectionTimestampFields(shouldApply, profile.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -79,7 +79,7 @@ export class UserProfileProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
