@@ -77,7 +77,7 @@ export class TeamRoleProjectionRepository {
                     ...projectionTimestampFields(shouldApply, input.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -106,7 +106,7 @@ export class TeamRoleProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -139,7 +139,7 @@ export class TeamRoleProjectionRepository {
                     ...projectionTimestampFields(shouldApply, input.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -167,7 +167,7 @@ export class TeamRoleProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -215,7 +215,7 @@ export class TeamRoleProjectionRepository {
                     },
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
 
         const shouldDelete = deletedProjectionCondition(sourceVersion);
@@ -231,7 +231,7 @@ export class TeamRoleProjectionRepository {
                     ...projectionTimestampFields(shouldDelete, occurredAt),
                 },
             }],
-            { timestamps: false },
+            { timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result) || assignmentResult.modifiedCount > 0;
     }
