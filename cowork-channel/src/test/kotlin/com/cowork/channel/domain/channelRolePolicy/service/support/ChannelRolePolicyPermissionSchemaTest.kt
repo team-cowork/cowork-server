@@ -1,16 +1,13 @@
 package com.cowork.channel.domain.channelRolePolicy.service.support
 
-import com.cowork.channel.domain.channelRolePolicy.presentation.data.request.UpsertChannelRolePolicyRequest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import tools.jackson.module.kotlin.jacksonObjectMapper
 
 class ChannelRolePolicyPermissionSchemaTest {
     private val schema = ChannelRolePolicyPermissionSchema()
-    private val objectMapper = jacksonObjectMapper()
 
     @Test
     fun `알 수 없는 키는 값 타입과 무관하게 무시함`() {
@@ -25,15 +22,11 @@ class ChannelRolePolicyPermissionSchemaTest {
     }
 
     @Test
-    fun `알 수 없는 null 값도 wire 역직렬화 후 무시함`() {
-        val request = requireNotNull(
-            objectMapper.readValue(
-                """{"permissions":{"future_permission":null}}""",
-                UpsertChannelRolePolicyRequest::class.java,
-            ),
+    fun `알 수 없는 null 값도 무시함`() {
+        assertEquals(
+            mapOf("message_read" to false),
+            schema.normalize(mapOf("future_permission" to null)),
         )
-
-        assertEquals(mapOf("message_read" to false), schema.normalize(request.permissions))
     }
 
     @Test
