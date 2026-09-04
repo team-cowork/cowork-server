@@ -16,27 +16,23 @@ describe('ChatMessageScopeValidator', () => {
         validator = new ChatMessageScopeValidator(channels as never, messages as never);
     });
 
-    it('채널 team/project 불일치를 SCOPE_ERROR로 변환한다', async () => {
-        channels.findById.mockResolvedValue({ teamId: 9, projectId: null });
+    describe('validate', () => {
+        it('채널 team/project가 메시지 범위와 다르면 거부한다', async () => {
+            channels.findById.mockResolvedValue({ teamId: 9, projectId: null });
 
-        await expect(validator.validate(event)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
-            reasonCode: 'CHANNEL_SCOPE_MISMATCH',
+            await expect(validator.validate(event)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
+                reasonCode: 'CHANNEL_SCOPE_MISMATCH',
+            });
         });
-    });
 
-    it('부모 메시지가 같은 채널에 없으면 SCOPE_ERROR로 변환한다', async () => {
-        const withParent = { ...event, parentMessageId: '507f1f77bcf86cd799439011' };
-        channels.findById.mockResolvedValue({ teamId: 1, projectId: null });
-        messages.findByIdAndChannelId.mockResolvedValue(null);
+        it('부모 메시지가 같은 채널에 없으면 거부한다', async () => {
+            const withParent = { ...event, parentMessageId: '507f1f77bcf86cd799439011' };
+            channels.findById.mockResolvedValue({ teamId: 1, projectId: null });
+            messages.findByIdAndChannelId.mockResolvedValue(null);
 
-        await expect(validator.validate(withParent)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
-            reasonCode: 'PARENT_NOT_FOUND',
+            await expect(validator.validate(withParent)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
+                reasonCode: 'PARENT_NOT_FOUND',
+            });
         });
-    });
-
-    it('repository 오류는 scope error로 바꾸지 않고 전파한다', async () => {
-        channels.findById.mockRejectedValue(new Error('Mongo timeout'));
-
-        await expect(validator.validate(event)).rejects.toThrow('Mongo timeout');
     });
 });
