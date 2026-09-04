@@ -31,25 +31,24 @@
 - profile 필드와 account 필드가 모두 미제공된 요청을 no-op으로 처리할지 validation error로 거부할지 API 계약에 고정한다.
 - 실제 변경이 발생한 경우에만 `user.profile.event` outbox를 적재하도록 불필요한 projection event 생성 여부를 정리한다.
 
-### API 계약과 회귀 테스트
+### API 계약과 단위 테스트
 
 - `cowork-user/lib/cowork_user/open_api.ex`의 schema에 필드별 `nullable`과 빈 배열 의미를 반영한다.
-- 기존 profile을 준비한 뒤 단일 필드만 제공하는 `Accounts.update_my_profile/2` database 테스트를 추가한다.
-- `PATCH /users/me`의 미제공, 명시적 `null`, 빈 배열 조합을 router 수준에서 검증한다.
-- `name`과 `github_id`의 기존 key-presence 동작이 profile 필드 변경과 일관되게 유지되는지 고정한다.
+- 미제공, 명시적 `null`, 빈 배열을 구분하는 변경 필드 판별을 외부 의존성 없는 정책 함수로 분리한다.
+- 단일 필드 수정, 역할 유지·전체 해제, 잘못된 `roles` 값을 정책 함수와 서비스 단위 테스트로 검증한다.
+- `name`과 `github_id`의 key-presence 규칙이 profile 필드와 일관되는지 단위 테스트로 명시한다.
+- database, router, OpenAPI 렌더링, Kafka event payload를 고정하는 통합·회귀 테스트는 추가하지 않는다.
 
 ## 검증
 
-- `name`만 수정한 뒤 기존 `nickname`, `description`, `roles`가 그대로인지 확인한다.
-- `description`만 수정한 뒤 나머지 profile과 account 필드가 그대로인지 확인한다.
-- `roles`를 생략하면 기존 역할이 유지되고 빈 배열을 보내면 전체 역할이 해제되는지 검증한다.
-- `roles: null`은 `400`으로 거부되고 `nickname: null`, `description: null`은 계약대로 해당 값만 비우는지 확인한다.
-- 부분 수정 뒤 응답과 `user.profile.event` payload가 transaction의 최종 profile 상태와 일치하는지 검증한다.
-- `cowork-user`에서 `mix test`를 실행해 profile, OpenAPI, Kafka profile event 회귀 테스트가 통과하는지 확인한다.
+- `name` 또는 `description`만 제공했을 때 나머지 필드를 변경 대상으로 만들지 않는지 단위 테스트로 확인한다.
+- `roles` 생략은 유지, 빈 배열은 전체 해제, `null`은 오류로 판정하는지 단위 테스트로 검증한다.
+- `nickname: null`, `description: null`이 해당 값만 비우는 변경 집합을 만드는지 단위 테스트로 확인한다.
+- OpenAPI 계약과 event 생성 조건은 구현과 문서를 정적으로 대조한다.
 
 ## 완료 조건
 
 - `PATCH /users/me`의 미제공 필드는 기존 값을 변경하지 않는다.
 - 명시적 `null`과 빈 `roles` 배열의 의미가 OpenAPI와 구현에서 일치한다.
 - 한 필드의 부분 수정이 다른 profile 또는 account 필드를 초기화하지 않는다.
-- 미제공·`null`·빈 배열 조합의 회귀 테스트가 갖춰져 있다.
+- 미제공·`null`·빈 배열의 핵심 PATCH 정책 단위 테스트가 갖춰져 있다.
