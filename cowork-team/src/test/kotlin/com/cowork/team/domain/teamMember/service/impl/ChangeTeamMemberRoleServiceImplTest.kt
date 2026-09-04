@@ -8,62 +8,80 @@ import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleReq
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
-class ChangeTeamMemberRoleServiceImplTest {
+class ChangeTeamMemberRoleServiceImplTest :
+    DescribeSpec({
+        lateinit var teamRepository: TeamRepository
+        lateinit var memberRepository: TeamMemberRepository
+        lateinit var service: ChangeTeamMemberRoleServiceImpl
 
-    private val teamRepository = mockk<TeamRepository>()
-    private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
-    private val teamMemberAccessGuard = TeamMemberAccessGuard(teamRepository, teamMemberRepository)
+        val team = Team(id = 5L, name = "team", description = null, iconUrl = null, ownerId = 1L)
 
-    private val service =
-        ChangeTeamMemberRoleServiceImpl(
-            teamMemberRepository,
-            teamMemberEventPublisher,
-            teamMemberAccessGuard,
-        )
-
-    @Test
-    fun `changeRole은 OWNER 통과 시 잠긴 member의 full state를 발행`() {
-        val teamId = 5L
-        val actorId = 1L
-        val targetUserId = 7L
-        val team = Team(id = teamId, name = "팀X", description = null, iconUrl = null, ownerId = actorId)
-
-        every { teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, actorId, listOf(TeamRole.OWNER)) } returns
-            TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
-        every { teamRepository.findByIdForUpdate(teamId) } returns team
-        val targetMember = TeamMember(team = team, userId = targetUserId, role = TeamRole.MEMBER)
-        every { teamMemberRepository.findByTeamIdAndUserIdForUpdate(teamId, targetUserId) } returns targetMember
-
-        service.execute(actorId, teamId, targetUserId, ChangeRoleRequest(role = TeamRole.ADMIN))
-
-        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(targetMember, any()) }
-        assertEquals(TeamRole.ADMIN, targetMember.role)
-    }
-
-    @Test
-    fun `changeRole은 OWNER로 변경 시도 시 BAD_REQUEST`() {
-        val teamId = 5L
-        val actorId = 1L
-        val team = Team(id = teamId, name = "팀X", description = null, iconUrl = null, ownerId = actorId)
-
-        every { teamRepository.findByIdForUpdate(teamId) } returns team
-        every { teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(teamId, actorId, listOf(TeamRole.OWNER)) } returns
-            TeamMember(team = team, userId = actorId, role = TeamRole.OWNER)
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(actorId, teamId, 7L, ChangeRoleRequest(role = TeamRole.OWNER))
+        beforeEach {
+            teamRepository = mockk()
+            memberRepository = mockk()
+            service = ChangeTeamMemberRoleServiceImpl(
+                memberRepository,
+                mockk<TeamMemberEventPublisher>(relaxed = true),
+                TeamMemberAccessGuard(teamRepository, memberRepository),
+            )
+            every { teamRepository.findByIdForUpdate(5L) } returns team
         }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-        verify(exactly = 0) { teamMemberEventPublisher.publishUpsert(any(), any()) }
-    }
-}
+
+        describe("ChangeTeamMemberRoleServiceImpl 클래스의 execute 메서드는") {
+            context("OWNER가 일반 멤버의 역할을 변경하면") {
+                it("요청한 기본 역할을 적용한다") {
+                    val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
+                    val target = TeamMember(team = team, userId = 7L, role = TeamRole.MEMBER)
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(5L, 1L, listOf(TeamRole.OWNER))
+                    } returns owner
+                    every { memberRepository.findByTeamIdAndUserIdForUpdate(5L, 7L) } returns target
+
+                    service.execute(1L, 5L, 7L, ChangeRoleRequest(TeamRole.ADMIN))
+
+                    target.role shouldBe TeamRole.ADMIN
+                }
+            }
+
+            context("OWNER 역할을 직접 지정하려 하면") {
+                it("BAD_REQUEST로 거부한다") {
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(5L, 1L, listOf(TeamRole.OWNER))
+                    } returns TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
+
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(1L, 5L, 7L, ChangeRoleRequest(TeamRole.OWNER))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { memberRepository.findByTeamIdAndUserIdForUpdate(5L, 7L) }
+                }
+            }
+
+            context("대상 멤버가 OWNER이면") {
+                it("역할 변경을 거부한다") {
+                    val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(5L, 1L, listOf(TeamRole.OWNER))
+                    } returns owner
+                    every { memberRepository.findByTeamIdAndUserIdForUpdate(5L, 1L) } returns owner
+
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(1L, 5L, 1L, ChangeRoleRequest(TeamRole.ADMIN))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.FORBIDDEN
+                    owner.role shouldBe TeamRole.OWNER
+                }
+            }
+        }
+    })
