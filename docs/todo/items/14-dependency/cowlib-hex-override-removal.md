@@ -97,7 +97,7 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 - `mix deps` 출력에서 `cowlib`이 Hex 패키지로 표시되고 `override` 표기가 사라진다.
 - `mix.lock`의 `cowlib` 항목이 `:hex` 형식이고 체크섬을 포함한다.
 - `local.dockerfile`과 `prod.dockerfile` 빌드가 모두 성공한다.
-- 기존 테스트가 통과하고 Plug/Cowboy HTTP 서버가 정상 기동해 요청을 처리한다.
+- 핵심 비즈니스 단위 테스트가 통과하고 Plug/Cowboy HTTP 서버의 기동·요청 처리는 수동 smoke로 확인한다.
 - 복귀한 Hex 버전에서 `cow_link` 픽스가 실제로 적용되어 있는지 소스로 확인한다.
 
 ## 완료 조건
