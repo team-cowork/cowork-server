@@ -12,13 +12,17 @@
 | 애플리케이션 시크릿      | Vault                                  | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
 | 파일형 시크릿            | Docker secret 또는 배포 secret volume  | Firebase 서비스 계정 JSON                               |
 
-애플리케이션 설정 우선순위는 다음과 같다.
+Config Server 응답의 속성 우선순위는 다음과 같다.
 
 ```text
-직접 환경변수 > Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native `configs/` > 애플리케이션 기본값
+Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native `configs/`
 ```
 
-직접 환경변수 override는 로컬 단독 실행과 긴급 운영 override 용도다. Compose 애플리케이션 서비스에는 Config Server 접속값, 프로파일, replica 식별처럼 런타임에서만 알 수 있는 값만 기본 주입한다.
+클라이언트는 이를 자체 기본값·환경변수와 병합한다. Go·Elixir·Vert.x는 코드에서 매핑한 환경변수만
+덮어쓰며, Chat은 기존의 비어 있지 않은 환경변수를 보존한다. Spring은 Config Client의 property source
+우선순위를 따른다. 모든 런타임에서 임의의 환경변수가 같은 이름의 원격 설정보다 우선한다고 가정하지 않는다.
+직접 override는 로컬 단독 실행과 긴급 운영 용도이며, Compose 애플리케이션 서비스에는 Config Server
+접속값·프로파일·replica 식별처럼 런타임에서만 알 수 있는 값을 기본 주입한다.
 
 ## 프로파일
 
@@ -27,7 +31,10 @@
 | `local`  | Vault + classpath `configs/*-local.yml`     |
 | `prod`   | 외부 Vault + classpath `configs/*-prod.yml` |
 
-프로파일은 `local`과 `prod` 둘뿐이다. Gateway와 모든 backend business service는 두 프로파일 파일을 모두 가져야 하며, Config Server는 정의되지 않은 프로파일에 대해 아무 설정도 내려주지 않는다. 시크릿은 배포 전 Vault에 동일한 application 이름으로 등록한다.
+지원하는 배포 프로파일은 `local`과 `prod`다. Gateway와 모든 backend business service는 두 프로파일
+파일을 모두 가져야 한다. 공통 Vault 값과 Config Server overrides는 서비스별 파일과 별도로 공급되므로,
+응답이 비어 있지 않다고 해당 프로파일이 정의되어 있다고 판단하면 안 된다. 시크릿은 배포 전 Vault에
+동일한 application 이름으로 등록한다.
 
 ## Vault 경로
 
@@ -65,7 +72,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 | 런타임      | 방식                                                           | Config Server 실패 처리 |
 |-------------|----------------------------------------------------------------|-------------------------|
-| Spring Boot | `SPRING_CONFIG_IMPORT=configserver:...`                        | 기동 실패               |
+| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`             | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
 | Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                  | URL 지정 시 기동 실패   |
 | NestJS      | bootstrap 전 Config Server 조회                                | 기동 실패               |
 | Vert.x      | 배포 전 Config Server 조회                                     | 3회 실패 후 종료        |

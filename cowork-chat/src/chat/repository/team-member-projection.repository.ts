@@ -68,7 +68,7 @@ export class TeamMemberProjectionRepository {
                     ...projectionTimestampFields(shouldApply, member.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -91,7 +91,7 @@ export class TeamMemberProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }

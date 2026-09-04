@@ -1,0 +1,3 @@
+interface:
+  display_name: "Commit as GitHub User"
+  short_description: "Attribute shared-computer commits to a requested user"

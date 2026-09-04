@@ -1,6 +1,6 @@
 ---
 name: kotlin-convention-validator
-description: "Kotlin-only. Detects and auto-fixes convention violations in changed .kt files (git diff HEAD). Exits immediately if no Kotlin files changed. Checks CLAUDE.md and CONTRIBUTING.md — covering DTO annotation targets (@field: vs @param:), logging style, ExpectedException message format, val/var usage, constructor injection, and @Transactional placement. Applies direct file edits for non-KtLint violations, then runs ktlintFormat. Outputs a list of modified files with diffs. Trigger when the user says '컨벤션 검사해줘', 'kotlin-convention-validator 실행해', or when the code-review skill is invoked. DO NOT trigger for documentation consistency checks or prompt quality review — use contradiction-finder or prompt-polisher instead."
+description: "Kotlin-only. Detects and auto-fixes convention violations in changed .kt files (git diff HEAD). Exits immediately if no Kotlin files changed. Checks CLAUDE.md and CONTRIBUTING.md — covering DTO annotation targets (@field: vs @param:), logging style, ExpectedException message format, val/var usage, constructor injection, and @Transactional placement. Applies direct file edits for non-KtLint violations, then runs the affected module's ktlintFormat where configured. Outputs a list of modified files with diffs. Trigger when the user says '컨벤션 검사해줘', 'kotlin-convention-validator 실행해', or when the code-review skill is invoked. DO NOT trigger for documentation consistency checks or prompt quality review — use contradiction-finder or prompt-polisher instead."
 tools: Bash, Glob, Grep, Read, Edit
 model: sonnet
 color: yellow
@@ -30,7 +30,7 @@ Discover all rule files dynamically — do not rely on a hardcoded list:
 find .claude/rules -name "*.md" 2>/dev/null
 ```
 
-Read each discovered file in full. Then read `CLAUDE.md` for any top-level rules not yet covered.
+Read each discovered file in full. Then read `CLAUDE.md` and `CONTRIBUTING.md`, and check each affected module's build file for its framework and formatter.
 
 **Priority when rules conflict**: `CLAUDE.md` > `.claude/rules/**` > `CONTRIBUTING.md`
 
@@ -40,23 +40,23 @@ These rule files are the authoritative source. The concrete fixes in Step 3 (e.g
 
 For each violation found, fix it directly using the Edit tool:
 
-1. **DTO annotations**: Replace `@param:JsonProperty` → `@field:JsonProperty`, fix `@param:Schema` on ResDto files
+1. **DTO annotations**: Use `@field:JsonProperty` / `@field:JsonAlias`; use `@param:Schema` on request properties and `@field:Schema` on response properties. Identify both `ReqDto`/`ResDto` and `Request`/`Response` naming families.
 2. **Logging**: Rewrite log messages to English verb-led sentences with `{}` placeholders
 3. **ExpectedException**: Remove dynamic data from message strings (keep Korean 합쇼체 + period)
 4. **Kotlin style**: Convert `var` to `val` where safe; refactor field injection to constructor injection
-5. **Transactional**: Move class-level `@Transactional` to method level; add `readOnly = true` to read methods
+5. **Transactional**: In Spring services, move class-level `@Transactional` to methods and use `readOnly = true` for database reads. Do not add Spring transactions to Vert.x preference code or to methods that only call external providers or caches.
 
-After all edits, run:
+After edits to a Gradle Kotlin module (`gateway`, `config`, `channel`, or `team`), run its formatter, for example:
 ```bash
-./gradlew ktlintFormat
+./gradlew :cowork-team:ktlintFormat
 ```
-to apply final formatting cleanup.
+`cowork-project` (Maven) and `cowork-preference` (Amper) have no Gradle `ktlintFormat` task. Follow `.editorconfig` and inspect their diffs explicitly; root KtLint does not cover them.
 
 ## Step 4: Output Report
 
 After fixing, output a structured report:
 
-```
+````markdown
 ## Convention Validation Report
 
 ### Fixed Files (N files)
@@ -79,7 +79,7 @@ After fixing, output a structured report:
 
 ### No Violations
 - List files that were clean
-```
+````
 
 ## Rules for Judgment Calls
 
