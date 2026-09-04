@@ -112,7 +112,7 @@ export class ChannelProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -140,7 +140,7 @@ export class ChannelProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
