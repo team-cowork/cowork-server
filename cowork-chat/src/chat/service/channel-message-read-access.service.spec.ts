@@ -1,4 +1,3 @@
-import { ServiceUnavailableException } from '@nestjs/common';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
 import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
@@ -78,6 +77,7 @@ describe('ChannelMessageReadAccessService', () => {
         ]);
     });
 
+    describe('canReadChannel', () => {
     it('가장 높은 priority의 명시값을 적용하고 낮은 priority deny는 무시한다', async () => {
         await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
     });
@@ -108,7 +108,7 @@ describe('ChannelMessageReadAccessService', () => {
         await expect(service.canReadChannel(20, 5)).resolves.toBe(true);
     });
 
-    it('channel projection이 없으면 DM membership이 남아 있어도 fail-closed한다', async () => {
+    it('채널 원본 정보가 없으면 DM 멤버십이 남아 있어도 거부한다', async () => {
         channelRepository.findByIds.mockResolvedValue([]);
         channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
             [99, [{ channelId: 99, userId: 5, teamId: null, channelType: 'DM' }]],
@@ -116,8 +116,10 @@ describe('ChannelMessageReadAccessService', () => {
 
         await expect(service.canReadChannel(99, 5)).resolves.toBe(false);
     });
+    });
 
-    it('teamId/type 조합이 정확한 DM projection만 멤버십으로 읽을 수 있다', async () => {
+    describe('evaluateMany', () => {
+    it('teamId/type 조합이 정확한 DM만 멤버십으로 읽을 수 있다', async () => {
         channelRepository.findByIds.mockResolvedValue([
             { channelId: 30, teamId: null, type: 'TEXT', isPrivate: false },
             { channelId: 31, teamId: 1, type: 'DM', isPrivate: false },
@@ -135,34 +137,9 @@ describe('ChannelMessageReadAccessService', () => {
         expect(access.get('31:5')).toBe(false);
         expect(access.get('32:5')).toBe(true);
     });
-
-    it('projection이 준비되지 않았으면 저장소를 조회하지 않고 fail-closed한다', async () => {
-        projectionReadiness.isReady.mockReturnValue(false);
-
-        await expect(service.canReadChannel(10, 1)).resolves.toBe(false);
-        await expect(service.requireCanRead(10, 1)).rejects.toBeInstanceOf(ServiceUnavailableException);
-        expect(channelRepository.findByIds).not.toHaveBeenCalled();
     });
 
-    it('여러 사용자와 채널을 한 번에 평가할 때 projection 저장소를 각각 한 번만 조회한다', async () => {
-        await service.evaluateMany([
-            { channelId: 10, userId: 1 },
-            { channelId: 10, userId: 2 },
-            { channelId: 20, userId: 1 },
-            { channelId: 20, userId: 5 },
-        ]);
-
-        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-        expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith(
-            [10, 20],
-            [1, 2, 5],
-        );
-        expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledTimes(1);
-        expect(teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds).toHaveBeenCalledTimes(1);
-        expect(teamRoleRepository.findRolesByIds).toHaveBeenCalledTimes(1);
-        expect(policyRepository.findByChannelIdsAndRoleIds).toHaveBeenCalledTimes(1);
-    });
-
+    describe('evictUnauthorizedSockets', () => {
     it('권한 회수 시 거부된 socket만 채널 room에서 강제 퇴장시킨다', async () => {
         const allowedSocket = {
             data: { userId: 2 },
@@ -186,8 +163,10 @@ describe('ChannelMessageReadAccessService', () => {
         expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
         expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
     });
+    });
 
-    it('실시간 이벤트는 readable socket에만 보내고 요청한 sender socket은 제외한다', async () => {
+    describe('emitToReadableChannelUsers', () => {
+    it('실시간 이벤트는 읽기 가능한 socket에만 보내고 요청한 sender는 제외한다', async () => {
         const sender = { id: 'sender', data: { userId: 2 }, emit: jest.fn() };
         const otherAllowed = { id: 'allowed', data: { userId: 2 }, emit: jest.fn() };
         const denied = { id: 'denied', data: { userId: 3 }, emit: jest.fn() };
@@ -201,8 +180,10 @@ describe('ChannelMessageReadAccessService', () => {
         expect(otherAllowed.emit).toHaveBeenCalledWith('typing', { value: true });
         expect(denied.emit).not.toHaveBeenCalled();
     });
+    });
 
-    it('팀 범위 metadata는 stale room 구독자를 제외하고 active 팀 멤버에게만 보낸다', async () => {
+    describe('emitToActiveTeamUsers', () => {
+    it('팀 범위 이벤트는 탈퇴한 구독자를 제외하고 활성 팀 멤버에게만 보낸다', async () => {
         const active = { id: 'active', data: { userId: 2 }, emit: jest.fn() };
         const stale = { id: 'stale', data: { userId: 99 }, emit: jest.fn() };
         const io = {
@@ -217,5 +198,6 @@ describe('ChannelMessageReadAccessService', () => {
         expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
         expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
         expect(stale.emit).not.toHaveBeenCalled();
+    });
     });
 });

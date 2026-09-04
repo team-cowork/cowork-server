@@ -28,6 +28,7 @@ class InviteTeamMembersServiceImpl(
 
         val existingUserIds = teamMemberRepository.findAllByTeamIdForUpdate(teamId).map { it.userId }.toSet()
         val newMembers = request.userIds
+            .distinct()
             .filter { it !in existingUserIds }
             .map { userId -> TeamMember(team = team, userId = userId, role = TeamRole.MEMBER) }
 
