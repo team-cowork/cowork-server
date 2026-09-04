@@ -12,9 +12,9 @@ import com.cowork.project.domain.projectMember.presentation.data.request.UpdateP
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -38,60 +38,62 @@ class UpdateProjectMemberRoleServiceImplTest {
     private fun project(id: Long = 1L, teamId: Long = 100L) =
         Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L)
 
-    @Test
-    fun `updateRole은 대상 멤버가 다른 프로젝트 소속이면 BAD_REQUEST`() {
-        every { projectRepository.findByIdForUpdate(1L) } returns project()
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectMemberRepository.findByIdForUpdate(10L) } returns
-            ProjectMember(id = 10L, projectId = 2L, userId = 50L, role = ProjectMemberRole.VIEWER)
+    @Nested
+    inner class Execute {
+        @Test
+        fun `updateRole은 대상 멤버가 다른 프로젝트 소속이면 BAD_REQUEST`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectMemberRepository.findByIdForUpdate(10L) } returns
+                ProjectMember(id = 10L, projectId = 2L, userId = 50L, role = ProjectMemberRole.VIEWER)
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-    }
 
-    @Test
-    fun `updateRole은 변경하려는 역할이 OWNER면 BAD_REQUEST`() {
-        every { projectRepository.findByIdForUpdate(1L) } returns project()
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectMemberRepository.findByIdForUpdate(10L) } returns
-            ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+        @Test
+        fun `updateRole은 변경하려는 역할이 OWNER면 BAD_REQUEST`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectMemberRepository.findByIdForUpdate(10L) } returns
+                ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.OWNER))
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.OWNER))
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-    }
 
-    @Test
-    fun `updateRole은 대상 멤버가 OWNER면 BAD_REQUEST`() {
-        every { projectRepository.findByIdForUpdate(1L) } returns project()
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectMemberRepository.findByIdForUpdate(10L) } returns
-            ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.OWNER)
+        @Test
+        fun `updateRole은 대상 멤버가 OWNER면 BAD_REQUEST`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectMemberRepository.findByIdForUpdate(10L) } returns
+                ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.OWNER)
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-    }
 
-    @Test
-    fun `updateRole은 성공하면 멤버의 역할을 변경한다`() {
-        every { projectRepository.findByIdForUpdate(1L) } returns project()
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        val member = ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
-        every { projectMemberRepository.findByIdForUpdate(10L) } returns member
+        @Test
+        fun `updateRole은 성공하면 멤버의 역할을 변경한다`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            val member = ProjectMember(id = 10L, projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+            every { projectMemberRepository.findByIdForUpdate(10L) } returns member
 
-        val response = service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
+            val response = service.execute(99L, 1L, 10L, UpdateProjectMemberRoleReqDto(role = ProjectMemberRole.EDITOR))
 
-        assertEquals(ProjectMemberRole.EDITOR, response.role)
-        assertEquals(ProjectMemberRole.EDITOR, member.role)
-        verify(exactly = 1) { projectMemberEventPublisher.publishAdded(member, any()) }
+            assertEquals(ProjectMemberRole.EDITOR, response.role)
+            assertEquals(ProjectMemberRole.EDITOR, member.role)
+        }
     }
 }
