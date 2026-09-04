@@ -30,7 +30,7 @@ consumer 실행 실패 경로는 `process.exit(1)`로 프로세스를 종료한�
 
 - `ChatMessageEvent`를 `unknown`에서 검증된 이벤트로 변환하는 런타임 validator를 추가한다.
 - `eventType`, Kafka key와 `channelId` 일치, safe integer ID, `teamId`·`projectId` nullable 규칙, 본문 타입·길이, 메시지 타입, 첨부 배열, `parentMessageId`, `clientMessageId`, `occurredAt`을 검증한다.
-- producer와 consumer가 같은 이벤트 계약과 계약 버전을 사용하도록 테스트 fixture를 공통화한다.
+- producer와 consumer가 같은 이벤트 계약과 계약 버전을 참조하도록 계약 정의를 공통화한다.
 - 채널·프로젝트·부모 범위 검증 실패를 일시적 저장소 오류와 구분 가능한 계약 오류로 변환한다.
 
 ### durable quarantine
@@ -43,12 +43,11 @@ consumer 실행 실패 경로는 `process.exit(1)`로 프로세스를 종료한�
 
 ## 검증
 
-- 문법상 유효하지만 `content`, `channelId`, `attachments`가 잘못된 record가 프로세스를 종료하지 않고 격리되는지 검증한다.
-- Kafka key와 payload의 `channelId`가 다른 record가 저장·브로드캐스트되지 않는지 검증한다.
-- 같은 poison record가 재전달되어도 격리 문서가 하나만 생성되는지 검증한다.
-- quarantine 저장 실패 시 offset이 전진하지 않고 저장이 복구된 뒤 정상 격리되는지 검증한다.
-- MongoDB의 일시적 메시지 저장 실패는 quarantine으로 오분류되지 않고 재시도되는지 검증한다.
-- poison record 뒤의 정상 메시지가 처리되고 Socket.IO로 브로드캐스트되는지 통합 테스트로 확인한다.
+- 이벤트 validator가 필수 필드, ID, 본문, 첨부, key 일치 조건을 검사하는지 계약 정의와 호출 경로를 정적으로 점검한다.
+- 채널·프로젝트·부모 범위를 벗어난 메시지를 거부하는 핵심 비즈니스 규칙은 범위 validator 단위 테스트로 검증한다.
+- `(groupId, topic, partition, offset)` unique 제약과 offset 전진 조건을 schema·consumer 흐름에서 확인한다.
+- poison record, quarantine 저장 실패, MongoDB 일시 오류, 후속 정상 record 결과는 metric과 운영 rehearsal로 확인한다.
+- Kafka, MongoDB, quarantine 멱등성, offset 재시도, Socket.IO 전달을 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 

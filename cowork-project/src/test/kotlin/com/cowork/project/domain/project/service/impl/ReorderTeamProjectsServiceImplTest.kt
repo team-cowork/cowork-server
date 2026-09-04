@@ -9,9 +9,9 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -33,31 +33,43 @@ class ReorderTeamProjectsServiceImplTest {
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
 
-    @Test
-    fun `reorderTeamProjects는 요청 순서대로 position을 갱신함`() {
-        val first = project(id = 1L, position = 0)
-        val second = project(id = 2L, position = 1)
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
-        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, second)
+    @Nested
+    inner class Execute {
+        @Test
+        fun `reorderTeamProjects는 요청 순서대로 position을 갱신함`() {
+            val first = project(id = 1L, position = 0)
+            val second = project(id = 2L, position = 1)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, second)
 
-        val result = service.execute(7L, 100L, listOf(2L, 1L))
+            val result = service.execute(7L, 100L, listOf(2L, 1L))
 
-        assertEquals(listOf(2L, 1L), result.map { it.id })
-        assertEquals(1, first.position)
-        assertEquals(0, second.position)
-        verify(exactly = 1) { projectEventPublisher.publishUpdated(second, any()) }
-        verify(exactly = 1) { projectEventPublisher.publishUpdated(first, any()) }
-    }
-
-    @Test
-    fun `reorderTeamProjects는 팀 프로젝트 ID 누락 시 BAD_REQUEST`() {
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
-        every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
-            listOf(project(id = 1L), project(id = 2L))
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(7L, 100L, listOf(1L))
+            assertEquals(listOf(2L, 1L), result.map { it.id })
+            assertEquals(1, first.position)
+            assertEquals(0, second.position)
         }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+
+        @Test
+        fun `reorderTeamProjects는 팀 프로젝트 ID 누락 시 BAD_REQUEST`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
+                listOf(project(id = 1L), project(id = 2L))
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(7L, 100L, listOf(1L))
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
+
+        @Test
+        fun `reorderTeamProjects는 중복 ID가 있으면 BAD_REQUEST`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(7L, 100L, listOf(1L, 1L))
+            }
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
     }
 }

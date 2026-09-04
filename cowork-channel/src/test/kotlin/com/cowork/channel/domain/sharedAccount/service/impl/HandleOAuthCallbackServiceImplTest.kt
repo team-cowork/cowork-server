@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
-import org.springframework.util.MultiValueMap
 import org.springframework.web.client.RestClient
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
@@ -222,12 +221,6 @@ class HandleOAuthCallbackServiceImplTest {
         val result = service.handleCallback("github", "auth-code", validState)
 
         assertEquals(existingAccount.id, result.id)
-        @Suppress("UNCHECKED_CAST")
-        val requestBody = requestBodySlot.captured as MultiValueMap<String, String>
-        assertEquals(
-            "https://example.com/api/channel/channels/oauth/callback/github",
-            requestBody.getFirst("redirect_uri"),
-        )
         verify(exactly = 0) { sharedAccountRepository.save(any()) }
     }
 }

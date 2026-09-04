@@ -10,7 +10,7 @@
 
 `EndSession`과 `EndSessionAndEnqueue`는 MongoDB의 상태를 `ended`로 바꾼 뒤 세 Redis key를 삭제한다. 삭제 실패는 error log만 남기고 종료 결과는 성공으로 반환한다. 또한 cache miss 조회가 MongoDB의 active 세션을 읽은 직후 다른 요청이 종료 처리하면, 늦게 실행된 `cacheSession`이 eviction 뒤에 예전 active 값을 다시 쓸 수 있다.
 
-`cowork-voice/internal/domain/voice_room/service.go`의 `Join`은 `FindActiveSession` 결과를 그대로 재사용해 LiveKit room을 준비하고 token을 발급한다. 따라서 stale hit가 있으면 MongoDB에서는 이미 종료된 session ID와 room name으로 재입장할 수 있고 새 active 세션 생성도 건너뛴다. `cowork-voice/internal/infra/redis/`에는 repository 테스트가 없으며 domain 테스트는 stub이 active 결과를 정확히 반환한다고 가정한다. MongoDB-backed 서비스에는 SQL migration이 없고, 현재 model·index 코드에도 cache generation이나 durable invalidation 상태가 없다.
+`cowork-voice/internal/domain/voice_room/service.go`의 `Join`은 `FindActiveSession` 결과를 그대로 재사용해 LiveKit room을 준비하고 token을 발급한다. 따라서 stale hit가 있으면 MongoDB에서는 이미 종료된 session ID와 room name으로 재입장할 수 있고 새 active 세션 생성도 건너뛴다. 현재 단위 테스트는 입장 권한과 room lifecycle 같은 핵심 비즈니스 규칙을 다루며 Redis·MongoDB cache 일관성 메커니즘은 테스트 범위에서 제외한다. MongoDB-backed 서비스에는 SQL migration이 없고, 현재 model·index 코드에도 cache generation이나 durable invalidation 상태가 없다.
 
 ## cache 일관성 정책
 
@@ -40,20 +40,19 @@
 - repair에 backoff와 상한을 두고 pending marker 수, 최고 지연, stale 차단 횟수, repair 실패를 metric으로 노출한다.
 - MongoDB schema field와 index가 필요하면 `cowork-voice/internal/domain/voice_room/model.go`와 `CreateIndexes`에 코드 기반으로 반영한다.
 
-### repository 회귀 테스트
+### 정적·운영 검증과 핵심 정책
 
-- Redis 동작을 제어할 수 있는 test server와 stub Mongo repository로 `cachedSessionRepository` 단위 테스트를 추가한다.
-- cache hit 검증, tombstone compare-and-set, eviction 실패, Redis 복구 repair 경로를 독립적으로 재현한다.
-- domain `Join` 테스트에 종료 session cache 후보가 반환되는 경로를 추가한다.
+- cache hit 검증, tombstone compare-and-set, eviction, repair의 조건을 repository 코드와 상태 전이표로 점검한다.
+- stale 차단, repair 적체, Redis 복구 뒤 수렴은 metric과 통제된 운영 rehearsal로 확인한다.
+- `Join`이 종료된 session으로 token을 발급하지 않는 핵심 판단은 repository mock을 사용한 서비스 단위 테스트로 검증한다.
+- Redis test server, MongoDB repository, cache 경쟁·복구를 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 검증
 
-- Redis에 active 값이 남고 MongoDB에는 같은 session이 ended인 상태에서 `FindActiveSession`이 stale session을 반환하지 않는지 확인한다.
-- MongoDB 종료 성공 뒤 Redis를 중단해 eviction을 실패시키고도 다음 `POST /voice/channels/{channel_id}/join`이 종료 session을 재사용하지 않는지 검증한다.
-- cache fill을 지연시켜 종료 tombstone 뒤 이전 active 값 쓰기를 시도하고 compare-and-set이 이를 거부하는지 확인한다.
-- Redis 복구 뒤 repair가 channel, room name, session ID key와 pending marker를 모두 수렴시키는지 검증한다.
-- 새 active session이 생성된 뒤 이전 generation의 repair가 새 cache를 삭제하지 않는지 확인한다.
-- `cowork-voice`에서 `go test ./internal/infra/redis ./internal/domain/voice_room`을 실행해 repository와 Join 회귀 테스트가 통과하는지 확인한다.
+- authoritative session 확인과 tombstone/version 비교가 모든 cache hit·fill 경로에 적용되는지 정적으로 점검한다.
+- 종료 session 재사용 차단은 `Join` 서비스 단위 테스트로 검증한다.
+- eviction 실패, 지연 cache write, Redis 복구, 이전 generation repair 결과는 metric과 운영 rehearsal로 확인한다.
+- 새 active session이 이전 generation의 repair 대상과 구분되는지 key·version 설계를 검토한다.
 
 ## 완료 조건
 
@@ -61,4 +60,4 @@
 - eviction 실패와 지연된 cache write가 종료 tombstone보다 오래된 active 값을 되살리지 않는다.
 - `Join`이 종료 session의 session ID와 room name으로 LiveKit token을 발급하지 않는다.
 - durable invalidation marker가 Redis 복구 뒤 완료 상태로 수렴한다.
-- stale 차단과 repair 동작이 repository 테스트와 metric으로 확인 가능하다.
+- stale 차단과 repair 동작이 metric으로 확인되고 복구 절차가 runbook에 명시되어 있다.

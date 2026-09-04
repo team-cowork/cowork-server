@@ -85,7 +85,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `vault-init.sh` 저장 경로를 함께 갱신한다.
 4. 파일형 credential은 read-only Docker secret 또는 배포 secret volume을 사용한다.
 5. 모듈 README의 설정 공급 표를 함께 갱신한다.
-6. `docker compose config --quiet`와 해당 모듈 테스트를 실행한다.
+6. `docker compose config --quiet`와 해당 모듈의 핵심 비즈니스·권한·보안 단위 테스트를 실행한다.
 
 ## 운영 체크
 
