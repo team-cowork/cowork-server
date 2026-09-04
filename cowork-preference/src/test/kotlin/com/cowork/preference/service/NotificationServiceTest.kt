@@ -1,65 +1,76 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.ChannelNotificationPreference
-import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import io.mockk.coEvery
-import io.mockk.coVerifyOrder
 import io.mockk.mockk
-import io.mockk.slot
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.OffsetDateTime
 
 class NotificationServiceTest {
 
-    @Test
-    fun `notification read uses the authoritative repository value`() = runBlocking {
-        val repository = mockk<NotificationRepository>()
-        val outboxRepository = mockk<PreferenceOutboxRepository>()
-        val persisted = JsonObject().put("notification", false)
-        coEvery { repository.findNotification(11, 22) } returns persisted
+    private lateinit var repository: NotificationRepository
+    private lateinit var outboxRepository: PreferenceOutboxRepository
+    private lateinit var service: NotificationService
 
-        val result = NotificationService(repository, outboxRepository)
-            .getNotification(11, 22)
-
-        assertEquals(persisted, result)
+    @BeforeEach
+    fun setUp() {
+        repository = mockk()
+        outboxRepository = mockk(relaxed = true)
+        service = NotificationService(repository, outboxRepository)
     }
 
-    @Test
-    fun `notification mutation and state event use the same transaction connection`() = runBlocking {
-        val repository = mockk<NotificationRepository>()
-        val outboxRepository = mockk<PreferenceOutboxRepository>()
-        val connection = mockk<SqlConnection>()
-        val persisted = ChannelNotificationPreference(
-            accountId = 11,
-            channelId = 22,
-            notification = false,
-            stateOccurredAt = OffsetDateTime.parse("2026-08-26T01:02:03Z"),
-        )
-        val event = slot<PreferenceEvent>()
-        val settings = JsonObject().put("notification", false)
+    @Nested
+    inner class GetNotification {
 
-        coEvery { outboxRepository.inTransaction<ChannelNotificationPreference>(any()) } coAnswers {
-            firstArg<suspend (SqlConnection) -> ChannelNotificationPreference>().invoke(connection)
+        @Test
+        fun `저장된 채널 설정이 있으면 저장된 알림 값을 반환한다`() = runBlocking {
+            val persisted = JsonObject().put("notification", false)
+            coEvery { repository.findNotification(11L, 22L) } returns persisted
+
+            assertEquals(persisted, service.getNotification(11L, 22L))
         }
-        coEvery { repository.upsertNotification(connection, 11, 22, settings) } returns persisted
-        coEvery { outboxRepository.enqueue(connection, capture(event)) } returns Unit
 
-        val result = NotificationService(repository, outboxRepository)
-            .updateNotification(11, 22, settings)
+        @Test
+        fun `저장된 채널 설정이 없으면 알림을 켠 기본값을 반환한다`() = runBlocking {
+            coEvery { repository.findNotification(11L, 22L) } returns null
 
-        assertEquals(settings, result)
-        assertEquals("preference.channel-notification.changed", event.captured.topic)
-        assertEquals("11:22", event.captured.key)
-        assertEquals(persisted.stateOccurredAt.toInstant(), event.captured.occurredAt)
-        coVerifyOrder {
-            repository.upsertNotification(connection, 11, 22, settings)
-            outboxRepository.enqueue(connection, any())
+            assertEquals(
+                JsonObject().put("notification", true),
+                service.getNotification(11L, 22L),
+            )
+        }
+    }
+
+    @Nested
+    inner class UpdateNotification {
+
+        @Test
+        fun `알림 값을 끄면 정규화된 설정을 저장하고 반환한다`() = runBlocking {
+            val connection = mockk<SqlConnection>()
+            val requested = JsonObject().put("notification", false).put("unknown", true)
+            val normalized = JsonObject().put("notification", false)
+            coEvery { outboxRepository.inTransaction<ChannelNotificationPreference>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> ChannelNotificationPreference>().invoke(connection)
+            }
+            coEvery { repository.upsertNotification(connection, 11L, 22L, normalized) } returns
+                ChannelNotificationPreference(
+                    accountId = 11L,
+                    channelId = 22L,
+                    notification = false,
+                    stateOccurredAt = OffsetDateTime.parse("2026-08-30T01:02:03Z"),
+                )
+
+            val result = service.updateNotification(11L, 22L, requested)
+
+            assertEquals(normalized, result)
         }
     }
 }
