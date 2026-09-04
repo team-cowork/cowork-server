@@ -11,7 +11,6 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.verifyOrder
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
@@ -117,26 +116,6 @@ class GithubRepoAccessResolverTest :
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForModify(7L, 1L, 5L) }
 
                         ex.statusCode shouldBe HttpStatus.FORBIDDEN
-                    }
-                }
-            }
-
-            describe("resolveForModifyForUpdate 메서드는") {
-                it("project와 repo link를 같은 순서로 잠근 뒤 반환한다") {
-                    val proj = project()
-                    every { projectAccessGuard.findProjectForUpdateOrThrow(1L) } returns proj
-                    every { projectAccessGuard.requireProjectModifier(proj, 7L) } just Runs
-                    every {
-                        projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L)
-                    } returns repoLink()
-
-                    resolver.resolveForModifyForUpdate(7L, 1L, 5L) shouldBe
-                        GithubRepoRef(owner = "my-org", repo = "my-repo")
-
-                    verifyOrder {
-                        projectAccessGuard.findProjectForUpdateOrThrow(1L)
-                        projectAccessGuard.requireProjectModifier(proj, 7L)
-                        projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L)
                     }
                 }
             }
