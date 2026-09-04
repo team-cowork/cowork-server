@@ -97,7 +97,7 @@ positions:
       - Amper
   Web Client:
     color: "#eab308"
-    description: 웹 브라우저 환경의 사용자 인터페이스를 개발합니다. MFE 아키텍처로 확장 가능한 프론트엔드를 구성합니다.
+    description: Next.js 기반 협업 웹 클라이언트를 개발합니다. FSD(Feature-Sliced Design) 구조로 기능별 코드를 구성합니다.
     technologies:
       - TypeScript
       - React
