@@ -6,6 +6,7 @@ import {
     SnapshotBarrierReceipt,
 } from './projection-checkpoint.repository';
 import {
+    ADMIN_REQUEST_TIMEOUT_MS,
     hasCompletedSnapshotBarriers,
     hasReachedStartupOffsets,
     isCheckpointWithinRetainedRange,
@@ -55,12 +56,20 @@ describe('ProjectionReadinessService', () => {
             memberId: 'member-1',
             groupGenerationId: 1,
         });
-        const admin = {
-            connect: jest.fn().mockResolvedValue(undefined),
-            disconnect: jest.fn().mockResolvedValue(undefined),
-            fetchTopicOffsets: jest.fn().mockResolvedValue(topicOffsets),
-        };
-        const kafka = { admin: jest.fn(() => admin) } as unknown as Kafka;
+        // fetchTopicOffsets는 인스턴스끼리 공유해 topic 기준으로 한 번에 스텁할 수 있게 한다.
+        const fetchTopicOffsets = jest.fn().mockResolvedValue(topicOffsets);
+        const adminInstances: Array<{ connect: jest.Mock; disconnect: jest.Mock }> = [];
+        const kafkaAdmin = jest.fn(() => {
+            const instance = {
+                connect: jest.fn().mockResolvedValue(undefined),
+                disconnect: jest.fn().mockResolvedValue(undefined),
+                fetchTopicOffsets,
+            };
+            adminInstances.push(instance);
+            return instance;
+        });
+        const admin = { fetchTopicOffsets };
+        const kafka = { admin: kafkaAdmin } as unknown as Kafka;
         const seek = jest.fn();
         const pause = jest.fn();
         const resume = jest.fn();
@@ -245,6 +254,8 @@ describe('ProjectionReadinessService', () => {
 
         return {
             kafka,
+            kafkaAdmin,
+            adminInstances,
             consumer,
             admin,
             checkpoints,
@@ -291,6 +302,7 @@ describe('ProjectionReadinessService', () => {
     afterEach(async () => {
         await service?.onModuleDestroy();
         service = undefined;
+        jest.useRealTimers();
     });
 
     it('모든 파티션의 shared checkpoint가 시작 high-watermark에 도달해야 완료된다', () => {
@@ -733,5 +745,56 @@ describe('ProjectionReadinessService', () => {
         await service.checkCatchup();
         expect(service.isReady()).toBe(true);
         expect(readyResolved).toBe(true);
+    });
+    it('projection마다 전용 admin 커넥션을 연결한다', async () => {
+        const harness = createHarness([{ partition: 0, low: '0', high: '0', offset: '0' }]);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
+
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channelMember);
+
+        expect(harness.kafkaAdmin).toHaveBeenCalledTimes(2);
+        expect(harness.adminInstances).toHaveLength(2);
+        expect(harness.adminInstances[0].connect).toHaveBeenCalledTimes(1);
+        expect(harness.adminInstances[1].connect).toHaveBeenCalledTimes(1);
+    });
+
+    it('한 stream의 admin 요청이 멈춰도 다른 stream 등록은 진행된다', async () => {
+        jest.useFakeTimers();
+        const harness = createHarness([{ partition: 0, low: '0', high: '0', offset: '0' }]);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
+        harness.admin.fetchTopicOffsets.mockImplementation((topic: string) => (
+            topic === PROJECTION_STREAMS.teamRole.topic
+                ? new Promise(() => {})
+                : Promise.resolve([{ partition: 0, low: '0', high: '0', offset: '0' }])
+        ));
+
+        void service
+            .registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.teamRole)
+            .catch(() => undefined);
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channelMember);
+
+        expect(service.getDetailedStatus().channelMember).toBeDefined();
+        expect(service.getDetailedStatus().teamRole).toBeUndefined();
+    });
+
+    it('admin 요청이 상한을 넘기면 커넥션을 폐기하고 다음 호출에서 재연결한다', async () => {
+        jest.useFakeTimers();
+        const harness = createHarness([{ partition: 0, low: '0', high: '0', offset: '0' }]);
+        service = new ProjectionReadinessService(harness.checkpoints, harness.datasets, harness.metrics);
+        harness.admin.fetchTopicOffsets.mockReturnValueOnce(new Promise(() => {}));
+
+        const registration = service
+            .registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+        const rejected = expect(registration).rejects.toThrow('timed out');
+        await jest.advanceTimersByTimeAsync(ADMIN_REQUEST_TIMEOUT_MS);
+        await rejected;
+
+        expect(harness.adminInstances[0].disconnect).toHaveBeenCalledTimes(1);
+
+        await service.registerProjection(harness.kafka, harness.consumer, PROJECTION_STREAMS.channel);
+
+        expect(harness.kafkaAdmin).toHaveBeenCalledTimes(2);
+        expect(service.getDetailedStatus().channel).toBeDefined();
     });
 });

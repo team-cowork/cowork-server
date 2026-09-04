@@ -160,7 +160,19 @@ export interface ProjectionStreamStatus {
     partitions: ProjectionPartitionStatus[];
 }
 
+interface ProjectionAdminConnection {
+    kafka: Kafka;
+    admin?: Admin;
+    connectPromise?: Promise<Admin>;
+}
+
 const POLL_INTERVAL_MS = 1_000;
+/**
+ * kafkajs RequestQueue는 broker throttling 등으로 pending queue에 남은 요청에는 requestTimeout을
+ * 적용하지 않아(inflight 요청만 sweep한다) 한 번 막힌 admin 커넥션이 영원히 응답하지 않을 수 있다.
+ * 상한을 넘긴 요청은 실패시키고 커넥션을 폐기해 다음 호출이 새 커넥션을 쓰게 한다.
+ */
+export const ADMIN_REQUEST_TIMEOUT_MS = 15_000;
 
 function isSameLease(
     checkpoint: ProjectionCheckpointOffset | undefined,
@@ -245,8 +257,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     private readonly logger = new Logger(ProjectionReadinessService.name);
     private readonly states = new Map<ProjectionName, ProjectionCatchupState>();
     private readonly registrations = new Map<ProjectionName, Promise<void>>();
-    private admin?: Admin;
-    private adminPromise?: Promise<Admin>;
+    private readonly admins = new Map<ProjectionName, ProjectionAdminConnection>();
     private checkPromise?: Promise<void>;
     private pollTimer?: NodeJS.Timeout;
     private stopped = false;
@@ -268,8 +279,10 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         const existing = this.registrations.get(name);
         if (existing) return existing;
 
-        const registration = this.captureStartupState(kafka, consumer, name, stream).catch((error: unknown) => {
+        this.admins.set(name, { kafka });
+        const registration = this.captureStartupState(consumer, name, stream).catch((error: unknown) => {
             this.registrations.delete(name);
+            this.resetAdmin(name);
             throw error;
         });
         this.registrations.set(name, registration);
@@ -466,7 +479,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         const name = streamName as ProjectionName;
         const state = this.states.get(name);
         if (!state) throw new BadRequestException(`Projection stream is not registered: ${streamName}`);
-        const offsets = await this.requireAdmin().fetchTopicOffsets(state.stream.topic);
+        const offsets = await this.withAdmin(
+            name,
+            (admin) => admin.fetchTopicOffsets(state.stream.topic),
+            `fetchTopicOffsets(${state.stream.topic})`,
+        );
         const dataset = await this.datasets.requestRebuild(
             state.stream,
             reason,
@@ -511,11 +528,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             state.localAssignmentLeases.clear();
         }));
 
-        if (this.adminPromise) {
-            await this.adminPromise
-                .then((admin) => admin.disconnect())
-                .catch(() => undefined);
-        }
+        await Promise.all([...this.admins.values()].map(async (connection) => {
+            const admin = await (connection.connectPromise ?? Promise.resolve(undefined)).catch(() => undefined);
+            if (admin) await admin.disconnect().catch(() => undefined);
+        }));
+        this.admins.clear();
     }
 
     private async resolveStartupDataset(
@@ -605,13 +622,15 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     private async captureStartupState(
-        kafka: Kafka,
         consumer: Consumer,
         name: ProjectionName,
         stream: ProjectionStream,
     ): Promise<void> {
-        const admin = await this.getAdmin(kafka);
-        const targets = await admin.fetchTopicOffsets(stream.topic);
+        const targets = await this.withAdmin(
+            name,
+            (admin) => admin.fetchTopicOffsets(stream.topic),
+            `fetchTopicOffsets(${stream.topic})`,
+        );
         if (targets.length === 0) {
             throw new Error(`Kafka projection topic has no partitions: ${stream.topic}`);
         }
@@ -841,7 +860,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             return;
         }
         if (!['ACTIVE', 'INITIALIZING', 'REBUILDING'].includes(dataset.status)) return;
-        const currentOffsets = await this.requireAdmin().fetchTopicOffsets(state.stream.topic);
+        const currentOffsets = await this.withAdmin(
+            state.stream.name as ProjectionName,
+            (admin) => admin.fetchTopicOffsets(state.stream.topic),
+            `fetchTopicOffsets(${state.stream.topic})`,
+        );
         if (state.pendingAssignment !== pending || pending.revision !== state.assignmentRevision) return;
         const startupPartitions = state.targets.map(({ partition }) => partition).sort((a, b) => a - b);
         const currentPartitions = currentOffsets.map(({ partition }) => partition).sort((a, b) => a - b);
@@ -1028,12 +1051,75 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         state.assignmentTask = queued.catch(onError);
     }
 
-    private getAdmin(kafka: Kafka): Promise<Admin> {
-        if (!this.adminPromise) {
-            this.admin = kafka.admin();
-            this.adminPromise = this.admin.connect().then(() => this.admin as Admin);
+    /**
+     * projection마다 전용 admin 커넥션을 쓴다. 하나를 공유하면 backlog가 큰 stream이
+     * 커넥션을 점유하는 동안 다른 stream의 등록/poll이 같은 커넥션 뒤에 head-of-line
+     * blocking으로 묶인다.
+     */
+    private getAdmin(name: ProjectionName): Promise<Admin> {
+        const connection = this.admins.get(name);
+        if (!connection) {
+            return Promise.reject(new Error(`Kafka projection admin is not registered: ${name}`));
         }
-        return this.adminPromise;
+        if (!connection.connectPromise) {
+            const admin = connection.kafka.admin();
+            // 실패한 연결을 memoize하면 이후 모든 호출이 같은 rejection을 그대로 재사용한다.
+            connection.connectPromise = admin.connect()
+                .then(() => {
+                    connection.admin = admin;
+                    return admin;
+                })
+                .catch((error: unknown) => {
+                    connection.admin = undefined;
+                    connection.connectPromise = undefined;
+                    throw error;
+                });
+        }
+        return connection.connectPromise;
+    }
+
+    /** admin 요청에 상한을 두고, 상한을 넘기면 해당 커넥션을 폐기해 다음 호출이 재연결하게 한다. */
+    private async withAdmin<T>(
+        name: ProjectionName,
+        run: (admin: Admin) => Promise<T>,
+        operation: string,
+    ): Promise<T> {
+        const admin = await this.getAdmin(name);
+        let timer: NodeJS.Timeout | undefined;
+        let timedOut = false;
+        try {
+            return await Promise.race([
+                run(admin),
+                new Promise<never>((_resolve, reject) => {
+                    timer = setTimeout(() => {
+                        timedOut = true;
+                        reject(new Error(
+                            `Kafka projection admin request timed out after ${ADMIN_REQUEST_TIMEOUT_MS}ms `
+                            + `[stream=${name}, operation=${operation}]`,
+                        ));
+                    }, ADMIN_REQUEST_TIMEOUT_MS);
+                    timer.unref();
+                }),
+            ]);
+        } catch (error) {
+            if (timedOut) this.resetAdmin(name, admin);
+            throw error;
+        } finally {
+            if (timer) clearTimeout(timer);
+        }
+    }
+
+    /** 막힌 admin 커넥션을 등록에서 떼어낸다. disconnect 자체도 응답하지 않을 수 있어 대기하지 않는다. */
+    private resetAdmin(name: ProjectionName, staleAdmin?: Admin): void {
+        const connection = this.admins.get(name);
+        if (!connection) return;
+        if (staleAdmin && connection.admin !== staleAdmin) return;
+        const admin = connection.admin;
+        connection.admin = undefined;
+        connection.connectPromise = undefined;
+        if (!admin) return;
+        this.logger.warn(`Kafka projection admin connection is being recycled [stream=${name}]`);
+        void admin.disconnect().catch(() => undefined);
     }
 
     private async doCheckCatchup(): Promise<void> {
@@ -1064,7 +1150,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 if (assignmentRevision !== state.assignmentRevision) return;
                 const storedCheckpoints = await this.checkpoints.find(state.stream.groupId, state.stream.topic);
                 if (assignmentRevision !== state.assignmentRevision) return;
-                const currentOffsets = await this.requireAdmin().fetchTopicOffsets(state.stream.topic);
+                const currentOffsets = await this.withAdmin(
+                    name,
+                    (admin) => admin.fetchTopicOffsets(state.stream.topic),
+                    `fetchTopicOffsets(${state.stream.topic})`,
+                );
                 if (assignmentRevision !== state.assignmentRevision) return;
                 const currentByPartition = new Map(currentOffsets.map((offset) => [offset.partition, offset]));
                 for (const checkpoint of storedCheckpoints) {
@@ -1205,11 +1295,6 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             void this.checkCatchup();
         }, POLL_INTERVAL_MS);
         this.pollTimer.unref();
-    }
-
-    private requireAdmin(): Admin {
-        if (!this.admin) throw new Error('Kafka projection admin is not connected');
-        return this.admin;
     }
 
     private markFatalInvariantViolation(reason: string): void {
