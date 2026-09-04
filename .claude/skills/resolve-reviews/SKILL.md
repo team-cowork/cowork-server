@@ -32,7 +32,7 @@ Before assessing any comment, discover and read all project convention files:
 find .claude/rules -name "*.md" 2>/dev/null
 ```
 
-Read each returned file in full. These are the authoritative rules for judging each review comment.
+Read each returned file in full, together with `CLAUDE.md` and `CONTRIBUTING.md`. Apply only the rules relevant to the target module and framework.
 
 **Rule priority**: `CLAUDE.md` > `.claude/rules/**` > `CONTRIBUTING.md`
 
@@ -42,7 +42,7 @@ For each comment in `pr_comments.json`, apply the following **layered judgment c
 
 1. **Project conventions** (primary): apply rules discovered above
    - DTO annotation rules, commit scope, logging style, exception message format, etc.
-2. **Language/framework best practices** (secondary): Kotlin official guide, Spring Boot recommendations
+2. **Language/framework best practices** (secondary): official guidance for the target module's language and framework
    - Apply only when no matching project rule exists
 
 ### Verdicts
@@ -51,7 +51,7 @@ For each comment in `pr_comments.json`, apply the following **layered judgment c
 - **INVALID**: reviewer is wrong with a clear refutation → skip, post refutation reply
 - **PARTIAL**: intent is correct but application method or scope is ambiguous → confirm with AskUserQuestion
 
-Always cite a specific source in the rationale (e.g. `CLAUDE.md §Logging Style`, `Kotlin: prefer val over var`).
+Always cite a specific source in the rationale (e.g. `CONTRIBUTING.md §Log Message Style` or `CONTRIBUTING.md §Prefer val over var`).
 
 ## Step 3 — Act on Each Verdict
 
@@ -60,7 +60,7 @@ Always cite a specific source in the rationale (e.g. `CLAUDE.md §Logging Style`
 1. Read the target file with the Read tool
 2. Apply the reviewer's concern with the Edit tool
 3. If the changes have not been committed yet, commit them
-4. Record the short commit hash for use in Step 5:
+4. Record the short commit hash for use in Step 6:
    ```bash
    git rev-parse --short=7 HEAD
    ```
@@ -69,7 +69,7 @@ On failure: record the reason and fall back to PARTIAL.
 
 ### INVALID → Skip
 
-Do not modify any code. Record the refutation rationale for Step 5.
+Do not modify any code. Record the refutation rationale for Step 6.
 
 ### PARTIAL → Confirm with AskUserQuestion
 
@@ -93,8 +93,8 @@ Accept? (y / n / s = skip for now)
 
 | # | Reviewer | File | Verdict | Rationale | Action |
 |---|----------|------|---------|-----------|--------|
-| 1 | alice | Foo.kt:12 | ✅ VALID | CLAUDE.md §Logging Style | Auto-fixed (abc1234) |
-| 2 | bob | Bar.kt:34 | ❌ INVALID | CLAUDE.md §Exception Message | Skipped |
+| 1 | alice | Foo.kt:12 | ✅ VALID | CONTRIBUTING.md §Log Message Style | Auto-fixed (abc1234) |
+| 2 | bob | Bar.kt:34 | ❌ INVALID | CONTRIBUTING.md §Use ExpectedException Directly | Skipped |
 | 3 | alice | Baz.kt:56 | ⚠️ PARTIAL | - | PENDING |
 ```
 
