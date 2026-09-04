@@ -2,6 +2,7 @@
 
 - **서비스**: cowork-config, Config Client 11개, 배포 인프라
 - **우선순위**: 🟠 중간
+- **현재 상태**: 저장소의 Git backend 제거와 prod native 설정 전환은 반영되어 있고, 외부 원본 대조·staging 검증·기존 자격 증명 폐기가 남아 있음
 - **결론**: Git backend 제거와 `cowork-*-prod.yml` 11개 추가 완료. 외부 Git 원본과의 key 대조 및 staging 검증이 남아 있음
 
 ## 진행 상태 (2026-08-20)
@@ -31,7 +32,8 @@ Config Server는 native 설정의 `${...}`를 **해석하지 않고 그대로 �
 
 | 구분     | 서비스                                                                | 규칙                                                                                                                                                                                 |
 |----------|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Spring   | gateway, channel, project, roadmap, team, preference                  | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}` 사용 가능. 기본값이 없는 이름은 Config Server `overrides`에 등록해 응답에 포함시켜야 한다.                               |
+| Spring   | gateway, channel, project, roadmap, team                              | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}`를 사용할 수 있다. 기본값 없는 값은 client 환경변수, Vault 또는 Config Server `overrides` 등 해석 가능한 공급원에서 제공한다. |
+| Vert.x   | preference                                                           | 자체 Config Client가 문자열 placeholder를 해당 process 환경변수로 해석한다. Spring Environment를 사용하지 않으므로 필요한 값은 preference 컨테이너 환경변수 또는 해석된 Vault 값으로 공급한다. |
 | 비Spring | authorization, notification, voice (Go), chat (NestJS), user (Elixir) | 원격 문자열의 placeholder를 해석하지 않는다. **리터럴 값만 사용한다.** 배포 환경에서 바꿔야 하는 값은 `overrides`에 같은 키 이름으로 등록하거나 해당 컨테이너의 환경변수로 덮어쓴다. |
 
 `overrides`에 등록된 flat 키는 Spring 클라이언트의 placeholder 해석 소스가 되는 동시에, 비Spring 클라이언트가 키 이름으로 직접 읽는 값이 된다. 현재 등록 대상은 `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL`이다.
@@ -42,7 +44,7 @@ Config Server를 `native` 프로파일로 기동하고 prod와 동일한 `overri
 
 - 11개 모두 `cowork-{service}-prod.yml`이 propertySources에 로드됨
 - 비Spring 5개 서비스 응답에 미해결 placeholder 없음
-- Spring 6개 서비스의 남은 placeholder는 전부 기본값 보유·`overrides` 제공·Vault 제공 중 하나로 해석 가능
+- placeholder를 해석하는 6개 서비스(Spring 5개·Vert.x 1개)의 남은 값은 당시 기본값 보유·`overrides` 제공·Vault 제공 중 하나로 분류했다. Vert.x는 다른 flat key를 Spring Environment처럼 참조하지 않으므로 현재 배포의 client 환경변수·Vault 공급 여부를 staging에서 다시 검증한다.
 - 공통 `application.yml`의 `spring.kafka.bootstrap-servers`는 비Spring 서비스가 읽지 않는 키이므로 무해 (각각 `KAFKA_BOOTSTRAP_SERVERS`, `kafka.brokers`, `KAFKA_BROKERS`, `kafka_bootstrap_servers`를 사용)
 
 Vault 연결이 필요한 시크릿 해석과 각 서비스의 실제 분산 기동은 남은 staging 검증에서 확인한다.
