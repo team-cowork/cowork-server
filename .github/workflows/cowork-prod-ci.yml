@@ -1541,8 +1541,6 @@ jobs:
                   lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
               if module_scope_changed:
                   lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 개별 증감과 전체 증감은 N/A입니다.", ""]
-              if test_scope_changed:
-                  lines += ["테스트 소스 유무로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 개별 증감과 전체 증감은 N/A입니다.", ""]
               if diagnostics:
                   lines += ["보고서 검증 오류:", ""] + [f"- {text(message[:500])}" for message in diagnostics] + [""]
               body = "\n".join(lines)
