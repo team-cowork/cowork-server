@@ -1,6 +1,6 @@
 {
   "name": "cowork-chat",
-  "version": "20260903.0.0",
+  "version": "20260904.0.0",
   "description": "채팅 서비스.",
   "main": "index.js",
   "scripts": {
@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "lint": "eslint \"src/**/*.ts\"",
-    "lint:fix": "eslint \"src/**/*.ts\" --fix"
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts"
   },
   "keywords": [],
   "author": "",

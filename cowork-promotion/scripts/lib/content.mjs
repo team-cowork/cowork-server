@@ -2,6 +2,34 @@ import { XMLParser } from "fast-xml-parser";
 import { parse as parseYaml } from "yaml";
 import { expectArray, expectColor, expectString } from "./validation.mjs";
 
+export function parseFeatureStates(source) {
+    return expectArray(JSON.parse(source), "feature-states").map((state, index) => ({
+        color: expectColor(state?.color, `feature-states[${index}].color`),
+        sceneInnerHTML: expectString(state?.sceneInnerHTML, `feature-states[${index}].sceneInnerHTML`),
+    }));
+}
+
+export function parseRepositories(source) {
+    const names = new Set();
+    return expectArray(JSON.parse(source), "repositories").map((repository, index) => {
+        const name = expectString(repository?.name, `repositories[${index}].name`);
+        if (!/^[a-zA-Z0-9_.-]+$/.test(name) || names.has(name)) {
+            throw new Error(`Invalid or duplicate repository name: ${name}`);
+        }
+        names.add(name);
+        if (!Number.isInteger(repository.graphHeight) || repository.graphHeight <= 0) {
+            throw new Error(`Invalid repository graph height: ${name}`);
+        }
+        return {
+            name,
+            label: expectString(repository.label, `repositories[${index}].label`),
+            description: expectString(repository.description, `repositories[${index}].description`),
+            graphHeight: repository.graphHeight,
+            centered: repository.centered === true,
+        };
+    });
+}
+
 function normalizeTechStacks(rawData) {
     const categories = expectArray(rawData?.categories, "tech-stacks.categories").map(
         (category, categoryIndex) => ({

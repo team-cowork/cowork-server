@@ -1,0 +1,33 @@
+[
+  {
+    "name": "cowork-server",
+    "label": "Backend",
+    "description": "MSA 기반 통합 백엔드 API 서버",
+    "graphHeight": 340
+  },
+  {
+    "name": "cowork-web-client",
+    "label": "Web",
+    "description": "Next.js 기반 웹 브라우저 환경의 협업 클라이언트",
+    "graphHeight": 215
+  },
+  {
+    "name": "cowork-desktop-app-client",
+    "label": "Desktop",
+    "description": "데스크탑 환경의 협업 클라이언트",
+    "graphHeight": 190
+  },
+  {
+    "name": "cowork-github-app",
+    "label": "GitHub App",
+    "description": "GitHub 저장소와의 협업 연동 앱",
+    "graphHeight": 215,
+    "centered": true
+  },
+  {
+    "name": "cowork-mobile-app-client",
+    "label": "Mobile",
+    "description": "모바일 환경의 협업 클라이언트",
+    "graphHeight": 215
+  }
+]

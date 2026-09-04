@@ -52,7 +52,7 @@ export class ChannelRolePolicyProjectionRepository {
                     ...projectionTimestampFields(shouldApply, input.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
@@ -81,7 +81,7 @@ export class ChannelRolePolicyProjectionRepository {
                     ...projectionTimestampFields(shouldApply, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
         return projectionUpdateApplied(result);
     }
