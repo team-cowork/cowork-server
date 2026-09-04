@@ -33,18 +33,19 @@
 
 - 삭제가 거부될 때 충돌 이유와 대상 assignment 수를 `409` 응답으로 제공한다.
 - assignment가 삭제 또는 전환되면 관련 클라이언트가 목록을 갱신할 수 있는 계약을 정한다.
-- 삭제 도중 일부 작업만 반영되지 않도록 transaction rollback을 검증한다.
+- 삭제 도중 일부 작업만 반영되지 않도록 하나의 transaction 경계를 적용한다.
 
 ## 검증
 
-- assignment가 연결된 루트·자식·손자 노드 삭제를 정책별로 통합 테스트한다.
-- 서브트리 밖의 assignment는 영향을 받지 않는지 확인한다.
-- 기존 고아 데이터 정리 뒤 존재하지 않는 `node_id`를 가진 row가 없는지 검사한다.
-- 노드 삭제와 assignment 정리 중 오류가 발생하면 둘 다 rollback되는지 검증한다.
+- assignment가 연결된 루트·자식·손자 노드에 확정된 삭제 정책이 적용되는지 repository mock 기반 서비스 단위 테스트로 검증한다.
+- 서브트리 밖의 assignment를 변경 대상으로 선택하지 않는 핵심 범위 규칙을 단위 테스트로 확인한다.
+- 노드 삭제와 assignment 작업이 같은 reactive transaction 경계에 있는지 정적으로 점검한다.
+- 기존 고아 데이터 정리 결과와 foreign key는 migration dry-run 및 데이터 검사로 확인한다.
+- database rollback과 migration을 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
 - 삭제된 노드를 참조하는 roadmap assignment가 남지 않는다.
 - 노드 삭제와 assignment 처리가 하나의 명시된 정책과 transaction으로 동작한다.
 - 기존 고아 데이터가 정리되어 있다.
-- 서브트리 삭제 회귀 테스트가 assignment까지 포함한다.
+- 서브트리 삭제의 assignment 정책이 서비스 단위 테스트에 포함되어 있다.

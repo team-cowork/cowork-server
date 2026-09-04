@@ -12,6 +12,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -33,27 +34,31 @@ class UpdateProjectServiceImplTest {
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
 
-    @Test
-    fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L, "OWNER")
+    @Nested
+    inner class Execute {
+        @Test
+        fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                membership(100L, 99L, "OWNER")
 
-        val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
-        assertEquals("newName", response.name)
-    }
-
-    @Test
-    fun `updateProject은 팀 비멤버이면 FORBIDDEN`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L, UpdateProjectReqDto(name = "x"))
+            val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
+            assertEquals("newName", response.name)
         }
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+
+        @Test
+        fun `updateProject은 팀 비멤버이면 FORBIDDEN`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, UpdateProjectReqDto(name = "x"))
+            }
+            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        }
     }
 }
