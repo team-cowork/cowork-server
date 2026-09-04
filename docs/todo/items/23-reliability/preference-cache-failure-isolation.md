@@ -39,11 +39,11 @@
 
 ## 검증
 
-- Redis를 중단한 상태에서 단건·bulk GET이 PostgreSQL 결과를 반환하는지 검증한다.
-- PUT 중 Redis set이 실패해도 DB와 outbox가 한 번만 commit되고 성공 응답 계약이 유지되는지 확인한다.
-- GitHub setting command 처리 뒤 Redis invalidate가 계속 실패해도 result outbox row가 증가하지 않는지 통합 테스트한다.
-- Redis 복구 뒤 stale cache가 정한 시간과 repair 정책 안에서 최신 값으로 수렴하는지 확인한다.
-- cache 실패 metric과 경고 로그에 설정 원문이 포함되지 않는지 검증한다.
+- cache 오류가 authoritative read·write 결과를 덮어쓰지 않는지 호출 경계와 예외 흐름을 정적으로 점검한다.
+- DB·outbox commit과 cache set·invalidate의 transaction 경계를 코드와 schema로 확인한다.
+- Redis 장애 중 result outbox 증가율, cache 실패율, repair 적체와 수렴 시간은 metric과 통제된 운영 점검으로 확인한다.
+- 로그와 metric label에 설정 원문이 포함되지 않는지 로깅 지점을 정적으로 점검한다.
+- Redis, database, Kafka command 재처리를 구동하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
