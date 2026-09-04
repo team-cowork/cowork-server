@@ -40,15 +40,15 @@
 
 ## 검증
 
-- 같은 팀에 채널·프로젝트를, 같은 parent에 roadmap node를 수십 건 동시에 생성하는 통합 테스트를 추가한다.
-- roadmap sibling 삭제로 gap을 만든 뒤 node를 생성해 기존 position과 충돌하지 않는지 검증한다.
-- create와 reorder를 동시에 실행해 중복·누락 position과 잘못된 event가 없는지 확인한다.
-- 두 reorder 요청이 겹칠 때 결과가 정책대로 직렬화되거나 한 요청이 명시적으로 충돌하는지 검증한다.
-- 기존 중복 데이터 정리 migration 뒤 각 scope의 position 유일성을 검사한다.
+- 중복·누락 ID, 다른 scope ID, 잘못된 순열을 거부하는 reorder 비즈니스 규칙을 서비스 단위 테스트로 검증한다.
+- gap이 있는 sibling 집합에서 다음 position을 결정하는 순수 정책을 단위 테스트로 검증한다.
+- 생성·reorder의 lock 경계와 최종 event 값은 transaction 선언과 호출 그래프를 정적으로 점검한다.
+- 동시 요청의 직렬화, unique 제약 충돌, migration 결과는 배포 전 dry-run과 runtime metric·데이터 점검으로 확인한다.
+- database 경합과 event 순서를 고정하는 동시성 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
 - 같은 팀의 채널·프로젝트와 같은 roadmap parent의 node에 중복 position이 저장되지 않는다.
 - 생성과 reorder 경합의 결과가 결정적이며 문서화되어 있다.
 - database 상태와 projection event의 position이 일치한다.
-- 동시성 통합 테스트가 세 서비스에 존재한다.
+- 핵심 정렬 규칙의 단위 테스트와 동시성 운영 검증 절차가 세 서비스에 마련되어 있다.

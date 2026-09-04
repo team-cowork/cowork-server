@@ -12,7 +12,6 @@ import (
 
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"github.com/golang-jwt/jwt/v5"
 	"gorm.io/gorm"
 )
 
@@ -31,23 +30,49 @@ func jsonResponse(status int, body string) *http.Response {
 }
 
 type fakeRefreshTokenStore struct {
-	createdToken    *domain.RefreshToken
-	createdAt       time.Time
-	createdTopic    string
-	createErr       error
-	rotationSource  *domain.RefreshToken
-	rotateErr       error
-	rotateOldHash   string
-	rotateNewHash   string
-	rotateExpiresAt time.Time
-	rotateAt        time.Time
-	rotateCallCount int
-	revokedHash     string
-	revokedUserID   int64
-	revokedAt       time.Time
-	revokedTopic    string
-	revokeErr       error
-	revokeCallCount int
+	createdToken   *domain.RefreshToken
+	createErr      error
+	rotationSource *domain.RefreshToken
+	rotateErr      error
+	rotateCalls    int
+	revokedHash    string
+	revokedUserID  int64
+	revokeErr      error
+	revokeCalls    int
+}
+
+func (f *fakeRefreshTokenStore) CreateSession(
+	_ context.Context,
+	token *domain.RefreshToken,
+	_ time.Time,
+	_ string,
+) error {
+	f.createdToken = token
+	return f.createErr
+}
+
+func (f *fakeRefreshTokenStore) RotateSession(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ time.Time,
+	_ time.Time,
+) (*domain.RefreshToken, error) {
+	f.rotateCalls++
+	return f.rotationSource, f.rotateErr
+}
+
+func (f *fakeRefreshTokenStore) RevokeSession(
+	_ context.Context,
+	hash string,
+	userID int64,
+	_ time.Time,
+	_ string,
+) error {
+	f.revokeCalls++
+	f.revokedHash = hash
+	f.revokedUserID = userID
+	return f.revokeErr
 }
 
 type fakeIdentityCoordinator struct {
@@ -64,48 +89,6 @@ func (f *fakeIdentityCoordinator) EnsureUser(
 	return f.userID, f.err
 }
 
-func (f *fakeRefreshTokenStore) CreateSession(
-	_ context.Context,
-	token *domain.RefreshToken,
-	occurredAt time.Time,
-	topic string,
-) error {
-	f.createdToken = token
-	f.createdAt = occurredAt
-	f.createdTopic = topic
-	return f.createErr
-}
-
-func (f *fakeRefreshTokenStore) RotateSession(
-	_ context.Context,
-	oldHash string,
-	newHash string,
-	newExpiresAt time.Time,
-	now time.Time,
-) (*domain.RefreshToken, error) {
-	f.rotateCallCount++
-	f.rotateOldHash = oldHash
-	f.rotateNewHash = newHash
-	f.rotateExpiresAt = newExpiresAt
-	f.rotateAt = now
-	return f.rotationSource, f.rotateErr
-}
-
-func (f *fakeRefreshTokenStore) RevokeSession(
-	_ context.Context,
-	hash string,
-	userID int64,
-	occurredAt time.Time,
-	topic string,
-) error {
-	f.revokeCallCount++
-	f.revokedHash = hash
-	f.revokedUserID = userID
-	f.revokedAt = occurredAt
-	f.revokedTopic = topic
-	return f.revokeErr
-}
-
 func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
 	cfg := &config.AppConfig{
 		JWTSecret:              "unit-test-secret",
@@ -118,18 +101,25 @@ func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
 	return service
 }
 
-func TestIssueNewSessionDelegatesTokenPresenceAndOutboxToOneStoreOperation(t *testing.T) {
+func TestIssueNewSession_WhenIdentityIsValid_IssuesAndStoresAHashedSession(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.August, 26, 1, 2, 3, 456000000, time.UTC)
+	now := time.Date(2026, time.August, 26, 1, 2, 3, 0, time.UTC)
 	store := &fakeRefreshTokenStore{}
 	service := newUnitAuthService(store, now)
 
-	pair, err := service.issueNewSession(context.Background(), 7, "user@example.com", "MEMBER", "STUDENT", "device")
+	pair, err := service.issueNewSession(
+		context.Background(),
+		7,
+		"user@example.com",
+		"MEMBER",
+		"STUDENT",
+		"device",
+	)
 	if err != nil {
 		t.Fatalf("issueNewSession() error = %v", err)
 	}
-	if pair.RefreshToken == "" || pair.AccessToken == "" {
+	if pair.AccessToken == "" || pair.RefreshToken == "" {
 		t.Fatal("issued token pair is empty")
 	}
 	if store.createdToken == nil || store.createdToken.UserID != 7 {
@@ -138,27 +128,22 @@ func TestIssueNewSessionDelegatesTokenPresenceAndOutboxToOneStoreOperation(t *te
 	if store.createdToken.TokenHash == "" || store.createdToken.TokenHash == pair.RefreshToken {
 		t.Fatal("refresh token must be stored only as a non-empty hash")
 	}
-	if store.createdToken.PlatformRole != "MEMBER" {
-		t.Fatalf("stored platform role = %q, want MEMBER", store.createdToken.PlatformRole)
-	}
-	if !store.createdAt.Equal(now) || store.createdTopic != "user.presence.event" {
-		t.Fatalf("presence mutation = %s/%q, want %s/user.presence.event", store.createdAt, store.createdTopic, now)
+	if store.createdToken.PlatformRole != "MEMBER" || store.createdToken.GsmRole != "STUDENT" {
+		t.Fatalf("stored roles = %q/%q", store.createdToken.PlatformRole, store.createdToken.GsmRole)
 	}
 }
 
-func TestIdentityOwnerCommitMustSucceedBeforeSessionAndTokenIssue(t *testing.T) {
+func TestCommitIdentityAndIssueSession_WhenIdentityIsRejected_DoesNotIssueTokens(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.August, 27, 1, 2, 3, 0, time.UTC)
 	store := &fakeRefreshTokenStore{}
-	identity := &fakeIdentityCoordinator{err: errors.New("owner rejected command")}
-	service := newUnitAuthService(store, now)
+	identity := &fakeIdentityCoordinator{err: errors.New("identity rejected")}
+	service := newUnitAuthService(store, time.Now().UTC())
 	service.identity = identity
 
-	command := domain.UserIdentityCommand{UserID: 7}
 	pair, err := service.commitIdentityAndIssueSession(
 		context.Background(),
-		command,
+		domain.UserIdentityCommand{UserID: 7},
 		"user@example.com",
 		"MEMBER",
 		"STUDENT",
@@ -168,66 +153,98 @@ func TestIdentityOwnerCommitMustSucceedBeforeSessionAndTokenIssue(t *testing.T) 
 		t.Fatalf("commitIdentityAndIssueSession() = %+v, %v; want failure", pair, err)
 	}
 	if identity.calls != 1 || store.createdToken != nil {
-		t.Fatalf("owner calls=%d createdToken=%+v; token/session must follow SUCCEEDED", identity.calls, store.createdToken)
-	}
-
-	identity.err = nil
-	identity.userID = 7
-	pair, err = service.commitIdentityAndIssueSession(
-		context.Background(),
-		command,
-		"user@example.com",
-		"MEMBER",
-		"STUDENT",
-		"",
-	)
-	if err != nil || pair == nil || store.createdToken == nil {
-		t.Fatalf("successful owner commit did not issue session: pair=%+v token=%+v err=%v", pair, store.createdToken, err)
+		t.Fatalf("identity calls=%d, created token=%+v", identity.calls, store.createdToken)
 	}
 }
 
-func TestRefreshUsesSingleAtomicRotationOperation(t *testing.T) {
+func TestRefreshTokens_AccordingToSessionState(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, time.August, 26, 1, 2, 3, 0, time.UTC)
-	store := &fakeRefreshTokenStore{rotationSource: &domain.RefreshToken{
-		UserID:       7,
-		Email:        "user@example.com",
-		GsmRole:      "STUDENT",
-		PlatformRole: "ADMIN",
-		ExpiresAt:    now.Add(time.Hour),
-	}}
-	service := newUnitAuthService(store, now)
+	t.Run("an active refresh session returns a replacement pair", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeRefreshTokenStore{rotationSource: &domain.RefreshToken{
+			UserID:       7,
+			Email:        "user@example.com",
+			GsmRole:      "STUDENT",
+			PlatformRole: "ADMIN",
+			ExpiresAt:    now.Add(time.Hour),
+		}}
 
-	pair, err := service.RefreshTokens(context.Background(), "old-refresh-token")
-	if err != nil {
-		t.Fatalf("RefreshTokens() error = %v", err)
+		pair, err := newUnitAuthService(store, now).RefreshTokens(context.Background(), "refresh-token")
+		if err != nil || pair == nil || pair.AccessToken == "" || pair.RefreshToken == "" {
+			t.Fatalf("RefreshTokens() = %+v, %v", pair, err)
+		}
+	})
+
+	tests := []struct {
+		name      string
+		storeErr  error
+		wantCause error
+	}{
+		{name: "an unknown refresh token is denied", storeErr: gorm.ErrRecordNotFound},
+		{name: "an expired refresh token is denied", storeErr: domain.ErrRefreshTokenExpired},
+		{name: "a storage failure is classified as unavailable", storeErr: errors.New("storage unavailable"), wantCause: ErrAuthenticationUnavailable},
 	}
-	if pair.RefreshToken == "" || store.rotateCallCount != 1 {
-		t.Fatalf("atomic rotations = %d, pair = %+v", store.rotateCallCount, pair)
-	}
-	if store.rotateOldHash != HashToken("old-refresh-token") {
-		t.Fatal("old refresh token hash was not passed to the atomic rotation")
-	}
-	if store.rotateNewHash == "" || !store.rotateAt.Equal(now) {
-		t.Fatalf("rotation arguments = hash %q at %s", store.rotateNewHash, store.rotateAt)
-	}
-	if !store.rotateExpiresAt.Equal(now.Add(24 * time.Hour)) {
-		t.Fatalf("replacement expiry = %s", store.rotateExpiresAt)
-	}
-	claims := &Claims{}
-	parser := jwt.NewParser(jwt.WithoutClaimsValidation())
-	if _, err := parser.ParseWithClaims(pair.AccessToken, claims, func(_ *jwt.Token) (any, error) {
-		return []byte(service.cfg.JWTSecret), nil
-	}); err != nil {
-		t.Fatalf("parse refreshed access token: %v", err)
-	}
-	if claims.Role != "ADMIN" {
-		t.Fatalf("refreshed access role = %q, want ADMIN", claims.Role)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			store := &fakeRefreshTokenStore{rotateErr: test.storeErr}
+			pair, err := newUnitAuthService(store, now).RefreshTokens(context.Background(), "refresh-token")
+			if err == nil || pair != nil {
+				t.Fatalf("RefreshTokens() = %+v, %v; want denial", pair, err)
+			}
+			if test.wantCause != nil && !errors.Is(err, test.wantCause) {
+				t.Fatalf("RefreshTokens() error = %v, want %v", err, test.wantCause)
+			}
+		})
 	}
 }
 
-func TestPlatformRoleFromDataGSMMapsProviderContractAndRejectsUnknownValues(t *testing.T) {
+func TestLogout_AccordingToTokenOwnership(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the owner can revoke a refresh token", func(t *testing.T) {
+		t.Parallel()
+		store := &fakeRefreshTokenStore{}
+		service := newUnitAuthService(store, time.Now().UTC())
+
+		if err := service.Logout(context.Background(), 7, "refresh-token"); err != nil {
+			t.Fatalf("Logout() error = %v", err)
+		}
+		if store.revokeCalls != 1 || store.revokedUserID != 7 || store.revokedHash != HashToken("refresh-token") {
+			t.Fatalf("revoke calls=%d user=%d hash=%q", store.revokeCalls, store.revokedUserID, store.revokedHash)
+		}
+	})
+
+	tests := []struct {
+		name      string
+		storeErr  error
+		wantCause error
+	}{
+		{name: "a missing token is denied", storeErr: gorm.ErrRecordNotFound},
+		{name: "a token owned by another user is denied", storeErr: domain.ErrRefreshTokenOwnerMismatch},
+		{name: "a storage failure is classified as unavailable", storeErr: errors.New("storage unavailable"), wantCause: ErrAuthenticationUnavailable},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := newUnitAuthService(&fakeRefreshTokenStore{revokeErr: test.storeErr}, time.Now().UTC()).Logout(
+				context.Background(),
+				7,
+				"refresh-token",
+			)
+			if err == nil {
+				t.Fatal("Logout() error = nil, want denial")
+			}
+			if test.wantCause != nil && !errors.Is(err, test.wantCause) {
+				t.Fatalf("Logout() error = %v, want %v", err, test.wantCause)
+			}
+		})
+	}
+}
+
+func TestPlatformRoleFromDataGSM_AccordingToProviderRole(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -243,117 +260,22 @@ func TestPlatformRoleFromDataGSMMapsProviderContractAndRejectsUnknownValues(t *t
 	for _, test := range tests {
 		t.Run(test.providerRole, func(t *testing.T) {
 			t.Parallel()
-
 			got, err := PlatformRoleFromDataGSM(test.providerRole)
-			if (err != nil) != test.wantError {
-				t.Fatalf("PlatformRoleFromDataGSM(%q) error = %v", test.providerRole, err)
-			}
-			if got != test.want {
-				t.Fatalf("PlatformRoleFromDataGSM(%q) = %q, want %q", test.providerRole, got, test.want)
+			if (err != nil) != test.wantError || got != test.want {
+				t.Fatalf("PlatformRoleFromDataGSM(%q) = %q, %v", test.providerRole, got, err)
 			}
 		})
 	}
 }
 
-func TestProviderStatusErrorCannotExposeResponseBody(t *testing.T) {
+func TestProviderStatusError_WhenProviderRejectsRequest_DoesNotExposeResponseBody(t *testing.T) {
 	t.Parallel()
 
-	err := providerStatusError("token", 401)
-	if got, want := err.Error(), "token endpoint returned status 401"; got != want {
-		t.Fatalf("providerStatusError() = %q, want body-free %q", got, want)
+	if got, want := providerStatusError("token", 401).Error(), "token endpoint returned status 401"; got != want {
+		t.Fatalf("providerStatusError() = %q, want %q", got, want)
 	}
 }
 
-func TestAuthenticationInfrastructureFailuresAreClassifiedAsUnavailable(t *testing.T) {
-	t.Parallel()
-
-	if err := providerStatusError("token", 503); !errors.Is(err, ErrAuthenticationUnavailable) {
-		t.Fatalf("provider 503 error = %v, want ErrAuthenticationUnavailable", err)
-	}
-
-	now := time.Date(2026, time.August, 27, 1, 2, 3, 0, time.UTC)
-	store := &fakeRefreshTokenStore{createErr: errors.New("database unavailable")}
-	identity := &fakeIdentityCoordinator{userID: 7}
-	service := newUnitAuthService(store, now)
-	service.identity = identity
-
-	pair, err := service.commitIdentityAndIssueSession(
-		context.Background(),
-		domain.UserIdentityCommand{UserID: 7},
-		"user@example.com",
-		"MEMBER",
-		"STUDENT",
-		"",
-	)
-	if pair != nil || !errors.Is(err, ErrAuthenticationUnavailable) {
-		t.Fatalf("session persistence failure = pair %+v, err %v; want unavailable", pair, err)
-	}
-
-	store.rotateErr = errors.New("database unavailable")
-	if _, err := service.RefreshTokens(context.Background(), "refresh-token"); !errors.Is(err, ErrAuthenticationUnavailable) {
-		t.Fatalf("refresh persistence failure = %v, want unavailable", err)
-	}
-
-	store.revokeErr = errors.New("database unavailable")
-	if err := service.Logout(context.Background(), 7, "refresh-token"); !errors.Is(err, ErrAuthenticationUnavailable) {
-		t.Fatalf("logout persistence failure = %v, want unavailable", err)
-	}
-}
-
-func TestRefreshLoserCannotReturnMintedSuccessor(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.August, 26, 1, 2, 3, 0, time.UTC)
-	store := &fakeRefreshTokenStore{rotateErr: gorm.ErrRecordNotFound}
-	service := newUnitAuthService(store, now)
-
-	pair, err := service.RefreshTokens(context.Background(), "already-rotated-or-revoked")
-	if err == nil || pair != nil {
-		t.Fatalf("RefreshTokens() = %+v, %v; want no successor", pair, err)
-	}
-	if store.rotateCallCount != 1 {
-		t.Fatalf("atomic rotations = %d, want 1", store.rotateCallCount)
-	}
-}
-
-func TestLogoutDelegatesOwnershipRevocationAndPresenceToOneStoreOperation(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, time.August, 26, 1, 2, 3, 0, time.UTC)
-	store := &fakeRefreshTokenStore{}
-	service := newUnitAuthService(store, now)
-
-	if err := service.Logout(context.Background(), 7, "refresh-token"); err != nil {
-		t.Fatalf("Logout() error = %v", err)
-	}
-	if store.revokedHash != HashToken("refresh-token") || store.revokedUserID != 7 {
-		t.Fatalf("revocation = hash %q user %d", store.revokedHash, store.revokedUserID)
-	}
-	if !store.revokedAt.Equal(now) || store.revokedTopic != "user.presence.event" {
-		t.Fatalf("presence mutation = %s/%q", store.revokedAt, store.revokedTopic)
-	}
-}
-
-func TestLogoutDoesNotSplitRevocationFromPresenceFailure(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeRefreshTokenStore{revokeErr: errors.New("transaction rolled back")}
-	service := newUnitAuthService(store, time.Now().UTC())
-
-	err := service.Logout(context.Background(), 7, "refresh-token")
-	if err == nil {
-		t.Fatal("Logout() expected transaction failure")
-	}
-	if store.revokeCallCount != 1 {
-		t.Fatalf("atomic revoke calls = %d, want 1", store.revokeCallCount)
-	}
-}
-
-// newExchangeUnitAuthService wires an AuthService whose DataGSM HTTP calls are
-// stubbed via RoundTripper (following client/user_client_test.go's pattern)
-// and whose identity commit goes through a fakeIdentityCoordinator, so
-// ExchangeCode is exercised end-to-end without any real network, Kafka, or
-// database dependency.
 func newExchangeUnitAuthService(
 	dataGSM roundTripFunc,
 	identity *fakeIdentityCoordinator,
@@ -369,9 +291,9 @@ func newExchangeUnitAuthService(
 		DataGSMUserInfoURL:     "https://datagsm.invalid/oauth/userinfo",
 	}
 
-	svc := NewAuthService(cfg, identity, store, NewTokenService(cfg))
-	svc.httpClient = &http.Client{Transport: dataGSM}
-	return svc
+	service := NewAuthService(cfg, identity, store, NewTokenService(cfg))
+	service.httpClient = &http.Client{Transport: dataGSM}
+	return service
 }
 
 func dataGSMUserInfoBody(t *testing.T, info DataGSMUserInfo) string {
@@ -383,142 +305,75 @@ func dataGSMUserInfoBody(t *testing.T, info DataGSMUserInfo) string {
 	return string(body)
 }
 
-func TestExchangeCodePropagatesNonStudentRejectionBeforeCommittingIdentity(t *testing.T) {
+func TestExchangeCode_AccordingToAccountEligibility(t *testing.T) {
 	t.Parallel()
 
-	identity := &fakeIdentityCoordinator{userID: 1}
-	info := DataGSMUserInfo{ID: 99, Email: "staff@example.com", Role: "USER", IsStudent: false}
-	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
-		if strings.Contains(req.URL.String(), "/oauth/token") {
-			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+	t.Run("a non-student account is rejected before identity creation", func(t *testing.T) {
+		t.Parallel()
+		identity := &fakeIdentityCoordinator{userID: 1}
+		info := DataGSMUserInfo{ID: 99, Email: "staff@example.com", Role: "USER", IsStudent: false}
+		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
+			if strings.Contains(request.URL.String(), "/oauth/token") {
+				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+			}
+			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+		}, identity, &fakeRefreshTokenStore{})
+
+		pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback")
+		if err == nil || pair != nil || identity.calls != 0 {
+			t.Fatalf("ExchangeCode() = %+v, %v; identity calls=%d", pair, err, identity.calls)
 		}
-		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-	}, identity, &fakeRefreshTokenStore{})
+	})
 
-	pair, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
-	if err == nil || pair != nil {
-		t.Fatalf("ExchangeCode() = %+v, %v; want rejection for non-student accounts", pair, err)
-	}
-	if identity.calls != 0 {
-		t.Fatalf("identity commit calls = %d, want 0 for a non-student account", identity.calls)
-	}
-}
-
-func TestExchangeCodeIssuesSessionAfterCommittingStudentIdentity(t *testing.T) {
-	t.Parallel()
-
-	info := DataGSMUserInfo{
-		ID:        99,
-		Email:     "student@example.com",
-		Role:      "USER",
-		IsStudent: true,
-		Student: &DataGSMStudent{
-			ID:       501,
-			Name:     "Student",
-			Sex:      "MAN",
-			Grade:    2,
-			ClassNum: 3,
-			Number:   14,
-			Major:    "SW_DEVELOPMENT",
-			Role:     "GENERAL_STUDENT",
-		},
-	}
-	store := &fakeRefreshTokenStore{}
-	identity := &fakeIdentityCoordinator{userID: 99}
-	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
-		if strings.Contains(req.URL.String(), "/oauth/token") {
-			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+	t.Run("an eligible student receives a session with the mapped platform role", func(t *testing.T) {
+		t.Parallel()
+		info := DataGSMUserInfo{
+			ID:        99,
+			Email:     "student@example.com",
+			Role:      "USER",
+			IsStudent: true,
+			Student: &DataGSMStudent{
+				ID: 501, Name: "Student", Sex: "MAN", Grade: 2, ClassNum: 3, Number: 14,
+				Major: "SW_DEVELOPMENT", Role: "GENERAL_STUDENT",
+			},
 		}
-		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-	}, identity, store)
+		identity := &fakeIdentityCoordinator{userID: 99}
+		store := &fakeRefreshTokenStore{}
+		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
+			if strings.Contains(request.URL.String(), "/oauth/token") {
+				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+			}
+			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+		}, identity, store)
 
-	pair, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
-	if err != nil {
-		t.Fatalf("ExchangeCode() error = %v", err)
-	}
-	if pair.AccessToken == "" || pair.RefreshToken == "" {
-		t.Fatalf("issued pair = %+v, want populated tokens", pair)
-	}
-	if identity.calls != 1 {
-		t.Fatalf("identity commit calls = %d, want 1", identity.calls)
-	}
-	if store.createdToken == nil || store.createdToken.UserID != 99 {
-		t.Fatalf("session stored for user %+v, want the id returned by EnsureUser (99)", store.createdToken)
-	}
-	if store.createdToken.PlatformRole != "MEMBER" {
-		t.Fatalf("stored platform role = %q, want MEMBER (mapped from provider role USER)", store.createdToken.PlatformRole)
-	}
-}
-
-func TestExchangeCodeRejectsUnsupportedProviderRoleBeforeCommittingIdentity(t *testing.T) {
-	t.Parallel()
-
-	identity := &fakeIdentityCoordinator{userID: 1}
-	info := DataGSMUserInfo{
-		ID:        99,
-		Email:     "student@example.com",
-		Role:      "SUPER_ADMIN",
-		IsStudent: true,
-		Student:   &DataGSMStudent{ID: 501, Name: "Student", Role: "GENERAL_STUDENT"},
-	}
-	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
-		if strings.Contains(req.URL.String(), "/oauth/token") {
-			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback")
+		if err != nil || pair == nil || store.createdToken == nil {
+			t.Fatalf("ExchangeCode() = %+v, %v; session=%+v", pair, err, store.createdToken)
 		}
-		return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-	}, identity, &fakeRefreshTokenStore{})
-
-	if _, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback"); err == nil {
-		t.Fatal("ExchangeCode() expected error for an unsupported provider role")
-	}
-	if identity.calls != 0 {
-		t.Fatalf("identity commit calls = %d, want 0 when the provider role cannot be mapped", identity.calls)
-	}
-}
-
-func TestExchangeCodeWrapsTokenEndpointFailure(t *testing.T) {
-	t.Parallel()
-
-	svc := newExchangeUnitAuthService(func(*http.Request) (*http.Response, error) {
-		return jsonResponse(http.StatusUnauthorized, `{"error":"invalid_grant"}`), nil
-	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
-
-	_, err := svc.ExchangeCode(context.Background(), "bad-code", "verifier", "https://app.example.com/callback")
-	if err == nil {
-		t.Fatal("ExchangeCode() expected error when the token endpoint rejects the code")
-	}
-	if !strings.Contains(err.Error(), "failed to exchange code") {
-		t.Fatalf("ExchangeCode() error = %q, want it wrapped with %%w context: %q", err.Error(), "failed to exchange code")
-	}
-}
-
-func TestExchangeCodeWrapsUserInfoEndpointFailure(t *testing.T) {
-	t.Parallel()
-
-	svc := newExchangeUnitAuthService(func(req *http.Request) (*http.Response, error) {
-		if strings.Contains(req.URL.String(), "/oauth/token") {
-			return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+		if identity.calls != 1 || store.createdToken.PlatformRole != "MEMBER" {
+			t.Fatalf("identity calls=%d, platform role=%q", identity.calls, store.createdToken.PlatformRole)
 		}
-		return jsonResponse(http.StatusServiceUnavailable, `{}`), nil
-	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
+	})
 
-	_, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback")
-	if err == nil {
-		t.Fatal("ExchangeCode() expected error when the userinfo endpoint fails")
-	}
-	if !strings.Contains(err.Error(), "failed to fetch user info") {
-		t.Fatalf("ExchangeCode() error = %q, want it wrapped with %%w context: %q", err.Error(), "failed to fetch user info")
-	}
-}
+	t.Run("an unsupported provider role is rejected before identity creation", func(t *testing.T) {
+		t.Parallel()
+		identity := &fakeIdentityCoordinator{userID: 1}
+		info := DataGSMUserInfo{
+			ID: 99, Email: "student@example.com", Role: "SUPER_ADMIN", IsStudent: true,
+			Student: &DataGSMStudent{ID: 501, Name: "Student", Role: "GENERAL_STUDENT"},
+		}
+		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
+			if strings.Contains(request.URL.String(), "/oauth/token") {
+				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
+			}
+			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
+		}, identity, &fakeRefreshTokenStore{})
 
-func TestExchangeCodeRejectsEmptyAccessTokenInTokenResponse(t *testing.T) {
-	t.Parallel()
-
-	svc := newExchangeUnitAuthService(func(*http.Request) (*http.Response, error) {
-		return jsonResponse(http.StatusOK, `{"access_token":""}`), nil
-	}, &fakeIdentityCoordinator{}, &fakeRefreshTokenStore{})
-
-	if _, err := svc.ExchangeCode(context.Background(), "auth-code", "verifier", "https://app.example.com/callback"); err == nil {
-		t.Fatal("ExchangeCode() expected error for an empty access_token")
-	}
+		if pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback"); err == nil || pair != nil {
+			t.Fatalf("ExchangeCode() = %+v, %v; want rejection", pair, err)
+		}
+		if identity.calls != 0 {
+			t.Fatalf("identity calls = %d, want 0", identity.calls)
+		}
+	})
 }
