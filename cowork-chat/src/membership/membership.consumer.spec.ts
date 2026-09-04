@@ -37,7 +37,11 @@ describe('MembershipConsumer projection ordering', () => {
         expect(pipeline[0].$set.sourceOccurredAt).toBeDefined();
         expect(pipeline[0].$set.sourceVersion).toBeDefined();
         expect(pipeline[0].$set.deleted).toBeDefined();
-        expect(memberModel.updateOne.mock.calls[0][2]).toEqual({ upsert: true, timestamps: false });
+        expect(memberModel.updateOne.mock.calls[0][2]).toEqual({
+            upsert: true,
+            timestamps: false,
+            updatePipeline: true,
+        });
     });
 
     it('LEAVE는 물리 삭제 대신 tombstone을 남긴다', async () => {
