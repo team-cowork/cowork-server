@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import { describe, it } from 'node:test';
 
 import { loadTodoContent } from '../scripts/lib/todo-content.mjs';
 
@@ -52,7 +52,8 @@ const loadFixture = ({ repositoryDirectory, todoDirectory }) => loadTodoContent(
 
 const bodyHtml = (content) => content.documentsByRoute[ITEM_ROUTE].bodyHtml;
 
-test('keeps generated TODO links on site and prefixes their heading anchors', async (context) => {
+describe('loadTodoContent link policy', () => {
+it('keeps generated TODO links on site and prefixes their heading anchors', async (context) => {
   const fixture = await createFixture(context, {
     body: `[Related](../31-performance/projection-incremental-resume.md?view=full#checkpoint)
 
@@ -77,7 +78,7 @@ test('keeps generated TODO links on site and prefixes their heading anchors', as
   assert.ok(html.includes('id="todo-details"'));
 });
 
-test('renders repository documentation links in inline and reference Markdown without TODO anchor prefixes', async (context) => {
+it('renders repository documentation links in inline and reference Markdown without TODO anchor prefixes', async (context) => {
   const fixture = await createFixture(context, {
     body: `[Connection pooling](../../../../cowork-project/docs/feign-hc5-pooling.md?plain=1#pooling)
 
@@ -97,7 +98,7 @@ test('renders repository documentation links in inline and reference Markdown wi
   assert.ok(html.includes('target="_blank"'));
 });
 
-test('encodes repository file paths and links non-rendered TODO files to their source', async (context) => {
+it('encodes repository file paths and links non-rendered TODO files to their source', async (context) => {
   const fixture = await createFixture(context, {
     body: `[Guide](../../../../cowork-project/docs/connection%20pool%20%EA%B0%80%EC%9D%B4%EB%93%9C.md#configuration)
 
@@ -114,7 +115,7 @@ test('encodes repository file paths and links non-rendered TODO files to their s
   assert.ok(html.includes(`href="${REPOSITORY_SOURCE_URL}docs/todo/fixtures/checkpoint.json?raw=1"`));
 });
 
-test('rejects missing repository link targets', async (context) => {
+it('rejects missing repository link targets', async (context) => {
   const fixture = await createFixture(context, {
     body: '[Missing](../../../../cowork-project/docs/missing.md)',
   });
@@ -122,7 +123,7 @@ test('rejects missing repository link targets', async (context) => {
   await assert.rejects(() => loadFixture(fixture));
 });
 
-test('rejects links that traverse outside the repository even when the target exists', async (context) => {
+it('rejects links that traverse outside the repository even when the target exists', async (context) => {
   const fixture = await createFixture(context, {
     body: '[Outside](../../../../../outside.md)',
   });
@@ -131,7 +132,7 @@ test('rejects links that traverse outside the repository even when the target ex
   await assert.rejects(() => loadFixture(fixture));
 });
 
-test('rejects repository links whose symlink target is outside the repository', async (context) => {
+it('rejects repository links whose symlink target is outside the repository', async (context) => {
   const fixture = await createFixture(context, {
     body: '[Outside](../../../../linked-document.md)',
   });
@@ -142,7 +143,7 @@ test('rejects repository links whose symlink target is outside the repository', 
   await assert.rejects(() => loadFixture(fixture));
 });
 
-test('requires README registry entries to target generated TODO documents', async (context) => {
+it('requires README registry entries to target generated TODO documents', async (context) => {
   const fixture = await createFixture(context, {
     registryTarget: '../../cowork-project/docs/feign-hc5-pooling.md',
     files: {
@@ -151,4 +152,5 @@ test('requires README registry entries to target generated TODO documents', asyn
   });
 
   await assert.rejects(() => loadFixture(fixture));
+});
 });
