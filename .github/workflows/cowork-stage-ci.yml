@@ -73,7 +73,12 @@ jobs:
           PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-label "waiting for review:검토 대기"
-          gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-assignee "$PR_AUTHOR"
+          ASSIGNEES=$(gh pr view $PR_NUMBER --repo ${{ github.repository }} --json assignees -q '.assignees[].login')
+          if printf '%s\n' "$ASSIGNEES" | grep -Fxq "$PR_AUTHOR"; then
+            echo "Assignee '$PR_AUTHOR' is already set. Skipping."
+          else
+            gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-assignee "$PR_AUTHOR"
+          fi
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-reviewer "team-cowork/cowork-server"
 
   detect-changes:
