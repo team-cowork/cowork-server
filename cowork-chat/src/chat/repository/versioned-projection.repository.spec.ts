@@ -73,7 +73,11 @@ describe('versioned projection repositories', () => {
 
         const deletedField = pipelineSet(model).$set.deleted as { $cond: unknown[] };
         expect(deletedField.$cond[0]).toEqual(expectedUpsertCondition);
-        expect(model.updateOne.mock.calls[0][2]).toEqual({ upsert: true, timestamps: false });
+        expect(model.updateOne.mock.calls[0][2]).toEqual({
+            upsert: true,
+            timestamps: false,
+            updatePipeline: true,
+        });
     });
 
     it('채널 DELETE는 문서를 지우지 않고 같은 시각까지 우선하는 tombstone을 남긴다', async () => {
