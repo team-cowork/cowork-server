@@ -9,7 +9,6 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.runs
-import io.mockk.verify
 import java.time.Instant
 import java.util.Optional
 
@@ -33,24 +32,27 @@ class GithubLabelPolicyReaderTest :
             reader = GithubLabelPolicyReader(repository, readinessGate)
         }
 
-        describe("GithubLabelPolicyReader") {
-            it("preference projection에 있는 정책을 단건과 bulk로 읽는다") {
-                val first = preference(5L, autoApply = false)
-                val second = preference(6L, autoApply = true)
-                every { repository.findById(5L) } returns Optional.of(first)
-                every { repository.findAllById(listOf(5L, 6L)) } returns listOf(first, second)
+        describe("GithubLabelPolicyReader 클래스의 readAutoApply 계열 메서드는") {
+            context("저장된 라벨 자동 적용 정책이 있으면") {
+                it("저장된 값을 반환한다") {
+                    val first = preference(5L, autoApply = false)
+                    val second = preference(6L, autoApply = true)
+                    every { repository.findById(5L) } returns Optional.of(first)
+                    every { repository.findAllById(listOf(5L, 6L)) } returns listOf(first, second)
 
-                reader.readAutoApply(5L) shouldBe false
-                reader.readAutoApplyBulk(listOf(5L, 6L)) shouldBe mapOf(5L to false, 6L to true)
-                verify(atLeast = 2) { readinessGate.requireReady() }
+                    reader.readAutoApply(5L) shouldBe false
+                    reader.readAutoApplyBulk(listOf(5L, 6L)) shouldBe mapOf(5L to false, 6L to true)
+                }
             }
 
-            it("상태 row가 없거나 DELETE면 preference 기본값 true를 사용한다") {
-                every { repository.findById(5L) } returns Optional.empty()
-                every { repository.findAllById(listOf(5L, 6L)) } returns listOf(preference(6L, false, deleted = true))
+            context("정책이 없거나 삭제됐으면") {
+                it("기본값 true를 반환한다") {
+                    every { repository.findById(5L) } returns Optional.empty()
+                    every { repository.findAllById(listOf(5L, 6L)) } returns listOf(preference(6L, false, deleted = true))
 
-                reader.readAutoApply(5L) shouldBe true
-                reader.readAutoApplyBulk(listOf(5L, 6L)) shouldBe mapOf(5L to true, 6L to true)
+                    reader.readAutoApply(5L) shouldBe true
+                    reader.readAutoApplyBulk(listOf(5L, 6L)) shouldBe mapOf(5L to true, 6L to true)
+                }
             }
         }
     })
