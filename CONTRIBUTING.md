@@ -332,7 +332,9 @@ log.warn("Rejected operation for team {}", teamId)
 
 ### Framework
 
-Kotest with MockK is the convention for new Kotlin Spring business tests. Existing Spring Kotlin tests also use JUnit 5 with MockK; `cowork-config` uses JUnit 5 without Kotest. Roadmap uses JUnit 5, Mockito, and Reactor `StepVerifier`. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, Elixir, or TypeScript tests.
+Only core business logic, authorization, and security behavior receive unit tests. Do not add integration tests, regression tests that freeze implementation details, or tests for controllers, framework wiring, configuration shape, migrations, repositories, and transport mechanics. A test belongs in the suite only when its failure identifies a broken business decision or user-visible access rule.
+
+Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and Reactor `StepVerifier`. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, Elixir, or TypeScript tests.
 
 This example tests the missing-team behavior in the query service shown above, using its real dependency and method names:
 
@@ -368,12 +370,13 @@ class QueryTeamServiceTest : DescribeSpec({
 
 ### Test Structure
 
-- Use Given-When-Then inside Kotest `it` blocks.
+- Organize tests as Describe-Context-It and keep Given-When-Then visible inside each scenario.
+- Kotlin Spring uses `DescribeSpec` with `describe` / `context` / `it` for multi-scenario business rules. A small focused JUnit class may encode the same DCI structure in a `{method}_{context}_{expectation}` test name; use `@Nested` when several contexts share one method. Jest uses nested `describe` / `it`, ExUnit uses `describe` / `test`, and Go uses behavior-named `Test...` functions with `t.Run` for related contexts.
 - Test one behavior or scenario per test; use related assertions and interaction verification as needed.
-- Name Kotest tests in Korean: `describe("ClassName 클래스의")`, `describe("methodName 메서드는")`, `context("상황 설명")`, and `it("기대 동작")`.
+- Name Kotest tests in Korean and make the class and method explicit: use nested `describe("ClassName 클래스의")` / `describe("methodName 메서드는")`, or a combined `describe("ClassName 클래스의 methodName 메서드는")` for a focused one-method spec, followed by `context("상황 설명")` and `it("기대 동작")`.
 - Mock external dependencies with MockK in Kotlin; use the module's equivalent in other languages.
 - Use `beforeEach` for shared setup and `afterEach` for cleanup when needed.
-- Verify serialized Kafka contracts, idempotency, ordering, and recovery behavior when changing messaging code; see `.claude/rules/kafka-projections.md`.
+- Kafka, database, HTTP, and framework code follows the same scope rule. Transport serialization, idempotency, ordering, checkpoints, snapshot markers, retry, quarantine, and recovery mechanics are not test exceptions.
 
 Run the owning module's tests from the repository root:
 
