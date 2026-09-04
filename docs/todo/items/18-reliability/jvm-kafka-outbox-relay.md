@@ -41,15 +41,15 @@
 
 ## 검증
 
-- 영구 실패 row 뒤의 다른 event key가 계속 발행되는지 통합 테스트한다.
-- 동일 event key의 순서가 정책대로 유지되는지 검증한다.
-- Kafka 전송을 지연시켜도 outbox row lock과 database connection 점유 시간이 claim/finalize transaction 범위로 제한되는지 확인한다.
-- relay crash, claim lease 만료, 재시작 뒤 중복·유실 없이 복구되는지 검증한다.
-- 세 모듈의 기존 outbox writer와 migration을 사용하는 회귀 테스트를 실행한다.
+- 영구 실패 row와 다른 event key의 선택 조건, 동일 key 순서 조건을 쿼리와 상태 전이 정적 검토로 확인한다.
+- claim과 finalize의 transaction 경계에 Kafka 전송 대기가 포함되지 않는지 호출 그래프와 transaction 선언을 점검한다.
+- row lock·connection 점유 시간, lease 만료, 재시작 뒤 중복·유실 가능성은 metric과 장애 복구 rehearsal로 확인한다.
+- schema와 migration은 배포 전 dry-run 및 데이터 점검 절차로 검증한다.
+- outbox 전달, 순서, 멱등성, lease, 재시도, 격리, 복구를 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
 - poison outbox row 하나가 무관한 후속 이벤트 발행을 무기한 차단하지 않는다.
 - Kafka 네트워크 대기 동안 database transaction과 row lock이 유지되지 않는다.
 - 재시도·backoff·격리·수동 재처리 정책이 세 서비스에서 일관되게 동작한다.
-- relay의 지연과 실패 상태를 metric과 테스트로 확인할 수 있다.
+- relay의 지연과 실패 상태를 metric으로 확인하고 복구 절차를 runbook으로 실행할 수 있다.
