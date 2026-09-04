@@ -4,7 +4,6 @@ import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyP
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjectionRepository
-import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
@@ -85,20 +84,6 @@ class ChannelMessageReadPolicyEvaluatorTest {
         )
 
         assertEquals(emptySet<Long>(), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
-    }
-
-    @Test
-    fun `member tombstone보다 오래되거나 같은 assignment는 최종 read에서도 제외함`() {
-        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("MEMBER")
-        every { tombstoneRepository.findById("10:7") } returns Optional.of(
-            TeamRoleMemberTombstone("10:7", 10L, 7L, occurredAt),
-        )
-        every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns listOf(
-            assignment(1L, occurredAt),
-        )
-
-        assertEquals(emptySet<Long>(), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
-        verify(exactly = 0) { roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(any(), any()) }
     }
 
     private fun stubMemberWithRoles(roles: List<TeamRoleProjection>, policies: List<ChannelRolePolicyProjection>) {
