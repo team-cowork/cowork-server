@@ -133,7 +133,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                             ...projectionTimestampFields(shouldApply, occurredAt),
                         },
                     }],
-                    { upsert: true, timestamps: false },
+                    { upsert: true, timestamps: false, updatePipeline: true },
                 );
                 if (!projectionUpdateApplied(result)) return;
                 if (event.snapshot === true) return;
@@ -167,7 +167,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                             ...projectionTimestampFields(shouldApply, occurredAt),
                         },
                     }],
-                    { upsert: true, timestamps: false },
+                    { upsert: true, timestamps: false, updatePipeline: true },
                 );
                 const applied = projectionUpdateApplied(result);
                 if (this.io && this.readAccessEvaluator && !(await this.readAccessEvaluator(channelId, userId))) {
