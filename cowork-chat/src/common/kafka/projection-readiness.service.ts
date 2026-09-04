@@ -456,7 +456,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     }),
                 };
             }),
-        }])) as Partial<Record<ProjectionName, ProjectionStreamStatus>>;
+        }]));
     }
 
     async requestRebuild(streamName: string, reason: string): Promise<ProjectionDatasetState> {
