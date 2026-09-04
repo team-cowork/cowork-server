@@ -1513,7 +1513,7 @@ jobs:
 
           const MARKER = '<!-- coverage-report-bot -->';
 
-          /** Update this bot's coverage comment only while the event's PR is current. */
+          /** Update this bot's coverage comment only while the measured PR head is current. */
           module.exports = async function publishCoverageComment({ github, context, core, body }) {
             const pullRequest = context.payload.pull_request;
             if (!pullRequest?.head?.sha || !pullRequest?.base?.sha) {
@@ -1527,18 +1527,41 @@ jobs:
             const number = pullRequest.number ?? context.issue.number;
             const parameters = { owner, repo };
             const markedBody = body.includes(MARKER) ? body : `${MARKER}\n${body}`;
+            const snapshot = {
+              measuredBaseSha: pullRequest.base.sha,
+              measuredHeadSha: pullRequest.head.sha,
+              measuredMergeSha: context.sha,
+            };
+            const shortSha = sha => typeof sha === 'string' && sha ? sha.slice(0, 8) : 'unknown';
 
-            async function isCurrent() {
+            async function getCurrentPullRequest() {
               const { data } = await github.rest.pulls.get({ ...parameters, pull_number: number });
-              if (data.head.sha !== pullRequest.head.sha || data.base.sha !== pullRequest.base.sha) {
-                core.info('Coverage comment skipped: the PR head or base changed after this run started.');
-                return false;
+              if (data.head.sha !== pullRequest.head.sha) {
+                core.info('Coverage comment skipped: the PR head changed after this run started.');
+                return null;
               }
-              return true;
+              return data;
+            }
+
+            function publication(currentPullRequest) {
+              const currentBaseSha = currentPullRequest.base.sha;
+              const baseChanged = currentBaseSha !== pullRequest.base.sha;
+              const lines = [markedBody.trimEnd(), ''];
+              if (baseChanged) {
+                lines.push(
+                  '> [!NOTE]',
+                  `> 측정 후 base가 \`${shortSha(pullRequest.base.sha)}\`에서 \`${shortSha(currentBaseSha)}\`로 변경되었습니다. 위 결과는 측정 스냅샷 기준입니다.`,
+                  '',
+                );
+              }
+              lines.push(
+                `<sub>coverage snapshot · base <code>${shortSha(pullRequest.base.sha)}</code> · head <code>${shortSha(pullRequest.head.sha)}</code> · merge <code>${shortSha(context.sha)}</code>${baseChanged ? ` · current base <code>${shortSha(currentBaseSha)}</code>` : ''}</sub>`,
+              );
+              return { body: lines.join('\n'), baseChanged, currentBaseSha };
             }
 
             try {
-              if (!(await isCurrent())) return { status: 'stale' };
+              if (!(await getCurrentPullRequest())) return { status: 'stale', ...snapshot };
               const comments = await github.paginate(github.rest.issues.listComments, {
                 ...parameters,
                 issue_number: number,
@@ -1551,17 +1574,19 @@ jobs:
               ).sort((left, right) => left.id - right.id);
 
               // Pagination can take time. Check again immediately before writing.
-              if (!(await isCurrent())) return { status: 'stale' };
+              const currentPullRequest = await getCurrentPullRequest();
+              if (!currentPullRequest) return { status: 'stale', ...snapshot };
+              const published = publication(currentPullRequest);
               let response;
               let status;
               if (existing.length) {
                 response = await github.rest.issues.updateComment({
-                  ...parameters, comment_id: existing[0].id, body: markedBody,
+                  ...parameters, comment_id: existing[0].id, body: published.body,
                 });
                 status = 'updated';
               } else {
                 response = await github.rest.issues.createComment({
-                  ...parameters, issue_number: number, body: markedBody,
+                  ...parameters, issue_number: number, body: published.body,
                 });
                 status = 'created';
               }
@@ -1574,11 +1599,17 @@ jobs:
                   break;
                 }
               }
-              return { status, id: response.data.id };
+              return {
+                status,
+                id: response.data.id,
+                ...snapshot,
+                baseChanged: published.baseChanged,
+                currentBaseSha: published.currentBaseSha,
+              };
             } catch (error) {
               if (error.status !== 403) throw error;
               core.warning('Coverage comment could not be published (403). Fork PR tokens may be read-only; see the job summary and coverage artifacts.');
-              return { status: 'forbidden' };
+              return { status: 'forbidden', ...snapshot };
             }
           };
 
@@ -1787,10 +1818,32 @@ jobs:
             const path = require('path');
             const toolkit = path.join(process.env.RUNNER_TEMP, 'coverage-tools');
             const postCoverage = require(path.join(toolkit, 'comment.cjs'));
-            await postCoverage({
-              github, context, core,
-              body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8'),
-            });
+            let publicationError;
+            let result;
+            try {
+              result = await postCoverage({
+                github, context, core,
+                body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8'),
+              });
+            } catch (error) {
+              publicationError = error;
+              result = { status: 'failed' };
+            }
+            const message = `Coverage comment publication status: ${result.status}`;
+            if (['failed', 'stale', 'forbidden', 'skipped'].includes(result.status)) core.warning(message);
+            else core.info(message);
+            const details = [
+              `Status: \`${result.status}\``,
+              result.measuredBaseSha && `Measured base: \`${result.measuredBaseSha.slice(0, 8)}\``,
+              result.measuredHeadSha && `Measured head: \`${result.measuredHeadSha.slice(0, 8)}\``,
+              result.measuredMergeSha && `Measured merge: \`${result.measuredMergeSha.slice(0, 8)}\``,
+              result.baseChanged && `Current base: \`${result.currentBaseSha.slice(0, 8)}\``,
+            ].filter(Boolean);
+            await core.summary
+              .addHeading('Coverage comment publication', 3)
+              .addRaw(details.join('  \n'))
+              .write();
+            if (publicationError) throw publicationError;
 
   contrib-delta:
     if: github.event_name == 'pull_request'
