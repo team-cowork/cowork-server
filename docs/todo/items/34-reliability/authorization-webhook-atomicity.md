@@ -10,7 +10,7 @@
 
 여러 학생을 포함한 batch의 중간 publish가 실패하면 앞에서 성공한 메시지만 Kafka에 남고 처리 완료 row는 생성되지 않는다. webhook 재시도는 앞 항목부터 다시 발행한다. 모든 publish가 성공한 뒤 `MarkProcessed`가 실패해도 오류를 로그로만 남기고 `nil`을 반환하므로 `POST /events/datagsm`는 `200`을 응답한다. 이후 같은 event가 다시 전달되면 처리 기록이 없어 batch 전체가 중복 발행된다.
 
-`V3__add_processed_events.sql`의 `tb_processed_events.event_id` primary key와 `V4__add_kafka_outbox.sql`·`V5__add_kafka_outbox_partition.sql`의 `tb_kafka_outbox`는 이미 존재한다. 그러나 `cowork-authorization/cmd/main.go`는 webhook service에 outbox writer가 아니라 Kafka `Producer`를 직접 주입하며, `V8`까지의 후속 migration에도 webhook event와 item을 outbox row에 연결하는 unique key는 없다. `cowork-authorization/internal/service/event_service_test.go`는 처리 완료 기록 실패를 성공으로 허용하는 동작을 명시적으로 검증하고 있으며 동시 요청, transaction rollback, relay 재시작 테스트는 없다.
+`V3__add_processed_events.sql`의 `tb_processed_events.event_id` primary key와 `V4__add_kafka_outbox.sql`·`V5__add_kafka_outbox_partition.sql`의 `tb_kafka_outbox`는 이미 존재한다. 그러나 `cowork-authorization/cmd/main.go`는 webhook service에 outbox writer가 아니라 Kafka `Producer`를 직접 주입하며, `V8`까지의 후속 migration에도 webhook event와 item을 outbox row에 연결하는 unique key는 없다. 현재 단위 테스트는 웹훅 서명, 입력 검증, 학생 데이터 매핑 같은 핵심 규칙만 다루며 transaction, 동시성, relay 복구 메커니즘은 테스트 범위에서 제외한다.
 
 ## 원자 처리 정책
 
@@ -40,18 +40,17 @@
 
 - `EventService`에서 Kafka `Producer` 직접 의존성을 제거하고 transaction coordinator를 주입한다.
 - `userSyncMessage`의 `event_id`와 `event_index`를 outbox source identity와 일치시킨다.
-- 처리 완료 기록 실패를 성공으로 삼는 기존 테스트를 rollback·오류 응답 계약으로 변경한다.
+- 처리 완료 기록 실패를 성공으로 삼는 흐름을 제거하고 rollback·오류 응답 계약을 구현과 문서에 명시한다.
 - 기존 `OutboxRelay`가 webhook outbox row를 발행하고 실패·재시작 뒤에도 같은 identity를 유지하는지 확인한다.
 - inbox duplicate, transaction rollback, outbox relay 결과를 event ID 원문 노출 없이 metric으로 집계한다.
 
 ## 검증
 
-- 같은 `event_id`를 두 goroutine에서 동시에 처리해 inbox row 하나와 item 수만큼의 outbox row만 생성되는지 MySQL 통합 테스트한다.
-- batch의 두 번째 outbox insert에 실패를 주입해 inbox와 첫 번째 outbox row까지 모두 rollback되는지 확인한다.
-- transaction commit 직전·직후 process 중단과 재요청을 재현해 부분 batch가 생성되지 않는지 검증한다.
-- 이미 commit된 webhook을 다시 보내도 outbox row 수가 증가하지 않고 `200`을 반환하는지 handler 테스트한다.
-- outbox publish 성공 후 delete 전 relay를 중단해 재발행된 메시지가 동일한 `event_id`와 `event_index`를 유지하는지 확인한다.
-- `cowork-authorization`에서 `go test ./...`를 실행해 webhook, migration, outbox relay 회귀 테스트가 통과하는지 확인한다.
+- 웹훅 서명, envelope 검증, 학생별 payload 매핑 같은 핵심 규칙을 서비스 단위 테스트로 검증한다.
+- inbox와 전체 outbox insert가 하나의 transaction API에 묶였는지 호출 그래프와 transaction 구현을 정적으로 점검한다.
+- `(event_id, event_index)` unique 제약, payload hash 충돌 정책, rollback 조건을 schema와 쿼리 검토로 확인한다.
+- 동시 재요청, commit 경계 crash, relay 재발행 결과는 metric과 운영 rehearsal·데이터 점검으로 확인한다.
+- MySQL, Kafka, handler, relay를 구동하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
