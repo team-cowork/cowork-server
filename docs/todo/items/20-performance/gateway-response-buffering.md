@@ -10,7 +10,7 @@
 
 수집 뒤 크기가 1MB를 넘으면 wrapping을 건너뛰지만 `DataBufferUtils.join`으로 다시 하나의 buffer를 만든다. 제한은 이미 발생한 heap·direct buffer 점유를 줄이지 못하며, 작은 응답도 원본 buffer, `ByteArray`, JSON tree, 직렬화 결과를 거쳐 여러 번 복사된다. `writeAndFlushWith`도 평탄화되어 streaming과 backpressure 특성이 사라진다.
 
-현재 테스트는 GraphQL과 AsyncAPI skip 경로만 확인한다. 일반 wrapping, 대용량 chunked 응답, 취소 시 buffer release, streaming 통과 동작은 검증하지 않는다.
+기존 필터 테스트는 응답 wrapping과 buffer 구현 세부를 고정하는 기술 테스트였으므로 저장소 테스트 범위에서 제거한다. 일반 wrapping, 대용량 chunked 응답, 취소 시 buffer release, streaming 통과 동작은 코드 검토와 runtime 관측으로 확인한다.
 
 ## 응답 전략
 
@@ -40,13 +40,14 @@
 
 ## 검증
 
-- 작은 JSON, 이미 감싼 JSON, 오류 JSON, 빈 응답의 계약 테스트를 추가한다.
-- `Content-Length`가 큰 응답과 길이 미상의 1MB 초과 chunked 응답이 전체 버퍼링 없이 전달되는지 검증한다.
-- 중간 취소와 downstream 오류에서 buffer leak이 없는지 확인한다.
-- 다수의 대용량 동시 응답 부하 테스트에서 메모리 사용량이 응답 총합에 비례해 증가하지 않는지 확인한다.
+- wrapping·bypass 조건과 bounded aggregation 상한을 필터 코드와 설정에서 정적으로 점검한다.
+- `Content-Length`가 큰 응답, 길이 미상의 chunked 응답, streaming 응답의 처리 방식은 staging trace와 metric으로 확인한다.
+- 중간 취소와 downstream 오류의 buffer release 경로는 코드 검토와 Netty leak detection 관측으로 확인한다.
+- 대용량 동시 응답의 heap·direct memory 추이는 통제된 부하 관측으로 확인한다.
+- response wrapping, chunking, buffer lifecycle을 고정하는 자동화 단위·통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
 - 길이 미상·대용량 응답이 Gateway 메모리에 무제한 집계되지 않는다.
 - streaming 응답의 chunk와 backpressure가 유지된다.
-- 응답 wrapping의 크기·경로 계약과 buffer lifecycle이 자동화된 테스트로 보장되어 있다.
+- 응답 wrapping의 크기·경로 계약이 문서화되고 buffer lifecycle을 metric과 leak detection으로 확인할 수 있다.

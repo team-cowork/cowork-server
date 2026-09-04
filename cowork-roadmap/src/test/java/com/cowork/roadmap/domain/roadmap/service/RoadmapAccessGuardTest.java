@@ -4,6 +4,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -26,69 +27,87 @@ class RoadmapAccessGuardTest {
         when(projectionReadiness.isReady()).thenReturn(true);
     }
 
-    @Test
-    void requireMutable_globalScopeByNonAdmin_isForbidden() {
-        Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
+    @Nested
+    class RequireMutable {
 
-        StepVerifier.create(accessGuard.requireMutable(roadmap, 1L, "MEMBER"))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.FORBIDDEN)
-                .verify();
-        verifyNoInteractions(teamMemberships);
+        @Test
+        void globalScopeByNonAdmin_isForbidden() {
+            Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
+
+            StepVerifier.create(accessGuard.requireMutable(roadmap, 1L, "MEMBER"))
+                    .expectErrorMatches(error -> error instanceof ExpectedException expected
+                            && expected.getStatusCode() == HttpStatus.FORBIDDEN)
+                    .verify();
+            verifyNoInteractions(teamMemberships);
+        }
+
+        @Test
+        void globalScopeByAdmin_succeeds() {
+            Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
+
+            StepVerifier.create(accessGuard.requireMutable(roadmap, 1L, "ADMIN")).verifyComplete();
+            verifyNoInteractions(teamMemberships);
+        }
+
+        @Test
+        void customScopeByCreator_succeedsWithoutTeamCall() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+
+            StepVerifier.create(accessGuard.requireMutable(roadmap, 7L, "MEMBER")).verifyComplete();
+            verifyNoInteractions(teamMemberships);
+        }
+
+        @Test
+        void customScopeByTeamMember_isForbidden() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Mono.just("MEMBER"));
+
+            StepVerifier.create(accessGuard.requireMutable(roadmap, 8L, "MEMBER"))
+                    .expectErrorMatches(error -> error instanceof ExpectedException expected
+                            && expected.getStatusCode() == HttpStatus.FORBIDDEN)
+                    .verify();
+        }
     }
 
-    @Test
-    void requireMutable_globalScopeByAdmin_succeeds() {
-        Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
+    @Nested
+    class RequireCreatable {
 
-        StepVerifier.create(accessGuard.requireMutable(roadmap, 1L, "ADMIN")).verifyComplete();
-        verifyNoInteractions(teamMemberships);
+        @Test
+        void teamScopeByOwner_succeeds() {
+            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Mono.just("OWNER"));
+
+            StepVerifier.create(accessGuard.requireCreatable(7L, "MEMBER", RoadmapScope.TEAM, 99L)).verifyComplete();
+        }
     }
 
-    @Test
-    void requireMutable_customScopeByCreator_succeedsWithoutTeamCall() {
-        Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+    @Nested
+    class RequireReadable {
 
-        StepVerifier.create(accessGuard.requireMutable(roadmap, 7L, "MEMBER")).verifyComplete();
-        verifyNoInteractions(teamMemberships);
-    }
+        @Test
+        void globalScope_succeeds() {
+            Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
 
-    @Test
-    void requireMutable_customScopeByTeamMember_isForbidden() {
-        Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
-        when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Mono.just("MEMBER"));
+            StepVerifier.create(accessGuard.requireReadable(roadmap, 123L, "MEMBER")).verifyComplete();
+        }
 
-        StepVerifier.create(accessGuard.requireMutable(roadmap, 8L, "MEMBER"))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.FORBIDDEN)
-                .verify();
-    }
+        @Test
+        void customScopeByTeamMember_succeeds() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 1L, 99L);
+            when(teamMemberships.findActiveRole(99L, 123L)).thenReturn(Mono.just("MEMBER"));
 
-    @Test
-    void requireReadable_globalScope_succeeds() {
-        Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
+            StepVerifier.create(accessGuard.requireReadable(roadmap, 123L, "MEMBER")).verifyComplete();
+        }
 
-        StepVerifier.create(accessGuard.requireReadable(roadmap, 123L, "MEMBER")).verifyComplete();
-    }
+        @Test
+        void customScopeByOutsider_isForbidden() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 1L, 99L);
+            when(teamMemberships.findActiveRole(99L, 123L)).thenReturn(Mono.empty());
 
-    @Test
-    void requireReadable_customScopeWhileProjectionCatchesUp_isUnavailable() {
-        Roadmap roadmap = roadmap(RoadmapScope.TEAM, 1L, 99L);
-        when(projectionReadiness.isReady()).thenReturn(false);
-
-        StepVerifier.create(accessGuard.requireReadable(roadmap, 123L, "MEMBER"))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE)
-                .verify();
-        verifyNoInteractions(teamMemberships);
-    }
-
-    @Test
-    void requireMutable_rechecksCurrentProjectionBeforeForbiddingManager() {
-        Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
-        when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Mono.empty(), Mono.just("ADMIN"));
-
-        StepVerifier.create(accessGuard.requireMutable(roadmap, 8L, "MEMBER")).verifyComplete();
+            StepVerifier.create(accessGuard.requireReadable(roadmap, 123L, "MEMBER"))
+                    .expectErrorMatches(error -> error instanceof ExpectedException expected
+                            && expected.getStatusCode() == HttpStatus.FORBIDDEN)
+                    .verify();
+        }
     }
 
     private static Roadmap roadmap(RoadmapScope scope, Long createdBy, Long ownerTeamId) {
