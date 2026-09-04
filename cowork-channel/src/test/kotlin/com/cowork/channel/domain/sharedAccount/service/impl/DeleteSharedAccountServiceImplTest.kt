@@ -70,7 +70,7 @@ class DeleteSharedAccountServiceImplTest {
     )
 
     @Test
-    fun `deleteAccount 정상 흐름`() {
+    fun `계정 등록자가 삭제하면 해당 공유 계정을 삭제함`() {
         val ch = accountShareChannel(createdBy = 1L)
         val acc = account(createdBy = 1L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
