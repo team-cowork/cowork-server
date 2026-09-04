@@ -46,7 +46,8 @@ class QueryPullRequestBoardServiceImplTest :
             describe("getPullRequestBoard 메서드는") {
                 context("읽기 권한이 있는 경우") {
                     it("열린 PR을 draft/inReview 컬럼으로 분리한다") {
-                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns
+                            GithubRepoRef("my-org", "my-repo")
                         every { githubAppClient.listPullRequests("my-org", "my-repo", "open") } returns
                             listOf(summary(1, draft = true), summary(2, draft = false), summary(3, draft = false))
 
