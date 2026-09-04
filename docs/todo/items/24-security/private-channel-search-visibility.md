@@ -8,7 +8,9 @@
 > 반환하도록 수정했다. 같은 가시성 계약을 `cowork-channel`의 검색·팀 목록·프로젝트 목록·단건 조회에도 적용했으며,
 > `cowork-chat` 전체 357개 테스트와 build·lint, `cowork-channel` 전체 테스트와 ktlint를 통과했다.
 
-## 문제
+> **2026-09-03 현황:** 이후 역할 기반 읽기 인가도 적용되어 현재 채널 검색은 아래 멤버십 조건과 effective `message_read` 정책을 함께 확인한다. built-in `OWNER` 예외와 정책 기본 거부 범위는 [역할 기반 읽기 권한](../36-security/role-based-channel-message-read-authorization.md)을 따른다. 아래 문제 설명은 최초 점검 당시 상태다.
+
+## 발견 당시 문제
 
 `cowork-chat/src/chat/unified-search.resolver.ts`의 `UnifiedSearchResolver.unifiedSearch`는 `POST /api/chat/graphql`에서 메시지 검색과 채널 검색을 병렬로 실행한다. 메시지 검색은 `ChatService.searchTeamMessages`에서 요청자의 채널 멤버십 projection을 조회해 접근 가능한 채널 ID로 Elasticsearch 검색 범위를 제한한다.
 
@@ -16,7 +18,9 @@
 
 따라서 같은 팀의 일반 멤버가 가입하지 않은 비공개 채널의 ID, 이름, 타입, 설명, 공개 여부를 검색 결과로 확인할 수 있다. 하나의 통합 검색 응답 안에서도 메시지는 채널 멤버십으로 보호되고 채널 메타데이터는 팀 멤버십만으로 노출되는 서로 다른 가시성 계약이 적용되어 있다.
 
-## 채널 가시성 계약
+## 멤버십 가시성 계약
+
+다음 조건은 멤버십 측면의 최소 조건이며, 현재 구현에서는 역할 기반 읽기 정책도 통과해야 한다.
 
 | 채널 상태 | 검색 노출 조건 | 반환 정책 |
 |-----------|----------------|-----------|

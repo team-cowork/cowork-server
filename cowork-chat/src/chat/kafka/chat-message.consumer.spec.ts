@@ -1,98 +1,84 @@
 import { ConfigService } from '@nestjs/config';
 import { DicoshotService } from 'dicoshot-nest';
+import { KafkaMessage } from 'kafkajs';
 import { ChatMessageConsumer } from './chat-message.consumer';
-import { ChatMessageEvent } from './event/chat-message.event';
-import { ElasticsearchService } from '../../search/elasticsearch.service';
-import { MessageRepository } from '../repository/message.repository';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { ChatMessageProcessor } from './chat-message.processor';
+import { ChatMessageQuarantineService } from '../service/chat-message-quarantine.service';
 
-type ConsumerWithPrivates = Omit<ChatMessageConsumer, 'handleMessageEvent'> & {
-    handleMessageEvent: (event: ChatMessageEvent) => Promise<void>;
-};
+const event = () => ({
+    contractVersion: 1,
+    eventType: 'MESSAGE_SENT',
+    teamId: 10,
+    projectId: null,
+    channelId: 42,
+    authorId: 7,
+    authorRole: 'MEMBER',
+    content: 'hello',
+    type: 'TEXT',
+    attachments: [],
+    occurredAt: '2026-09-03T00:00:00.000Z',
+});
 
-const mockMessageRepository = {
-    createMessage: jest.fn(),
-};
+function kafkaMessage(value: string | null, key = '42'): KafkaMessage {
+    return {
+        key: Buffer.from(key), value: value === null ? null : Buffer.from(value),
+        offset: '3', timestamp: '0', headers: {}, attributes: 0,
+    };
+}
 
-const mockConfigService = {
-    get: jest.fn().mockReturnValue('localhost:9092'),
-};
-
-const mockChannelMemberRepository = {
-    updateLastRead: jest.fn().mockResolvedValue(undefined),
-};
-
-const mockElasticsearchService = {
-    indexMessage: jest.fn().mockResolvedValue(undefined),
-};
-
-const mockDicoshotService = {
-    sendCustom: jest.fn().mockResolvedValue(true),
-};
-
-const mockChannelMessageReadAccess = {
-    emitToReadableChannelUsers: jest.fn().mockResolvedValue(undefined),
-};
-
-describe('ChatMessageConsumer', () => {
+describe('ChatMessageConsumer poison quarantine boundary', () => {
+    const processor = { process: jest.fn(), setSocketServer: jest.fn() };
+    const quarantine = { quarantine: jest.fn().mockResolvedValue(undefined) };
     let consumer: ChatMessageConsumer;
 
     beforeEach(() => {
-        consumer = new ChatMessageConsumer(
-            mockMessageRepository as unknown as MessageRepository,
-            mockChannelMemberRepository as unknown as ChannelMemberRepository,
-            mockConfigService as unknown as ConfigService,
-            mockElasticsearchService as unknown as ElasticsearchService,
-            mockDicoshotService as unknown as DicoshotService,
-            mockChannelMessageReadAccess as unknown as ChannelMessageReadAccessService,
-        );
         jest.clearAllMocks();
-    });
-
-    it('clientMessageId가 없으면 null 대신 undefined로 저장한다', async () => {
-        const savedMessage = { _id: 'msg-id-1', toObject: jest.fn().mockReturnValue({}) };
-        mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
-
-        await (consumer as unknown as ConsumerWithPrivates).handleMessageEvent({
-            eventType: 'MESSAGE_SENT',
-            teamId: 10,
-            projectId: null,
-            channelId: 1,
-            authorId: 42,
-            authorRole: 'MEMBER',
-            content: 'hello',
-            type: 'TEXT',
-            attachments: [],
-            clientMessageId: undefined,
-            occurredAt: new Date().toISOString(),
-        });
-
-        expect(mockMessageRepository.createMessage).toHaveBeenCalledWith(
-            expect.objectContaining({
-                clientMessageId: undefined,
-            }),
+        consumer = new ChatMessageConsumer(
+            {} as ConfigService,
+            {} as DicoshotService,
+            processor as unknown as ChatMessageProcessor,
+            quarantine as unknown as ChatMessageQuarantineService,
         );
     });
 
-    it('메시지 저장 후 작성자의 lastReadMessageId를 자동 업데이트한다', async () => {
-        const savedMessage = { _id: 'msg-id-42', toObject: jest.fn().mockReturnValue({}) };
-        mockMessageRepository.createMessage.mockResolvedValue(savedMessage);
+    it.each([
+        ['content', { content: 1 }, 'INVALID_CONTENT'],
+        ['channelId', { channelId: 0 }, 'INVALID_CHANNEL_ID'],
+        ['attachments', { attachments: [{}] }, 'INVALID_ATTACHMENTS'],
+    ])('유효 JSON이지만 잘못된 %s는 프로세스를 종료하지 않고 격리한다', async (_field, patch, reasonCode) => {
+        await expect(consumer.processKafkaMessage('chat.message', 1, kafkaMessage(JSON.stringify({ ...event(), ...patch })))).resolves.toBeUndefined();
 
-        await (consumer as unknown as ConsumerWithPrivates).handleMessageEvent({
-            teamId: 10,
-            eventType: 'MESSAGE_SENT',
-            projectId: null,
-            channelId: 5,
-            authorId: 42,
-            authorRole: 'MEMBER',
-            content: '자동 읽음 테스트',
-            type: 'TEXT',
-            attachments: [],
-            occurredAt: new Date().toISOString(),
-        });
+        expect(processor.process).not.toHaveBeenCalled();
+        expect(quarantine.quarantine).toHaveBeenCalledWith(expect.objectContaining({
+            errorType: 'CONTRACT_ERROR', reasonCode, partition: 1, messageOffset: '3',
+        }));
+    });
 
-        await new Promise((r) => setImmediate(r));
-        expect(mockChannelMemberRepository.updateLastRead).toHaveBeenCalledWith(5, 42, 'msg-id-42');
+    it('Kafka key와 channelId가 다르면 저장·브로드캐스트 전에 격리한다', async () => {
+        await consumer.processKafkaMessage('chat.message', 1, kafkaMessage(JSON.stringify(event()), '999'));
+
+        expect(processor.process).not.toHaveBeenCalled();
+        expect(quarantine.quarantine).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'KEY_CHANNEL_MISMATCH' }));
+    });
+
+    it('quarantine 저장 실패는 전파해 offset을 유지한다', async () => {
+        quarantine.quarantine.mockRejectedValueOnce(new Error('Mongo unavailable'));
+
+        await expect(consumer.processKafkaMessage('chat.message', 1, kafkaMessage('{'))).rejects.toThrow('Mongo unavailable');
+    });
+
+    it('일시적 메시지 저장 오류는 quarantine으로 오분류하지 않고 전파한다', async () => {
+        processor.process.mockRejectedValueOnce(new Error('Mongo timeout'));
+
+        await expect(consumer.processKafkaMessage('chat.message', 1, kafkaMessage(JSON.stringify(event())))).rejects.toThrow('Mongo timeout');
+        expect(quarantine.quarantine).not.toHaveBeenCalled();
+    });
+
+    it('poison 뒤 정상 record는 계속 처리한다', async () => {
+        await consumer.processKafkaMessage('chat.message', 1, kafkaMessage('{'));
+        await consumer.processKafkaMessage('chat.message', 1, kafkaMessage(JSON.stringify(event())));
+
+        expect(quarantine.quarantine).toHaveBeenCalledTimes(1);
+        expect(processor.process).toHaveBeenCalledWith(expect.objectContaining({ channelId: 42, content: 'hello' }));
     });
 });

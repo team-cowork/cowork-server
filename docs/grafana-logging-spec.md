@@ -1,6 +1,6 @@
 # Grafana 로그 수집 현황과 운영 가이드
 
-이 문서는 2026-07-23의 Docker Compose, Loki, Promtail, 애플리케이션 로거 구현을 기준으로 한다. 기존 구현 계획과 달리 현재 모든 서비스 로그가 Loki에 수집되는 상태는 아니다.
+이 문서는 2026-09-03의 Docker Compose, Loki, Promtail, 애플리케이션 로거 설정을 기준으로 한다. 아래 수집 상태는 파일 경로와 volume 설정을 대조한 결과이며, 실행 중인 Loki에 모든 서비스 로그가 도착했음을 검증한 결과는 아니다.
 
 ## 현재 구성
 
@@ -47,7 +47,8 @@ Compose가 대부분의 애플리케이션에 `cowork_logs:/var/log/cowork`를 �
 
 ## Promtail 파싱 규칙
 
-현재 pipeline은 JSON에서 `level`, `service`, `@timestamp`를 읽고 `level`과 `service`를 Loki label로 만든다.
+현재 JSON stage는 `level`, `service`만 추출하고 두 값을 Loki label로 만든다. 뒤의 timestamp stage는
+`@timestamp`를 참조하지만 앞의 JSON expressions에 해당 필드가 없어 원문 시각을 추출하지 못한다.
 
 ```yaml
 pipeline_stages:
@@ -63,7 +64,8 @@ pipeline_stages:
       format: RFC3339Nano
 ```
 
-Go `slog` 로거는 시간을 `@timestamp`로 바꾸고 `service`를 추가하므로 이 규칙과 맞는다. 다음 차이는 현재 남아 있다.
+Go `slog` 로거는 원문에 `@timestamp`와 `service`를 기록하지만, timestamp stage에서 쓰려면 JSON
+expressions에도 timestamp 추출을 추가해야 한다. 다음 차이도 남아 있다.
 
 - `cowork-user` 파일 로그는 JSON이 아니므로 `service`, `level`, `@timestamp`를 추출할 수 없다.
 - `cowork-preference`의 ECS JSON은 레벨 필드가 Promtail이 기대하는 단순 `level`과 다를 수 있어 label을 실제 로그로 확인해야 한다.
@@ -121,7 +123,7 @@ JSON 로그만 필터링할 때는 다음처럼 사용한다.
 2. channel, project, roadmap에 JSON file appender를 추가한다.
 3. notification에 stdout 외 JSON file writer를 추가하거나 Docker log 수집 경로를 별도로 구성한다.
 4. user 로그를 JSON으로 바꾸거나 Promtail에 전용 plain-text 파서를 추가한다.
-5. ECS와 비-ECS 필드명을 하나의 Promtail pipeline으로 정규화한다.
+5. timestamp 추출 누락을 보완하고 ECS와 비-ECS 필드명을 Promtail pipeline에서 정규화한다.
 6. project, roadmap 대시보드를 추가하고 기존 대시보드 쿼리를 실제 label 집합으로 검증한다.
 
 메트릭 수집 엔드포인트는 애플리케이션 access log에서 제외한다. Spring 계열은 공통 `sdk.logging.not-logging-urls`, Chat은 Pino `autoLogging.ignore`, 그 외 런타임은 각 HTTP middleware에서 `/metrics` 또는 health 경로를 제외한다.

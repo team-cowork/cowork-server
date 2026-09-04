@@ -1,0 +1,23 @@
+/* Site chrome shared by the landing page and development dashboard. */
+.site-header {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: var(--z-header);
+    background: rgb(var(--palette-white) / 0.8);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.site-header__inner {
+    height: var(--header-height);
+    padding-inline: var(--page-gutter);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.site-footer {
+    --brand-width: 22px;
+    --brand-height: 16px;
+}

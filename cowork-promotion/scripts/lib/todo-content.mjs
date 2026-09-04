@@ -1,3 +1,4 @@
+import { realpathSync, statSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -207,14 +208,55 @@ const normalizeInternalTarget = ({ sourcePath, pathname }) => {
 
   const target = path.posix.normalize(path.posix.join(path.posix.dirname(sourcePath), pathname));
 
-  if (path.posix.isAbsolute(target) || target === '..' || target.startsWith('../')) {
-    throw new Error(`${sourcePath}: TODO link escapes docs/todo: ${pathname}`);
+  if (path.posix.isAbsolute(pathname) || path.posix.isAbsolute(target)) {
+    throw new Error(`${sourcePath}: invalid TODO link target: ${pathname}`);
   }
 
   return target.replace(/^\.\//, '');
 };
 
-export const createTodoLinkResolver = (routesBySource) => ({ sourcePath, pathname }) => {
+const isOutsideDirectory = (relativePath) => relativePath === '..'
+  || relativePath.startsWith(`..${path.sep}`)
+  || path.isAbsolute(relativePath);
+
+const resolveRepositoryLink = ({ sourcePath, pathname, target }, {
+  todoDirectory,
+  repositoryDirectory,
+  repositorySourceUrl,
+}) => {
+  const repositoryRoot = realpathSync(repositoryDirectory);
+  const targetPath = path.resolve(realpathSync(todoDirectory), target);
+  const repositoryPath = path.relative(repositoryRoot, targetPath);
+
+  if (isOutsideDirectory(repositoryPath)) {
+    throw new Error(`${sourcePath}: TODO link escapes repository: ${pathname}`);
+  }
+
+  let realTarget;
+
+  try {
+    realTarget = realpathSync(targetPath);
+  } catch (error) {
+    if (error.code === 'ENOENT' || error.code === 'ENOTDIR') {
+      throw new Error(`${sourcePath}: repository link target does not exist: ${pathname}`);
+    }
+
+    throw error;
+  }
+
+  if (isOutsideDirectory(path.relative(repositoryRoot, realTarget))) {
+    throw new Error(`${sourcePath}: TODO link escapes repository: ${pathname}`);
+  }
+
+  if (!statSync(realTarget).isFile()) {
+    throw new Error(`${sourcePath}: repository link target is not a file: ${pathname}`);
+  }
+
+  const encodedPath = asPosixPath(repositoryPath).split('/').map(encodeURIComponent).join('/');
+  return new URL(encodedPath, `${repositorySourceUrl.replace(/\/$/, '')}/`).href;
+};
+
+export const createTodoLinkResolver = (routesBySource, repository = {}) => ({ sourcePath, pathname }) => {
   const target = normalizeInternalTarget({ sourcePath, pathname });
 
   if (target === 'items' || target === 'items/') {
@@ -223,11 +265,15 @@ export const createTodoLinkResolver = (routesBySource) => ({ sourcePath, pathnam
 
   const route = routesBySource.get(target);
 
-  if (!route) {
-    throw new Error(`${sourcePath}: TODO link target does not exist: ${pathname}`);
+  if (route) {
+    return route;
   }
 
-  return route;
+  if (repository.todoDirectory && repository.repositoryDirectory && repository.repositorySourceUrl) {
+    return resolveRepositoryLink({ sourcePath, pathname, target }, repository);
+  }
+
+  throw new Error(`${sourcePath}: TODO link target does not exist: ${pathname}`);
 };
 
 const resolveRegistry = ({ entries, kind, resolveLink }) => {
@@ -273,6 +319,8 @@ const metadataText = (metadata, label) => metadata.find((entry) => entry.label =
 
 export const loadTodoContent = async ({
   todoDirectory,
+  repositoryDirectory,
+  repositorySourceUrl,
   onWarning = (message) => console.warn(message),
 } = {}) => {
   if (!todoDirectory) {
@@ -301,18 +349,23 @@ export const loadTodoContent = async ({
     throw new Error('docs/todo contains duplicate canonical routes');
   }
 
-  const resolveLink = createTodoLinkResolver(routesBySource);
+  const resolveRegistryLink = createTodoLinkResolver(routesBySource);
+  const resolveLink = createTodoLinkResolver(routesBySource, {
+    todoDirectory,
+    repositoryDirectory,
+    repositorySourceUrl,
+  });
   const readmeSource = await readFile(path.join(todoDirectory, README_PATH), 'utf8');
   const parsedRegistry = parseTodoReadme(readmeSource);
   const activeRegistry = resolveRegistry({
     entries: parsedRegistry.activeItems,
     kind: 'item',
-    resolveLink,
+    resolveLink: resolveRegistryLink,
   });
   const snapshotRegistry = resolveRegistry({
     entries: parsedRegistry.snapshots,
     kind: 'snapshot',
-    resolveLink,
+    resolveLink: resolveRegistryLink,
   });
   const activeByRoute = registryByRoute(activeRegistry);
   const snapshotByRoute = registryByRoute(snapshotRegistry);

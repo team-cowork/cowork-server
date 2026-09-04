@@ -528,7 +528,7 @@ export class MessageRepository {
                     },
                 },
             ],
-            { new: false },
+            { new: false, updatePipeline: true },
         ).lean() as ReactionDoc | null;
 
         if (!before) return null;
