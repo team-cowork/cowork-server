@@ -26,7 +26,7 @@ operation을 원자적으로 생성한 뒤 `findByActorAndIdempotencyKeyForUpdat
 | 중복·경합 | 실제 승자 행을 `SELECT ... FOR UPDATE`로 조회해 요청 동일성과 현재 상태를 판정한다 |
 | affected rows | `Int` update count나 전역 `useAffectedRows` 설정만으로 신규 여부를 판정하지 않는다 |
 | 적용 범위 | `cowork-channel`에서 계약을 검증한 뒤 `cowork-team`, `cowork-project`의 동일 패턴 적용 여부를 결정한다 |
-| 테스트 범위 | 회귀·통합 테스트 추가와 실행은 범위에서 제외하고 repository 계약의 단위 검증과 정적 확인만 수행한다 |
+| 검증 범위 | operation repository·outbox 멱등성은 자동화 테스트에서 제외하고 SQL·호출 그래프·운영 지표로 확인한다 |
 
 ## 할 일
 
@@ -42,14 +42,15 @@ operation을 원자적으로 생성한 뒤 `findByActorAndIdempotencyKeyForUpdat
 
 - operation mutation과 outbox 적재가 기존 로컬 transaction 안에서 유지되도록 한다.
 - 전역 JDBC affected-row 설정을 변경해 다른 update 결과 의미에 영향을 주지 않는다.
-- 회귀·통합 테스트를 새로 추가하거나 실행하지 않고, 결과 타입 분기와 요청 동일성 판정을 단위 수준에서 확인한다.
+- 결과 타입 분기와 요청 동일성 판정을 custom repository 계약과 호출 그래프에서 정적으로 확인한다.
 
 ## 검증
 
-- custom repository가 신규·기존 결과를 모호하지 않은 타입으로 반환하는지 단위 검증한다.
+- custom repository가 신규·기존 결과를 모호하지 않은 타입으로 반환하는지 타입과 구현을 대조한다.
 - 중복 경로에서 canonical `operationId`, 요청 hash, 상태를 사용하도록 정적으로 확인한다.
-- 신규 operation만 outbox command를 생성하는 분기 구조를 단위 수준에서 확인한다.
+- 신규 operation만 outbox command를 생성하는 분기 구조를 호출 그래프로 확인한다.
 - 변경된 SQL과 Connector/J affected-row 의미가 전역 설정에 의존하지 않는지 문서와 설정으로 확인한다.
+- 동시 경합, operation 멱등성, outbox 발행을 고정하는 자동화 단위·통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 

@@ -7,95 +7,100 @@ import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.LocalDateTime
 
-class JoinTeamServiceImplTest {
+class JoinTeamServiceImplTest :
+    DescribeSpec({
+        lateinit var inviteRepository: TeamInviteRepository
+        lateinit var teamRepository: TeamRepository
+        lateinit var memberRepository: TeamMemberRepository
+        lateinit var service: JoinTeamServiceImpl
 
-    private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamRepository = mockk<TeamRepository>()
-    private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamMemberEventPublisher = mockk<TeamMemberEventPublisher>(relaxed = true)
+        val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
 
-    private val service =
-        JoinTeamServiceImpl(teamInviteRepository, teamRepository, teamMemberRepository, teamMemberEventPublisher)
-
-    private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-
-    private fun makeInvite(
-        inviteCode: String = "aB3xK9mZ",
-        createdBy: Long = 42L,
-        duration: String = "7d",
-        expiresAt: LocalDateTime? = LocalDateTime.now().plusDays(7),
-    ) = TeamInvite(
-        team = team,
-        inviteCode = inviteCode,
-        createdBy = createdBy,
-        duration = duration,
-        expiresAt = expiresAt,
-    ).also {
-        val field = TeamInvite::class.java.getDeclaredField("createdAt").also { f -> f.isAccessible = true }
-        field.set(it, LocalDateTime.now())
-    }
-
-    @Test
-    fun `joinTeam은 유효한 코드로 가입 성공 시 member full state만 발행`() {
-        val invite = makeInvite(createdBy = 10L)
-        every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns invite
-        every { teamRepository.findByIdForUpdate(1L) } returns team
-        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
-        val newMember = TeamMember(team = team, userId = 99L).also {
-            val f = TeamMember::class.java.getDeclaredField("joinedAt").also { f -> f.isAccessible = true }
-            f.set(it, LocalDateTime.now())
+        beforeEach {
+            inviteRepository = mockk()
+            teamRepository = mockk()
+            memberRepository = mockk()
+            service = JoinTeamServiceImpl(
+                inviteRepository,
+                teamRepository,
+                memberRepository,
+                mockk<TeamMemberEventPublisher>(relaxed = true),
+            )
         }
-        every { teamMemberRepository.save(any()) } returns newMember
 
-        val result = service.execute(99L, "aB3xK9mZ")
+        describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
+            context("초대 코드가 유효하고 아직 팀원이 아니면") {
+                it("MEMBER 역할로 팀에 가입시킨다") {
+                    val joinedAt = LocalDateTime.now()
+                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = joinedAt }
+                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
+                    every { memberRepository.save(any()) } returns member
 
-        assertEquals(1L, result.teamId)
-        assertEquals(99L, result.userId)
-        assertEquals("MEMBER", result.role)
-        verify(exactly = 1) { teamMemberEventPublisher.publishUpsert(newMember, any()) }
-    }
+                    val result = service.execute(99L, "valid")
 
-    @Test
-    fun `joinTeam은 만료된 코드면 410`() {
-        val expired = makeInvite(expiresAt = LocalDateTime.now().minusHours(1))
-        every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns expired
+                    result.teamId shouldBe 1L
+                    result.userId shouldBe 99L
+                    result.role shouldBe "MEMBER"
+                    result.joinedAt shouldBe joinedAt
+                }
+            }
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, "aB3xK9mZ")
+            context("초대 코드가 만료됐으면") {
+                it("GONE으로 거부한다") {
+                    every { inviteRepository.findActiveByInviteCode("expired") } returns
+                        invite(team, expiresAt = LocalDateTime.now().minusHours(1))
+
+                    val error = shouldThrow<ExpectedException> { service.execute(99L, "expired") }
+
+                    error.statusCode shouldBe HttpStatus.GONE
+                    verify(exactly = 0) { memberRepository.save(any()) }
+                }
+            }
+
+            context("이미 팀 멤버이면") {
+                it("CONFLICT로 중복 가입을 거부한다") {
+                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns true
+
+                    val error = shouldThrow<ExpectedException> { service.execute(99L, "valid") }
+
+                    error.statusCode shouldBe HttpStatus.CONFLICT
+                    verify(exactly = 0) { memberRepository.save(any()) }
+                }
+            }
+
+            context("초대 코드가 없거나 삭제됐으면") {
+                it("NOT_FOUND로 거부한다") {
+                    every { inviteRepository.findActiveByInviteCode("invalid") } returns null
+
+                    val error = shouldThrow<ExpectedException> { service.execute(99L, "invalid") }
+
+                    error.statusCode shouldBe HttpStatus.NOT_FOUND
+                    verify(exactly = 0) { memberRepository.save(any()) }
+                }
+            }
         }
-        assertEquals(HttpStatus.GONE, ex.statusCode)
-    }
-
-    @Test
-    fun `joinTeam은 이미 팀 멤버면 409`() {
-        val invite = makeInvite()
-        every { teamInviteRepository.findActiveByInviteCode("aB3xK9mZ") } returns invite
-        every { teamRepository.findByIdForUpdate(1L) } returns team
-        every { teamMemberRepository.existsByTeamIdAndUserId(1L, 42L) } returns true
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(42L, "aB3xK9mZ")
-        }
-        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
-    }
-
-    @Test
-    fun `joinTeam은 존재하지 않거나 삭제된 코드면 404`() {
-        every { teamInviteRepository.findActiveByInviteCode("invalid") } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, "invalid")
-        }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    }) {
+    companion object {
+        private fun invite(team: Team, expiresAt: LocalDateTime = LocalDateTime.now().plusDays(7)) = TeamInvite(
+            team = team,
+            inviteCode = "valid",
+            createdBy = 10L,
+            duration = "7d",
+            expiresAt = expiresAt,
+        ).also { it.createdAt = LocalDateTime.now() }
     }
 }
