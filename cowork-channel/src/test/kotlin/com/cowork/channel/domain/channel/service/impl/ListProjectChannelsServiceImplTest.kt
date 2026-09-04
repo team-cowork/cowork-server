@@ -84,7 +84,7 @@ class ListProjectChannelsServiceImplTest {
     }
 
     @Test
-    fun `listProjectChannels는 프로젝트 projection이 없으면 SERVICE_UNAVAILABLE`() {
+    fun `listProjectChannels는 프로젝트 정보를 찾을 수 없으면 SERVICE_UNAVAILABLE`() {
         every { projectProjectionRepository.findById(5L) } returns Optional.empty()
 
         val ex = assertThrows(ExpectedException::class.java) {

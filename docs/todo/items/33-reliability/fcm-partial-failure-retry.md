@@ -11,7 +11,7 @@
 
 `cowork-notification/internal/domain/token/service.go`는 invalid token만 삭제한 뒤 성공을 반환한다. 이어서 `cowork-notification/internal/infra/kafka/consumer.go`의 notification consumer는 처리를 완료하고 `notification.trigger` offset을 commit한다. 따라서 FCM이 top-level 응답은 성공으로 반환했지만 일부 token에 일시 오류를 준 경우 해당 token의 알림은 다시 시도되지 않는다. 반대로 원본 trigger 전체를 재처리하면 이미 성공한 token에도 같은 푸시를 다시 보낼 수 있다.
 
-`cowork-notification/internal/infra/fcm/sender_test.go`는 `temporary-error-token`의 개별 실패에도 `require.NoError`와 빈 invalid 목록을 기대해 현재 유실 동작을 고정한다. `cowork-notification/src/main/resources/db/migration/`의 `V1`부터 `V6`까지에는 device token과 projection 상태만 있고 선택적 전송 재시도를 보존할 durable table은 없다.
+현재 단위 테스트는 알림 수신자 선택과 mute 정책 같은 핵심 비즈니스 규칙만 다룬다. FCM 결과 분류, 재시도, Kafka offset, durable delivery 상태는 구현·schema·운영 지표로 검증할 기술 메커니즘이며 자동화 테스트로 동작을 고정하지 않는다. `cowork-notification/src/main/resources/db/migration/`의 `V1`부터 `V6`까지에는 device token과 projection 상태만 있고 선택적 전송 재시도를 보존할 durable table은 없다.
 
 ## 전송 결과와 재시도 정책
 
@@ -46,13 +46,11 @@
 
 ## 검증
 
-- 한 multicast 응답에 success, unregistered, transient error를 함께 넣고 세 결과 집합이 정확한 token을 포함하는지 단위 테스트한다.
-- transient 개별 실패가 발생하면 성공 token은 한 번만 호출되고 실패 token만 재시도되는지 검증한다.
-- 같은 `eventId`를 원래 record 재전달과 다른 offset의 재발행으로 각각 처리해도 completed delivery의 token이 새 전송 대상으로 선택되지 않는지 확인한다.
-- retry row 저장 실패 시 원본 Kafka offset이 commit되지 않는지 consumer 통합 테스트한다.
-- retry worker를 전송 전·후와 상태 finalize 전·후에 중단하고 재시작해 claim과 상태가 복구되는지 확인한다.
-- 최대 시도 횟수에 도달한 token이 무한 loop 없이 격리되고 운영 metric에 나타나는지 확인한다.
-- `cowork-notification`에서 `go test ./...`를 실행해 sender, token service, Kafka consumer 회귀 테스트가 통과하는지 확인한다.
+- success, invalid, retryable 오류 code 매핑과 token index 조립을 구현·공식 SDK 계약과 대조해 정적으로 검토한다.
+- `(event_id, device_token_id)` unique 제약, 상태 전이, claim 조건, backoff 상한을 schema와 쿼리 검토로 확인한다.
+- 부분 실패, provider 장애, worker 재시작, 격리·복구 결과는 token 원문을 노출하지 않는 metric과 운영 rehearsal로 확인한다.
+- 알림 수신자 선택, mute, 대상 계정 판정 같은 핵심 비즈니스 규칙만 서비스 단위 테스트로 검증한다.
+- FCM 응답 조립, Kafka offset, delivery 멱등성, retry worker, crash 복구를 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
@@ -61,4 +59,4 @@
 - `(eventId, deviceTokenId)`가 Kafka 좌표와 무관한 canonical delivery identity로 사용된다.
 - 부분 실패 재시도가 이미 성공한 token을 다시 전송 대상으로 선택하지 않는다.
 - invalid token은 제거되고 재시도 상한을 넘은 실패는 격리되어 있다.
-- 선택 재시도의 적체와 성공·실패 상태를 테스트와 metric으로 확인할 수 있다.
+- 선택 재시도의 적체와 성공·실패 상태를 metric으로 확인하고 복구 절차를 runbook으로 실행할 수 있다.

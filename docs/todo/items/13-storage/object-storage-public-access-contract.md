@@ -83,8 +83,8 @@ URL도 서명한다. 외부 클라이언트가 internal hostname에 접근할 �
 3. 세 서비스 signer와 internal HEAD/DELETE 설정을 같은 계약으로 맞춘다.
 4. CORS를 환경별로 적용하고 최소 권한을 확인한다.
 5. 저장된 URL 호환·이관 절차를 적용한다.
-6. signer canonical request와 URL/object-key 변환을 핵심 계약 단위 테스트로 고정하고, 로컬에서
-   실제 PUT·HEAD·GET·DELETE smoke를 수동 확인한다.
+6. object key 소유권, 허용 prefix, 파일 크기 제한 같은 핵심 보안 정책만 단위 테스트로 검증하고,
+   signer canonical request와 실제 PUT·HEAD·GET·DELETE는 정적 검토 및 수동 smoke로 확인한다.
 
 ## 완료 조건
 
