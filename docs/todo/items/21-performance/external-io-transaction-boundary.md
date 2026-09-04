@@ -43,13 +43,14 @@
 
 ## 검증
 
-- 느린 fake GitHub App·OAuth provider와 지연된 Kafka acknowledgement를 사용해 대기 중 DB transaction과 connection이 유지되지 않는지 통합 테스트한다.
-- HTTP timeout·`4xx`·`5xx`와 Kafka timeout에서 로컬 transaction이 남거나 불필요하게 rollback되지 않는지 확인한다.
-- 권한 없는 사용자의 외부 호출이 발생하지 않는지 검증한다.
-- 댓글·라벨·OAuth token 교환 등 외부 작업 성공 뒤 로컬 후속 저장 실패 시 정한 보상·재처리 정책을 검증한다.
+- GitHub App·OAuth provider·Kafka 호출이 transaction 밖에 있는지 호출 그래프와 transaction 선언을 정적으로 점검한다.
+- 외부 지연 중 DB transaction·connection 점유 여부는 runtime metric과 부하 관측으로 확인한다.
+- 권한 없는 사용자의 외부 호출을 차단하는 핵심 판단은 client mock을 사용한 서비스 단위 테스트로 검증한다.
+- HTTP·Kafka 실패와 외부 작업 성공 뒤 로컬 저장 실패의 보상·재처리 정책은 상태 전이 검토와 운영 rehearsal로 확인한다.
+- 외부 시스템, database, broker를 구동하는 통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 
 - GitHub App·OAuth provider·Kafka 대기는 로컬 DB transaction 밖에서 실행된다.
 - 외부 지연이 `cowork-project`와 `cowork-channel`의 DB connection을 장시간 점유하지 않는다.
-- 권한 조회, 외부 호출, 후속 기록의 일관성·실패 정책이 메서드와 테스트에 명확히 분리되어 있다.
+- 권한 조회, 외부 호출, 후속 기록의 일관성·실패 정책이 메서드와 운영 문서에 명확히 분리되어 있다.
