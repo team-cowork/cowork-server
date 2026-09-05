@@ -6,8 +6,8 @@ import { loadStates } from "../data/load-states.js";
 function updateDots(buttons, index, activeColor, activeWidth, inactiveColor) {
     buttons.forEach((button, buttonIndex) => {
         const active = buttonIndex === index;
-        button.style.width = active ? activeWidth : "var(--indicator-size)";
-        button.style.backgroundColor = active ? activeColor : inactiveColor;
+        button.style.setProperty("--dot-width", active ? activeWidth : "var(--indicator-size)");
+        button.style.setProperty("--dot-color", active ? activeColor : inactiveColor);
         button.setAttribute("aria-current", active ? "step" : "false");
     });
 }
@@ -32,17 +32,15 @@ export function createStickyShowcase({
         const state = snapshot.states[snapshot.activeIndex];
         if (!state) return;
 
-        if (counter) counter.textContent = showcaseCounter(snapshot.activeIndex, snapshot.states.length);
-        updateDots(
-            dots,
-            snapshot.activeIndex,
-            state.color,
-            activeDotWidth,
-            inactiveDotColor,
-        );
+        const changed = !previousSnapshot || snapshot.activeIndex !== previousSnapshot.activeIndex;
+        if (changed) {
+            if (counter) counter.textContent = showcaseCounter(snapshot.activeIndex, snapshot.states.length);
+            updateDots(dots, snapshot.activeIndex, state.color, activeDotWidth, inactiveDotColor);
+        }
         onProgress?.(snapshot.progress, state);
 
-        if (snapshot.activeIndex !== previousSnapshot.activeIndex) {
+        if (changed && previousSnapshot) {
+            root.querySelector(".showcase-content").scrollTop = 0;
             onStateChange(state, snapshot.activeIndex);
         }
     }
@@ -80,7 +78,7 @@ export function createStickyShowcase({
         });
 
         const initial = store.getSnapshot();
-        render(initial, initial);
+        render(initial, null);
         sync();
         window.addEventListener("scroll", scheduleSync, { passive: true });
         window.addEventListener("resize", scheduleSync);
