@@ -14,7 +14,7 @@ export function renderShowcase(html, name, states, {
         const active = index === 0;
         const width = active ? activeDotWidth : "var(--indicator-size)";
         const color = active ? initial.color : inactiveDotColor;
-        return `<button type="button" data-showcase-dot aria-label="${escapeHtml(label)} ${index + 1} / ${states.length}" aria-current="${active ? "step" : "false"}" class="${escapeHtml(dotClass)}" style="width: ${escapeHtml(width)}; background-color: ${escapeHtml(color)}"></button>`;
+        return `<button type="button" data-showcase-dot aria-label="${escapeHtml(label)} ${index + 1} / ${states.length}" aria-current="${active ? "step" : "false"}" class="${escapeHtml(dotClass)}" style="--dot-width: ${escapeHtml(width)}; --dot-color: ${escapeHtml(color)}"></button>`;
     }).join("\n");
     const regions = {
         background: `<span data-showcase-background class="${escapeHtml(backgroundClass)}" style="color: ${escapeHtml(initial.color)}">${showcaseNumber(0)}</span>`,
