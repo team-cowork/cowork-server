@@ -4,6 +4,10 @@
     --brand-height: 119px;
 }
 
+.hero h1 {
+    font-size: clamp(4rem, 20vw, 6rem);
+}
+
 .repo-grid {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -85,15 +89,53 @@
         transform: translate(0);
     }
 }
-.marquee-left {
+.marquee-toggle {
+    margin-top: var(--space-5);
+}
+.marquee-group {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+}
+.marquee-group[aria-hidden="true"] {
+    display: none;
+}
+.marquee-ready .marquee-window {
+    overflow: hidden;
+}
+.marquee-ready .marquee-row {
+    display: flex;
+    width: max-content;
+}
+.marquee-ready .marquee-group {
+    display: flex;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+    padding: var(--space-1) var(--space-3) var(--space-1) 0;
+}
+.marquee-ready .marquee-left {
     animation: scroll-left var(--duration-marquee) linear infinite;
 }
-.marquee-right {
+.marquee-ready .marquee-right {
     animation: scroll-right var(--duration-marquee) linear infinite;
 }
 .marquee-track:hover .marquee-left,
-.marquee-track:hover .marquee-right {
+.marquee-track:hover .marquee-right,
+.marquee-paused .marquee-row {
     animation-play-state: paused;
+}
+.marquee-ready .marquee-window:focus-within {
+    overflow-x: auto;
+    padding-inline: var(--space-1);
+}
+.marquee-ready .marquee-window:focus-within .marquee-row {
+    animation: none;
+    transform: none;
+}
+.marquee-ready .marquee-window:focus-within .marquee-group[aria-hidden="true"] {
+    display: none;
 }
 
 @media (min-width: 640px) {
@@ -118,7 +160,18 @@
     .repo-card__title, .repo-card__footer {
         transition: none;
     }
-    .marquee-left, .marquee-right {
-        animation-play-state: paused;
+    .marquee-ready .marquee-row {
+        width: auto;
+        animation: none;
+        transform: none;
+    }
+    .marquee-ready .marquee-group {
+        flex-wrap: wrap;
+        flex-shrink: 1;
+        width: 100%;
+        padding: var(--space-3);
+    }
+    .marquee-ready .marquee-group[aria-hidden="true"] {
+        display: none;
     }
 }
