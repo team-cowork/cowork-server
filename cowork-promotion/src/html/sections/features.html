@@ -1,76 +1,30 @@
-        <section
-          id="features"
-          class="relative bg-gray-950"
-          style="height: calc({{features:count}} * 70vh + 100vh)"
-          data-v-108e738d
-        >
-          <div
-            class="sticky top-0 h-screen overflow-hidden flex flex-col justify-center text-white"
-            data-v-108e738d
-          >
-            <div
-              class="absolute inset-0 flex items-center pointer-events-none select-none overflow-hidden"
-              aria-hidden="true"
-              data-v-108e738d
-            >
-              <!-- data:features-background:start -->
-              <!-- data:features-background:end -->
-            </div>
-            <div
-              class="absolute top-0 left-0 right-0 z-20 max-w-6xl mx-auto px-6 w-full pt-8 flex items-center justify-between"
-              data-v-108e738d
-            >
-              <span
-                class="text-xs font-semibold uppercase tracking-widest text-gray-500"
-                data-v-108e738d
-              >
-                Features
-              </span>
-              <span
-                data-showcase-counter
-                class="text-xs text-gray-500 font-medium tabular-nums"
-                data-v-108e738d
-              >
-                <!-- data:features-counter:start -->
-                <!-- data:features-counter:end -->
-              </span>
-            </div>
-            <div
-              class="max-w-6xl mx-auto px-6 w-full relative z-10"
-              data-v-108e738d
-            >
-              <div class="relative" style="min-height: 60vh" data-v-108e738d>
-                <div
-                  data-showcase-scene
-                  class="absolute inset-0 grid grid-cols-1 lg:grid-cols-2 gap-8 md:gap-12 items-center content-center"
-                  data-v-108e738d
-                >
-                  <!-- data:features-initial:start -->
-                  <!-- data:features-initial:end -->
-                </div>
-              </div>
-            </div>
-            <div
-              class="absolute bottom-0 left-0 right-0 z-20 max-w-6xl mx-auto px-6 w-full pb-8 block"
-              data-v-108e738d
-            >
-              <div class="flex items-center gap-3" data-v-108e738d>
-                <div
-                  class="flex-1 h-1 rounded-full bg-white/10 overflow-hidden"
-                  data-v-108e738d
-                >
-                  <div
-                    data-showcase-progress
-                    class="h-full rounded-full"
-                    style="width: 0%; background-color: {{features:color}}"
-                    data-v-108e738d
-                  ></div>
-                </div>
-                <div class="flex items-center gap-2" data-v-108e738d>
-                  <!-- data:features-dots:start -->
-                  <!-- data:features-dots:end -->
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+<section id="features" class="showcase showcase--features bg-gray-950" style="--showcase-count: {{features:count}}">
+  <div class="showcase-viewport text-white">
+    <div class="showcase-background" aria-hidden="true">
+      <!-- data:features-background:start -->
+      <!-- data:features-background:end -->
+    </div>
+    <div class="showcase-toolbar ui-container">
+      <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Features</span>
+      <span data-showcase-counter class="text-xs text-gray-400 tabular-nums">
+        <!-- data:features-counter:start -->
+        <!-- data:features-counter:end -->
+      </span>
+    </div>
+    <div class="showcase-content" tabindex="0" role="region" aria-label="기능 상세 소개">
+      <div data-showcase-scene class="showcase-scene ui-container">
+        <!-- data:features-initial:start -->
+        <!-- data:features-initial:end -->
+      </div>
+    </div>
+    <div class="showcase-controls ui-container">
+      <div class="showcase-progress-track" aria-hidden="true">
+        <div data-showcase-progress class="showcase-progress" style="background-color: {{features:color}}"></div>
+      </div>
+      <div class="showcase-dots" role="group" aria-label="기능 선택">
+        <!-- data:features-dots:start -->
+        <!-- data:features-dots:end -->
+      </div>
+    </div>
+  </div>
+</section>
