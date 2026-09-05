@@ -1,4 +1,16 @@
 /* TODO reading experience — intentionally quiet, using the promotion palette. */
+.todo-search__status {
+    margin-top: var(--space-4);
+    color: var(--color-text-muted);
+}
+
+.todo-document__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+}
+
 .todo-page {
     min-width: 20rem;
     background: var(--color-surface);
@@ -212,6 +224,16 @@
 
 .todo-dialog[open] {
     animation: todo-dialog-enter var(--duration-dialog) ease-out both;
+}
+
+.todo-dialog[open]:not(:modal) {
+    position: fixed;
+    inset: calc(var(--header-height) + 1px) 0 0;
+    width: 100%;
+    height: calc(100dvh - var(--header-height) - 1px);
+    margin: 0;
+    border-radius: 0;
+    animation: none;
 }
 
 .todo-dialog::backdrop {
