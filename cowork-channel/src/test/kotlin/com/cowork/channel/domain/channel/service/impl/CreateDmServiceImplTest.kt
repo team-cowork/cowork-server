@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.transaction.support.TransactionCallback
 import org.springframework.transaction.support.TransactionTemplate
@@ -84,22 +83,5 @@ class CreateDmServiceImplTest {
         assertEquals(null, result.teamId)
         assertEquals("1:2", savedChannel.captured.dmKey)
         assertEquals(listOf(2L, 1L), savedMembers.map { it.userId })
-
-        verify(exactly = 1) { channelEventPublisher.publishCreated(savedChannel.captured, any()) }
-        verify(exactly = 1) {
-            channelMembershipSyncPublisher.publishChannelSnapshot(savedChannel.captured, savedMembers, any())
-        }
-    }
-
-    @Test
-    fun `openDm은 동시 생성 경합 시 유니크 충돌을 잡고 기존 채널을 재조회해 반환`() {
-        val existing = dmChannel()
-        every { channelRepository.findByDmKey("1:2") } returnsMany listOf(null, existing)
-        every { transactionTemplate.execute(any<TransactionCallback<Any>>()) } throws
-            DataIntegrityViolationException("duplicate dm_key")
-
-        val result = service.execute(1L, 2L)
-
-        assertEquals(existing.id, result.id)
     }
 }

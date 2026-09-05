@@ -7,18 +7,18 @@ import org.junit.jupiter.api.Test
 class SettingDefaultsResolverTest {
 
     @Test
-    fun `configured keys preserve supplied values fill defaults and drop unknown keys`() {
+    fun `설정한 키만 유지하고 입력값에 기본값을 합친다`() {
         val settings = JsonObject()
             .put("enabled", false)
             .put("unknown", "ignored")
         val defaults: Map<String, Any> = linkedMapOf(
             "enabled" to true,
-            "retry_count" to 3,
+            "page_size" to 20,
         )
 
         val resolved = SettingDefaultsResolver.resolve(settings, defaults)
 
-        assertEquals(JsonObject().put("enabled", false).put("retry_count", 3), resolved)
-        assertEquals(setOf("enabled", "retry_count"), resolved.fieldNames())
+        assertEquals(JsonObject().put("enabled", false).put("page_size", 20), resolved)
+        assertEquals(setOf("enabled", "page_size"), resolved.fieldNames())
     }
 }

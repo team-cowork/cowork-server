@@ -13,7 +13,7 @@
 | startup 검사 | `resolveStartupDataset`이 generation, retained 범위, partition 집합, barrier·invalid latch를 검사함 | broker topic UUID 대신 운영 env generation을 신뢰하는 한계를 해소함 |
 | 명시적 rebuild | `ProjectionAdminController`와 readiness coordinator가 stream별 요청·pause·reset·replay를 수행함 | 실제 여러 replica에서 lease·pause 경합과 중단 후 복구를 검증함 |
 | 관측 | 관리 상태 응답과 `ProjectionMetricsService`의 replay·catch-up·rebuild 지표가 존재함 | 배포 환경에서 endpoint와 지표를 확인함 |
-| 테스트 | checkpoint 보존, 세대 불일치, retention gap, rebuild에 대한 단위 테스트가 존재함 | 이번 문서 점검에서는 테스트를 재실행하거나 Kafka·Mongo 통합 실험을 수행하지 않음 |
+| 검증 | 기존 checkpoint·readiness·rebuild 기술 테스트는 저장소 테스트 원칙에 따라 제거함 | 상태 전이 정적 검토, 운영 지표, 복구 rehearsal로 확인함 |
 
 ## 문제
 
@@ -21,7 +21,7 @@
 
 현재 구현은 `CHAT_PROJECTION_SOURCE_GENERATION` 또는 stream별 override와 MongoDB dataset generation을 비교한다. 이 값은 운영자가 관리하는 세대 값이며 broker topic UUID 자체가 아니다. source generation과 offset 범위가 우연히 같은 동일 이름 topic 교체까지 연속성을 증명하지는 못한다.
 
-[Kafka 공통 규칙](../../../../.claude/rules/kafka-projections.md)은 topic identity를 얻지 못하는 client가 process restart 또는 forced recovery를 넘을 때 durable replay generation, checkpoint·barrier reset, stale lease fencing과 fresh replay를 수행하도록 요구한다. 현재 재시작 시 증분 경로는 이 규칙과 차이가 있으므로 성능 구현만으로 이 항목을 완료 처리하지 않는다. topic UUID를 검증할 수 있는 경계를 확보하거나 restart·forced recovery를 공통 replay 정책에 맞추는 후속 구현이 필요하다.
+[Kafka 공통 규칙](../../../../.claude/rules/kafka-projections.md)은 topic identity를 얻지 못하는 client가 process restart 또는 forced recovery를 넘을 때 durable replay generation, checkpoint·barrier reset, stale lease fencing과 fresh replay를 수행하도록 요구한다. 이 복구 계약은 구현·운영 검증 사항이며 핵심 단위 테스트의 예외를 만들지 않는다. 현재 재시작 시 증분 경로는 이 규칙과 차이가 있으므로 성능 구현만으로 이 항목을 완료 처리하지 않는다. topic UUID를 검증할 수 있는 경계를 확보하거나 restart·forced recovery를 공통 replay 정책에 맞추는 후속 구현이 필요하다.
 
 ## 현재 구현의 실행 모드
 
@@ -39,16 +39,16 @@
 ### topic identity와 재시작 경계
 
 - broker topic UUID를 checkpoint와 함께 검증하는 경계를 확보하거나, UUID를 얻지 못하는 동안 process restart·forced recovery마다 공통 규칙의 durable replay generation을 생성하도록 한다.
-- 같은 process의 정상 rebalance와 process restart를 구분하고, 증분 재개 허용 조건을 코드·테스트·운영 문서에 동일하게 반영한다.
+- 같은 process의 정상 rebalance와 process restart를 구분하고, 증분 재개 허용 조건을 코드와 운영 문서에 동일하게 반영한다.
 - generation 및 `[low, high]` 범위 검사만으로 동일 이름 topic의 연속성을 보장한다고 가정하지 않는다.
-- 빈 collection·checkpoint 누락·세대 불일치 검사와 active lease CAS가 실제 MongoDB에서 보장하는 범위를 검증한다.
+- 빈 collection·checkpoint 누락·세대 불일치 검사와 active lease CAS가 실제 MongoDB에서 보장하는 범위를 운영 절차로 확인한다.
 
 ### 명시적 재구축
 
-- 구현된 관리 경로의 ADMIN 인가와 불완전한 projection 상태에서의 접근을 실제 Gateway 경유로 검증한다.
-- rebuild의 pause·reset·replay 각 단계에서 process를 중단하고 재시작해 stale key와 이전 owner의 쓰기가 남지 않는지 검증한다.
-- `channelMember` 재구축이 채팅 소유의 `lastReadMessageId`·`isHidden`을 보존하면서 projection 상태만 초기화하는지 검증한다.
-- 모든 partition의 fresh snapshot과 high-watermark를 확인한 뒤에만 dataset이 활성화되는지 실제 Kafka에서 검증한다.
+- 관리 경로의 ADMIN 인가는 guard 단위 테스트로 검증하고 Gateway route 연결은 정적으로 점검한다.
+- rebuild의 pause·reset·replay와 process 재시작 결과는 상태 지표와 운영 rehearsal로 확인한다.
+- `channelMember` 재구축 시 채팅 소유 필드 보존 조건을 update query와 데이터 점검으로 확인한다.
+- 모든 partition의 fresh snapshot과 high-watermark 이후 dataset이 활성화되는지는 운영 환경에서 지표로 확인한다.
 - 일부 stream 재구축 동안 전체 API와 다른 stream의 가용성 범위를 운영 문서에 고정한다.
 
 ### readiness와 관측
@@ -59,13 +59,11 @@
 
 ## 검증
 
-- topic UUID를 검증할 수 없을 때 process restart와 forced recovery가 새 durable replay generation 및 fresh snapshot을 요구하는지 검증한다.
-- topic identity를 검증하는 경계가 확보된 경우에만 재시작 후 기존 `nextOffset`과 barrier를 안전하게 재사용하는지 검증한다.
-- consumer rebalance 후 새 owner가 이전 shared checkpoint 다음 record부터 처리하고 이미 적용한 전체 log를 다시 쓰지 않는지 검증한다.
-- 빈 MongoDB와 빈 checkpoint에서는 전체 snapshot을 적용하기 전 readiness가 열리지 않는지 검증한다.
-- checkpoint가 retention 밖이거나 dataset 세대가 다르면 자동 low replay 없이 명시적인 복구 불가 상태가 되는지 검증한다.
-- 명시적 재구축이 stale projection을 제거하고 fresh snapshot과 high-watermark 확인 후에만 완료되는지 검증한다.
-- 여러 replica와 여러 partition에서 lease fencing, offset 전진, readiness가 경합 없이 유지되는지 검증한다.
+- ADMIN 인가와 불완전한 상태의 접근 거부 같은 보안 판단만 guard 단위 테스트로 검증한다.
+- topic identity, checkpoint·barrier 재사용, retention gap, dataset 세대 상태 전이를 코드와 저장 schema에서 정적으로 점검한다.
+- rebalance, restart, forced recovery, 명시적 rebuild의 결과는 stream별 상태·replay·catch-up metric과 운영 rehearsal로 확인한다.
+- 여러 replica와 partition의 lease fencing, offset 전진, readiness는 배포 환경 관측과 복구 runbook으로 검증한다.
+- Kafka·MongoDB를 구동하거나 checkpoint, readiness, snapshot, replay, rebuild, fencing을 고정하는 자동화 단위·통합·회귀 테스트는 추가하지 않는다.
 
 ## 완료 조건
 

@@ -12,7 +12,7 @@ cowork 제품과 개발 진행 현황을 소개하는 정적 웹사이트입니�
 - HTML / CSS / JavaScript ES modules
 - npm / Node.js 빌드 스크립트
 - YAML·XML·Markdown 빌드 데이터
-- 페이지별 HTML 번들 (`public/index.html`, `public/todo/`와 문서별 경로) / Vercel
+- 페이지별 정적 HTML, 해시 기반 CSS·JS·JSON 에셋 / Vercel
 
 ## 포트
 
@@ -23,9 +23,10 @@ cowork 제품과 개발 진행 현황을 소개하는 정적 웹사이트입니�
 
 ## 환경변수
 
-| 변수   | 기본값 | 설명                                              |
-|--------|--------|---------------------------------------------------|
-| `PORT` | `3000` | 선택. `npm run dev` / `npm run preview` 서버 포트 |
+| 변수       | 기본값                           | 설명                                                               |
+|------------|----------------------------------|--------------------------------------------------------------------|
+| `PORT`     | `3000`                           | 선택. `npm run dev` / `npm run preview` 서버 포트                  |
+| `SITE_URL` | Vercel 운영 도메인 → 배포 도메인 | 선택. canonical과 `og:url`에 사용할 HTTP(S) origin. 경로 없이 지정 |
 
 정적 배포 파일에는 필수 런타임 환경변수가 없으며 Config Server·Vault를 사용하지 않습니다.
 

@@ -1,26 +1,22 @@
 import { escapeHtml } from "./validation.mjs";
 import { accentStyle, renderBadge, renderMemberCard } from "../../src/design-system/index.mjs";
 
-const marqueeCopiesPerRow = 4;
-
 export function renderTechStacks(categories) {
     return categories.map((category) => `
-      <div class="flex items-start gap-6">
+      <div class="flex flex-col sm:flex-row items-start gap-6">
         <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider w-24 shrink-0 pt-2">${escapeHtml(category.name)}</span>
         <div class="flex flex-wrap gap-2">${category.items.map((item) => renderBadge(item.name, { variant: "technology", color: item.color })).join("\n")}</div>
       </div>`).join("\n");
 }
 
 function renderMarqueeRow(members, direction) {
-    const cards = Array.from({ length: marqueeCopiesPerRow }, () => members)
-        .flat()
-        .map((member) => renderMemberCard(member, { profile: true }))
-        .join("\n");
-    return `<div class="overflow-hidden"><div class="flex gap-3 marquee-${direction} min-w-max px-3">${cards}</div></div>`;
+    const groups = [false, true].map((duplicate) => `<ul class="marquee-group"${duplicate ? ' aria-hidden="true"' : ''}>${members.map((member) => `<li>${renderMemberCard(member, { profile: true, duplicate })}</li>`).join("\n")}</ul>`).join("\n");
+    return `<div class="marquee-window"><div class="marquee-row marquee-${direction}">${groups}</div></div>`;
 }
 
 export function renderTeamMembers(members) {
-    return [renderMarqueeRow(members, "left"), renderMarqueeRow(members, "right")].join("\n");
+    const midpoint = Math.ceil(members.length / 2);
+    return [renderMarqueeRow(members.slice(0, midpoint), "left"), renderMarqueeRow(members.slice(midpoint), "right")].join("\n");
 }
 
 function renderPositionScene(position, members) {
