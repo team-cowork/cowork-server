@@ -443,6 +443,8 @@ export const renderTodoMarkdown = async ({
 
   return {
     title,
+    summary: toString(bodyNodes.find((node) => node.type === 'paragraph') ?? { type: 'root', children: [] })
+      .replace(/\s+/g, ' ').trim().slice(0, 160) || title,
     metadata,
     priority,
     priorityLabel: priorityDetails(priority).label,
