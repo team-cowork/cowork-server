@@ -3,10 +3,22 @@ import { parse as parseYaml } from "yaml";
 import { expectArray, expectColor, expectString } from "./validation.mjs";
 
 export function parseFeatureStates(source) {
-    return expectArray(JSON.parse(source), "feature-states").map((state, index) => ({
-        color: expectColor(state?.color, `feature-states[${index}].color`),
-        sceneInnerHTML: expectString(state?.sceneInnerHTML, `feature-states[${index}].sceneInnerHTML`),
-    }));
+    const mockups = new Set(["workspace", "board", "meeting", "github", "activity", "search"]);
+    const seen = new Set();
+    return expectArray(JSON.parse(source), "feature-states").map((state, index) => {
+        const label = `feature-states[${index}]`;
+        const mockup = expectString(state?.mockup, `${label}.mockup`);
+        if (!mockups.has(mockup) || seen.has(mockup)) throw new Error(`Unknown or duplicate feature mockup: ${mockup}`);
+        seen.add(mockup);
+        return {
+            color: expectColor(state?.color, `${label}.color`),
+            label: expectString(state?.label, `${label}.label`),
+            title: expectString(state?.title, `${label}.title`),
+            description: expectString(state?.description, `${label}.description`),
+            tags: expectArray(state?.tags, `${label}.tags`).map((tag, tagIndex) => expectString(tag, `${label}.tags[${tagIndex}]`)),
+            mockup,
+        };
+    });
 }
 
 export function parseRepositories(source) {
