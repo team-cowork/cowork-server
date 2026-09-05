@@ -14,6 +14,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -43,46 +44,49 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
         setWebhookChannel(10L)
     }
 
-    @Test
-    fun `clearGithubWebhookChannel은 githubWebhookChannelId를 null로 초기화`() {
-        val proj = project()
-        val link = repoLink()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
-        every { projectGithubRepoRepository.save(any<ProjectGithubRepo>()) } answers { firstArg() }
+    @Nested
+    inner class Execute {
+        @Test
+        fun `clearGithubWebhookChannel은 githubWebhookChannelId를 null로 초기화`() {
+            val proj = project()
+            val link = repoLink()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
+            every { projectGithubRepoRepository.save(any<ProjectGithubRepo>()) } answers { firstArg() }
 
-        val response = service.execute(99L, 1L, 5L)
+            val response = service.execute(99L, 1L, 5L)
 
-        assertEquals(null, response.githubWebhookChannelId)
-    }
-
-    @Test
-    fun `clearGithubWebhookChannel은 EDITOR가 아니면 FORBIDDEN`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
-            ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(50L, 1L, 5L)
+            assertEquals(null, response.githubWebhookChannelId)
         }
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-    }
 
-    @Test
-    fun `clearGithubWebhookChannel은 등록된 레포가 없으면 NOT_FOUND`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
+        @Test
+        fun `clearGithubWebhookChannel은 EDITOR가 아니면 FORBIDDEN`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
+                ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
 
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L, 5L)
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(50L, 1L, 5L)
+            }
+            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
         }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+
+        @Test
+        fun `clearGithubWebhookChannel은 등록된 레포가 없으면 NOT_FOUND`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, 5L)
+            }
+            assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        }
     }
 }

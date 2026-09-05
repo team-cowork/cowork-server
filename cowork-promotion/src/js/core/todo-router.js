@@ -1,3 +1,5 @@
+import { setPageMetadata, todoPageMetadata } from "./page-metadata.js";
+
 const todoModalStateKey = "__coworkTodoModal";
 
 function normalizedTodoPath(pathname) {
@@ -14,6 +16,7 @@ function canHandleTodoAnchor(event, anchor) {
         !event.shiftKey &&
         !event.altKey &&
         !anchor.hasAttribute("download") &&
+        !anchor.hasAttribute("data-todo-native") &&
         (!anchor.target || anchor.target === "_self")
     );
 }
@@ -21,19 +24,7 @@ function canHandleTodoAnchor(event, anchor) {
 export function createTodoRouter({ root, registry, dashboard, dialog }) {
     let mounted = false;
     let opener = null;
-    let syncing = false;
-    let syncRequested = false;
-    let focusRequested = false;
-
-    function setDocumentTitle(documentModel = null) {
-        const title = documentModel
-            ? `${documentModel.title} · cowork`
-            : "개발 진행 현황 · cowork";
-        document.title = title;
-        document
-            .querySelector('meta[property="og:title"]')
-            ?.setAttribute("content", title);
-    }
+    let navigationVersion = 0;
 
     function currentLocation() {
         const url = new URL(window.location.href);
@@ -46,11 +37,13 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
         };
     }
 
-    async function applyCurrentLocation(focusAfterClose) {
+    async function syncFromLocation({ focusAfterClose = false } = {}) {
+        const version = ++navigationVersion;
+        const isCurrent = () => mounted && version === navigationVersion;
         const { url, path, documentModel } = currentLocation();
         if (path === "/todo") {
             dashboard.setQuery(url.searchParams.get("q") || "");
-            setDocumentTitle();
+            setPageMetadata(todoPageMetadata());
             document.body.dataset.initialDocumentId = "";
             root.hidden = false;
             const wasOpen = dialog.isOpen();
@@ -59,6 +52,7 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
             await dialog.hide({
                 restoreFocus: shouldRestoreFocus
                     ? () => {
+                          if (!isCurrent()) return;
                           if (focusTarget?.isConnected) {
                               focusTarget.focus({ preventScroll: true });
                           } else {
@@ -67,34 +61,47 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
                       }
                     : null,
             });
-            opener = null;
+            if (isCurrent()) opener = null;
             return;
         }
 
         if (!documentModel) return;
-        setDocumentTitle(documentModel);
-        dialog.showDocument(documentModel, url.hash, true);
+        setPageMetadata(todoPageMetadata(documentModel));
+        const cached = registry.getCachedDocument(documentModel.id);
+        if (cached) dialog.showDocument(cached, url.hash, true);
+        else dialog.showLoading(documentModel);
         root.hidden = false;
         document.body.dataset.initialDocumentId = documentModel.id;
+        if (cached) return;
+        try {
+            const content = await registry.loadDocument(documentModel);
+            if (isCurrent()) {
+                dialog.showDocument(content, window.location.hash, false);
+            }
+        } catch (error) {
+            if (isCurrent()) {
+                console.error("TODO 문서를 불러오지 못했습니다.", error);
+                dialog.showError(documentModel);
+            }
+        }
     }
 
-    async function syncFromLocation({ focusAfterClose = false } = {}) {
-        focusRequested ||= focusAfterClose;
-        if (syncing) {
-            syncRequested = true;
-            return;
-        }
-        syncing = true;
-        try {
-            do {
-                syncRequested = false;
-                const shouldFocus = focusRequested;
-                focusRequested = false;
-                await applyCurrentLocation(shouldFocus);
-            } while (syncRequested);
-        } finally {
-            syncing = false;
-        }
+    function handlePrefetch(event) {
+        const anchor = event.target.closest?.("a[href]");
+        if (
+            !anchor ||
+            anchor.hasAttribute("data-todo-native") ||
+            navigator.connection?.saveData ||
+            /(^|-)2g$/.test(navigator.connection?.effectiveType || "")
+        ) return;
+        if (
+            event.type === "pointerover" &&
+            (event.pointerType === "touch" || anchor.contains(event.relatedTarget))
+        ) return;
+        const url = new URL(anchor.href, window.location.href);
+        if (url.origin !== window.location.origin) return;
+        const entry = registry.documentByRoute.get(normalizedTodoPath(url.pathname));
+        if (entry) registry.loadDocument(entry).catch(() => {});
     }
 
     function replaceSearchQuery(query) {
@@ -183,6 +190,8 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
     function mount() {
         if (mounted) return;
         document.addEventListener("click", handleDocumentClick);
+        document.addEventListener("pointerover", handlePrefetch);
+        document.addEventListener("focusin", handlePrefetch);
         window.addEventListener("popstate", handlePopState);
         mounted = true;
         syncFromLocation();
@@ -191,8 +200,11 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
     function unmount() {
         if (!mounted) return;
         document.removeEventListener("click", handleDocumentClick);
+        document.removeEventListener("pointerover", handlePrefetch);
+        document.removeEventListener("focusin", handlePrefetch);
         window.removeEventListener("popstate", handlePopState);
         mounted = false;
+        navigationVersion += 1;
     }
 
     return {
@@ -200,5 +212,6 @@ export function createTodoRouter({ root, registry, dashboard, dialog }) {
         unmount,
         requestClose,
         replaceSearchQuery,
+        retry: () => syncFromLocation(),
     };
 }
