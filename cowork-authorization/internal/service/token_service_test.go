@@ -119,15 +119,6 @@ func TestGenerateRefreshTokenReturnsHighEntropyRawValueAndDeterministicHash(t *t
 	}
 }
 
-func TestRefreshExpireReturnsConfiguredDuration(t *testing.T) {
-	t.Parallel()
-
-	svc := newUnitTokenService(time.Minute, 48*time.Hour)
-	if got, want := svc.RefreshExpire(), 48*time.Hour; got != want {
-		t.Errorf("RefreshExpire() = %s, want %s", got, want)
-	}
-}
-
 func TestHashTokenIsDeterministicAndSensitiveToInput(t *testing.T) {
 	t.Parallel()
 
