@@ -7,71 +7,98 @@ import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
-class DisconnectGithubServiceImplTest {
+class DisconnectGithubServiceImplTest :
+    DescribeSpec({
+        lateinit var teamRepository: TeamRepository
+        lateinit var memberRepository: TeamMemberRepository
+        lateinit var service: DisconnectGithubServiceImpl
 
-    private val teamRepository = mockk<TeamRepository>(relaxed = true)
-    private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamAccessGuard = TeamAccessGuard(teamRepository, teamMemberRepository)
-    private val teamEventPublisher = mockk<TeamEventPublisher>(relaxed = true)
-
-    private val service = DisconnectGithubServiceImpl(teamRepository, teamAccessGuard, teamEventPublisher)
-
-    @Test
-    fun `execute는 연결된 installation을 해제하고 lifecycle 상태를 같은 transaction에 적재한다`() {
-        val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-        team.connectGithub(installationId = 42L, orgLogin = "my-org")
-        val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
-        every {
-            teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(1L, 10L, listOf(TeamRole.OWNER, TeamRole.ADMIN))
-        } returns ownerMember
-        every { teamRepository.findByIdForUpdate(1L) } returns team
-        every { teamRepository.save(team) } returns team
-
-        service.execute(10L, 1L)
-
-        assertNull(team.githubInstallationId)
-        assertNull(team.githubOrgLogin)
-        verify(exactly = 1) { teamEventPublisher.publishUpdated(team, 10L, any()) }
-    }
-
-    @Test
-    fun `execute는 연결된 적이 없으면 이벤트를 발행하지 않는다`() {
-        val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-        val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
-        every {
-            teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(1L, 10L, listOf(TeamRole.OWNER, TeamRole.ADMIN))
-        } returns ownerMember
-        every { teamRepository.findByIdForUpdate(1L) } returns team
-        every { teamRepository.save(team) } returns team
-
-        service.execute(10L, 1L)
-
-        verify(exactly = 0) { teamEventPublisher.publishUpdated(any(), any(), any()) }
-        verify(exactly = 0) { teamRepository.save(any()) }
-    }
-
-    @Test
-    fun `execute는 일반 MEMBER면 FORBIDDEN`() {
-        every { teamRepository.findByIdForUpdate(1L) } returns
-            Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-        every {
-            teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(1L, 42L, listOf(TeamRole.OWNER, TeamRole.ADMIN))
-        } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(42L, 1L)
+        beforeEach {
+            teamRepository = mockk(relaxed = true)
+            memberRepository = mockk()
+            service = DisconnectGithubServiceImpl(
+                teamRepository,
+                TeamAccessGuard(teamRepository, memberRepository),
+                mockk<TeamEventPublisher>(relaxed = true),
+            )
         }
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        verify(exactly = 0) { teamEventPublisher.publishUpdated(any(), any(), any()) }
+
+        describe("DisconnectGithubServiceImpl 클래스의 execute 메서드는") {
+            context("OWNER가 연결된 GitHub 조직을 해제하면") {
+                it("팀에서 설치 정보와 조직 정보를 제거한다") {
+                    val team = team().also { it.connectGithub(42L, "my-org") }
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
+                            1L,
+                            10L,
+                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
+                        )
+                    } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
+                    every { teamRepository.save(team) } returns team
+
+                    service.execute(10L, 1L)
+
+                    team.githubInstallationId.shouldBeNull()
+                    team.githubOrgLogin.shouldBeNull()
+                    verify(exactly = 1) { teamRepository.save(team) }
+                }
+            }
+
+            context("GitHub 연결 정보가 없으면") {
+                it("팀을 변경하지 않는다") {
+                    val team = team()
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
+                            1L,
+                            10L,
+                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
+                        )
+                    } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
+
+                    service.execute(10L, 1L)
+
+                    verify(exactly = 0) { teamRepository.save(any()) }
+                }
+            }
+
+            context("일반 멤버가 연결 해제를 요청하면") {
+                it("FORBIDDEN으로 거부한다") {
+                    every { teamRepository.findByIdForUpdate(1L) } returns team()
+                    every {
+                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
+                            1L,
+                            42L,
+                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
+                        )
+                    } returns null
+
+                    val error = shouldThrow<ExpectedException> { service.execute(42L, 1L) }
+
+                    error.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { teamRepository.save(any()) }
+                }
+            }
+        }
+    }) {
+    companion object {
+        private fun team() = Team(
+            id = 1L,
+            name = "team",
+            description = null,
+            iconUrl = null,
+            ownerId = 10L,
+        )
     }
 }

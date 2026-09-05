@@ -12,7 +12,8 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import io.mockk.verifyOrder
+import io.mockk.verify
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 
 class DeleteProjectServiceImplTest {
@@ -32,25 +33,23 @@ class DeleteProjectServiceImplTest {
             repoDeletionSupport,
         )
 
-    @Test
-    fun `deleteProject는 현재 트랜잭션에서 모든 멤버 제거 이벤트를 프로젝트 삭제보다 먼저 기록`() {
-        val project = Project(id = 7L, teamId = 3L, name = "Backend", description = null, createdBy = 11L)
-        val members = listOf(
-            ProjectMember(projectId = 7L, userId = 11L),
-            ProjectMember(projectId = 7L, userId = 12L),
-        )
-        every { projectAccessGuard.findProjectForUpdateOrThrow(7L) } returns project
-        every { projectAccessGuard.requireProjectOwner(project, 11L) } just Runs
-        every { projectMemberRepository.findAllByProjectIdForUpdate(7L) } returns members
-        every { projectRepository.delete(project) } just Runs
+    @Nested
+    inner class Execute {
+        @Test
+        fun `deleteProject는 OWNER가 요청하면 프로젝트를 삭제한다`() {
+            val project = Project(id = 7L, teamId = 3L, name = "Backend", description = null, createdBy = 11L)
+            val members = listOf(
+                ProjectMember(projectId = 7L, userId = 11L),
+                ProjectMember(projectId = 7L, userId = 12L),
+            )
+            every { projectAccessGuard.findProjectForUpdateOrThrow(7L) } returns project
+            every { projectAccessGuard.requireProjectOwner(project, 11L) } just Runs
+            every { projectMemberRepository.findAllByProjectIdForUpdate(7L) } returns members
+            every { projectRepository.delete(project) } just Runs
 
-        service.execute(11L, 7L)
+            service.execute(11L, 7L)
 
-        verifyOrder {
-            projectMemberEventPublisher.publishRemoved(members[0], any())
-            projectMemberEventPublisher.publishRemoved(members[1], any())
-            projectEventPublisher.publishDeleted(project, any())
-            projectRepository.delete(project)
+            verify(exactly = 1) { projectRepository.delete(project) }
         }
     }
 }

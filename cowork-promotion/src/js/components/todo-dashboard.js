@@ -108,6 +108,7 @@ export function createTodoDashboard(root, registry, options = {}) {
         input.addEventListener("input", handleInput);
         form.addEventListener("submit", handleSubmit);
         applyQuery(initialQuery);
+        input.disabled = false;
         mounted = true;
     }
 

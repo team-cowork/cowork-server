@@ -1,4 +1,23 @@
 /* Site chrome shared by the landing page and development dashboard. */
+.skip-link {
+    position: fixed;
+    inset: var(--space-3) auto auto var(--space-3);
+    z-index: calc(var(--z-header) + 1);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    color: var(--color-text);
+    transform: translateY(-200%);
+}
+
+.skip-link:focus {
+    transform: none;
+}
+
+#main-content {
+    scroll-margin-top: calc(var(--header-height) + var(--space-4));
+}
+
 .site-header {
     position: fixed;
     inset: 0 0 auto;
