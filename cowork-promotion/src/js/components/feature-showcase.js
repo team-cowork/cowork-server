@@ -22,12 +22,12 @@ export function createFeatureShowcase(root) {
     const showcase = createStickyShowcase({
         activeDotWidth: "var(--indicator-feature-active)",
         inactiveDotColor: "var(--color-indicator-inverse)",
-        onProgress(progress, state) {
+        onProgress(progress) {
             if (!progressBar) return;
-            progressBar.style.width = `${progress * 100}%`;
-            progressBar.style.backgroundColor = state.color;
+            progressBar.style.transform = `scaleX(${progress})`;
         },
         onStateChange(state, index) {
+            if (progressBar) progressBar.style.backgroundColor = state.color;
             backgroundTransition.render({ text: showcaseNumber(index), color: state.color });
             sceneTransition.render(state.sceneInnerHTML);
         },
