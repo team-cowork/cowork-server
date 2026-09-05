@@ -1,5 +1,5 @@
 language: ko
-minSeverity: nit
+minSeverity: minor
 maxInlineComments: 25
 
 exclude:
@@ -25,7 +25,7 @@ triggerPrefix: '/review'
 sandrone:
   language: ko
   tone: sandrone
-  minSeverity: minor
+  minSeverity: nit
   maxInlineComments: 25
   autoReview: true
   autoReviewOnPush: false
