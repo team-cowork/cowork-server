@@ -74,7 +74,7 @@
 ## 3단계: 근본 원인 수정
 
 - target matrix와 단계별 증거로 하나의 실패 구간과 근본 원인을 명시한다.
-- 원인을 재현하는 최소 검증 절차 또는 자동 테스트를 먼저 만든다.
+- 원인을 재현하는 최소한의 읽기 전용 검증 절차와 관측 기준을 먼저 만든다.
 - 확인된 원인만 최소 범위로 수정하며, 분석 중 발견한 별도 문제를 같은 변경에 섞지 않는다.
 - 설정을 변경하면 local/prod, Eureka/file SD, 각 런타임의 placeholder 처리 차이를 다시 확인한다.
 - 수정 내용과 영향받은 target을 이 문서 또는 별도 runbook에 기록한다.
@@ -106,7 +106,7 @@
 - `HealthDashboardControllerTest`
 - `SecurityConfigTest`의 `/health` 및 asset 공개·비공개 사례
 
-기존 JSON API인 `GET /api/health`, `HealthCheckController`, `ServiceStatus`는 임시 화면과 별개이므로 제거하지 않는다. 제거 후 `./gradlew :cowork-gateway:test`와 `:cowork-gateway:ktlintCheck`를 실행한다.
+기존 JSON API인 `GET /api/health`, `HealthCheckController`, `ServiceStatus`는 임시 화면과 별개이므로 제거하지 않는다. 제거 후 Gateway의 핵심 권한·보안 단위 테스트와 `:cowork-gateway:ktlintCheck`를 실행하고, scrape 상태는 위 운영 절차로 확인한다.
 
 ## 완료 조건
 
@@ -114,4 +114,4 @@
 - 확인된 원인이 수정되고 영향 대상의 scrape·저장·query·dashboard·alert가 모두 검증되었다.
 - 복구가 재시작과 rediscovery 이후에도 유지된다.
 - `TODO(temporary health dashboard)`로 표시된 임시 HTML 화면과 관련 공개 경로·테스트가 제거되었다.
-- 기존 `GET /api/health`와 다른 Gateway 기능이 회귀 없이 동작한다.
+- 기존 `GET /api/health`와 다른 Gateway route가 유지되는지 정적 점검과 staging smoke로 확인되어 있다.

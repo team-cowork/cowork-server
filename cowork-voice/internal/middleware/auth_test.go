@@ -6,49 +6,46 @@ import (
 	"testing"
 )
 
-func Test인증_헤더가_없으면_401을_반환한다(t *testing.T) {
-	t.Parallel()
+func TestExtractAuthUserAccordingToForwardedIdentity(t *testing.T) {
+	t.Run("missing or malformed user id is rejected", func(t *testing.T) {
+		for _, raw := range []string{"", "not-a-number"} {
+			t.Run(raw, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/voice/channels/1/participants", nil)
+				req.Header.Set("X-User-Id", raw)
+				recorder := httptest.NewRecorder()
+				nextCalled := false
+				handler := ExtractAuthUser(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+					nextCalled = true
+				}))
 
-	req := httptest.NewRequest(http.MethodGet, "/voice/channels/1/participants", nil)
-	rec := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, req)
 
-	nextCalled := false
-	handler := ExtractAuthUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		nextCalled = true
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusUnauthorized)
-	}
-	if nextCalled {
-		t.Fatal("next handler should not be called")
-	}
-}
-
-func Test유효한_인증_헤더면_컨텍스트에_사용자_ID를_저장한다(t *testing.T) {
-	t.Parallel()
-
-	req := httptest.NewRequest(http.MethodGet, "/voice/channels/1/participants", nil)
-	req.Header.Set("X-User-Id", "42")
-	rec := httptest.NewRecorder()
-
-	handler := ExtractAuthUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID, ok := GetUserID(r.Context())
-		if !ok {
-			t.Fatal("user id not found in context")
+				if recorder.Code != http.StatusUnauthorized {
+					t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+				}
+				if nextCalled {
+					t.Fatal("unauthenticated request reached the next handler")
+				}
+			})
 		}
-		if userID != 42 {
-			t.Fatalf("userID = %d, want 42", userID)
+	})
+
+	t.Run("valid user id is exposed to the protected handler", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/voice/channels/1/participants", nil)
+		req.Header.Set("X-User-Id", "42")
+		recorder := httptest.NewRecorder()
+		handler := ExtractAuthUser(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID, ok := GetUserID(r.Context())
+			if !ok || userID != 42 {
+				t.Fatalf("authenticated user = (%d, %v), want (42, true)", userID, ok)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}))
+
+		handler.ServeHTTP(recorder, req)
+
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusNoContent)
 		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-
-	handler.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusNoContent {
-		t.Fatalf("status = %d, want %d", rec.Code, http.StatusNoContent)
-	}
+	})
 }

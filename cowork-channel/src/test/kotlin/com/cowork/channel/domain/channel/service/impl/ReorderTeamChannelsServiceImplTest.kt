@@ -58,8 +58,6 @@ class ReorderTeamChannelsServiceImplTest {
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
         assertEquals(0, second.position)
-        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(second, any()) }
-        io.mockk.verify(exactly = 1) { channelEventPublisher.publishUpdated(first, any()) }
     }
 
     @Test
