@@ -17,14 +17,14 @@ export function renderBadge(label, { variant = "", color } = {}) {
 export function renderAvatar(member, { profile = false } = {}) {
     const size = profile ? 44 : 32;
     const github = escapeHtml(member.github);
-    return `<img class="ui-avatar${profile ? " ui-avatar--profile" : ""}" src="https://github.com/${github}.png?size=${profile ? 96 : 64}" alt="${escapeHtml(member.name)}" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
+    return `<img class="ui-avatar${profile ? " ui-avatar--profile" : ""}" src="https://github.com/${github}.png?size=${profile ? 96 : 64}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
 }
 
-export function renderMemberCard(member, { profile = false } = {}) {
+export function renderMemberCard(member, { profile = false, duplicate = false } = {}) {
     const details = profile
         ? `<div class="flex items-center gap-1.5 mt-1"><span class="ui-dot ui-dot--small" style="${accentStyle(member.accent)}" aria-hidden="true"></span><span class="text-xs text-gray-500 truncate">${escapeHtml(member.roles.join(" | "))}</span>${renderBadge(`${member.generation}기`, { variant: "generation" })}</div>`
         : `<p class="ui-member-card__generation">${escapeHtml(member.generation)}기</p>`;
-    return `<a href="https://github.com/${escapeHtml(member.github)}" target="_blank" rel="noopener noreferrer" class="ui-member-card${profile ? " ui-member-card--profile" : ""}">${renderAvatar(member, { profile })}<div class="min-w-0"><p class="ui-member-card__name${profile ? " truncate" : ""}">${escapeHtml(member.name)}</p>${details}</div></a>`;
+    return `<a href="https://github.com/${escapeHtml(member.github)}"${duplicate ? ' tabindex="-1"' : ''} target="_blank" rel="noopener noreferrer" class="ui-member-card${profile ? " ui-member-card--profile" : ""}">${renderAvatar(member, { profile })}<div class="min-w-0"><p class="ui-member-card__name${profile ? " truncate" : ""}">${escapeHtml(member.name)}</p>${details}</div></a>`;
 }
 
 function renderRepositoryIcon() {
