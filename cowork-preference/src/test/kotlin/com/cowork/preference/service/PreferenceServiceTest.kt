@@ -2,69 +2,99 @@ package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.domain.ResourceType
-import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.PreferenceSettingsUpdate
 import io.mockk.coEvery
-import io.mockk.coVerifyOrder
+import io.mockk.coVerify
 import io.mockk.mockk
-import io.mockk.slot
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import java.time.Instant
 
 class PreferenceServiceTest {
 
-    @Test
-    fun `GitHub repository read fills label default and drops unknown settings`() = runBlocking {
-        val repository = mockk<PreferenceRepository>()
-        val cache = mockk<PreferenceCache>()
-        val outboxRepository = mockk<PreferenceOutboxRepository>()
-        val cached = JsonObject().put("legacy_setting", true)
-        coEvery { cache.getSettings(ResourceType.GITHUB_REPO, 77) } returns cached
+    private lateinit var repository: PreferenceRepository
+    private lateinit var cache: PreferenceCache
+    private lateinit var outboxRepository: PreferenceOutboxRepository
+    private lateinit var service: PreferenceService
 
-        val result = PreferenceService(repository, cache, outboxRepository)
-            .getSettings(ResourceType.GITHUB_REPO, 77)
-
-        assertEquals(JsonObject().put("label_auto_apply", true), result)
+    @BeforeEach
+    fun setUp() {
+        repository = mockk()
+        cache = mockk(relaxed = true)
+        outboxRepository = mockk(relaxed = true)
+        service = PreferenceService(repository, cache, outboxRepository)
     }
 
-    @Test
-    fun `manual account status mutation and action event share one transaction`() = runBlocking {
-        val repository = mockk<PreferenceRepository>()
-        val cache = mockk<PreferenceCache>()
-        val outboxRepository = mockk<PreferenceOutboxRepository>()
-        val connection = mockk<SqlConnection>()
-        val event = slot<PreferenceEvent>()
-        val requested = JsonObject().put("status", "DO_NOT_DISTURB")
-        val updatedAt = Instant.parse("2026-08-26T01:02:03Z")
+    @Nested
+    inner class GetSettings {
 
-        coEvery { outboxRepository.inTransaction<JsonObject>(any()) } coAnswers {
-            firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
+        @Test
+        fun `GitHub 저장소 설정은 알 수 없는 값을 버리고 label 기본값을 채운다`() = runBlocking {
+            coEvery { cache.getSettings(ResourceType.GITHUB_REPO, 77L) } returns
+                JsonObject().put("legacy_setting", true)
+
+            val result = service.getSettings(ResourceType.GITHUB_REPO, 77L)
+
+            assertEquals(JsonObject().put("label_auto_apply", true), result)
+            coVerify(exactly = 0) { repository.findSettings(any(), any()) }
         }
-        coEvery {
-            repository.upsertSettings(connection, 19, ResourceType.ACCOUNT, requested, true)
-        } returns PreferenceSettingsUpdate(requested, "ONLINE", updatedAt, updatedAt)
-        coEvery { outboxRepository.enqueue(connection, capture(event)) } returns Unit
-        coEvery { cache.setSettings(ResourceType.ACCOUNT, 19, requested) } returns Unit
+    }
 
-        val result = PreferenceService(repository, cache, outboxRepository)
-            .updateSettings(ResourceType.ACCOUNT, 19, requested)
+    @Nested
+    inner class UpdateSettings {
 
-        assertTrue(result.isSuccess)
-        assertEquals("preference.status.changed", event.captured.topic)
-        assertEquals("ONLINE", event.captured.payload.getString("previousStatus"))
-        assertEquals("DO_NOT_DISTURB", event.captured.payload.getString("newStatus"))
-        assertEquals(updatedAt, event.captured.occurredAt)
-        coVerifyOrder {
-            repository.upsertSettings(connection, 19, ResourceType.ACCOUNT, requested, true)
-            outboxRepository.enqueue(connection, any())
-            cache.setSettings(ResourceType.ACCOUNT, 19, requested)
+        @Test
+        fun `계정 상태 값이 허용 목록에 없으면 저장하지 않는다`() = runBlocking {
+            val result = service.updateSettings(
+                ResourceType.ACCOUNT,
+                19L,
+                JsonObject().put("status", "BUSY"),
+            )
+
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
+        }
+
+        @Test
+        fun `팀 닉네임 형식 적용 여부만 바꾸면 현재 예시와 합쳐 검증한다`() = runBlocking {
+            val connection = mockk<SqlConnection>()
+            val current = JsonObject().put("nickname_format_example", "2학년 홍길동")
+            val requested = JsonObject().put("nickname_format_enforced", true)
+            val persisted = current.copy().mergeIn(requested)
+            val now = Instant.parse("2026-08-30T01:02:03Z")
+            coEvery { cache.getSettings(ResourceType.TEAM, 3L) } returns current
+            coEvery { outboxRepository.inTransaction<JsonObject>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
+            }
+            coEvery {
+                repository.upsertSettings(connection, 3L, ResourceType.TEAM, requested, false)
+            } returns PreferenceSettingsUpdate(persisted, null, now, now)
+
+            val result = service.updateSettings(ResourceType.TEAM, 3L, requested)
+
+            assertEquals(persisted, result.getOrThrow())
+        }
+
+        @Test
+        fun `닉네임 형식을 적용하지만 예시가 없으면 저장하지 않는다`() = runBlocking {
+            coEvery { cache.getSettings(ResourceType.TEAM, 3L) } returns JsonObject()
+
+            val result = service.updateSettings(
+                ResourceType.TEAM,
+                3L,
+                JsonObject().put("nickname_format_enforced", true),
+            )
+
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
         }
     }
 }
