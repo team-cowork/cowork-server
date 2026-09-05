@@ -44,7 +44,7 @@ paths:
 ## Event and Snapshot Contract
 
 - Projection events use a stable entity key (or composite entity key), include `occurredAt`, and are safe under duplicate or out-of-order delivery. Consumers must retain tombstones/version timestamps so a stale snapshot cannot resurrect deleted state.
-- Keep the outbox-to-producer boundary JSON-native and verify the serialized wire tree in a core unit test; never pass a JSON node from a different serializer/Jackson generation, and never let an invalid top-level `null` become a Kafka tombstone.
+- Keep the outbox-to-producer boundary JSON-native; never pass a JSON node from a different serializer/Jackson generation, and never let an invalid top-level `null` become a Kafka tombstone.
 - State topics must be created explicitly with log compaction. Producers publish a full snapshot on startup and periodically; projection consumers read from the beginning with a dedicated consumer group.
 - After every full state snapshot, the producer appends a `PROJECTION_SNAPSHOT_COMPLETED` control record to each topic partition through the same ordered outbox. Consumers require a valid marker for every partition as well as the startup high-watermark; an empty newly created topic is not evidence that a source snapshot completed.
 - Serialize every full snapshot run for the same output aggregate across replicas and startup/periodic triggers with one ownership-safe lock whose lifetime covers the complete run; use a session lock or renewable owner token, never an unrenewed fixed TTL. Give each run a unique `snapshotId`; consumers persist the last and recovery IDs so a repeated marker cannot masquerade as a fresh recovery snapshot.
@@ -66,3 +66,8 @@ paths:
 - Continue comparing required checkpoints with the current broker high-watermarks after startup. Close readiness again whenever a required projection falls behind or its broker/checkpoint state cannot be verified, and reopen it only after catch-up.
 - An action-only malformed record may be quarantined and advance the checkpoint after quarantine succeeds. A malformed snapshot-backed state record must also persist an invalid-record latch and close readiness immediately; clear it only through an explicit repair/rebuild or distinct serialized full-snapshot recovery that proves the gap was restored. One completion marker alone must never clear the latch. Transient storage/infrastructure failures must not advance either the checkpoint or consumer position.
 - Kafka topic names are immutable in deployed environments; do not delete and recreate a topic in place. UUID-aware clients detect replacement immediately. A client without topic identity cannot prove continuity for an overlapping same-name replacement until its fenced replay boundary, so topic immutability and a coordinated projection rebuild are mandatory. Replacing an authoritative owner database or Kafka dataset can erase tombstone history; rebuild the related projection tables, barriers, and checkpoints together before traffic is reopened.
+
+## Test Scope
+
+- These production architecture rules do not create an exception to the repository test policy. Write unit tests only for core business decisions, authorization, or security behavior.
+- Do not add tests whose sole purpose is to freeze Kafka serialization, delivery idempotency, outbox ordering, checkpoints, readiness, snapshot markers, quarantine, retry, or recovery mechanics. Validate non-business configuration and schema concerns with an appropriate static check when one is genuinely required.

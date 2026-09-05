@@ -118,7 +118,7 @@ Spring Config Client와 자체 구현 Config Client의 placeholder 및 우선순
 - `cowork-user`도 client 환경변수를 원격값보다 우선하지만 원격 문자열 placeholder를 공통으로 해석하지 않는다.
 - `cowork-preference`는 원격 문자열의 `${ENV:default}`를 client 환경변수로 해석한 뒤 명시적 환경변수 mapping을 다시 적용한다.
 
-따라서 `*-prod.yml`에 `${ENV}` placeholder를 일괄 추가하지 않는다. 각 값은 native의 구체적인 일반 설정, Vault 시크릿, client-side environment override 중 하나로 분류하고 모든 런타임에서 같은 우선순위가 되는지 테스트한다.
+따라서 `*-prod.yml`에 `${ENV}` placeholder를 일괄 추가하지 않는다. 각 값은 native의 구체적인 일반 설정, Vault 시크릿, client-side environment override 중 하나로 분류하고 모든 런타임에서 같은 우선순위가 되는지 staging 기동 점검으로 확인한다.
 
 ## 작업 순서
 
@@ -160,7 +160,7 @@ Git backend는 Config Server image를 다시 빌드하지 않고도 설정 commi
 - 기존 Git 응답과 native 응답의 property key set을 비교하고, 의도적으로 제거·이동한 key는 migration 목록으로 남긴다.
 - 시크릿 key가 native 파일이나 Git tracked 파일에 값으로 기록되지 않았는지 검사한다.
 - `docker compose -f docker-compose.yml -f docker-compose.prod.yml config`가 `CONFIG_GIT_*` 없이 성공하는지 확인한다.
-- Spring Boot, Go, NestJS, Vert.x, Elixir에서 각각 대표 Config Client 기동 테스트를 수행한다.
+- Spring Boot, Go, NestJS, Vert.x, Elixir에서 각각 대표 Config Client를 staging에서 기동해 설정 병합 결과를 확인한다.
 - 중앙 Config Server와 다른 인스턴스에 배치한 서비스가 외부 네트워크를 통해 설정 조회, Eureka 등록,
   Kafka 연결과 보류된 GitHub App 호출을 정상 수행하는지 확인한다.
 - 설정 변경, Config Server image rollback, Vault 장애 시 동작을 staging에서 검증한다.
@@ -173,4 +173,4 @@ Git backend는 Config Server image를 다시 빌드하지 않고도 설정 commi
 - 시크릿은 Vault에만 저장되고 native 파일과 배포 문서에 평문으로 남지 않는다.
 - 분산 인스턴스가 localhost나 같은 Docker network를 전제로 하지 않고 기동한다.
 - `CONFIG_GIT_*` 참조와 외부 Config Git 운영 의존성이 제거된다.
-- 설정 변경·배포·rollback 절차가 문서화되고 런타임별 기동 검증이 자동화되어 있다.
+- 설정 변경·배포·rollback 절차와 런타임별 반복 가능한 기동 점검표가 문서화되어 있다.

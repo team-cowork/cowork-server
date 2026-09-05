@@ -2,6 +2,8 @@ name: cowork stage CI Workflow
 
 on:
   pull_request:
+    branches-ignore:
+      - 'main'
   push:
     branches:
       - 'develop'
@@ -382,14 +384,26 @@ jobs:
           from pathlib import Path
 
           TOOLS = Path(__file__).resolve().parent
+          JVM_TEST_EXTENSIONS = ('java', 'kt', 'kts', 'groovy', 'scala')
+          JAVASCRIPT_TEST_EXTENSIONS = ('js', 'jsx', 'mjs', 'cjs', 'ts', 'tsx', 'mts', 'cts')
+          JAVASCRIPT_TEST_STEMS = (
+              '**/*.spec', '**/*.test', '**/*-test', '**/*_test', '**/test-*',
+              'test/**/*', 'tests/**/*', '**/__tests__/**/*',
+          )
+          # Every adapter declares test-source conventions here. The planner handles
+          # their absence through one runner-neutral state before installing toolchains.
+          JVM_TEST_SOURCES = tuple(f'src/test/**/*.{extension}' for extension in JVM_TEST_EXTENSIONS)
+          JAVASCRIPT_TEST_SOURCES = tuple(
+              f'{stem}.{extension}' for stem in JAVASCRIPT_TEST_STEMS for extension in JAVASCRIPT_TEST_EXTENSIONS
+          )
           RUNNERS = {
-              'gradle': ('line', 'jacoco', 'report.xml'),
-              'maven': ('line', 'jacoco', 'report.xml'),
-              'amper': ('line', 'jacoco', 'report.xml'),
-              'go': ('statement', 'go', 'report.out'),
-              'elixir': ('line', 'counts', 'report.json'),
-              'jest': ('line', 'istanbul', 'report.json'),
-              'node': ('line', 'istanbul', 'report.json'),
+              'gradle': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
+              'maven': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
+              'amper': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
+              'go': ('statement', 'go', 'report.out', ('**/*_test.go',)),
+              'elixir': ('line', 'counts', 'report.json', ('test/**/*_test.exs',)),
+              'jest': ('line', 'istanbul', 'report.json', JAVASCRIPT_TEST_SOURCES),
+              'node': ('line', 'istanbul', 'report.json', JAVASCRIPT_TEST_SOURCES),
           }
           IGNORED = {'.git', 'node_modules', 'build', 'target', '_build', 'deps', 'vendor', 'coverage', 'dist', '__pycache__', '.gradle', '.kotlin'}
           CONFIG_EXTENSIONS = {'.yml', '.yaml', '.json', '.md', '.txt', '.conf', '.ini', '.cfg', '.properties', '.xml', '.csv', '.svg', '.png', '.jpg', '.jpeg', '.ico', '.crt', '.pem', '.key', '.sql'}
@@ -398,8 +412,21 @@ jobs:
 
 
           def metadata(runner, reason=''):
-              metric, report_format, filename = RUNNERS.get(runner, ('line', 'counts', 'report.json'))
+              metric, report_format, filename, _test_sources = RUNNERS.get(runner, ('line', 'counts', 'report.json', ()))
               return dict(runner=runner, metric=metric, format=report_format, report=filename, reason=reason)
+
+
+          def coverage_metadata(directory, runner):
+              descriptor = RUNNERS.get(runner)
+              if descriptor is None:
+                  raise ValueError(f'Test-source discovery is not configured for runner: {runner}')
+              patterns = descriptor[3]
+              for pattern in patterns:
+                  for path in directory.glob(pattern):
+                      relative = path.relative_to(directory)
+                      if path.is_file() and not any(part in IGNORED for part in relative.parts):
+                          return metadata(runner)
+              return metadata('untested', '테스트 소스 없음')
 
 
           def test_commands(scripts, name='test', seen=None):
@@ -421,7 +448,7 @@ jobs:
               # Owner build files take precedence over delegating Gradle wrappers.
               for filename, runner in [('module.yaml', 'amper'), ('pom.xml', 'maven'), ('go.mod', 'go'), ('mix.exs', 'elixir')]:
                   if (directory / filename).is_file():
-                      return metadata(runner)
+                      return coverage_metadata(directory, runner)
               package_file = directory / 'package.json'
               if package_file.is_file():
                   try:
@@ -433,9 +460,9 @@ jobs:
                           raise ValueError('package.json scripts must be an object')
                       command = test_commands(scripts)
                       if re.search(r'(?:^|[\s;&|])jest(?:\s|$)', command):
-                          return metadata('jest')
+                          return coverage_metadata(directory, 'jest')
                       if re.search(r'(?:^|[\s;&|])node\s+[^;&|]*--test(?:\s|=|$)', command):
-                          return metadata('node')
+                          return coverage_metadata(directory, 'node')
                       # A direct Jest dependency is sufficient when no test command is declared.
                       dependencies = {}
                       for key in ('dependencies', 'devDependencies'):
@@ -444,12 +471,12 @@ jobs:
                               raise ValueError(f'package.json {key} must be an object')
                           dependencies.update(value)
                       if not command and 'jest' in dependencies:
-                          return metadata('jest')
+                          return coverage_metadata(directory, 'jest')
                       return metadata('unsupported', 'package.json does not declare a supported Jest or node --test runner')
                   except (ValueError, OSError) as error:
                       return metadata('unsupported', f'Unable to classify package.json: {error}')
               if any((directory / filename).is_file() for filename in ('build.gradle.kts', 'build.gradle')):
-                  return metadata('gradle')
+                  return coverage_metadata(directory, 'gradle')
               for current, subdirectories, filenames in os.walk(directory):
                   subdirectories[:] = [name for name in subdirectories if name not in IGNORED]
                   for filename in filenames:
@@ -467,8 +494,11 @@ jobs:
               modules, excluded = [], []
               for name in names:
                   snapshots = {snapshot: classify(source / name) for snapshot, source in [('base', base_source), ('pr', pr_source)]}
-                  if all(info['runner'] in {'absent', 'excluded'} for info in snapshots.values()):
-                      excluded.append(dict(module=name, reason='설정 전용 모듈 — 실행 코드 없음'))
+                  if all(info['runner'] in {'absent', 'excluded', 'untested'} for info in snapshots.values()):
+                      reason = '테스트 소스 없음 — 커버리지 제외' if any(
+                          info['runner'] == 'untested' for info in snapshots.values()
+                      ) else '설정 전용 모듈 — 실행 코드 없음'
+                      excluded.append(dict(module=name, reason=reason))
                       continue
                   preferred = next((snapshots[snapshot] for snapshot in ('pr', 'base') if snapshots[snapshot]['runner'] in RUNNERS), metadata('unsupported'))
                   for info in snapshots.values():
@@ -495,9 +525,9 @@ jobs:
               runner = info['runner']
               present = (source / entry['module']).is_dir()
               if runner not in RUNNERS or not present:
-                  status = {'absent': 'absent', 'excluded': 'excluded'}.get(runner, 'failed')
+                  status = {'absent': 'absent', 'excluded': 'excluded', 'untested': 'untested'}.get(runner, 'failed')
                   reason = info['reason']
-                  if (runner == 'absent' and present) or (runner in RUNNERS and not present):
+                  if present != (runner != 'absent'):
                       status, reason = 'failed', 'Source checkout does not match the discovered module inventory'
                   result.write_text(json.dumps(dict(module=entry['module'], snapshot=snapshot, metric=info['metric'],
                                                    status=status, covered=None, total=None, reason=reason), ensure_ascii=False) + '\n')
@@ -1029,7 +1059,7 @@ jobs:
 
 
           MARKER = "<!-- coverage-report-bot -->"
-          STATUSES = {"ok", "failed", "missing", "absent", "excluded"}
+          STATUSES = {"ok", "failed", "missing", "absent", "excluded", "untested"}
           METRICS = {"line", "statement"}
           SNAPSHOTS = {"base", "pr"}
 
@@ -1333,7 +1363,7 @@ jobs:
 
 
           def aggregate(results: list[Result], snapshot: str) -> Result:
-              if any(result.status not in {"ok", "absent", "excluded"} for result in results):
+              if any(result.status not in {"ok", "absent", "excluded", "untested"} for result in results):
                   return Result("전체", snapshot, "mixed", "missing", reason="Incomplete coverage")
               return Result(
                   "전체", snapshot, "mixed", "ok",
@@ -1358,7 +1388,7 @@ jobs:
                   if result.status in {"failed", "missing"}:
                       label = "실패" if result.status == "failed" else "누락"
                       problems.append(f"{result.snapshot}: {label} — {code_text(result.reason[:500])}")
-                  elif result.status == "excluded":
+                  elif result.status in {"excluded", "untested"}:
                       problems.append(f"{result.snapshot}: {code_text(result.reason)}")
                   elif result.status == "ok" and result.total == 0:
                       problems.append(f"{result.snapshot}: 측정 항목 없음")
@@ -1446,7 +1476,18 @@ jobs:
                   and results[(module["module"], "base")].metric != results[(module["module"], "pr")].metric
                   for module in modules
               )
-              overall_change = delta(base, pr) if complete and not unit_changed else None
+              module_scope_changed = any(
+                  (results[(module["module"], "base")].status == "absent")
+                  != (results[(module["module"], "pr")].status == "absent")
+                  for module in modules
+              )
+              test_scope_changed = any(
+                  (results[(module["module"], "base")].status == "untested")
+                  != (results[(module["module"], "pr")].status == "untested")
+                  for module in modules
+              )
+              scope_changed = module_scope_changed or test_scope_changed
+              overall_change = delta(base, pr) if complete and not unit_changed and not scope_changed else None
               lines = [MARKER, "## 테스트 커버리지", ""]
               if complete and pr.total:
                   lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="PR 전체 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
@@ -1465,8 +1506,8 @@ jobs:
                   lines += ["일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
               if unit_changed:
                   lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
-              if any(result.status == "absent" for result in results.values()):
-                  lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 달라질 수 있습니다. 해당 모듈의 개별 증감은 N/A입니다.", ""]
+              if module_scope_changed:
+                  lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 개별 증감과 전체 증감은 N/A입니다.", ""]
               if diagnostics:
                   lines += ["보고서 검증 오류:", ""] + [f"- {text(message[:500])}" for message in diagnostics] + [""]
               body = "\n".join(lines)
@@ -1513,7 +1554,7 @@ jobs:
 
           const MARKER = '<!-- coverage-report-bot -->';
 
-          /** Update this bot's coverage comment only while the event's PR is current. */
+          /** Update this bot's coverage comment only while the measured PR head is current. */
           module.exports = async function publishCoverageComment({ github, context, core, body }) {
             const pullRequest = context.payload.pull_request;
             if (!pullRequest?.head?.sha || !pullRequest?.base?.sha) {
@@ -1527,18 +1568,41 @@ jobs:
             const number = pullRequest.number ?? context.issue.number;
             const parameters = { owner, repo };
             const markedBody = body.includes(MARKER) ? body : `${MARKER}\n${body}`;
+            const snapshot = {
+              measuredBaseSha: pullRequest.base.sha,
+              measuredHeadSha: pullRequest.head.sha,
+              measuredMergeSha: context.sha,
+            };
+            const shortSha = sha => typeof sha === 'string' && sha ? sha.slice(0, 8) : 'unknown';
 
-            async function isCurrent() {
+            async function getCurrentPullRequest() {
               const { data } = await github.rest.pulls.get({ ...parameters, pull_number: number });
-              if (data.head.sha !== pullRequest.head.sha || data.base.sha !== pullRequest.base.sha) {
-                core.info('Coverage comment skipped: the PR head or base changed after this run started.');
-                return false;
+              if (data.head.sha !== pullRequest.head.sha) {
+                core.info('Coverage comment skipped: the PR head changed after this run started.');
+                return null;
               }
-              return true;
+              return data;
+            }
+
+            function publication(currentPullRequest) {
+              const currentBaseSha = currentPullRequest.base.sha;
+              const baseChanged = currentBaseSha !== pullRequest.base.sha;
+              const lines = [markedBody.trimEnd(), ''];
+              if (baseChanged) {
+                lines.push(
+                  '> [!NOTE]',
+                  `> 측정 후 base가 \`${shortSha(pullRequest.base.sha)}\`에서 \`${shortSha(currentBaseSha)}\`로 변경되었습니다. 위 결과는 측정 스냅샷 기준입니다.`,
+                  '',
+                );
+              }
+              lines.push(
+                `<sub>coverage snapshot · base <code>${shortSha(pullRequest.base.sha)}</code> · head <code>${shortSha(pullRequest.head.sha)}</code> · merge <code>${shortSha(context.sha)}</code>${baseChanged ? ` · current base <code>${shortSha(currentBaseSha)}</code>` : ''}</sub>`,
+              );
+              return { body: lines.join('\n'), baseChanged, currentBaseSha };
             }
 
             try {
-              if (!(await isCurrent())) return { status: 'stale' };
+              if (!(await getCurrentPullRequest())) return { status: 'stale', ...snapshot };
               const comments = await github.paginate(github.rest.issues.listComments, {
                 ...parameters,
                 issue_number: number,
@@ -1551,17 +1615,19 @@ jobs:
               ).sort((left, right) => left.id - right.id);
 
               // Pagination can take time. Check again immediately before writing.
-              if (!(await isCurrent())) return { status: 'stale' };
+              const currentPullRequest = await getCurrentPullRequest();
+              if (!currentPullRequest) return { status: 'stale', ...snapshot };
+              const published = publication(currentPullRequest);
               let response;
               let status;
               if (existing.length) {
                 response = await github.rest.issues.updateComment({
-                  ...parameters, comment_id: existing[0].id, body: markedBody,
+                  ...parameters, comment_id: existing[0].id, body: published.body,
                 });
                 status = 'updated';
               } else {
                 response = await github.rest.issues.createComment({
-                  ...parameters, issue_number: number, body: markedBody,
+                  ...parameters, issue_number: number, body: published.body,
                 });
                 status = 'created';
               }
@@ -1574,11 +1640,17 @@ jobs:
                   break;
                 }
               }
-              return { status, id: response.data.id };
+              return {
+                status,
+                id: response.data.id,
+                ...snapshot,
+                baseChanged: published.baseChanged,
+                currentBaseSha: published.currentBaseSha,
+              };
             } catch (error) {
               if (error.status !== 403) throw error;
               core.warning('Coverage comment could not be published (403). Fork PR tokens may be read-only; see the job summary and coverage artifacts.');
-              return { status: 'forbidden' };
+              return { status: 'forbidden', ...snapshot };
             }
           };
 
@@ -1787,10 +1859,32 @@ jobs:
             const path = require('path');
             const toolkit = path.join(process.env.RUNNER_TEMP, 'coverage-tools');
             const postCoverage = require(path.join(toolkit, 'comment.cjs'));
-            await postCoverage({
-              github, context, core,
-              body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8'),
-            });
+            let publicationError;
+            let result;
+            try {
+              result = await postCoverage({
+                github, context, core,
+                body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8'),
+              });
+            } catch (error) {
+              publicationError = error;
+              result = { status: 'failed' };
+            }
+            const message = `Coverage comment publication status: ${result.status}`;
+            if (['failed', 'stale', 'forbidden', 'skipped'].includes(result.status)) core.warning(message);
+            else core.info(message);
+            const details = [
+              `Status: \`${result.status}\``,
+              result.measuredBaseSha && `Measured base: \`${result.measuredBaseSha.slice(0, 8)}\``,
+              result.measuredHeadSha && `Measured head: \`${result.measuredHeadSha.slice(0, 8)}\``,
+              result.measuredMergeSha && `Measured merge: \`${result.measuredMergeSha.slice(0, 8)}\``,
+              result.baseChanged && `Current base: \`${result.currentBaseSha.slice(0, 8)}\``,
+            ].filter(Boolean);
+            await core.summary
+              .addHeading('Coverage comment publication', 3)
+              .addRaw(details.join('  \n'))
+              .write();
+            if (publicationError) throw publicationError;
 
   contrib-delta:
     if: github.event_name == 'pull_request'

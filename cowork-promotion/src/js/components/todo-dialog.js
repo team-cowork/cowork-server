@@ -38,6 +38,7 @@ function renderTodoDocument(article, tocList, tocRail, documentModel) {
 
     const title = document.createElement("h1");
     title.id = "todo-document-title";
+    title.tabIndex = -1;
     title.className = "todo-document__title";
     title.textContent = documentModel.title;
     header.append(title);
@@ -88,6 +89,9 @@ export function createTodoDialog(dialog, options = {}) {
     let lockedScrollY = 0;
     let bodyStyle = null;
     let closingPromise = null;
+    let cancelClose = null;
+    let renderVersion = 0;
+    let renderedId = document.body.dataset.initialDocumentId || "";
 
     if (!closeButton || !scroller || !article || !tocList || !tocRail) {
         throw new Error("TODO dialog markup이 완전하지 않습니다.");
@@ -135,7 +139,8 @@ export function createTodoDialog(dialog, options = {}) {
         options.onCloseRequest?.("escape");
     }
 
-    function handleCloseButton() {
+    function handleCloseButton(event) {
+        event.preventDefault();
         options.onCloseRequest?.("button");
     }
 
@@ -150,6 +155,8 @@ export function createTodoDialog(dialog, options = {}) {
         if (!mounted) return;
         dialog.removeEventListener("cancel", handleCancel);
         closeButton.removeEventListener("click", handleCloseButton);
+        renderVersion += 1;
+        cancelClose?.();
         if (dialog.open) dialog.close();
         unlockPageScroll();
         mounted = false;
@@ -179,8 +186,9 @@ export function createTodoDialog(dialog, options = {}) {
         return true;
     }
 
-    function showDocument(documentModel, hash = "", focus = true) {
-        renderTodoDocument(article, tocList, tocRail, documentModel);
+    function openDialog(hash, focus) {
+        const version = ++renderVersion;
+        cancelClose?.();
         dialog.classList.remove("todo-dialog--closing");
 
         if (dialog.hasAttribute("open") && !dialog.matches(":modal")) {
@@ -191,42 +199,101 @@ export function createTodoDialog(dialog, options = {}) {
             dialog.showModal();
         }
         scroller.scrollTop = 0;
-        if (hash) requestAnimationFrame(() => scrollToHash(hash));
-        if (focus) requestAnimationFrame(() => closeButton.focus({ preventScroll: true }));
+        requestAnimationFrame(() => {
+            if (version !== renderVersion || !dialog.open) return;
+            if (hash) scrollToHash(hash);
+            if (focus) closeButton.focus({ preventScroll: true });
+        });
+    }
+
+    function showDocument(documentModel, hash = "", focus = true) {
+        const restoreFocus = focus || article.contains(document.activeElement);
+        if (renderedId !== documentModel.id) {
+            renderTodoDocument(article, tocList, tocRail, documentModel);
+        }
+        renderedId = documentModel.id;
+        article.removeAttribute("aria-busy");
+        openDialog(hash, restoreFocus);
+    }
+
+    function showStatus(documentModel, failed) {
+        const focus = !dialog.open || article.contains(document.activeElement);
+        renderTodoDocument(article, tocList, tocRail, {
+            ...documentModel,
+            metadata: [],
+            toc: [],
+            bodyHtml: "",
+        });
+        renderedId = "";
+        const body = article.querySelector(".todo-document__body");
+        const status = document.createElement("p");
+        status.setAttribute("role", "status");
+        status.textContent = failed
+            ? "문서를 불러오지 못했습니다. 다시 시도해 주세요."
+            : "문서를 불러오고 있습니다.";
+        body.append(status);
+        if (failed) {
+            article.removeAttribute("aria-busy");
+            const retry = document.createElement("button");
+            retry.type = "button";
+            retry.className = "ui-button ui-button--primary";
+            retry.textContent = "다시 시도";
+            retry.addEventListener("click", () => options.onRetry?.());
+            const fallback = document.createElement("a");
+            fallback.href = documentModel.route;
+            fallback.dataset.todoNative = "";
+            fallback.className = "ui-button ui-button--secondary";
+            fallback.textContent = "문서 페이지 열기";
+            const actions = document.createElement("div");
+            actions.className = "todo-document__actions";
+            actions.append(retry, fallback);
+            body.append(actions);
+        } else {
+            article.setAttribute("aria-busy", "true");
+        }
+        openDialog("", focus);
     }
 
     function hide({ restoreFocus } = {}) {
+        renderVersion += 1;
         if (!dialog.open) {
             unlockPageScroll(restoreFocus);
             return Promise.resolve();
         }
         if (closingPromise) return closingPromise;
-
+        if (reducedMotion.matches) {
+            dialog.close();
+            unlockPageScroll(restoreFocus);
+            return Promise.resolve();
+        }
         closingPromise = new Promise((resolve) => {
-            const finish = () => {
+            let finished = false;
+            const finish = (cancelled = false) => {
+                if (finished) return;
+                finished = true;
+                window.clearTimeout(timeout);
+                dialog.removeEventListener("animationend", handleAnimationEnd);
                 dialog.classList.remove("todo-dialog--closing");
-                if (dialog.open) dialog.close();
-                unlockPageScroll(restoreFocus);
+                if (!cancelled) {
+                    if (dialog.open) dialog.close();
+                    unlockPageScroll(restoreFocus);
+                }
                 closingPromise = null;
+                cancelClose = null;
                 resolve();
             };
-
-            if (reducedMotion.matches) {
-                finish();
-                return;
-            }
-
-            dialog.classList.add("todo-dialog--closing");
-            const timeout = window.setTimeout(finish, readMotionDuration("--duration-dialog", dialog) + 40);
-            dialog.addEventListener(
-                "animationend",
-                (event) => {
-                    if (event.target !== dialog) return;
-                    window.clearTimeout(timeout);
+            const handleAnimationEnd = (event) => {
+                if (event.target === dialog && event.animationName === "todo-dialog-leave") {
                     finish();
-                },
-                { once: true },
+                }
+            };
+            cancelClose = () => finish(true);
+            dialog.classList.add("todo-dialog--closing");
+            const timeout = window.setTimeout(
+                () => finish(),
+                readMotionDuration("--duration-dialog", dialog) + 40,
             );
+            dialog.addEventListener("animationend", handleAnimationEnd);
         });
         return closingPromise;
     }
@@ -235,6 +302,8 @@ export function createTodoDialog(dialog, options = {}) {
         mount,
         unmount,
         showDocument,
+        showLoading: (documentModel) => showStatus(documentModel, false),
+        showError: (documentModel) => showStatus(documentModel, true),
         hide,
         scrollToHash,
         isOpen: () => dialog.open,
