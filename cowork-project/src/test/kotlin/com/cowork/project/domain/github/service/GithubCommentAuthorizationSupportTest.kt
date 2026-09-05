@@ -24,7 +24,8 @@ class GithubCommentAuthorizationSupportTest :
             usernameResolver = mockk()
             githubAppClient = mockk()
             callExecutor = mockk()
-            support = GithubCommentAuthorizationSupport(repoAccessResolver, usernameResolver, githubAppClient, callExecutor)
+            support =
+                GithubCommentAuthorizationSupport(repoAccessResolver, usernameResolver, githubAppClient, callExecutor)
 
             every { callExecutor.execute(any<() -> GithubCommentResDto>()) } answers {
                 firstArg<() -> GithubCommentResDto>().invoke()
@@ -35,8 +36,10 @@ class GithubCommentAuthorizationSupportTest :
             describe("authorize 메서드는") {
                 context("요청자가 프로젝트 OWNER/ADMIN인 경우") {
                     it("댓글 작성자를 확인하지 않고 통과시킨다") {
-                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
-                        every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns
+                            GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } returns
+                            GithubRepoRef("my-org", "my-repo")
 
                         val result = support.authorize(7L, 1L, 5L, 100L)
 
@@ -46,7 +49,8 @@ class GithubCommentAuthorizationSupportTest :
 
                 context("요청자가 프로젝트 수정 권한은 없지만 댓글 작성자 본인인 경우") {
                     it("통과시킨다") {
-                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns
+                            GithubRepoRef("my-org", "my-repo")
                         every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } throws
                             ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
                         every { usernameResolver.resolve(7L) } returns "octocat"
@@ -61,7 +65,8 @@ class GithubCommentAuthorizationSupportTest :
 
                 context("요청자가 프로젝트 수정 권한도 없고 댓글 작성자 본인도 아닌 경우") {
                     it("FORBIDDEN을 던진다") {
-                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns GithubRepoRef("my-org", "my-repo")
+                        every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns
+                            GithubRepoRef("my-org", "my-repo")
                         every { repoAccessResolver.resolveForModify(7L, 1L, 5L) } throws
                             ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
                         every { usernameResolver.resolve(7L) } returns "octocat"

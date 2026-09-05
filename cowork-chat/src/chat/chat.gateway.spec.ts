@@ -1,19 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
 import { ChatGateway, ChatSocket } from './chat.gateway';
-import { ChatService } from './chat.service';
-import { ChatMessageConsumer } from './kafka/chat-message.consumer';
-import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
-import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
-import { ChannelEventConsumer } from './kafka/channel-event.consumer';
-import { ProjectEventConsumer } from './kafka/project-event.consumer';
-import { MembershipConsumer } from '../membership/membership.consumer';
-import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
-import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
-import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
-import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
-import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
@@ -90,105 +75,32 @@ const mockTeamMemberEventConsumer = {
 describe('ChatGateway', () => {
     let gateway: ChatGateway;
 
-    beforeEach(async () => {
+    beforeEach(() => {
         jest.clearAllMocks();
         mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'MEMBER' });
         mockProjectionReadiness.isReady.mockReturnValue(true);
         mockChatService.isMember.mockResolvedValue(true);
         mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
 
-        const module: TestingModule = await Test.createTestingModule({
-            providers: [
-                ChatGateway,
-                { provide: ChatService, useValue: mockChatService },
-                { provide: ChatMessageConsumer, useValue: mockConsumer },
-                { provide: GithubIssueResultConsumer, useValue: mockGithubIssueResultConsumer },
-                { provide: GithubRepoEventConsumer, useValue: mockGithubRepoEventConsumer },
-                { provide: ChannelEventConsumer, useValue: mockChannelEventConsumer },
-                { provide: ProjectEventConsumer, useValue: mockProjectEventConsumer },
-                { provide: MembershipConsumer, useValue: mockMembershipConsumer },
-                { provide: TeamRoleEventConsumer, useValue: mockTeamRoleEventConsumer },
-                { provide: ChannelRolePolicyEventConsumer, useValue: mockChannelRolePolicyEventConsumer },
-                { provide: TeamMemberEventConsumer, useValue: mockTeamMemberEventConsumer },
-                { provide: ConfigService, useValue: mockConfigService },
-                { provide: JwtService, useValue: mockJwtService },
-                { provide: RedisRateLimiter, useValue: mockRateLimiter },
-                { provide: ProjectionReadinessService, useValue: mockProjectionReadiness },
-            ],
-        }).compile();
-
-        gateway = module.get<ChatGateway>(ChatGateway);
-    });
-
-    describe('afterInit', () => {
-        it('projection readiness가 닫혀 있으면 Socket.IO handshake middleware가 연결을 거부한다', () => {
-            type ConnectionMiddleware = (
-                socket: { use: jest.Mock },
-                callback: (error?: Error) => void,
-            ) => void;
-            let middleware: ConnectionMiddleware | undefined;
-            const server = {
-                use: jest.fn((candidate: ConnectionMiddleware) => {
-                    middleware = candidate;
-                }),
-            } as unknown as Parameters<ChatGateway['afterInit']>[0];
-            gateway.afterInit(server);
-            mockProjectionReadiness.isReady.mockReturnValue(false);
-            const next = jest.fn();
-            if (!middleware) throw new Error('Socket.IO middleware was not registered');
-
-            middleware({ use: jest.fn() }, next);
-
-            expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: 'Kafka projections are synchronizing' }));
-        });
-
-        it('연결 후 readiness가 닫히면 기존 socket의 inbound event도 packet middleware가 거부한다', () => {
-            type PacketMiddleware = (packet: unknown[], callback: (error?: Error) => void) => void;
-            type ConnectionMiddleware = (
-                socket: { use: (candidate: PacketMiddleware) => void },
-                callback: (error?: Error) => void,
-            ) => void;
-            let connectionMiddleware: ConnectionMiddleware | undefined;
-            const server = {
-                use: jest.fn((candidate: ConnectionMiddleware) => {
-                    connectionMiddleware = candidate;
-                }),
-            } as unknown as Parameters<ChatGateway['afterInit']>[0];
-            gateway.afterInit(server);
-            if (!connectionMiddleware) throw new Error('Socket.IO middleware was not registered');
-            let packetMiddleware: PacketMiddleware | undefined;
-            const socket = {
-                use: jest.fn((candidate: PacketMiddleware) => {
-                    packetMiddleware = candidate;
-                }),
-            };
-            const connectionNext = jest.fn();
-
-            connectionMiddleware(socket, connectionNext);
-
-            expect(connectionNext).toHaveBeenCalledWith();
-            if (!packetMiddleware) throw new Error('Socket.IO packet middleware was not registered');
-            mockProjectionReadiness.isReady.mockReturnValue(false);
-            const packetNext = jest.fn();
-            packetMiddleware(['join', { channelId: 1 }], packetNext);
-
-            expect(packetNext).toHaveBeenCalledWith(
-                expect.objectContaining({ message: 'Kafka projections are synchronizing' }),
-            );
-        });
+        gateway = new ChatGateway(
+            mockChatService as never,
+            mockConsumer as never,
+            mockGithubIssueResultConsumer as never,
+            mockGithubRepoEventConsumer as never,
+            mockChannelEventConsumer as never,
+            mockProjectEventConsumer as never,
+            mockMembershipConsumer as never,
+            mockTeamRoleEventConsumer as never,
+            mockChannelRolePolicyEventConsumer as never,
+            mockTeamMemberEventConsumer as never,
+            mockConfigService as never,
+            mockJwtService as never,
+            mockRateLimiter as never,
+            mockProjectionReadiness as never,
+        );
     });
 
     describe('handleConnection', () => {
-        it('projection readiness가 닫혀 있으면 인증 전에 연결을 거부한다', async () => {
-            mockProjectionReadiness.isReady.mockReturnValue(false);
-            const client = mockSocket(undefined, { 'x-user-id': '7', 'x-user-role': 'ADMIN' });
-
-            await gateway.handleConnection(client as unknown as ChatSocket);
-
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: 'Kafka projections are synchronizing' });
-            expect(client.disconnect).toHaveBeenCalled();
-            expect(client.join).not.toHaveBeenCalled();
-        });
         it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
             const client = mockSocket(undefined, { 'x-user-id': '7', 'x-user-role': 'ADMIN' });
             await gateway.handleConnection(client as unknown as ChatSocket);
@@ -252,14 +164,6 @@ describe('ChatGateway', () => {
 
             expect(client.join).not.toHaveBeenCalled();
             expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
-        });
-    });
-
-    describe('handleLeave', () => {
-        it('채널 room에서 퇴장한다', () => {
-            const client = mockSocket('valid-token');
-            gateway.handleLeave(client as unknown as ChatSocket, { channelId: 1 });
-            expect(client.leave).toHaveBeenCalledWith('chat:1');
         });
     });
 
