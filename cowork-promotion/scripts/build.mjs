@@ -28,6 +28,9 @@ import {
     renderTodoToc,
 } from "./lib/todo-render.mjs";
 import { escapeHtml } from "./lib/validation.mjs";
+import { createAssetCollection } from "./lib/assets.mjs";
+import { generateFeatureStates } from "./lib/feature-render.mjs";
+import { homePageDescription, todoPageMetadata } from "../src/js/core/page-metadata.js";
 
 const projectDirectory = new URL("../", import.meta.url);
 const sourceDirectory = new URL("../src/", import.meta.url);
@@ -44,12 +47,10 @@ const sharedStylesheetPaths = [
     "css/site.css",
 ];
 const homeStylesheetPaths = [
-    ...sharedStylesheetPaths,
     "css/home.css",
     "css/showcase.css",
 ];
 const todoStylesheetPaths = [
-    ...sharedStylesheetPaths,
     "css/todo.css",
 ];
 
@@ -90,47 +91,39 @@ function repositorySourceUrl(repositoryDirectory) {
     return `https://github.com/team-cowork/cowork-server/blob/${encodeURIComponent(revision)}/`;
 }
 
-function inlineStyles(paths, sources) {
+function concatenateStyles(paths, sources) {
     return sources
         .map(
             (source, index) =>
-                `/* ${paths[index]} */\n${source.replace(/<\/style/gi, "<\\/style")}`,
+                `/* ${paths[index]} */\n${source}`,
         )
         .join("\n");
 }
 
-function inlineLogo(html, logoSource) {
-    const logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(logoSource).toString("base64")}`;
-    return html.replace('href="/logo.svg"', `href="${logoDataUrl}"`);
-}
-
-function bundlePage({ html, styles, stateData, script, logoSource }) {
-    return inlineLogo(
+function bundlePage({ html, styles, stateData, script, logoUrl }) {
+    return (
         replaceBundleMarker(
             replaceBundleMarker(
-                replaceBundleMarker(html, "styles", `<style>${styles}</style>`),
+                replaceBundleMarker(html, "styles", styles.map((url) => `<link rel="stylesheet" href="${url}" />`).join("\n")),
                 "state-data",
                 stateData,
             ),
             "script",
-            `<script type="module">\n${script}</script>`,
-        ),
-        logoSource,
+            `<script type="module" src="${script}"></script>`,
+        ).replace('href="/logo.svg"', `href="${logoUrl}"`)
     );
 }
 
-function replacePageTitle(html, title, type = "website") {
-    const safeTitle = escapeHtml(title);
-    return html
-        .replace("<title>cowork</title>", `<title>${safeTitle}</title>`)
-        .replace(
-            '<meta property="og:title" content="cowork" />',
-            `<meta property="og:title" content="${safeTitle}" />`,
-        )
-        .replace(
-            '<meta property="og:type" content="website" />',
-            `<meta property="og:type" content="${escapeHtml(type)}" />`,
-        );
+function renderPageMetadata(html, metadata, siteUrl) {
+    const url = siteUrl ? new URL(metadata.route, siteUrl).href : metadata.route;
+    return replaceBundleMarker(html, "metadata", `
+    <title>${escapeHtml(metadata.title)}</title>
+    <meta name="description" content="${escapeHtml(metadata.description)}" />
+    <meta property="og:title" content="${escapeHtml(metadata.title)}" />
+    <meta property="og:description" content="${escapeHtml(metadata.description)}" />
+    <meta property="og:type" content="${escapeHtml(metadata.type)}" />
+    <meta property="og:url" content="${escapeHtml(url)}" />
+    <link rel="canonical" href="${escapeHtml(url)}" />`);
 }
 
 function todoListTitle(document) {
@@ -139,12 +132,18 @@ function todoListTitle(document) {
     return `${document.displayDate} — ${document.description}`;
 }
 
-function todoRegistry(content) {
+function todoRegistry(content, assets) {
     return {
-        documents: content.documents.map((document) => ({
-            ...document,
-            listTitle: todoListTitle(document),
-        })),
+        documents: content.documents.map((document) => {
+            const { id, route, title, kind, priority, priorityLabel, sourceOrder, active, searchText, summary } = document;
+            const contentUrl = assets.add("todo-document", "json", JSON.stringify({
+                id, route, metadata: document.metadata, toc: document.toc, bodyHtml: document.bodyHtml,
+            }));
+            return {
+                id, route, title, kind, priority, priorityLabel, sourceOrder, active, searchText, summary,
+                listTitle: todoListTitle(document), contentUrl,
+            };
+        }),
         activeItems: content.activeItems.map(({ id }) => id),
         history: content.snapshots.map(({ id }) => id),
     };
@@ -158,12 +157,13 @@ function renderTodoShell({
     styles,
     stateData,
     script,
-    logoSource,
+    logoUrl,
+    siteUrl,
 }) {
     let html = replaceGeneratedRegion(
-        replaceGeneratedRegion(template, "todo-items", renderTodoItems(activeItems)),
+        replaceGeneratedRegion(template, "todo-items", initialDocument ? "" : renderTodoItems(activeItems)),
         "todo-history",
-        renderTodoHistory(snapshots),
+        initialDocument ? "" : renderTodoHistory(snapshots),
     );
 
     html = replaceGeneratedRegion(
@@ -178,6 +178,7 @@ function renderTodoShell({
 
     if (initialDocument) {
         html = html
+            .replace('href="#main-content"', 'href="#todo-document-title"')
             .replace('class="todo-page"', 'class="todo-page todo-modal-open"')
             .replace(
                 'data-initial-document-id=""',
@@ -197,13 +198,10 @@ function renderTodoShell({
         }
     }
 
-    const title = initialDocument
-        ? `${initialDocument.title} · cowork`
-        : "개발 진행 현황 · cowork";
-    return replacePageTitle(
-        bundlePage({ html, styles, stateData, script, logoSource }),
-        title,
-        initialDocument ? "article" : "website",
+    return renderPageMetadata(
+        bundlePage({ html, styles, stateData, script, logoUrl }),
+        todoPageMetadata(initialDocument),
+        siteUrl,
     );
 }
 
@@ -214,6 +212,13 @@ async function writeOutput(outputDirectory, relativePath, content) {
 }
 
 export async function build(options = {}) {
+    const assets = createAssetCollection();
+    const deploymentHost = process.env.VERCEL_PROJECT_PRODUCTION_URL || process.env.VERCEL_URL;
+    const configuredSiteUrl = options.siteUrl || process.env.SITE_URL || (deploymentHost ? `https://${deploymentHost}` : null);
+    const siteUrl = configuredSiteUrl ? new URL(configuredSiteUrl) : null;
+    if (siteUrl && (!['http:', 'https:'].includes(siteUrl.protocol) || siteUrl.username || siteUrl.password || siteUrl.pathname !== '/' || siteUrl.search || siteUrl.hash)) {
+        throw new Error("SITE_URL must be an HTTP(S) origin without a path, credentials, query or fragment.");
+    }
     const outputDirectory = directoryUrl(
         options.outputDirectory,
         defaultOutputDirectory,
@@ -234,6 +239,7 @@ export async function build(options = {}) {
         logoSource,
         homeScriptBundle,
         todoScriptBundle,
+        sharedStylesheetSources,
         homeStylesheetSources,
         todoStylesheetSources,
         todoContent,
@@ -247,6 +253,7 @@ export async function build(options = {}) {
         readFile(projectUrl("logo.svg"), "utf8"),
         bundleJavaScript(sourceUrl("js/main.js"), sourceDirectory),
         bundleJavaScript(sourceUrl("js/todo-main.js"), sourceDirectory),
+        Promise.all(sharedStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8"))),
         Promise.all(
             homeStylesheetPaths.map((path) => readFile(sourceUrl(path), "utf8")),
         ),
@@ -266,7 +273,7 @@ export async function build(options = {}) {
         techStackYaml: techStackSource,
     });
     const positionStates = generatePositionStates(techStacks.positions, team);
-    const featureStates = parseFeatureStates(featureStateSource);
+    const featureStates = await generateFeatureStates(parseFeatureStates(featureStateSource));
     let generatedHomeHtml = replaceGeneratedRegion(
         replaceGeneratedRegion(
             replaceGeneratedRegion(
@@ -283,14 +290,14 @@ export async function build(options = {}) {
     generatedHomeHtml = renderShowcase(generatedHomeHtml, "features", featureStates, {
         label: "기능",
         backgroundClass: "feature-index",
-        dotClass: "h-1.5 rounded-full transition-all duration-300 cursor-pointer",
+        dotClass: "showcase-dot",
         activeDotWidth: "var(--indicator-feature-active)",
         inactiveDotColor: "var(--color-indicator-inverse)",
     });
     generatedHomeHtml = renderShowcase(generatedHomeHtml, "positions", positionStates, {
         label: "포지션",
         backgroundClass: "position-index",
-        dotClass: "h-1 rounded-full transition-all duration-500 cursor-pointer",
+        dotClass: "showcase-dot",
         activeDotWidth: "var(--indicator-active)",
         inactiveDotColor: "var(--color-indicator)",
     });
@@ -303,27 +310,31 @@ export async function build(options = {}) {
                 `<script type="application/json" data-state-url="${url}">${inlineJson(states)}</script>`,
         )
         .join("\n    ");
-    const homeHtml = bundlePage({
+    const sharedStyleUrl = assets.add("shared", "css", concatenateStyles(sharedStylesheetPaths, sharedStylesheetSources));
+    const logoUrl = assets.add("logo", "svg", logoSource);
+    const homeHtml = renderPageMetadata(bundlePage({
         html: generatedHomeHtml,
-        styles: inlineStyles(homeStylesheetPaths, homeStylesheetSources),
+        styles: [sharedStyleUrl, assets.add("home", "css", concatenateStyles(homeStylesheetPaths, homeStylesheetSources))],
         stateData: homeStateData,
-        script: homeScriptBundle,
-        logoSource,
-    });
-    const todoStyles = inlineStyles(todoStylesheetPaths, todoStylesheetSources);
-    const todoStateData = `<script type="application/json" data-todo-registry>${inlineJson(todoRegistry(todoContent))}</script>`;
+        script: assets.add("home", "js", homeScriptBundle),
+        logoUrl,
+    }), { title: "cowork", description: homePageDescription, route: "/", type: "website" }, siteUrl);
+    const registryUrl = assets.add("todo-registry", "json", JSON.stringify(todoRegistry(todoContent, assets)));
+    const todoStateData = `<link rel="preload" href="${registryUrl}" as="fetch" crossorigin="anonymous" data-todo-registry />`;
     const todoPageOptions = {
         template: todoTemplate,
         activeItems: todoContent.activeItems,
         snapshots: todoContent.snapshots,
-        styles: todoStyles,
+        styles: [sharedStyleUrl, assets.add("todo", "css", concatenateStyles(todoStylesheetPaths, todoStylesheetSources))],
         stateData: todoStateData,
-        script: todoScriptBundle,
-        logoSource,
+        script: assets.add("todo", "js", todoScriptBundle),
+        logoUrl,
+        siteUrl,
     };
 
     await rm(outputDirectory, { recursive: true, force: true });
     await Promise.all([
+        ...Array.from(assets.files, ([path, content]) => writeOutput(outputDirectory, path, content)),
         writeOutput(outputDirectory, "index.html", homeHtml),
         writeOutput(
             outputDirectory,

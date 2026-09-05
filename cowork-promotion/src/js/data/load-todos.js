@@ -31,7 +31,7 @@ function validateTodoDocument(documentModel, index) {
     if (!documentModel || typeof documentModel !== "object") {
         throw new Error(`TODO 문서 ${index + 1}의 형식이 올바르지 않습니다.`);
     }
-    for (const key of ["id", "route", "title", "kind"]) {
+    for (const key of ["id", "route", "title", "kind", "contentUrl"]) {
         if (typeof documentModel[key] !== "string" || !documentModel[key]) {
             throw new Error(`TODO 문서 ${index + 1}에 ${key} 값이 없습니다.`);
         }
@@ -51,9 +51,6 @@ function validateTodoDocument(documentModel, index) {
             ({ high: "높음", medium: "중간", low: "낮음", unknown: "미지정" }[
                 priority
             ] ?? "미지정"),
-        metadata: Array.isArray(documentModel.metadata) ? documentModel.metadata : [],
-        toc: Array.isArray(documentModel.toc) ? documentModel.toc : [],
-        bodyHtml: typeof documentModel.bodyHtml === "string" ? documentModel.bodyHtml : "",
         sourceOrder: Number.isFinite(documentModel.sourceOrder)
             ? documentModel.sourceOrder
             : index,
@@ -78,23 +75,26 @@ function resolveTodoCollection(references, documents, fallback) {
         .filter(Boolean);
 }
 
-function embeddedTodoRegistry() {
-    const element = document.querySelector(
-        'script[type="application/json"][data-todo-registry]',
-    );
-    if (!element) throw new Error("인라인 TODO 레지스트리를 찾을 수 없습니다.");
-
+async function fetchTodoJson(path) {
+    const url = new URL(path, window.location.href);
+    if (url.origin !== window.location.origin || !url.pathname.startsWith("/assets/")) {
+        throw new Error("TODO 데이터 경로가 올바르지 않습니다.");
+    }
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 12_000);
     try {
-        return JSON.parse(element.textContent);
-    } catch (error) {
-        throw new Error("인라인 TODO 레지스트리를 해석할 수 없습니다.", {
-            cause: error,
-        });
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`TODO 데이터를 불러오지 못했습니다: ${response.status}`);
+        return await response.json();
+    } finally {
+        window.clearTimeout(timeout);
     }
 }
 
-export function loadTodoRegistry() {
-    const payload = embeddedTodoRegistry();
+export async function loadTodoRegistry() {
+    const element = document.querySelector("link[data-todo-registry]");
+    if (!element) throw new Error("TODO 레지스트리 경로를 찾을 수 없습니다.");
+    const payload = await fetchTodoJson(element.href);
     const sourceDocuments = Array.isArray(payload) ? payload : payload.documents;
     if (!Array.isArray(sourceDocuments)) {
         throw new Error("TODO 레지스트리에 documents 배열이 없습니다.");
@@ -135,11 +135,50 @@ export function loadTodoRegistry() {
         defaultHistory,
     ).sort((left, right) => left.sourceOrder - right.sourceOrder);
 
+    const contentCache = new Map();
+    const pendingRequests = new Map();
+    const documentById = new Map(documents.map((documentModel) => [documentModel.id, documentModel]));
+
+    function seedInitialDocument() {
+        const initial = documentById.get(document.body.dataset.initialDocumentId);
+        const article = document.querySelector("[data-todo-document]");
+        const body = article?.querySelector(".todo-document__body");
+        if (!initial || !body) return;
+        const metadata = Array.from(article.querySelectorAll(".todo-document__metadata > div"), (row) => {
+            const value = row.querySelector("dd").cloneNode(true);
+            value.querySelector(".todo-priority-marker")?.remove();
+            return { label: row.querySelector("dt").textContent, text: value.textContent.trim(), html: value.innerHTML.trim() };
+        });
+        const toc = Array.from(body.querySelectorAll("h2[id], h3[id]"), (heading) => ({
+            id: heading.id, depth: Number(heading.tagName.slice(1)), text: heading.textContent,
+        }));
+        contentCache.set(initial.id, { ...initial, metadata, toc, bodyHtml: body.innerHTML });
+    }
+
+    async function loadDocument(documentModel) {
+        if (contentCache.has(documentModel.id)) return contentCache.get(documentModel.id);
+        if (pendingRequests.has(documentModel.id)) return pendingRequests.get(documentModel.id);
+        const pending = fetchTodoJson(documentModel.contentUrl).then((content) => {
+            if (content?.id !== documentModel.id || content.route !== documentModel.route ||
+                typeof content.bodyHtml !== "string" || !Array.isArray(content.metadata) || !Array.isArray(content.toc)) {
+                throw new Error("TODO 문서 내용의 형식이 올바르지 않습니다.");
+            }
+            const loaded = { ...documentModel, metadata: content.metadata, toc: content.toc, bodyHtml: content.bodyHtml };
+            contentCache.set(documentModel.id, loaded);
+            return loaded;
+        }).finally(() => pendingRequests.delete(documentModel.id));
+        pendingRequests.set(documentModel.id, pending);
+        return pending;
+    }
+
+    seedInitialDocument();
     return {
         documents,
         activeItems,
         history,
-        documentById: new Map(documents.map((documentModel) => [documentModel.id, documentModel])),
+        documentById,
+        loadDocument,
+        getCachedDocument: (id) => contentCache.get(id),
         documentByRoute: new Map(
             documents.map((documentModel) => [documentModel.route, documentModel]),
         ),
