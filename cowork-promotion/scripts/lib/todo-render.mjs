@@ -67,7 +67,7 @@ export function renderTodoDocument(document) {
     const metadata = renderMetadata(document.metadata, document.priority);
 
     return `    <header class="todo-document__header">
-      <h1 id="todo-document-title" class="todo-document__title">${escapeHtml(document.title)}</h1>
+      <h1 id="todo-document-title" class="todo-document__title" tabindex="-1">${escapeHtml(document.title)}</h1>
 ${metadata}
     </header>
     <div class="todo-document__body">${document.bodyHtml}</div>`;
