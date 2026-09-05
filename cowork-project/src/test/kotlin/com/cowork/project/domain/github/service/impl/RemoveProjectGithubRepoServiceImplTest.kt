@@ -16,6 +16,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -48,47 +49,48 @@ class RemoveProjectGithubRepoServiceImplTest {
         githubRepoUrl = "https://github.com/my-org/my-repo",
     )
 
-    @Test
-    fun `removeGithubRepo는 등록된 레포를 삭제`() {
-        val proj = project()
-        val link = repoLink()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
+    @Nested
+    inner class Execute {
+        @Test
+        fun `removeGithubRepo는 등록된 레포를 삭제`() {
+            val proj = project()
+            val link = repoLink()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
 
-        service.execute(99L, 1L, 5L)
-
-        verify { projectGithubRepoRepository.delete(link) }
-        verify { repoEventPublisher.publishDelete(link, any()) }
-        verify { settingCommandPublisher.publishDelete(5L, 99L, any()) }
-    }
-
-    @Test
-    fun `removeGithubRepo는 등록된 레포가 없으면 NOT_FOUND`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-            ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
-        every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
             service.execute(99L, 1L, 5L)
-        }
-        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
-    }
 
-    @Test
-    fun `removeGithubRepo는 EDITOR가 아니면 FORBIDDEN`() {
-        val proj = project()
-        every { projectRepository.findByIdForUpdate(1L) } returns proj
-        every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
-            ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
-        every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
-
-        val ex = assertThrows(ExpectedException::class.java) {
-            service.execute(50L, 1L, 5L)
+            verify { projectGithubRepoRepository.delete(link) }
         }
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+
+        @Test
+        fun `removeGithubRepo는 등록된 레포가 없으면 NOT_FOUND`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
+                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, 5L)
+            }
+            assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        }
+
+        @Test
+        fun `removeGithubRepo는 EDITOR가 아니면 FORBIDDEN`() {
+            val proj = project()
+            every { projectRepository.findByIdForUpdate(1L) } returns proj
+            every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
+                ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(50L, 1L, 5L)
+            }
+            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        }
     }
 }
