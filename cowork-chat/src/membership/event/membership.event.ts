@@ -5,8 +5,8 @@ export interface ChannelMemberEvent {
     teamId: number | null;
     userId: number;
     role: string;
-    /** 채널 타입 (TEXT, VOICE, DM) — DM 채널 식별에 사용 */
-    channelType: string;
+    /** 채널 타입 (TEXT, VOICE, DM) — DM 채널 식별에 사용. 필드 추가 이전 legacy 레코드에는 없다. */
+    channelType?: string;
     occurredAt: string;
     /** startup/주기 projection snapshot 여부 */
     snapshot?: boolean;
