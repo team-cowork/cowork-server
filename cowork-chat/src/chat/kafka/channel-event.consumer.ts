@@ -132,7 +132,8 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             };
             applied = await this.channelRepository.upsert(projectionEvent);
         }
-        if (!this.io) return;
+        // replay로 다시 적용되는 과거 레코드는 소켓 이벤트나 접근 취소를 만들지 않는다.
+        if (!this.io || !this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channel.name)) return;
         if (event.eventType === 'UPDATED') {
             await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, [event.channelId]);
         }
