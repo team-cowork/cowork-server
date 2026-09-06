@@ -9,6 +9,7 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
+import { matchesChannelEventKey } from '../../common/kafka/projection-entity-key.util';
 import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository/channel-projection.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
@@ -93,7 +94,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid channel event payload');
         }
         const event = payload;
-        if (messageKey !== String(event.channelId)) {
+        if (!matchesChannelEventKey(messageKey, event.channelId, event.teamId)) {
             throw new ProjectionContractError(
                 `channel event key does not match channelId [key=${messageKey ?? '<missing>'}, channelId=${event.channelId}]`,
             );
@@ -148,7 +149,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         const { eventType, snapshot, ...projectionPayload } = event;
         void snapshot;
         if (eventType === 'DELETED') {
-            if (applied === false && await this.channelRepository.findById(event.channelId) !== null) return;
+            if (!applied && await this.channelRepository.findById(event.channelId) !== null) return;
             for (const socketId of deletionRecipientSocketIds) {
                 this.io.to(socketId).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
             }
@@ -156,7 +157,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         } else if (event.teamId === null) {
             return;
         } else if (eventType === 'CREATED') {
-            if (applied === false) return;
+            if (!applied) return;
             await this.channelMessageReadAccess.emitChannelEventToVisibleTeamUsers(
                 this.io,
                 event.teamId,
