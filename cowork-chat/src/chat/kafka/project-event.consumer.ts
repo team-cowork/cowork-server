@@ -9,6 +9,7 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
+import { matchesProjectEventKey } from '../../common/kafka/projection-entity-key.util';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
@@ -95,7 +96,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid project event payload');
         }
         const event = payload;
-        if (messageKey !== String(event.projectId)) {
+        if (!matchesProjectEventKey(messageKey, event.projectId, event.teamId)) {
             throw new ProjectionContractError(
                 `project event key does not match projectId [key=${messageKey ?? '<missing>'}, projectId=${event.projectId}]`,
             );
