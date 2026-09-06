@@ -8,6 +8,7 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
+import { matchesCompositeEntityKey } from '../../common/kafka/projection-entity-key.util';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 
 interface ProjectMemberEvent {
@@ -74,10 +75,10 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
         if (!this.isProjectMemberEvent(payload)) {
             throw new ProjectionContractError('invalid project member event payload');
         }
-        const expectedKey = `${payload.projectId}:${payload.userId}`;
-        if (messageKey !== expectedKey) {
+        if (!matchesCompositeEntityKey(messageKey, payload.projectId, payload.userId)) {
             throw new ProjectionContractError(
-                `project member event key mismatch [key=${messageKey ?? '<missing>'}, expected=${expectedKey}]`,
+                `project member event key mismatch [key=${messageKey ?? '<missing>'}, `
+                + `expected=${payload.projectId}:${payload.userId}]`,
             );
         }
         const eventTime = parseEventTime(payload.occurredAt);

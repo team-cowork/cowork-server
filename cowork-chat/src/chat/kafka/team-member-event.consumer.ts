@@ -107,7 +107,8 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
                 sourceVersion,
             });
         }
-        if (!this.io) return;
+        // replay로 다시 적용되는 과거 레코드는 소켓 이벤트나 접근 취소를 만들지 않는다.
+        if (!this.io || !this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.teamMember.name)) return;
 
         const channelIds = await this.channelRepository.findIdsByTeamId(payload.teamId);
         await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, channelIds, [payload.userId]);
