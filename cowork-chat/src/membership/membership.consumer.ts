@@ -199,6 +199,8 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && (event.teamId === null || isSafePositiveInteger(event.teamId))
             && isSafePositiveInteger(event.userId)
             && typeof event.role === 'string'
+            // TODO(topic-versioning): channelType은 8e0d97bb에서 추가된 필드이며, 그 이전 레코드는
+            // 은퇴한 키 포맷 구간에만 존재한다. 토픽 버전 분리 컷오버 뒤에는 필수 검증으로 되돌린다.
             && (event.channelType === undefined || typeof event.channelType === 'string')
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
             && parseEventTime(event.occurredAt) !== null;
