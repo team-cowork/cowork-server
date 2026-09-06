@@ -99,14 +99,55 @@ class ProjectionCheckpointStore(
         }
     }
 
-    fun markSnapshotCompleted(stream: ProjectionStream, partition: Int, markerOffset: Long, topicId: String) {
+    /**
+     * completion marker를 기록하고 invalid-record latch의 recovery 상태를 전진시킨다.
+     * latch는 gap 이후 서로 다른 두 full snapshot을 관측했을 때만 해제되며,
+     * marker 하나만으로는 해제되지 않는다.
+     */
+    fun markSnapshotCompleted(
+        stream: ProjectionStream,
+        partition: Int,
+        markerOffset: Long,
+        topicId: String,
+        snapshotId: String,
+    ) {
         val updated = jdbcTemplate.update(
             """
             UPDATE tb_kafka_projection_checkpoints
-            SET snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), ?),
+            SET invalid_record_offset = IF(
+                    invalid_record_offset IS NOT NULL
+                        AND ? > invalid_record_offset
+                        AND recovery_snapshot_id IS NOT NULL
+                        AND BINARY recovery_snapshot_id <> BINARY ?
+                        AND (last_snapshot_id IS NULL OR BINARY last_snapshot_id <> BINARY ?),
+                    NULL,
+                    invalid_record_offset
+                ),
+                recovery_snapshot_id = CASE
+                    WHEN invalid_record_offset IS NULL THEN NULL
+                    WHEN ? <= invalid_record_offset THEN recovery_snapshot_id
+                    WHEN last_snapshot_id IS NOT NULL AND BINARY last_snapshot_id = BINARY ?
+                        THEN recovery_snapshot_id
+                    WHEN recovery_snapshot_id IS NULL THEN ?
+                    ELSE recovery_snapshot_id
+                END,
+                last_snapshot_id = IF(
+                    snapshot_completed_offset IS NULL OR ? >= snapshot_completed_offset,
+                    ?,
+                    last_snapshot_id
+                ),
+                snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), ?),
                 updated_at = CURRENT_TIMESTAMP(6)
             WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND BINARY topic_id = BINARY ?
             """.trimIndent(),
+            markerOffset,
+            snapshotId,
+            snapshotId,
+            markerOffset,
+            snapshotId,
+            snapshotId,
+            markerOffset,
+            snapshotId,
             markerOffset,
             stream.consumerGroup,
             stream.topic,
