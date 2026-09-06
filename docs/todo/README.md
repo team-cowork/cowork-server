@@ -40,9 +40,11 @@
 - performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
 - security: [기존 역할·채널 정책의 운영 전환](./items/38-security/existing-channel-role-policy-transition.md)
 - security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
+- reliability: [멤버십 projection의 compacted 키 계약 복구와 latch 자동 해제](./items/40-reliability/membership-projection-key-contract-recovery.md)
 
 ## 점검 스냅샷
 
+- [20260907](./20260907_TODO.md) — 채팅 projection 계약·복구 경로 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
 - [20260828](./20260828_TODO.md) — 서버 의존성·애플리케이션 코드 점검
 - [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
