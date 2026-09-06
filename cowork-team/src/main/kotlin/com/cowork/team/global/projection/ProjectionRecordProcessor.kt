@@ -24,7 +24,13 @@ class ProjectionRecordProcessor(
         if (violation != null) {
             quarantineAndLatch(stream, record, violation, topicId)
         } else {
-            checkpointStore.markSnapshotCompleted(stream, record.partition(), record.offset(), topicId)
+            checkpointStore.markSnapshotCompleted(
+                stream,
+                record.partition(),
+                record.offset(),
+                topicId,
+                snapshotId(record),
+            )
         }
         checkpointStore.advance(stream, record.partition(), record.offset() + 1)
         return true
@@ -51,6 +57,10 @@ class ProjectionRecordProcessor(
         readinessState.markNotReady(stream)
         checkpointStore.quarantineAndLatch(stream, record, reason, topicId)
     }
+
+    /** completion marker 계약 검증을 통과한 record에만 사용한다. */
+    private fun snapshotId(record: ConsumerRecord<String, String>): String =
+        objectMapper.readTree(record.value()).path("snapshotId").asText()
 
     private fun requireTopicId(stream: ProjectionStream): String = checkNotNull(topicGenerations.topicId(stream)) {
         "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
