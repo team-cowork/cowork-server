@@ -11,6 +11,7 @@ import { parseEventTime } from '../common/util/event-time.util';
 import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../common/kafka/projection-message.processor';
+import { matchesCompositeEntityKey } from '../common/kafka/projection-entity-key.util';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
@@ -87,10 +88,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid channel member event payload');
         }
         const event = payload;
-        const expectedKey = `${event.channelId}:${event.userId}`;
-        if (messageKey !== expectedKey) {
+        if (!matchesCompositeEntityKey(messageKey, event.channelId, event.userId)) {
             throw new ProjectionContractError(
-                `channel member event key mismatch [key=${messageKey ?? '<missing>'}, expected=${expectedKey}]`,
+                `channel member event key mismatch [key=${messageKey ?? '<missing>'}, `
+                + `expected=${event.channelId}:${event.userId}]`,
             );
         }
         const eventTime = parseEventTime(event.occurredAt);
@@ -170,7 +171,12 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     { upsert: true, timestamps: false, updatePipeline: true },
                 );
                 const applied = projectionUpdateApplied(result);
-                if (this.io && this.readAccessEvaluator && !(await this.readAccessEvaluator(channelId, userId))) {
+                // replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
+                // 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
+                if (this.isLive()
+                    && this.io
+                    && this.readAccessEvaluator
+                    && !(await this.readAccessEvaluator(channelId, userId))) {
                     this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
                     if (event.snapshot !== true) {
                         this.io.to(`user:${userId}`).emit('channel:access:revoked', { channelId });
@@ -193,12 +199,20 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && (event.teamId === null || isSafePositiveInteger(event.teamId))
             && isSafePositiveInteger(event.userId)
             && typeof event.role === 'string'
-            && typeof event.channelType === 'string'
+            // TODO(topic-versioning): channelType은 8e0d97bb에서 추가된 필드이며, 그 이전 레코드는
+            // 은퇴한 키 포맷 구간에만 존재한다. 토픽 버전 분리 컷오버 뒤에는 필수 검증으로 되돌린다.
+            && (event.channelType === undefined || typeof event.channelType === 'string')
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
             && parseEventTime(event.occurredAt) !== null;
     }
 
+    /** replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다. */
+    private isLive(): boolean {
+        return this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channelMember.name);
+    }
+
     private async broadcast(channelId: number, event: string, payload: unknown): Promise<void> {
+        if (!this.isLive()) return;
         if (!this.io || !this.readableEmitter) {
             this.logger.warn(`Readable socket emitter not initialized yet, dropping ${event} event (channelId=${channelId})`);
             return;
