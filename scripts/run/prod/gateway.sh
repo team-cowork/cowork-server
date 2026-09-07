@@ -6,6 +6,12 @@
 #
 # 멱등적으로 동작한다: 네트워크가 없으면 만들고, 기존 컨테이너가 있든 없든 안전하게 정리한 뒤
 # 새로 띄우고, 헬스체크로 기동 성공을 스스로 검증한다. 실패하면 non-zero exit으로 끝난다.
+#
+# TODO(prod-compose-cutover): SPRING_PROFILES_ACTIVE=local이 docker-compose.prod.yml의 prod와
+# 다르다. cowork-config가 prod 프로필로 전환 가능해지면(config.sh의 TODO 참고) 이 스크립트도 지우고
+#   REGISTRY="ghcr.io/${DEPLOY_IMAGE_OWNER}" IMAGE_TAG="${DEPLOY_IMAGE_TAG}" \
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d cowork-gateway
+# 한 줄로 대체한다.
 set -euo pipefail
 
 : "${DEPLOY_IMAGE_OWNER:?DEPLOY_IMAGE_OWNER is required}"
