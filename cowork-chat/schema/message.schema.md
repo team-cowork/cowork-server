@@ -37,6 +37,7 @@
   "searchIndexRetryCount": "Number",
   "searchIndexNextAttemptAt": "Date | null",
   "searchIndexProcessingStartedAt": "Date | null",
+  "searchIndexClaimId": "String | null (점유 호출마다 발급하는 식별자)",
   "searchIndexLastError": "String | null",
   "searchIndexSyncedAt": "Date | null",
   "createdAt": "Date",
@@ -73,7 +74,7 @@ MongoDB 메시지가 원본이고 Elasticsearch는 파생 색인입니다. 메�
 
 `searchIndexVersion`은 변경마다 증가하는 메시지별 버전이고, Elasticsearch 외부 버전(`version_type: external`)으로 그대로 전달됩니다. 색인은 항상 부분 갱신이 아니라 최신 전체 문서를 `UPSERT`하므로 최초 색인이 누락된 메시지도 이후 어떤 변경으로든 복원되고, 지연된 쓰기는 버전 충돌로 버려집니다.
 
-[색인 워커](../src/chat/search/message-search-outbox.poller.ts)가 3초마다 `PENDING` 항목을 배치로 `PROCESSING`으로 전환합니다. 성공하면 `SYNCED`, 재시도 가능한 오류이면 상한이 있는 백오프로 다시 `PENDING`이 되며, 문서·매핑 계약 위반처럼 재시도가 의미 없는 경우에만 `FAILED`로 남습니다. `searchIndexProcessingStartedAt`이 2분 이상 지난 문서는 회수합니다.
+[색인 워커](../src/chat/search/message-search-outbox.poller.ts)가 3초마다 `PENDING` 항목을 배치로 `PROCESSING`으로 전환합니다. 성공하면 `SYNCED`, 재시도 가능한 오류이면 상한이 있는 백오프로 다시 `PENDING`이 되며, 문서·매핑 계약 위반처럼 재시도가 의미 없는 경우에만 `FAILED`로 남습니다. `searchIndexProcessingStartedAt`이 2분 이상 지난 문서는 회수합니다. 되읽기 조건에는 점유 시각이 아니라 호출마다 발급하는 `searchIndexClaimId`를 사용합니다. 두 워커가 같은 밀리초에 점유하면 시각만으로는 서로의 점유분을 구분할 수 없기 때문입니다.
 
 완료 갱신은 `searchIndexVersion`이 점유 당시와 같을 때만 적용되므로, 점유 중에 메시지가 다시 변경되면 새 `PENDING` 의도가 살아남습니다. 아웃박스 상태 전이는 `updatedAt`을 바꾸지 않아 재구축 catch-up 스캔이 실제 내용 변경만 따라갑니다.
 
@@ -93,6 +94,7 @@ MongoDB 메시지가 원본이고 Elasticsearch는 파생 색인입니다. 메�
   "retryCount": "Number",
   "nextAttemptAt": "Date | null",
   "processingStartedAt": "Date | null",
+  "claimId": "String | null (점유 호출마다 발급하는 식별자)",
   "lastError": "String | null",
   "deletedAt": "Date | null",
   "expiresAt": "Date (TTL 만료 시각)",
