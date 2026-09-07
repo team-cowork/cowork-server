@@ -76,14 +76,19 @@ export const MESSAGE_INDEX_MAPPINGS: estypes.MappingTypeMapping = {
     },
 };
 
-/** 재구축 대상 물리 index 이름을 만든다. alias 교체 전까지 검색 트래픽에 노출되지 않는다. */
+/**
+ * 재구축 대상 물리 index 이름을 만든다. alias 교체 전까지 검색 트래픽에 노출되지 않는다.
+ *
+ * 밀리초까지 쓰는 이유는 부트스트랩 직후 재구축이나 연속 재구축이 같은 초에 실행돼도
+ * 이름이 충돌하지 않게 하기 위해서다.
+ */
 export function buildMessageIndexName(now: Date): string {
-    return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 14)}`;
+    return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}`;
 }
 
 /** 재구축이 만든 물리 index인지 판별한다. 운영자가 만든 다른 index를 정리 대상으로 삼지 않는다. */
 export function isManagedMessageIndex(name: string): boolean {
-    return new RegExp(`^${MESSAGE_SEARCH_INDEX_PREFIX}\\d{14}$`).test(name);
+    return new RegExp(`^${MESSAGE_SEARCH_INDEX_PREFIX}\\d{14}(\\d{3})?$`).test(name);
 }
 
 function statusCodeOf(error: unknown): number | undefined {
