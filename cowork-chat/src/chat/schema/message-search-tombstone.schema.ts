@@ -27,12 +27,15 @@ export class MessageSearchTombstone {
     /** 삭제 시점에 메시지에서 예약한 색인 버전 */
     @Prop({ required: true }) version!: number;
 
-    @Prop({ required: true, enum: MESSAGE_SEARCH_TOMBSTONE_STATUSES, default: 'PENDING' })
+    @Prop({ type: String, required: true, enum: MESSAGE_SEARCH_TOMBSTONE_STATUSES, default: 'PENDING' })
     status!: MessageSearchTombstoneStatus;
 
     @Prop({ default: 0 }) retryCount!: number;
     @Prop({ type: Date, default: null }) nextAttemptAt!: Date | null;
     @Prop({ type: Date, default: null }) processingStartedAt!: Date | null;
+
+    /** 점유 호출마다 새로 발급하는 식별자. 같은 밀리초에 점유한 두 워커를 구분한다. */
+    @Prop({ type: String, default: null }) claimId!: string | null;
     @Prop({ type: String, default: null }) lastError!: string | null;
     @Prop({ type: Date, default: null }) deletedAt!: Date | null;
 
