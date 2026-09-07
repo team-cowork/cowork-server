@@ -199,16 +199,16 @@ jobs:
               - 'cowork-notification/**'
             gateway:
               - 'cowork-gateway/**'
-              - 'ops/deploy/gateway.sh'
+              - 'scripts/run/prod/gateway.sh'
             config:
               - 'cowork-config/**'
-              - 'ops/deploy/config.sh'
+              - 'scripts/run/prod/config.sh'
             roadmap:
               - 'cowork-roadmap/**'
-              - 'ops/deploy/roadmap.sh'
+              - 'scripts/run/prod/roadmap.sh'
             monitoring:
               - 'cowork-monitoring/**'
-              - 'ops/deploy/monitoring.sh'
+              - 'scripts/run/prod/monitoring.sh'
       - name: Build deploy matrix
         id: build-matrix
         run: |
@@ -275,10 +275,10 @@ jobs:
             cd ~/cowork-server 2>/dev/null && git fetch origin --quiet || true
             if [ -d ~/cowork-server/.git ]; then
               cd ~/cowork-server
-              git checkout "${DEPLOY_SHA}" -- "ops/deploy/${{ matrix.service }}.sh" 2>/dev/null || true
+              git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/${{ matrix.service }}.sh" 2>/dev/null || true
             fi
-            if [ -f ~/cowork-server/ops/deploy/${{ matrix.service }}.sh ]; then
-              bash ~/cowork-server/ops/deploy/${{ matrix.service }}.sh
+            if [ -f ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh ]; then
+              bash ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh
             else
               bash -e ~/deploy-${{ matrix.service }}.sh
             fi
