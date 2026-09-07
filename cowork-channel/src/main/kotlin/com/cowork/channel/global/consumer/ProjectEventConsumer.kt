@@ -30,7 +30,7 @@ class ProjectEventConsumer(
             }
         }
             .getOrElse {
-                quarantine(record, "project.event JSON 역직렬화 실패: ${it.message}")
+                quarantine(record, "${record.topic()} JSON 역직렬화 실패: ${it.message}")
                 return
             }
         val reason = contractViolation(payload, record.key())
@@ -51,7 +51,8 @@ class ProjectEventConsumer(
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
         log.warn(
-            "project.event를 격리합니다 [partition={}, offset={}, reason={}]",
+            "Quarantine project event [topic={}, partition={}, offset={}, reason={}]",
+            record.topic(),
             record.partition(),
             record.offset(),
             reason,
