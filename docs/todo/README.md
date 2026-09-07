@@ -16,7 +16,7 @@
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 - dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
-- correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)
+- ~~correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)~~
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md)
 - reliability: [JVM Kafka outbox relay 정체와 장기 transaction 제거](./items/18-reliability/jvm-kafka-outbox-relay.md)
 - correctness: [로드맵 노드 삭제 시 assignment 무결성 보장](./items/19-correctness/roadmap-node-assignment-cleanup.md)
