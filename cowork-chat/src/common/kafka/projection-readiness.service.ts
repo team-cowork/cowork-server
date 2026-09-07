@@ -439,11 +439,6 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             throw new Error(`Kafka projection assignment changed after quarantine latch: ${stream.topic}[${partition}]`);
         }
         state.invalidRecordOffsets.set(partition, offset);
-        await this.markStreamUnrecoverable(
-            name,
-            state,
-            `Invalid projection record requires explicit rebuild: ${stream.topic}[${partition}]@${offset}`,
-        );
         this.logger.warn(
             `Kafka projection record quarantined: ${stream.topic}[${partition}]@${offset} reason=${reason}`,
         );
@@ -459,6 +454,15 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
     whenReady(): Promise<void> {
         return this.isReady() ? Promise.resolve() : this.readyPromise;
+    }
+
+    /**
+     * 이 stream이 live mutation을 전달하는 중인지 판정한다.
+     * bootstrap catch-up과 rebuild replay 중에는 projection이 아직 권위가 없으므로,
+     * 과거 레코드를 다시 적용하면서 소켓 이벤트나 접근 취소를 내보내면 안 된다.
+     */
+    isStreamLive(name: ProjectionName): boolean {
+        return this.states.get(name)?.ready === true;
     }
 
     onFatalInvariantViolation(listener: (reason: string) => void): () => void {
@@ -661,11 +665,12 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     + `broker=${expected.join(',')}`,
                 );
             }
-            if (checkpoints.some((checkpoint) => checkpoint.snapshotCompletedOffset === undefined
-                || checkpoint.invalidRecordOffset !== undefined)) {
+            // invalid-record latch는 rebuild 대상이 아니다. readiness만 닫아 둔 채 소비를 계속하면
+            // 서로 다른 두 full snapshot이 latch를 해제한다.
+            if (checkpoints.some((checkpoint) => checkpoint.snapshotCompletedOffset === undefined)) {
                 return this.datasets.markRebuildRequired(
                     stream,
-                    'Active projection dataset has no valid snapshot barrier or contains an invalid-record latch',
+                    'Active projection dataset has no valid snapshot barrier',
                 );
             }
         }
