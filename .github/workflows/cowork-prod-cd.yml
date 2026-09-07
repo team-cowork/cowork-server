@@ -235,6 +235,7 @@ jobs:
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') &&
       (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
+    environment: Production
     permissions:
       contents: read
     strategy:
@@ -253,6 +254,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
+    environment: Production
     needs:
       - prepare
       - build-images
