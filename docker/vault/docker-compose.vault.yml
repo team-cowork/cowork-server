@@ -1,0 +1,44 @@
+# 운영용 Vault 전용 compose 파일 — cowork-server 앱 스택(docker-compose.yml)과
+# 완전히 분리된 lifecycle로 관리한다. docker-compose.prod.yml이 문서화하는
+# "외부 Vault는 배포 전에 준비" 계약을 이 파일이 실제로 충족시킨다: 앱 스택을
+# `up -d`/재배포해도 이 Vault는 영향받지 않고, 반대로 이 파일을 바꿔 재배포해도
+# 앱 컨테이너들은 그대로 유지된다.
+#
+# 사용: docker compose -f docker/vault/docker-compose.vault.yml up -d
+# (scripts/run/prod/vault.sh가 이 명령을 감싸서 초기화/unseal까지 처리한다)
+#
+# local 개발용 dev-mode Vault(docker-compose.yml의 vault/vault-init 서비스)와는
+# 별개다 — 로컬은 계속 기존 dev 모드를 그대로 쓴다.
+services:
+  vault:
+    image: hashicorp/vault:2.0.3
+    container_name: cowork-vault-prod
+    restart: unless-stopped
+    command: ["server", "-config=/vault/config/vault-config.hcl"]
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_API_ADDR: "https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}"
+      VAULT_CLUSTER_ADDR: "https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}:8201"
+    ports:
+      - "8200:8200"
+    volumes:
+      - ./vault-config.hcl:/vault/config/vault-config.hcl:ro
+      - vault-data:/vault/data
+    networks:
+      - cowork-server_default
+    healthcheck:
+      # init 전/sealed 상태에서는 의도적으로 unhealthy로 표시된다 — vault.sh가 최초
+      # init과 매 기동 시 unseal을 처리한 뒤에만 healthy가 된다(dev 모드 vault의
+      # healthcheck와 동일하게 "실제로 쓸 수 있는 상태"만 healthy로 본다).
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  cowork-server_default:
+    external: true
+
+volumes:
+  vault-data:
