@@ -365,7 +365,11 @@ export class MessageRepository {
      * 1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
      * 2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
      *    그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
-     * 3. 이번 호출에서 실제로 점유한 문서만 `processingStartedAt` 타임스탬프로 구분해 조회
+     * 3. 이번 호출에서 발급한 `notificationClaimId`로 실제 점유분만 조회
+     *
+     * 3단계의 구분자로 점유 시각을 쓰면 두 워커가 같은 밀리초에 점유했을 때 서로의 점유분까지
+     * 함께 읽어, 같은 메시지의 알림이 중복 발행되고 미읽 카운트가 두 번 증가합니다.
+     * 호출마다 새로 발급하는 식별자만이 점유를 실제로 배타적으로 만듭니다.
      *
      * 단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
      * 고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
@@ -383,14 +387,20 @@ export class MessageRepository {
         if (candidates.length === 0) return [];
 
         const ids = candidates.map((c) => c._id);
-        const processingStartedAt = new Date();
+        const notificationClaimId = new Types.ObjectId().toString();
         await this.messageModel.updateMany(
             { _id: { $in: ids }, notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt } },
+            {
+                $set: {
+                    notificationStatus: 'PROCESSING',
+                    notificationProcessingStartedAt: new Date(),
+                    notificationClaimId,
+                },
+            },
         );
 
         return this.messageModel
-            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt })
+            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationClaimId })
             .sort({ createdAt: 1 })
             .lean();
     }
@@ -411,7 +421,7 @@ export class MessageRepository {
                 notificationStatus: 'PROCESSING',
                 notificationProcessingStartedAt: { $lt: staleBeforeDate },
             },
-            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null } },
+            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null, notificationClaimId: null } },
         );
         return result.modifiedCount;
     }
@@ -660,7 +670,7 @@ export class MessageRepository {
         notificationStatus: string,
         notificationRetryCount?: number,
     ) {
-        const $set: Record<string, unknown> = { notificationStatus };
+        const $set: Record<string, unknown> = { notificationStatus, notificationClaimId: null };
         if (notificationRetryCount !== undefined) {
             $set.notificationRetryCount = notificationRetryCount;
         }
