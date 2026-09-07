@@ -30,6 +30,8 @@ tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`�
 2. 대상 DB/MongoDB의 복구 지점을 확보한다. 소유자 데이터와 삭제 이력은 초기화하지 않는다.
 3. Config Server에 새 voice 설정이 반영되는지 확인한다. Vault, Config Server overrides, 컨테이너
    환경변수에 같은 키가 있으면 함께 변경한다. Go 기본값만 바꿔서는 원격 override가 바뀌지 않는다.
+   로컬 실행의 `scripts/run/local/voice.sh`도 아래 기본값을 사용한다. 실행 전에 읽는 `.env`나 셸에
+   명시한 값이 있으면 이 기본값보다 우선하므로 구 토픽·group override를 함께 정리한다.
 
    ```text
    KAFKA_TOPIC_CHANNEL_MEMBER_EVENT=channel.member.event.v2
@@ -57,6 +59,7 @@ Kafka CLI가 있는 관리 환경에서 실행한다. 저장소의 broker 컨테
 인증이 필요하면 `KAFKA_CLIENT_CONFIG`에 관리용 client properties 파일 경로를 설정한다.
 
 ```bash
+set -euo pipefail
 kafka_cli_dir=/opt/kafka/bin
 : "${KAFKA_BOOTSTRAP_SERVERS:?대상 broker 주소를 설정한다}"
 : "${KAFKA_TOPIC_PARTITIONS:?기존 토픽과 같은 partition 수를 설정한다}"
