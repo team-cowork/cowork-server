@@ -3,6 +3,11 @@
 #
 # CD가 ghcr.io에 올린 이미지를 pull해서 띄운다. MySQL 비밀번호는 저장소에 두지 않고
 # GitHub Secrets(COWORK_MYSQL_PASSWORD)에서 배포 시점에 env로 주입받는다.
+#
+# NOTE: gateway.sh/config.sh와 달리 이 스크립트는 docker-compose.prod.yml 기반 한 줄 배포로
+# 대체될 대상이 아니다 — roadmap은 cowork-server_default 컴포즈 프로젝트와 물리적으로 분리된
+# 별도 VM에 있어서, 같은 compose 프로젝트로 `up -d`하면 그 VM에 로컬 mysql/config 등을
+# 새로 띄우려 들게 된다. 공유 인프라를 내부 IP(10.0.0.93)로 바라보는 지금 구조가 맞다.
 set -euo pipefail
 
 : "${DEPLOY_IMAGE_OWNER:?DEPLOY_IMAGE_OWNER is required}"
