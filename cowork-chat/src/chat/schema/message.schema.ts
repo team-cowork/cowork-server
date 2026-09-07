@@ -179,7 +179,7 @@ export class Message {
      * - `DELETING`: 삭제 tombstone 기록 중. 이후 본문·고정 변경을 받지 않는다
      * - `SKIPPED`: 색인 대상이 아닌 메시지 ({@link SEARCH_INDEX_SCOPE_FILTER} 참고)
      */
-    @Prop({ enum: SEARCH_INDEX_STATUSES, default: 'SKIPPED' }) searchIndexStatus!: SearchIndexStatus;
+    @Prop({ type: String, enum: SEARCH_INDEX_STATUSES, default: 'SKIPPED' }) searchIndexStatus!: SearchIndexStatus;
 
     /**
      * 메시지별 단조 증가 색인 버전. Elasticsearch 외부 버전으로 전달되어
@@ -199,6 +199,12 @@ export class Message {
 
     /** `PROCESSING`·`DELETING` 점유 시각. 오래 머문 항목을 회수하는 기준이다. */
     @Prop({ type: Date, default: null }) searchIndexProcessingStartedAt!: Date | null;
+
+    /**
+     * 점유 호출마다 새로 발급하는 식별자.
+     * 점유 시각만으로는 같은 밀리초에 점유한 두 워커를 구분할 수 없어, 이 값으로 실제 점유분만 읽는다.
+     */
+    @Prop({ type: String, default: null }) searchIndexClaimId!: string | null;
 
     /** 마지막 색인 실패 원인. 운영자가 실패 항목을 확인할 때 사용한다. */
     @Prop({ type: String, default: null }) searchIndexLastError!: string | null;
