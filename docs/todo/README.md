@@ -28,7 +28,7 @@
 - security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md)
 - ~~reliability: [chat.message poison record 격리](./items/27-reliability/chat-message-poison-quarantine.md)~~
-- search: [MongoDB-Elasticsearch 메시지 색인 정합성 복구](./items/28-search/elasticsearch-index-reconciliation.md)
+- ~~search: [MongoDB-Elasticsearch 메시지 색인 정합성 복구](./items/28-search/elasticsearch-index-reconciliation.md)~~
 - reliability: [Socket.IO Redis adapter 준비 상태와 복구 보장](./items/29-reliability/socketio-redis-adapter-readiness.md)
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md)
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
