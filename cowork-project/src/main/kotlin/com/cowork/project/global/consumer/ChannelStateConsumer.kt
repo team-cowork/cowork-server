@@ -1,5 +1,6 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.global.projection.ProjectionEntityKey
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
 import com.cowork.project.global.projection.ProjectionTopics
@@ -36,7 +37,8 @@ class ChannelStateConsumer(
             }
         val occurredAt = payload.occurredAt
         val reason = when {
-            record.key() != payload.channelId.toString() -> "channelId와 Kafka key가 일치하지 않습니다."
+            !ProjectionEntityKey.matchesChannelEvent(record.key(), payload.channelId, payload.teamId) ->
+                "channelId와 Kafka key가 일치하지 않습니다."
             payload.channelId <= 0 -> "channelId는 양수여야 합니다."
             payload.projectId != null && payload.projectId <= 0 -> "projectId는 null이거나 양수여야 합니다."
             payload.eventType !in setOf("CREATED", "UPDATED", "DELETED") -> "지원하지 않는 eventType입니다."
