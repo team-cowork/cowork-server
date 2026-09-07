@@ -31,6 +31,7 @@
   "notificationStatus": "STRING (PENDING | PROCESSING | SENT | FAILED)",
   "notificationRetryCount": "Number",
   "notificationProcessingStartedAt": "Date | null",
+  "notificationClaimId": "String | null (점유 호출마다 발급하는 식별자)",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -54,6 +55,8 @@
 `notificationStatus`로 `notification.trigger` Kafka 발행 처리를 추적합니다. projection readiness가 열린 동안 [폴러](../src/chat/kafka/notification-outbox.poller.ts)가 5초마다 최대 10개를 `PENDING`에서 `PROCESSING`으로 전환합니다. 성공하면 `SENT`, 실패하면 실패 횟수를 늘리고 `PENDING`으로 되돌리며, 누적 3회 실패하면 `FAILED`로 남깁니다. `SENT`는 폴러 처리 완료 상태이며 최종 FCM 전달 성공을 뜻하지 않습니다.
 
 `notificationProcessingStartedAt`이 2분 이상 지난 문서는 최소 1분 간격의 회수 단계에서 `PENDING`으로 되돌립니다. 발행 뒤 상태 저장 전에 중단되면 같은 알림을 다시 발행할 수 있습니다.
+
+폴러는 후보를 `PROCESSING`으로 전환한 뒤 이번 호출에서 발급한 `notificationClaimId`로 실제 점유분만 되읽습니다. 구분자로 점유 시각을 쓰면 두 워커가 같은 밀리초에 점유했을 때 서로의 점유분까지 함께 읽어 같은 메시지의 알림이 중복 발행되고 미읽 카운트가 두 번 증가합니다.
 
 `clientMessageId`의 sparse unique 인덱스는 명시적으로 저장한 `null`을 제외하지 않습니다. 멱등성 키가 없는 메시지는 필드를 생략해야 합니다.
 
