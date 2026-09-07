@@ -274,7 +274,7 @@ export class MessageRepository {
                     ...searchIndexIntent(indexed, now),
                 },
             }],
-            { new: true },
+            { new: true, timestamps: false, updatePipeline: true },
         );
     }
 
@@ -289,7 +289,7 @@ export class MessageRepository {
         return this.messageModel.findOneAndUpdate(
             { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
             [{ $set: { isPinned, updatedAt: now, ...searchIndexIntent(indexed, now) } }],
-            { new: true },
+            { new: true, timestamps: false, updatePipeline: true },
         );
     }
 
@@ -314,7 +314,7 @@ export class MessageRepository {
                     updatedAt: now,
                 },
             }],
-            { new: true },
+            { new: true, timestamps: false, updatePipeline: true },
         );
     }
 
