@@ -89,7 +89,6 @@ jobs:
   setup-pr-metadata:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       pull-requests: write
@@ -101,9 +100,15 @@ jobs:
         run: |
           PR_NUMBER="${{ github.event.pull_request.number }}"
           PR_AUTHOR="${{ github.event.pull_request.user.login }}"
-          gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-label "waiting for review:검토 대기"
-          gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-assignee "$PR_AUTHOR"
-          gh pr edit $PR_NUMBER --repo ${{ github.repository }} --add-reviewer "team-cowork/cowork-server"
+          if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-label "waiting for review:검토 대기"; then
+            echo "::warning::PR label setup failed; continuing CI."
+          fi
+          if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-assignee "$PR_AUTHOR"; then
+            echo "::warning::PR assignee setup failed; continuing CI."
+          fi
+          if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "team-cowork/cowork-server"; then
+            echo "::warning::PR reviewer setup failed; continuing CI."
+          fi
 
   detect-changes:
     runs-on: ubuntu-latest
