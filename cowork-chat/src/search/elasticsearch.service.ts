@@ -6,6 +6,7 @@ import {
     errorMessageOf,
     isElasticsearchNotFound,
     isIndexNotFound,
+    isManagedMessageIndex,
     IndexWriteResult,
     MESSAGE_INDEX_GC_DELETES,
     MESSAGE_INDEX_MAPPINGS,
@@ -136,7 +137,29 @@ export class ElasticsearchService implements OnModuleInit {
         const index = buildMessageIndexName(new Date());
         await this.createIndex(index);
         await this.client.indices.updateAliases({ actions: [{ add: { index, alias: MESSAGE_SEARCH_ALIAS } }] });
+        await this.collapseAliasTargets();
         this.logger.log(`Search index created and aliased: ${index} -> ${MESSAGE_SEARCH_ALIAS}`);
+    }
+
+    /**
+     * alias가 둘 이상의 index를 가리키면 하나만 남긴다.
+     *
+     * 여러 replica가 동시에 콜드 스타트하면 각자 만든 빈 index를 같은 alias에 붙일 수 있고,
+     * 그 상태에서는 Elasticsearch가 쓰기 대상을 정하지 못해 색인이 전부 실패한다. 이름이
+     * 시각 순이므로 가장 먼저 만들어진 index를 남기면 어느 replica가 실행해도 같은 결과가 된다.
+     */
+    private async collapseAliasTargets(): Promise<void> {
+        const targets = (await this.getAliasTargets()).sort();
+        if (targets.length <= 1) return;
+
+        const [keep, ...extras] = targets;
+        await this.client.indices.updateAliases({
+            actions: extras.map((name) => ({ remove: { index: name, alias: MESSAGE_SEARCH_ALIAS } })),
+        });
+        for (const extra of extras) {
+            if (isManagedMessageIndex(extra)) await this.deleteIndex(extra);
+        }
+        this.logger.warn(`Collapsed concurrently bootstrapped search indices, kept ${keep}, removed ${extras.join(', ')}`);
     }
 
     /** 재구축용 물리 index를 생성한다. 검증 전까지 alias에 연결하지 않는다. */
