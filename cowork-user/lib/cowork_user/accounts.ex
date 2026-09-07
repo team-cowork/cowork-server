@@ -361,7 +361,7 @@ defmodule CoworkUser.Accounts do
         |> maybe_equals(:status, Map.get(params, "status"), :account)
         |> maybe_equals(:custom_status, Map.get(params, "custom_status"), :account)
         |> maybe_role(Map.get(params, "role"))
-        |> maybe_query(Map.get(params, "q") || Map.get(params, "query"))
+        |> maybe_query(search_term(params))
         |> maybe_user_ids(Map.get(params, "user_ids"))
 
       total_count =
@@ -655,14 +655,46 @@ defmodule CoworkUser.Accounts do
     |> Enum.sort()
   end
 
-  defp maybe_like(query, _field, value, _source) when value in [nil, ""], do: query
+  @doc """
+  검색어를 정규화한다.
 
-  defp maybe_like(query, field, value, :account) do
-    from([p, a] in query, where: like(field(a, ^field), ^"%#{value}%"))
+  앞뒤 공백을 제거하고, 남는 문자가 없으면 `nil`을 반환해 해당 필터를 건너뛴다.
+  `name`, `nickname`, `q`, `query` 필터가 모두 이 정규화를 공유한다.
+  """
+  def normalize_search_term(value) when is_binary(value) do
+    case String.trim(value) do
+      "" -> nil
+      term -> term
+    end
   end
 
-  defp maybe_like(query, field, value, :profile) do
-    from([p, _a] in query, where: like(field(p, ^field), ^"%#{value}%"))
+  def normalize_search_term(_value), do: nil
+
+  @doc """
+  정규화된 검색어를 MySQL `LIKE` 부분 일치 패턴으로 변환한다.
+
+  `%`, `_`, `\\`는 LIKE 연산자가 아닌 리터럴로 취급하도록 `\\`로 escape 한다
+  (MySQL `LIKE`의 기본 escape 문자가 `\\`이다).
+  대소문자 구분 여부는 컬럼 collation(`utf8mb4_unicode_ci`)이 결정하므로
+  패턴 자체에서는 대소문자를 변환하지 않는다.
+  """
+  def like_pattern(term) when is_binary(term) do
+    "%" <> String.replace(term, ~r/[%_\\]/, &("\\" <> &1)) <> "%"
+  end
+
+  defp maybe_like(query, field, value, source) do
+    case normalize_search_term(value) do
+      nil -> query
+      term -> apply_like(query, field, like_pattern(term), source)
+    end
+  end
+
+  defp apply_like(query, field, pattern, :account) do
+    from([_p, a] in query, where: like(field(a, ^field), ^pattern))
+  end
+
+  defp apply_like(query, field, pattern, :profile) do
+    from([p, _a] in query, where: like(field(p, ^field), ^pattern))
   end
 
   defp maybe_equals(query, _field, value, _source) when value in [nil, ""], do: query
@@ -671,12 +703,25 @@ defmodule CoworkUser.Accounts do
     from([p, a] in query, where: field(a, ^field) == ^value)
   end
 
-  defp maybe_query(query, value) when value in [nil, ""], do: query
+  @doc """
+  통합 검색어를 고른다.
 
-  defp maybe_query(query, q) do
-    escaped = String.replace(q, ~r/[%_\\]/, &("\\" <> &1))
-    pattern = "%#{escaped}%"
-    from([p, a] in query, where: ilike(a.name, ^pattern) or ilike(p.nickname, ^pattern))
+  `query`는 `q`의 호환 alias이므로, `q`가 없거나 공백뿐이면 `query`를 사용한다.
+  """
+  def search_term(params) do
+    normalize_search_term(Map.get(params, "q")) ||
+      normalize_search_term(Map.get(params, "query"))
+  end
+
+  defp maybe_query(query, value) do
+    case normalize_search_term(value) do
+      nil ->
+        query
+
+      term ->
+        pattern = like_pattern(term)
+        from([p, a] in query, where: like(a.name, ^pattern) or like(p.nickname, ^pattern))
+    end
   end
 
   defp maybe_user_ids(query, nil), do: query
