@@ -197,6 +197,18 @@ jobs:
               - 'cowork-voice/**'
             notification:
               - 'cowork-notification/**'
+            gateway:
+              - 'cowork-gateway/**'
+              - 'ops/deploy/gateway.sh'
+            config:
+              - 'cowork-config/**'
+              - 'ops/deploy/config.sh'
+            roadmap:
+              - 'cowork-roadmap/**'
+              - 'ops/deploy/roadmap.sh'
+            monitoring:
+              - 'cowork-monitoring/**'
+              - 'ops/deploy/monitoring.sh'
       - name: Build deploy matrix
         id: build-matrix
         run: |
@@ -218,6 +230,10 @@ jobs:
           add chat           27108 "${{ steps.filter.outputs.chat }}"
           add voice          27109 "${{ steps.filter.outputs.voice }}"
           add notification   27110 "${{ steps.filter.outputs.notification }}"
+          add gateway        21108 "${{ steps.filter.outputs.gateway }}"
+          add config         21108 "${{ steps.filter.outputs.config }}"
+          add monitoring     21108 "${{ steps.filter.outputs.monitoring }}"
+          add roadmap        27112 "${{ steps.filter.outputs.roadmap }}"
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
           echo "services-list=${SERVICES:-none}" >> "$GITHUB_OUTPUT"
           echo "Deploy matrix: $INCLUDE"
@@ -243,13 +259,29 @@ jobs:
     steps:
       - name: Deploy cowork-${{ matrix.service }}
         uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+          DEPLOY_IMAGE_OWNER: ${{ needs.prepare.outputs.owner }}
+          DEPLOY_IMAGE_TAG: sha-${{ github.event.workflow_run.head_sha }}
+          COWORK_MYSQL_PASSWORD: ${{ secrets.COWORK_MYSQL_PASSWORD }}
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ matrix.port }}
           username: ubuntu
           key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
           command_timeout: 20m
-          script: bash -e ~/deploy-${{ matrix.service }}.sh
+          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD
+          script: |
+            cd ~/cowork-server 2>/dev/null && git fetch origin --quiet || true
+            if [ -d ~/cowork-server/.git ]; then
+              cd ~/cowork-server
+              git checkout "${DEPLOY_SHA}" -- "ops/deploy/${{ matrix.service }}.sh" 2>/dev/null || true
+            fi
+            if [ -f ~/cowork-server/ops/deploy/${{ matrix.service }}.sh ]; then
+              bash ~/cowork-server/ops/deploy/${{ matrix.service }}.sh
+            else
+              bash -e ~/deploy-${{ matrix.service }}.sh
+            fi
 
   notify:
     runs-on: ubuntu-latest
