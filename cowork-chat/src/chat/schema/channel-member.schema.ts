@@ -40,7 +40,7 @@ export class ChannelMember {
     /** 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`. */
     @Prop({ type: Types.ObjectId, default: null }) lastReadMessageId!: Types.ObjectId | null;
 
-    /** `channel.member.event` DELETE tombstone 여부. */
+    /** `channel.member.event.v2` LEAVE 삭제 상태 여부. */
     @Prop({ required: true, default: false }) deleted!: boolean;
 
     /** 마지막으로 적용한 원본 이벤트의 발생 시각. */
