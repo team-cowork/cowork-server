@@ -8,8 +8,6 @@ import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
 import java.time.Instant
 
-private const val TOPIC = "project.member.event"
-
 @Component
 class ProjectMemberEventPublisher(
     private val entityManager: EntityManager,
@@ -87,5 +85,9 @@ class ProjectMemberEventPublisher(
         val eventKey = "$projectId:$userId"
         entityManager.flush()
         outboxWriter.enqueue(TOPIC, eventKey, event)
+    }
+
+    companion object {
+        const val TOPIC = "project.member.event.v2"
     }
 }
