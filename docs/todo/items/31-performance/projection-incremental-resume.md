@@ -2,7 +2,7 @@
 
 - **서비스**: cowork-chat
 - **우선순위**: 🟠 중간
-- **현재 상태**: dataset 세대 기반 증분 재개·명시적 rebuild·상태 조회·지표가 구현되어 있으나, topic UUID 없는 client의 재시작 정책과 공통 규칙의 정합성 및 실제 다중 replica 복구 검증이 남아 있음
+- **현재 상태**: dataset 세대 기반 증분 재개·명시적 rebuild·상태 조회·지표가 구현되어 있고, 공통 규칙에 현재 운영 제약을 명시했으나 broker topic identity 확보와 실제 다중 replica 복구 검증이 남아 있음
 
 ## 진행 상태 (2026-09-03)
 
@@ -21,7 +21,7 @@
 
 현재 구현은 `CHAT_PROJECTION_SOURCE_GENERATION` 또는 stream별 override와 MongoDB dataset generation을 비교한다. 이 값은 운영자가 관리하는 세대 값이며 broker topic UUID 자체가 아니다. source generation과 offset 범위가 우연히 같은 동일 이름 topic 교체까지 연속성을 증명하지는 못한다.
 
-[Kafka 공통 규칙](../../../../.claude/rules/kafka-projections.md)은 topic identity를 얻지 못하는 client가 process restart 또는 forced recovery를 넘을 때 durable replay generation, checkpoint·barrier reset, stale lease fencing과 fresh replay를 수행하도록 요구한다. 이 복구 계약은 구현·운영 검증 사항이며 핵심 단위 테스트의 예외를 만들지 않는다. 현재 재시작 시 증분 경로는 이 규칙과 차이가 있으므로 성능 구현만으로 이 항목을 완료 처리하지 않는다. topic UUID를 검증할 수 있는 경계를 확보하거나 restart·forced recovery를 공통 replay 정책에 맞추는 후속 구현이 필요하다.
+[Kafka 공통 규칙](../../../../.claude/rules/kafka-projections.md)은 같은 dataset·topic identity·retained 범위가 검증된 checkpoint의 재개와 신규·명시적 rebuild의 earliest 재생을 구분한다. 현재 Chat의 수동 source generation은 broker UUID의 대체 증거가 아니라 별도 운영 제약으로 명시한다. 연속성을 검증하지 못한 경우에는 fail closed와 stale lease fencing, projection 데이터·checkpoint·barrier의 일관된 재구축이 필요하다. 단순히 모든 재시작에서 log를 다시 읽는 것만으로 동일 이름 topic 교체나 잔존 행 문제가 해결되지는 않는다. 현재 예외를 문서화했더라도 broker identity 확보와 운영 복구 검증은 남아 있으므로 이 항목을 완료 처리하지 않는다.
 
 ## 현재 구현의 실행 모드
 
@@ -32,13 +32,13 @@
 | 명시적 재구축 | 운영자가 dataset 초기화·topic 세대 교체·스키마 재생성을 요청함 | 검증된 rebuild 기준점 | 새 dataset의 전체 snapshot과 catch-up을 확인함 |
 | 복구 불가 | checkpoint가 retention 밖이거나 dataset·checkpoint 세대가 다름 | 자동 seek하지 않음 | fail closed 후 명시적 재구축을 요구함 |
 
-이 표는 코드의 모드 분류이며 non-UUID 재시작 증분 경로에 대한 정책 승인을 뜻하지 않는다. `cowork-chat/src/main.ts`는 projection 준비 전 일반 HTTP 요청을 `503`으로 차단하고 WebSocket 연결과 Eureka 등록을 보류한다. 시작 시점뿐 아니라 현재 broker high-watermark와 checkpoint도 계속 대조한다.
+이 표는 코드의 모드 분류이며 non-UUID 증분 경로에서 broker 연속성이 입증되었다는 뜻이 아니다. `cowork-chat/src/main.ts`는 projection 준비 전 일반 HTTP 요청을 `503`으로 차단하고 WebSocket 연결과 Eureka 등록을 보류한다. 시작 시점뿐 아니라 현재 broker high-watermark와 checkpoint도 계속 대조한다.
 
 ## 할 일
 
 ### topic identity와 재시작 경계
 
-- broker topic UUID를 checkpoint와 함께 검증하는 경계를 확보하거나, UUID를 얻지 못하는 동안 process restart·forced recovery마다 공통 규칙의 durable replay generation을 생성하도록 한다.
+- broker topic UUID를 checkpoint와 함께 검증하는 경계를 확보한다. 확보 전에는 source 교체·손상·연속성 불명 시 fail closed 후 dataset 세대 변경, stale lease fencing과 projection 데이터·checkpoint·barrier 재구축을 적용한다.
 - 같은 process의 정상 rebalance와 process restart를 구분하고, 증분 재개 허용 조건을 코드와 운영 문서에 동일하게 반영한다.
 - generation 및 `[low, high]` 범위 검사만으로 동일 이름 topic의 연속성을 보장한다고 가정하지 않는다.
 - 빈 collection·checkpoint 누락·세대 불일치 검사와 active lease CAS가 실제 MongoDB에서 보장하는 범위를 운영 절차로 확인한다.
@@ -67,7 +67,7 @@
 
 ## 완료 조건
 
-- 증분 재개 허용 경계가 공통 Kafka recovery 규칙과 일치하며, topic UUID 없는 process restart·forced recovery는 durable generation을 새로 만들고 fresh replay를 완료한다.
+- 증분 재개 허용 경계가 공통 Kafka recovery 규칙과 일치하며, 연속성을 확인하지 못한 source 교체·강제 복구는 이전 lease를 차단하고 새 dataset의 전체 재구축을 완료한다.
 - 연속성이 입증된 rebalance·재개 경로만 유효한 shared checkpoint를 재사용한다.
 - checkpoint와 MongoDB projection dataset의 세대 불일치가 탐지되어 잘못된 증분 재개를 허용하지 않는다.
 - retention gap과 invalid 상태가 자동 merge replay로 숨겨지지 않고 재구축 필요 상태로 표시된다.
