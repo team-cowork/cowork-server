@@ -42,6 +42,8 @@ import {
     UserContext,
 } from './dto/context';
 import { UnreadCounterService } from './service/unread-counter.service';
+import { MessageSearchDeletionService } from './search/message-search-deletion.service';
+import { isSearchIndexed } from './search/message-index-scope';
 import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
 
 const SYSTEM_AUTHOR_ID = 0;
@@ -77,6 +79,7 @@ export class ChatService {
         @Inject(forwardRef(() => ChatGateway))
         private readonly chatGateway: ChatGateway,
         private readonly unreadCounterService: UnreadCounterService,
+        private readonly messageSearchDeletion: MessageSearchDeletionService,
     ) {}
 
     /**
@@ -218,7 +221,7 @@ export class ChatService {
     /**
      * 파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
      * 오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
-     * projectId가 있으면 Elasticsearch에서도 비동기로 제거한다.
+     * 색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
      * 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
      *
      * @param ctx - 채널·사용자·역할 컨텍스트
@@ -253,10 +256,7 @@ export class ChatService {
             }),
         );
 
-        await this.messageRepository.deleteById(messageId);
-        if (message.projectId) {
-            void this.elasticsearchService.deleteMessage(messageId);
-        }
+        await this.messageSearchDeletion.deleteMessage(messageId);
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -519,7 +519,7 @@ export class ChatService {
     /**
      * 메시지 내용을 수정한다. 내용이 동일하면 저장 없이 현재 도큐먼트를 반환한다.
      * 수정 이력은 `editHistory`에 누적된다.
-     * projectId가 있으면 Elasticsearch도 비동기로 업데이트한다.
+     * 본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      * 성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 emit한다.
      * ADMIN은 타인 메시지도 수정할 수 있다.
      *
@@ -534,13 +534,8 @@ export class ChatService {
             return message;
         }
 
-        message.editHistory.push({ content: message.content, editedAt: new Date() });
-        message.content = dto.content;
-        message.isEdited = true;
-        const updated = await message.save();
-        if (updated.projectId) {
-            void this.elasticsearchService.updateMessage(ctx.messageId, dto.content);
-        }
+        const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
+        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -558,7 +553,7 @@ export class ChatService {
 
     /**
      * 메시지를 삭제한다.
-     * projectId가 있으면 Elasticsearch에서도 비동기로 제거한다.
+     * 색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
      * 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
      * ADMIN은 타인 메시지도 삭제할 수 있다.
      *
@@ -568,10 +563,7 @@ export class ChatService {
     async deleteMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 삭제할 수 있습니다');
 
-        await this.messageRepository.deleteById(ctx.messageId);
-        if (message.projectId) {
-            void this.elasticsearchService.deleteMessage(ctx.messageId);
-        }
+        await this.messageSearchDeletion.deleteMessage(ctx.messageId);
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -585,7 +577,7 @@ export class ChatService {
 
     /**
      * 메시지를 고정한다. 이미 고정된 메시지이면 `BadRequestException`을 던진다.
-     * projectId가 있으면 Elasticsearch에서도 비동기로 핀 상태를 업데이트한다.
+     * 고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      * 성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
      * ADMIN은 타인 메시지도 고정할 수 있다.
      *
@@ -597,12 +589,8 @@ export class ChatService {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정할 수 있습니다');
         if (message.isPinned) throw new BadRequestException('이미 고정된 메시지입니다');
 
-        message.isPinned = true;
-        const updated = await message.save();
-
-        if (updated.projectId) {
-            void this.elasticsearchService.updatePinStatus(ctx.messageId, true);
-        }
+        const updated = await this.messageRepository.setPinned(ctx.messageId, true, isSearchIndexed(message));
+        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -616,7 +604,7 @@ export class ChatService {
 
     /**
      * 메시지 고정을 해제한다. 고정되지 않은 메시지이면 `BadRequestException`을 던진다.
-     * projectId가 있으면 Elasticsearch에서도 비동기로 핀 상태를 업데이트한다.
+     * 고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      * 성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
      * ADMIN은 타인 메시지도 고정 해제할 수 있다.
      *
@@ -627,12 +615,8 @@ export class ChatService {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정 해제할 수 있습니다');
         if (!message.isPinned) throw new BadRequestException('고정되지 않은 메시지입니다');
 
-        message.isPinned = false;
-        const updated = await message.save();
-
-        if (updated.projectId) {
-            void this.elasticsearchService.updatePinStatus(ctx.messageId, false);
-        }
+        const updated = await this.messageRepository.setPinned(ctx.messageId, false, isSearchIndexed(message));
+        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
