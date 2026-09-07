@@ -15,13 +15,13 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
     @Transactional
     fun apply(payload: ProjectEventPayload) {
         val occurredAt = payload.occurredAt?.toProjectionPrecision() ?: run {
-            log.warn("occurredAt이 없는 legacy project.event를 무시합니다 [projectId={}]", payload.projectId)
+            log.warn("Ignore project event without occurredAt [projectId={}]", payload.projectId)
             return
         }
         when (payload.eventType) {
             "CREATED", "UPDATED" -> upsert(payload.projectId, payload.teamId, occurredAt)
             "DELETED" -> delete(payload.projectId, payload.teamId, occurredAt)
-            else -> log.warn("알 수 없는 project.event를 무시합니다 [eventType={}]", payload.eventType)
+            else -> log.warn("Ignore unsupported project event [eventType={}]", payload.eventType)
         }
     }
 
