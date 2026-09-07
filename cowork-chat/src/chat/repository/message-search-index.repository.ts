@@ -49,11 +49,13 @@ export class MessageSearchIndexRepository {
     /**
      * 색인 대기 메시지를 최대 `batchSize`개 원자적으로 점유한다.
      *
-     * 여러 replica가 동시에 호출해도 `PENDING`을 만족하는 문서만 전이되므로 중복 점유가 없고,
-     * 이번 호출이 찍은 `searchIndexProcessingStartedAt`으로 실제 점유분만 되읽는다.
+     * 여러 replica가 동시에 호출해도 `PENDING`을 만족하는 문서만 전이되므로 중복 점유가 없다.
+     * 되읽기 조건에는 점유 시각이 아니라 호출마다 새로 발급한 `searchIndexClaimId`를 쓴다.
+     * 두 워커가 같은 밀리초에 점유하면 시각만으로는 서로의 점유분을 구분할 수 없기 때문이다.
      */
     async claimPending(batchSize: number): Promise<ClaimedIndexMessage[]> {
         const now = new Date();
+        const claimId = new Types.ObjectId().toString();
         const candidates = await this.messageModel
             .find({ searchIndexStatus: 'PENDING', searchIndexNextAttemptAt: { $lte: now } })
             .sort({ searchIndexNextAttemptAt: 1 })
@@ -65,12 +67,12 @@ export class MessageSearchIndexRepository {
         const ids = candidates.map((candidate) => candidate._id);
         await this.messageModel.updateMany(
             { _id: { $in: ids }, searchIndexStatus: 'PENDING' },
-            { $set: { searchIndexStatus: 'PROCESSING', searchIndexProcessingStartedAt: now } },
+            { $set: { searchIndexStatus: 'PROCESSING', searchIndexProcessingStartedAt: now, searchIndexClaimId: claimId } },
             OUTBOX_UPDATE_OPTIONS,
         );
 
         return this.messageModel
-            .find({ _id: { $in: ids }, searchIndexStatus: 'PROCESSING', searchIndexProcessingStartedAt: now })
+            .find({ _id: { $in: ids }, searchIndexStatus: 'PROCESSING', searchIndexClaimId: claimId })
             .select(INDEX_SOURCE_PROJECTION)
             .lean<ClaimedIndexMessage[]>();
     }
@@ -92,6 +94,7 @@ export class MessageSearchIndexRepository {
                     searchIndexRetryCount: 0,
                     searchIndexLastError: null,
                     searchIndexProcessingStartedAt: null,
+                    searchIndexClaimId: null,
                     searchIndexNextAttemptAt: null,
                 },
             },
@@ -109,6 +112,7 @@ export class MessageSearchIndexRepository {
                     searchIndexRetryCount: retryCount,
                     searchIndexNextAttemptAt: nextAttemptAt,
                     searchIndexProcessingStartedAt: null,
+                    searchIndexClaimId: null,
                     searchIndexLastError: error,
                 },
             },
@@ -125,6 +129,7 @@ export class MessageSearchIndexRepository {
                     searchIndexStatus: 'FAILED',
                     searchIndexNextAttemptAt: null,
                     searchIndexProcessingStartedAt: null,
+                    searchIndexClaimId: null,
                     searchIndexLastError: error,
                 },
             },
@@ -144,6 +149,7 @@ export class MessageSearchIndexRepository {
                     searchIndexStatus: 'PENDING',
                     searchIndexNextAttemptAt: new Date(),
                     searchIndexProcessingStartedAt: null,
+                    searchIndexClaimId: null,
                     searchIndexLastError: 'search index claim timed out',
                 },
             },
