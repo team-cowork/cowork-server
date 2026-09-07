@@ -4,6 +4,14 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: `GET /users/search`의 `q`·`query` 조건이 MySQL에서 지원하지 않는 Ecto `ilike` 연산자를 사용함
 
+> **2026-09-07 진척:** `maybe_query/2`의 `ilike`를 `like`로 바꾸고, `name`·`nickname`·`q`·`query`가
+> `Accounts.normalize_search_term/1`·`like_pattern/1`을 공유하도록 정리했다. escape가 없던 `name`·`nickname`에도
+> 같은 `%`·`_`·`\` escape가 적용된다. `q`가 공백뿐일 때 `query` alias가 무시되던 경로는
+> `Accounts.search_term/1`로 분리해 정리했다. 대소문자·escape 계약은 `open_api.ex`의 검색 파라미터 설명과
+> `Accounts.like_pattern/1` docstring에, 정규화·escape 규칙은 `test/cowork_user/accounts_search_policy_test.exs`에
+> 기록했다. 배포 전 MySQL smoke 항목과 `EXPLAIN` 기반 전문 검색 도입 기준은 별도 문서로 남기지 않기로 했다.
+> 로컬에 Elixir 툴체인과 MySQL이 없어 `mix test`와 MySQL smoke는 아직 실행하지 않았다.
+
 ## 문제
 
 `cowork-user`의 `CoworkUser.Repo`는 `Ecto.Adapters.MyXQL`을 사용한다. `Accounts.search_users/2`의 이름·닉네임 개별 필터는 `like`를 사용하지만, `q` 또는 `query` 통합 검색은 `maybe_query/2`에서 `ilike`를 생성한다.
