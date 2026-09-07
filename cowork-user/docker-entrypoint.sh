@@ -48,21 +48,11 @@ fi
 : "${DB_USERNAME:?DB_USERNAME is required}"
 : "${DB_PASSWORD:?DB_PASSWORD is required}"
 
-if [ -n "${DB_JDBC_URL:-}" ]; then
-  export FLYWAY_URL="${DB_JDBC_URL}"
-fi
+export FLYWAY_URL="${DB_JDBC_URL}"
+export FLYWAY_USER="${DB_USERNAME}"
+export FLYWAY_PASSWORD="${DB_PASSWORD}"
 
-if [ -n "${DB_USERNAME:-}" ]; then
-  export FLYWAY_USER="${DB_USERNAME}"
-fi
-
-if [ -n "${DB_PASSWORD:-}" ]; then
-  export FLYWAY_PASSWORD="${DB_PASSWORD}"
-fi
-
-if [ -n "${FLYWAY_URL:-}" ]; then
-  /flyway/flyway migrate
-fi
+/flyway/flyway migrate
 
 mkdir -p "$(dirname "${LOG_PATH:-/var/log/cowork/user/application.log}")"
 exec /app/bin/cowork_user start
