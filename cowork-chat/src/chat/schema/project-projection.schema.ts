@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 
 export type ProjectProjectionDocument = HydratedDocument<ProjectProjection>;
 
-/** `project.event`의 중복·역순 처리를 위한 프로젝트 lifecycle 읽기 모델. */
+/** `project.event.v2`의 중복·역순 처리를 위한 프로젝트 lifecycle 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
 export class ProjectProjection {
     @Prop({ required: true }) projectId!: number;
