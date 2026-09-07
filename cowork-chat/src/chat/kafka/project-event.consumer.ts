@@ -9,7 +9,6 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { matchesProjectEventKey } from '../../common/kafka/projection-entity-key.util';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 import { ProjectProjectionRepository } from '../repository/project-projection.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
@@ -72,19 +71,19 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                 },
             })
             .catch(async (err) => {
-                this.logger.error('project.event Kafka consumer failed', err);
+                this.logger.error(`${stream.topic} Kafka consumer failed`, err);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
-                    description: 'cowork-chat의 project.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                    description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                     color: 'danger',
                     fields: [
-                        { name: 'Topic', value: 'project.event', inline: true },
+                        { name: 'Topic', value: stream.topic, inline: true },
                         ...buildErrorFields(err),
                     ],
                 }).catch(() => {});
                 process.exit(1);
             });
-        this.logger.log('Kafka consumer started: project.event');
+        this.logger.log(`Kafka consumer started: ${stream.topic}`);
     }
 
     async onModuleDestroy() {
@@ -96,7 +95,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid project event payload');
         }
         const event = payload;
-        if (!matchesProjectEventKey(messageKey, event.projectId, event.teamId)) {
+        if (messageKey !== `${event.projectId}`) {
             throw new ProjectionContractError(
                 `project event key does not match projectId [key=${messageKey ?? '<missing>'}, projectId=${event.projectId}]`,
             );

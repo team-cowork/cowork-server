@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 
 export type ChannelProjectionDocument = HydratedDocument<ChannelProjection>;
 
-/** `channel.event`로 동기화되는 채널 읽기 모델. */
+/** `channel.event.v2`로 동기화되는 채널 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
 export class ChannelProjection {
     @Prop({ required: true }) channelId!: number;
