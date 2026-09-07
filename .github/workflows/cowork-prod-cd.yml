@@ -163,6 +163,8 @@ jobs:
       - prepare
       - build-images
       - release
+      - detect-changes
+      - deploy
     if: always()
     runs-on: ubuntu-latest
 
@@ -170,15 +172,17 @@ jobs:
       - name: Resolve notification status
         id: result
         env:
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
           BUILD_RESULT: ${{ needs.build-images.result }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
           RELEASE_RESULT: ${{ needs.release.result }}
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          if [ "${PREPARE_RESULT}" = "failure" ] || [ "${BUILD_RESULT}" = "failure" ] || [ "${RELEASE_RESULT}" = "failure" ]; then
+          if [ "${PREPARE_RESULT}" = "failure" ] || [ "${BUILD_RESULT}" = "failure" ] || [ "${RELEASE_RESULT}" = "failure" ] || [ "${DETECT_RESULT}" = "failure" ] || [ "${DEPLOY_RESULT}" = "failure" ]; then
             status=failure
-          elif [ "${PREPARE_RESULT}" = "cancelled" ] || [ "${BUILD_RESULT}" = "cancelled" ] || [ "${RELEASE_RESULT}" = "cancelled" ]; then
+          elif [ "${PREPARE_RESULT}" = "cancelled" ] || [ "${BUILD_RESULT}" = "cancelled" ] || [ "${RELEASE_RESULT}" = "cancelled" ] || [ "${DETECT_RESULT}" = "cancelled" ] || [ "${DEPLOY_RESULT}" = "cancelled" ]; then
             status=cancelled
           else
             status=success
@@ -189,6 +193,8 @@ jobs:
           else
             description="Release skipped (v${VERSION} already exists) · by ${{ github.actor }}"
           fi
+
+          description="${description} · Deploy: ${DEPLOY_RESULT}"
 
           echo "status=${status}" >> "${GITHUB_OUTPUT}"
           echo "description=${description}" >> "${GITHUB_OUTPUT}"
