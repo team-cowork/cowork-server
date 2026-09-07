@@ -104,17 +104,17 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
@@ -158,55 +158,6 @@ jobs:
             --title "v${VERSION}" \
             --generate-notes
 
-  notify:
-    needs:
-      - prepare
-      - build-images
-      - release
-      - detect-changes
-      - deploy
-    if: always()
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Resolve notification status
-        id: result
-        env:
-          DETECT_RESULT: ${{ needs.detect-changes.result }}
-          DEPLOY_RESULT: ${{ needs.deploy.result }}
-          BUILD_RESULT: ${{ needs.build-images.result }}
-          PREPARE_RESULT: ${{ needs.prepare.result }}
-          RELEASE_RESULT: ${{ needs.release.result }}
-          SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          if [ "${PREPARE_RESULT}" = "failure" ] || [ "${BUILD_RESULT}" = "failure" ] || [ "${RELEASE_RESULT}" = "failure" ] || [ "${DETECT_RESULT}" = "failure" ] || [ "${DEPLOY_RESULT}" = "failure" ]; then
-            status=failure
-          elif [ "${PREPARE_RESULT}" = "cancelled" ] || [ "${BUILD_RESULT}" = "cancelled" ] || [ "${RELEASE_RESULT}" = "cancelled" ] || [ "${DETECT_RESULT}" = "cancelled" ] || [ "${DEPLOY_RESULT}" = "cancelled" ]; then
-            status=cancelled
-          else
-            status=success
-          fi
-
-          if [ "${SHOULD_RELEASE}" = "true" ]; then
-            description="Release v${VERSION} · by ${{ github.actor }}"
-          else
-            description="Release skipped (v${VERSION} already exists) · by ${{ github.actor }}"
-          fi
-
-          description="${description} · Deploy: ${DEPLOY_RESULT}"
-
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
-          echo "description=${description}" >> "${GITHUB_OUTPUT}"
-
-      - name: Notify Discord
-        uses: sarisia/actions-status-discord@v1
-        with:
-          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
-          status: ${{ steps.result.outputs.status }}
-          title: "cowork Server Prod CD"
-          description: ${{ steps.result.outputs.description }}
-
   detect-changes:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -214,15 +165,16 @@ jobs:
       contents: read
     outputs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
+      services-list: ${{ steps.build-matrix.outputs.services-list }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 20
       - name: Resolve base commit
         id: base
         run: echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           base: ${{ steps.base.outputs.sha }}
@@ -249,10 +201,12 @@ jobs:
         id: build-matrix
         run: |
           INCLUDE="[]"
+          SERVICES=""
           add() {
             local name=$1 port=$2 changed=$3
             if [ "$changed" == "true" ]; then
               INCLUDE=$(echo "$INCLUDE" | jq -c --arg n "$name" --arg p "$port" '. += [{"service":$n,"port":$p}]')
+              SERVICES="${SERVICES:+$SERVICES, }$name"
             fi
           }
           add team           21108 "${{ steps.filter.outputs.team }}"
@@ -265,6 +219,7 @@ jobs:
           add voice          27109 "${{ steps.filter.outputs.voice }}"
           add notification   27110 "${{ steps.filter.outputs.notification }}"
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
+          echo "services-list=${SERVICES:-none}" >> "$GITHUB_OUTPUT"
           echo "Deploy matrix: $INCLUDE"
 
   deploy:
@@ -293,6 +248,70 @@ jobs:
           port: ${{ matrix.port }}
           username: ubuntu
           key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
-          script_stop: true
           command_timeout: 20m
-          script: bash ~/deploy-${{ matrix.service }}.sh
+          script: bash -e ~/deploy-${{ matrix.service }}.sh
+
+  notify:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-images
+      - release
+      - detect-changes
+      - deploy
+    if: always()
+
+    steps:
+      - name: Get Short SHA
+        id: sha
+        run: echo "short=$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      - name: Determine Status
+        id: status
+        env:
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deploy.result }}"
+          SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          status="success"
+          color="0x4CAF50"
+          for res in ${RESULTS}; do
+            if [ "$res" = "failure" ]; then
+              status="failure"
+              color="0xFF4C4C"
+              break
+            elif [ "$res" = "cancelled" ] && [ "$status" != "failure" ]; then
+              status="cancelled"
+              color="0xFFA500"
+            fi
+          done
+
+          if [ "${SHOULD_RELEASE}" = "true" ]; then
+            release_desc="v${VERSION} (created)"
+          elif [ -n "${VERSION}" ]; then
+            release_desc="v${VERSION} (skipped - already exists)"
+          else
+            release_desc="N/A"
+          fi
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "color=${color}" >> "$GITHUB_OUTPUT"
+          echo "release_desc=${release_desc}" >> "$GITHUB_OUTPUT"
+
+      - name: Send Discord Notification
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          status: ${{ steps.status.outputs.status }}
+          color: ${{ steps.status.outputs.color }}
+          title: "cowork Server Prod CD"
+          description: |
+            `${{ github.event.workflow_run.head_branch || 'main' }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
+            **Release:** ${{ steps.status.outputs.release_desc }}
+            **Deploy:** ${{ needs.detect-changes.outputs.services-list }}
+            ─────────────────────────────
+            **Prepare:** ${{ needs.prepare.result }}
+            **Build Images:** ${{ needs.build-images.result }}
+            **Release:** ${{ needs.release.result }}
+            **Detect Changes:** ${{ needs.detect-changes.result }}
+            **Deploy:** ${{ needs.deploy.result }}
