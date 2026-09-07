@@ -59,13 +59,19 @@ export class MessageSearchTombstoneRepository {
                     },
                 },
             ],
-            { upsert: true },
+            { upsert: true, timestamps: false, updatePipeline: true },
         );
     }
 
-    /** 처리 대기 tombstone을 최대 `batchSize`개 원자적으로 점유한다. */
+    /**
+     * 처리 대기 tombstone을 최대 `batchSize`개 원자적으로 점유한다.
+     *
+     * 되읽기 조건은 점유 시각이 아니라 호출마다 발급한 `claimId`다. 같은 밀리초에 점유한
+     * 두 워커를 시각만으로는 구분할 수 없기 때문이다.
+     */
     async claimPending(batchSize: number): Promise<TombstoneRecord[]> {
         const now = new Date();
+        const claimId = new Types.ObjectId().toString();
         const candidates = await this.model
             .find({ status: 'PENDING', nextAttemptAt: { $lte: now } })
             .sort({ nextAttemptAt: 1 })
@@ -77,19 +83,19 @@ export class MessageSearchTombstoneRepository {
         const ids = candidates.map((candidate) => candidate._id);
         await this.model.updateMany(
             { _id: { $in: ids }, status: 'PENDING' },
-            { $set: { status: 'PROCESSING', processingStartedAt: now } },
+            { $set: { status: 'PROCESSING', processingStartedAt: now, claimId } },
             OUTBOX_UPDATE_OPTIONS,
         );
 
         return this.model
-            .find({ _id: { $in: ids }, status: 'PROCESSING', processingStartedAt: now })
+            .find({ _id: { $in: ids }, status: 'PROCESSING', claimId })
             .lean<TombstoneRecord[]>();
     }
 
     async markDeleted(id: Types.ObjectId): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'DELETED', deletedAt: new Date(), lastError: null, processingStartedAt: null } },
+            { $set: { status: 'DELETED', deletedAt: new Date(), lastError: null, processingStartedAt: null, claimId: null } },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -97,7 +103,7 @@ export class MessageSearchTombstoneRepository {
     async markRetry(id: Types.ObjectId, retryCount: number, nextAttemptAt: Date, error: string): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'PENDING', retryCount, nextAttemptAt, processingStartedAt: null, lastError: error } },
+            { $set: { status: 'PENDING', retryCount, nextAttemptAt, processingStartedAt: null, claimId: null, lastError: error } },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -105,7 +111,7 @@ export class MessageSearchTombstoneRepository {
     async markFailed(id: Types.ObjectId, error: string): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'FAILED', nextAttemptAt: null, processingStartedAt: null, lastError: error } },
+            { $set: { status: 'FAILED', nextAttemptAt: null, processingStartedAt: null, claimId: null, lastError: error } },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -118,6 +124,7 @@ export class MessageSearchTombstoneRepository {
                     status: 'PENDING',
                     nextAttemptAt: new Date(),
                     processingStartedAt: null,
+                    claimId: null,
                     lastError: 'tombstone claim timed out',
                 },
             },
@@ -129,7 +136,7 @@ export class MessageSearchTombstoneRepository {
     async retryFailed(): Promise<number> {
         const result = await this.model.updateMany(
             { status: 'FAILED' },
-            { $set: { status: 'PENDING', retryCount: 0, nextAttemptAt: new Date(), processingStartedAt: null } },
+            { $set: { status: 'PENDING', retryCount: 0, nextAttemptAt: new Date(), processingStartedAt: null, claimId: null } },
             OUTBOX_UPDATE_OPTIONS,
         );
         return result.modifiedCount;
