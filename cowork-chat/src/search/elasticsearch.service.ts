@@ -1,9 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { Client, estypes } from '@elastic/elasticsearch';
 import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 import {
     classifyElasticsearchError,
     errorMessageOf,
+    isElasticsearchBadRequest,
     isElasticsearchNotFound,
     isIndexNotFound,
     isManagedMessageIndex,
@@ -17,6 +18,9 @@ import {
 } from './message-index.contract';
 
 export type { MessageIndexDoc } from './message-index.contract';
+
+/** `isReady()`가 한 번 `true`가 된 뒤에도 alias 존재를 다시 확인하는 최소 간격. */
+const READY_RECHECK_INTERVAL_MS = 30_000;
 
 export interface SearchMessagesParams {
     projectId: number;
@@ -79,6 +83,7 @@ export class ElasticsearchService implements OnModuleInit {
     private readonly logger = new Logger(ElasticsearchService.name);
     private ready = false;
     private lastBootstrapError: string | null = null;
+    private lastReadyCheckAt = 0;
 
     constructor(@Inject(ELASTICSEARCH_CLIENT) private readonly client: Client) {}
 
@@ -98,20 +103,42 @@ export class ElasticsearchService implements OnModuleInit {
     /**
      * alias와 물리 index가 준비되었는지 확인하고, 아니면 한 번 더 부트스트랩을 시도한다.
      *
+     * 한 번 준비된 뒤에도 매 폴링 사이클(3초)마다 다시 확인하지는 않고,
+     * {@link READY_RECHECK_INTERVAL_MS}(30초)마다 alias가 여전히 존재하는지만 가볍게 재확인한다.
+     * 운영 중 alias가 지워지거나 클러스터가 재구성돼도 이 재확인이 없으면 `isReady()`가 계속
+     * `true`를 반환해 `/health/ready`와 지표, 검색 API의 {@link assertReady}가 실제 상태를 놓친다.
+     *
      * 부트스트랩 실패는 예외로 전파하지 않고 `false`를 반환한다. 색인 준비 실패가
      * 채팅 송수신 자체를 막지 않게 하되, 검색 API는 {@link assertReady}로 503을 반환한다.
      */
     async ensureIndexReady(): Promise<boolean> {
-        if (this.ready) return true;
+        if (this.ready) {
+            if (Date.now() - this.lastReadyCheckAt < READY_RECHECK_INTERVAL_MS) return true;
+            this.lastReadyCheckAt = Date.now();
+            if (await this.aliasStillExists()) return true;
+            this.ready = false;
+            this.logger.warn(`Search alias no longer exists, re-bootstrapping: ${MESSAGE_SEARCH_ALIAS}`);
+        }
         try {
             await this.bootstrapIndex();
             this.ready = true;
+            this.lastReadyCheckAt = Date.now();
             this.lastBootstrapError = null;
             return true;
         } catch (error) {
             this.ready = false;
             this.lastBootstrapError = errorMessageOf(error);
             this.logger.error(`Failed to prepare search index alias=${MESSAGE_SEARCH_ALIAS}`, error);
+            return false;
+        }
+    }
+
+    /** alias 또는 (승격 전 배포의) 동명 물리 index가 여전히 존재하는지 확인한다. */
+    private async aliasStillExists(): Promise<boolean> {
+        try {
+            if (await this.client.indices.existsAlias({ name: MESSAGE_SEARCH_ALIAS })) return true;
+            return await this.client.indices.exists({ index: MESSAGE_SEARCH_ALIAS });
+        } catch {
             return false;
         }
     }
@@ -173,6 +200,11 @@ export class ElasticsearchService implements OnModuleInit {
 
     async deleteIndex(index: string): Promise<void> {
         await this.client.indices.delete({ index });
+    }
+
+    /** 물리 index가 실제로 존재하는지 확인한다. 재구축 재개가 지워진 index로 잘못 이어지지 않게 한다. */
+    async indexExists(index: string): Promise<boolean> {
+        return this.client.indices.exists({ index });
     }
 
     async refreshIndex(index: string): Promise<void> {
@@ -402,6 +434,10 @@ export class ElasticsearchService implements OnModuleInit {
                 ...(searchAfter ? { search_after: searchAfter } : {}),
             });
         } catch (error) {
+            if (isElasticsearchBadRequest(error)) {
+                this.logger.warn(`Search query rejected as invalid alias=${MESSAGE_SEARCH_ALIAS}`, error);
+                throw new BadRequestException('검색 조건이 올바르지 않습니다');
+            }
             this.logger.error(`Search query failed alias=${MESSAGE_SEARCH_ALIAS}`, error);
             throw new ServiceUnavailableException('메시지 검색에 실패했습니다. 잠시 후 다시 시도해 주세요');
         }

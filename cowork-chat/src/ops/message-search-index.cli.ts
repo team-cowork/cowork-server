@@ -25,6 +25,13 @@ function model<T>(name: string, schema: mongoose.Schema): mongoose.Model<T> {
     return (mongoose.models[name] ?? mongoose.model(name, schema)) as mongoose.Model<T>;
 }
 
+/**
+ * `@elastic/elasticsearch`의 `Client`는 keep-alive agent를 들고 있어, 닫지 않으면 소켓이
+ * 만료될 때까지 이벤트 루프가 비지 않는다. `mongoose.disconnect()`만으로는 이 프로세스가
+ * 결과를 출력한 뒤에도 바로 종료되지 않으므로, 이 client도 함께 닫아야 한다.
+ */
+let esClient: Client | undefined;
+
 async function main(): Promise<void> {
     const [command] = process.argv.slice(2) as [Command | undefined];
     const uri = process.env.MONGODB_URI;
@@ -44,7 +51,8 @@ async function main(): Promise<void> {
     const stateRepository = new MessageSearchIndexStateRepository(
         model<MessageSearchIndexState>(MessageSearchIndexState.name, MessageSearchIndexStateSchema),
     );
-    const elasticsearchService = new ElasticsearchService(new Client({ node }));
+    esClient = new Client({ node });
+    const elasticsearchService = new ElasticsearchService(esClient);
     await elasticsearchService.ensureIndexReady();
 
     if (command === 'status') {
@@ -99,4 +107,4 @@ void main()
         console.error(error instanceof Error ? error.message : error);
         process.exitCode = 1;
     })
-    .finally(() => mongoose.disconnect());
+    .finally(() => Promise.all([mongoose.disconnect(), esClient?.close()]));

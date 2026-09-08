@@ -102,6 +102,30 @@ export class MessageSearchIndexRepository {
         );
     }
 
+    /**
+     * 점유했지만 색인 대상이 아닌 것으로 판정된 문서를 `SKIPPED`로 확정한다.
+     *
+     * `releaseDeleting`처럼 대상 여부를 다시 판정하지 않는 경로에서 `PENDING`으로 되돌려진
+     * 문서가 다시 점유됐을 때의 방어선이다. `markSynced`와 같은 `PROCESSING` + 버전 가드를 쓴다.
+     */
+    async markSkipped(id: Types.ObjectId, version: number): Promise<void> {
+        await this.messageModel.updateOne(
+            { _id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version },
+            {
+                $set: {
+                    searchIndexStatus: 'SKIPPED',
+                    searchIndexVersion: 0,
+                    searchIndexRetryCount: 0,
+                    searchIndexLastError: null,
+                    searchIndexProcessingStartedAt: null,
+                    searchIndexClaimId: null,
+                    searchIndexNextAttemptAt: null,
+                },
+            },
+            OUTBOX_UPDATE_OPTIONS,
+        );
+    }
+
     /** 재시도 가능 실패를 기록하고 백오프 후 다시 대기 상태로 되돌린다. */
     async markRetry(id: Types.ObjectId, version: number, retryCount: number, nextAttemptAt: Date, error: string): Promise<void> {
         await this.messageModel.updateOne(
@@ -159,38 +183,73 @@ export class MessageSearchIndexRepository {
     }
 
     /**
-     * tombstone을 남기기 전에 중단되어 `DELETING`에 머문 메시지 ID를 조회한다.
+     * tombstone을 남기기 전에 중단되어 `DELETING`에 머문 메시지를 조회한다.
      *
      * 메시지가 아직 MongoDB에 있으면 삭제는 커밋되지 않은 것이므로, tombstone이 없는 항목만
-     * {@link releaseDeleting}으로 되돌려 다시 색인 대상이 되게 한다.
+     * {@link releaseDeleting}으로 되돌려 다시 색인 대상이 되게 한다. `reserveDeletion`은 색인
+     * 대상 여부와 무관하게 모든 메시지를 `DELETING`으로 고정하므로, 되돌릴 때 대상 여부를
+     * 다시 판정할 수 있도록 `teamId`/`projectId`/`type`도 함께 반환한다.
      */
-    async findStaleDeleting(staleThresholdMs: number, limit: number): Promise<Types.ObjectId[]> {
-        const rows = await this.messageModel
+    async findStaleDeleting(
+        staleThresholdMs: number,
+        limit: number,
+    ): Promise<Array<{ _id: Types.ObjectId; teamId: number | null; projectId: number | null; type: string }>> {
+        return this.messageModel
             .find({
                 searchIndexStatus: 'DELETING',
                 searchIndexProcessingStartedAt: { $lt: new Date(Date.now() - staleThresholdMs) },
             })
             .limit(limit)
-            .select('_id')
+            .select({ teamId: 1, projectId: 1, type: 1 })
             .lean();
-        return rows.map((row) => row._id);
     }
 
-    async releaseDeleting(ids: Types.ObjectId[]): Promise<number> {
-        if (ids.length === 0) return 0;
-        const result = await this.messageModel.updateMany(
-            { _id: { $in: ids }, searchIndexStatus: 'DELETING' },
-            {
-                $set: {
-                    searchIndexStatus: 'PENDING',
-                    searchIndexNextAttemptAt: new Date(),
-                    searchIndexProcessingStartedAt: null,
-                    searchIndexLastError: 'deletion was not committed, re-indexing',
+    /**
+     * `DELETING`에서 되돌릴 메시지를 색인 대상 여부에 따라 갈라 확정한다.
+     *
+     * 색인 대상이면 `PENDING`으로 되돌려 다시 색인하게 하고, 대상이 아니면(DM·`SYSTEM` 등)
+     * `SKIPPED`(+`searchIndexVersion: 0`)로 확정해 대상이 아닌 메시지가 색인에 적재되지 않게 한다.
+     */
+    async releaseDeleting(
+        messages: Array<{ _id: Types.ObjectId; teamId: number | null; projectId: number | null; type: string }>,
+    ): Promise<number> {
+        if (messages.length === 0) return 0;
+        const indexedIds = messages.filter((message) => isSearchIndexed(message)).map((message) => message._id);
+        const skippedIds = messages.filter((message) => !isSearchIndexed(message)).map((message) => message._id);
+
+        let modifiedCount = 0;
+        if (indexedIds.length > 0) {
+            const result = await this.messageModel.updateMany(
+                { _id: { $in: indexedIds }, searchIndexStatus: 'DELETING' },
+                {
+                    $set: {
+                        searchIndexStatus: 'PENDING',
+                        searchIndexNextAttemptAt: new Date(),
+                        searchIndexProcessingStartedAt: null,
+                        searchIndexLastError: 'deletion was not committed, re-indexing',
+                    },
                 },
-            },
-            OUTBOX_UPDATE_OPTIONS,
-        );
-        return result.modifiedCount;
+                OUTBOX_UPDATE_OPTIONS,
+            );
+            modifiedCount += result.modifiedCount;
+        }
+        if (skippedIds.length > 0) {
+            const result = await this.messageModel.updateMany(
+                { _id: { $in: skippedIds }, searchIndexStatus: 'DELETING' },
+                {
+                    $set: {
+                        searchIndexStatus: 'SKIPPED',
+                        searchIndexVersion: 0,
+                        searchIndexNextAttemptAt: null,
+                        searchIndexProcessingStartedAt: null,
+                        searchIndexLastError: null,
+                    },
+                },
+                OUTBOX_UPDATE_OPTIONS,
+            );
+            modifiedCount += result.modifiedCount;
+        }
+        return modifiedCount;
     }
 
     /**
@@ -258,8 +317,17 @@ export class MessageSearchIndexRepository {
     }
 
     /** 상태별 backlog와 가장 오래된 대기 항목의 시각을 조회한다. */
+    /**
+     * 상태별 backlog를 집계한다.
+     *
+     * `SYNCED`/`SKIPPED`는 대부분을 차지하는 종결 상태라 매번 전체를 훑을 필요가 없다.
+     * `searchIndexStatus` 인덱스를 타도록 진행 중인 상태로 먼저 `$match`를 걸어, 30초마다 도는
+     * 이 조회가 컬렉션이 커져도 COLLSCAN이 되지 않게 한다. 그 대가로 `SYNCED`/`SKIPPED` 카운트는
+     * 갱신되지 않고 `0`으로 유지되지만, 이 지표의 목적인 backlog·지연 감시에는 필요 없는 값이다.
+     */
     async backlog(): Promise<SearchIndexBacklog> {
         const rows = await this.messageModel.aggregate<{ _id: SearchIndexStatus | null; count: number; oldest: Date | null }>([
+            { $match: { searchIndexStatus: { $in: ['PENDING', 'PROCESSING', 'FAILED', 'DELETING'] } } },
             { $group: { _id: '$searchIndexStatus', count: { $sum: 1 }, oldest: { $min: '$searchIndexNextAttemptAt' } } },
         ]);
         const counts = { PENDING: 0, PROCESSING: 0, SYNCED: 0, FAILED: 0, DELETING: 0, SKIPPED: 0 } as Record<SearchIndexStatus, number>;

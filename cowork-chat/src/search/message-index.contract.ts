@@ -7,12 +7,18 @@ export const MESSAGE_SEARCH_ALIAS = 'chat_messages';
 export const MESSAGE_SEARCH_INDEX_PREFIX = 'chat_messages-';
 
 /**
- * 삭제 버전 tombstone 보존 기간.
+ * 삭제 버전 tombstone 보존 기간(일수).
  *
  * 외부 버전(`version_type: 'external'`) 삭제는 이 기간 동안만 버전을 기억하므로,
  * 이 값이 outbox claim 타임아웃보다 짧으면 지연된 upsert가 삭제된 문서를 되살릴 수 있다.
+ * `CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS`(MongoDB tombstone 보존 기간)가 이 값보다 짧으면
+ * 재구축 catch-up이 삭제를 재생하기 전에 tombstone이 먼저 사라질 수 있으므로,
+ * {@link MessageSearchDeletionService}가 부팅 시 두 값의 관계를 검증한다.
  */
-export const MESSAGE_INDEX_GC_DELETES = '7d';
+export const MESSAGE_INDEX_GC_DELETES_DAYS = 7;
+
+/** {@link MESSAGE_INDEX_GC_DELETES_DAYS}에서 파생된 Elasticsearch `index.gc_deletes` 설정 값. */
+export const MESSAGE_INDEX_GC_DELETES = `${MESSAGE_INDEX_GC_DELETES_DAYS}d`;
 
 /** Elasticsearch에 저장하는 메시지 색인 문서. MongoDB 메시지에서 파생된다. */
 export interface MessageIndexDoc {
@@ -86,9 +92,18 @@ export function buildMessageIndexName(now: Date): string {
     return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}`;
 }
 
+/**
+ * 재구축이 만든 물리 index 이름 패턴.
+ *
+ * {@link buildMessageIndexName}이 항상 밀리초까지 포함한 17자리 타임스탬프를 쓰므로
+ * 자릿수는 고정이다. 모듈 상수로 한 번만 컴파일해 `dropReplacedIndices`가 매 index마다
+ * 새로 만들지 않게 한다.
+ */
+const MANAGED_MESSAGE_INDEX_PATTERN = new RegExp(`^${MESSAGE_SEARCH_INDEX_PREFIX}\\d{17}$`);
+
 /** 재구축이 만든 물리 index인지 판별한다. 운영자가 만든 다른 index를 정리 대상으로 삼지 않는다. */
 export function isManagedMessageIndex(name: string): boolean {
-    return new RegExp(`^${MESSAGE_SEARCH_INDEX_PREFIX}\\d{14}(\\d{3})?$`).test(name);
+    return MANAGED_MESSAGE_INDEX_PATTERN.test(name);
 }
 
 function statusCodeOf(error: unknown): number | undefined {
@@ -102,6 +117,11 @@ function statusCodeOf(error: unknown): number | undefined {
 /** 대상이 없다는 응답인지 판별한다. 통신 오류를 "없음"으로 오인하지 않기 위해 상태 코드만 본다. */
 export function isElasticsearchNotFound(error: unknown): boolean {
     return statusCodeOf(error) === 404;
+}
+
+/** 요청 자체가 잘못됐다는 응답인지 판별한다(예: 손상된 `search_after` 커서). 재시도해도 같은 결과다. */
+export function isElasticsearchBadRequest(error: unknown): boolean {
+    return statusCodeOf(error) === 400;
 }
 
 /** index 자체가 없어서 실패했는지 판별한다. 문서만 없는 `404`와 구분해야 한다. */

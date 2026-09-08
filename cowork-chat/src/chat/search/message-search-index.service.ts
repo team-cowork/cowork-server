@@ -13,7 +13,7 @@ import {
 } from '../repository/message-search-tombstone.repository';
 import { MessageSearchIndexStateRepository } from '../repository/message-search-index-state.repository';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
-import { buildMessageIndexDoc } from './message-index-scope';
+import { buildMessageIndexDoc, isSearchIndexed } from './message-index-scope';
 
 /** 재시도 백오프의 기준 간격. 시도마다 2배로 늘어난다. */
 const RETRY_BASE_DELAY_MS = 5_000;
@@ -56,9 +56,20 @@ export class MessageSearchIndexService {
         this.indexReady = gauge('cowork_chat_search_index_ready', 'Whether the search index alias is usable (1) or not (0).', []);
     }
 
-    /** 점유한 메시지의 최신 전체 문서를 색인에 반영한다. */
+    /**
+     * 점유한 메시지의 최신 전체 문서를 색인에 반영한다.
+     *
+     * `claimPending`은 `searchIndexStatus`만 보고 점유하므로, `releaseDeleting`처럼 대상 여부를
+     * 다시 판정하지 않는 경로에서 `PENDING`이 된 비대상 문서가 여기로 들어올 수 있다.
+     * {@link buildMessageIndexDoc}는 호출 전 대상 확인을 전제하므로, 이 방어가 없으면 `teamId`
+     * 단정(`!`)이 깨진 문서가 그대로 색인될 수 있다.
+     */
     async applyMessage(message: ClaimedIndexMessage): Promise<void> {
         const version = message.searchIndexVersion;
+        if (!isSearchIndexed(message)) {
+            await this.indexRepository.markSkipped(message._id, version);
+            return;
+        }
         const result = await this.elasticsearchService.upsertMessage(buildMessageIndexDoc(message), version);
         this.writes.inc({ operation: 'upsert', outcome: result.outcome });
 
