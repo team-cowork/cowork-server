@@ -42,7 +42,7 @@ const mockMessageRepository = {
 };
 
 const mockMessageSearchDeletion = {
-    deleteMessage: jest.fn().mockResolvedValue(undefined),
+    deleteMessage: jest.fn().mockResolvedValue('DELETED'),
 };
 
 
@@ -146,7 +146,7 @@ describe('ChatService', () => {
             mockMessageSearchDeletion as never,
         );
         jest.clearAllMocks();
-        mockMessageSearchDeletion.deleteMessage.mockResolvedValue(undefined);
+        mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
         mockMessageRepository.applyEdit.mockImplementation((_id: string, content: string) =>
             Promise.resolve({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
         mockMessageRepository.setPinned.mockImplementation((_id: string, isPinned: boolean) =>
@@ -519,6 +519,18 @@ describe('ChatService', () => {
             expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
             expect(mockMessageSearchDeletion.deleteMessage).toHaveBeenCalledWith(mockMessageId);
         });
+
+        it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue({
+                authorId: 42,
+                attachments: [],
+            });
+            mockMessageSearchDeletion.deleteMessage.mockResolvedValue('ALREADY_IN_PROGRESS');
+
+            await service.deleteFile(ctx, fileId);
+
+            expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+        });
     });
 
     describe('handleSlashCommand', () => {
@@ -638,6 +650,17 @@ describe('ChatService', () => {
             await expect(
                 service.deleteMessage(ctx({ userRole: 'ADMIN' })),
             ).resolves.toBeDefined();
+        });
+
+        it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
+            mockMessageSearchDeletion.deleteMessage.mockResolvedValue('ALREADY_IN_PROGRESS');
+
+            const result = await service.deleteMessage(ctx());
+
+            expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+            expect(result.messageId).toBe(mockMessageId);
         });
 
     });

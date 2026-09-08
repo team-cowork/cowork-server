@@ -318,6 +318,11 @@ export class MessageRepository {
         );
     }
 
+    /** 메시지가 여전히 존재하는지 확인합니다. {@link reserveDeletion} 실패 원인을 구분하는 데 사용합니다. */
+    async existsById(messageId: string): Promise<boolean> {
+        return (await this.messageModel.exists({ _id: messageId })) !== null;
+    }
+
     /**
      * 시스템 메시지를 생성합니다.
      *
@@ -852,6 +857,7 @@ function searchIndexIntent(indexed: boolean, now: Date): Record<string, unknown>
         searchIndexRetryCount: 0,
         searchIndexNextAttemptAt: now,
         searchIndexProcessingStartedAt: null,
+        searchIndexClaimId: null,
         searchIndexLastError: null,
     };
 }
