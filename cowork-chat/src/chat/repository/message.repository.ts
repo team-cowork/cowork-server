@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
+import { randomUUID } from 'crypto';
 import { Message, MessageDocument } from '../schema/message.schema';
 
 /** 한 번에 조회하는 최대 메시지 수 */
@@ -374,6 +375,11 @@ export class MessageRepository {
      * 단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
      * 고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
      *
+     * 배포 유의사항: 이 배타성은 신버전 replica끼리만 보장됩니다. 롤링 배포 중 구버전 replica가
+     * 아직 남아 있으면, 구버전은 `notificationClaimId` 없이 `notificationProcessingStartedAt` 값만
+     * 보고 되읽으므로 신버전이 같은 밀리초에 찍은 점유분을 그대로 가져갈 수 있습니다. 전 replica가
+     * 신버전으로 교체되기 전까지는 이 회귀가 남아 있습니다.
+     *
      * @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
      * @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
@@ -387,7 +393,7 @@ export class MessageRepository {
         if (candidates.length === 0) return [];
 
         const ids = candidates.map((c) => c._id);
-        const notificationClaimId = new Types.ObjectId().toString();
+        const notificationClaimId = randomUUID();
         await this.messageModel.updateMany(
             { _id: { $in: ids }, notificationStatus: 'PENDING' },
             {
@@ -594,17 +600,6 @@ export class MessageRepository {
         return count;
     }
 
-    /**
-     * 메시지의 알림 상태를 업데이트합니다.
-     *
-     * `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
-     * 재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
-     *
-     * @param messageId - 업데이트할 메시지의 ObjectId
-     * @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
-     * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
-     * @returns Mongoose `updateOne` 결과 객체
-     */
     countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
         const filter: Record<string, unknown> = { channelId, parentMessageId: null };
         if (afterId) {
@@ -665,8 +660,26 @@ export class MessageRepository {
         return countMap;
     }
 
+    /**
+     * 메시지의 알림 상태를 업데이트합니다.
+     *
+     * `notificationClaimId`가 여전히 이 호출을 발급한 점유분과 일치하는 문서만 갱신합니다.
+     * 처리 중 stale로 회수되어 다른 워커가 재점유한 메시지라면 `notificationClaimId`가
+     * 달라져 있어 이 업데이트는 조건 불일치로 아무 문서도 바꾸지 않으므로, 뒤늦게 도착한
+     * 완료 쓰기가 새 점유자의 `PROCESSING` 상태를 덮어써 중복 발행을 재현하지 않습니다.
+     *
+     * `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
+     * 재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
+     *
+     * @param messageId - 업데이트할 메시지의 ObjectId
+     * @param notificationClaimId - 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자
+     * @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
+     * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
+     * @returns Mongoose `updateOne` 결과 객체
+     */
     updateNotificationStatus(
         messageId: Types.ObjectId,
+        notificationClaimId: string,
         notificationStatus: string,
         notificationRetryCount?: number,
     ) {
@@ -674,7 +687,10 @@ export class MessageRepository {
         if (notificationRetryCount !== undefined) {
             $set.notificationRetryCount = notificationRetryCount;
         }
-        return this.messageModel.updateOne({ _id: messageId }, { $set });
+        return this.messageModel.updateOne(
+            { _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId },
+            { $set },
+        );
     }
 
     /**
