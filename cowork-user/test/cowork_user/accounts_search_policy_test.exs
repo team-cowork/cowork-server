@@ -1,7 +1,9 @@
 defmodule CoworkUser.AccountsSearchPolicyTest do
   use ExUnit.Case, async: true
+  import Ecto.Query
 
   alias CoworkUser.Accounts
+  alias CoworkUser.Accounts.Profile
 
   defmodule AllowedTeamMembership do
     def member_ids_for_requester(team_id, requester_user_id) do
@@ -134,26 +136,42 @@ defmodule CoworkUser.AccountsSearchPolicyTest do
     end
   end
 
-  describe "search_term/1" do
+  describe "search_term/2" do
     test "q를 통합 검색어로 사용한다" do
-      assert Accounts.search_term(%{"q" => "  kim  "}) == "kim"
+      assert Accounts.search_term("  kim  ", nil) == "kim"
     end
 
     test "q가 없으면 호환 alias인 query를 사용한다" do
-      assert Accounts.search_term(%{"query" => "kim"}) == "kim"
+      assert Accounts.search_term(nil, "kim") == "kim"
     end
 
     test "q가 공백뿐이면 query로 넘어간다" do
-      assert Accounts.search_term(%{"q" => "   ", "query" => "kim"}) == "kim"
+      assert Accounts.search_term("   ", "kim") == "kim"
     end
 
     test "q와 query가 모두 있으면 q가 우선한다" do
-      assert Accounts.search_term(%{"q" => "kim", "query" => "lee"}) == "kim"
+      assert Accounts.search_term("kim", "lee") == "kim"
     end
 
     test "둘 다 비어 있으면 통합 검색 필터를 적용하지 않는다" do
-      assert Accounts.search_term(%{}) == nil
-      assert Accounts.search_term(%{"q" => "", "query" => " "}) == nil
+      assert Accounts.search_term(nil, nil) == nil
+      assert Accounts.search_term("", " ") == nil
+    end
+  end
+
+  defp base_query, do: from(p in Profile, join: a in assoc(p, :account))
+
+  describe "maybe_query/2" do
+    test "검색어가 없으면 쿼리를 그대로 둔다" do
+      query = base_query()
+      assert Accounts.maybe_query(query, nil) == query
+    end
+
+    test "MySQL이 지원하지 않는 ilike가 아니라 like로 이름·닉네임을 검색한다" do
+      inspected = Accounts.maybe_query(base_query(), "kim") |> inspect()
+
+      assert inspected =~ "like("
+      refute inspected =~ "ilike("
     end
   end
 end
