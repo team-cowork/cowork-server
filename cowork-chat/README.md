@@ -79,7 +79,7 @@ npm run ops:message-search-index resume-rebuild # 중단된 재구축을 중단 
   alias에 연결되므로 재구축이 실패해도 기존 검색은 그대로 동작합니다.
 
 `rebuild`는 새 물리 index(`chat_messages-{타임스탬프}`)를 만들어 MongoDB 전체를 색인하고, 재구축 중 발생한 변경과
-삭제를 따라잡은 뒤 문서 수·필수 필드·표본 내용을 검증하고 alias를 전환합니다. 검색 alias 이름이 아직 물리 index인
+삭제를 따라잡은 뒤 문서 수와 표본 문서의 필수 필드 존재 여부를 검증하고 alias를 전환합니다. 검색 alias 이름이 아직 물리 index인
 초기 배포에서는 첫 `rebuild`가 alias로 승격하며, 이때만 짧은 검색 공백이 생깁니다.
 
 | 변수                                       | 기본값 | 설명                                      |
