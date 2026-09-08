@@ -256,6 +256,13 @@ jobs:
       (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') &&
       (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
+    # 서비스별로 GitHub Environment를 분리해서, 각 매트릭스 항목이 자기 서비스의
+    # environment secret만 읽을 수 있게 한다(예: voice 배포 단계가 preference의 DB
+    # 비밀번호를 읽을 수 없음). environment 값에 matrix 컨텍스트를 그대로 쓸 수 있다.
+    # 여러 서비스가 공유하는 secret(COWORK_SSH_HOST, CD_DEPLOY_SSH_KEY, COWORK_MYSQL_PASSWORD 등)은
+    # 특정 environment에 넣지 않고 repository secret으로 남겨둔다 — environment secret이 없으면
+    # GitHub Actions가 자동으로 repository secret로 폴백하므로 매 environment에 중복 등록할 필요가 없다.
+    environment: ${{ matrix.service }}
     permissions:
       contents: read
     strategy:
@@ -293,6 +300,7 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
+    environment: Production
     needs:
       - prepare
       - build-images
