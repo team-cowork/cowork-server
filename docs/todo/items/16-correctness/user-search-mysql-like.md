@@ -7,10 +7,19 @@
 > **2026-09-07 진척:** `maybe_query/2`의 `ilike`를 `like`로 바꾸고, `name`·`nickname`·`q`·`query`가
 > `Accounts.normalize_search_term/1`·`like_pattern/1`을 공유하도록 정리했다. escape가 없던 `name`·`nickname`에도
 > 같은 `%`·`_`·`\` escape가 적용된다. `q`가 공백뿐일 때 `query` alias가 무시되던 경로는
-> `Accounts.search_term/1`로 분리해 정리했다. 대소문자·escape 계약은 `open_api.ex`의 검색 파라미터 설명과
+> `Accounts.search_term/2`로 분리해 정리했다. 대소문자·escape 계약은 `open_api.ex`의 검색 파라미터 설명과
 > `Accounts.like_pattern/1` docstring에, 정규화·escape 규칙은 `test/cowork_user/accounts_search_policy_test.exs`에
 > 기록했다. 배포 전 MySQL smoke 항목과 `EXPLAIN` 기반 전문 검색 도입 기준은 별도 문서로 남기지 않기로 했다.
 > 로컬에 Elixir 툴체인과 MySQL이 없어 `mix test`와 MySQL smoke는 아직 실행하지 않았다.
+>
+> **2026-09-08 리뷰 반영:** 정작 `ilike`→`like` 전환 자체를 고정하는 테스트가 없다는 지적에 따라, `maybe_query/2`를
+> `@doc false`로 공개해 Ecto 쿼리 구조체를 DB 연결 없이 `inspect/1`로 검사하는 회귀 테스트를 추가했다.
+> `search_term/1`이 `"q"`/`"query"`라는 HTTP 파라미터 이름을 아는 유일한 도메인 함수였던 문제는 `search_term(q, query)`로
+> 바꿔 파라미터 이름을 아는 책임을 호출부(`search_users/2`)로 옮겼다. `maybe_query/2`는 `search_term/2`가 이미
+> 정규화한 값을 받으므로 내부에서 `normalize_search_term/1`을 다시 부르지 않도록 정리했다. `normalize_search_term/1`·
+> `like_pattern/1`·`search_term/2`는 기존 관례(`student_event_newer?/2` 등)에 맞춰 `@doc false`로 되돌렸다.
+> escape 계약이 `sql_mode`의 `NO_BACKSLASH_ESCAPES` 부재와 컬럼 collation(`utf8mb4_unicode_ci`) 두 가지에 의존한다는
+> 점은 PR 본문·docstring뿐 아니라 `cowork-user/README.md`의 "사용자 검색" 절에도 남겼다.
 
 ## 문제
 
