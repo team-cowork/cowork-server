@@ -14,6 +14,7 @@ import { AuthGuard } from './common/guard/auth.guard';
 import { HttpLoggingInterceptor } from './common/interceptor/http-logging.interceptor';
 import { getOptionalConfig, getRequiredConfig } from './common/config/config.util';
 import { ProjectionReadinessModule } from './common/kafka/projection-readiness.module';
+import { SearchModule } from './search/search.module';
 
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
@@ -80,6 +81,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
             context: ({ req }: { req: Request }) => ({ req }),
         }),
         ChatModule,
+        SearchModule,
     ],
     controllers: [HealthController],
     providers: [
