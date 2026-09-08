@@ -181,22 +181,31 @@ jobs:
           filters: |
             team:
               - 'cowork-team/**'
+              - 'scripts/run/prod/team.sh'
             channel:
               - 'cowork-channel/**'
+              - 'scripts/run/prod/channel.sh'
             authorization:
               - 'cowork-authorization/**'
+              - 'scripts/run/prod/authorization.sh'
             user:
               - 'cowork-user/**'
+              - 'scripts/run/prod/user.sh'
             project:
               - 'cowork-project/**'
+              - 'scripts/run/prod/project.sh'
             preference:
               - 'cowork-preference/**'
+              - 'scripts/run/prod/preference.sh'
             chat:
               - 'cowork-chat/**'
+              - 'scripts/run/prod/chat.sh'
             voice:
               - 'cowork-voice/**'
+              - 'scripts/run/prod/voice.sh'
             notification:
               - 'cowork-notification/**'
+              - 'scripts/run/prod/notification.sh'
             gateway:
               - 'cowork-gateway/**'
               - 'scripts/run/prod/gateway.sh'
@@ -279,13 +288,19 @@ jobs:
           VAULT_EXTERNAL_HOST: ${{ secrets.VAULT_EXTERNAL_HOST }}
           VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
           VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+          COWORK_POSTGRES_PASSWORD: ${{ secrets.COWORK_POSTGRES_PASSWORD }}
+          COWORK_MONGO_PASSWORD: ${{ secrets.COWORK_MONGO_PASSWORD }}
+          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          COWORK_GITHUB_APP_INTERNAL_API_KEY: ${{ secrets.COWORK_GITHUB_APP_INTERNAL_API_KEY }}
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ matrix.port }}
           username: ubuntu
           key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
           command_timeout: 20m
-          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN
+          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN,COWORK_POSTGRES_PASSWORD,COWORK_MONGO_PASSWORD,LIVEKIT_API_KEY,LIVEKIT_API_SECRET,JWT_SECRET,COWORK_GITHUB_APP_INTERNAL_API_KEY
           script: |
             cd ~/cowork-server 2>/dev/null && git fetch origin --quiet || true
             if [ -d ~/cowork-server/.git ]; then
