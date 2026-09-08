@@ -11,6 +11,11 @@ export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
  * 팀·프로젝트 채널의 사용자 메시지만 검색에 노출한다. DM(`teamId: null`)과 프로젝트 무관 채널,
  * 그리고 입퇴장 안내 같은 `SYSTEM` 메시지는 대상이 아니다. 증분 동기화와 전체 재구축이
  * 같은 조건을 사용해야 MongoDB 기준으로 누락·잔존 문서를 판정할 수 있다.
+ *
+ * 배포 유의사항: 이 아웃박스 도입 이전 색인 경로(`chat-message.processor`)는 `type !== 'SYSTEM'`을
+ * 보지 않아 프로젝트 채널의 `SYSTEM` 메시지도 이미 색인되어 있다. `backfillLegacyState`는 그
+ * 메시지들을 `SKIPPED`로 확정만 하고 기존 색인 문서를 지우지는 않으므로, 이번 배포 후 전체
+ * `rebuild`를 한 번 돌려야 검색 결과에서 사라진다.
  */
 export const SEARCH_INDEX_SCOPE_FILTER = {
     teamId: { $ne: null },

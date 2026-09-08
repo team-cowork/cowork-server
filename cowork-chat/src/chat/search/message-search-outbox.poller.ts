@@ -32,6 +32,7 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
     private lastReclaimAt = 0;
     private lastMetricsAt = 0;
     private legacyBackfillDone = false;
+    private legacyBackfillStateChecked = false;
 
     constructor(
         private readonly elasticsearchService: ElasticsearchService,
@@ -89,12 +90,14 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
      * MongoDB에 남아 있는 메시지가 최종 상태다.
      */
     private async releaseUncommittedDeletions(): Promise<void> {
-        const staleIds = await this.indexRepository.findStaleDeleting(DELETING_STALE_THRESHOLD_MS, MESSAGE_BATCH_SIZE);
-        if (staleIds.length === 0) return;
+        const staleDeleting = await this.indexRepository.findStaleDeleting(DELETING_STALE_THRESHOLD_MS, MESSAGE_BATCH_SIZE);
+        if (staleDeleting.length === 0) return;
 
-        const withTombstone = await this.tombstoneRepository.findExistingMessageIds(staleIds.map((id) => id.toString()));
+        const withTombstone = await this.tombstoneRepository.findExistingMessageIds(
+            staleDeleting.map((message) => message._id.toString()),
+        );
         const released = await this.indexRepository.releaseDeleting(
-            staleIds.filter((id) => !withTombstone.has(id.toString())),
+            staleDeleting.filter((message) => !withTombstone.has(message._id.toString())),
         );
         if (released > 0) {
             this.logger.warn(`Released ${released} uncommitted message deletion(s) back to search indexing`);
@@ -106,9 +109,21 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
      *
      * 백필된 메시지는 일반 대기 항목이 되어 워커가 색인을 복원하므로, 이 서비스 도입 이전에
      * 누락된 색인도 전체 재구축 없이 수렴한다.
+     *
+     * `legacyBackfillDone`은 프로세스 메모리에만 있어 재기동하면 초기화된다. 매 기동 첫 호출에서
+     * `MessageSearchIndexStateRepository`에 남긴 완료 기록을 한 번 읽어, 이미 끝난 백필이라면
+     * `find({ searchIndexStatus: null })` 스캔을 다시 돌리지 않고 건너뛴다.
      */
     private async backfillLegacyState(): Promise<void> {
         if (this.legacyBackfillDone) return;
+        if (!this.legacyBackfillStateChecked) {
+            this.legacyBackfillStateChecked = true;
+            const state = await this.stateRepository.get();
+            if (state?.legacyBackfillCompletedAt) {
+                this.legacyBackfillDone = true;
+                return;
+            }
+        }
         const filled = await this.indexRepository.backfillLegacyState(LEGACY_BACKFILL_BATCH_SIZE);
         if (filled > 0) {
             this.logger.log(`Backfilled search index state for ${filled} legacy message(s)`);
