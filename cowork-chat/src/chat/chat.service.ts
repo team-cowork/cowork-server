@@ -256,14 +256,15 @@ export class ChatService {
             }),
         );
 
-        await this.messageSearchDeletion.deleteMessage(messageId);
-
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:deleted',
-            { messageId },
-        );
+        const result = await this.messageSearchDeletion.deleteMessage(messageId);
+        if (result === 'DELETED') {
+            await this.channelMessageReadAccess.emitToReadableChannelUsers(
+                this.chatGateway.server,
+                ctx.channelId,
+                'message:deleted',
+                { messageId },
+            );
+        }
 
         return { channelId: ctx.channelId, messageId };
     }
@@ -563,14 +564,15 @@ export class ChatService {
     async deleteMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 삭제할 수 있습니다');
 
-        await this.messageSearchDeletion.deleteMessage(ctx.messageId);
-
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:deleted',
-            { messageId: ctx.messageId },
-        );
+        const result = await this.messageSearchDeletion.deleteMessage(ctx.messageId);
+        if (result === 'DELETED') {
+            await this.channelMessageReadAccess.emitToReadableChannelUsers(
+                this.chatGateway.server,
+                ctx.channelId,
+                'message:deleted',
+                { messageId: ctx.messageId },
+            );
+        }
 
         return { channelId: message.channelId, messageId: ctx.messageId };
     }

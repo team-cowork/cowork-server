@@ -25,6 +25,14 @@ export class MessageSearchIndexState {
 
     /** 레거시 도큐먼트 백필이 끝난 시각. 완료 후에는 백필 스캔을 다시 돌리지 않는다. */
     @Prop({ type: Date, default: null }) legacyBackfillCompletedAt!: Date | null;
+
+    /**
+     * 진행 중인 재구축의 replica 간 락. `rebuildLockedAt`이 최근이면 다른 replica의 `rebuild`가
+     * 이미 실행 중인 것으로 보고 새 실행을 거부한다. 락을 쥔 프로세스가 죽어도 오래돼 있으면
+     * `rebuildLockId`와 무관하게 다시 점유할 수 있어 영구 교착으로 남지 않는다.
+     */
+    @Prop({ type: Date, default: null }) rebuildLockedAt!: Date | null;
+    @Prop({ type: String, default: null }) rebuildLockId!: string | null;
 }
 
 export const MessageSearchIndexStateSchema = SchemaFactory.createForClass(MessageSearchIndexState);

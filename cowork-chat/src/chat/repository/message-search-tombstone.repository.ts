@@ -5,6 +5,7 @@ import {
     MessageSearchTombstone,
     MessageSearchTombstoneStatus,
 } from '../schema/message-search-tombstone.schema';
+import { IndexScanCursor } from './message-search-index.repository';
 
 export type TombstoneRecord = MessageSearchTombstone & { _id: Types.ObjectId };
 
@@ -158,11 +159,23 @@ export class MessageSearchTombstoneRepository {
         return counts;
     }
 
-    /** 재구축 catch-up이 기준점 이후에 기록된 삭제만 재생하기 위해 순회한다. */
-    scanUpdatedSince(since: Date, afterId: Types.ObjectId | null, batchSize: number): Promise<TombstoneRecord[]> {
+    /**
+     * 재구축 catch-up이 기준점 이후에 기록된 삭제만 재생하기 위해 `(updatedAt, _id)` 복합 커서로
+     * 순회한다. 필터와 정렬 기준을 맞춰 `{ updatedAt: 1, _id: 1 }` 인덱스를 그대로 탄다.
+     */
+    scanUpdatedSince(since: Date, cursor: IndexScanCursor | null, batchSize: number): Promise<TombstoneRecord[]> {
+        const filter = cursor
+            ? {
+                $or: [
+                    { updatedAt: { $gt: cursor.updatedAt } },
+                    { updatedAt: cursor.updatedAt, _id: { $gt: cursor.id } },
+                ],
+                updatedAt: { $gte: since },
+            }
+            : { updatedAt: { $gte: since } };
         return this.model
-            .find({ updatedAt: { $gte: since }, ...(afterId ? { _id: { $gt: afterId } } : {}) })
-            .sort({ _id: 1 })
+            .find(filter)
+            .sort({ updatedAt: 1, _id: 1 })
             .limit(batchSize)
             .lean<TombstoneRecord[]>();
     }
