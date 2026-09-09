@@ -1,7 +1,7 @@
 #!/bin/bash
 # 운영용 Vault 배포/유지 스크립트 (VM: cowork-db / 21108)
 #
-# docker/vault/docker-compose.vault.yml 기반 Vault를 앱 스택과 분리된 lifecycle로
+# ops/vault/docker-compose.yml 기반 Vault를 앱 스택과 분리된 lifecycle로
 # 띄우고, 재시작 후 매번 발생하는 unseal까지 자동화한다. 단, "최초 1회" 초기화
 # (vault operator init)는 이 스크립트가 대신 하지 않는다 — unseal key/root token은
 # 딱 한 번만 발급되고 어디에도 재조회할 수 없는 값이라, CD 로그에 남기지 않고
@@ -10,9 +10,12 @@
 # 최초 1회 수동 절차 (이 스크립트가 "initialized: false"로 종료 코드 1을 내면):
 #   ssh ubuntu@ssh.gsmsv.site -p 21108
 #   docker exec -it cowork-vault-prod vault operator init -key-shares=1 -key-threshold=1
-#   (출력된 Unseal Key 1 / Initial Root Token을 GitHub Environment secret으로 저장)
-#     gh secret set VAULT_UNSEAL_KEY --env Production --repo team-cowork/cowork-server
-#     gh secret set VAULT_TOKEN --env Production --repo team-cowork/cowork-server
+#   (출력된 Unseal Key 1 / Initial Root Token을 vault/config 두 environment 모두에 저장 —
+#   environment끼리는 secret이 공유되지 않아서 vault.sh(vault용)와 config.sh(앱 연결용)
+#   양쪽에 다 등록해야 한다)
+#     gh secret set VAULT_UNSEAL_KEY --env "Prod-CD(vault)" --repo team-cowork/cowork-server
+#     gh secret set VAULT_TOKEN --env "Prod-CD(vault)" --repo team-cowork/cowork-server
+#     gh secret set VAULT_TOKEN --env "Prod-CD(config)" --repo team-cowork/cowork-server
 #   이후 재배포(또는 이 스크립트 재실행)하면 자동으로 unseal되고 시크릿 동기화까지 끝난다.
 set -euo pipefail
 
@@ -28,13 +31,13 @@ if [ ! -d "${REPO_ROOT}/.git" ]; then
 fi
 cd "${REPO_ROOT}"
 git fetch origin --quiet
-git checkout "${DEPLOY_SHA}" -- docker/vault
+git checkout "${DEPLOY_SHA}" -- ops/vault
 
 docker network inspect cowork-server_default >/dev/null 2>&1 || docker network create cowork-server_default
 
 echo "[vault] docker compose up -d"
 VAULT_EXTERNAL_HOST="${VAULT_EXTERNAL_HOST}" \
-  docker compose -f docker/vault/docker-compose.vault.yml up -d
+  docker compose -f ops/vault/docker-compose.yml up -d
 
 echo "[vault] waiting for container to respond"
 for _ in $(seq 1 30); do
