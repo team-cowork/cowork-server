@@ -30,7 +30,7 @@ tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`�
 2. 대상 DB/MongoDB의 복구 지점을 확보한다. 소유자 데이터와 삭제 이력은 초기화하지 않는다.
 3. Config Server에 새 voice 설정이 반영되는지 확인한다. Vault, Config Server overrides, 컨테이너
    환경변수에 같은 키가 있으면 함께 변경한다. Go 기본값만 바꿔서는 원격 override가 바뀌지 않는다.
-   로컬 실행의 `scripts/run/local/voice.sh`도 아래 기본값을 사용한다. 실행 전에 읽는 `.env`나 셸에
+   로컬 실행의 `deploy/local/services/voice.sh`도 아래 기본값을 사용한다. 실행 전에 읽는 `.env`나 셸에
    명시한 값이 있으면 이 기본값보다 우선하므로 구 토픽·group override를 함께 정리한다.
 
    ```text
@@ -85,10 +85,11 @@ done
 과거 발행자를 확인한다. 잘못 생성되었더라도 같은 이름을 삭제·재생성하지 않는다.
 
 Compose 환경은 갱신된 `kafka-init`으로도 생성할 수 있다. 이는 생성·설정 작업이며 기존 토픽을
-삭제하지 않는다. 운영 Compose 파일을 사용할 때는 배포 환경의 기존 `.env`와 두 `-f` 인자를 유지한다.
+삭제하지 않는다. 아래 명령은 별도 단일 VM 설치에서만 사용한다. 기존 `COMPOSE_PROJECT_NAME`과
+`COMPOSE_ENV_FILE`을 [배포 가이드](deployment.md)에 맞게 지정한다. 분산 운영 Kafka는 위 CLI 절차를 사용한다.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps kafka-init
+./deploy/compose.sh single-vm-prod run --rm --no-deps kafka-init
 ```
 
 ## 3. projection 초기화
@@ -151,12 +152,12 @@ rebuild를 요청한다. 서비스 내부 경로는 `/chat/admin/projections`, G
 `/api/chat/chat/admin/projections`다. Readiness가 닫히면 Eureka 경유 요청은 서비스에 도달하지 못할 수
 있으므로 관리자가 접근할 수 있는 컨테이너 내부에서 다음을 실행한다.
 
-아래는 운영 Compose 예시다. `OPERATOR_USER_ID`에 작업자의 실제 사용자 ID를 설정한다. 내부 관리
+아래는 chat이 실행 중인 VM에서의 명령이다. `OPERATOR_USER_ID`에 작업자의 실제 사용자 ID를 설정한다. 내부 관리
 접속에서만 Gateway 신뢰 헤더를 사용하며, 이 목적의 서비스 포트를 외부에 공개하지 않는다.
 
 ```bash
 : "${OPERATOR_USER_ID:?작업자의 사용자 ID를 설정한다}"
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T \
+docker exec -i \
   -e OPERATOR_USER_ID="$OPERATOR_USER_ID" cowork-chat node <<'JS'
 (async () => {
   const base = `http://127.0.0.1:${process.env.PORT || 8087}/chat/admin/projections`;
@@ -184,7 +185,7 @@ JS
 반복하지 않는다.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T \
+docker exec -i \
   -e OPERATOR_USER_ID="$OPERATOR_USER_ID" cowork-chat node <<'JS'
 (async () => {
   const response = await fetch(`http://127.0.0.1:${process.env.PORT || 8087}/chat/admin/projections`, {
