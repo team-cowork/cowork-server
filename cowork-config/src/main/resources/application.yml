@@ -65,7 +65,7 @@ spring:
             authentication: TOKEN
             token: ${VAULT_TOKEN:dev-root-token}
             kv-version: 2
-            backend: secret
+            backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
             default-context: application
           - type: native
@@ -96,7 +96,7 @@ spring:
             authentication: TOKEN
             token: ${VAULT_TOKEN}
             kv-version: 2
-            backend: secret
+            backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
             default-context: application
           - type: native
