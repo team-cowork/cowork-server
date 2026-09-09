@@ -66,40 +66,40 @@ jobs:
         include:
           - service: cowork-config
             context: .
-            dockerfile: ./cowork-config/prod.dockerfile
+            dockerfile: ./cowork-config/Dockerfile.prod
           - service: cowork-gateway
             context: .
-            dockerfile: ./cowork-gateway/prod.dockerfile
+            dockerfile: ./cowork-gateway/Dockerfile.prod
           - service: cowork-authorization
             context: ./cowork-authorization
-            dockerfile: ./cowork-authorization/prod.dockerfile
+            dockerfile: ./cowork-authorization/Dockerfile.prod
           - service: cowork-preference
             context: ./cowork-preference
-            dockerfile: ./cowork-preference/prod.dockerfile
+            dockerfile: ./cowork-preference/Dockerfile.prod
           - service: cowork-user
             context: ./cowork-user
-            dockerfile: ./cowork-user/prod.dockerfile
+            dockerfile: ./cowork-user/Dockerfile.prod
           - service: cowork-team
             context: .
-            dockerfile: ./cowork-team/prod.dockerfile
+            dockerfile: ./cowork-team/Dockerfile.prod
           - service: cowork-channel
             context: .
-            dockerfile: ./cowork-channel/prod.dockerfile
+            dockerfile: ./cowork-channel/Dockerfile.prod
           - service: cowork-notification
             context: ./cowork-notification
-            dockerfile: ./cowork-notification/prod.dockerfile
+            dockerfile: ./cowork-notification/Dockerfile.prod
           - service: cowork-chat
             context: ./cowork-chat
-            dockerfile: ./cowork-chat/prod.dockerfile
+            dockerfile: ./cowork-chat/Dockerfile.prod
           - service: cowork-voice
             context: ./cowork-voice
-            dockerfile: ./cowork-voice/prod.dockerfile
+            dockerfile: ./cowork-voice/Dockerfile.prod
           - service: cowork-project
             context: ./cowork-project
-            dockerfile: ./cowork-project/prod.dockerfile
+            dockerfile: ./cowork-project/Dockerfile.prod
           - service: cowork-roadmap
             context: .
-            dockerfile: ./cowork-roadmap/prod.dockerfile
+            dockerfile: ./cowork-roadmap/Dockerfile.prod
 
     steps:
       - name: Checkout
@@ -188,81 +188,65 @@ jobs:
           filters: |
             team:
               - 'cowork-team/**'
-              - 'scripts/run/prod/team.sh'
+              - 'deploy/prod/services/team.sh'
             channel:
               - 'cowork-channel/**'
-              - 'scripts/run/prod/channel.sh'
+              - 'deploy/prod/services/channel.sh'
             authorization:
               - 'cowork-authorization/**'
-              - 'scripts/run/prod/authorization.sh'
+              - 'deploy/prod/services/authorization.sh'
             user:
               - 'cowork-user/**'
-              - 'scripts/run/prod/user.sh'
+              - 'deploy/prod/services/user.sh'
             project:
               - 'cowork-project/**'
-              - 'scripts/run/prod/project.sh'
+              - 'deploy/prod/services/project.sh'
             preference:
               - 'cowork-preference/**'
-              - 'scripts/run/prod/preference.sh'
+              - 'deploy/prod/services/preference.sh'
             chat:
               - 'cowork-chat/**'
-              - 'scripts/run/prod/chat.sh'
+              - 'deploy/prod/services/chat.sh'
             voice:
               - 'cowork-voice/**'
-              - 'scripts/run/prod/voice.sh'
+              - 'deploy/prod/services/voice.sh'
             notification:
               - 'cowork-notification/**'
-              - 'scripts/run/prod/notification.sh'
+              - 'deploy/prod/services/notification.sh'
             gateway:
               - 'cowork-gateway/**'
-              - 'scripts/run/prod/gateway.sh'
+              - 'deploy/prod/services/gateway.sh'
             config:
               - 'cowork-config/**'
-              - 'scripts/run/prod/config.sh'
+              - 'deploy/prod/services/config.sh'
             roadmap:
               - 'cowork-roadmap/**'
-              - 'scripts/run/prod/roadmap.sh'
+              - 'deploy/prod/services/roadmap.sh'
             monitoring:
-              - 'cowork-monitoring/**'
-              - 'scripts/run/prod/monitoring.sh'
-              # monitoring.sh가 이제 docker compose -f docker-compose.yml -f
-              # docker-compose.prod.yml을 명시적으로 호출하므로(리뷰 지적), 그
-              # 파일들만 바뀐 커밋도 배포를 일으켜야 서버가 저장소보다 뒤처지지 않는다.
-              - 'docker-compose.yml'
-              - 'docker-compose.prod.yml'
+              - 'deploy/config/monitoring/**'
+              - 'deploy/prod/services/monitoring.sh'
+              - 'deploy/prod/monitoring/**'
             vault:
-              - 'ops/vault/**'
-              - 'scripts/run/prod/vault.sh'
-              - 'cowork-config/src/main/resources/vault/vault-init.sh'
+              - 'deploy/prod/vault/**'
+              - 'deploy/config/vault/server.hcl'
+              - 'deploy/prod/services/vault.sh'
+            shared:
+              - 'deploy/prod/lib/**'
+              - 'deploy/prod/deploy.sh'
+              - 'deploy/prod/runtime.env'
+              - 'deploy/prod/inventory.json'
+              - 'deploy/prod/build-matrix.py'
+              - '.github/workflows/cowork-prod-cd.yml'
+            application_shared:
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradle/**'
       - name: Build deploy matrix
         id: build-matrix
-        run: |
-          INCLUDE="[]"
-          SERVICES=""
-          add() {
-            local name=$1 port=$2 changed=$3
-            if [ "$changed" == "true" ]; then
-              INCLUDE=$(echo "$INCLUDE" | jq -c --arg n "$name" --arg p "$port" '. += [{"service":$n,"port":$p}]')
-              SERVICES="${SERVICES:+$SERVICES, }$name"
-            fi
-          }
-          add team           21108 "${{ steps.filter.outputs.team }}"
-          add channel        24118 "${{ steps.filter.outputs.channel }}"
-          add authorization  24125 "${{ steps.filter.outputs.authorization }}"
-          add user           21133 "${{ steps.filter.outputs.user }}"
-          add project        24134 "${{ steps.filter.outputs.project }}"
-          add preference     24153 "${{ steps.filter.outputs.preference }}"
-          add chat           27108 "${{ steps.filter.outputs.chat }}"
-          add voice          27109 "${{ steps.filter.outputs.voice }}"
-          add notification   27110 "${{ steps.filter.outputs.notification }}"
-          add gateway        21108 "${{ steps.filter.outputs.gateway }}"
-          add config         21108 "${{ steps.filter.outputs.config }}"
-          add monitoring     21108 "${{ steps.filter.outputs.monitoring }}"
-          add roadmap        27112 "${{ steps.filter.outputs.roadmap }}"
-          add vault          21108 "${{ steps.filter.outputs.vault }}"
-          echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
-          echo "services-list=${SERVICES:-none}" >> "$GITHUB_OUTPUT"
-          echo "Deploy matrix: $INCLUDE"
+        env:
+          FILTER_RESULTS: ${{ toJSON(steps.filter.outputs) }}
+        run: python3 deploy/prod/build-matrix.py
 
   deploy:
     needs:
@@ -272,9 +256,10 @@ jobs:
       - detect-changes
     if: >
       always() &&
+      needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.matrix != '{"include":[]}' &&
-      (needs.prepare.result == 'success' || needs.prepare.result == 'skipped') &&
-      (needs.build-images.result == 'success' || needs.build-images.result == 'skipped') &&
+      needs.prepare.result == 'success' &&
+      needs.build-images.result == 'success' &&
       (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
     # 서비스별로 GitHub Environment를 분리해서, 각 매트릭스 항목이 자기 서비스의
@@ -293,6 +278,10 @@ jobs:
       - name: Deploy cowork-${{ matrix.service }}
         uses: appleboy/ssh-action@v1
         env:
+          APP_CONFIG_PROFILE: ${{ matrix.config_profile }}
+          DEPLOY_ROOT: ${{ vars.COWORK_DEPLOY_ROOT }}
+          DEPLOY_CONFIG_DIR: ${{ vars.COWORK_DEPLOY_CONFIG_DIR }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           DEPLOY_IMAGE_OWNER: ${{ needs.prepare.outputs.owner }}
           DEPLOY_IMAGE_TAG: sha-${{ github.event.workflow_run.head_sha }}
@@ -310,44 +299,37 @@ jobs:
           COWORK_GITHUB_APP_INTERNAL_API_KEY: ${{ secrets.COWORK_GITHUB_APP_INTERNAL_API_KEY }}
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
-          port: ${{ matrix.port }}
-          username: ubuntu
+          port: ${{ vars.COWORK_SSH_PORT || matrix.port }}
+          username: ${{ vars.COWORK_SSH_USER || 'ubuntu' }}
           key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
           command_timeout: 20m
-          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN,COWORK_POSTGRES_PASSWORD,COWORK_MONGO_PASSWORD,LIVEKIT_API_KEY,LIVEKIT_API_SECRET,JWT_SECRET,COWORK_GITHUB_APP_INTERNAL_API_KEY
+          envs: APP_CONFIG_PROFILE,DEPLOY_ROOT,DEPLOY_CONFIG_DIR,GHCR_READ_TOKEN,DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN,COWORK_POSTGRES_PASSWORD,COWORK_MONGO_PASSWORD,LIVEKIT_API_KEY,LIVEKIT_API_SECRET,JWT_SECRET,COWORK_GITHUB_APP_INTERNAL_API_KEY
           script: |
             set -euo pipefail
-
-            # 같은 VM에 여러 서비스가 동시에 배포될 수 있어(예: 21108의 team/gateway/
-            # config/monitoring), 공유 클론의 git 작업만 VM 단위로 직렬화한다. 실제
-            # docker run/헬스체크는 잠금을 풀고 병렬로 진행한다(리뷰 지적).
-            exec 9>/tmp/cowork-cd-git.lock
+            [[ "${DEPLOY_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 1; }
+            DEPLOY_ROOT="${DEPLOY_ROOT:-${HOME}/.local/share/cowork}"
+            cache="${DEPLOY_ROOT}/repository.git"
+            release="${DEPLOY_ROOT}/releases/${DEPLOY_SHA}"
+            mkdir -p "${DEPLOY_ROOT}/releases"
+            exec 9>"${DEPLOY_ROOT}/source.lock"
             flock -w 120 9
-
-            if [ ! -d ~/cowork-server/.git ]; then
-              echo "cloning cowork-server (first deploy on this VM)"
-              git clone https://github.com/team-cowork/cowork-server.git ~/cowork-server
+            if [ ! -d "${cache}" ]; then
+              git clone --mirror https://github.com/team-cowork/cowork-server.git "${cache}"
             fi
-            cd ~/cowork-server
-            git fetch origin --quiet
-
-            CHECKOUT_ERR="$(mktemp)"
-            if git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/${{ matrix.service }}.sh" 2>"${CHECKOUT_ERR}"; then
-              flock -u 9
-              bash ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh
-            elif grep -q "did not match any file" "${CHECKOUT_ERR}"; then
-              # 이 서비스는 아직 scripts/run/prod/로 안 옮겨졌다는 뜻 — 기존 서버-로컬
-              # 스크립트로 폴백하는 건 정상 동작이다.
-              flock -u 9
-              bash -e ~/deploy-${{ matrix.service }}.sh
-            else
-              # 그 외 실패(클론 손상, DEPLOY_SHA를 못 찾음 등)는 예전엔 `|| true`로
-              # 삼켜서 조용히 낡은 스크립트가 돌고 CD는 성공으로 보고했다(리뷰 지적).
-              # 이제는 명확히 실패시킨다.
-              echo "git checkout failed unexpectedly:" >&2
-              cat "${CHECKOUT_ERR}" >&2
-              exit 1
+            git --git-dir="${cache}" fetch origin "${DEPLOY_SHA}" --quiet
+            if [ ! -d "${release}" ]; then
+              staging="$(mktemp -d "${DEPLOY_ROOT}/releases/.staging.XXXXXX")"
+              trap 'rm -rf "${staging}"' EXIT
+              git --git-dir="${cache}" archive "${DEPLOY_SHA}" | tar -x -C "${staging}"
+              printf '%s\n' "${DEPLOY_SHA}" > "${staging}/.source-sha"
+              mv "${staging}" "${release}"
+              trap - EXIT
             fi
+            [ "$(cat "${release}/.source-sha")" = "${DEPLOY_SHA}" ] || { echo 'Invalid release directory' >&2; exit 1; }
+            flock -u 9
+            # All scripts, helpers, Compose files and mount sources come from this exact SHA.
+            # No shared working-tree checkout and no fallback to unversioned VM scripts.
+            bash "${release}/deploy/prod/deploy.sh" "${{ matrix.service }}"
 
   notify:
     runs-on: ubuntu-latest
