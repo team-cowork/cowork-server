@@ -4,6 +4,9 @@
 # 이 VM은 컨테이너 내부 포트(8084)와 호스트 공개 포트(8089)가 다르다 — 다른 서비스들이
 # 이미 이 VM을 8089로 알고 있어서(예: cowork-chat의 PROJECT_SERVICE_URL) 그대로 유지한다.
 # Eureka에도 실제로 외부에서 도달 가능한 8089를 광고해야 한다.
+#
+# 새 이미지를 임시 컨테이너로 먼저 헬스체크하고 통과했을 때만 기존 컨테이너를 교체한다
+# (scripts/run/prod/_lib.sh의 deploy_container_safely) — 실패해도 서비스가 내려가지 않는다.
 set -euo pipefail
 
 : "${DEPLOY_IMAGE_OWNER:?DEPLOY_IMAGE_OWNER is required}"
@@ -11,24 +14,24 @@ set -euo pipefail
 : "${COWORK_MYSQL_PASSWORD:?COWORK_MYSQL_PASSWORD is required}"
 : "${COWORK_GITHUB_APP_INTERNAL_API_KEY:?COWORK_GITHUB_APP_INTERNAL_API_KEY is required}"
 
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
 INFRA_HOST="10.0.0.93"
 CONTAINER="cowork-project"
 IMAGE="ghcr.io/${DEPLOY_IMAGE_OWNER}/cowork-project:${DEPLOY_IMAGE_TAG}"
 INTERNAL_PORT=8084
 EXTERNAL_PORT=8089
-SELF_IP="$(hostname -I | awk '{print $1}')"
+SELF_IP="$(advertise_ip "${INFRA_HOST}")"
+
+ghcr_login_if_needed
 
 echo "[project] pulling ${IMAGE}"
 docker pull "${IMAGE}"
 
-echo "[project] removing existing container (if any)"
-docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
-
-echo "[project] starting new container"
-docker run -d --name "${CONTAINER}" --restart unless-stopped \
-  -p ${EXTERNAL_PORT}:${INTERNAL_PORT} \
+deploy_container_safely "${CONTAINER}" "${EXTERNAL_PORT}" "${INTERNAL_PORT}" "/actuator/health/readiness" "${IMAGE}" -- \
   -e SPRING_PROFILES_ACTIVE=local \
-  -e SPRING_CONFIG_IMPORT="optional:configserver:http://${INFRA_HOST}:8761" \
+  -e SPRING_CONFIG_IMPORT="configserver:http://${INFRA_HOST}:8761" \
   -e SPRING_DATASOURCE_URL="jdbc:mysql://${INFRA_HOST}:3306/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul" \
   -e MYSQL_USER=cowork \
   -e MYSQL_PASSWORD="${COWORK_MYSQL_PASSWORD}" \
@@ -39,18 +42,4 @@ docker run -d --name "${CONTAINER}" --restart unless-stopped \
   -e EUREKA_INSTANCE_PREFER_IP_ADDRESS=true \
   -e EUREKA_INSTANCE_NON_SECURE_PORT="${EXTERNAL_PORT}" \
   -e GITHUB_APP_SERVICE_URL="http://10.0.0.150:3000/" \
-  -e GITHUB_APP_INTERNAL_API_KEY="${COWORK_GITHUB_APP_INTERNAL_API_KEY}" \
-  "${IMAGE}"
-
-echo "[project] waiting for health check"
-for _ in $(seq 1 45); do
-  if curl -sf "http://127.0.0.1:${EXTERNAL_PORT}/actuator/health/readiness" >/dev/null; then
-    echo "[project] healthy"
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "[project] FAILED health check after deploy" >&2
-docker logs --tail 50 "${CONTAINER}" >&2 || true
-exit 1
+  -e GITHUB_APP_INTERNAL_API_KEY="${COWORK_GITHUB_APP_INTERNAL_API_KEY}"
