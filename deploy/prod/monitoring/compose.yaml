@@ -1,0 +1,139 @@
+# Independent monitoring VM. Infrastructure endpoints may be on different VMs.
+services:
+  loki:
+    image: grafana/loki:3.7.2
+    restart: unless-stopped
+    ports:
+      - ${MONITORING_BIND_IP:?MONITORING_BIND_IP is required}:3100:3100
+    volumes:
+      - ./deploy/config/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test:
+        - CMD
+        - /usr/bin/loki
+        - -verify-config
+        - -config.file=/etc/loki/local-config.yaml
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  blackbox_exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    restart: unless-stopped
+    volumes:
+      - ./deploy/config/monitoring/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+    command:
+      - --config.file=/etc/blackbox_exporter/config.yml
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    restart: unless-stopped
+    ports:
+      - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:9090:9090
+    volumes:
+      - ./deploy/config/monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+      - ${MONITORING_PROMETHEUS_CONFIG:?MONITORING_PROMETHEUS_CONFIG is required}:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --web.enable-lifecycle
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1:9090/-/ready || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  alertmanager-config-init:
+    image: busybox:1.36
+    restart: 'no'
+    environment:
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}
+    volumes:
+      - ./deploy/config/monitoring/alertmanager/alertmanager.yml:/source/alertmanager.yml:ro
+      - alertmanager_config:/generated
+    entrypoint:
+      - /bin/sh
+      - -c
+    command:
+      - |
+        set -eu
+        umask 077
+        cp /source/alertmanager.yml /generated/alertmanager.yml
+        printf '%s' "$${DISCORD_WEBHOOK_URL}" > /generated/discord-webhook-url
+        chown 65534:65534 /generated/discord-webhook-url
+        chmod 0400 /generated/discord-webhook-url
+        chmod 0444 /generated/alertmanager.yml
+  alertmanager:
+    image: prom/alertmanager:v0.33.0
+    restart: unless-stopped
+    depends_on:
+      alertmanager-config-init:
+        condition: service_completed_successfully
+    ports:
+      - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:9093:9093
+    volumes:
+      - alertmanager_config:/etc/alertmanager/generated:ro
+    command:
+      - --config.file=/etc/alertmanager/generated/alertmanager.yml
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1:9093/-/ready || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  grafana:
+    image: grafana/grafana:13.0.2
+    restart: unless-stopped
+    ports:
+      - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:3001:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deploy/config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/config/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    depends_on:
+      - prometheus
+  mysqld_exporter:
+    image: prom/mysqld-exporter:v0.19.0
+    restart: unless-stopped
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: ${MYSQL_EXPORTER_PASSWORD:?MYSQL_EXPORTER_PASSWORD is required}
+    command:
+      - --mysqld.address=${MYSQL_HOST:?MYSQL_HOST is required}:${MYSQL_PORT:-3306}
+      - --mysqld.username=${MYSQL_EXPORTER_USER:-root}
+  redis_exporter:
+    image: oliver006/redis_exporter:v1.86.0
+    restart: unless-stopped
+    environment:
+      REDIS_ADDR: redis://${REDIS_HOST:?REDIS_HOST is required}:${REDIS_PORT:-6379}
+  kafka_exporter:
+    image: danielqsj/kafka-exporter:v1.9.0
+    restart: unless-stopped
+    command:
+      - --kafka.server=${KAFKA_EXPORTER_SERVER:?Set one reachable broker host:port}
+  postgres_exporter:
+    image: prometheuscommunity/postgres-exporter:v0.19.1
+    restart: unless-stopped
+    environment:
+      DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN:?POSTGRES_EXPORTER_DSN is required}
+  mongodb_exporter:
+    image: percona/mongodb_exporter:0.51.0
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: ${MONGO_EXPORTER_URI:?MONGO_EXPORTER_URI is required}
+volumes:
+  prometheus_data:
+    external: true
+    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_prometheus_data
+  grafana_data:
+    external: true
+    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_grafana_data
+  loki_data:
+    external: true
+    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_loki_data
+  alertmanager_config: {}
