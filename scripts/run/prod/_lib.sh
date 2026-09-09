@@ -9,7 +9,12 @@
 # 나갈 때 커널이 고르는 소스 IP를 물어보는 쪽이 안전하다.
 advertise_ip() {
   local peer_host="$1"
-  ip -4 route get "${peer_host}" | awk '{print $7; exit}'
+  # 필드 위치로 고정 파싱하면 안 된다 — 이 유저가 non-root(sudo 없이)면 출력에
+  # "uid <n>"가 붙어서 필드 번호가 밀리고, 게이트웨이를 거치는 경로면 "via <gw>"까지
+  # 붙어서 한 번 더 밀린다(실사용 VM에서 실측 확인: `src` 뒤 값이 아니라 `uid` 값을
+  # 읽어서 Eureka에 "1000" 같은 숫자가 등록되는 사고가 실제로 났었다). "src" 토큰
+  # 바로 다음 필드를 찾는 방식이 두 경우 모두에 안전하다.
+  ip -4 route get "${peer_host}" | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'
 }
 
 # url이 성공(2xx) 응답할 때까지 재시도. 실패하면 1을 리턴(exit은 호출자 책임).
