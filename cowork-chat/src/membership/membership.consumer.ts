@@ -11,7 +11,6 @@ import { parseEventTime } from '../common/util/event-time.util';
 import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../common/kafka/projection-message.processor';
-import { matchesCompositeEntityKey } from '../common/kafka/projection-entity-key.util';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
@@ -73,10 +72,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 },
             })
             .catch((err) => {
-                this.logger.error('channel.member.event Kafka consumer failed; exiting for restart', err);
+                this.logger.error(`${stream.topic} Kafka consumer failed; exiting for restart`, err);
                 process.exit(1);
             });
-        this.logger.log('Kafka consumer started: channel.member.event');
+        this.logger.log(`Kafka consumer started: ${stream.topic}`);
     }
 
     async onModuleDestroy() {
@@ -88,7 +87,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid channel member event payload');
         }
         const event = payload;
-        if (!matchesCompositeEntityKey(messageKey, event.channelId, event.userId)) {
+        if (messageKey !== `${event.channelId}:${event.userId}`) {
             throw new ProjectionContractError(
                 `channel member event key mismatch [key=${messageKey ?? '<missing>'}, `
                 + `expected=${event.channelId}:${event.userId}]`,
@@ -199,9 +198,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && (event.teamId === null || isSafePositiveInteger(event.teamId))
             && isSafePositiveInteger(event.userId)
             && typeof event.role === 'string'
-            // TODO(topic-versioning): channelType은 8e0d97bb에서 추가된 필드이며, 그 이전 레코드는
-            // 은퇴한 키 포맷 구간에만 존재한다. 토픽 버전 분리 컷오버 뒤에는 필수 검증으로 되돌린다.
-            && (event.channelType === undefined || typeof event.channelType === 'string')
+            && typeof event.channelType === 'string'
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
             && parseEventTime(event.occurredAt) !== null;
     }
