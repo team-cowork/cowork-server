@@ -79,6 +79,18 @@ import { ChatMessageQuarantineService } from './service/chat-message-quarantine.
 import { ChatMessageScopeValidator } from './kafka/chat-message-scope-validator';
 import { ChatMessageProcessor } from './kafka/chat-message.processor';
 import { ChatMessageQuarantinePoller } from './kafka/chat-message-quarantine.poller';
+import { MessageSearchTombstone, MessageSearchTombstoneSchema } from './schema/message-search-tombstone.schema';
+import {
+    MessageSearchIndexState,
+    MessageSearchIndexStateSchema,
+} from './schema/message-search-index-state.schema';
+import { MessageSearchIndexRepository } from './repository/message-search-index.repository';
+import { MessageSearchTombstoneRepository } from './repository/message-search-tombstone.repository';
+import { MessageSearchIndexStateRepository } from './repository/message-search-index-state.repository';
+import { MessageSearchIndexService } from './search/message-search-index.service';
+import { MessageSearchDeletionService } from './search/message-search-deletion.service';
+import { MessageSearchOutboxPoller } from './search/message-search-outbox.poller';
+import { MessageSearchRebuilder } from './search/message-search-rebuilder';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -106,6 +118,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             { name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema },
             { name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema },
             { name: ChatMessageQuarantineRecord.name, schema: ChatMessageQuarantineRecordSchema },
+            { name: MessageSearchTombstone.name, schema: MessageSearchTombstoneSchema },
+            { name: MessageSearchIndexState.name, schema: MessageSearchIndexStateSchema },
         ]),
         DicoshotModule.registerAsync({
             imports: [ConfigModule],
@@ -136,6 +150,13 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChatMessageQuarantineRepository,
         ChatMessageQuarantineService,
         ChatMessageQuarantinePoller,
+        MessageSearchIndexRepository,
+        MessageSearchTombstoneRepository,
+        MessageSearchIndexStateRepository,
+        MessageSearchIndexService,
+        MessageSearchDeletionService,
+        MessageSearchOutboxPoller,
+        MessageSearchRebuilder,
         NotificationTriggerProducer,
         NotificationOutboxPoller,
         GithubIssueProducer,
