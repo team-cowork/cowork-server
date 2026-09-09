@@ -1,6 +1,6 @@
 # Gateway canonical API 계약 모니터링
 
-- **서비스**: cowork-gateway, cowork-monitoring, Prometheus, Blackbox Exporter, Grafana, Alertmanager
+- **서비스**: cowork-gateway, 모니터링, Prometheus, Blackbox Exporter, Grafana, Alertmanager
 - **우선순위**: 🟠 중간
 - **파생 원본**: 외부 API 모듈 네임스페이스 통일 (완료·문서 제거)
 - **선행 작업**: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./metrics-collection-recovery-and-health-dashboard-removal.md)
@@ -37,9 +37,9 @@
 
 ### 현재 모니터링 inventory 고정
 
-- `cowork-monitoring/prometheus/prometheus.yml`의 Eureka scrape와 Blackbox target을 snapshot으로 남긴다.
-- `cowork-monitoring/prometheus/sd/external-services.json`의 외부 서비스 scrape path를 확인한다.
-- `docker-compose.yml`의 서비스별 healthcheck 경로를 목록화한다.
+- `deploy/config/monitoring/prometheus/prometheus.yml`의 Eureka scrape와 Blackbox target을 snapshot으로 남긴다.
+- `deploy/config/monitoring/prometheus/sd/external-services.json`의 외부 서비스 scrape path를 확인한다.
+- `deploy/compose/stack.yaml`과 `deploy/prod/services/`의 서비스별 healthcheck 경로를 목록화한다.
 - 각 런타임의 Eureka `prometheus.path` metadata와 Gateway `HealthCheckController`의 역할을 문서화한다.
 - 기존 모니터링 설정에 구 외부 API 경로가 소비처로 남아 있지 않은지 검사한다.
 
