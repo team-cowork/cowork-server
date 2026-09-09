@@ -231,7 +231,7 @@ jobs:
               - 'docker-compose.yml'
               - 'docker-compose.prod.yml'
             vault:
-              - 'docker/vault/**'
+              - 'ops/vault/**'
               - 'scripts/run/prod/vault.sh'
               - 'cowork-config/src/main/resources/vault/vault-init.sh'
       - name: Build deploy matrix
