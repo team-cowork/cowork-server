@@ -221,6 +221,10 @@ jobs:
               # 파일들만 바뀐 커밋도 배포를 일으켜야 서버가 저장소보다 뒤처지지 않는다.
               - 'docker-compose.yml'
               - 'docker-compose.prod.yml'
+            vault:
+              - 'ops/vault/**'
+              - 'scripts/run/prod/vault.sh'
+              - 'cowork-config/src/main/resources/vault/vault-init.sh'
       - name: Build deploy matrix
         id: build-matrix
         run: |
@@ -246,6 +250,7 @@ jobs:
           add config         21108 "${{ steps.filter.outputs.config }}"
           add monitoring     21108 "${{ steps.filter.outputs.monitoring }}"
           add roadmap        27112 "${{ steps.filter.outputs.roadmap }}"
+          add vault          21108 "${{ steps.filter.outputs.vault }}"
           echo "matrix={\"include\":$INCLUDE}" >> "$GITHUB_OUTPUT"
           echo "services-list=${SERVICES:-none}" >> "$GITHUB_OUTPUT"
           echo "Deploy matrix: $INCLUDE"
@@ -285,13 +290,16 @@ jobs:
           # MySQL을 실제로 쓰는 서비스에만 비밀번호를 실어 보낸다(리뷰 지적: 예전엔
           # roadmap 하나만 쓰는데 매트릭스의 전 서비스 SSH 세션에 실렸다).
           COWORK_MYSQL_PASSWORD: ${{ contains(fromJSON('["team","channel","authorization","user","project","notification","roadmap"]'), matrix.service) && secrets.COWORK_MYSQL_PASSWORD || '' }}
+          VAULT_EXTERNAL_HOST: ${{ secrets.VAULT_EXTERNAL_HOST }}
+          VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
+          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ matrix.port }}
           username: ubuntu
           key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
           command_timeout: 20m
-          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD
+          envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN
           script: |
             set -euo pipefail
 
