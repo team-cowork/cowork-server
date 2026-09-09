@@ -2,13 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { Server } from 'socket.io';
 import { ChatMessageEvent } from './event/chat-message.event';
-import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { MessageRepository } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 import { ChatMessageScopeValidator } from './chat-message-scope-validator';
 
-/** 정상 consumer와 quarantine 재처리가 공유하는 메시지 처리 경로. */
+/**
+ * 정상 consumer와 quarantine 재처리가 공유하는 메시지 처리 경로.
+ *
+ * 검색 색인은 메시지 저장과 같은 쓰기에 열리는 색인 아웃박스가 담당한다. 여기서 Elasticsearch를
+ * 직접 호출하지 않으므로 색인 쓰기 실패가 메시지 저장이나 브로드캐스트를 막지 않는다.
+ */
 @Injectable()
 export class ChatMessageProcessor {
     private readonly logger = new Logger(ChatMessageProcessor.name);
@@ -17,7 +21,6 @@ export class ChatMessageProcessor {
     constructor(
         private readonly messageRepository: MessageRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
-        private readonly elasticsearchService: ElasticsearchService,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
         private readonly scopeValidator: ChatMessageScopeValidator,
     ) {}
@@ -52,14 +55,6 @@ export class ChatMessageProcessor {
             }
             void this.channelMemberRepository.updateLastRead(event.channelId, event.authorId, saved._id)
                 .catch((error: unknown) => this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${String(error)}`));
-            if (event.projectId && event.teamId !== null) {
-                void this.elasticsearchService.indexMessage({
-                    messageId: saved._id.toString(), teamId: event.teamId, projectId: event.projectId,
-                    channelId: event.channelId, authorId: event.authorId, content: event.content,
-                    type: event.type, hasAttachments: (event.attachments?.length ?? 0) > 0,
-                    isPinned: false, createdAt: event.occurredAt,
-                });
-            }
         } catch (error) {
             if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11000) {
                 this.logger.warn(`Duplicate message detected, skipping (clientMessageId: ${event.clientMessageId})`);

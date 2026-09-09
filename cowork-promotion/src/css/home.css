@@ -89,9 +89,6 @@
         transform: translate(0);
     }
 }
-.marquee-toggle {
-    margin-top: var(--space-5);
-}
 .marquee-group {
     display: flex;
     flex-wrap: wrap;
@@ -122,8 +119,7 @@
     animation: scroll-right var(--duration-marquee) linear infinite;
 }
 .marquee-track:hover .marquee-left,
-.marquee-track:hover .marquee-right,
-.marquee-paused .marquee-row {
+.marquee-track:hover .marquee-right {
     animation-play-state: paused;
 }
 .marquee-ready .marquee-window:focus-within {
