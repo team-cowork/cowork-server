@@ -6,11 +6,15 @@
 
 | 종류                     | 공급원                                 | 예시                                                    |
 |--------------------------|----------------------------------------|---------------------------------------------------------|
-| 부트스트랩               | Docker Compose 또는 실행 환경          | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
-| 인프라 부트스트랩 시크릿 | 배포 secret store → Compose            | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
-| 일반 설정                | Config Server native (`configs/*.yml`) | 서비스 포트, 내부 URL, Kafka topic, timeout, 기능 정책  |
+| 부트스트랩               | 운영: Vault `deploy/<target>` → Actions; 로컬: Compose          | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
+| 인프라 부트스트랩 시크릿 | Vault → Actions → 컨테이너            | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
+| 일반 설정 | 코드 기본값: Config Server native; 운영 override: Vault | 내부 URL, timeout, 기능 정책 |
 | 애플리케이션 시크릿      | Vault                                  | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
-| 파일형 시크릿            | Docker secret 또는 배포 secret volume  | Firebase 서비스 계정 JSON                               |
+| 파일형 시크릿            | Vault `deploy/<target>.files` → 읽기 전용 마운트  | Firebase 서비스 계정 JSON                               |
+
+운영값은 Vault에서 관리하고 GitHub Actions는 조회·수정·배포를 수행한다. VM의 환경 파일을 수정하지
+않는다. GitHub에는 Vault 접근 토큰·주소, 복구용 bootstrap과 일시적인 변경 입력만 둔다.
+사용법과 최초 권한 준비는 [배포 가이드](deployment.md)에 정리한다. 로컬 Compose의 `.env`와 seed는 유지한다.
 
 Config Server 응답의 속성 우선순위는 다음과 같다.
 
@@ -21,8 +25,9 @@ Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native 
 클라이언트는 이를 자체 기본값·환경변수와 병합한다. Go·Elixir·Vert.x는 코드에서 매핑한 환경변수만
 덮어쓰며, Chat은 기존의 비어 있지 않은 환경변수를 보존한다. Spring은 Config Client의 property source
 우선순위를 따른다. 모든 런타임에서 임의의 환경변수가 같은 이름의 원격 설정보다 우선한다고 가정하지 않는다.
-직접 override는 로컬 단독 실행과 긴급 운영 용도이며, Compose 애플리케이션 서비스에는 Config Server
-접속값·프로파일·replica 식별처럼 런타임에서만 알 수 있는 값을 기본 주입한다.
+운영 배포의 `runtime`은 Config 접속값·프로파일·VM 주소를 공급하며 `application`은 컨테이너에
+직접 전달할 명시적 환경변수다. 일반 속성은 Config Server 경로를 사용한다. `runtime_refs`와
+`application_refs`로 기존 Vault key를 참조하면 동일 시크릿을 배포 문서마다 복사하지 않는다.
 
 ## 프로파일
 
@@ -54,14 +59,15 @@ Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native 
 
 로컬에서는 `vault-init`이 `.env`의 인프라 계정·애플리케이션 시크릿을 위 경로에 기록한다. `.env`는 로컬 Vault와 Config Server를 준비하는 bootstrap 입력이며, 애플리케이션 컨테이너는 이 파일을 직접 설정 소스로 사용하지 않는다. 운영에서는 `vault-init`을 실행하지 않고 외부 Vault를 사전에 준비한다.
 
-Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Grafana, Alertmanager 같은 인프라·서드파티 컨테이너는 배포 환경의 secret을 Compose로 직접 받는다. 같은 값이 애플리케이션에도 필요하면 로컬 `vault-init` 또는 운영 배포 절차가 Vault에 따로 기록한다.
+Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Grafana, Alertmanager 같은 인프라·서드파티 컨테이너는 배포 환경의 secret을 Compose로 직접 받는다. 같은 값이 애플리케이션에도 필요하면 로컬에서는 `vault-init`으로 기록하고, 운영에서는 Vault의 같은 원본을 참조한다.
 
-운영에서는 다음 이중 입력이 정확히 같은 credential을 가리켜야 한다. Compose와 Vault를 따로
-갱신해 값이 어긋나면 컨테이너 health가 열려도 실제 애플리케이션 요청은 인증에 실패한다.
+아래 credential 계약은 인프라와 앱에서 일치해야 한다. 기존 DSN 형태 속성은 사용자·비밀번호가
+포함된 전체 값을 요구한다. Vault 참조는 문자열 내부를 조합하지 않으므로 DB credential을 회전할 때
+이 DSN도 함께 갱신한다. 운영 bootstrap의 동일 값은 가능하면 `runtime_refs`로 참조한다.
 
 | Compose bootstrap 입력                       | 외부 Vault 대상                                                                                                                                                        | 일치 계약                                                                              |
 |----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login을 사용하고 DSN은 각 서비스 DB 이름과 `mysql:3306`을 가리킨다.         |
+| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login과 각 서비스 DB 이름을 사용한다. 운영 DSN은 실제 사설 주소를 가리킨다.         |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`         | `secret/application`의 동명 key, `secret/cowork-preference`의 `preference.db.username`·`preference.db.password`                                                        | 같은 PostgreSQL login을 사용한다.                                                      |
 | `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | `secret/cowork-chat`·`secret/cowork-voice`의 `MONGODB_URI`                                                                                                             | 같은 root login을 URI에 넣고 서비스별 DB 이름과 `authSource=admin`을 사용한다.         |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`             | `secret/application`의 동명 key                                                                                                                                        | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다.                |
@@ -81,11 +87,11 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 ## 변경 절차
 
 1. 일반 설정은 `cowork-config/src/main/resources/configs/cowork-{service}-{profile}.yml`에 추가한다.
-2. 시크릿은 코드에 값을 넣지 않고 Vault key 이름만 정의한다.
+2. 운영 설정·시크릿은 Vault key로 관리하며 `Update Vault configuration` workflow 또는 Vault UI/API로 변경한다.
 3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `deploy/config/vault/seed-secrets.sh` 저장 경로를 함께 갱신한다.
-4. 파일형 credential은 read-only Docker secret 또는 배포 secret volume을 사용한다.
+4. 파일형 credential은 Vault 배포 문서의 `files`에 넣고 배포 시 읽기 전용으로 마운트한다.
 5. 코드만으로 알 수 없는 설정 제약과 운영 절차만 `docs/`에 갱신하고, 후속 구현은 `docs/todo/`로 분리한다.
-6. `docker compose config --quiet`와 해당 모듈의 핵심 비즈니스·권한·보안 단위 테스트를 실행한다.
+6. 설정 변경은 배포 workflow의 `check_only`로 확인하고, 비즈니스 로직 변경 시에만 해당 핵심 로직의 단위 테스트를 실행한다.
 
 ## 운영 체크
 
