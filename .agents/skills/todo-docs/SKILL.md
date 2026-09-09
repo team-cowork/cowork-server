@@ -126,7 +126,7 @@ Register a new snapshot in README `## 점검 스냅샷`, newest first:
 - `## 할 일` states **actions** (`~을 적용한다`); `## 완료 조건` states **resulting state**
   (`~는 거부된다`). Do not let the two sections repeat each other.
 - Backtick every path, config key, endpoint, and command: `` `/api/health` ``,
-  `` `cowork-monitoring/prometheus/prometheus.yml` ``.
+  `` `deploy/config/monitoring/prometheus/prometheus.yml` ``.
 - Assert only what you verified. When something is unconfirmed, say so in the doc
   (`아직 검증하지 않았다`) rather than writing it as fact.
 - Do not put a completion date or an owner in the doc. Git history already records both.
