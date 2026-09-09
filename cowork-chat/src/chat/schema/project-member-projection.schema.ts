@@ -3,7 +3,7 @@ import { HydratedDocument } from 'mongoose';
 
 export type ProjectMemberProjectionDocument = HydratedDocument<ProjectMemberProjection>;
 
-/** `project.member.event`로 동기화되는 프로젝트 멤버십 읽기 모델. */
+/** `project.member.event.v2`로 동기화되는 프로젝트 멤버십 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
 export class ProjectMemberProjection {
     @Prop({ required: true }) projectId!: number;
