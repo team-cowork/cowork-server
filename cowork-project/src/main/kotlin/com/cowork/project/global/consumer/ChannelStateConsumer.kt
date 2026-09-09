@@ -1,6 +1,5 @@
 package com.cowork.project.global.consumer
 
-import com.cowork.project.global.projection.ProjectionEntityKey
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
 import com.cowork.project.global.projection.ProjectionTopics
@@ -32,12 +31,12 @@ class ChannelStateConsumer(
             }
         }
             .getOrElse {
-                quarantine(record, "channel.event JSON 역직렬화 실패: ${it.message}")
+                quarantine(record, "${record.topic()} JSON 역직렬화 실패: ${it.message}")
                 return
             }
         val occurredAt = payload.occurredAt
         val reason = when {
-            !ProjectionEntityKey.matchesChannelEvent(record.key(), payload.channelId, payload.teamId) ->
+            record.key() != payload.channelId.toString() ->
                 "channelId와 Kafka key가 일치하지 않습니다."
             payload.channelId <= 0 -> "channelId는 양수여야 합니다."
             payload.projectId != null && payload.projectId <= 0 -> "projectId는 null이거나 양수여야 합니다."
@@ -62,7 +61,8 @@ class ChannelStateConsumer(
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
         log.warn(
-            "channel.event를 격리합니다 [partition={}, offset={}, reason={}]",
+            "Quarantine channel state event [topic={}, partition={}, offset={}, reason={}]",
+            record.topic(),
             record.partition(),
             record.offset(),
             reason,

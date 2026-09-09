@@ -40,7 +40,7 @@
 - performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
 - security: [기존 역할·채널 정책의 운영 전환](./items/38-security/existing-channel-role-policy-transition.md)
 - security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
-- reliability: [상태 토픽 키 포맷 변경에 따른 토픽 버전 분리](./items/40-reliability/state-topic-key-versioning.md)
+- ~~reliability: [상태 토픽 키 포맷 변경에 따른 토픽 버전 분리](./items/40-reliability/state-topic-key-versioning.md)~~
 - configuration: [cowork-user 기동 부트스트랩의 애플리케이션 내부 이관](./items/41-configuration/user-entrypoint-in-app-bootstrap.md)
 
 ## 점검 스냅샷

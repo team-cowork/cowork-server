@@ -11,8 +11,6 @@ import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
-private const val TOPIC = "channel.event"
-
 @Component
 @Transactional(propagation = Propagation.MANDATORY)
 class ChannelEventPublisher(
@@ -72,5 +70,9 @@ class ChannelEventPublisher(
             snapshot = snapshot,
         )
         outboxWriter.enqueue(TOPIC, state.channelId.toString(), event)
+    }
+
+    companion object {
+        const val TOPIC = "channel.event.v2"
     }
 }
