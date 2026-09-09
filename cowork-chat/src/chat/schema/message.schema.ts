@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+import { SEARCH_INDEX_STATUSES, SearchIndexStatus } from '../search/message-index-scope';
 
 /** Mongoose 문서 타입. HydratedDocument로 래핑되어 _id, save() 등 Mongoose 메서드를 포함합니다. */
 export type MessageDocument = HydratedDocument<Message>;
@@ -173,6 +174,49 @@ export class Message {
      * 점유 시각만으로는 같은 밀리초에 점유한 두 워커를 구분할 수 없어, 이 값으로 실제 점유분만 읽는다.
      */
     @Prop({ type: String, default: null }) notificationClaimId!: string | null;
+
+    /**
+     * 검색 색인 반영 상태. 메시지 도큐먼트 자체가 색인 아웃박스 역할을 하므로
+     * 본문·고정 상태 변경과 색인 의도가 같은 쓰기로 durable하게 남는다.
+     * - `PENDING`: 색인 반영 대기
+     * - `PROCESSING`: 워커가 점유한 상태
+     * - `SYNCED`: {@link searchIndexSyncedVersion}까지 색인에 반영 완료
+     * - `FAILED`: 재시도 한도 초과 또는 계약 위반으로 영구 실패
+     * - `DELETING`: 삭제 tombstone 기록 중. 이후 본문·고정 변경을 받지 않는다
+     * - `SKIPPED`: 색인 대상이 아닌 메시지 ({@link SEARCH_INDEX_SCOPE_FILTER} 참고)
+     */
+    @Prop({ type: String, enum: SEARCH_INDEX_STATUSES, default: 'SKIPPED' }) searchIndexStatus!: SearchIndexStatus;
+
+    /**
+     * 메시지별 단조 증가 색인 버전. Elasticsearch 외부 버전으로 전달되어
+     * 지연된 update가 최신 문서나 delete를 되돌리지 못하게 한다.
+     * 색인 대상이 아닌 메시지는 `0`으로 남는다.
+     */
+    @Prop({ default: 0 }) searchIndexVersion!: number;
+
+    /** 색인에 마지막으로 반영된 버전. `searchIndexVersion`과 같으면 수렴한 상태다. */
+    @Prop({ default: 0 }) searchIndexSyncedVersion!: number;
+
+    /** 색인 반영 재시도 횟수. 한도를 넘으면 `searchIndexStatus`가 `FAILED`가 된다. */
+    @Prop({ default: 0 }) searchIndexRetryCount!: number;
+
+    /** 다음 색인 시도 가능 시각. 지수 백오프로 재시도 간격을 늘린다. */
+    @Prop({ type: Date, default: null }) searchIndexNextAttemptAt!: Date | null;
+
+    /** `PROCESSING`·`DELETING` 점유 시각. 오래 머문 항목을 회수하는 기준이다. */
+    @Prop({ type: Date, default: null }) searchIndexProcessingStartedAt!: Date | null;
+
+    /**
+     * 점유 호출마다 새로 발급하는 식별자.
+     * 점유 시각만으로는 같은 밀리초에 점유한 두 워커를 구분할 수 없어, 이 값으로 실제 점유분만 읽는다.
+     */
+    @Prop({ type: String, default: null }) searchIndexClaimId!: string | null;
+
+    /** 마지막 색인 실패 원인. 운영자가 실패 항목을 확인할 때 사용한다. */
+    @Prop({ type: String, default: null }) searchIndexLastError!: string | null;
+
+    /** 마지막 색인 성공 시각 */
+    @Prop({ type: Date, default: null }) searchIndexSyncedAt!: Date | null;
 }
 
 /** {@link Message} 클래스로부터 생성된 Mongoose 스키마 인스턴스 */
@@ -207,3 +251,12 @@ MessageSchema.index({ mentions: 1 });
  * `(notificationStatus, createdAt)` 순으로 정렬하여 오래된 메시지부터 처리합니다.
  */
 MessageSchema.index({ notificationStatus: 1, createdAt: 1 });
+
+/**
+ * 색인 아웃박스 워커가 처리 대기 항목을 시각 순으로 꺼내기 위한 복합 인덱스.
+ * 필드가 없는 레거시 도큐먼트도 `searchIndexStatus: null`로 인덱싱되어 백필 대상이 된다.
+ */
+MessageSchema.index({ searchIndexStatus: 1, searchIndexNextAttemptAt: 1 });
+
+/** 전체 재구축의 catch-up 스캔이 변경된 메시지만 추려내기 위한 인덱스 */
+MessageSchema.index({ updatedAt: 1, _id: 1 });

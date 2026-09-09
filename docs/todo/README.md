@@ -16,7 +16,7 @@
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 - dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
-- correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)
+- ~~correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)~~
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md)
 - reliability: [JVM Kafka outbox relay 정체와 장기 transaction 제거](./items/18-reliability/jvm-kafka-outbox-relay.md)
 - correctness: [로드맵 노드 삭제 시 assignment 무결성 보장](./items/19-correctness/roadmap-node-assignment-cleanup.md)
@@ -28,7 +28,7 @@
 - security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md)
 - ~~reliability: [chat.message poison record 격리](./items/27-reliability/chat-message-poison-quarantine.md)~~
-- search: [MongoDB-Elasticsearch 메시지 색인 정합성 복구](./items/28-search/elasticsearch-index-reconciliation.md)
+- ~~search: [MongoDB-Elasticsearch 메시지 색인 정합성 복구](./items/28-search/elasticsearch-index-reconciliation.md)~~
 - reliability: [Socket.IO Redis adapter 준비 상태와 복구 보장](./items/29-reliability/socketio-redis-adapter-readiness.md)
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md)
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
@@ -41,6 +41,7 @@
 - security: [기존 역할·채널 정책의 운영 전환](./items/38-security/existing-channel-role-policy-transition.md)
 - security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
 - reliability: [상태 토픽 키 포맷 변경에 따른 토픽 버전 분리](./items/40-reliability/state-topic-key-versioning.md)
+- configuration: [cowork-user 기동 부트스트랩의 애플리케이션 내부 이관](./items/41-configuration/user-entrypoint-in-app-bootstrap.md)
 
 ## 점검 스냅샷
 
