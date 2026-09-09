@@ -21,7 +21,7 @@ release: tag
 	git push origin main --follow-tags
 
 init-logs:
-	@bash scripts/init-log-dirs.sh
+	@bash deploy/local/init-log-dirs.sh
 
 setup:
 	$(MAKE) -C cowork-authorization setup
