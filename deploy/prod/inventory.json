@@ -1,61 +1,60 @@
 {
-  "config_profile": "local",
   "targets": [
     {
       "service": "team",
-      "ssh_port": 21108
+      "target": "team"
     },
     {
       "service": "channel",
-      "ssh_port": 24118
+      "target": "channel"
     },
     {
       "service": "authorization",
-      "ssh_port": 24125
+      "target": "authorization"
     },
     {
       "service": "user",
-      "ssh_port": 21133
+      "target": "user"
     },
     {
       "service": "project",
-      "ssh_port": 24134
+      "target": "project"
     },
     {
       "service": "preference",
-      "ssh_port": 24153
+      "target": "preference"
     },
     {
       "service": "chat",
-      "ssh_port": 27108
+      "target": "chat"
     },
     {
       "service": "voice",
-      "ssh_port": 27109
+      "target": "voice"
     },
     {
       "service": "notification",
-      "ssh_port": 27110
+      "target": "notification"
     },
     {
       "service": "gateway",
-      "ssh_port": 21108
+      "target": "gateway"
     },
     {
       "service": "config",
-      "ssh_port": 21108
+      "target": "config"
     },
     {
       "service": "monitoring",
-      "ssh_port": 21108
+      "target": "monitoring"
     },
     {
       "service": "roadmap",
-      "ssh_port": 27112
+      "target": "roadmap"
     },
     {
       "service": "vault",
-      "ssh_port": 21108
+      "target": "vault"
     }
   ]
 }
