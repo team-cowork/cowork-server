@@ -226,6 +226,9 @@ jobs:
               - 'deploy/config/monitoring/**'
               - 'deploy/prod/services/monitoring.sh'
               - 'deploy/prod/monitoring/**'
+            log-agent:
+              - 'deploy/prod/log-agent/**'
+              - 'deploy/prod/services/log-agent.sh'
             vault:
               - 'deploy/prod/vault/**'
               - 'deploy/config/vault/server.hcl'
@@ -233,7 +236,9 @@ jobs:
             shared:
               - 'deploy/prod/lib/**'
               - 'deploy/prod/deploy.sh'
-              - 'deploy/prod/runtime.env'
+              - 'deploy/prod/defaults.sh'
+              - 'deploy/prod/*settings.py'
+              - '.github/workflows/cowork-deploy.yml'
               - 'deploy/prod/inventory.json'
               - 'deploy/prod/build-matrix.py'
               - '.github/workflows/cowork-prod-cd.yml'
@@ -261,75 +266,15 @@ jobs:
       needs.prepare.result == 'success' &&
       needs.build-images.result == 'success' &&
       (needs.release.result == 'success' || needs.release.result == 'skipped')
-    runs-on: ubuntu-latest
-    # 서비스별로 GitHub Environment를 분리해서, 각 매트릭스 항목이 자기 서비스의
-    # environment secret만 읽을 수 있게 한다(예: voice 배포 단계가 preference의 DB
-    # 비밀번호를 읽을 수 없음). environment 값에 matrix 컨텍스트를 그대로 쓸 수 있다.
-    # 여러 서비스가 공유하는 secret(COWORK_SSH_HOST, CD_DEPLOY_SSH_KEY, COWORK_MYSQL_PASSWORD 등)은
-    # 특정 environment에 넣지 않고 repository secret으로 남겨둔다 — environment secret이 없으면
-    # GitHub Actions가 자동으로 repository secret로 폴백하므로 매 environment에 중복 등록할 필요가 없다.
-    environment: Prod-CD(${{ matrix.service }})
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
-    steps:
-      - name: Deploy cowork-${{ matrix.service }}
-        uses: appleboy/ssh-action@v1
-        env:
-          APP_CONFIG_PROFILE: ${{ matrix.config_profile }}
-          DEPLOY_ROOT: ${{ vars.COWORK_DEPLOY_ROOT }}
-          DEPLOY_CONFIG_DIR: ${{ vars.COWORK_DEPLOY_CONFIG_DIR }}
-          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
-          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
-          DEPLOY_IMAGE_OWNER: ${{ needs.prepare.outputs.owner }}
-          DEPLOY_IMAGE_TAG: sha-${{ github.event.workflow_run.head_sha }}
-          # MySQL을 실제로 쓰는 서비스에만 비밀번호를 실어 보낸다(리뷰 지적: 예전엔
-          # roadmap 하나만 쓰는데 매트릭스의 전 서비스 SSH 세션에 실렸다).
-          COWORK_MYSQL_PASSWORD: ${{ contains(fromJSON('["team","channel","authorization","user","project","notification","roadmap"]'), matrix.service) && secrets.COWORK_MYSQL_PASSWORD || '' }}
-          VAULT_EXTERNAL_HOST: ${{ secrets.VAULT_EXTERNAL_HOST }}
-          VAULT_UNSEAL_KEY: ${{ secrets.VAULT_UNSEAL_KEY }}
-          VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
-          COWORK_POSTGRES_PASSWORD: ${{ secrets.COWORK_POSTGRES_PASSWORD }}
-          COWORK_MONGO_PASSWORD: ${{ secrets.COWORK_MONGO_PASSWORD }}
-          LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          COWORK_GITHUB_APP_INTERNAL_API_KEY: ${{ secrets.COWORK_GITHUB_APP_INTERNAL_API_KEY }}
-        with:
-          host: ${{ secrets.COWORK_SSH_HOST }}
-          port: ${{ vars.COWORK_SSH_PORT || matrix.port }}
-          username: ${{ vars.COWORK_SSH_USER || 'ubuntu' }}
-          key: ${{ secrets.CD_DEPLOY_SSH_KEY }}
-          command_timeout: 20m
-          envs: APP_CONFIG_PROFILE,DEPLOY_ROOT,DEPLOY_CONFIG_DIR,GHCR_READ_TOKEN,DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD,VAULT_EXTERNAL_HOST,VAULT_UNSEAL_KEY,VAULT_TOKEN,COWORK_POSTGRES_PASSWORD,COWORK_MONGO_PASSWORD,LIVEKIT_API_KEY,LIVEKIT_API_SECRET,JWT_SECRET,COWORK_GITHUB_APP_INTERNAL_API_KEY
-          script: |
-            set -euo pipefail
-            [[ "${DEPLOY_SHA}" =~ ^[0-9a-f]{40}$ ]] || { echo 'Invalid release SHA' >&2; exit 1; }
-            DEPLOY_ROOT="${DEPLOY_ROOT:-${HOME}/.local/share/cowork}"
-            cache="${DEPLOY_ROOT}/repository.git"
-            release="${DEPLOY_ROOT}/releases/${DEPLOY_SHA}"
-            mkdir -p "${DEPLOY_ROOT}/releases"
-            exec 9>"${DEPLOY_ROOT}/source.lock"
-            flock -w 120 9
-            if [ ! -d "${cache}" ]; then
-              git clone --mirror https://github.com/team-cowork/cowork-server.git "${cache}"
-            fi
-            git --git-dir="${cache}" fetch origin "${DEPLOY_SHA}" --quiet
-            if [ ! -d "${release}" ]; then
-              staging="$(mktemp -d "${DEPLOY_ROOT}/releases/.staging.XXXXXX")"
-              trap 'rm -rf "${staging}"' EXIT
-              git --git-dir="${cache}" archive "${DEPLOY_SHA}" | tar -x -C "${staging}"
-              printf '%s\n' "${DEPLOY_SHA}" > "${staging}/.source-sha"
-              mv "${staging}" "${release}"
-              trap - EXIT
-            fi
-            [ "$(cat "${release}/.source-sha")" = "${DEPLOY_SHA}" ] || { echo 'Invalid release directory' >&2; exit 1; }
-            flock -u 9
-            # All scripts, helpers, Compose files and mount sources come from this exact SHA.
-            # No shared working-tree checkout and no fallback to unversioned VM scripts.
-            bash "${release}/deploy/prod/deploy.sh" "${{ matrix.service }}"
+    uses: ./.github/workflows/cowork-deploy.yml
+    with:
+      service: ${{ matrix.service }}
+      target: ${{ matrix.target }}
+      sha: ${{ github.event.workflow_run.head_sha }}
+    secrets: inherit
 
   notify:
     runs-on: ubuntu-latest
