@@ -6,11 +6,101 @@ on:
     types: [completed]
     branches: [main]
 
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Manual operation (automatic CI completion keeps the normal release flow)
+        required: true
+        type: choice
+        options: [redeploy, update-config]
+      target:
+        description: Vault deployment target or application service name (application for shared properties)
+        required: true
+        type: string
+      service:
+        description: Deployment unit (redeploy only)
+        type: choice
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, monitoring, vault, log-agent]
+      sha:
+        description: Full main commit SHA with an existing image (redeploy only)
+        type: string
+      configuration_version:
+        description: Vault deployment version (0 selects latest; redeploy only)
+        default: '0'
+        type: string
+      check_only:
+        description: Validate settings without starting containers (redeploy only)
+        default: true
+        type: boolean
+      vault_recovery:
+        description: Use VAULT_BOOTSTRAP_JSON for Vault recovery (redeploy only)
+        default: false
+        type: boolean
+      scope:
+        description: Vault document type (update-config only)
+        default: deployment
+        type: choice
+        options: [deployment, application]
+      profile:
+        description: Application profile path (update-config only; deployment uses base)
+        default: base
+        type: choice
+        options: [base, local, prod]
+      expected_version:
+        description: Current KV version; 0 creates a new path (update-config only)
+        type: string
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
+  manual-request:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.request.outputs.matrix }}
+      services-list: ${{ steps.request.outputs.services-list }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.operation == 'redeploy' && inputs.sha || github.sha }}
+          fetch-depth: 0
+      - name: Validate manual request
+        id: request
+        env:
+          OPERATION: ${{ inputs.operation }}
+          TARGET: ${{ inputs.target }}
+          SERVICE: ${{ inputs.service }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          case "$OPERATION" in
+            redeploy)
+              [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+              [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+              test -f "deploy/prod/services/$SERVICE.sh"
+              test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+              git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+              ;;
+            update-config) ;;
+            *) echo 'Unknown manual operation' >&2; exit 1 ;;
+          esac
+          python3 - <<'PYTHON'
+          import json, os
+          target, service = os.environ["TARGET"], os.environ["SERVICE"]
+          deploy = os.environ["OPERATION"] == "redeploy"
+          matrix = {"include": [{"service": service, "target": target}] if deploy else []}
+          summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
+              output.write("services-list=" + summary + "\n")
+          PYTHON
+
   prepare:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
@@ -238,7 +328,6 @@ jobs:
               - 'deploy/prod/deploy.sh'
               - 'deploy/prod/defaults.sh'
               - 'deploy/prod/*settings.py'
-              - '.github/workflows/cowork-deploy.yml'
               - 'deploy/prod/inventory.json'
               - 'deploy/prod/build-matrix.py'
               - '.github/workflows/cowork-prod-cd.yml'
@@ -254,27 +343,132 @@ jobs:
         run: python3 deploy/prod/build-matrix.py
 
   deploy:
-    needs:
-      - prepare
-      - build-images
-      - release
-      - detect-changes
+    needs: [prepare, build-images, release, detect-changes, manual-request]
     if: >
-      always() &&
-      needs.detect-changes.result == 'success' &&
-      needs.detect-changes.outputs.matrix != '{"include":[]}' &&
-      needs.prepare.result == 'success' &&
-      needs.build-images.result == 'success' &&
-      (needs.release.result == 'success' || needs.release.result == 'skipped')
+      always() && (
+        (github.event_name == 'workflow_run' &&
+         needs.detect-changes.result == 'success' &&
+         needs.detect-changes.outputs.matrix != '{"include":[]}' &&
+         needs.prepare.result == 'success' &&
+         needs.build-images.result == 'success' &&
+         (needs.release.result == 'success' || needs.release.result == 'skipped')) ||
+        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
+         needs.manual-request.result == 'success')
+      )
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.detect-changes.outputs.matrix) }}
-    uses: ./.github/workflows/cowork-deploy.yml
-    with:
-      service: ${{ matrix.service }}
-      target: ${{ matrix.target }}
-      sha: ${{ github.event.workflow_run.head_sha }}
-    secrets: inherit
+      matrix: ${{ fromJSON(needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix || '{"include":[]}') }}
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          fetch-depth: 0
+      - name: Validate release and target
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          test -f "deploy/prod/services/$SERVICE.sh"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+      - name: Load Vault deployment snapshot
+        id: settings
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          VAULT_TOKEN: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+          VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
+          RECOVERY: ${{ inputs.vault_recovery || false }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
+          CONFIG_VERSION: ${{ inputs.configuration_version || '0' }}
+        run: |
+          set -euo pipefail
+          mode=read
+          if [ "$RECOVERY" = true ]; then
+            test "$SERVICE" = vault
+            test "$TARGET" = vault
+            mode=bootstrap
+          fi
+          python3 deploy/prod/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION"
+      - name: Apply immutable release and Vault settings
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          DEPLOY_SERVICE: ${{ matrix.service }}
+          DEPLOY_TARGET: ${{ matrix.target }}
+          DEPLOY_OWNER: ${{ github.repository_owner }}
+          DEPLOY_ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only && 'check' || 'deploy' }}
+        with:
+          host: ${{ steps.settings.outputs.ssh_host }}
+          port: ${{ steps.settings.outputs.ssh_port }}
+          username: ${{ steps.settings.outputs.ssh_user }}
+          key: ${{ steps.settings.outputs.ssh_key }}
+          fingerprint: ${{ steps.settings.outputs.ssh_fingerprint }}
+          command_timeout: 20m
+          envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION
+          script: |
+            set -euo pipefail
+            [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+            root="$HOME/.local/share/cowork"
+            cache="$root/repository.git"
+            release="$root/releases/$DEPLOY_SHA"
+            mkdir -p "$root/releases"
+            exec 9>"$root/source.lock"
+            flock -w 120 9
+            if [ ! -d "$cache" ]; then
+              git clone --mirror https://github.com/team-cowork/cowork-server.git "$cache"
+            fi
+            git --git-dir="$cache" fetch origin "$DEPLOY_SHA" --quiet
+            if [ ! -d "$release" ]; then
+              staging="$(mktemp -d "$root/releases/.staging.XXXXXX")"
+              trap 'rm -rf "$staging"' EXIT
+              git --git-dir="$cache" archive "$DEPLOY_SHA" | tar -x -C "$staging"
+              printf '%s\n' "$DEPLOY_SHA" > "$staging/.source-sha"
+              mv "$staging" "$release"
+              trap - EXIT
+            fi
+            test "$(cat "$release/.source-sha")" = "$DEPLOY_SHA"
+            flock -u 9
+            printf '%s' "$DEPLOY_PAYLOAD" | python3 "$release/deploy/prod/apply-settings.py" \
+              "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION"
+
+  update-config:
+    needs: manual-request
+    if: inputs.operation == 'update-config'
+    runs-on: ubuntu-latest
+    environment: Config-Update(${{ inputs.target }})
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - name: Replace Vault document with CAS protection
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          VAULT_TOKEN: ${{ secrets.VAULT_CONFIG_WRITE_TOKEN }}
+          VAULT_UPDATE_JSON: ${{ secrets.VAULT_UPDATE_JSON }}
+          TARGET: ${{ inputs.target }}
+          SCOPE: ${{ inputs.scope }}
+          PROFILE: ${{ inputs.profile }}
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          set -euo pipefail
+          python3 deploy/prod/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
+            --profile "$PROFILE" --expected-version "$EXPECTED_VERSION"
 
   notify:
     runs-on: ubuntu-latest
@@ -285,17 +479,21 @@ jobs:
       - release
       - detect-changes
       - deploy
+      - manual-request
+      - update-config
     if: always()
 
     steps:
       - name: Get Short SHA
         id: sha
-        run: echo "short=$(echo '${{ github.event.workflow_run.head_sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || (inputs.operation == 'redeploy' && inputs.sha) || github.sha }}
+        run: echo "short=${RELEASE_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deploy.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -334,10 +532,13 @@ jobs:
           description: |
             `${{ github.event.workflow_run.head_branch || 'main' }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Release:** ${{ steps.status.outputs.release_desc }}
-            **Deploy:** ${{ needs.detect-changes.outputs.services-list }}
+            **Operation:** ${{ inputs.operation || 'release' }}
+            **Target:** ${{ needs.manual-request.outputs.services-list || needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
             **Prepare:** ${{ needs.prepare.result }}
             **Build Images:** ${{ needs.build-images.result }}
             **Release:** ${{ needs.release.result }}
             **Detect Changes:** ${{ needs.detect-changes.result }}
             **Deploy:** ${{ needs.deploy.result }}
+            **Manual Request:** ${{ needs.manual-request.result }}
+            **Update Config:** ${{ needs.update-config.result }}
