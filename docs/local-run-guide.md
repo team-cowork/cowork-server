@@ -3,6 +3,9 @@
 이 문서는 로컬 DB와 Kafka에 기존 데이터가 없는 상태에서 `cowork-server` 전체를 처음 배포하는
 방법을 설명한다. 기존 환경 업그레이드 절차는 다루지 않는다.
 
+기존 채널·프로젝트 상태 토픽이 있는 환경의 v2 업그레이드는
+[상태 토픽 v2 운영 전환](./kafka-state-topic-cutover.md)을 따른다.
+
 기준 구성은 `docker-compose.yml`, `docker-compose.override.yml`, 각 서비스 `local.dockerfile`,
 `cowork-config/src/main/resources/configs/*-local.yml`이다.
 
@@ -112,7 +115,7 @@ Compose의 `depends_on`이 init job과 필수 서비스의 순서를 조정하�
 
 State marker는 모두 동시에 생기지 않는다. 빈 상태에서도 upstream projection으로부터 만든 snapshot은
 그 upstream의 현재 high-watermark를 확인한 뒤에만 완료된다. 대략 authorization의 presence·`team` state,
-`user.profile.event`·`project.event`, `channel.event`, `project.github-repo.event` 순으로 marker가 열리며,
+`user.profile.event`·`project.event.v2`, `channel.event.v2`, `project.github-repo.event` 순으로 marker가 열리며,
 이 인과 순서를 기다리는 동안 dependent service가 `starting`인 것은 정상이다.
 
 ### 로컬 기동에 영향을 주는 제약
@@ -159,7 +162,7 @@ docker compose logs -f cowork-authorization cowork-user cowork-team
 ### Projection snapshot marker 확인
 
 Kafka UI `http://localhost:8090`에서 `user.presence.event`, `team.member.event`,
-`channel.event`, `user.profile.event`, `project.github-repo.event`,
+`channel.event.v2`, `user.profile.event`, `project.github-repo.event`,
 `preference.team-role.changed`, `preference.github-repo.setting.state`를 열어
 `PROJECTION_SNAPSHOT_COMPLETED`를 확인할 수 있다. CLI로는 다음과 같이 확인한다.
 
@@ -224,7 +227,7 @@ authorization의 pending operation, user의 command inbox와 result outbox 오�
 docker compose logs cowork-channel cowork-user cowork-project cowork-chat
 ```
 
-project는 `channel.event`·`user.profile.event`·`preference.github-repo.setting.state`, chat은
+project는 `channel.event.v2`·`user.profile.event`·`preference.github-repo.setting.state`, chat은
 `project.github-repo.event`를 포함한 필수 state topic의 marker와
 checkpoint를 확인한다. 저장소 연결이나 설정이 0건인 빈 DB에서도 source completion marker는 필요하다.
 
