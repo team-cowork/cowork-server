@@ -4,6 +4,12 @@
 # NestJS 서비스. MongoDB 하나만 쓰는 다른 서비스들과 달리 Elasticsearch/S3(MinIO)/Redis까지
 # 직접 붙는다. 다른 서비스 호출은 Eureka 대신 하드코딩된 *_SERVICE_URL로 이뤄진다(기존
 # 서버-로컬 스크립트의 동작을 그대로 유지).
+#
+# 새 이미지를 임시 컨테이너로 먼저 헬스체크하고 통과했을 때만 기존 컨테이너를 교체한다
+# (scripts/run/prod/_lib.sh의 deploy_container_safely) — 실패해도 서비스가 내려가지 않는다.
+# 헬스체크는 /health(liveness)로 판단한다 — /health/ready는 알려진 별도 이슈(레거시 키
+# 포맷의 channel.member.event 재구축 불가, chat_membership_요약.md 참고)로 정상 기동
+# 중에도 503을 낼 수 있다.
 set -euo pipefail
 
 : "${DEPLOY_IMAGE_OWNER:?DEPLOY_IMAGE_OWNER is required}"
@@ -11,21 +17,21 @@ set -euo pipefail
 : "${COWORK_MONGO_PASSWORD:?COWORK_MONGO_PASSWORD is required}"
 : "${JWT_SECRET:?JWT_SECRET is required}"
 
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
 INFRA_HOST="10.0.0.93"
 CONTAINER="cowork-chat"
 IMAGE="ghcr.io/${DEPLOY_IMAGE_OWNER}/cowork-chat:${DEPLOY_IMAGE_TAG}"
 PORT=8087
-SELF_IP="$(hostname -I | awk '{print $1}')"
+SELF_IP="$(advertise_ip "${INFRA_HOST}")"
+
+ghcr_login_if_needed
 
 echo "[chat] pulling ${IMAGE}"
 docker pull "${IMAGE}"
 
-echo "[chat] removing existing container (if any)"
-docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
-
-echo "[chat] starting new container"
-docker run -d --name "${CONTAINER}" --restart unless-stopped \
-  -p ${PORT}:${PORT} \
+deploy_container_safely "${CONTAINER}" "${PORT}" "${PORT}" "/health" "${IMAGE}" -- \
   -e APP_CONFIG_URL="http://${INFRA_HOST}:8761" \
   -e APP_PROFILE=local \
   -e PORT="${PORT}" \
@@ -44,22 +50,4 @@ docker run -d --name "${CONTAINER}" --restart unless-stopped \
   -e EUREKA_INSTANCE_HOST="${SELF_IP}" \
   -e USER_SERVICE_URL="http://10.0.0.144:8082" \
   -e CHANNEL_SERVICE_URL="http://10.0.0.97:8083" \
-  -e PROJECT_SERVICE_URL="http://10.0.0.145:8089" \
-  "${IMAGE}"
-
-echo "[chat] waiting for health check"
-# /health/ready는 Kafka 프로젝션 상태까지 반영하는데, 알려진 별도 이슈(레거시 키
-# 포맷의 channel.member.event 재구축 불가, chat_membership_요약.md 참고)로 인해
-# 정상 기동 중에도 계속 503을 낼 수 있다. 배포 성공 여부는 기본 liveness인
-# /health로 판단한다.
-for _ in $(seq 1 45); do
-  if curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null; then
-    echo "[chat] healthy"
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "[chat] FAILED health check after deploy" >&2
-docker logs --tail 50 "${CONTAINER}" >&2 || true
-exit 1
+  -e PROJECT_SERVICE_URL="http://10.0.0.145:8089"
