@@ -87,7 +87,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 ## 변경 절차
 
 1. 일반 설정은 `cowork-config/src/main/resources/configs/cowork-{service}-{profile}.yml`에 추가한다.
-2. 운영 설정·시크릿은 Vault key로 관리하며 `Update Vault configuration` workflow 또는 Vault UI/API로 변경한다.
+2. 운영 설정·시크릿은 Vault key로 관리하며 기존 Prod CD의 `operation=update-config` 또는 Vault UI/API로 변경한다.
 3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `deploy/config/vault/seed-secrets.sh` 저장 경로를 함께 갱신한다.
 4. 파일형 credential은 Vault 배포 문서의 `files`에 넣고 배포 시 읽기 전용으로 마운트한다.
 5. 코드만으로 알 수 없는 설정 제약과 운영 절차만 `docs/`에 갱신하고, 후속 구현은 `docs/todo/`로 분리한다.
