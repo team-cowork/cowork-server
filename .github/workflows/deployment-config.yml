@@ -7,6 +7,8 @@ on:
       - 'cowork-*/Dockerfile.*'
       - '.github/workflows/deployment-config.yml'
       - '.github/workflows/cowork-prod-cd.yml'
+      - '.github/workflows/cowork-deploy.yml'
+      - '.github/workflows/cowork-vault-config.yml'
   push:
     branches: [main, develop]
     paths:
@@ -15,6 +17,8 @@ on:
       - 'cowork-*/Dockerfile.*'
       - '.github/workflows/deployment-config.yml'
       - '.github/workflows/cowork-prod-cd.yml'
+      - '.github/workflows/cowork-deploy.yml'
+      - '.github/workflows/cowork-vault-config.yml'
 jobs:
   validate:
     runs-on: ubuntu-latest
