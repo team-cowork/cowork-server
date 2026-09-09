@@ -9,9 +9,12 @@ build
 dist
 **/dist
 .env
+**/*.env
 .env.*
 !.env.example
+# Exclude both current and legacy local credential locations.
 docker/secrets/
+deploy/local/secrets/
 screenlog.*
 docs
 *.md
