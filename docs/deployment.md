@@ -5,37 +5,90 @@ Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM
 저장소만으로 확정할 수 없으므로 최초 적용 전에 아래 정보를 확인한다.
 전환 진행 상황은 [운영 전환 TODO](todo/items/42-deployment/multi-vm-rollout.md)에서 관리한다.
 
-## 최초 적용 준비
+## 설정 관리와 최초 준비
 
-각 `Prod-CD(<service>)` GitHub Environment의 `COWORK_SSH_HOST`, `CD_DEPLOY_SSH_KEY`를
-확인한다. SSH 포트는 `deploy/prod/inventory.json`의 기존 값을 유지하며, VM 이동 시
-`COWORK_SSH_PORT`·`COWORK_SSH_USER` variables로 덮어쓸 수 있다.
-VM에는 Docker Engine, Compose 2.24.4 이상, Bash, curl, iproute2, flock, Git, Python 3가 필요하다.
+**Vault가 운영값의 기준이고 GitHub Actions가 수정·배포 창구다.** VM의 `/etc/cowork/*.env`는
+읽지 않는다. 클라우드 콘솔이나 VM에 접속하지 않고 Vault UI/API 또는 아래 workflow로 값을 변경한다.
+저장소에는 서비스 구성과 안전한 기본 포트만 남기며 실제 주소·프로파일·계정은 Vault에서 읽는다.
 
-배포 계정으로 checkout 루트에서 필요한 양식만 복사한다. 기존 파일은 덮어쓰지 않는다.
+| Vault KV v2 경로 (`secret` mount 기준) | 관리하는 값 |
+| --- | --- |
+| `deploy/<target>` | `ssh` 접속 주소·포트·사용자·키·검증된 host fingerprint, `runtime` 배포 주소·프로파일·인프라 접속값, `application` 컨테이너 환경변수, `files` 파일형 시크릿 |
+| `application`, `application/<profile>` | Config Server가 배포하는 공통 애플리케이션 속성 |
+| `cowork-<service>`, `cowork-<service>/<profile>` | 서비스별 속성·시크릿. 정확한 키는 [설정 가이드](configuration.md)를 따른다. |
+
+`target`은 VM에 배포할 단위를 식별한다. 기본값은 서비스 이름이며, `inventory.json`에는
+서비스와 target의 연결만 둔다. VM 주소와 SSH 포트는 Vault에 있다. 같은 서비스의 다른 VM은
+다른 target을 사용한다. 한 VM에 같은 서비스 컨테이너를 둘 이상 배치하는 구성은 지원하지 않는다.
+
+[project 설정 양식](../deploy/prod/settings.example.json)의 값을 실제 환경으로 바꿔 `deploy/project`에
+등록한다. `runtime` 값과 `application` 값은 모두 문자열이다. 주소는 인프라별로 지정하고
+`ADVERTISE_IP`에는 Gateway와 모니터링 VM에서 도달 가능한 이 VM의 사설 IP를 넣는다.
+`APP_CONFIG_PROFILE`은 `local` 또는 `prod`를 명시하며 묵시적 프로파일 전환은 하지 않는다.
+컨테이너에 직접 넣을 추가 변수는 `application`에서 관리한다. Config Client가 읽는 일반 속성과
+시크릿은 기존 `cowork-<service>` 경로를 우선 사용한다.
+
+같은 시크릿을 여러 번 복사하지 않으려면 양식의 `runtime_refs`처럼 Vault 경로와 키를 참조한다.
+`application_refs`도 같은 형식이며 해당 컨테이너 환경변수에 적용된다. 참조는 배포 시 최신 버전을
+읽고 읽은 경로별 버전을 기록한다. 읽기 토큰에는 참조 경로의 `read` 권한도 필요하다.
+notification의 `files.firebase-credentials.json`에는 Firebase JSON 객체를 넣는다. Actions가 전달하고
+VM의 배포별 비공개 디렉터리에 생성해 컨테이너에 읽기 전용으로 마운트한다.
+
+최초 한 번 다음 GitHub Environment와 Vault 정책을 준비한다.
+
+| Environment | Variables | Secrets | Vault 토큰 권한 |
+| --- | --- | --- | --- |
+| `Prod-CD(<target>)` | `VAULT_ADDR` (HTTPS), `VAULT_KV_MOUNT` (기본 `secret`) | `VAULT_DEPLOY_READ_TOKEN` | `secret/data/deploy/<target>` 및 필요한 참조 경로의 `read` |
+| `Config-Update(<target>)` | 위와 동일 | `VAULT_CONFIG_WRITE_TOKEN`, 변경 시 `VAULT_UPDATE_JSON` | 수정 대상의 `create`, `update`만 부여 |
+| `Prod-CD(vault)` 복구 전용 | 위와 동일 | `VAULT_BOOTSTRAP_JSON` | 봉인·중단 복구 시 Vault 조회를 생략한다. 참조 없이 `ssh`와 Vault 기동용 `runtime`을 포함한다. |
+
+GitHub에는 Vault 접근에 필요한 최소 자격 증명과 일시적인 변경 입력만 둔다. Config Server의
+`VAULT_TOKEN`은 `deploy/config`에서 관리하며 `application`·`cowork-*` 속성을 읽는 별도 토큰을 쓴다.
+배포 SSH 키가 있는 `deploy/*`를 Config Server 토큰에 허용하지 않는다. mount를 바꾸면 Config의
+`VAULT_BACKEND`도 같은 값으로 지정한다. 복구용 자료와 unseal key는 Vault 밖에도 보관해야 한다.
+
+Environment는 `main` 배포만 허용하도록 제한한다. Actions runner에서 Vault HTTPS에 접근할 수 있어야
+하며, 이 최초 연결·정책 설정 이후 일상적인 값 교체에는 VM 설정 변경이 필요하지 않다.
+VM에는 Docker Engine, Compose 2.24.4 이상, Bash, curl, flock, Git, Python 3가 필요하다.
+
+## 외부에서 값 변경과 재배포
+
+아래 workflow는 이 변경이 `main`에 반영된 뒤 사용한다. 처음에는 새 배포 스크립트를 포함해 빌드된 SHA를 선택한다.
+
+아래는 `project` 배포 문서를 교체하는 예다. 저장소 밖의 `project.json`을 권한 `600`으로 준비한다.
+`expected_version`은 Vault에 표시된 현재 버전이며 새 경로 생성에만 `0`을 쓴다.
 
 ```bash
-sudo install -d -m 700 -o "$(id -un)" -g "$(id -gn)" /etc/cowork
-test -e /etc/cowork/common.env || install -m 600 deploy/prod/env/common.env.example /etc/cowork/common.env
-service=project  # 이 VM에 배포할 앱 이름으로 변경
-test -e "/etc/cowork/$service.env" || install -m 600 deploy/prod/env/service.env.example "/etc/cowork/$service.env"
+target=project
+gh secret set VAULT_UPDATE_JSON --env "Config-Update($target)" < /secure/project.json
+gh workflow run cowork-vault-config.yml --ref main \
+  -f target="$target" -f scope=deployment -f profile=base -f expected_version=3
 ```
 
-복사한 파일의 예시 주소를 실제 값으로 수정한다. `common.env`와 `<service>.env`는 신뢰하는
-운영자가 관리하는 Bash 변수 대입 파일이며, CI 입력보다 VM 파일의 값이 우선한다.
-`ADVERTISE_IP`에는 Gateway·모니터링 VM에서 도달 가능한 이 VM의 사설 IP를 지정한다.
-다중 NIC·VPN 환경에서는 자동 IP 추정에 의존하지 않는다.
+workflow 성공과 출력 버전을 확인한 뒤 다음 입력을 실행한다. `sha`에는 이미 배포 이미지가 만들어진
+`main`의 전체 커밋 SHA를 넣는다. 첫 실행은 `check_only=true`로 정적 설정을 확인한다.
 
-- Config·Kafka·DB·Redis·S3·LiveKit은 각각 실제 접속 주소를 지정한다. 같은 VM에서도
-  기존 컨테이너 DNS만 사용하던 인프라는 사설 IP와 포트로 접근할 수 있어야 한다.
-  Kafka advertised listener와 VM 방화벽도 이 주소에 맞춘다.
-- `config_profile: local`은 기존 CD 상태를 보존한 값이다. VM 파일에서 `APP_CONFIG_PROFILE`을
-  지정하면 이 값을 덮어쓴다. 수동 실행의 기본값은 `prod`이므로 최초 점검에서도 프로파일을 명시한다.
-  `prod` 전환은 [설정 가이드](configuration.md)의 공개 origin·Config override·Vault 키를 준비한 뒤
-  Config Server, 클라이언트 순으로 진행한다. 최초 전환 순서는 자동 병렬 배포에 맡기지 않는다.
-- 기존 DB·Vault 백업과 접속 주소를 기록한다. S3 자격 증명은 기존 운영 값을 Vault 또는 서비스
-  환경 파일에 넣는다. 이 변경은 DB나 MinIO 데이터를 새 저장소로 이관하지 않는다.
-- notification의 `FIREBASE_CREDENTIALS`는 해당 VM에 존재하는 절대 경로로 지정한다.
+```bash
+target=project
+sha=REPLACE_WITH_40_CHARACTER_MAIN_SHA
+gh workflow run cowork-deploy.yml --ref main \
+  -f service=project -f target="$target" -f sha="$sha" -f check_only=true
+# 위 실행 성공 확인 후 같은 명령에서 check_only=false로 적용
+gh secret delete VAULT_UPDATE_JSON --env "Config-Update($target)"
+```
+
+애플리케이션 속성만 변경할 때는 `scope=application`, `target=project`, `profile=prod`를 사용하고
+JSON에 정확한 flat property key를 넣는다. 공통 속성은 `target=application`이다. 변경은 지정한
+문서 전체를 교체하므로 유지할 키도 포함한다. 버전이 다르면 쓰기를 거부한다.
+[Vault CAS 규약](https://developer.hashicorp.com/vault/api-docs/secret/kv/kv-v2)을 사용하며 값은 로그에 출력하지 않는다.
+변경 후 영향을 받는 앱을 같은 SHA로 재배포한다. Config Server의 접속값·프로파일을 바꾸는 경우에는
+Config Server부터 배포한다. 모든 앱이 동적 refresh를 지원한다고 가정하지 않는다.
+
+`VAULT_UPDATE_JSON`은 성공 후 삭제한다. GitHub Secret의 [48 KB 제한](https://docs.github.com/en/actions/reference/security/secrets)을
+넘는 문서는 Vault UI/API에서 수정한다. 배포 snapshot은 SSH 전달을 위해 64 KiB 이하로 제한한다.
+
+Vault 복구는 `service=vault`, `target=vault`, `vault_recovery=true`로 실행한다. 평상시에는 이 옵션을
+사용하지 않는다. 토큰 만료·회전, Vault 백업과 실제 전환 확인은 [운영 전환 TODO](todo/items/42-deployment/multi-vm-rollout.md)에 남긴다.
 
 ## 기존 프로세스와 데이터 유지
 
@@ -61,18 +114,6 @@ Vault의 TLS 종단 프록시만 Vault 사설 포트에 접근하도록 제한�
 
 ## 서비스별 점검과 적용
 
-CI가 빌드한 커밋의 checkout 또는 `~/.local/share/cowork/releases/<sha>`에서 실행한다.
-VM의 환경 파일을 먼저 수정하고, 현재 운영 프로파일로 `check` 결과를 확인한 뒤 적용한다.
-
-```bash
-export DEPLOY_SHA="$(git rev-parse HEAD)"  # checkout에서 실행; 릴리스 디렉터리는 cat .source-sha 사용
-export DEPLOY_IMAGE_OWNER=team-cowork DEPLOY_IMAGE_TAG="sha-$DEPLOY_SHA"
-export APP_CONFIG_PROFILE=local          # prod 준비 완료 후 변경
-bash deploy/prod/deploy.sh project check
-# 위 결과와 VM 간 접근을 확인한 뒤 실행
-bash deploy/prod/deploy.sh project
-```
-
 `check`는 설정 검증이며 네트워크 연결이나 서비스 기동 성공을 보장하지 않는다.
 chat·roadmap은 projection readiness가 열려야 배포가 성공한다. 기존 데이터 복구 문제가 있으면
 liveness로 우회하지 않고 원인을 먼저 해결한다.
@@ -84,15 +125,10 @@ SSH `command_timeout`에 이미지 pull과 실패 후 복구 시간까지 확보
 `COMPOSE_ENV_FILE`은 [양식](../deploy/compose/single-vm.prod.env.example)을 채운 절대 경로,
 `COMPOSE_PROJECT_NAME`은 기존 데이터 볼륨을 생성한 프로젝트 이름으로 지정한다.
 
-앱 VM마다 `deploy/prod/env/log-agent.env.example`을 `/etc/cowork/log-agent.env`로 복사해
-`LOG_HOST`와 중앙 `LOKI_PUSH_URL`을 지정한다. Docker data-root가 다르면
-`DOCKER_CONTAINER_LOG_DIR`도 수정한다. 그 뒤 각 VM에서 한 번 실행하며 설정 변경 시 재적용한다.
-
-```bash
-export LOG_AGENT_ENV_FILE=/etc/cowork/log-agent.env
-bash deploy/prod/log-agent/run.sh config --quiet
-bash deploy/prod/log-agent/run.sh up -d
-```
+앱 VM마다 `deploy/log-agent-<vm>` 문서를 만들고 `runtime.LOG_HOST`·`LOKI_PUSH_URL`을 지정한다.
+Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. `Prod-CD(log-agent-<vm>)`을
+준비한 뒤 같은 수동 workflow에서 `service=log-agent`, `target=log-agent-<vm>`으로 적용한다.
+주소를 확정하면 inventory에 같은 service와 서로 다른 target을 등록해 자동 변경 감지에도 포함한다.
 
 기존 Promtail은 Alloy 전환 시 중지한다. 읽기 위치 형식이 달라 남아 있던 로그가 재전송될 수 있다.
 서비스별 로그 필드 정규화와 수집 누락은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)에서 관리한다.
@@ -107,6 +143,9 @@ bash deploy/prod/log-agent/run.sh up -d
 Docker 상태와 포트 점유를 확인해 이전 컨테이너를 복원하거나 잔여 컨테이너를 정리한다.
 이전 컨테이너의 IP·포트가 새 설정과 다르면 복원 후 원래 주소로 상태를 확인한다.
 
-수동 롤백은 이전 SHA의 파일 묶음에서 같은 SHA의 이미지 태그로 배포한다. 실행 중 컨테이너의
-bind mount가 참조하는 릴리스와 복구용 릴리스는 삭제하지 않는다.
+수동 롤백은 같은 workflow에 이전 이미지 SHA와 `configuration_version`을 지정한다.
+이는 배포 문서 버전만 고정한다. `runtime_refs`·`application_refs`와 Config Server 애플리케이션
+속성은 최신 값을 읽으므로 필요하면 해당 Vault 경로도 먼저 복원한다. DB 계정·외부 API key의
+실제 회전은 Vault 문자열 교체만으로 수행되지 않으며 기존 키의 유효 기간과 재배포 순서를 맞춘다.
+실행 중 컨테이너의 bind mount가 참조하는 릴리스·파일 시크릿과 복구용 snapshot은 삭제하지 않는다.
 디스크 보존 정책의 자동화는 [릴리스 정리 TODO](todo/items/44-deployment/release-retention.md)로 분리한다.
