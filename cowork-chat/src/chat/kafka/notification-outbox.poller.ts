@@ -153,12 +153,12 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     ): Promise<void> {
         try {
             await this.processMessage(msg, memberCache, parentCache);
-            await this.messageRepository.updateNotificationStatus(msg._id, 'SENT');
+            await this.messageRepository.updateNotificationStatus(msg._id, msg.notificationClaimId!, 'SENT');
         } catch (err) {
             const retryCount = (msg.notificationRetryCount ?? 0) + 1;
             const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
             this.logger.error(`Outbox processing failed (messageId: ${msg._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, err);
-            await this.messageRepository.updateNotificationStatus(msg._id, nextStatus, retryCount);
+            await this.messageRepository.updateNotificationStatus(msg._id, msg.notificationClaimId!, nextStatus, retryCount);
             if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
                 void this.dicoshot.sendCustom({
                     title: '⚠️ 알림 발송 영구 실패',
