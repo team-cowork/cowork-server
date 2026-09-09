@@ -1,0 +1,28 @@
+{
+  "ssh": {
+    "host": "ssh.example.com",
+    "port": 22,
+    "user": "ubuntu",
+    "key": "REPLACE_WITH_PRIVATE_KEY",
+    "fingerprint": "SHA256:REPLACE_WITH_VERIFIED_HOST_FINGERPRINT"
+  },
+  "runtime": {
+    "APP_CONFIG_PROFILE": "prod",
+    "ADVERTISE_IP": "10.0.1.12",
+    "BIND_IP": "10.0.1.12",
+    "HOST_PORT": "8089",
+    "CONFIG_SERVER_URL": "http://config.internal:8761",
+    "EUREKA_SERVER_URL": "http://config.internal:8761/eureka/",
+    "KAFKA_BOOTSTRAP_SERVERS": "kafka.internal:9094",
+    "MYSQL_HOST": "mysql.internal",
+    "MYSQL_USER": "cowork",
+    "GITHUB_APP_SERVICE_URL": "http://github-app.internal:3000/",
+    "HEALTH_TIMEOUT_SECONDS": "420"
+  },
+  "runtime_refs": {
+    "COWORK_MYSQL_PASSWORD": {"path": "application", "key": "MYSQL_PASSWORD"},
+    "COWORK_GITHUB_APP_INTERNAL_API_KEY": {"path": "cowork-project", "key": "github-app.internal-api-key"}
+  },
+  "application": {},
+  "files": {}
+}
