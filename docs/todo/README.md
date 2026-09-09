@@ -42,9 +42,13 @@
 - security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
 - ~~reliability: [상태 토픽 키 포맷 변경에 따른 토픽 버전 분리](./items/40-reliability/state-topic-key-versioning.md)~~
 - configuration: [cowork-user 기동 부트스트랩의 애플리케이션 내부 이관](./items/41-configuration/user-entrypoint-in-app-bootstrap.md)
+- deployment: [여러 VM의 배포 설정 전환](./items/42-deployment/multi-vm-rollout.md)
+- monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
+- deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 
 ## 점검 스냅샷
 
+- [20260910](./20260910_TODO.md) — 분산 배포 운영 전환과 유지보수 점검
 - [20260907](./20260907_TODO.md) — 상태 토픽 키 계약과 projection 복구 경로 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
 - [20260828](./20260828_TODO.md) — 서버 의존성·애플리케이션 코드 점검

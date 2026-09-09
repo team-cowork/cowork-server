@@ -82,9 +82,9 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 1. 일반 설정은 `cowork-config/src/main/resources/configs/cowork-{service}-{profile}.yml`에 추가한다.
 2. 시크릿은 코드에 값을 넣지 않고 Vault key 이름만 정의한다.
-3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `vault-init.sh` 저장 경로를 함께 갱신한다.
+3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `deploy/config/vault/seed-secrets.sh` 저장 경로를 함께 갱신한다.
 4. 파일형 credential은 read-only Docker secret 또는 배포 secret volume을 사용한다.
-5. 모듈 README의 설정 공급 표를 함께 갱신한다.
+5. 코드만으로 알 수 없는 설정 제약과 운영 절차만 `docs/`에 갱신하고, 후속 구현은 `docs/todo/`로 분리한다.
 6. `docker compose config --quiet`와 해당 모듈의 핵심 비즈니스·권한·보안 단위 테스트를 실행한다.
 
 ## 운영 체크
@@ -101,3 +101,5 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 - Config Server/Eureka의 `8761`은 Compose 내부망 또는 배포 플랫폼의 private control-plane network에서만 접근시킨다. 운영 Compose는 Gateway 이외의 application/infra/ops host port를 제거한다.
 - 다중 replica의 Eureka instance ID는 명시적 `EUREKA_INSTANCE_ID`가 있으면 이를 사용하고, 없으면 runtime hostname·application·port 조합으로 만든다. non-Spring 서비스는 `EUREKA_USE_RUNTIME_HOSTNAME=true`일 때 non-loopback 내부 IP를 광고하며 consumer group ID에는 replica suffix를 붙이지 않는다.
 - Config Server와 Vault를 우회하는 서비스 직접 포트는 운영 외부망에 공개하지 않는다.
+
+배포 경로, VM별 endpoint와 local→prod 전환은 [배포 가이드](deployment.md)를 참고한다. 운영 Vault 재배포에서는 local 시크릿 seed를 실행하지 않는다.
