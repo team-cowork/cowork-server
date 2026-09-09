@@ -53,7 +53,10 @@ VM에는 Docker Engine, Compose 2.24.4 이상, Bash, curl, flock, Git, Python 3�
 
 ## 외부에서 값 변경과 재배포
 
-아래 workflow는 이 변경이 `main`에 반영된 뒤 사용한다. 처음에는 새 배포 스크립트를 포함해 빌드된 SHA를 선택한다.
+기존 `cowork prod CD Workflow` (`cowork-prod-cd.yml`)에서 자동 배포와 수동 작업을 함께 처리한다.
+CI 성공 시 기존 빌드·릴리스·배포 흐름이 실행된다. 수동 실행은 `operation=update-config`로 Vault 문서를
+교체하거나 `operation=redeploy`로 기존 이미지에 설정을 다시 적용한다. 수동 작업은 이미지를 새로 빌드하지 않는다.
+이 변경이 `main`에 반영된 뒤 새 배포 스크립트를 포함해 빌드된 SHA를 선택한다.
 
 아래는 `project` 배포 문서를 교체하는 예다. 저장소 밖의 `project.json`을 권한 `600`으로 준비한다.
 `expected_version`은 Vault에 표시된 현재 버전이며 새 경로 생성에만 `0`을 쓴다.
@@ -61,7 +64,7 @@ VM에는 Docker Engine, Compose 2.24.4 이상, Bash, curl, flock, Git, Python 3�
 ```bash
 target=project
 gh secret set VAULT_UPDATE_JSON --env "Config-Update($target)" < /secure/project.json
-gh workflow run cowork-vault-config.yml --ref main \
+gh workflow run cowork-prod-cd.yml --ref main -f operation=update-config \
   -f target="$target" -f scope=deployment -f profile=base -f expected_version=3
 ```
 
@@ -71,7 +74,7 @@ workflow 성공과 출력 버전을 확인한 뒤 다음 입력을 실행한다.
 ```bash
 target=project
 sha=REPLACE_WITH_40_CHARACTER_MAIN_SHA
-gh workflow run cowork-deploy.yml --ref main \
+gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
   -f service=project -f target="$target" -f sha="$sha" -f check_only=true
 # 위 실행 성공 확인 후 같은 명령에서 check_only=false로 적용
 gh secret delete VAULT_UPDATE_JSON --env "Config-Update($target)"
@@ -87,7 +90,7 @@ Config Server부터 배포한다. 모든 앱이 동적 refresh를 지원한다�
 `VAULT_UPDATE_JSON`은 성공 후 삭제한다. GitHub Secret의 [48 KB 제한](https://docs.github.com/en/actions/reference/security/secrets)을
 넘는 문서는 Vault UI/API에서 수정한다. 배포 snapshot은 SSH 전달을 위해 64 KiB 이하로 제한한다.
 
-Vault 복구는 `service=vault`, `target=vault`, `vault_recovery=true`로 실행한다. 평상시에는 이 옵션을
+Vault 복구는 `operation=redeploy`, `service=vault`, `target=vault`, `vault_recovery=true`로 실행한다. 평상시에는 이 옵션을
 사용하지 않는다. 토큰 만료·회전, Vault 백업과 실제 전환 확인은 [운영 전환 TODO](todo/items/42-deployment/multi-vm-rollout.md)에 남긴다.
 
 ## 기존 프로세스와 데이터 유지
