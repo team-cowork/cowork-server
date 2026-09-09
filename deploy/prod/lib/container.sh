@@ -1,9 +1,5 @@
 #!/bin/bash
 # Pull/create before stopping the old container. Keep it for rollback after cutover.
-advertise_ip() {
-  ip -4 route get "$1" | awk '{for(i=1;i<=NF;i++) if($i=="src"){print $(i+1); exit}}'
-}
-
 wait_for_health() {
   # Snapshot republication alone can take 300s; allow a VM-specific readiness budget.
   local url="$1" deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS)) remaining request_timeout

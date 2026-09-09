@@ -46,7 +46,6 @@ bin/
 
 ### Environment ###
 *.env
-!deploy/prod/runtime.env
 .env
 .env.*
 !.env.example
