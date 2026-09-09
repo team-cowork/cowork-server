@@ -1,5 +1,8 @@
 #!/bin/bash
 # cowork-voice 배포 스크립트 (전용 VM, cowork-server_default 네트워크 밖 — 내부 IP 10.0.0.93으로 공유 인프라 접근)
+#
+# 새 이미지를 임시 컨테이너로 먼저 헬스체크하고 통과했을 때만 기존 컨테이너를 교체한다
+# (scripts/run/prod/_lib.sh의 deploy_container_safely) — 실패해도 서비스가 내려가지 않는다.
 set -euo pipefail
 
 : "${DEPLOY_IMAGE_OWNER:?DEPLOY_IMAGE_OWNER is required}"
@@ -8,21 +11,21 @@ set -euo pipefail
 : "${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is required}"
 : "${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is required}"
 
+# shellcheck source=/dev/null
+source "$(dirname "${BASH_SOURCE[0]}")/_lib.sh"
+
 INFRA_HOST="10.0.0.93"
 CONTAINER="cowork-voice"
 IMAGE="ghcr.io/${DEPLOY_IMAGE_OWNER}/cowork-voice:${DEPLOY_IMAGE_TAG}"
 PORT=8089
-SELF_IP="$(hostname -I | awk '{print $1}')"
+SELF_IP="$(advertise_ip "${INFRA_HOST}")"
+
+ghcr_login_if_needed
 
 echo "[voice] pulling ${IMAGE}"
 docker pull "${IMAGE}"
 
-echo "[voice] removing existing container (if any)"
-docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
-
-echo "[voice] starting new container"
-docker run -d --name "${CONTAINER}" --restart unless-stopped \
-  -p ${PORT}:${PORT} \
+deploy_container_safely "${CONTAINER}" "${PORT}" "${PORT}" "/health/ready" "${IMAGE}" -- \
   -e APP_CONFIG_URL="http://${INFRA_HOST}:8761" \
   -e APP_PROFILE=local \
   -e PORT="${PORT}" \
@@ -36,18 +39,4 @@ docker run -d --name "${CONTAINER}" --restart unless-stopped \
   -e LIVEKIT_WS_URL="ws://141.164.42.34:7880" \
   -e LIVEKIT_API_KEY="${LIVEKIT_API_KEY}" \
   -e LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET}" \
-  -e CHANNEL_SERVICE_URL="http://10.0.0.97:8083" \
-  "${IMAGE}"
-
-echo "[voice] waiting for health check"
-for _ in $(seq 1 45); do
-  if curl -sf "http://127.0.0.1:${PORT}/health/ready" >/dev/null; then
-    echo "[voice] healthy"
-    exit 0
-  fi
-  sleep 2
-done
-
-echo "[voice] FAILED health check after deploy" >&2
-docker logs --tail 50 "${CONTAINER}" >&2 || true
-exit 1
+  -e CHANNEL_SERVICE_URL="http://10.0.0.97:8083"
