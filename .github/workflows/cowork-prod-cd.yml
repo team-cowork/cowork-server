@@ -51,7 +51,11 @@ jobs:
   build-images:
     name: Build and push ${{ matrix.service }}
     needs: prepare
-    if: needs.prepare.outputs.should_release == 'true'
+    # should_release는 "v<version> 태그/릴리스를 새로 만들지"만 결정해야 한다 — sha-<sha>
+    # 이미지는 release job과 무관하게 매 성공한 커밋마다 항상 push돼야 deploy job이
+    # 기대하는 이미지를 항상 찾을 수 있다. 예전엔 이 job 자체가 should_release로
+    # 걸려 있어서, VERSION을 안 올린 커밋은 이미지가 아예 안 만들어지고 deploy만
+    # 그대로 실행돼 docker pull이 실패했다(리뷰 지적).
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -122,9 +126,12 @@ jobs:
           push: true
           provenance: mode=max
           sbom: true
+          # sha-<sha> 태그는 deploy job이 항상 pull해야 하므로 매번 push한다.
+          # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
+          # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
           tags: |
-            ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:v${{ needs.prepare.outputs.version }}
             ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha }}
+            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
@@ -209,6 +216,11 @@ jobs:
             monitoring:
               - 'cowork-monitoring/**'
               - 'scripts/run/prod/monitoring.sh'
+              # monitoring.sh가 이제 docker compose -f docker-compose.yml -f
+              # docker-compose.prod.yml을 명시적으로 호출하므로(리뷰 지적), 그
+              # 파일들만 바뀐 커밋도 배포를 일으켜야 서버가 저장소보다 뒤처지지 않는다.
+              - 'docker-compose.yml'
+              - 'docker-compose.prod.yml'
       - name: Build deploy matrix
         id: build-matrix
         run: |
@@ -263,7 +275,9 @@ jobs:
           DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           DEPLOY_IMAGE_OWNER: ${{ needs.prepare.outputs.owner }}
           DEPLOY_IMAGE_TAG: sha-${{ github.event.workflow_run.head_sha }}
-          COWORK_MYSQL_PASSWORD: ${{ secrets.COWORK_MYSQL_PASSWORD }}
+          # MySQL을 실제로 쓰는 서비스에만 비밀번호를 실어 보낸다(리뷰 지적: 예전엔
+          # roadmap 하나만 쓰는데 매트릭스의 전 서비스 SSH 세션에 실렸다).
+          COWORK_MYSQL_PASSWORD: ${{ contains(fromJSON('["team","channel","authorization","user","project","notification","roadmap"]'), matrix.service) && secrets.COWORK_MYSQL_PASSWORD || '' }}
         with:
           host: ${{ secrets.COWORK_SSH_HOST }}
           port: ${{ matrix.port }}
@@ -272,15 +286,37 @@ jobs:
           command_timeout: 20m
           envs: DEPLOY_SHA,DEPLOY_IMAGE_OWNER,DEPLOY_IMAGE_TAG,COWORK_MYSQL_PASSWORD
           script: |
-            cd ~/cowork-server 2>/dev/null && git fetch origin --quiet || true
-            if [ -d ~/cowork-server/.git ]; then
-              cd ~/cowork-server
-              git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/${{ matrix.service }}.sh" 2>/dev/null || true
+            set -euo pipefail
+
+            # 같은 VM에 여러 서비스가 동시에 배포될 수 있어(예: 21108의 team/gateway/
+            # config/monitoring), 공유 클론의 git 작업만 VM 단위로 직렬화한다. 실제
+            # docker run/헬스체크는 잠금을 풀고 병렬로 진행한다(리뷰 지적).
+            exec 9>/tmp/cowork-cd-git.lock
+            flock -w 120 9
+
+            if [ ! -d ~/cowork-server/.git ]; then
+              echo "cloning cowork-server (first deploy on this VM)"
+              git clone https://github.com/team-cowork/cowork-server.git ~/cowork-server
             fi
-            if [ -f ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh ]; then
+            cd ~/cowork-server
+            git fetch origin --quiet
+
+            CHECKOUT_ERR="$(mktemp)"
+            if git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/${{ matrix.service }}.sh" 2>"${CHECKOUT_ERR}"; then
+              flock -u 9
               bash ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh
-            else
+            elif grep -q "did not match any file" "${CHECKOUT_ERR}"; then
+              # 이 서비스는 아직 scripts/run/prod/로 안 옮겨졌다는 뜻 — 기존 서버-로컬
+              # 스크립트로 폴백하는 건 정상 동작이다.
+              flock -u 9
               bash -e ~/deploy-${{ matrix.service }}.sh
+            else
+              # 그 외 실패(클론 손상, DEPLOY_SHA를 못 찾음 등)는 예전엔 `|| true`로
+              # 삼켜서 조용히 낡은 스크립트가 돌고 CD는 성공으로 보고했다(리뷰 지적).
+              # 이제는 명확히 실패시킨다.
+              echo "git checkout failed unexpectedly:" >&2
+              cat "${CHECKOUT_ERR}" >&2
+              exit 1
             fi
 
   notify:
