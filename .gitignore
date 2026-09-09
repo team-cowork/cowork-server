@@ -45,6 +45,8 @@ vendor/
 bin/
 
 ### Environment ###
+*.env
+!deploy/prod/runtime.env
 .env
 .env.*
 !.env.example
@@ -75,8 +77,10 @@ SPEC.md
 .worktrees/
 
 ### Secrets ###
+# Keep the legacy location excluded until other checkouts move their local credentials.
 docker/secrets/
-!docker/secrets/.gitkeep
+deploy/local/secrets/*
+!deploy/local/secrets/.gitkeep
 
 ### Maven ###
 # Maven build output (cowork-project)
