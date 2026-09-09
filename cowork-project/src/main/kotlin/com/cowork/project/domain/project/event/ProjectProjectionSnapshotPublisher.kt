@@ -112,6 +112,6 @@ class ProjectProjectionSnapshotPublisher(
         const val INITIAL_RETRY_DELAY_MS = 1_000L
         const val REPUBLISH_INTERVAL_MS = 300_000L
         const val SNAPSHOT_LOCK_NAME = "cowork-project:project-snapshot"
-        val SNAPSHOT_TOPICS = setOf("project.event", "project.member.event")
+        val SNAPSHOT_TOPICS = setOf(ProjectEventPublisher.TOPIC, ProjectMemberEventPublisher.TOPIC)
     }
 }
