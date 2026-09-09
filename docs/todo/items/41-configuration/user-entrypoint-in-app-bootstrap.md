@@ -7,7 +7,7 @@
 ## 문제
 
 `cowork-user/docker-entrypoint.sh`는 저장소에 남아 있는 유일한 entrypoint 스크립트다. 나머지 11개
-서비스는 `prod.dockerfile`에서 실행 바이너리를 직접 `ENTRYPOINT`로 지정하고, 설정 조회와 마이그레이션을
+서비스는 `Dockerfile.prod`에서 실행 바이너리를 직접 `ENTRYPOINT`로 지정하고, 설정 조회와 마이그레이션을
 애플리케이션 안에서 끝낸다. JVM 7종은 `spring.config.import: "optional:configserver:..."`와
 `spring.flyway` 자동설정에 맡기고, Go 3종은 `internal/config/config.go`가 `APP_CONFIG_URL`을 직접
 조회하고 `cowork-authorization/cmd/main.go:75`처럼 `Migrate(...)`를 코드에서 호출한다. cowork-user만
@@ -25,10 +25,10 @@
 `set_from_config`과 같은 다중 키 후보 방식을 쓴다. 즉 같은 계약을 셸과 Elixir가 각각 구현해두었고,
 Config Server의 프로퍼티 키가 바뀌면 두 곳을 함께 고쳐야 한다.
 
-두 번째 비용은 런타임 이미지다. `prod.dockerfile:3`이 `flyway/flyway:12.8.1`을 스테이지로 받아 `:34`에서
+두 번째 비용은 런타임 이미지다. `Dockerfile.prod:3`이 `flyway/flyway:12.8.1`을 스테이지로 받아 `:34`에서
 `/flyway`를 통째로 복사하고, 이를 실행하려고 `:27`에서 `default-jre-headless`를 설치한다. Elixir 릴리스
 이미지가 Flyway CLI 때문에 JRE를 함께 지고 있는 셈이다. `curl`과 `jq`도 entrypoint 전용이다
-(healthcheck는 `docker-compose.yml:712`에서 `wget`을 쓴다).
+(healthcheck는 `deploy/compose/stack.yaml`의 `cowork-user`에서 `wget`을 쓴다).
 
 ## 이관 가능성
 
@@ -105,11 +105,11 @@ Go 구현이 참고할 골격을 이미 보여준다.
 
 ### 이미지 정리
 
-- `prod.dockerfile`에서 flyway 스테이지(`:3`), `/flyway` 복사(`:34-35`), `PATH` 추가(`:38`)를 제거한다
+- `Dockerfile.prod`에서 flyway 스테이지(`:3`), `/flyway` 복사(`:34-35`), `PATH` 추가(`:38`)를 제거한다
 - `:27`의 `default-jre-headless`, `jq`, `curl`을 제거한다 (healthcheck가 쓰는 `wget`은 유지한다)
 - `docker-entrypoint.sh`와 `:37`·`:40`·`:43`의 복사·권한·`ENTRYPOINT` 지정을 제거하고
   `ENTRYPOINT ["/app/bin/cowork_user", "start"]`로 바꾼다
-- `local.dockerfile:35`·`:39`·`:41`도 같이 정리한다
+- `Dockerfile.local:35`·`:39`·`:41`도 같이 정리한다
 
 ## 검증
 
@@ -124,7 +124,7 @@ Go 구현이 참고할 골격을 이미 보여준다.
 ## 완료 조건
 
 - `cowork-user/docker-entrypoint.sh`가 저장소에 존재하지 않는다
-- `prod.dockerfile`이 Flyway CLI와 JRE를 포함하지 않는다
+- `Dockerfile.prod`이 Flyway CLI와 JRE를 포함하지 않는다
 - Config Server 조회 로직이 `AppConfig` 한 곳에만 있다
 - 스키마 마이그레이션이 애플리케이션 기동 과정에서 자동으로 실행된다
 - 다른 11개 서비스와 동일하게 `ENTRYPOINT`가 실행 바이너리를 직접 가리킨다
