@@ -16,7 +16,6 @@ categories:
       - { name: Tailwind CSS, color: "#06b6d4" }
       - { name: TanStack Query, color: "#ff4154" }
       - { name: Axios, color: "#5a29e4" }
-      - { name: Vue.js, color: "#4fc08d" }
       - { name: Flutter, color: "#02569b" }
       - { name: Kotlin Multiplatform, color: "#7f52ff" }
 
