@@ -16,7 +16,7 @@
 #     (리뷰에서 127.0.0.1로 좁히자는 제안이 있었지만, 그 "직접 붙는 서비스들"이 전부 다른
 #     VM에 있어서 127.0.0.1 바인딩은 그쪽 호출까지 막아버린다 — 전부 마이그레이션 끝난
 #     뒤에나 안전하게 좁힐 수 있다.)
-# VAULT_HOST/VAULT_SCHEME=https는 이미 docker/vault/docker-compose.vault.yml 기반의
+# VAULT_HOST/VAULT_SCHEME=https는 이미 ops/vault/docker-compose.yml 기반의
 # 영구 저장+TLS Vault(scripts/run/prod/vault.sh)를 가리키도록 아래에서 실제로 맞춰져 있다 —
 # 남은 TODO는 위 두 가지뿐이다.
 set -euo pipefail
