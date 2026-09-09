@@ -4,6 +4,7 @@ import ast
 import json
 import os
 import re
+import runpy
 import subprocess
 from pathlib import Path
 
@@ -55,14 +56,14 @@ for name, files in models.items():
     print(f"{name}: Compose configuration and repository paths valid ({len(model['services'])} services)")
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
+settings_schema = runpy.run_path(str(ROOT / "deploy/prod/vault-settings.py"))
+settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()))
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]
-    if name in seen or not (ROOT / "deploy/prod/services" / f"{name}.sh").is_file():
+    if target["target"] in seen or not (ROOT / "deploy/prod/services" / f"{name}.sh").is_file():
         raise SystemExit(f"Duplicate or missing deployment unit: {name}")
-    seen.add(name)
-    if not isinstance(target["ssh_port"], int) or not 1 <= target["ssh_port"] <= 65535:
-        raise SystemExit(f"Invalid SSH port: {name}")
-if inventory["config_profile"] not in {"local", "prod"}:
-    raise SystemExit("Invalid Config Server profile in inventory")
+    seen.add(target["target"])
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", target["target"]):
+        raise SystemExit(f"Invalid deployment target: {name}")
 print(f"Shell/Python syntax and {len(seen)} inventory targets valid")
