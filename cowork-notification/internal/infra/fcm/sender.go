@@ -2,7 +2,10 @@ package fcm
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log/slog"
+	"strings"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
@@ -25,15 +28,29 @@ func (s *Sender) checkUnregistered(err error) bool {
 	return messaging.IsUnregistered(err)
 }
 
-func NewSender(ctx context.Context, credentialsFile string) (*Sender, error) {
-	//nolint:staticcheck // SA1019: 자격증명 파일 경로 기반 초기화를 의도적으로 유지 (별도 마이그레이션 과제)
-	app, err := firebase.NewApp(ctx, nil, option.WithCredentialsFile(credentialsFile))
+func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
+	var account struct {
+		Type        string `json:"type"`
+		ProjectID   string `json:"project_id"`
+		ClientEmail string `json:"client_email"`
+		PrivateKey  string `json:"private_key"`
+	}
+	if err := json.Unmarshal([]byte(credentialsJSON), &account); err != nil {
+		return nil, errors.New("fcm.credentials-json must be a JSON object")
+	}
+	if account.Type != "service_account" || strings.TrimSpace(account.ProjectID) == "" ||
+		strings.TrimSpace(account.ClientEmail) == "" || strings.TrimSpace(account.PrivateKey) == "" {
+		return nil, errors.New("fcm.credentials-json requires service_account type, project_id, client_email and private_key")
+	}
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: account.ProjectID},
+		option.WithAuthCredentialsJSON(option.ServiceAccount, []byte(credentialsJSON)))
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to initialize Firebase with fcm.credentials-json")
 	}
 	client, err := app.Messaging(ctx)
 	if err != nil {
-		return nil, err
+		// Credential parsing errors can contain input values; never log the original error.
+		return nil, errors.New("failed to initialize Firebase messaging; check fcm.credentials-json service account credentials")
 	}
 	return &Sender{
 		client:         client,
