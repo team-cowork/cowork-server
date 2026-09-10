@@ -77,6 +77,7 @@ SPEC.md
 ### Secrets ###
 docker/secrets/
 !docker/secrets/.gitkeep
+deploy/local/secrets/*
 
 ### Maven ###
 # Maven build output (cowork-project)
