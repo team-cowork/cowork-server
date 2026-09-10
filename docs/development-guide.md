@@ -179,14 +179,44 @@ Vert.x + Flyway를 사용합니다. 스키마는 `src/main/resources/db/migratio
 서비스 간 상태 전파와 조회 모델 동기화에는 Kafka를 사용합니다. 상태 토픽은 aggregate ID 기반 key,
 UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니다.
 
+애플리케이션 토픽 이름은 `<domain>[.<resource>...].<contract>.v<major>`를 사용합니다. 소문자와 점으로
+구간을 나누고, 구간 안의 여러 단어는 하이픈으로 연결합니다. 신규 토픽은 재구성 가능한 상태에 `state`,
+소유자에게 보내는 요청에 `command`, 처리 결과에 `result`, 이력 자체가 필요한 발생 사실에 `event`를
+사용합니다. 기존 무버전 토픽은 legacy v1이며, 호환성을 깨는 변경 때 기존 이름 뒤에 `.v2`를 붙입니다.
+따라서 아래 네 `.event.v2`는 이름과 달리 모두 compacted state 계약입니다. 무관한 기존 토픽이나
+프레임워크 소유 토픽을 명명 통일만을 위해 변경하지 않습니다.
+
+키의 바이트 표현·식별자 의미, partition routing, 비호환 payload 변경은 새 major 토픽과 projection
+재구축으로 전환합니다. 모든 reader와 호환되는 선택 필드 추가는 버전을 올리지 않습니다. Compaction과
+순서는 partition 안에서만 보장되므로 배포한 state 토픽의 partition 수와 key routing도 고정합니다.
+소비자가 실제로 DLT를 사용하는 경우에만 `<전체 원본 토픽>-dlt`로 만들고 delete retention을 적용합니다.
+
+| 상태 토픽 | Producer | Consumer | 데이터 key | 보존·snapshot |
+|---|---|---|---|---|
+| `channel.event.v2` | cowork-channel | cowork-project, cowork-chat | `<channelId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `channel.member.event.v2` | cowork-channel | cowork-chat, cowork-voice | `<channelId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `project.event.v2` | cowork-project | cowork-channel, cowork-chat | `<projectId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `project.member.event.v2` | cowork-project | cowork-chat | `<projectId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+
+데이터 key는 양의 정수 ID를 선행 0 없는 UTF-8 십진 문자열로 인코딩합니다. 완료 marker는 데이터 key와 분리된
+예약 key를 사용합니다. 이벤트와 marker가 같은 토픽 상수를 참조하며, consumer group의 기존 `v2` 표시는
+토픽 버전과 별개입니다. 기존 데이터가 있는 환경의 배포 순서와 실행 명령은
+[상태 토픽 v2 운영 전환](./kafka-state-topic-cutover.md)을 따릅니다.
+
+`cleanup.policy=compact`는 각 partition의 동일한 직렬화 key에 마지막으로 추가된 값을 남기며,
+`occurredAt`이 가장 큰 값을 고르지 않습니다. 다른 key로 남은 은퇴 포맷은 시간 경과만으로 없어지지
+않습니다. 현재 삭제 이벤트는 non-null JSON과 소유자 DB의 삭제 이력으로 보존합니다. 이는
+`delete.retention.ms` 이후 제거될 수 있는 Kafka의 null-value tombstone과 구별합니다.
+
 Projection consumer는 broker group offset을 복구 기준으로 사용하지 않습니다. 로컬 projection 저장소에
 `(consumer group, topic, partition, next_offset)` checkpoint를 상태 반영과 함께 기록합니다. Client가
 broker topic UUID를 제공하면 checkpoint와 함께 저장해 assignment와 range 검사 때 동일성을 검증합니다.
-UUID를 제공하지 못하는 client의 공통 규칙은 프로세스 재시작·강제 복구 시 durable replay generation을
-만들고, 이전 replica lease를 차단한 뒤 checkpoint와 snapshot barrier를 broker earliest offset부터
-재구축하는 것입니다. 자세한 계약은 [Kafka Projection Rules](../.claude/rules/kafka-projections.md)를 따릅니다.
+일반 재시작은 같은 dataset·topic identity·retained offset 범위가 검증된 checkpoint에서 재개할 수 있습니다.
+신규·명시적 rebuild는 earliest부터 재생합니다. 연속성을 검증할 수 없다면 fail closed 후 이전 replica를
+차단하고 projection 데이터·checkpoint·snapshot barrier를 함께 재구축합니다. 자세한 계약은
+[Kafka Projection Rules](../.claude/rules/kafka-projections.md)를 따릅니다.
 
-현재 `cowork-chat` 구현은 이 규칙과 차이가 있습니다. 운영자가 설정한 source generation과 MongoDB
+현재 `cowork-chat`은 broker UUID 대신 운영자가 설정한 source generation과 MongoDB
 dataset generation, retained offset 범위가 일치하면 저장된 `nextOffset`에서 증분 재개하고, 세대 불일치나
 retention gap에서는 fail closed 후 명시적 rebuild를 요구합니다. 수동 source generation은 broker topic UUID를
 검증한 것과 같지 않으므로 이를 다른 client의 일반 규칙으로 적용하지 않습니다. 구현된 부분과 남은 정책·복구
@@ -206,9 +236,9 @@ marker는 새 복구 run으로 세지 않습니다. DB·MongoDB·Kafka 같은 �
 consumer position을 절대 진전시키지 않습니다. Docker/Eureka는 liveness가 아니라 각 서비스의
 readiness endpoint를 트래픽 허용 기준으로 사용합니다.
 
-Kafka 토픽 이름은 배포 후 불변입니다. UUID를 읽을 수 있는 client는 같은 이름의 topic 교체를 즉시
-감지합니다. topic identity를 제공하지 않는 client는 겹치는 offset 범위로 같은 이름이 교체되면 다음
-fenced replay 경계 전까지 연속성을 증명할 수 없으므로, topic 불변성과 coordinated projection rebuild가
+Kafka 토픽 이름은 배포 후 재사용하지 않습니다. UUID를 읽을 수 있는 client는 broker metadata를 다시
+확인할 때 같은 이름의 topic 교체를 감지합니다. UUID가 없으면 겹치는 offset 범위만으로 교체를 식별할
+수 없으므로, topic 불변성과 coordinated projection rebuild가
 필수입니다. 특히 authoritative owner DB나 Kafka dataset 교체로 과거 tombstone까지 사라지면 full
 replay만으로 projection의 잔존 행을 판별할 수 없습니다. 이 경우 관련 projection table, snapshot barrier,
 checkpoint를 함께 재구축한 뒤에만 트래픽을 다시 엽니다.
@@ -236,10 +266,10 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 | `team.member.event`                           | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
 | `user.profile.event`                          | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
 | `user.presence.event`                         | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
-| `channel.event`                               | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
-| `channel.member.event`                        | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
-| `project.event`                               | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
-| `project.member.event`                        | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
+| `channel.event.v2`                               | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
+| `channel.member.event.v2`                        | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
+| `project.event.v2`                               | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
+| `project.member.event.v2`                        | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
 | `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
 | `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
 | `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |

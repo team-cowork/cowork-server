@@ -43,28 +43,28 @@ const sourceGeneration = (name: string): string => (
 export const PROJECTION_STREAMS = {
     channel: {
         name: 'channel',
-        topic: 'channel.event',
+        topic: 'channel.event.v2',
         groupId: 'cowork-chat-channel-event-v2-projection',
         expectedSource: 'cowork-channel',
         sourceGeneration: sourceGeneration('CHANNEL'),
     },
     project: {
         name: 'project',
-        topic: 'project.event',
+        topic: 'project.event.v2',
         groupId: 'cowork-chat-project-event-v2-projection',
         expectedSource: 'cowork-project',
         sourceGeneration: sourceGeneration('PROJECT'),
     },
     channelMember: {
         name: 'channelMember',
-        topic: 'channel.member.event',
+        topic: 'channel.member.event.v2',
         groupId: 'cowork-chat-membership-v2-projection',
         expectedSource: 'cowork-channel',
         sourceGeneration: sourceGeneration('CHANNEL_MEMBER'),
     },
     projectMember: {
         name: 'projectMember',
-        topic: 'project.member.event',
+        topic: 'project.member.event.v2',
         groupId: 'cowork-chat-project-member-event-v2-projection',
         expectedSource: 'cowork-project',
         sourceGeneration: sourceGeneration('PROJECT_MEMBER'),
