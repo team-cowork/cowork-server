@@ -88,7 +88,7 @@ staging에서 기동을 검증한 뒤 기존 저장소와 자격 증명을 폐�
 | `cowork-channel`       | MySQL, Kafka, Eureka, AccountShare callback/redirect와 provider endpoint |
 | `cowork-chat`          | Elasticsearch, MongoDB, Kafka, Redis, SeaweedFS, Eureka, 업로드 제한     |
 | `cowork-gateway`       | 전체 route, CORS, Redis, Kafka, Eureka, Swagger, circuit breaker         |
-| `cowork-notification`  | Kafka, Firebase 파일 경로, Eureka instance                               |
+| `cowork-notification`  | Kafka, Firebase JSON 프로파일 속성, Eureka instance                               |
 | `cowork-preference`    | PostgreSQL, Redis, Kafka, Eureka instance                                |
 | `cowork-project`       | MySQL, Kafka, Eureka, GitHub App service URL                             |
 | `cowork-roadmap`       | R2DBC·Flyway MySQL, Kafka, Eureka                                        |

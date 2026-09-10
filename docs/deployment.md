@@ -13,7 +13,7 @@ Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM
 
 | Vault KV v2 경로 (`secret` mount 기준) | 관리하는 값 |
 | --- | --- |
-| `deploy/<target>` | `ssh` 접속 주소·포트·사용자·키·검증된 host fingerprint, `runtime` 배포 주소·프로파일·인프라 접속값, `application` 컨테이너 환경변수, `files` 파일형 시크릿 |
+| `deploy/<target>` | `ssh` 접속 주소·포트·사용자·키·검증된 host fingerprint, `runtime` 배포 주소·프로파일·인프라 접속값, `application` 컨테이너 환경변수 |
 | `application`, `application/<profile>` | Config Server가 배포하는 공통 애플리케이션 속성 |
 | `cowork-<service>`, `cowork-<service>/<profile>` | 서비스별 속성·시크릿. 정확한 키는 [설정 가이드](configuration.md)를 따른다. |
 
@@ -31,8 +31,9 @@ Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM
 같은 시크릿을 여러 번 복사하지 않으려면 양식의 `runtime_refs`처럼 Vault 경로와 키를 참조한다.
 `application_refs`도 같은 형식이며 해당 컨테이너 환경변수에 적용된다. 참조는 배포 시 최신 버전을
 읽고 읽은 경로별 버전을 기록한다. 읽기 토큰에는 참조 경로의 `read` 권한도 필요하다.
-notification의 `files.firebase-credentials.json`에는 Firebase JSON 객체를 넣는다. Actions가 전달하고
-VM의 배포별 비공개 디렉터리에 생성해 컨테이너에 읽기 전용으로 마운트한다.
+Firebase 자격 증명은 `cowork-notification/<profile>`의 `fcm.credentials-json` 문자열로 관리한다.
+Config Server가 활성 프로파일에 맞춰 전달하고 알림 서비스가 메모리에서 사용한다.
+배포 문서의 `files`와 파일 마운트는 사용하지 않는다.
 
 ### GitHub Environment와 Vault 권한
 
@@ -176,5 +177,5 @@ Docker 상태와 포트 점유를 확인해 이전 컨테이너를 복원하거�
 이는 배포 문서 버전만 고정한다. `runtime_refs`·`application_refs`와 Config Server 애플리케이션
 속성은 최신 값을 읽으므로 필요하면 해당 Vault 경로도 먼저 복원한다. DB 계정·외부 API key의
 실제 회전은 Vault 문자열 교체만으로 수행되지 않으며 기존 키의 유효 기간과 재배포 순서를 맞춘다.
-실행 중 컨테이너의 bind mount가 참조하는 릴리스·파일 시크릿과 복구용 snapshot은 삭제하지 않는다.
+실행 중 컨테이너의 bind mount가 참조하는 릴리스·설정 파일과 복구용 snapshot은 삭제하지 않는다.
 디스크 보존 정책의 자동화는 [릴리스 정리 TODO](todo/items/44-deployment/release-retention.md)로 분리한다.

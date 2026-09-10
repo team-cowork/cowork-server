@@ -63,17 +63,14 @@ openssl rand -base64 32
 
 ### Firebase credential
 
-`cowork-notification`을 포함한 전체 구성을 올리려면 다음 파일이 실제로 존재해야 한다.
+`cowork-notification`은 로컬 Vault의 `secret/cowork-notification/local`에 저장한
+`fcm.credentials-json`을 Config Server에서 읽는다. 서비스 계정 JSON 전체를 문자열로 등록한다.
+파일 마운트와 `FIREBASE_CREDENTIALS`·`FCM_CREDENTIALS_FILE` 설정은 사용하지 않는다.
 
-```text
-deploy/local/secrets/firebase-credentials.json
-```
-
-Compose는 이 파일을 `/run/secrets/firebase-credentials.json`에 read-only secret으로 전달한다.
-파일이 없으면 로컬 실행 스크립트가 즉시 종료한다. 기존 checkout에서 사용하던
-`docker/secrets/` 파일은 `deploy/local/secrets/`로 옮긴다. 다른 위치를 유지하려면 `.env`의
-`FIREBASE_CREDENTIALS`에 절대 경로를 지정한다. 호스트 notification 실행 시에는
-`FCM_CREDENTIALS_FILE`이 이 값보다 우선한다. 기존 `COMPOSE_PROJECT_NAME`은 그대로 유지한다.
+빈 Vault를 처음 올리면 인프라 초기화 후 Vault UI에서 이 값을 등록하고
+`docker compose restart cowork-notification`으로 다시 기동한다. 등록 전에는 알림 서비스가
+필수 설정 누락으로 종료한다. local seed는 프로파일 경로를 덮어쓰지 않는다.
+기존 프로파일 문서의 다른 속성은 보존하고 실제 개인키를 저장소에 기록하지 않는다.
 
 ## 3. 빈 상태에서 전체 기동
 
@@ -200,7 +197,8 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 ### 실행 스크립트가 바로 종료됨
 
-`.env`의 필수값과 `deploy/local/secrets/firebase-credentials.json` 존재 여부를 먼저 확인한다.
+`.env`의 필수값을 확인한다. 알림 서비스만 종료되면 로컬 Vault의
+`secret/cowork-notification/local`에 `fcm.credentials-json`이 문자열로 등록되어 있는지 확인한다.
 
 ### init job이 `Exited (1)`
 

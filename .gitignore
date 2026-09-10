@@ -79,7 +79,6 @@ SPEC.md
 # Keep the legacy location excluded until other checkouts move their local credentials.
 docker/secrets/
 deploy/local/secrets/*
-!deploy/local/secrets/.gitkeep
 
 ### Maven ###
 # Maven build output (cowork-project)
