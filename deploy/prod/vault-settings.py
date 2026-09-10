@@ -51,7 +51,7 @@ def parse_json(value):
 
 
 def validate_deployment(data):
-    demand(isinstance(data, dict) and set(data) <= {"ssh", "runtime", "application", "files", "runtime_refs", "application_refs"}, "Invalid deployment sections")
+    demand(isinstance(data, dict) and set(data) <= {"ssh", "runtime", "application", "runtime_refs", "application_refs"}, "Invalid deployment sections")
     ssh = data.get("ssh", {})
     demand(isinstance(ssh, dict) and set(ssh) == {"host", "port", "user", "key", "fingerprint"}, "ssh requires host, port, user, key, fingerprint")
     for key in ("host", "user", "key", "fingerprint"):
@@ -78,10 +78,6 @@ def validate_deployment(data):
     runtime = data.get("runtime", {})
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
-    files = data.get("files", {})
-    demand(isinstance(files, dict) and set(files) <= {"firebase-credentials.json"}, "Unsupported file secret")
-    if files:
-        demand(isinstance(files["firebase-credentials.json"], dict), "Firebase credential must be a JSON object")
     return data
 
 

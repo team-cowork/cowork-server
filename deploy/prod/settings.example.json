@@ -23,6 +23,5 @@
     "COWORK_MYSQL_PASSWORD": {"path": "application", "key": "MYSQL_PASSWORD"},
     "COWORK_GITHUB_APP_INTERNAL_API_KEY": {"path": "cowork-project", "key": "github-app.internal-api-key"}
   },
-  "application": {},
-  "files": {}
+  "application": {}
 }
