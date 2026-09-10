@@ -6,12 +6,12 @@
 
 ## 확정 계약
 
-| 은퇴할 토픽 | 새 토픽 | 데이터 key | Producer | Consumer |
-|---|---|---|---|---|
-| `channel.event` | `channel.event.v2` | `<channelId>` | cowork-channel | cowork-project, cowork-chat |
-| `channel.member.event` | `channel.member.event.v2` | `<channelId>:<userId>` | cowork-channel | cowork-chat, cowork-voice |
-| `project.event` | `project.event.v2` | `<projectId>` | cowork-project | cowork-channel, cowork-chat |
-| `project.member.event` | `project.member.event.v2` | `<projectId>:<userId>` | cowork-project | cowork-chat |
+| 은퇴할 토픽            | 새 토픽                   | 데이터 key             | Producer       | Consumer                    |
+|------------------------|---------------------------|------------------------|----------------|-----------------------------|
+| `channel.event`        | `channel.event.v2`        | `<channelId>`          | cowork-channel | cowork-project, cowork-chat |
+| `channel.member.event` | `channel.member.event.v2` | `<channelId>:<userId>` | cowork-channel | cowork-chat, cowork-voice   |
+| `project.event`        | `project.event.v2`        | `<projectId>`          | cowork-project | cowork-channel, cowork-chat |
+| `project.member.event` | `project.member.event.v2` | `<projectId>:<userId>` | cowork-project | cowork-chat                 |
 
 네 토픽 모두 `cleanup.policy=compact`이며 현재 상태와 삭제 이력을 전량 발행한다. Kafka null-value
 tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`는 별도 예약 key로 각 partition에
