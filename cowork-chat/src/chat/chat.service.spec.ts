@@ -11,17 +11,15 @@ const mockTo = jest.fn((room: string) => {
 
 const makeMockMessage = (overrides = {}) => ({
     _id: new Types.ObjectId(mockMessageId),
+    teamId: 10,
+    projectId: 100,
     channelId: 1,
     authorId: 42,
     content: '안녕하세요',
+    type: 'TEXT',
     isEdited: false,
     editHistory: [] as { content: string; editedAt: Date }[],
     updatedAt: new Date('2026-05-12T00:00:00.000Z'),
-    save: jest.fn().mockResolvedValue({
-        content: '수정됨',
-        isEdited: true,
-        updatedAt: new Date('2026-05-12T00:00:00.000Z'),
-    }),
     ...overrides,
 });
 
@@ -38,6 +36,13 @@ const mockMessageRepository = {
     addReaction: jest.fn(),
     removeReaction: jest.fn(),
     findPinnedMessages: jest.fn(),
+    applyEdit: jest.fn(),
+    setPinned: jest.fn(),
+    reserveDeletion: jest.fn(),
+};
+
+const mockMessageSearchDeletion = {
+    deleteMessage: jest.fn().mockResolvedValue('DELETED'),
 };
 
 
@@ -73,8 +78,6 @@ const mockBlockService = {
 };
 
 const mockElasticsearchService = {
-    updateMessage: jest.fn().mockResolvedValue(undefined),
-    deleteMessage: jest.fn().mockResolvedValue(undefined),
     searchMessages: jest.fn(),
     searchTeamMessages: jest.fn(),
 };
@@ -140,8 +143,14 @@ describe('ChatService', () => {
             mockBlockService as never,
             mockChatGateway as never,
             mockUnreadCounterService as never,
+            mockMessageSearchDeletion as never,
         );
         jest.clearAllMocks();
+        mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
+        mockMessageRepository.applyEdit.mockImplementation((_id: string, content: string) =>
+            Promise.resolve({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
+        mockMessageRepository.setPinned.mockImplementation((_id: string, isPinned: boolean) =>
+            Promise.resolve({ isPinned }));
         mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
         mockChannelMessageReadAccess.requireCanRead.mockResolvedValue(undefined);
         mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
@@ -483,7 +492,7 @@ describe('ChatService', () => {
 
             await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(NotFoundException);
 
-            expect(mockMessageRepository.deleteById).not.toHaveBeenCalled();
+            expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
         });
 
         it('다른 사용자가 올린 파일이면 삭제를 거부한다', async () => {
@@ -493,7 +502,7 @@ describe('ChatService', () => {
             });
 
             await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(ForbiddenException);
-            expect(mockMessageRepository.deleteById).not.toHaveBeenCalled();
+            expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
             expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
         });
 
@@ -504,12 +513,23 @@ describe('ChatService', () => {
                 projectId: null,
             });
             mockObjectStorageService.extractObjectKey.mockReturnValue('other/secret.png');
-            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             await service.deleteFile(ctx, fileId);
 
             expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
-            expect(mockMessageRepository.deleteById).toHaveBeenCalledWith(mockMessageId);
+            expect(mockMessageSearchDeletion.deleteMessage).toHaveBeenCalledWith(mockMessageId);
+        });
+
+        it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue({
+                authorId: 42,
+                attachments: [],
+            });
+            mockMessageSearchDeletion.deleteMessage.mockResolvedValue('ALREADY_IN_PROGRESS');
+
+            await service.deleteFile(ctx, fileId);
+
+            expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
         });
     });
 
@@ -526,18 +546,23 @@ describe('ChatService', () => {
     describe('editMessage', () => {
         const ctx = (overrides = {}) => ({ channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides });
 
-        it('본인 메시지를 수정하면 editHistory에 이전 내용이 저장된다', async () => {
+        it('본인 메시지를 수정하면 색인 대상 여부와 함께 원자적 수정을 요청한다', async () => {
             const msg = makeMockMessage();
             mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(msg);
 
             await service.editMessage(ctx(), { content: '수정됨' });
 
-            expect(msg.editHistory).toHaveLength(1);
-            expect(msg.editHistory[0].content).toBe('안녕하세요');
-            expect(msg.content).toBe('수정됨');
-            expect(msg.isEdited).toBe(true);
-            expect(msg.save).toHaveBeenCalled();
+            expect(mockMessageRepository.applyEdit).toHaveBeenCalledWith(mockMessageId, '수정됨', true);
+        });
+
+        it('DM 메시지는 색인 대상이 아님을 수정 요청에 전달한다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ teamId: null, projectId: null }));
+
+            await service.editMessage(ctx(), { content: '수정됨' });
+
+            expect(mockMessageRepository.applyEdit).toHaveBeenCalledWith(mockMessageId, '수정됨', false);
         });
 
         it('메시지가 없으면 NotFoundException을 던진다', async () => {
@@ -563,7 +588,7 @@ describe('ChatService', () => {
 
             await service.editMessage(ctx({ userRole: 'ADMIN' }), { content: '관리자 수정' });
 
-            expect(msg.save).toHaveBeenCalled();
+            expect(mockMessageRepository.applyEdit).toHaveBeenCalledWith(mockMessageId, '관리자 수정', true);
         });
 
         it('다른 채널의 메시지를 수정하려 하면 ForbiddenException을 던진다', async () => {
@@ -582,8 +607,7 @@ describe('ChatService', () => {
 
             const result = await service.editMessage(ctx(), { content: '안녕하세요' });
 
-            expect(msg.save).not.toHaveBeenCalled();
-            expect(mockElasticsearchService.updateMessage).not.toHaveBeenCalled();
+            expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
             expect(mockTo).not.toHaveBeenCalled();
             expect(result).toBe(msg);
         });
@@ -596,11 +620,10 @@ describe('ChatService', () => {
         it('본인 메시지를 삭제한다', async () => {
             mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
-            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             const result = await service.deleteMessage(ctx());
 
-            expect(mockMessageRepository.deleteById).toHaveBeenCalledWith(mockMessageId);
+            expect(mockMessageSearchDeletion.deleteMessage).toHaveBeenCalledWith(mockMessageId);
             expect(result.messageId).toBe(mockMessageId);
         });
 
@@ -623,11 +646,21 @@ describe('ChatService', () => {
         it('ADMIN은 다른 사람의 메시지도 삭제할 수 있다', async () => {
             mockChannelMemberRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(makeMockMessage({ authorId: 100 }));
-            mockMessageRepository.deleteById.mockResolvedValue({ deletedCount: 1 });
 
             await expect(
                 service.deleteMessage(ctx({ userRole: 'ADMIN' })),
             ).resolves.toBeDefined();
+        });
+
+        it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
+            mockChannelMemberRepository.exists.mockResolvedValue(true);
+            mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
+            mockMessageSearchDeletion.deleteMessage.mockResolvedValue('ALREADY_IN_PROGRESS');
+
+            const result = await service.deleteMessage(ctx());
+
+            expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+            expect(result.messageId).toBe(mockMessageId);
         });
 
     });
@@ -643,7 +676,7 @@ describe('ChatService', () => {
                 userId: 42,
                 userRole: 'MEMBER',
             })).rejects.toBeInstanceOf(BadRequestException);
-            expect(message.save).not.toHaveBeenCalled();
+            expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
         });
     });
 
@@ -658,7 +691,7 @@ describe('ChatService', () => {
                 userId: 42,
                 userRole: 'MEMBER',
             })).rejects.toBeInstanceOf(BadRequestException);
-            expect(message.save).not.toHaveBeenCalled();
+            expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
         });
     });
 

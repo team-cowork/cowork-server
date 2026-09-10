@@ -173,7 +173,6 @@
     border-color: var(--color-border-subtle);
     border-radius: var(--radius-2xl);
     background: var(--color-surface);
-    box-shadow: var(--shadow-sm);
     user-select: none;
 }
 
