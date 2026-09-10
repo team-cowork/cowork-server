@@ -333,6 +333,10 @@ jobs:
 
             CHECKOUT_ERR="$(mktemp)"
             if git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/${{ matrix.service }}.sh" 2>"${CHECKOUT_ERR}"; then
+              # 대부분의 스크립트가 scripts/run/prod/_lib.sh를 source한다 — 서비스
+              # 스크립트 하나만 checkout하면 이 공용 헬퍼가 없어서 전부 실패한다.
+              # 아직 이 커밋 이전이라 _lib.sh가 없는 경우도 있어(구 스크립트) 실패를 무시한다.
+              git checkout "${DEPLOY_SHA}" -- "scripts/run/prod/_lib.sh" 2>/dev/null || true
               flock -u 9
               bash ~/cowork-server/scripts/run/prod/${{ matrix.service }}.sh
             elif grep -q "did not match any file" "${CHECKOUT_ERR}"; then
