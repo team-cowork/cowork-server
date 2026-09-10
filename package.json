@@ -4,7 +4,6 @@
   },
   "dependencies": {
     "@nestjs/serve-static": "^5.0.5",
-    "antd": "^6.6.3",
     "nestjs-pino": "^4.6.1",
     "pino": "^10.3.1"
   }
