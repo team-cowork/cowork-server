@@ -9,7 +9,6 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { matchesChannelEventKey } from '../../common/kafka/projection-entity-key.util';
 import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository/channel-projection.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 
@@ -73,16 +72,16 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 });
             },
         }).catch(async (err) => {
-            this.logger.error('channel.event Kafka consumer failed', err);
+            this.logger.error(`${stream.topic} Kafka consumer failed`, err);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
-                description: 'cowork-chat의 channel.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'channel.event', inline: true }, ...buildErrorFields(err)],
+                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(err)],
             }).catch(() => {});
             process.exit(1);
         });
-        this.logger.log('Kafka projection consumer started: channel.event');
+        this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
     }
 
     async onModuleDestroy() {
@@ -94,7 +93,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('invalid channel event payload');
         }
         const event = payload;
-        if (!matchesChannelEventKey(messageKey, event.channelId, event.teamId)) {
+        if (messageKey !== `${event.channelId}`) {
             throw new ProjectionContractError(
                 `channel event key does not match channelId [key=${messageKey ?? '<missing>'}, channelId=${event.channelId}]`,
             );
