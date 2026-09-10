@@ -39,6 +39,14 @@ fi
 
 cd "${REPO_DIR}"
 
+# docker-compose.prod.yml은 이 파일 하나에 13개 서비스 전부의 image를
+# ${REGISTRY}/${IMAGE_TAG}로 선언해 두고 있어서, monitoring만 restart하려 해도
+# `docker compose config`가 전체 파일을 interpolate하며 이 값들을 요구한다.
+# 여기서는 실제로 pull/run에 안 쓰이니(다른 서비스는 안 건드림) 값 자체는 의미
+# 없고, 그냥 비어있지 않기만 하면 된다.
+export REGISTRY="${REGISTRY:-unused}"
+export IMAGE_TAG="${IMAGE_TAG:-unused}"
+
 echo "[monitoring] fetching ${DEPLOY_SHA}"
 git fetch origin --quiet
 
