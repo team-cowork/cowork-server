@@ -94,16 +94,6 @@ validate_env() {
     echo "Check your .env file at $PROJECT_ROOT/.env"
     exit 1
   fi
-
-  local firebase_credentials="${FIREBASE_CREDENTIALS:-${PROJECT_ROOT}/deploy/local/secrets/firebase-credentials.json}"
-  if [[ "$firebase_credentials" != /* ]]; then
-    firebase_credentials="$PROJECT_ROOT/$firebase_credentials"
-  fi
-  if [ ! -f "$firebase_credentials" ]; then
-    echo "ERROR: Firebase credential file is missing:"
-    echo "  - $firebase_credentials"
-    exit 1
-  fi
 }
 
 wait_healthy() {
