@@ -1,0 +1,8 @@
+[project]
+name = "untitled"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest-selenium>=4.1.0",
+    "webdriver-manager>=4.1.2",
+]
