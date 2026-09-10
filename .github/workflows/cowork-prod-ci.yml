@@ -247,7 +247,7 @@ jobs:
         uses: actions/checkout@v7
       - name: Setup JDK
         if: matrix.build == 'gradle'
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '25'
           distribution: 'temurin'
@@ -278,7 +278,7 @@ jobs:
           kotlin test
       - name: Setup Go
         if: matrix.build == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: ${{ matrix.go-version-file }}
           cache-dependency-path: ${{ matrix.working-directory }}/go.sum
@@ -313,7 +313,7 @@ jobs:
           ${{ matrix.build-command }}
       - name: Setup Node.js
         if: matrix.build == 'node'
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -349,24 +349,28 @@ jobs:
     steps:
       - name: Get Short SHA
         id: sha
-        run: echo "short=$(echo '${{ github.sha }}' | cut -c1-7)" >> $GITHUB_OUTPUT
+        run: echo "short=$(echo '${{ github.sha }}' | cut -c1-7)" >> "$GITHUB_OUTPUT"
 
       - name: Determine Status
         id: status
+        env:
+          RESULTS: "${{ needs.validate-title.result }} ${{ needs.validate-version.result }} ${{ needs.setup-pr-metadata.result }} ${{ needs.detect-changes.result }} ${{ needs.build-and-test.result }}"
         run: |
-          if [[ "${{ needs.validate-title.result }}" == "failure" ]] || \
-             [[ "${{ needs.validate-version.result }}" == "failure" ]] || \
-             [[ "${{ needs.build-and-test.result }}" == "failure" ]]; then
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "color=0xFF4C4C" >> $GITHUB_OUTPUT
-          elif [[ "${{ needs.build-and-test.result }}" == "success" ]] || \
-               [[ "${{ needs.build-and-test.result }}" == "skipped" ]]; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "color=0x4CAF50" >> $GITHUB_OUTPUT
-          else
-            echo "status=cancelled" >> $GITHUB_OUTPUT
-            echo "color=0xFFA500" >> $GITHUB_OUTPUT
-          fi
+          status="success"
+          color="0x4CAF50"
+          for res in ${RESULTS}; do
+            if [ "$res" = "failure" ]; then
+              status="failure"
+              color="0xFF4C4C"
+              break
+            elif [ "$res" = "cancelled" ] && [ "$status" != "failure" ]; then
+              status="cancelled"
+              color="0xFFA500"
+            fi
+          done
+
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "color=${color}" >> "$GITHUB_OUTPUT"
 
       - name: Send Discord Notification
         uses: sarisia/actions-status-discord@v1
@@ -382,6 +386,7 @@ jobs:
             **Validate Title:** ${{ needs.validate-title.result }}
             **Validate Version:** ${{ needs.validate-version.result }}
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
+            **Detect Changes:** ${{ needs.detect-changes.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
 
   coverage-plan:
@@ -1784,7 +1789,7 @@ jobs:
           fi
       - name: Setup JDK
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","amper"]'), matrix.runner)
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '25'
           distribution: temurin
@@ -1812,13 +1817,13 @@ jobs:
           echo "$RUNNER_TEMP/kotlin-bin" >> "$GITHUB_PATH"
       - name: Setup Go
         if: steps.module.outputs.present == 'true' && matrix.runner == 'go'
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@v7
         with:
           go-version-file: source/${{ matrix.module }}/go.mod
           cache-dependency-path: source/${{ matrix.module }}/go.sum
       - name: Setup Node.js
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["jest","node"]'), matrix.runner)
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
