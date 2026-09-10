@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
+import { randomUUID } from 'crypto';
 import { Message, MessageDocument } from '../schema/message.schema';
+import { isSearchIndexed } from '../search/message-index-scope';
 
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
@@ -230,11 +232,96 @@ export class MessageRepository {
     /**
      * 새 메시지 도큐먼트를 생성합니다.
      *
+     * 색인 대상 메시지는 같은 쓰기에서 검색 색인 아웃박스를 `PENDING`으로 열어두므로,
+     * Elasticsearch 쓰기가 실패해도 색인 의도가 유실되지 않습니다.
+     *
      * @param input - 생성할 메시지의 필드 값 ({@link CreateMessageInput})
      * @returns 생성된 Mongoose 도큐먼트
      */
     createMessage(input: CreateMessageInput) {
-        return this.messageModel.create(input);
+        const indexed = isSearchIndexed(input);
+        return this.messageModel.create({
+            ...input,
+            searchIndexStatus: indexed ? 'PENDING' : 'SKIPPED',
+            searchIndexVersion: indexed ? 1 : 0,
+            searchIndexNextAttemptAt: indexed ? new Date() : null,
+        });
+    }
+
+    /**
+     * 메시지 본문을 원자적으로 수정하고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
+     *
+     * 도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
+     * 색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
+     *
+     * @param indexed - 검색 색인 대상 메시지인지 여부
+     * @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
+     */
+    applyEdit(messageId: string, content: string, indexed: boolean): Promise<MessageDocument | null> {
+        const now = new Date();
+        return this.messageModel.findOneAndUpdate(
+            { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
+            [{
+                $set: {
+                    content,
+                    isEdited: true,
+                    editHistory: {
+                        $concatArrays: [
+                            { $ifNull: ['$editHistory', []] },
+                            [{ content: '$content', editedAt: now }],
+                        ],
+                    },
+                    updatedAt: now,
+                    ...searchIndexIntent(indexed, now),
+                },
+            }],
+            { new: true, timestamps: false, updatePipeline: true },
+        );
+    }
+
+    /**
+     * 메시지 고정 상태를 원자적으로 바꾸고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
+     *
+     * @param indexed - 검색 색인 대상 메시지인지 여부
+     * @returns 갱신된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
+     */
+    setPinned(messageId: string, isPinned: boolean, indexed: boolean): Promise<MessageDocument | null> {
+        const now = new Date();
+        return this.messageModel.findOneAndUpdate(
+            { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
+            [{ $set: { isPinned, updatedAt: now, ...searchIndexIntent(indexed, now) } }],
+            { new: true, timestamps: false, updatePipeline: true },
+        );
+    }
+
+    /**
+     * 삭제 직전에 색인 버전을 예약하고 메시지를 `DELETING`으로 고정합니다.
+     *
+     * 예약 이후에는 본문·고정 변경이 더 이상 버전을 올리지 못하므로, tombstone이 사용할
+     * 예약 버전은 이 메시지에 대한 어떤 upsert보다 항상 큽니다. 따라서 지연된 upsert가
+     * 삭제된 문서를 되살릴 수 없습니다.
+     *
+     * @returns 예약된 도큐먼트. 메시지가 없거나 이미 삭제 예약된 경우 `null`
+     */
+    reserveDeletion(messageId: string): Promise<MessageDocument | null> {
+        const now = new Date();
+        return this.messageModel.findOneAndUpdate(
+            { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
+            [{
+                $set: {
+                    searchIndexStatus: 'DELETING',
+                    searchIndexVersion: { $add: [{ $max: [{ $ifNull: ['$searchIndexVersion', 0] }, 1] }, 1] },
+                    searchIndexProcessingStartedAt: now,
+                    updatedAt: now,
+                },
+            }],
+            { new: true, timestamps: false, updatePipeline: true },
+        );
+    }
+
+    /** 메시지가 여전히 존재하는지 확인합니다. {@link reserveDeletion} 실패 원인을 구분하는 데 사용합니다. */
+    async existsById(messageId: string): Promise<boolean> {
+        return (await this.messageModel.exists({ _id: messageId })) !== null;
     }
 
     /**
@@ -365,10 +452,19 @@ export class MessageRepository {
      * 1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
      * 2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
      *    그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
-     * 3. 이번 호출에서 실제로 점유한 문서만 `processingStartedAt` 타임스탬프로 구분해 조회
+     * 3. 이번 호출에서 발급한 `notificationClaimId`로 실제 점유분만 조회
+     *
+     * 3단계의 구분자로 점유 시각을 쓰면 두 워커가 같은 밀리초에 점유했을 때 서로의 점유분까지
+     * 함께 읽어, 같은 메시지의 알림이 중복 발행되고 미읽 카운트가 두 번 증가합니다.
+     * 호출마다 새로 발급하는 식별자만이 점유를 실제로 배타적으로 만듭니다.
      *
      * 단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
      * 고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
+     *
+     * 배포 유의사항: 이 배타성은 신버전 replica끼리만 보장됩니다. 롤링 배포 중 구버전 replica가
+     * 아직 남아 있으면, 구버전은 `notificationClaimId` 없이 `notificationProcessingStartedAt` 값만
+     * 보고 되읽으므로 신버전이 같은 밀리초에 찍은 점유분을 그대로 가져갈 수 있습니다. 전 replica가
+     * 신버전으로 교체되기 전까지는 이 회귀가 남아 있습니다.
      *
      * @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
      * @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
@@ -383,14 +479,20 @@ export class MessageRepository {
         if (candidates.length === 0) return [];
 
         const ids = candidates.map((c) => c._id);
-        const processingStartedAt = new Date();
+        const notificationClaimId = randomUUID();
         await this.messageModel.updateMany(
             { _id: { $in: ids }, notificationStatus: 'PENDING' },
-            { $set: { notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt } },
+            {
+                $set: {
+                    notificationStatus: 'PROCESSING',
+                    notificationProcessingStartedAt: new Date(),
+                    notificationClaimId,
+                },
+            },
         );
 
         return this.messageModel
-            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationProcessingStartedAt: processingStartedAt })
+            .find({ _id: { $in: ids }, notificationStatus: 'PROCESSING', notificationClaimId })
             .sort({ createdAt: 1 })
             .lean();
     }
@@ -411,7 +513,7 @@ export class MessageRepository {
                 notificationStatus: 'PROCESSING',
                 notificationProcessingStartedAt: { $lt: staleBeforeDate },
             },
-            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null } },
+            { $set: { notificationStatus: 'PENDING', notificationProcessingStartedAt: null, notificationClaimId: null } },
         );
         return result.modifiedCount;
     }
@@ -584,17 +686,6 @@ export class MessageRepository {
         return count;
     }
 
-    /**
-     * 메시지의 알림 상태를 업데이트합니다.
-     *
-     * `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
-     * 재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
-     *
-     * @param messageId - 업데이트할 메시지의 ObjectId
-     * @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
-     * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
-     * @returns Mongoose `updateOne` 결과 객체
-     */
     countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
         const filter: Record<string, unknown> = { channelId, parentMessageId: null };
         if (afterId) {
@@ -655,16 +746,37 @@ export class MessageRepository {
         return countMap;
     }
 
+    /**
+     * 메시지의 알림 상태를 업데이트합니다.
+     *
+     * `notificationClaimId`가 여전히 이 호출을 발급한 점유분과 일치하는 문서만 갱신합니다.
+     * 처리 중 stale로 회수되어 다른 워커가 재점유한 메시지라면 `notificationClaimId`가
+     * 달라져 있어 이 업데이트는 조건 불일치로 아무 문서도 바꾸지 않으므로, 뒤늦게 도착한
+     * 완료 쓰기가 새 점유자의 `PROCESSING` 상태를 덮어써 중복 발행을 재현하지 않습니다.
+     *
+     * `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
+     * 재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
+     *
+     * @param messageId - 업데이트할 메시지의 ObjectId
+     * @param notificationClaimId - 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자
+     * @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
+     * @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
+     * @returns Mongoose `updateOne` 결과 객체
+     */
     updateNotificationStatus(
         messageId: Types.ObjectId,
+        notificationClaimId: string,
         notificationStatus: string,
         notificationRetryCount?: number,
     ) {
-        const $set: Record<string, unknown> = { notificationStatus };
+        const $set: Record<string, unknown> = { notificationStatus, notificationClaimId: null };
         if (notificationRetryCount !== undefined) {
             $set.notificationRetryCount = notificationRetryCount;
         }
-        return this.messageModel.updateOne({ _id: messageId }, { $set });
+        return this.messageModel.updateOne(
+            { _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId },
+            { $set },
+        );
     }
 
     /**
@@ -755,4 +867,23 @@ export class MessageRepository {
             return null;
         }
     }
+}
+
+/**
+ * 색인 아웃박스를 다시 열고 버전을 올리는 pipeline 필드.
+ *
+ * 아웃박스 필드가 없는 레거시 도큐먼트도 최소 `1`을 거쳐 증가하므로, 전체 재구축이
+ * 버전 `1`로 써 둔 문서를 이후 수정이 버전 충돌로 잃지 않습니다.
+ */
+function searchIndexIntent(indexed: boolean, now: Date): Record<string, unknown> {
+    if (!indexed) return { searchIndexStatus: 'SKIPPED', searchIndexVersion: 0 };
+    return {
+        searchIndexStatus: 'PENDING',
+        searchIndexVersion: { $add: [{ $max: [{ $ifNull: ['$searchIndexVersion', 0] }, 1] }, 1] },
+        searchIndexRetryCount: 0,
+        searchIndexNextAttemptAt: now,
+        searchIndexProcessingStartedAt: null,
+        searchIndexClaimId: null,
+        searchIndexLastError: null,
+    };
 }
