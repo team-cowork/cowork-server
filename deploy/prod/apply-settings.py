@@ -28,11 +28,9 @@ def main():
     data["ssh"] = {"host": "unused", "port": 22, "user": "unused", "key": "unused", "fingerprint": "SHA256:unused"}
     schema["validate_deployment"](data)
     if service in {"vault", "monitoring", "log-agent"}:
-        demand(not data.get("application") and not data.get("files"), "Infrastructure units use runtime settings only")
+        demand(not data.get("application"), "Infrastructure units use runtime settings only")
     if service not in {"vault", "monitoring", "log-agent"}:
         demand(data.get("runtime", {}).get("APP_CONFIG_PROFILE") in {"local", "prod"}, "APP_CONFIG_PROFILE is required in Vault")
-    if service == "notification":
-        demand("firebase-credentials.json" in data.get("files", {}), "Firebase credentials are required in Vault")
     home = Path.home()
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target
@@ -48,18 +46,12 @@ def main():
         os.chmod(stream.name, 0o600)
         for key, value in data.get("application", {}).items():
             stream.write(f"{key}={value}\0".encode())
-    for name, value in data.get("files", {}).items():
-        path = snapshot / name
-        path.write_text(json.dumps(value))
-        # Parent is 0700 on the host; bind-mounted files must be readable by the
-        # image's non-root user without changing the VM's account or file owner.
-        path.chmod(0o444)
     (snapshot / "source.json").write_text(json.dumps({"sha": sha, "vault_version": version}))
     print(f"[deploy] {target}: Vault version {version}", flush=True)
     try:
         result = subprocess.run(["/bin/bash", str(directory / "deploy.sh"), service, action], env=env)
     finally:
-        # File secrets are retained for Docker restart/rollback.
+        # Generated infrastructure configuration is retained for Docker restart/rollback.
         (snapshot / "application.env0").unlink()
         if action == "check":
             shutil.rmtree(snapshot)
