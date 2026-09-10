@@ -1,11 +1,11 @@
-# 운영 배포 전환과 복구
+# 운영 설정 변경과 배포 복구
 
 운영 서비스는 여러 VM에 나뉘어 있다. SSH 접속 주소와 서비스 간 통신 주소는 다르며,
 Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM 주소·기존 볼륨·프로세스 상태는
-저장소만으로 확정할 수 없으므로 최초 적용 전에 아래 정보를 확인한다.
-최초 등록·전환은 이 문서의 필수 운영 절차이며, 완료 결과는 해당 배포 PR에 기록한다.
+저장소만으로 확정할 수 없으므로 설정을 바꿀 때 실제 운영값과 대조한다.
+이 문서는 배포 이후 설정 교체·새 target 추가·복구에 사용하는 운영 참고 자료다.
 
-## 설정 관리와 최초 준비
+## 설정 관리 계약
 
 **Vault가 운영값의 기준이고 GitHub Actions가 수정·배포 창구다.** VM의 `/etc/cowork/*.env`는
 읽지 않는다. 클라우드 콘솔이나 VM에 접속하지 않고 Vault UI/API 또는 아래 workflow로 값을 변경한다.
@@ -34,14 +34,9 @@ Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM
 notification의 `files.firebase-credentials.json`에는 Firebase JSON 객체를 넣는다. Actions가 전달하고
 VM의 배포별 비공개 디렉터리에 생성해 컨테이너에 읽기 전용으로 마운트한다.
 
-### GitHub 신규 등록
+### GitHub Environment와 Vault 권한
 
-2026-09-10에 등록 이름을 확인한 결과, 기존 `Prod-CD(...)` 14개에는 아래 Vault 연결 설정이
-등록되어 있지 않고 `Config-Update(...)` Environment도 없다. 시크릿 값과 실제 Vault 내용은
-조회하지 않았다. **아래 등록과 최초 전환 준비를 끝낸 뒤 이 변경을 `main`에 반영한다.**
-공통 배포 파일 변경으로 여러 서비스의 자동 배포가 시작될 수 있으므로 적용 시점을 조율한다.
-
-최초 한 번 다음 GitHub Environment와 Vault 정책을 준비한다.
+배포 target과 설정 변경용 Environment는 다음 계약을 사용한다.
 
 | Environment | Variables | Secrets | Vault 토큰 권한 |
 | --- | --- | --- | --- |
@@ -80,61 +75,6 @@ gh secret set VAULT_DEPLOY_READ_TOKEN --env "Prod-CD($target)" < /secure/project
 gh secret set VAULT_CONFIG_WRITE_TOKEN --env "Config-Update($target)" < /secure/project-write-token.txt
 gh secret set VAULT_BOOTSTRAP_JSON --env 'Prod-CD(vault)' < /secure/vault-bootstrap.json
 ```
-
-## Vault에 옮기거나 확인할 값
-
-아래 값은 GitHub Secret으로 하나씩 추가하지 않고 `secret/deploy/<target>`의 `runtime`에 등록하거나
-`runtime_refs`로 기존 Vault 값을 참조한다. SSH 정보는 별도 `ssh` 객체이며 `port`만 정수,
-`runtime` 값은 문자열이다. 실제 Vault 등록 여부는 아직 확인하지 않았다.
-
-| 대상 | 등록·확인할 항목 |
-| --- | --- |
-| 모든 target | `ssh.host`, `ssh.port`, `ssh.user`, `ssh.key`, 검증된 `ssh.fingerprint`를 등록한다. 기존 SSH 주소·키를 옮기며 VM마다 다른 값을 확인한다. |
-| 모든 앱 (`config` 포함) | `APP_CONFIG_PROFILE`, `ADVERTISE_IP`, `KAFKA_BOOTSTRAP_SERVERS`를 명시한다. `BIND_IP`, `HOST_PORT`, `HEALTH_TIMEOUT_SECONDS`는 실제 배치가 기본값과 다를 때 지정한다. |
-| `config` 외 앱 | `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`을 지정한다. |
-| `authorization`, `channel`, `notification`, `project`, `roadmap`, `team`, `user` | `MYSQL_HOST`, `MYSQL_USER`, `COWORK_MYSQL_PASSWORD`를 등록하거나 참조한다. |
-| `preference` | `POSTGRES_HOST`, `POSTGRES_USER`, `COWORK_POSTGRES_PASSWORD`를 등록하거나 참조한다. `HOST_PORT`는 `9001`을 유지한다. |
-| `chat`, `voice` | `MONGO_HOST`, `MONGO_USER`, `COWORK_MONGO_PASSWORD`를 등록하거나 참조한다. |
-| `gateway`, `chat`, `voice`, `user`, `preference` | `REDIS_HOST`를 지정한다. |
-| `config`, `team`, `user`, `chat` | `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`을 지정한다. 기존 `S3_ACCESS_KEY`, `S3_SECRET_KEY`의 Vault 앱 속성을 보존하고 필요 시 같은 값을 참조한다. 실제 bucket이 다르면 `S3_BUCKET`도 지정한다. |
-| `config` | `VAULT_EXTERNAL_HOST`, Config Server 전용 `VAULT_TOKEN`, `LIVEKIT_URL`, `LIVEKIT_WS_URL`을 지정한다. `prod`에서는 `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL`도 필수다. |
-| `project` | `GITHUB_APP_SERVICE_URL`, `COWORK_GITHUB_APP_INTERNAL_API_KEY`를 등록하거나 참조한다. |
-| `chat` | `ELASTICSEARCH_URL`, `JWT_SECRET`을 등록하거나 참조한다. JWT는 authorization·gateway와 일치시킨다. |
-| `voice` | `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`을 등록하거나 참조한다. |
-| `notification` | `files.firebase-credentials.json`에 Firebase 서비스 계정 JSON 객체를 등록한다. VM 파일 경로를 등록하는 방식이 아니다. |
-| `monitoring` | `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`, `MYSQL_HOST`, `REDIS_HOST`, `MONITORING_BIND_IP`, 기존 `MONITORING_VOLUME_PREFIX`, `GRAFANA_ADMIN_PASSWORD`, `DISCORD_WEBHOOK_URL`, `MYSQL_EXPORTER_PASSWORD`, `KAFKA_EXPORTER_SERVER`, `POSTGRES_EXPORTER_DSN`, `MONGO_EXPORTER_URI`를 등록한다. |
-| `vault` | `VAULT_EXTERNAL_HOST`, `VAULT_BIND_IP`, 기존 `VAULT_DATA_VOLUME`을 등록한다. 봉인 해제에 사용하는 `VAULT_UNSEAL_KEY`와 복구 자료를 별도로 준비한다. |
-| VM별 `log-agent` | `LOG_HOST`, `LOKI_PUSH_URL`을 지정한다. Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. |
-| 비공개 앱 이미지 사용 target | pull에 필요한 `GHCR_READ_TOKEN`을 Vault에 등록하거나 참조한다. 기존 저장소 `GHCR_TOKEN`이 적합한 자격인지 확인한다. |
-
-기본 포트와 다른 DB·Redis·Vault를 사용하면 `MYSQL_PORT`, `POSTGRES_PORT`, `MONGO_PORT`,
-`REDIS_PORT`, `VAULT_PORT`도 지정한다. `MONITORING_ADMIN_BIND_IP`, exporter 사용자와 Compose
-프로젝트 이름 등 선택값은 기존 운영값이 기본값과 다를 때 유지한다.
-
-GitHub에는 기존 SSH 키·JWT와 project/preference/chat/voice의 일부 자격 증명이 남아 있다.
-이 값이 Vault로 자동 이관되지는 않는다. 원본을 보유한 운영자가 동일 값을 등록하고 새 배포의 성공을
-확인한 뒤 기존 Secret의 다른 사용처를 확인한다. 기존 DB·JWT·OAuth·S3·LiveKit 값을 새 값으로
-임의 교체하지 않는다. Config Server용 `application`·`cowork-*` 경로와 DSN의 일치도 확인한다.
-
-
-## 최초 적용 순서
-
-1. 서비스별 VM·SSH 계정·사설 주소와 현재 프로파일을 확인하고 위 GitHub 등록을 마친다.
-   Config Server 토큰과 배포 토큰의 권한을 분리하고, 만료 전에 교체할 일정·담당 절차를 정한다.
-2. 기존 Vault UI/API에서 `deploy/<target>`과 필요한 앱 속성·참조 값을 등록한다.
-   최초 문서는 이 변경이 `main`에 반영되기 전에 준비한다. 이후 값 교체에는 아래 Actions를 사용한다.
-   현재 프로파일을 유지하며 `prod` 전환은 해당 Config/Vault 값이 준비된 서비스부터 진행한다.
-3. DB·Vault 백업, 실제 데이터 볼륨 이름, `user` 네이티브 프로세스 중지·복구 방법을 확보한다.
-   [데이터 유지 절차](#기존-프로세스와-데이터-유지)에 따라 Vault·모니터링 전환을 준비한다.
-   Vault 복구 자료와 unseal key를 Vault 밖에도 보관한다.
-4. runner의 Vault HTTPS 접근과 각 VM의 Config·Eureka·Kafka·DB 접근을 확인한다.
-   준비 완료 후 `main` 반영·자동 배포 시점을 맞춘다. 보호 규칙으로 배포를 보류했다면 해당 VM 전환 준비
-   완료 후 승인한다. 수동 적용 시 아래 `check_only=true` 확인 뒤 실제 배포한다.
-5. Config 접속값·프로파일을 바꾸면 Config Server부터 적용하고 의존 앱을 순서대로 적용한다.
-   `user`의 기존 프로세스와 자동 재기동 관리자는 해당 서비스 교체 직전에 중지한다.
-   앱 VM마다 로그 에이전트 target·Vault 문서·두 Environment를 준비하고 아래 Alloy 전환 절차를 따른다.
-6. Gateway 접속, Eureka 광고 주소, chat·roadmap readiness, VM별 로그 도착과 기존 데이터 보존을 확인한다.
-   실패 시 복구에 필요한 이전 이미지·설정 버전을 확보하고 실행 결과를 PR에 기록한다.
 
 ## 외부에서 값 변경과 재배포
 
