@@ -108,11 +108,10 @@ services:
         team.lifecycle-dlt
         team.member.event
         team.member.event-dlt
-        channel.member.event
-        channel.event
-        project.event
-        project.event-dlt
-        project.member.event
+        channel.member.event.v2
+        channel.event.v2
+        project.event.v2
+        project.member.event.v2
         project.github-repo.event
         chat.message
         github.issue.create
@@ -145,10 +144,10 @@ services:
         user.presence.event
         team.lifecycle
         team.member.event
-        channel.member.event
-        channel.event
-        project.event
-        project.member.event
+        channel.member.event.v2
+        channel.event.v2
+        project.event.v2
+        project.member.event.v2
         project.github-repo.event
         preference.channel-notification.changed
         preference.team-role.changed

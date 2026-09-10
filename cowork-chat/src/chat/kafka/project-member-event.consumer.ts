@@ -8,7 +8,6 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { matchesCompositeEntityKey } from '../../common/kafka/projection-entity-key.util';
 import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
 
 interface ProjectMemberEvent {
@@ -55,16 +54,16 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
                 });
             },
         }).catch(async (err) => {
-            this.logger.error('project.member.event Kafka consumer failed', err);
+            this.logger.error(`${stream.topic} Kafka consumer failed`, err);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
-                description: 'cowork-chat의 project.member.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'project.member.event', inline: true }, ...buildErrorFields(err)],
+                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(err)],
             }).catch(() => {});
             process.exit(1);
         });
-        this.logger.log('Kafka projection consumer started: project.member.event');
+        this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
     }
 
     async onModuleDestroy() {
@@ -75,7 +74,7 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
         if (!this.isProjectMemberEvent(payload)) {
             throw new ProjectionContractError('invalid project member event payload');
         }
-        if (!matchesCompositeEntityKey(messageKey, payload.projectId, payload.userId)) {
+        if (messageKey !== `${payload.projectId}:${payload.userId}`) {
             throw new ProjectionContractError(
                 `project member event key mismatch [key=${messageKey ?? '<missing>'}, `
                 + `expected=${payload.projectId}:${payload.userId}]`,

@@ -77,6 +77,6 @@ class ChannelProjectionSnapshotPublisher(
     private companion object {
         const val PAGE_SIZE = 500
         const val SNAPSHOT_LOCK_NAME = "publishAllChannelProjectionSnapshots"
-        val SNAPSHOT_TOPICS = setOf("channel.event", "channel.member.event")
+        val SNAPSHOT_TOPICS = setOf(ChannelEventPublisher.TOPIC, ChannelMemberEventPublisher.TOPIC)
     }
 }

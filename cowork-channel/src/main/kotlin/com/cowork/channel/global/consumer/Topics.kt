@@ -1,7 +1,7 @@
 package com.cowork.channel.global.consumer
 
 object Topics {
-    const val PROJECT_EVENT = "project.event"
+    const val PROJECT_EVENT = "project.event.v2"
     const val TEAM_MEMBER_EVENT = "team.member.event"
     const val TEAM_LIFECYCLE = "team.lifecycle"
     const val PREFERENCE_TEAM_ROLE_CHANGED = "preference.team-role.changed"

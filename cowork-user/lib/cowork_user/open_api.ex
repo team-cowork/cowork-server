@@ -96,15 +96,34 @@ defmodule CoworkUser.OpenAPI do
                 schema: %{type: "integer", minimum: 1},
                 description: "활성 멤버인 팀의 사용자로 검색 범위를 제한"
               },
-              %{in: "query", name: "q", schema: %{type: "string"}},
+              %{
+                in: "query",
+                name: "q",
+                schema: %{type: "string"},
+                description:
+                  "이름 또는 닉네임 통합 검색. 부분 일치이며 대소문자를 구분하지 않는다. " <>
+                    "`%`, `_`, `\\`는 리터럴로 취급한다."
+              },
               %{
                 in: "query",
                 name: "query",
                 schema: %{type: "string"},
-                description: "q의 호환 alias"
+                description:
+                  "q의 호환 alias. q와 완전히 같은 검색 정책을 사용하며, " <>
+                    "q가 없거나 공백뿐일 때 적용된다."
               },
-              %{in: "query", name: "name", schema: %{type: "string"}},
-              %{in: "query", name: "nickname", schema: %{type: "string"}},
+              %{
+                in: "query",
+                name: "name",
+                schema: %{type: "string"},
+                description: "이름 부분 일치. 대소문자를 구분하지 않는다."
+              },
+              %{
+                in: "query",
+                name: "nickname",
+                schema: %{type: "string"},
+                description: "닉네임 부분 일치. 대소문자를 구분하지 않는다."
+              },
               %{in: "query", name: "major", schema: %{type: "string"}},
               %{in: "query", name: "student_role", schema: %{type: "string"}},
               %{
