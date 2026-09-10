@@ -11,11 +11,11 @@ Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM
 읽지 않는다. 클라우드 콘솔이나 VM에 접속하지 않고 Vault UI/API 또는 아래 workflow로 값을 변경한다.
 저장소에는 서비스 구성과 안전한 기본 포트만 남기며 실제 주소·프로파일·계정은 Vault에서 읽는다.
 
-| Vault KV v2 경로 (`secret` mount 기준) | 관리하는 값 |
-| --- | --- |
-| `deploy/<target>` | `ssh` 접속 주소·포트·사용자·키·검증된 host fingerprint, `runtime` 배포 주소·프로파일·인프라 접속값, `application` 컨테이너 환경변수 |
-| `application`, `application/<profile>` | Config Server가 배포하는 공통 애플리케이션 속성 |
-| `cowork-<service>`, `cowork-<service>/<profile>` | 서비스별 속성·시크릿. 정확한 키는 [설정 가이드](configuration.md)를 따른다. |
+| Vault KV v2 경로 (`secret` mount 기준)           | 관리하는 값                                                                                                                                                |
+|--------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `deploy/<target>`                                | `ssh` 접속 주소·포트·사용자·키·검증된 host fingerprint, `runtime` 배포 주소·프로파일·인프라 접속값, `application` 컨테이너 환경변수 |
+| `application`, `application/<profile>`           | Config Server가 배포하는 공통 애플리케이션 속성                                                                                                            |
+| `cowork-<service>`, `cowork-<service>/<profile>` | 서비스별 속성·시크릿. 정확한 키는 [설정 가이드](configuration.md)를 따른다.                                                                                |
 
 `target`은 VM에 배포할 단위를 식별한다. 기본값은 서비스 이름이며, `inventory.json`에는
 서비스와 target의 연결만 둔다. VM 주소와 SSH 포트는 Vault에 있다. 같은 서비스의 다른 VM은
@@ -39,11 +39,11 @@ Config Server가 활성 프로파일에 맞춰 전달하고 알림 서비스가 
 
 배포 target과 설정 변경용 Environment는 다음 계약을 사용한다.
 
-| Environment | Variables | Secrets | Vault 토큰 권한 |
-| --- | --- | --- | --- |
-| `Prod-CD(<target>)` | `VAULT_ADDR` (HTTPS), `VAULT_KV_MOUNT` (기본 `secret`) | `VAULT_DEPLOY_READ_TOKEN` | `secret/data/deploy/<target>` 및 필요한 참조 경로의 `read` |
-| `Config-Update(<target>)` | 위와 동일 | `VAULT_CONFIG_WRITE_TOKEN`, 변경 시 `VAULT_UPDATE_JSON` | 수정 대상의 `create`, `update`만 부여 |
-| `Prod-CD(vault)` 복구 전용 | 위와 동일 | `VAULT_BOOTSTRAP_JSON` | 봉인·중단 복구 시 Vault 조회를 생략한다. 참조 없이 `ssh`와 Vault 기동용 `runtime`을 포함한다. |
+| Environment                | Variables                                              | Secrets                                                 | Vault 토큰 권한                                                                               |
+|----------------------------|--------------------------------------------------------|---------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| `Prod-CD(<target>)`        | `VAULT_ADDR` (HTTPS), `VAULT_KV_MOUNT` (기본 `secret`) | `VAULT_DEPLOY_READ_TOKEN`                               | `secret/data/deploy/<target>` 및 필요한 참조 경로의 `read`                                    |
+| `Config-Update(<target>)`  | 위와 동일                                              | `VAULT_CONFIG_WRITE_TOKEN`, 변경 시 `VAULT_UPDATE_JSON` | 수정 대상의 `create`, `update`만 부여                                                         |
+| `Prod-CD(vault)` 복구 전용 | 위와 동일                                              | `VAULT_BOOTSTRAP_JSON`                                  | 봉인·중단 복구 시 Vault 조회를 생략한다. 참조 없이 `ssh`와 Vault 기동용 `runtime`을 포함한다. |
 
 GitHub에는 Vault 접근에 필요한 최소 자격 증명과 일시적인 변경 입력만 둔다. Config Server의
 `VAULT_TOKEN`은 `deploy/config`에서 관리하며 `application`·`cowork-*` 속성을 읽는 별도 토큰을 쓴다.
@@ -122,11 +122,11 @@ Vault 복구는 `operation=redeploy`, `service=vault`, `target=vault`, `vault_re
 
 ## 기존 프로세스와 데이터 유지
 
-| 대상 | 최초 전환 시 확인할 사항 |
-| --- | --- |
-| user | 기존 네이티브 Elixir 프로세스와 자동 재기동 관리자를 중지한 뒤 컨테이너로 전환한다. 기존 Flyway 이력·DB 접속값을 확인하고 네이티브 릴리스 복구 방법을 보관한다. 첫 전환에는 자동 복구할 이전 Docker 컨테이너가 없다. |
+| 대상       | 최초 전환 시 확인할 사항                                                                                                                                                                                                        |
+|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| user       | 기존 네이티브 Elixir 프로세스와 자동 재기동 관리자를 중지한 뒤 컨테이너로 전환한다. 기존 Flyway 이력·DB 접속값을 확인하고 네이티브 릴리스 복구 방법을 보관한다. 첫 전환에는 자동 복구할 이전 Docker 컨테이너가 없다.            |
 | monitoring | 기존 Prometheus·Grafana·Loki 볼륨의 실제 이름을 확인해 `MONITORING_VOLUME_PREFIX`를 지정한다. 기존 모니터링 컨테이너만 중지하고 새 프로젝트로 기동한다. 세 볼륨의 접두사가 다르면 Compose의 명시적 `name`을 실제 이름에 맞춘다. |
-| Vault | 기존 `cowork-vault-prod`의 데이터 볼륨 이름을 `VAULT_DATA_VOLUME`에 지정한다. 기존 `vault` 프로젝트 이름을 유지한다. 기존 설치에서 새 빈 볼륨을 만들거나 local seed를 실행하지 않는다. |
+| Vault      | 기존 `cowork-vault-prod`의 데이터 볼륨 이름을 `VAULT_DATA_VOLUME`에 지정한다. 기존 `vault` 프로젝트 이름을 유지한다. 기존 설치에서 새 빈 볼륨을 만들거나 local seed를 실행하지 않는다.                                          |
 
 볼륨 이름은 컨테이너의 환경변수나 시크릿을 출력하지 않고 확인한다.
 

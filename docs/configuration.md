@@ -4,12 +4,12 @@
 
 ## 공급 원칙
 
-| 종류                     | 공급원                                 | 예시                                                    |
-|--------------------------|----------------------------------------|---------------------------------------------------------|
-| 부트스트랩               | 운영: Vault `deploy/<target>` → Actions; 로컬: Compose          | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
-| 인프라 부트스트랩 시크릿 | Vault → Actions → 컨테이너            | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
-| 일반 설정 | 코드 기본값: Config Server native; 운영 override: Vault | 내부 URL, timeout, 기능 정책 |
-| 애플리케이션 시크릿      | Vault                                  | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
+| 종류                     | 공급원                                                  | 예시                                                    |
+|--------------------------|---------------------------------------------------------|---------------------------------------------------------|
+| 부트스트랩               | 운영: Vault `deploy/<target>` → Actions; 로컬: Compose  | 활성 프로파일, Config Server/Vault 주소, host 공개 포트 |
+| 인프라 부트스트랩 시크릿 | Vault → Actions → 컨테이너                              | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
+| 일반 설정                | 코드 기본값: Config Server native; 운영 override: Vault | 내부 URL, timeout, 기능 정책                            |
+| 애플리케이션 시크릿      | Vault                                                   | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
 
 운영값은 Vault에서 관리하고 GitHub Actions는 조회·수정·배포를 수행한다. VM의 환경 파일을 수정하지
 않는다. GitHub에는 Vault 접근 토큰·주소, 복구용 bootstrap과 일시적인 변경 입력만 둔다.
@@ -66,7 +66,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 | Compose bootstrap 입력                       | 외부 Vault 대상                                                                                                                                                        | 일치 계약                                                                              |
 |----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login과 각 서비스 DB 이름을 사용한다. 운영 DSN은 실제 사설 주소를 가리킨다.         |
+| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login과 각 서비스 DB 이름을 사용한다. 운영 DSN은 실제 사설 주소를 가리킨다. |
 | `POSTGRES_USER`, `POSTGRES_PASSWORD`         | `secret/application`의 동명 key, `secret/cowork-preference`의 `preference.db.username`·`preference.db.password`                                                        | 같은 PostgreSQL login을 사용한다.                                                      |
 | `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | `secret/cowork-chat`·`secret/cowork-voice`의 `MONGODB_URI`                                                                                                             | 같은 root login을 URI에 넣고 서비스별 DB 이름과 `authSource=admin`을 사용한다.         |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`             | `secret/application`의 동명 key                                                                                                                                        | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다.                |
@@ -75,13 +75,13 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 ## 서비스별 부트스트랩
 
-| 런타임      | 방식                                                           | Config Server 실패 처리 |
-|-------------|----------------------------------------------------------------|-------------------------|
-| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`             | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
-| Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                  | URL 지정 시 기동 실패   |
-| NestJS      | bootstrap 전 Config Server 조회                                | 기동 실패               |
-| Vert.x      | 배포 전 Config Server 조회                                     | 3회 실패 후 종료        |
-| Elixir      | entrypoint가 DB/Flyway 설정 조회 후 앱 내부에서 일반 설정 조회 | 기동 실패               |
+| 런타임      | 방식                                                           | Config Server 실패 처리                                                      |
+|-------------|----------------------------------------------------------------|------------------------------------------------------------------------------|
+| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`              | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
+| Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                  | URL 지정 시 기동 실패                                                        |
+| NestJS      | bootstrap 전 Config Server 조회                                | 기동 실패                                                                    |
+| Vert.x      | 배포 전 Config Server 조회                                     | 3회 실패 후 종료                                                             |
+| Elixir      | entrypoint가 DB/Flyway 설정 조회 후 앱 내부에서 일반 설정 조회 | 기동 실패                                                                    |
 
 ## Firebase 자격 증명 교체
 
