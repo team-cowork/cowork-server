@@ -1,10 +1,6 @@
 # Optional single-VM installation; NOT the multi-VM production CD entry point.
 # Run through deploy/compose.sh single-vm-prod, never merge with the root local entry point.
 # This model assumes all app/data services share one Docker network. External Vault is required.
-secrets:
-  firebase_credentials:
-    file: ${FIREBASE_CREDENTIALS:?Set an absolute Firebase credential path on this VM}
-
 services:
   # Production traffic enters through the Gateway (and LiveKit's dedicated
   # host-network listeners). Databases, brokers, caches, and ops UIs stay on

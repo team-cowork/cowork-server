@@ -10,11 +10,10 @@
 | 인프라 부트스트랩 시크릿 | Vault → Actions → 컨테이너            | DB/Vault/Grafana 관리자 계정, LiveKit server key        |
 | 일반 설정 | 코드 기본값: Config Server native; 운영 override: Vault | 내부 URL, timeout, 기능 정책 |
 | 애플리케이션 시크릿      | Vault                                  | DB 계정, JWT/세션 서명 키, OAuth secret, API key        |
-| 파일형 시크릿            | Vault `deploy/<target>.files` → 읽기 전용 마운트  | Firebase 서비스 계정 JSON                               |
 
 운영값은 Vault에서 관리하고 GitHub Actions는 조회·수정·배포를 수행한다. VM의 환경 파일을 수정하지
 않는다. GitHub에는 Vault 접근 토큰·주소, 복구용 bootstrap과 일시적인 변경 입력만 둔다.
-사용법과 최초 권한 준비는 [배포 가이드](deployment.md)에 정리한다. 로컬 Compose의 `.env`와 seed는 유지한다.
+설정 교체·재배포는 [배포 가이드](deployment.md)를 따른다. 로컬 Compose의 `.env`와 seed는 유지한다.
 
 Config Server 응답의 속성 우선순위는 다음과 같다.
 
@@ -83,6 +82,19 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 | NestJS      | bootstrap 전 Config Server 조회                                | 기동 실패               |
 | Vert.x      | 배포 전 Config Server 조회                                     | 3회 실패 후 종료        |
 | Elixir      | entrypoint가 DB/Flyway 설정 조회 후 앱 내부에서 일반 설정 조회 | 기동 실패               |
+
+## Firebase 자격 증명 교체
+
+`secret/cowork-notification/local` 또는 `secret/cowork-notification/prod`의
+`fcm.credentials-json`에 서비스 계정 JSON 전체를 **문자열**로 저장한다. 중첩 객체나 파일 경로가
+아니며 `private_key`의 줄바꿈은 JSON 직렬화로 보존한다. 공통 경로에 이 키를 두지 않는다.
+알림 서비스는 `APP_PROFILE`로 선택한 Config Server 값을 메모리에서 Firebase SDK에 전달한다.
+`service_account` 형식만 허용하며 파일 마운트나 `FCM_CREDENTIALS_FILE` 환경변수는 사용하지 않는다.
+
+기존 프로파일의 다른 속성을 보존한 전체 문서를 준비하고 기존 Prod CD의 `update-config`에서
+`target=notification`, `scope=application`, `profile=local|prod`와 현재 Vault 버전을 지정한다.
+성공 후 `notification`을 재배포하고 임시 `VAULT_UPDATE_JSON`을 삭제한다.
+실제 JSON·개인키는 저장소 프로파일 YAML에 기록하지 않는다.
 
 ## 변경 절차
 

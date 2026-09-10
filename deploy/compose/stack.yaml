@@ -824,9 +824,6 @@ services:
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
       - "8086:8086"
-    secrets:
-      - source: firebase_credentials
-        target: firebase-credentials.json
     volumes:
       - cowork_logs:/var/log/cowork
     healthcheck:
@@ -914,7 +911,3 @@ volumes:
   cowork_logs:
   alloy_data:
   alertmanager_config:
-
-secrets:
-  firebase_credentials:
-    file: ${FIREBASE_CREDENTIALS:-./deploy/local/secrets/firebase-credentials.json}

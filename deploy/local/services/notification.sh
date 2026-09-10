@@ -18,7 +18,6 @@ SERVICE_COMMAND=(
    export KAFKA_TOPIC_CHANNEL_NOTIFICATION_PREFERENCE="${KAFKA_TOPIC_CHANNEL_NOTIFICATION_PREFERENCE:-preference.channel-notification.changed}"
    export KAFKA_TOPIC_USER_PROFILE="${KAFKA_TOPIC_USER_PROFILE:-user.profile.event}"
    export KAFKA_TOPIC_TEAM_LIFECYCLE="${KAFKA_TOPIC_TEAM_LIFECYCLE:-team.lifecycle}"
-   export FCM_CREDENTIALS_FILE="${FCM_CREDENTIALS_FILE:-${FIREBASE_CREDENTIALS:-../deploy/local/secrets/firebase-credentials.json}}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
    export EUREKA_INSTANCE_HOST="${EUREKA_INSTANCE_HOST:-localhost}"
    exec go run ./cmd/server/'
