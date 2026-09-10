@@ -27,11 +27,11 @@ The supported deployment profiles are `local` and `prod`. Gateway and every back
 
 The Config Server serves raw strings — it does not resolve placeholders. Only the client resolves them, and not every client can:
 
-| Client | Resolves `${VAR}`? | How to supply a value |
-|---|---|---|
-| Spring services (`gateway`, `team`, `project`, `roadmap`, `channel`) | yes | `${VAR}` or Vault |
-| `cowork-preference` (Vert.x) | yes, against its own container env | `${VAR}` or Vault |
-| `cowork-authorization`, `cowork-notification`, `cowork-voice` (Go), `cowork-chat` (NestJS), `cowork-user` (Elixir) | **no** | literal value + Vault, or `spring.cloud.config.server.overrides` |
+| Client                                                                                                             | Resolves `${VAR}`?                 | How to supply a value                                            |
+|--------------------------------------------------------------------------------------------------------------------|------------------------------------|------------------------------------------------------------------|
+| Spring services (`gateway`, `team`, `project`, `roadmap`, `channel`)                                               | yes                                | `${VAR}` or Vault                                                |
+| `cowork-preference` (Vert.x)                                                                                       | yes, against its own container env | `${VAR}` or Vault                                                |
+| `cowork-authorization`, `cowork-notification`, `cowork-voice` (Go), `cowork-chat` (NestJS), `cowork-user` (Elixir) | **no**                             | literal value + Vault, or `spring.cloud.config.server.overrides` |
 
 For a non-resolving client, a `${VAR}` that nothing overrides reaches the app as the literal string `"${VAR}"`. Write a literal default and let Vault or `overrides` take precedence instead.
 
