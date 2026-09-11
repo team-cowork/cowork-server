@@ -23,14 +23,14 @@ PostgreSQL migration만으로는 `cowork-channel`의 MySQL이 소유한 채널 �
 
 ## 전환 계약
 
-| 항목 | 계약 |
-|------|------|
-| built-in 역할 | `OWNER`는 role policy만 우회하고 기존 채널 멤버십 조건은 유지한다. `ADMIN`과 `MEMBER`에는 암묵적 allow를 부여하지 않는다 |
-| 사용자 정의 역할 | 팀·채널·역할 조합마다 `allow`, `deny`, 정책 부재 유지를 운영자가 명시적으로 승인한다 |
-| 정책 부재 | 낮은 priority 역할로 상속하고 끝까지 정책이 없으면 거부한다. 부재 상태를 일괄 `false`로 변환하지 않는다 |
-| 전환 입력 | 각 도메인 소유 서비스에서 수집한 식별자를 하나의 versioned manifest로 고정하며 cross-service DB join을 사용하지 않는다 |
-| 적용 경계 | 직접 SQL 대신 `cowork-preference`의 channel role policy command와 outbox 경계를 사용한다 |
-| 활성화 순서 | authoritative 적용과 `preference.channel-role-policy.changed` projection 수렴을 확인한 뒤 읽기 인가 전환을 완료한다 |
+| 항목             | 계약                                                                                                                     |
+|------------------|--------------------------------------------------------------------------------------------------------------------------|
+| built-in 역할    | `OWNER`는 role policy만 우회하고 기존 채널 멤버십 조건은 유지한다. `ADMIN`과 `MEMBER`에는 암묵적 allow를 부여하지 않는다 |
+| 사용자 정의 역할 | 팀·채널·역할 조합마다 `allow`, `deny`, 정책 부재 유지를 운영자가 명시적으로 승인한다                                     |
+| 정책 부재        | 낮은 priority 역할로 상속하고 끝까지 정책이 없으면 거부한다. 부재 상태를 일괄 `false`로 변환하지 않는다                  |
+| 전환 입력        | 각 도메인 소유 서비스에서 수집한 식별자를 하나의 versioned manifest로 고정하며 cross-service DB join을 사용하지 않는다   |
+| 적용 경계        | 직접 SQL 대신 `cowork-preference`의 channel role policy command와 outbox 경계를 사용한다                                 |
+| 활성화 순서      | authoritative 적용과 `preference.channel-role-policy.changed` projection 수렴을 확인한 뒤 읽기 인가 전환을 완료한다      |
 
 ## 할 일
 
