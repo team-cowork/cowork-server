@@ -14,15 +14,15 @@
 
 ## 원자 처리 정책
 
-| 단계 | 목표 동작 |
-|------|-----------|
-| 검증 | 서명, envelope, `data.new[]` 전체와 item index 중복을 database 변경 전에 검증함 |
-| inbox claim | `event_id` unique insert로 한 요청만 event를 claim함 |
-| outbox 적재 | claim과 모든 item outbox row를 하나의 MySQL transaction에서 commit함 |
-| item identity | `(event_id, event_index)`를 unique delivery identity로 사용함 |
-| 중복 요청 | 이미 commit된 `event_id`이면 새 outbox row 없이 성공을 반환함 |
-| 응답 | inbox와 batch outbox transaction이 commit된 뒤에만 `200`을 반환함 |
-| relay | 기존 at-least-once relay의 crash 중복은 동일 item identity를 보존하고 소비자 멱등성으로 흡수함 |
+| 단계          | 목표 동작                                                                                      |
+|---------------|------------------------------------------------------------------------------------------------|
+| 검증          | 서명, envelope, `data.new[]` 전체와 item index 중복을 database 변경 전에 검증함                |
+| inbox claim   | `event_id` unique insert로 한 요청만 event를 claim함                                           |
+| outbox 적재   | claim과 모든 item outbox row를 하나의 MySQL transaction에서 commit함                           |
+| item identity | `(event_id, event_index)`를 unique delivery identity로 사용함                                  |
+| 중복 요청     | 이미 commit된 `event_id`이면 새 outbox row 없이 성공을 반환함                                  |
+| 응답          | inbox와 batch outbox transaction이 commit된 뒤에만 `200`을 반환함                              |
+| relay         | 기존 at-least-once relay의 crash 중복은 동일 item identity를 보존하고 소비자 멱등성으로 흡수함 |
 
 ## 할 일
 
