@@ -85,6 +85,8 @@ services:
     build: !reset null
     image: ${REGISTRY:?REGISTRY is required}/cowork-config:${IMAGE_TAG:?IMAGE_TAG is required}
     depends_on: !override
+      logs-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       kafka-init:

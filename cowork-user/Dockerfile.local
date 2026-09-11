@@ -1,41 +1,44 @@
-ARG ELIXIR_IMAGE=hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250520-slim
+ARG ELIXIR_IMAGE=hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250520-slim@sha256:ddd7c2a143023b873a72208ef6ae44f90ab3c2fb45cde9cc42ad0a8376f11071
 
-FROM flyway/flyway:12.8.1 AS flyway
+FROM flyway/flyway:12.8.1@sha256:b8a2d72926b98234c1fb8f45659fd23d8a001af9ee7f450326aa46af14d447bb AS flyway
 
 FROM ${ELIXIR_IMAGE} AS builder
 WORKDIR /app
 ENV MIX_ENV=prod
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN mix local.hex --force && mix local.rebar --force
+    && rm -rf /var/lib/apt/lists/* \
+    && mix local.hex --force \
+    && mix local.rebar --force
+ENV ERL_FLAGS="+S 1:1 +JMsingle true"
 
 COPY cowork-user/mix.exs cowork-user/mix.lock ./
 COPY cowork-user/config config
-RUN mix deps.get --only prod
-RUN mix deps.compile
-
+RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
+    mix deps.get --only prod \
+    && mix deps.compile
 COPY cowork-user/lib lib
 COPY cowork-user/priv priv
-RUN mix compile
-RUN mix release
+RUN mix compile \
+    && mix release
 
-FROM debian:bookworm-20240926-slim
+FROM debian:bookworm-20240926-slim@sha256:ad86386827b083b3d71139050b47ffb32bbd9559ea9b1345a739b14fec2d9ecf AS runtime
 WORKDIR /app
-
 RUN apt-get update \
     && apt-get install -y --no-install-recommends openssl curl wget jq ca-certificates default-mysql-client default-jre-headless libstdc++6 libncurses5 locales \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -r -g 10001 app \
+    && useradd -r -u 10001 -g app app \
+    && mkdir -p /var/log/cowork/user \
+    && chown -R app:app /var/log/cowork
 
 COPY --from=flyway /flyway /flyway
 COPY cowork-user/src/main/resources/db/migration /flyway/sql
-COPY --from=builder /app/_build/prod/rel/cowork_user ./
-COPY cowork-user/docker-entrypoint.sh /app/docker-entrypoint.sh
-
+COPY --chown=app:app --from=builder /app/_build/prod/rel/cowork_user ./
+COPY --chown=app:app cowork-user/docker-entrypoint.sh /app/docker-entrypoint.sh
 ENV PATH="/flyway:${PATH}"
 ENV ELIXIR_ERL_OPTIONS="+fnu"
-RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /var/log/cowork/user
+RUN chmod +x /app/docker-entrypoint.sh && chown app:app /app
+USER app
 EXPOSE 8082
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
