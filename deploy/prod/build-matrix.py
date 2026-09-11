@@ -21,8 +21,8 @@ def ancestor(base, head):
 
 def affected(service, paths):
     shared = {"deploy/prod/deploy.sh", "deploy/prod/defaults.sh", "deploy/prod/inventory.json",
-              ".github/workflows/cowork-prod-cd.yml", ".github/workflows/cowork-deploy-wave.yml"}
-    if any(path in shared or path.startswith("deploy/prod/lib/")
+              ".github/workflows/cowork-prod-cd.yml"}
+    if any(path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
            or (path.startswith("deploy/prod/") and path.count("/") == 2 and path.endswith(".py"))
            for path in paths):
         return True
