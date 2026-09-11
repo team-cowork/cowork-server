@@ -7,4 +7,6 @@
 ![Language Stats](https://github-repository-language-graph-wi.vercel.app/api?username=team-cowork&repo=cowork-server&theme=white&langs_count=100)
 
 ---
+[배포 가이드](docs/deployment.md) | [로컬 실행](docs/local-run-guide.md) | [설정 가이드](docs/configuration.md)
+
 [LICENSE](LICENSE) | [CODE_OF_CONDUCT](CODE_OF_CONDUCT.md)

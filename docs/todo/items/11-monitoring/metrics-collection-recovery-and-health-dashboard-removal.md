@@ -1,6 +1,6 @@
 # 메트릭 수집 장애 분석과 임시 Health Dashboard 제거
 
-- **서비스**: cowork-monitoring, cowork-config, cowork-gateway, 전체 메트릭 제공 서비스, Prometheus, Grafana, Alertmanager
+- **서비스**: 모니터링, cowork-config, cowork-gateway, 전체 메트릭 제공 서비스, Prometheus, Grafana, Alertmanager
 - **우선순위**: 🔴 높음
 - **관련 작업**: [Gateway canonical API 계약 모니터링](./gateway-canonical-api-monitoring.md)
 - **현재 상태**: 모니터링 도구가 일부 또는 전체 서비스의 메트릭을 정상 수집하지 못함. 장애 범위와 근본 원인은 아직 확정하지 않았으며, 개발자용 `GET /health` 화면을 임시 상태 확인 수단으로 추가함
