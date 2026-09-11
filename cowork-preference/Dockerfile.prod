@@ -8,8 +8,9 @@ ARG KOTLIN_CLI_WRAPPER_SHA256=f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7
 RUN curl -fsSL -o /usr/local/bin/kotlin \
       "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper" \
     && echo "${KOTLIN_CLI_WRAPPER_SHA256}  /usr/local/bin/kotlin" | sha256sum -c - \
-    && chmod +x /usr/local/bin/kotlin \
-    && kotlin --version
+    && chmod +x /usr/local/bin/kotlin
+RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
+    kotlin --version
 
 WORKDIR /workspace/cowork-preference
 COPY module.yaml module.yaml
