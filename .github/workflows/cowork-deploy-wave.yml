@@ -1,0 +1,135 @@
+name: Deploy a production wave
+
+on:
+  workflow_call:
+    inputs:
+      matrix:
+        required: true
+        type: string
+      sha:
+        required: true
+        type: string
+      tools_ref:
+        required: true
+        type: string
+      check_only:
+        type: boolean
+        default: false
+      configuration_version:
+        type: string
+        default: '0'
+      vault_recovery:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  deploy:
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(inputs.matrix) }}
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+          fetch-depth: 0
+      - name: Validate release and target
+        env:
+          RELEASE_SHA: ${{ inputs.sha }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
+          test -f "deploy/prod/services/$SERVICE.sh"
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
+      - name: Load Vault deployment snapshot
+        id: settings
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          VAULT_TOKEN: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+          VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
+          RECOVERY: ${{ inputs.vault_recovery || false }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
+          CONFIG_VERSION: ${{ inputs.configuration_version || '0' }}
+        run: |
+          set -euo pipefail
+          mode=read
+          if [ "$RECOVERY" = true ]; then
+            test "$SERVICE" = vault
+            test "$TARGET" = vault
+            mode=bootstrap
+          fi
+          python3 deploy/prod/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION"
+      - name: Apply immutable release and Vault settings
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
+          DEPLOY_SHA: ${{ inputs.sha }}
+          DEPLOY_SERVICE: ${{ matrix.service }}
+          DEPLOY_TARGET: ${{ matrix.target }}
+          DEPLOY_OWNER: ${{ github.repository_owner }}
+          DEPLOY_ACTION: ${{ inputs.check_only && 'check' || 'deploy' }}
+        with:
+          host: ${{ steps.settings.outputs.ssh_host }}
+          port: ${{ steps.settings.outputs.ssh_port }}
+          username: ${{ steps.settings.outputs.ssh_user }}
+          key: ${{ steps.settings.outputs.ssh_key }}
+          fingerprint: ${{ steps.settings.outputs.ssh_fingerprint }}
+          command_timeout: 20m
+          envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION
+          script: |
+            set -euo pipefail
+            [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+            root="$HOME/.local/share/cowork"
+            cache="$root/repository.git"
+            release="$root/releases/$DEPLOY_SHA"
+            mkdir -p "$root/releases"
+            exec 9>"$root/source.lock"
+            flock -w 120 9
+            if [ ! -d "$cache" ]; then
+              git clone --mirror https://github.com/team-cowork/cowork-server.git "$cache"
+            fi
+            git --git-dir="$cache" fetch origin "$DEPLOY_SHA" --quiet
+            if [ ! -d "$release" ]; then
+              staging="$(mktemp -d "$root/releases/.staging.XXXXXX")"
+              trap 'rm -rf "$staging"' EXIT
+              git --git-dir="$cache" archive "$DEPLOY_SHA" | tar -x -C "$staging"
+              printf '%s\n' "$DEPLOY_SHA" > "$staging/.source-sha"
+              mv "$staging" "$release"
+              trap - EXIT
+            fi
+            test "$(cat "$release/.source-sha")" = "$DEPLOY_SHA"
+            flock -u 9
+            printf '%s' "$DEPLOY_PAYLOAD" | python3 "$release/deploy/prod/apply-settings.py" \
+              "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION"
+      - name: Checkout deployment tracking tools
+        if: ${{ !inputs.check_only }}
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tools_ref }}
+          path: .deployment-tools
+      - name: Record successful runtime deployment
+        if: ${{ !inputs.check_only }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVICE: ${{ matrix.service }}
+          TARGET: ${{ matrix.target }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: python3 .deployment-tools/deploy/prod/deployment_state.py "$SERVICE" "$TARGET" "$RELEASE_SHA"

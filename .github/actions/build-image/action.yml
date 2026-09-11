@@ -1,0 +1,83 @@
+name: Build a cowork image
+description: Restore dependency caches, build an image and inspect its runtime files without starting the application
+inputs:
+  service:
+    required: true
+    description: Service name without the cowork prefix
+  environment:
+    required: true
+    description: local or prod
+  context:
+    required: true
+    description: Docker build context
+  dockerfile:
+    required: true
+    description: Dockerfile path relative to the repository
+  push:
+    default: 'false'
+    description: Publish the built image
+  tags:
+    required: true
+    description: Image tags, one per line
+  labels:
+    default: ''
+    description: OCI image labels
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v4
+      id: builder
+    - name: Restore dependency cache mounts
+      uses: actions/cache@v6
+      id: cache
+      with:
+        path: ${{ runner.temp }}/cowork-image-cache
+        key: ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-
+    # Register after actions/cache: its post step extracts before the cache is saved.
+    - name: Inject and extract BuildKit cache mounts
+      uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
+      with:
+        builder: ${{ steps.builder.outputs.name }}
+        dockerfile: ${{ inputs.dockerfile }}
+        cache-dir: ${{ runner.temp }}/cowork-image-cache
+        scratch-dir: ${{ runner.temp }}/cowork-cache-dance
+        skip-extraction: ${{ steps.cache.outputs.cache-hit }}
+        utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+    - name: Build image
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: linux/amd64
+        push: false
+        load: true
+        # The Docker exporter used by hosted runners cannot load attestations.
+        # Publish them separately after the local filesystem inspection passes.
+        provenance: false
+        sbom: false
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
+        cache-from: type=gha,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
+        cache-to: type=gha,mode=max,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
+    - name: Inspect packaged runtime
+      shell: bash
+      env:
+        IMAGE_TAGS: ${{ inputs.tags }}
+        SERVICE: ${{ inputs.service }}
+      run: |
+        image="${IMAGE_TAGS%%$'\n'*}"
+        python3 deploy/images/inspect-image.py "$SERVICE" "$image"
+    - name: Publish verified image with provenance and SBOM
+      if: ${{ inputs.push == 'true' }}
+      uses: docker/build-push-action@v7
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        platforms: linux/amd64
+        push: true
+        provenance: mode=max
+        sbom: true
+        tags: ${{ inputs.tags }}
+        labels: ${{ inputs.labels }}
