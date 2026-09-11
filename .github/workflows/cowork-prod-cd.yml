@@ -299,15 +299,31 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    uses: ./.github/workflows/cowork-deploy-wave.yml
-    secrets: inherit
-    with:
-      matrix: ${{ needs.deployment-plan.outputs.vault }}
-      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-      tools_ref: ${{ github.workflow_sha }}
-      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-      configuration_version: ${{ inputs.configuration_version || '0' }}
-      vault_recovery: ${{ inputs.vault_recovery || false }}
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.vault) }}
+    steps:
+      - name: Checkout deployment tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+          configuration_version: ${{ inputs.configuration_version || '0' }}
+          vault_recovery: ${{ inputs.vault_recovery || false }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy-config:
     needs: [deployment-plan, deploy-vault]
@@ -318,15 +334,31 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    uses: ./.github/workflows/cowork-deploy-wave.yml
-    secrets: inherit
-    with:
-      matrix: ${{ needs.deployment-plan.outputs.config }}
-      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-      tools_ref: ${{ github.workflow_sha }}
-      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-      configuration_version: ${{ inputs.configuration_version || '0' }}
-      vault_recovery: ${{ inputs.vault_recovery || false }}
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.config) }}
+    steps:
+      - name: Checkout deployment tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+          configuration_version: ${{ inputs.configuration_version || '0' }}
+          vault_recovery: ${{ inputs.vault_recovery || false }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
     needs: [deployment-plan, deploy-vault, deploy-config]
@@ -338,15 +370,31 @@ jobs:
     permissions:
       contents: read
       deployments: write
-    uses: ./.github/workflows/cowork-deploy-wave.yml
-    secrets: inherit
-    with:
-      matrix: ${{ needs.deployment-plan.outputs.applications }}
-      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-      tools_ref: ${{ github.workflow_sha }}
-      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-      configuration_version: ${{ inputs.configuration_version || '0' }}
-      vault_recovery: ${{ inputs.vault_recovery || false }}
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.applications) }}
+    steps:
+      - name: Checkout deployment tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+          configuration_version: ${{ inputs.configuration_version || '0' }}
+          vault_recovery: ${{ inputs.vault_recovery || false }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   update-config:
     needs: manual-request
