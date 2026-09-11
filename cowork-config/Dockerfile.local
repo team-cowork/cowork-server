@@ -2,6 +2,7 @@ FROM eclipse-temurin:25-jdk-alpine AS builder
 WORKDIR /workspace
 COPY gradlew gradlew
 COPY gradle gradle
+COPY build-logic build-logic
 COPY settings.gradle.kts build.gradle.kts ./
 COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
 COPY cowork-config/src cowork-config/src
