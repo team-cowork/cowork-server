@@ -50,6 +50,9 @@ on:
         description: Current KV version; 0 creates a new path (update-config only)
         type: string
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -103,13 +106,18 @@ jobs:
 
   prepare:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     permissions:
       contents: read
     outputs:
       owner: ${{ steps.release.outputs.owner }}
       should_release: ${{ steps.release.outputs.should_release }}
       version: ${{ steps.release.outputs.version }}
+      image-matrix: ${{ steps.images.outputs.matrix }}
 
     steps:
       - name: Checkout
@@ -138,8 +146,12 @@ jobs:
             echo "should_release=true" >> "${GITHUB_OUTPUT}"
           fi
 
+      - name: Resolve production image inputs
+        id: images
+        run: python3 deploy/images/build-matrix.py --environment prod
+
   build-images:
-    name: Build and push ${{ matrix.service }}
+    name: Build and push cowork-${{ matrix.service }}
     needs: prepare
     # should_release는 "v<version> 태그/릴리스를 새로 만들지"만 결정해야 한다 — sha-<sha>
     # 이미지는 release job과 무관하게 매 성공한 커밋마다 항상 push돼야 deploy job이
@@ -152,53 +164,14 @@ jobs:
       packages: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - service: cowork-config
-            context: .
-            dockerfile: ./cowork-config/Dockerfile.prod
-          - service: cowork-gateway
-            context: .
-            dockerfile: ./cowork-gateway/Dockerfile.prod
-          - service: cowork-authorization
-            context: ./cowork-authorization
-            dockerfile: ./cowork-authorization/Dockerfile.prod
-          - service: cowork-preference
-            context: ./cowork-preference
-            dockerfile: ./cowork-preference/Dockerfile.prod
-          - service: cowork-user
-            context: ./cowork-user
-            dockerfile: ./cowork-user/Dockerfile.prod
-          - service: cowork-team
-            context: .
-            dockerfile: ./cowork-team/Dockerfile.prod
-          - service: cowork-channel
-            context: .
-            dockerfile: ./cowork-channel/Dockerfile.prod
-          - service: cowork-notification
-            context: ./cowork-notification
-            dockerfile: ./cowork-notification/Dockerfile.prod
-          - service: cowork-chat
-            context: ./cowork-chat
-            dockerfile: ./cowork-chat/Dockerfile.prod
-          - service: cowork-voice
-            context: ./cowork-voice
-            dockerfile: ./cowork-voice/Dockerfile.prod
-          - service: cowork-project
-            context: ./cowork-project
-            dockerfile: ./cowork-project/Dockerfile.prod
-          - service: cowork-roadmap
-            context: .
-            dockerfile: ./cowork-roadmap/Dockerfile.prod
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.prepare.outputs.image-matrix) }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -208,26 +181,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push image
-        uses: docker/build-push-action@v7
+        uses: ./.github/actions/build-image
         with:
+          service: ${{ matrix.service }}
+          environment: prod
           context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
-          platforms: linux/amd64
-          push: true
-          provenance: mode=max
-          sbom: true
+          dockerfile: ${{ matrix.dockerfile }}
+          push: 'true'
           # sha-<sha> 태그는 deploy job이 항상 pull해야 하므로 매번 push한다.
           # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
           # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
           tags: |
-            ghcr.io/${{ needs.prepare.outputs.owner }}/${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha }}
-            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
+            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha }}
+            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
             org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
-          cache-from: type=gha,scope=${{ matrix.service }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
   release:
     needs:
@@ -257,9 +227,14 @@ jobs:
 
   detect-changes:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     permissions:
       contents: read
+      deployments: read
     outputs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
       services-list: ${{ steps.build-matrix.outputs.services-list }}
@@ -267,188 +242,111 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 20
-      - name: Resolve base commit
-        id: base
-        run: echo "sha=$(git rev-parse HEAD~1)" >> "$GITHUB_OUTPUT"
-      - uses: dorny/paths-filter@v4
-        id: filter
+          fetch-depth: 0
+      - name: Checkout deployment tracking tools
+        uses: actions/checkout@v7
         with:
-          base: ${{ steps.base.outputs.sha }}
-          filters: |
-            team:
-              - 'cowork-team/**'
-              - 'deploy/prod/services/team.sh'
-            channel:
-              - 'cowork-channel/**'
-              - 'deploy/prod/services/channel.sh'
-            authorization:
-              - 'cowork-authorization/**'
-              - 'deploy/prod/services/authorization.sh'
-            user:
-              - 'cowork-user/**'
-              - 'deploy/prod/services/user.sh'
-            project:
-              - 'cowork-project/**'
-              - 'deploy/prod/services/project.sh'
-            preference:
-              - 'cowork-preference/**'
-              - 'deploy/prod/services/preference.sh'
-            chat:
-              - 'cowork-chat/**'
-              - 'deploy/prod/services/chat.sh'
-            voice:
-              - 'cowork-voice/**'
-              - 'deploy/prod/services/voice.sh'
-            notification:
-              - 'cowork-notification/**'
-              - 'deploy/prod/services/notification.sh'
-            gateway:
-              - 'cowork-gateway/**'
-              - 'deploy/prod/services/gateway.sh'
-            config:
-              - 'cowork-config/**'
-              - 'deploy/prod/services/config.sh'
-            roadmap:
-              - 'cowork-roadmap/**'
-              - 'deploy/prod/services/roadmap.sh'
-            monitoring:
-              - 'deploy/config/monitoring/**'
-              - 'deploy/prod/services/monitoring.sh'
-              - 'deploy/prod/monitoring/**'
-            log-agent:
-              - 'deploy/prod/log-agent/**'
-              - 'deploy/prod/services/log-agent.sh'
-            vault:
-              - 'deploy/prod/vault/**'
-              - 'deploy/config/vault/server.hcl'
-              - 'deploy/prod/services/vault.sh'
-            shared:
-              - 'deploy/prod/lib/**'
-              - 'deploy/prod/deploy.sh'
-              - 'deploy/prod/defaults.sh'
-              - 'deploy/prod/*settings.py'
-              - 'deploy/prod/inventory.json'
-              - 'deploy/prod/build-matrix.py'
-              - '.github/workflows/cowork-prod-cd.yml'
-            application_shared:
-              - 'build.gradle.kts'
-              - 'settings.gradle.kts'
-              - 'gradle.properties'
-              - 'gradle/**'
-              - 'gradlew'
-              - 'gradlew.bat'
-              - 'build-logic/**'
-              - '.editorconfig'
-      - name: Build deploy matrix
+          ref: ${{ github.workflow_sha }}
+          path: .deployment-tools
+      - name: Compare each target with its last successful deployment
         id: build-matrix
         env:
-          FILTER_RESULTS: ${{ toJSON(steps.filter.outputs) }}
-        run: python3 deploy/prod/build-matrix.py
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python3 .deployment-tools/deploy/prod/build-matrix.py
 
-  deploy:
+  deployment-plan:
     needs: [prepare, build-images, release, detect-changes, manual-request]
     if: >
       always() && (
         (github.event_name == 'workflow_run' &&
          needs.detect-changes.result == 'success' &&
-         needs.detect-changes.outputs.matrix != '{"include":[]}' &&
          needs.prepare.result == 'success' &&
          needs.build-images.result == 'success' &&
          (needs.release.result == 'success' || needs.release.result == 'skipped')) ||
         (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
          needs.manual-request.result == 'success')
       )
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix || '{"include":[]}') }}
-    concurrency:
-      group: deploy-${{ matrix.target }}
-      cancel-in-progress: false
     runs-on: ubuntu-latest
-    environment: Prod-CD(${{ matrix.target }})
+    outputs:
+      vault: ${{ steps.waves.outputs.vault }}
+      config: ${{ steps.waves.outputs.config }}
+      applications: ${{ steps.waves.outputs.applications }}
+    steps:
+      - name: Order Vault, Config Server and remaining services
+        id: waves
+        env:
+          DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
+          waves = {'vault': [], 'config': [], 'applications': []}
+          for unit in units:
+              wave = unit['service'] if unit['service'] in {'vault', 'config'} else 'applications'
+              waves[wave].append(unit)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for wave, units in waves.items():
+                  output.write(wave + '=' + json.dumps({'include': units}, separators=(',', ':')) + '\n')
+          PYTHON
+
+  deploy-vault:
+    needs: [deployment-plan]
+    if: >
+      always() && needs.deployment-plan.result == 'success' &&
+      needs.deployment-plan.outputs.vault != '{"include":[]}'
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-          fetch-depth: 0
-      - name: Validate release and target
-        env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-          SERVICE: ${{ matrix.service }}
-          TARGET: ${{ matrix.target }}
-        run: |
-          set -euo pipefail
-          [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-          [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-          [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-          test -f "deploy/prod/services/$SERVICE.sh"
-          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-          git merge-base --is-ancestor "$RELEASE_SHA" origin/main
-      - name: Load Vault deployment snapshot
-        id: settings
-        env:
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          VAULT_TOKEN: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
-          VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
-          RECOVERY: ${{ inputs.vault_recovery || false }}
-          SERVICE: ${{ matrix.service }}
-          TARGET: ${{ matrix.target }}
-          CONFIG_VERSION: ${{ inputs.configuration_version || '0' }}
-        run: |
-          set -euo pipefail
-          mode=read
-          if [ "$RECOVERY" = true ]; then
-            test "$SERVICE" = vault
-            test "$TARGET" = vault
-            mode=bootstrap
-          fi
-          python3 deploy/prod/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION"
-      - name: Apply immutable release and Vault settings
-        uses: appleboy/ssh-action@v1
-        env:
-          DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
-          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha }}
-          DEPLOY_SERVICE: ${{ matrix.service }}
-          DEPLOY_TARGET: ${{ matrix.target }}
-          DEPLOY_OWNER: ${{ github.repository_owner }}
-          DEPLOY_ACTION: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only && 'check' || 'deploy' }}
-        with:
-          host: ${{ steps.settings.outputs.ssh_host }}
-          port: ${{ steps.settings.outputs.ssh_port }}
-          username: ${{ steps.settings.outputs.ssh_user }}
-          key: ${{ steps.settings.outputs.ssh_key }}
-          fingerprint: ${{ steps.settings.outputs.ssh_fingerprint }}
-          command_timeout: 20m
-          envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION
-          script: |
-            set -euo pipefail
-            [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
-            root="$HOME/.local/share/cowork"
-            cache="$root/repository.git"
-            release="$root/releases/$DEPLOY_SHA"
-            mkdir -p "$root/releases"
-            exec 9>"$root/source.lock"
-            flock -w 120 9
-            if [ ! -d "$cache" ]; then
-              git clone --mirror https://github.com/team-cowork/cowork-server.git "$cache"
-            fi
-            git --git-dir="$cache" fetch origin "$DEPLOY_SHA" --quiet
-            if [ ! -d "$release" ]; then
-              staging="$(mktemp -d "$root/releases/.staging.XXXXXX")"
-              trap 'rm -rf "$staging"' EXIT
-              git --git-dir="$cache" archive "$DEPLOY_SHA" | tar -x -C "$staging"
-              printf '%s\n' "$DEPLOY_SHA" > "$staging/.source-sha"
-              mv "$staging" "$release"
-              trap - EXIT
-            fi
-            test "$(cat "$release/.source-sha")" = "$DEPLOY_SHA"
-            flock -u 9
-            printf '%s' "$DEPLOY_PAYLOAD" | python3 "$release/deploy/prod/apply-settings.py" \
-              "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION"
+      deployments: write
+    uses: ./.github/workflows/cowork-deploy-wave.yml
+    secrets: inherit
+    with:
+      matrix: ${{ needs.deployment-plan.outputs.vault }}
+      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+      tools_ref: ${{ github.workflow_sha }}
+      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+      configuration_version: ${{ inputs.configuration_version || '0' }}
+      vault_recovery: ${{ inputs.vault_recovery || false }}
+
+  deploy-config:
+    needs: [deployment-plan, deploy-vault]
+    if: >
+      always() && needs.deployment-plan.result == 'success' &&
+      needs.deployment-plan.outputs.config != '{"include":[]}' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped')
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/cowork-deploy-wave.yml
+    secrets: inherit
+    with:
+      matrix: ${{ needs.deployment-plan.outputs.config }}
+      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+      tools_ref: ${{ github.workflow_sha }}
+      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+      configuration_version: ${{ inputs.configuration_version || '0' }}
+      vault_recovery: ${{ inputs.vault_recovery || false }}
+
+  deploy:
+    needs: [deployment-plan, deploy-vault, deploy-config]
+    if: >
+      always() && needs.deployment-plan.result == 'success' &&
+      needs.deployment-plan.outputs.applications != '{"include":[]}' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-config.result == 'success' || needs.deploy-config.result == 'skipped')
+    permissions:
+      contents: read
+      deployments: write
+    uses: ./.github/workflows/cowork-deploy-wave.yml
+    secrets: inherit
+    with:
+      matrix: ${{ needs.deployment-plan.outputs.applications }}
+      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+      tools_ref: ${{ github.workflow_sha }}
+      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+      configuration_version: ${{ inputs.configuration_version || '0' }}
+      vault_recovery: ${{ inputs.vault_recovery || false }}
 
   update-config:
     needs: manual-request
@@ -482,6 +380,9 @@ jobs:
       - build-images
       - release
       - detect-changes
+      - deployment-plan
+      - deploy-vault
+      - deploy-config
       - deploy
       - manual-request
       - update-config
@@ -497,7 +398,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -543,6 +444,9 @@ jobs:
             **Build Images:** ${{ needs.build-images.result }}
             **Release:** ${{ needs.release.result }}
             **Detect Changes:** ${{ needs.detect-changes.result }}
+            **Deployment Plan:** ${{ needs.deployment-plan.result }}
+            **Vault:** ${{ needs.deploy-vault.result }}
+            **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
             **Manual Request:** ${{ needs.manual-request.result }}
             **Update Config:** ${{ needs.update-config.result }}
