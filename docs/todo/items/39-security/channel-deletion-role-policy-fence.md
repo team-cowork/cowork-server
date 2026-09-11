@@ -22,14 +22,14 @@ Kafka topic에 대기하던 `UPSERT`가 삭제 정리 뒤 처리되면 authorita
 
 ## 수명주기 계약
 
-| 항목 | 계약 |
-|------|------|
-| 원천 이벤트 | `channel.event.v2`의 key는 `channelId`이고 `DELETED`를 포함한 full state와 `occurredAt`을 사용한다 |
-| 삭제 fence | `cowork-preference`가 채널별 최신 source version과 삭제 상태를 영구 보존하며 stale active state가 삭제를 되돌리지 못한다 |
-| 정책 정리 | 채널 삭제 상태, active policy 삭제, policy tombstone, state outbox, consumer checkpoint를 하나의 PostgreSQL transaction으로 적용한다 |
-| command 경합 | 삭제 consumer와 command processor가 같은 채널 fence를 잠가 처리 순서를 직렬화한다 |
-| 삭제 후 command | 삭제가 먼저 적용되면 queued `UPSERT`와 `DELETE`를 `CHANNEL_DELETED` terminal result로 종료한다 |
-| readiness | `channel.event.v2`와 policy state snapshot의 준비 조건을 aggregate별로 분리해 순환 의존 없이 fail-closed한다 |
+| 항목            | 계약                                                                                                                                 |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| 원천 이벤트     | `channel.event.v2`의 key는 `channelId`이고 `DELETED`를 포함한 full state와 `occurredAt`을 사용한다                                   |
+| 삭제 fence      | `cowork-preference`가 채널별 최신 source version과 삭제 상태를 영구 보존하며 stale active state가 삭제를 되돌리지 못한다             |
+| 정책 정리       | 채널 삭제 상태, active policy 삭제, policy tombstone, state outbox, consumer checkpoint를 하나의 PostgreSQL transaction으로 적용한다 |
+| command 경합    | 삭제 consumer와 command processor가 같은 채널 fence를 잠가 처리 순서를 직렬화한다                                                    |
+| 삭제 후 command | 삭제가 먼저 적용되면 queued `UPSERT`와 `DELETE`를 `CHANNEL_DELETED` terminal result로 종료한다                                       |
+| readiness       | `channel.event.v2`와 policy state snapshot의 준비 조건을 aggregate별로 분리해 순환 의존 없이 fail-closed한다                         |
 
 ## 할 일
 

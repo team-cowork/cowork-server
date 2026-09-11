@@ -249,11 +249,27 @@ defmodule CoworkUser.OpenAPI do
     %{
       type: "object",
       properties: %{
-        nickname: %{type: "string"},
+        nickname: %{
+          type: "string",
+          nullable: true,
+          description: "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+        },
         name: %{type: "string"},
-        description: %{type: "string"},
-        github_id: %{type: "string", nullable: true},
-        roles: %{type: "array", items: %{type: "string"}}
+        description: %{
+          type: "string",
+          nullable: true,
+          description: "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+        },
+        github_id: %{
+          type: "string",
+          nullable: true,
+          description: "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+        },
+        roles: %{
+          type: "array",
+          items: %{type: "string"},
+          description: "생략하면 기존 역할을 유지하고 빈 배열이면 역할을 모두 해제합니다."
+        }
       }
     }
   end
