@@ -583,6 +583,11 @@ jobs:
           import org.gradle.testing.jacoco.tasks.JacocoReport
 
           // Kept outside the measured checkout so base and PR use identical instrumentation.
+          // Included builds rerun init scripts without the root build's -P arguments.
+          // Instrument only the main build containing the selected service.
+          if (gradle.parent != null) {
+              return
+          }
           def coverageProjectDir = gradle.startParameter.projectProperties['coverageProjectDir']
           def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
           if (!coverageProjectDir || !coverageOutput) {
