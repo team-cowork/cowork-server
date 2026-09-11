@@ -3,6 +3,7 @@ WORKDIR /workspace
 
 COPY gradlew gradlew
 COPY gradle gradle
+COPY build-logic build-logic
 COPY settings.gradle.kts build.gradle.kts ./
 COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
 COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
