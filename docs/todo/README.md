@@ -32,7 +32,7 @@
 - reliability: [Socket.IO Redis adapter 준비 상태와 복구 보장](./items/29-reliability/socketio-redis-adapter-readiness.md)
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md)
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
-- correctness: [사용자 프로필 PATCH 부분 수정 의미 보장](./items/32-correctness/user-profile-patch-semantics.md)
+- ~~correctness: [사용자 프로필 PATCH 부분 수정 의미 보장](./items/32-correctness/user-profile-patch-semantics.md)~~
 - reliability: [FCM 개별 전송 실패의 선택적 재시도](./items/33-reliability/fcm-partial-failure-retry.md)
 - reliability: [Authorization 웹훅 멱등 처리와 outbox 원자화](./items/34-reliability/authorization-webhook-atomicity.md)
 - reliability: [종료 음성 세션의 Redis stale cache 차단](./items/35-reliability/voice-session-cache-staleness.md)

@@ -30,11 +30,11 @@
 
 Config Server는 native 설정의 `${...}`를 **해석하지 않고 그대로 클라이언트에 전달한다.** 따라서 런타임별로 사용 방식이 다르다.
 
-| 구분     | 서비스                                                                | 규칙                                                                                                                                                                                 |
-|----------|-----------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Spring   | gateway, channel, project, roadmap, team                              | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}`를 사용할 수 있다. 기본값 없는 값은 client 환경변수, Vault 또는 Config Server `overrides` 등 해석 가능한 공급원에서 제공한다. |
-| Vert.x   | preference                                                           | 자체 Config Client가 문자열 placeholder를 해당 process 환경변수로 해석한다. Spring Environment를 사용하지 않으므로 필요한 값은 preference 컨테이너 환경변수 또는 해석된 Vault 값으로 공급한다. |
-| 비Spring | authorization, notification, voice (Go), chat (NestJS), user (Elixir) | 원격 문자열의 placeholder를 해석하지 않는다. **리터럴 값만 사용한다.** 배포 환경에서 바꿔야 하는 값은 `overrides`에 같은 키 이름으로 등록하거나 해당 컨테이너의 환경변수로 덮어쓴다. |
+| 구분     | 서비스                                                                | 규칙                                                                                                                                                                                           |
+|----------|-----------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Spring   | gateway, channel, project, roadmap, team                              | 클라이언트가 자체 Environment로 해석하므로 `${VAR:default}`를 사용할 수 있다. 기본값 없는 값은 client 환경변수, Vault 또는 Config Server `overrides` 등 해석 가능한 공급원에서 제공한다.       |
+| Vert.x   | preference                                                            | 자체 Config Client가 문자열 placeholder를 해당 process 환경변수로 해석한다. Spring Environment를 사용하지 않으므로 필요한 값은 preference 컨테이너 환경변수 또는 해석된 Vault 값으로 공급한다. |
+| 비Spring | authorization, notification, voice (Go), chat (NestJS), user (Elixir) | 원격 문자열의 placeholder를 해석하지 않는다. **리터럴 값만 사용한다.** 배포 환경에서 바꿔야 하는 값은 `overrides`에 같은 키 이름으로 등록하거나 해당 컨테이너의 환경변수로 덮어쓴다.           |
 
 `overrides`에 등록된 flat 키는 Spring 클라이언트의 placeholder 해석 소스가 되는 동시에, 비Spring 클라이언트가 키 이름으로 직접 읽는 값이 된다. 현재 등록 대상은 `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL`이다.
 

@@ -16,11 +16,11 @@
 
 ## 구현 선택지
 
-| 선택지 | 장점 | 주의점 |
-|--------|------|--------|
+| 선택지                                 | 장점                               | 주의점                                             |
+|----------------------------------------|------------------------------------|----------------------------------------------------|
 | scope row 또는 전용 allocator row 잠금 | 연속 정수 position을 유지하기 쉬움 | 팀·roadmap parent별 로컬 lock row가 필요할 수 있음 |
-| scope별 sequence/allocator table | 생성 경합을 짧게 직렬화함 | 삭제·reorder 뒤 gap 정책을 정의해야 함 |
-| sparse order key 또는 rank token | 중간 삽입과 재정렬 write를 줄임 | key 재균형과 클라이언트 계약 변경이 필요함 |
+| scope별 sequence/allocator table       | 생성 경합을 짧게 직렬화함          | 삭제·reorder 뒤 gap 정책을 정의해야 함             |
+| sparse order key 또는 rank token       | 중간 삽입과 재정렬 write를 줄임    | key 재균형과 클라이언트 계약 변경이 필요함         |
 
 ## 할 일
 

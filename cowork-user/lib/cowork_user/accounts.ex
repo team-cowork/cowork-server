@@ -67,48 +67,90 @@ defmodule CoworkUser.Accounts do
   end
 
   def update_my_profile(user_id, attrs) do
-    roles = attrs["roles"] |> normalize_roles()
-    account_update_attrs = build_profile_account_attrs(attrs, user_id)
+    with {:ok, patch} <- profile_patch(attrs) do
+      Repo.transaction(fn ->
+        with %Account{} = account <- lock_account(user_id),
+             %Profile{} = profile <- lock_profile(user_id),
+             {:ok, profile_changed?} <-
+               maybe_update_profile(profile, patch.profile, user_id),
+             {:ok, roles_changed?} <- maybe_replace_roles(profile.id, patch.roles),
+             {:ok, account_changed?} <-
+               maybe_update_profile_account(account, patch.account, user_id) do
+          if profile_changed? or roles_changed? or account_changed? do
+            ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
+          end
 
-    Repo.transaction(fn ->
-      with %Account{} = account <- lock_account(user_id),
-           %Profile{} = profile <- lock_profile(user_id),
-           {:ok, _profile} <-
-             profile
-             |> Profile.changeset(%{
-               nickname: Map.get(attrs, "nickname"),
-               description: Map.get(attrs, "description"),
-               last_modified_by: user_id
-             })
-             |> Repo.update(),
-           :ok <- replace_roles_in_transaction(profile.id, roles),
-           {:ok, _account} <- maybe_update_profile_account(account, account_update_attrs) do
-        ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
-        :ok
-      else
-        nil -> Repo.rollback(:not_found)
-        {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback({:validation, changeset})
+          :ok
+        else
+          nil -> Repo.rollback(:not_found)
+          {:error, %Ecto.Changeset{} = changeset} -> Repo.rollback({:validation, changeset})
+        end
+      end)
+      |> case do
+        {:ok, :ok} ->
+          get_my_profile(user_id)
+
+        {:error, :not_found} ->
+          {:error, :not_found}
+
+        {:error, {:validation, changeset}} ->
+          {:error, {:validation, format_changeset_errors(changeset)}}
       end
-    end)
-    |> case do
-      {:ok, :ok} ->
-        get_my_profile(user_id)
-
-      {:error, :not_found} ->
-        {:error, :not_found}
-
-      {:error, {:validation, changeset}} ->
-        {:error, {:validation, format_changeset_errors(changeset)}}
     end
   end
 
-  defp maybe_update_profile_account(account, attrs) when map_size(attrs) > 1 do
-    account
-    |> Account.profile_update_changeset(attrs)
-    |> Repo.update()
+  defp maybe_update_profile(profile, attrs, user_id) when map_size(attrs) > 0 do
+    if fields_changed?(profile, attrs) do
+      case profile
+           |> Profile.changeset(Map.put(attrs, :last_modified_by, user_id))
+           |> Repo.update() do
+        {:ok, _profile} -> {:ok, true}
+        {:error, changeset} -> {:error, changeset}
+      end
+    else
+      {:ok, false}
+    end
   end
 
-  defp maybe_update_profile_account(account, _attrs), do: {:ok, account}
+  defp maybe_update_profile(_profile, _attrs, _user_id), do: {:ok, false}
+
+  defp maybe_update_profile_account(account, attrs, user_id) when map_size(attrs) > 0 do
+    if fields_changed?(account, attrs) do
+      case account
+           |> Account.profile_update_changeset(Map.put(attrs, :last_modified_by, user_id))
+           |> Repo.update() do
+        {:ok, _account} -> {:ok, true}
+        {:error, changeset} -> {:error, changeset}
+      end
+    else
+      {:ok, false}
+    end
+  end
+
+  defp maybe_update_profile_account(_account, _attrs, _user_id), do: {:ok, false}
+
+  defp fields_changed?(record, attrs) do
+    Enum.any?(attrs, fn {field, value} -> Map.get(record, field) != value end)
+  end
+
+  defp maybe_replace_roles(_profile_id, :unchanged), do: {:ok, false}
+
+  defp maybe_replace_roles(profile_id, {:replace, roles}) do
+    current_roles =
+      ProfileRole
+      |> where([profile_role], profile_role.profile_id == ^profile_id)
+      |> select([profile_role], profile_role.role)
+      |> Repo.all()
+      |> Enum.uniq()
+      |> Enum.sort()
+
+    if current_roles == roles do
+      {:ok, false}
+    else
+      :ok = replace_roles_in_transaction(profile_id, roles)
+      {:ok, true}
+    end
+  end
 
   defp replace_roles_in_transaction(profile_id, roles) do
     Repo.delete_all(from(pr in ProfileRole, where: pr.profile_id == ^profile_id))
@@ -452,14 +494,6 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  defp build_profile_account_attrs(attrs, user_id) do
-    Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key,
-                                                                                             field},
-                                                                                            acc ->
-      if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
-    end)
-  end
-
   @doc false
   def presence_attrs_for_upsert(nil) do
     %{status: "offline", presence_updated_at: @initial_presence_updated_at}
@@ -644,15 +678,59 @@ defmodule CoworkUser.Accounts do
     end
   end
 
-  defp normalize_roles(nil), do: []
+  @doc false
+  def profile_patch(attrs) when is_map(attrs) do
+    with {:ok, roles} <- profile_patch_roles(attrs) do
+      {:ok,
+       %{
+         profile:
+           take_present_fields(attrs, [
+             {"nickname", :nickname},
+             {"description", :description}
+           ]),
+         account:
+           take_present_fields(attrs, [
+             {"name", :name},
+             {"github_id", :github}
+           ]),
+         roles: roles
+       }}
+    end
+  end
 
-  defp normalize_roles(roles) when is_list(roles) do
-    roles
-    |> Enum.map(&to_string/1)
-    |> Enum.map(&String.trim/1)
-    |> Enum.reject(&(&1 == ""))
-    |> Enum.uniq()
-    |> Enum.sort()
+  def profile_patch(_attrs),
+    do: {:error, {:validation, "요청 본문은 JSON 객체여야 합니다."}}
+
+  defp profile_patch_roles(attrs) do
+    if Map.has_key?(attrs, "roles") do
+      normalize_profile_patch_roles(attrs["roles"])
+    else
+      {:ok, :unchanged}
+    end
+  end
+
+  defp normalize_profile_patch_roles(roles) when is_list(roles) do
+    if Enum.all?(roles, &is_binary/1) do
+      normalized =
+        roles
+        |> Enum.map(&String.trim/1)
+        |> Enum.reject(&(&1 == ""))
+        |> Enum.uniq()
+        |> Enum.sort()
+
+      {:ok, {:replace, normalized}}
+    else
+      {:error, {:validation, "roles의 각 값은 문자열이어야 합니다."}}
+    end
+  end
+
+  defp normalize_profile_patch_roles(_roles),
+    do: {:error, {:validation, "roles는 배열이어야 합니다."}}
+
+  defp take_present_fields(attrs, fields) do
+    Enum.reduce(fields, %{}, fn {key, field}, acc ->
+      if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
+    end)
   end
 
   @doc false
