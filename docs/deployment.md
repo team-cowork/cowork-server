@@ -93,14 +93,15 @@ target에는 과거 자동 실행을 적용하지 않는다. 이전 SHA로 복�
 배포 실패로 처리하며, 기록이 없다고 간주하지 않는다.
 
 선택된 대상은 Vault → Config Server → 나머지 서비스 순으로 적용한다. 앞 단계 실패 시
-다음 단계는 시작하지 않는다. 배포 기록용 `GITHUB_TOKEN`은 `deployments: write`를 사용하며
+다음 단계는 시작하지 않는다. 세 단계는 기존 `cowork-prod-cd.yml`의 job이며,
+공통 적용 절차는 `.github/actions/deploy-target`에서 관리한다. 배포 기록용 `GITHUB_TOKEN`은 `deployments: write`를 사용하며
 별도 운영 토큰을 추가할 필요는 없다. 기록 전송만 실패한 경우에도 workflow는 실패로 표시되고
 다음 실행이 이전 성공 기준으로 다시 계산한다.
 
 이미지 빌드 입력은 `deploy/images/catalog.json`에 등록한다. 루트 `.dockerignore`, Gradle 공통
-설정과 각 모듈의 빌드 스크립트도 변경 감지에 포함한다. `cowork Docker Image CI`는 stacked PR의
-부모 브랜치도 지원하며 local·prod 이미지를 게시하지 않고 빌드한 뒤 파일·사용자·로그 권한을
-검사한다. 애플리케이션이나 DB는 시작하지 않는다. CD도 같은 이미지 빌드와 검사를 거친다.
+설정과 각 모듈의 빌드 스크립트도 변경 감지에 포함한다. 기존 `cowork-stage-ci.yml`과
+`cowork-prod-ci.yml`의 이미지 job은 stacked PR의 부모 브랜치도 지원하며 local·prod 이미지를
+게시하지 않고 빌드한 뒤 파일·사용자·로그 권한을 검사한다. workflow 파일은 기존 4개를 유지한다. 애플리케이션이나 DB는 시작하지 않는다. CD도 같은 이미지 빌드와 검사를 거친다.
 BuildKit 레이어와 의존성 cache mount는 별도로 저장하며, 서비스·환경별로 캐시를 구분한다.
 
 아래는 `project` 배포 문서를 교체하는 예다. 저장소 밖의 `project.json`을 권한 `600`으로 준비한다.

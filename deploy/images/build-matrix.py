@@ -8,7 +8,8 @@ from pathlib import Path
 
 CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
 GRADLE_FILES = {"build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", "gradlew.bat", ".editorconfig"}
-IMAGE_FILES = {".dockerignore", ".github/workflows/cowork-images-ci.yml", ".github/workflows/cowork-prod-cd.yml"}
+IMAGE_FILES = {".dockerignore", ".github/workflows/cowork-stage-ci.yml",
+               ".github/workflows/cowork-prod-ci.yml", ".github/workflows/cowork-prod-cd.yml"}
 
 
 def affected(service, paths):
