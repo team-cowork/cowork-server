@@ -518,3 +518,4 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Prometheus: `http://localhost:9090`
 
 Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
+
