@@ -14,12 +14,12 @@
 
 ## 응답 전략
 
-| 응답 유형 | 목표 처리 |
-|-----------|-----------|
-| 작은 길이 명시 JSON | 제한된 크기 안에서만 wrapping함 |
-| 길이 미상·chunked JSON | 기본적으로 통과시키거나 bounded aggregation을 적용함 |
-| streaming·SSE·파일 | 절대 wrapping하지 않고 backpressure를 유지함 |
-| 이미 `CommonApiResponse`인 응답 | 재직렬화 없이 그대로 전달함 |
+| 응답 유형                       | 목표 처리                                            |
+|---------------------------------|------------------------------------------------------|
+| 작은 길이 명시 JSON             | 제한된 크기 안에서만 wrapping함                      |
+| 길이 미상·chunked JSON          | 기본적으로 통과시키거나 bounded aggregation을 적용함 |
+| streaming·SSE·파일              | 절대 wrapping하지 않고 backpressure를 유지함         |
+| 이미 `CommonApiResponse`인 응답 | 재직렬화 없이 그대로 전달함                          |
 
 장기적으로는 각 HTTP 서비스가 공통 응답 envelope를 소유하고 Gateway가 body를 해석하지 않는 방향을 우선 검토한다.
 
