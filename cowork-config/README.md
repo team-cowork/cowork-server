@@ -46,4 +46,4 @@
 
 일반 설정은 [configs/](src/main/resources/configs/), 시크릿은 Vault에서 공급합니다. 로컬 `vault-init`은 `.env`의 시크릿을 Vault에 적재하며, 운영에서는 외부 Vault를 미리 준비해야 합니다.
 
-위 prod 필수값과 외부 Vault 토큰은 기본 Compose가 전달하지 않으므로 배포 환경에서 추가로 주입해야 합니다. 설정 우선순위와 프로파일별 상세 규칙은 [설정 가이드](../docs/configuration.md)를 참고합니다.
+위 표는 local Compose 기준입니다. 분산 운영에서는 `deploy/prod/deploy.sh config`가 VM의 환경 설정으로 prod 필수값과 외부 Vault 접속 정보를 전달합니다. VM별 설정과 최초 전환 절차는 [배포 가이드](../docs/deployment.md)를 참고합니다. 설정 우선순위와 프로파일별 상세 규칙은 [설정 가이드](../docs/configuration.md)를 참고합니다.

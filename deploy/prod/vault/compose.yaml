@@ -1,0 +1,25 @@
+# Independent Vault lifecycle. Explicit external storage prevents an accidental empty Vault.
+services:
+  vault:
+    image: hashicorp/vault:2.0.3
+    container_name: cowork-vault-prod
+    restart: unless-stopped
+    command: [server, -config=/vault/config/server.hcl]
+    cap_add: [IPC_LOCK]
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_API_ADDR: https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}
+    ports:
+      - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_HOST_PORT:-8200}:8200"
+    volumes:
+      - ./deploy/config/vault/server.hcl:/vault/config/server.hcl:ro
+      - vault-data:/vault/data
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+volumes:
+  vault-data:
+    external: true
+    name: ${VAULT_DATA_VOLUME:?Set the existing Vault volume name explicitly}

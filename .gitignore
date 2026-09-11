@@ -45,6 +45,7 @@ vendor/
 bin/
 
 ### Environment ###
+*.env
 .env
 .env.*
 !.env.example
@@ -75,8 +76,8 @@ SPEC.md
 .worktrees/
 
 ### Secrets ###
+# Keep the legacy location excluded until other checkouts move their local credentials.
 docker/secrets/
-!docker/secrets/.gitkeep
 deploy/local/secrets/*
 
 ### Maven ###
