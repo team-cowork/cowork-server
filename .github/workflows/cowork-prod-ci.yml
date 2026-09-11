@@ -1984,13 +1984,17 @@ jobs:
             const baseSha = sh(`git merge-base origin/${baseRef} HEAD`).trim();
             const S1 = '\x01', S2 = '\x02';
             const parseLog = (range) => {
-              const out = sh(`git log --no-merges --pretty=format:"${S1}%H${S2}%ae${S2}%an" --numstat ${range}`);
+              const out = sh(`git log --no-merges --pretty=format:"${S1}%H${S2}%ae${S2}%(trailers:key=Co-authored-by,valueonly,separator=%x03)" --numstat ${range}`);
               const commits = []; let cur = null;
               for (const line of out.split('\n')) {
                 if (line.startsWith(S1)) {
                   if (cur) commits.push(cur);
-                  const [sha, email] = line.slice(1).split(S2);
-                  cur = { sha, email: email.toLowerCase(), files: {} };
+                  const [sha, rawEmail, rawCoAuthors = ''] = line.slice(1).split(S2);
+                  const email = rawEmail.toLowerCase();
+                  const coAuthorEmails = [...rawCoAuthors.matchAll(/<([^<>\s]+@[^<>\s]+)>/g)]
+                    .map(m => m[1].toLowerCase())
+                    .filter((coAuthorEmail, i, emails) => coAuthorEmail !== email && emails.indexOf(coAuthorEmail) === i);
+                  cur = { sha, email, coAuthorEmails, files: {} };
                 } else if (line.trim() && cur) {
                   const parts = line.split('\t');
                   if (parts.length !== 3) continue;
@@ -2017,6 +2021,10 @@ jobs:
             const all = baseCommits.concat(prCommits);
             const sampleSha = new Map();
             for (const c of all) if (!sampleSha.has(c.email)) sampleSha.set(c.email, c.sha);
+            for (const c of all) {
+              for (const email of c.coAuthorEmails) if (!sampleSha.has(email)) sampleSha.set(email, c.sha);
+            }
+            const coAuthorEmails = new Set(all.flatMap(c => c.coAuthorEmails));
             const noreply = (e) => {
               const m = e.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/);
               return m ? m[1] : null;
@@ -2029,8 +2037,24 @@ jobs:
               if (!login && email.includes('[bot]')) login = email.split('@')[0];
               if (!login && !isFake(email)) {
                 try {
-                  const r = await github.rest.repos.getCommit({ owner, repo, ref: sha });
-                  login = r.data.author ? r.data.author.login : null;
+                  if (coAuthorEmails.has(email)) {
+                    const data = await github.graphql(`
+                      query($owner: String!, $repo: String!, $oid: GitObjectID!) {
+                        repository(owner: $owner, name: $repo) {
+                          object(oid: $oid) {
+                            ... on Commit {
+                              authors(first: 100) { nodes { email user { login } } }
+                            }
+                          }
+                        }
+                      }
+                    `, { owner, repo, oid: sha });
+                    const actors = data.repository.object?.authors.nodes || [];
+                    login = actors.find(a => a.email.toLowerCase() === email)?.user?.login || null;
+                  } else {
+                    const r = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+                    login = r.data.author ? r.data.author.login : null;
+                  }
                 } catch (e) {
                   if (e.status === 403 || e.status === 429) core.warning(`GitHub API rate limit while verifying ${email}`);
                   else core.warning(`GitHub API error while verifying ${email}: ${e.message}`);
@@ -2055,14 +2079,19 @@ jobs:
             const aggregate = (commits, metric) => {
               const contrib = {}, totals = {}, seen = {};
               for (const c of commits) {
-                const login = emailLogin.get(c.email);
-                if (!login) continue;
-                contrib[login] = contrib[login] || {};
                 if (metric === 'commits') {
-                  for (const cat of Object.keys(c.files)) contrib[login][cat] = (contrib[login][cat] || 0) + 1;
-                  seen[login] = seen[login] || new Set();
-                  if (!seen[login].has(c.sha)) { seen[login].add(c.sha); totals[login] = (totals[login] || 0) + 1; }
+                  const logins = [emailLogin.get(c.email), ...c.coAuthorEmails.map(e => emailLogin.get(e))]
+                    .filter(Boolean);
+                  for (const login of new Set(logins)) {
+                    contrib[login] = contrib[login] || {};
+                    for (const cat of Object.keys(c.files)) contrib[login][cat] = (contrib[login][cat] || 0) + 1;
+                    seen[login] = seen[login] || new Set();
+                    if (!seen[login].has(c.sha)) { seen[login].add(c.sha); totals[login] = (totals[login] || 0) + 1; }
+                  }
                 } else {
+                  const login = emailLogin.get(c.email);
+                  if (!login) continue;
+                  contrib[login] = contrib[login] || {};
                   for (const [cat, ln] of Object.entries(c.files)) {
                     contrib[login][cat] = (contrib[login][cat] || 0) + ln;
                     totals[login] = (totals[login] || 0) + ln;
@@ -2092,7 +2121,7 @@ jobs:
             const btL = A.lines.before.totals, atL = A.lines.after.totals;
 
             const sum = (o) => Object.values(o).reduce((a, b) => a + b, 0);
-            const dCommits = sum(atC) - sum(btC);
+            const dCommits = prCommits.length;
             const dLines = sum(atL) - sum(btL);
             const nContrib = Object.keys(atC).filter(a => (atC[a] - (btC[a] || 0)) > 0).length;
 
@@ -2100,7 +2129,7 @@ jobs:
               marker,
               '## 이 PR이 병합되면 — 기여도 변화 미리보기',
               '',
-              `**커밋 ${signed(dCommits)}** · **라인 ${signed(dLines)}** · 기여자 ${nContrib}명 증가 · GitHub 계정에 연결된 커밋만 집계`,
+              `**커밋 ${signed(dCommits)}** · **라인 ${signed(dLines)}** · 기여자 ${nContrib}명 증가`,
               '',
             ];
 
