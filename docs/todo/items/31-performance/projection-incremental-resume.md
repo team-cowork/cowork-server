@@ -6,14 +6,14 @@
 
 ## 진행 상태 (2026-09-03)
 
-| 항목 | 코드에서 확인한 상태 | 남은 확인 |
-|------|---------------------|-----------|
-| dataset identity | `ProjectionDatasetRepository`가 stream·source generation·dataset generation·상태를 저장함 | 부분 데이터 손상과 동일 이름 topic 교체를 탐지할 수 있는 범위를 검증함 |
-| 정상 assignment | `claimForAssignment`가 기존 `nextOffset`·snapshot barrier를 보존하고 lease를 교체함 | process restart와 동일 process rebalance를 안전 정책에 맞게 구분함 |
-| startup 검사 | `resolveStartupDataset`이 generation, retained 범위, partition 집합, barrier·invalid latch를 검사함 | broker topic UUID 대신 운영 env generation을 신뢰하는 한계를 해소함 |
-| 명시적 rebuild | `ProjectionAdminController`와 readiness coordinator가 stream별 요청·pause·reset·replay를 수행함 | 실제 여러 replica에서 lease·pause 경합과 중단 후 복구를 검증함 |
-| 관측 | 관리 상태 응답과 `ProjectionMetricsService`의 replay·catch-up·rebuild 지표가 존재함 | 배포 환경에서 endpoint와 지표를 확인함 |
-| 검증 | 기존 checkpoint·readiness·rebuild 기술 테스트는 저장소 테스트 원칙에 따라 제거함 | 상태 전이 정적 검토, 운영 지표, 복구 rehearsal로 확인함 |
+| 항목             | 코드에서 확인한 상태                                                                                | 남은 확인                                                              |
+|------------------|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
+| dataset identity | `ProjectionDatasetRepository`가 stream·source generation·dataset generation·상태를 저장함           | 부분 데이터 손상과 동일 이름 topic 교체를 탐지할 수 있는 범위를 검증함 |
+| 정상 assignment  | `claimForAssignment`가 기존 `nextOffset`·snapshot barrier를 보존하고 lease를 교체함                 | process restart와 동일 process rebalance를 안전 정책에 맞게 구분함     |
+| startup 검사     | `resolveStartupDataset`이 generation, retained 범위, partition 집합, barrier·invalid latch를 검사함 | broker topic UUID 대신 운영 env generation을 신뢰하는 한계를 해소함    |
+| 명시적 rebuild   | `ProjectionAdminController`와 readiness coordinator가 stream별 요청·pause·reset·replay를 수행함     | 실제 여러 replica에서 lease·pause 경합과 중단 후 복구를 검증함         |
+| 관측             | 관리 상태 응답과 `ProjectionMetricsService`의 replay·catch-up·rebuild 지표가 존재함                 | 배포 환경에서 endpoint와 지표를 확인함                                 |
+| 검증             | 기존 checkpoint·readiness·rebuild 기술 테스트는 저장소 테스트 원칙에 따라 제거함                    | 상태 전이 정적 검토, 운영 지표, 복구 rehearsal로 확인함                |
 
 ## 문제
 
@@ -25,12 +25,12 @@
 
 ## 현재 구현의 실행 모드
 
-| 모드 | 진입 조건 | 시작 offset | readiness 조건 |
-|------|-----------|-------------|----------------|
-| 증분 재개 | `ACTIVE` dataset·source 세대와 partition 집합이 일치하고 checkpoint가 retained 범위 안에 있음 | 저장된 `nextOffset` | 유효한 snapshot barrier·invalid latch 부재를 확인하고 현재 high-watermark까지 catch-up함 |
-| 최초 bootstrap | projection dataset과 checkpoint가 모두 없음 | retained low | 유효한 전체 snapshot barrier와 high-watermark를 확인함 |
-| 명시적 재구축 | 운영자가 dataset 초기화·topic 세대 교체·스키마 재생성을 요청함 | 검증된 rebuild 기준점 | 새 dataset의 전체 snapshot과 catch-up을 확인함 |
-| 복구 불가 | checkpoint가 retention 밖이거나 dataset·checkpoint 세대가 다름 | 자동 seek하지 않음 | fail closed 후 명시적 재구축을 요구함 |
+| 모드           | 진입 조건                                                                                     | 시작 offset           | readiness 조건                                                                           |
+|----------------|-----------------------------------------------------------------------------------------------|-----------------------|------------------------------------------------------------------------------------------|
+| 증분 재개      | `ACTIVE` dataset·source 세대와 partition 집합이 일치하고 checkpoint가 retained 범위 안에 있음 | 저장된 `nextOffset`   | 유효한 snapshot barrier·invalid latch 부재를 확인하고 현재 high-watermark까지 catch-up함 |
+| 최초 bootstrap | projection dataset과 checkpoint가 모두 없음                                                   | retained low          | 유효한 전체 snapshot barrier와 high-watermark를 확인함                                   |
+| 명시적 재구축  | 운영자가 dataset 초기화·topic 세대 교체·스키마 재생성을 요청함                                | 검증된 rebuild 기준점 | 새 dataset의 전체 snapshot과 catch-up을 확인함                                           |
+| 복구 불가      | checkpoint가 retention 밖이거나 dataset·checkpoint 세대가 다름                                | 자동 seek하지 않음    | fail closed 후 명시적 재구축을 요구함                                                    |
 
 이 표는 코드의 모드 분류이며 non-UUID 증분 경로에서 broker 연속성이 입증되었다는 뜻이 아니다. `cowork-chat/src/main.ts`는 projection 준비 전 일반 HTTP 요청을 `503`으로 차단하고 WebSocket 연결과 Eureka 등록을 보류한다. 시작 시점뿐 아니라 현재 broker high-watermark와 checkpoint도 계속 대조한다.
 
