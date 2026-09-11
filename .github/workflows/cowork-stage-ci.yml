@@ -99,6 +99,15 @@ jobs:
         id: filter
         with:
           filters: |
+            gradle-shared:
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - 'gradle/**'
+              - 'build-logic/**'
+              - '.editorconfig'
             cowork-gateway:
               - 'cowork-gateway/**'
             cowork-config:
@@ -143,60 +152,41 @@ jobs:
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
-              {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-team","build":"gradle","working-directory":"."}
             ]}'
-            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-project, cowork-channel, cowork-roadmap, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
           else
             MATRIX='{"include":[]}'
-            SERVICES=""
-            [ "${{ steps.filter.outputs.cowork-gateway }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-gateway"
-            [ "${{ steps.filter.outputs.cowork-config }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-config"
+            [ "${{ steps.filter.outputs.cowork-gateway == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-config == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-user"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]')
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-notification"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-preference }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-preference"
-            [ "${{ steps.filter.outputs.cowork-project }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-project"
-            [ "${{ steps.filter.outputs.cowork-roadmap }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-roadmap","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-roadmap"
-            [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"}]')
+            [ "${{ steps.filter.outputs.cowork-project == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-roadmap == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-roadmap","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-channel == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-authorization }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-authorization"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."}]')
             [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]')
             [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-promotion"
-            [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
-            [ "${{ steps.filter.outputs.cowork-team }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-team"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]')
+            [ "${{ steps.filter.outputs.cowork-team == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]')
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
               MATRIX='{"include":[{"service":"no-changes","build":"skip"}]}'
-              SERVICES="none"
             fi
           fi
+          SERVICES=$(echo "$MATRIX" | jq -r '[.include[].service | select(. != "no-changes")] | if length == 0 then "none" else join(", ") end')
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
           echo "services-list=${SERVICES}" >> $GITHUB_OUTPUT
 
