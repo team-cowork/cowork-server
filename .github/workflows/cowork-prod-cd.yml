@@ -336,6 +336,10 @@ jobs:
               - 'settings.gradle.kts'
               - 'gradle.properties'
               - 'gradle/**'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - 'build-logic/**'
+              - '.editorconfig'
       - name: Build deploy matrix
         id: build-matrix
         env:
