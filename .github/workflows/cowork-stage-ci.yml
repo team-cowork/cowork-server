@@ -92,6 +92,8 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+      - name: Validate deployment syntax and Compose paths
+        run: python3 deploy/validate.py
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
