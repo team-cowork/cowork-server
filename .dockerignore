@@ -19,3 +19,20 @@ screenlog.*
 docs
 *.md
 !**/src
+
+# Nested module caches and local-only runtime settings are not image inputs.
+**/.gradle
+**/.gradle-local
+**/.kotlin
+**/node_modules
+**/target
+**/_build
+**/deps
+**/.env
+**/.env.*
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+.run
+.worktrees
+**/__pycache__
