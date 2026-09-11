@@ -15,13 +15,13 @@
 
 ## 전송 결과와 재시도 정책
 
-| 결과 | 판정 | 후속 처리 |
-|------|------|-----------|
-| 성공 | 개별 `SendResponse.Success`가 참임 | 완료로 기록하고 같은 delivery에서 다시 보내지 않음 |
-| invalid | unregistered 등 재사용할 수 없는 token 오류임 | token을 제거하고 재시도하지 않음 |
-| retryable | timeout, rate limit, provider 일시 장애 등 재시도 가능한 개별 오류임 | 해당 token delivery만 durable queue에 저장함 |
-| 미분류 오류 | 영구 실패 여부를 안전하게 판정할 수 없음 | 제한된 재시도 뒤 격리하고 원인과 건수를 노출함 |
-| multicast top-level 오류 | 개별 성공 여부를 받지 못함 | 영향받은 batch의 상태를 별도로 기록하고 provider 오류 분류에 따라 재시도함 |
+| 결과                     | 판정                                                                 | 후속 처리                                                                  |
+|--------------------------|----------------------------------------------------------------------|----------------------------------------------------------------------------|
+| 성공                     | 개별 `SendResponse.Success`가 참임                                   | 완료로 기록하고 같은 delivery에서 다시 보내지 않음                         |
+| invalid                  | unregistered 등 재사용할 수 없는 token 오류임                        | token을 제거하고 재시도하지 않음                                           |
+| retryable                | timeout, rate limit, provider 일시 장애 등 재시도 가능한 개별 오류임 | 해당 token delivery만 durable queue에 저장함                               |
+| 미분류 오류              | 영구 실패 여부를 안전하게 판정할 수 없음                             | 제한된 재시도 뒤 격리하고 원인과 건수를 노출함                             |
+| multicast top-level 오류 | 개별 성공 여부를 받지 못함                                           | 영향받은 batch의 상태를 별도로 기록하고 provider 오류 분류에 따라 재시도함 |
 
 재시도 단위는 원본 논리 알림의 안정적인 `eventId`와 device token을 함께 식별해야 한다. `(event_id, device_token_id)`를 canonical delivery key와 unique 제약으로 사용하고, `topic`, `partition`, `offset`은 수신 이력과 진단 정보로만 보존한다. 같은 논리 이벤트가 다른 offset으로 재발행될 수 있으므로 Kafka 좌표를 멱등성 key로 사용하지 않는다. upstream event에 안정적인 `eventId`가 없다면 offset에서 새 ID를 만들지 않고 먼저 event identity 계약을 보강한다. 성공·invalid로 판정된 token은 retryable 집합에 다시 포함하지 않는다. FCM 호출 성공 직후 process가 종료되는 구간까지 완전한 exactly-once 전송을 보장할 수는 없으므로, 이 crash window와 client collapse 정책도 별도로 문서화한다.
 

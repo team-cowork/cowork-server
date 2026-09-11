@@ -17,12 +17,12 @@
 
 ## 대상 토픽
 
-| 토픽 | 은퇴 키 포맷 | 현재 키 | 소비자 |
-|------|--------------|---------|--------|
-| `channel.member.event` | `<channelId>` | `<channelId>:<userId>` | cowork-chat, cowork-voice |
-| `project.member.event` | `<projectId>` | `<projectId>:<userId>` | cowork-chat |
-| `channel.event` | `<teamId>`, `dm-<channelId>` | `<channelId>` | cowork-chat, cowork-project |
-| `project.event` | `<teamId>` | `<projectId>` | cowork-chat |
+| 토픽                   | 은퇴 키 포맷                 | 현재 키                | 소비자                      |
+|------------------------|------------------------------|------------------------|-----------------------------|
+| `channel.member.event` | `<channelId>`                | `<channelId>:<userId>` | cowork-chat, cowork-voice   |
+| `project.member.event` | `<projectId>`                | `<projectId>:<userId>` | cowork-chat                 |
+| `channel.event`        | `<teamId>`, `dm-<channelId>` | `<channelId>`          | cowork-chat, cowork-project |
+| `project.event`        | `<teamId>`                   | `<projectId>`          | cowork-chat                 |
 
 키 포맷이 바뀐 적이 없어 대상이 아닌 토픽은 `team.member.event`, `team.lifecycle`, `project.github-repo.event`, `preference.*` 네 개, `user.profile.event`다.
 
