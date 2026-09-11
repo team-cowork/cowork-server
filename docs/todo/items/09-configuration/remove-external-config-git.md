@@ -88,7 +88,7 @@ staging에서 기동을 검증한 뒤 기존 저장소와 자격 증명을 폐�
 | `cowork-channel`       | MySQL, Kafka, Eureka, AccountShare callback/redirect와 provider endpoint |
 | `cowork-chat`          | Elasticsearch, MongoDB, Kafka, Redis, SeaweedFS, Eureka, 업로드 제한     |
 | `cowork-gateway`       | 전체 route, CORS, Redis, Kafka, Eureka, Swagger, circuit breaker         |
-| `cowork-notification`  | Kafka, Firebase 파일 경로, Eureka instance                               |
+| `cowork-notification`  | Kafka, Firebase JSON 프로파일 속성, Eureka instance                               |
 | `cowork-preference`    | PostgreSQL, Redis, Kafka, Eureka instance                                |
 | `cowork-project`       | MySQL, Kafka, Eureka, GitHub App service URL                             |
 | `cowork-roadmap`       | R2DBC·Flyway MySQL, Kafka, Eureka                                        |
@@ -135,7 +135,7 @@ Spring Config Client와 자체 구현 Config Client의 placeholder 및 우선순
 native 전환과 문서 정합성을 함께 확인한 주요 파일은 다음과 같다.
 
 - `cowork-config/src/main/resources/application.yml`
-- `docker-compose.prod.yml`
+- `deploy/compose/single-vm.prod.yaml`
 - `cowork-config/README.md`
 - `cowork-project/README.md`
 - `docs/configuration.md`
@@ -159,7 +159,7 @@ Git backend는 Config Server image를 다시 빌드하지 않고도 설정 commi
 - 11개 `GET /cowork-{service}/prod` 응답이 모두 존재하고, 의도하지 않은 미해결 `${...}`와 localhost·Compose 전용 hostname이 없는지 검사한다.
 - 기존 Git 응답과 native 응답의 property key set을 비교하고, 의도적으로 제거·이동한 key는 migration 목록으로 남긴다.
 - 시크릿 key가 native 파일이나 Git tracked 파일에 값으로 기록되지 않았는지 검사한다.
-- `docker compose -f docker-compose.yml -f docker-compose.prod.yml config`가 `CONFIG_GIT_*` 없이 성공하는지 확인한다.
+- `./deploy/compose.sh single-vm-prod config --quiet`가 `CONFIG_GIT_*` 없이 성공하는지 확인한다.
 - Spring Boot, Go, NestJS, Vert.x, Elixir에서 각각 대표 Config Client를 staging에서 기동해 설정 병합 결과를 확인한다.
 - 중앙 Config Server와 다른 인스턴스에 배치한 서비스가 외부 네트워크를 통해 설정 조회, Eureka 등록,
   Kafka 연결과 보류된 GitHub App 호출을 정상 수행하는지 확인한다.
