@@ -15,7 +15,7 @@ COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
 COPY cowork-gateway/src cowork-gateway/src
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     chmod +x gradlew \
-    && ./gradlew :cowork-gateway:bootJar -x test --no-daemon \
+    && ./gradlew :cowork-gateway:bootJar -x test --no-daemon --build-cache \
     && artifact="$(find cowork-gateway/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" \
     && test -n "${artifact}" \
     && cp "${artifact}" /workspace/app.jar
