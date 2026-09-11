@@ -1,18 +1,11 @@
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
+    id("cowork.kotlin-conventions")
 }
 
 group = "com.cowork"
-version = "20260910.0"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
+version = "20260911.0"
 
 dependencyManagement {
     imports {
@@ -31,16 +24,6 @@ dependencies {
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
 }
 
 tasks.named("jar") {
