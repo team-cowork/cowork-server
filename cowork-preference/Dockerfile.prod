@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jdk-jammy AS builder
+FROM eclipse-temurin:25-jdk-jammy@sha256:02eecc58b9c7cb20e55765c7bcdcdee0c6d210440aca1b0a1fbd81ecfe8e772e AS builder
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -14,10 +14,11 @@ RUN curl -fsSL -o /usr/local/bin/kotlin \
 WORKDIR /workspace/cowork-preference
 COPY module.yaml module.yaml
 COPY src src
-RUN kotlin package
+RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
+    kotlin package
 
-FROM eclipse-temurin:25-jre-alpine AS runtime
-RUN addgroup -S app && adduser -S app -G app
+FROM eclipse-temurin:25-jre-alpine@sha256:3137541deb3cac6626b5d9a4a2187bc0d6a34312f858bd2c67dd01e732e6b682 AS runtime
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
 WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
 ENV PREFERENCE_LOG_DIR=/var/log/cowork/preference

@@ -561,6 +561,15 @@ services:
       mongodb:
         condition: service_healthy
 
+  # A named volume can retain ownership from an older root-based image.
+  logs-init:
+    image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+    restart: "no"
+    user: "0:0"
+    volumes:
+      - cowork_logs:/var/log/cowork
+    command: ["sh", "-ec", "chown -R 10001:10001 /var/log/cowork"]
+
   # ── Application Services ───────────────────────────────────────────────────
 
   cowork-config:
@@ -568,6 +577,8 @@ services:
     container_name: cowork-config
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       kafka:
         condition: service_healthy
       kafka-init:
@@ -599,6 +610,8 @@ services:
     container_name: cowork-gateway
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       cowork-config:
         condition: service_healthy
       redis:
@@ -647,6 +660,8 @@ services:
     container_name: cowork-preference
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -676,6 +691,8 @@ services:
     container_name: cowork-user
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       cowork-authorization:
@@ -707,6 +724,8 @@ services:
     container_name: cowork-team
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       cowork-config:
@@ -734,6 +753,8 @@ services:
     container_name: cowork-channel
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       cowork-config:
@@ -759,6 +780,8 @@ services:
     container_name: cowork-project
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       cowork-config:
@@ -786,6 +809,8 @@ services:
     container_name: cowork-roadmap
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       cowork-config:
@@ -811,6 +836,8 @@ services:
     container_name: cowork-notification
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       kafka:
@@ -838,6 +865,8 @@ services:
     container_name: cowork-chat
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mongodb:
         condition: service_healthy
       kafka:
@@ -871,6 +900,8 @@ services:
     container_name: cowork-voice
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
       mongodb:
