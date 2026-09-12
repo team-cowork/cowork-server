@@ -84,6 +84,26 @@ CI 성공 시 기존 빌드·릴리스·배포 흐름이 실행된다. 수동 �
 교체하거나 `operation=redeploy`로 기존 이미지에 설정을 다시 적용한다. 수동 작업은 이미지를 새로 빌드하지 않는다.
 이 변경이 `main`에 반영된 뒤 새 배포 스크립트를 포함해 빌드된 SHA를 선택한다.
 
+자동 배포는 target마다 마지막으로 적용에 성공한 SHA부터 변경을 비교한다. GitHub Deployment의
+`task=cowork-runtime` 기록은 이미지 교체와 readiness 확인이 끝난 뒤에만 생성한다.
+일반 Actions Environment의 성공, `check_only=true`, 설정 변경 작업은 비교 기준을 바꾸지 않는다.
+실패·취소된 배포의 변경은 다음 성공한 CI 실행에서 다시 포함하며, 이미 더 최신 SHA가 적용된
+target에는 과거 자동 실행을 적용하지 않는다. 이전 SHA로 복구하려면 수동 재배포를 사용한다.
+아직 기록이 없는 target은 최초 한 번 전체 적용 대상으로 선택한다. 조회 권한·API 오류는
+배포 실패로 처리하며, 기록이 없다고 간주하지 않는다.
+
+선택된 대상은 Vault → Config Server → 나머지 서비스 순으로 적용한다. 앞 단계 실패 시
+다음 단계는 시작하지 않는다. 세 단계는 기존 `cowork-prod-cd.yml`의 job이며,
+공통 적용 절차는 `.github/actions/deploy-target`에서 관리한다. 배포 기록용 `GITHUB_TOKEN`은 `deployments: write`를 사용하며
+별도 운영 토큰을 추가할 필요는 없다. 기록 전송만 실패한 경우에도 workflow는 실패로 표시되고
+다음 실행이 이전 성공 기준으로 다시 계산한다.
+
+이미지 빌드 입력은 `deploy/images/catalog.json`에 등록한다. 루트 `.dockerignore`, Gradle 공통
+설정과 각 모듈의 빌드 스크립트도 변경 감지에 포함한다. 기존 `cowork-stage-ci.yml`과
+`cowork-prod-ci.yml`의 이미지 job은 stacked PR의 부모 브랜치도 지원하며 local·prod 이미지를
+게시하지 않고 빌드한 뒤 파일·사용자·로그 권한을 검사한다. workflow 파일은 기존 4개를 유지한다. 애플리케이션이나 DB는 시작하지 않는다. CD도 같은 이미지 빌드와 검사를 거친다.
+BuildKit 레이어와 의존성 cache mount는 별도로 저장하며, 서비스·환경별로 캐시를 구분한다.
+
 아래는 `project` 배포 문서를 교체하는 예다. 저장소 밖의 `project.json`을 권한 `600`으로 준비한다.
 `expected_version`은 Vault에 표시된 현재 버전이며 새 경로 생성에만 `0`을 쓴다.
 
@@ -154,6 +174,11 @@ SSH `command_timeout`에 이미지 pull과 실패 후 복구 시간까지 확보
 별도 단일 VM 설치만 `./deploy/compose.sh single-vm-prod`를 사용한다.
 `COMPOSE_ENV_FILE`은 [양식](../deploy/compose/single-vm.prod.env.example)을 채운 절대 경로,
 `COMPOSE_PROJECT_NAME`은 기존 데이터 볼륨을 생성한 프로젝트 이름으로 지정한다.
+
+local과 단일 VM prod의 앱 이미지는 UID/GID `10001`로 실행한다. `logs-init`은 공유 로그 볼륨의
+소유권을 해당 사용자로 맞춘 뒤 종료하며, 로그 볼륨을 사용하는 앱은 초기화 완료를 기다린다.
+JVM 로그 경로는 이미지의 `COWORK_LOG_DIR=/var/log/cowork`를 사용한다. 다중 VM CD는 각 이미지
+내부의 쓰기 가능한 로그 디렉터리와 Docker 로그 수집을 사용한다.
 
 앱 VM마다 `deploy/log-agent-<vm>` 문서를 만들고 `runtime.LOG_HOST`·`LOKI_PUSH_URL`을 지정한다.
 Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. `Prod-CD(log-agent-<vm>)`과

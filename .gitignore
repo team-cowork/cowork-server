@@ -60,6 +60,7 @@ ehthumbs.db
 *.log
 logs/
 .run/
+__pycache__/
 screenlog.*
 
 ### LLM Outputs ###

@@ -1,4 +1,5 @@
 [versions]
+java = "25"
 spring-boot = "4.1.0"
 spring-cloud = "2025.1.2"
 kotlin = "2.4.0"
@@ -9,6 +10,7 @@ jjwt = "0.13.0"
 scram = "2.1"
 log4j = "2.26.0"
 ktlint-plugin = "14.2.0"
+ktlint = "1.5.0"
 springdoc-webflux = "3.0.3"
 springdoc-webmvc = "3.0.3"
 the-sdk = "1.5"
