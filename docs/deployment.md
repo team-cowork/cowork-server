@@ -3,7 +3,10 @@
 운영 서비스는 여러 VM에 나뉘어 있다. SSH 접속 주소와 서비스 간 통신 주소는 다르며,
 Docker 네트워크·볼륨은 VM 사이에서 공유되지 않는다. 실제 VM 주소·기존 볼륨·프로세스 상태는
 저장소만으로 확정할 수 없으므로 설정을 바꿀 때 실제 운영값과 대조한다.
-이 문서는 배포 이후 설정 교체·새 target 추가·복구에 사용하는 운영 참고 자료다.
+이 문서는 신규 설치, 설정 교체·새 target 추가·선택적 데이터 유지에 사용하는 운영 참고 자료다.
+운영 배포는 `deploy/prod`의 VM별 배포 경로를 사용한다. 루트 Compose는 로컬 개발용이다.
+
+**기존 데이터의 유지·복구·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.**
 
 ## 설정 관리 계약
 
@@ -140,43 +143,27 @@ Vault 복구는 `operation=redeploy`, `service=vault`, `target=vault`, `vault_re
 사용하지 않는다. 토큰 만료 전 교체와 Vault 백업·복구 자료 관리는 운영 중에도 계속 수행한다.
 향후 단기 인증 도입과 만료 알림 자동화는 [인증 자동화 TODO](todo/items/42-deployment/vault-auth-automation.md)로 분리한다.
 
-## 기존 프로세스와 데이터 유지
+## 볼륨과 프로세스 설정
 
-| 대상       | 최초 전환 시 확인할 사항                                                                                                                                                                                                        |
-|------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| user       | 기존 네이티브 Elixir 프로세스와 자동 재기동 관리자를 중지한 뒤 컨테이너로 전환한다. 기존 Flyway 이력·DB 접속값을 확인하고 네이티브 릴리스 복구 방법을 보관한다. 첫 전환에는 자동 복구할 이전 Docker 컨테이너가 없다.            |
-| monitoring | 기존 Prometheus·Grafana·Loki 볼륨의 실제 이름을 확인해 `MONITORING_VOLUME_PREFIX`를 지정한다. 기존 모니터링 컨테이너만 중지하고 새 프로젝트로 기동한다. 세 볼륨의 접두사가 다르면 Compose의 명시적 `name`을 실제 이름에 맞춘다. |
-| Vault      | 기존 `cowork-vault-prod`의 데이터 볼륨 이름을 `VAULT_DATA_VOLUME`에 지정한다. 기존 `vault` 프로젝트 이름을 유지한다. 기존 설치에서 새 빈 볼륨을 만들거나 local seed를 실행하지 않는다.                                          |
-
-볼륨 이름은 컨테이너의 환경변수나 시크릿을 출력하지 않고 확인한다.
-
-```bash
-docker inspect --format '{{range .Mounts}}{{println .Destination .Name .Source}}{{end}}' cowork-vault-prod
-docker ps --format '{{.Names}}'  # 기존 모니터링 컨테이너 이름 확인
-# 위 inspect 명령의 컨테이너 이름을 각 Prometheus·Grafana·Loki 컨테이너로 바꿔 확인
-```
+Vault의 `VAULT_DATA_VOLUME`과 모니터링의 `MONITORING_VOLUME_PREFIX`는 사용할 볼륨을 지정한다.
+`external: true`이므로 지정한 볼륨이 배포 전에 존재해야 하지만, 과거 데이터가 들어 있어야 하는 것은 아니다.
+같은 VM의 기존 프로세스가 새 컨테이너와 포트·이름을 공유한다면 충돌 여부를 확인한다.
 
 Vault의 TLS 종단 프록시만 Vault 사설 포트에 접근하도록 제한한다. 최초 초기화와 unseal key
 보관은 운영자가 수행한다. 현재 CD의 단일 unseal key 입력은 기존 1-share/1-threshold 환경을
 전제로 하므로 다중 share 환경은 별도 unseal 절차가 필요하다.
-모니터링과 Vault는 앱 자동 롤백 대상이 아니므로 업그레이드 전 백업·복구 절차를 준비한다.
-기존 데이터가 있는 Compose 프로젝트에서 이름을 임의로 바꾸거나 `down -v`를 실행하지 않는다.
+모니터링과 Vault는 앱 자동 롤백 대상이 아니다.
 
 ## 서비스별 점검과 적용
 
 `check`는 설정 검증이며 네트워크 연결이나 서비스 기동 성공을 보장하지 않는다.
-chat·roadmap은 projection readiness가 열려야 배포가 성공한다. 기존 데이터 복구 문제가 있으면
-liveness로 우회하지 않고 원인을 먼저 해결한다.
+chat·roadmap은 projection readiness가 열려야 배포가 성공한다. 동기화 문제를 liveness로 우회하지 않고 원인을 먼저 해결한다.
 readiness 기본 대기는 420초이며 `HEALTH_TIMEOUT_SECONDS`로 조정한다. 늘릴 때는 CI의
-SSH `command_timeout`에 이미지 pull과 실패 후 복구 시간까지 확보한다. 상태 토픽 v2의
-기존 데이터 전환은 [별도 유지보수 절차](kafka-state-topic-cutover.md)에 따라 진행한다.
+SSH `command_timeout`에 이미지 pull과 실패 후 복구 시간까지 확보한다.
+기존 데이터 유지를 선택한 경우의 상태 토픽 v2 전환은 [별도 참고 절차](kafka-state-topic-cutover.md)에 있다.
 
-별도 단일 VM 설치만 `./deploy/compose.sh single-vm-prod`를 사용한다.
-`COMPOSE_ENV_FILE`은 [양식](../deploy/compose/single-vm.prod.env.example)을 채운 절대 경로,
-`COMPOSE_PROJECT_NAME`은 기존 데이터 볼륨을 생성한 프로젝트 이름으로 지정한다.
-
-local과 단일 VM prod의 앱 이미지는 UID/GID `10001`로 실행한다. `logs-init`은 공유 로그 볼륨의
-소유권을 해당 사용자로 맞춘 뒤 종료하며, 로그 볼륨을 사용하는 앱은 초기화 완료를 기다린다.
+앱 이미지는 UID/GID `10001`로 실행한다. 로컬 Compose의 `logs-init`은 공유 로그 볼륨의
+소유권을 해당 사용자로 맞춘 뒤 종료하며, 로그 볼륨을 사용하는 로컬 앱은 초기화 완료를 기다린다.
 JVM 로그 경로는 이미지의 `COWORK_LOG_DIR=/var/log/cowork`를 사용한다. 다중 VM CD는 각 이미지
 내부의 쓰기 가능한 로그 디렉터리와 Docker 로그 수집을 사용한다.
 
