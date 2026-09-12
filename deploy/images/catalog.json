@@ -1,0 +1,14 @@
+{
+  "config": {"build": "gradle", "local": ".", "prod": "."},
+  "gateway": {"build": "gradle", "local": ".", "prod": "."},
+  "authorization": {"build": "go", "local": "cowork-authorization", "prod": "cowork-authorization"},
+  "preference": {"build": "amper", "local": ".", "prod": "cowork-preference"},
+  "user": {"build": "elixir", "local": ".", "prod": "cowork-user"},
+  "team": {"build": "gradle", "local": ".", "prod": "."},
+  "channel": {"build": "gradle", "local": ".", "prod": "."},
+  "notification": {"build": "go", "local": "cowork-notification", "prod": "cowork-notification"},
+  "chat": {"build": "node", "local": "cowork-chat", "prod": "cowork-chat"},
+  "voice": {"build": "go", "local": "cowork-voice", "prod": "cowork-voice"},
+  "project": {"build": "maven", "local": ".", "prod": "cowork-project"},
+  "roadmap": {"build": "gradle", "local": ".", "prod": "."}
+}
