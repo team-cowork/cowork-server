@@ -1,4 +1,3 @@
-target/
 .git/
 .env
 .env.*
@@ -6,6 +5,9 @@ target/
 .idea/
 .vscode/
 *.md
-src/
-Cargo.toml
-Cargo.lock
+
+**/.env
+**/.env.*
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
