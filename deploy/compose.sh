@@ -11,6 +11,10 @@ case "$MODE" in
   single-vm-prod)
     : "${COMPOSE_ENV_FILE:?Set COMPOSE_ENV_FILE to an absolute production env file path}"
     : "${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME explicitly to preserve existing volumes}"
+    case "$COMPOSE_ENV_FILE" in
+      /*) [ -f "$COMPOSE_ENV_FILE" ] || { echo 'Production env file does not exist' >&2; exit 1; } ;;
+      *) echo 'COMPOSE_ENV_FILE must be an absolute path' >&2; exit 1 ;;
+    esac
     exec docker compose --project-directory "$ROOT" --env-file "$COMPOSE_ENV_FILE" \
       -p "$COMPOSE_PROJECT_NAME" -f "$ROOT/deploy/compose/stack.yaml" \
       -f "$ROOT/deploy/compose/single-vm.prod.yaml" "$@"
