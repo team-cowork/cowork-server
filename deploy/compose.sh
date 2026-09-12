@@ -8,16 +8,5 @@ case "$MODE" in
     exec docker compose --project-directory "$ROOT" --env-file "${COMPOSE_ENV_FILE:-${ROOT}/.env}" \
       -f "$ROOT/docker-compose.yml" "$@"
     ;;
-  single-vm-prod)
-    : "${COMPOSE_ENV_FILE:?Set COMPOSE_ENV_FILE to an absolute production env file path}"
-    : "${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME explicitly to preserve existing volumes}"
-    case "$COMPOSE_ENV_FILE" in
-      /*) [ -f "$COMPOSE_ENV_FILE" ] || { echo 'Production env file does not exist' >&2; exit 1; } ;;
-      *) echo 'COMPOSE_ENV_FILE must be an absolute path' >&2; exit 1 ;;
-    esac
-    exec docker compose --project-directory "$ROOT" --env-file "$COMPOSE_ENV_FILE" \
-      -p "$COMPOSE_PROJECT_NAME" -f "$ROOT/deploy/compose/stack.yaml" \
-      -f "$ROOT/deploy/compose/single-vm.prod.yaml" "$@"
-    ;;
-  *) echo "Usage: $0 <local|single-vm-prod> <compose arguments...>" >&2; exit 1 ;;
+  *) echo "Usage: $0 local <compose arguments...>" >&2; exit 1 ;;
 esac
