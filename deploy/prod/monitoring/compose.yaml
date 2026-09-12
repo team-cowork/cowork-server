@@ -129,11 +129,11 @@ services:
 volumes:
   prometheus_data:
     external: true
-    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_prometheus_data
+    name: ${MONITORING_VOLUME_PREFIX:?Set the pre-created monitoring volume prefix}_prometheus_data
   grafana_data:
     external: true
-    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_grafana_data
+    name: ${MONITORING_VOLUME_PREFIX:?Set the pre-created monitoring volume prefix}_grafana_data
   loki_data:
     external: true
-    name: ${MONITORING_VOLUME_PREFIX:?Set the existing monitoring volume prefix}_loki_data
+    name: ${MONITORING_VOLUME_PREFIX:?Set the pre-created monitoring volume prefix}_loki_data
   alertmanager_config: {}

@@ -14,6 +14,7 @@
 운영값은 Vault에서 관리하고 GitHub Actions는 조회·수정·배포를 수행한다. VM의 환경 파일을 수정하지
 않는다. GitHub에는 Vault 접근 토큰·주소, 복구용 bootstrap과 일시적인 변경 입력만 둔다.
 설정 교체·재배포는 [배포 가이드](deployment.md)를 따른다. 로컬 Compose의 `.env`와 seed는 유지한다.
+기존 데이터·시크릿의 유지·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.
 
 Config Server 응답의 속성 우선순위는 다음과 같다.
 
@@ -101,7 +102,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 1. 일반 설정은 `cowork-config/src/main/resources/configs/cowork-{service}-{profile}.yml`에 추가한다.
 2. 운영 설정·시크릿은 Vault key로 관리하며 기존 Prod CD의 `operation=update-config` 또는 Vault UI/API로 변경한다.
 3. 로컬 시크릿이면 `.env.example`, `vault-init` 환경 전달, `deploy/config/vault/seed-secrets.sh` 저장 경로를 함께 갱신한다.
-4. 파일형 credential은 Vault 배포 문서의 `files`에 넣고 배포 시 읽기 전용으로 마운트한다.
+4. Firebase credential은 서비스 프로파일 Vault의 `fcm.credentials-json` 문자열로 공급한다. 배포 문서의 `files`는 지원하지 않는다.
 5. 코드만으로 알 수 없는 설정 제약과 운영 절차만 `docs/`에 갱신하고, 후속 구현은 `docs/todo/`로 분리한다.
 6. 설정 변경은 배포 workflow의 `check_only`로 확인하고, 비즈니스 로직 변경 시에만 해당 핵심 로직의 단위 테스트를 실행한다.
 
@@ -109,14 +110,14 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 - `VAULT_HOST`, `VAULT_TOKEN`은 Config Server 부트스트랩 값으로 배포 환경에서 주입한다.
 - native 설정 파일에는 시크릿 값을 커밋하지 않는다.
-- 운영 Compose의 `S3_ACCESS_KEY`, `S3_SECRET_KEY`는 필수이며 외부 Vault의
+- 운영 S3 서버의 `S3_ACCESS_KEY`, `S3_SECRET_KEY`는 외부 Vault의
   `secret/application`에 저장한 동명 값과 정확히 같아야 한다. SeaweedFS, bucket init job,
   chat·team·user가 이 한 자격 증명 계약을 공유한다.
 - `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`은 클라이언트가 도달 가능한 주소로 배포 환경에서
   주입한다. 공개/인증 조회 정책, bucket 분리, public ingress의 SigV4 보존, signer 정합성, CORS와
   기존 URL 이관은 아직 확정하지 않았으며 [오브젝트 스토리지 공개 접근 계약 TODO](./todo/items/13-storage/object-storage-public-access-contract.md)에서 관리한다.
 - 필수 시크릿이 없을 때 기본 개발 키로 대체하지 않는다.
-- Config Server/Eureka의 `8761`은 Compose 내부망 또는 배포 플랫폼의 private control-plane network에서만 접근시킨다. 운영 Compose는 Gateway 이외의 application/infra/ops host port를 제거한다.
+- Config Server/Eureka의 `8761`은 운영 private control-plane network에서만 접근시킨다. 하위 앱 포트는 VM 사설 주소에 바인딩하고 Gateway와 필요한 운영 peer만 접근하도록 제한한다.
 - 다중 replica의 Eureka instance ID는 명시적 `EUREKA_INSTANCE_ID`가 있으면 이를 사용하고, 없으면 runtime hostname·application·port 조합으로 만든다. non-Spring 서비스는 `EUREKA_USE_RUNTIME_HOSTNAME=true`일 때 non-loopback 내부 IP를 광고하며 consumer group ID에는 replica suffix를 붙이지 않는다.
 - Config Server와 Vault를 우회하는 서비스 직접 포트는 운영 외부망에 공개하지 않는다.
 
