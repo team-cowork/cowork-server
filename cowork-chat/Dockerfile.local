@@ -1,15 +1,23 @@
-FROM node:24-alpine AS builder
+FROM node:24-alpine@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS builder
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,id=npm-chat-builder,target=/root/.npm \
+    npm ci
+COPY tsconfig.json ./
+COPY src src
 RUN npm run build
 
-FROM node:24-alpine
+FROM node:24-alpine@sha256:50c8e8ca1d27439048670df5883f32d57cf81cff6233222c893fd0d9884cbd81 AS runtime
+RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-COPY --from=builder /app/dist ./dist
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,id=npm-chat-runtime,target=/root/.npm \
+    npm ci --omit=dev
+COPY --chown=app:app --from=builder /app/dist ./dist
+COPY --chown=app:app public ./public
+USER app
 EXPOSE 8087
 ENV PORT=8087
-CMD ["node", "dist/main.js"]
+ENV NODE_ENV=production
+ENTRYPOINT ["node", "dist/main.js"]

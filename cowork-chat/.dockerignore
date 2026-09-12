@@ -11,3 +11,9 @@ logs/
 .vscode
 *.md
 test
+
+**/.env
+**/.env.*
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml

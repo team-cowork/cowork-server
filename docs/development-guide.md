@@ -49,6 +49,9 @@ cowork-server/
 - 등록되어 있어도 빌드 소유권은 다를 수 있습니다. `cowork-project`는 Maven(`pom.xml`), `cowork-preference`는
   Amper(`module.yaml`)가 source of truth이고 `build.gradle.kts`는 위임만 합니다.
 - JVM 외 서비스(NestJS, Go, Elixir, 정적 사이트)는 Gradle에 포함하지 않습니다.
+- Gradle 공통 설정은 `build-logic` convention plugin에서 관리합니다. `cowork.jvm-conventions`는 Java toolchain·저장소·JUnit 설정을, `cowork.kotlin-conventions`는 Kotlin·Spring·ktlint 설정을 추가합니다. JPA 모듈은 `cowork.kotlin-jpa-conventions`를 적용합니다.
+- Java·Kotlin·ktlint 버전은 `gradle/libs.versions.toml`에서 변경합니다. Maven·Amper wrapper에는 convention plugin을 적용하지 않습니다.
+- Node.js 의존성은 `cowork-chat`과 `cowork-promotion`에서 각각 관리합니다. 각 디렉터리에서 `npm ci`를 실행하며, 루트에는 npm 패키지를 설치하지 않습니다.
 - 새 모듈을 만들면 `scripts/bump.sh`(`make bump`)에도 추가해 릴리스 버전이 스탬프되게 합니다.
 
 ---
@@ -515,3 +518,4 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Prometheus: `http://localhost:9090`
 
 Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
+

@@ -88,17 +88,37 @@ jobs:
     outputs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
       services-list: ${{ steps.build-matrix.outputs.services-list }}
+      image-matrix: ${{ steps.images.outputs.matrix }}
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Validate deployment syntax and Compose paths
         run: python3 deploy/validate.py
+      - name: Select local and production images
+        id: images
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          args=()
+          if [ -n "$BASE_SHA" ]; then args+=(--base "$BASE_SHA"); fi
+          python3 deploy/images/build-matrix.py "${args[@]}"
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
+            gradle-shared:
+              - 'build.gradle.kts'
+              - 'settings.gradle.kts'
+              - 'gradle.properties'
+              - 'gradlew'
+              - 'gradlew.bat'
+              - 'gradle/**'
+              - 'build-logic/**'
+              - '.editorconfig'
             cowork-gateway:
               - 'cowork-gateway/**'
             cowork-config:
@@ -143,60 +163,41 @@ jobs:
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"},
-              {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-team","build":"gradle","working-directory":"."}
             ]}'
-            SERVICES="cowork-gateway, cowork-config, cowork-user, cowork-notification, cowork-preference, cowork-project, cowork-channel, cowork-roadmap, cowork-authorization, cowork-voice, cowork-chat, cowork-promotion"
           else
             MATRIX='{"include":[]}'
-            SERVICES=""
-            [ "${{ steps.filter.outputs.cowork-gateway }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-gateway"
-            [ "${{ steps.filter.outputs.cowork-config }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-config"
+            [ "${{ steps.filter.outputs.cowork-gateway == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-gateway","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-config == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-user"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]')
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-notification"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-preference }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-preference"
-            [ "${{ steps.filter.outputs.cowork-project }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-project"
-            [ "${{ steps.filter.outputs.cowork-roadmap }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-roadmap","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-roadmap"
-            [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"}]')
+            [ "${{ steps.filter.outputs.cowork-project == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-roadmap == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-roadmap","build":"gradle","working-directory":"."}]')
+            [ "${{ steps.filter.outputs.cowork-channel == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-authorization }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-authorization"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."}]')
             [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-voice"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-chat"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]')
             [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-promotion"
-            [ "${{ steps.filter.outputs.cowork-channel }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-channel","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-channel"
-            [ "${{ steps.filter.outputs.cowork-team }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]') && \
-              SERVICES="${SERVICES:+$SERVICES, }cowork-team"
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]')
+            [ "${{ steps.filter.outputs.cowork-team == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-team","build":"gradle","working-directory":"."}]')
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
               MATRIX='{"include":[{"service":"no-changes","build":"skip"}]}'
-              SERVICES="none"
             fi
           fi
+          SERVICES=$(echo "$MATRIX" | jq -r '[.include[].service | select(. != "no-changes")] | if length == 0 then "none" else join(", ") end')
           echo "matrix=$(echo "$MATRIX" | jq -c .)" >> $GITHUB_OUTPUT
           echo "services-list=${SERVICES}" >> $GITHUB_OUTPUT
 
@@ -313,9 +314,48 @@ jobs:
           mix deps.compile
           mix test --no-start
 
+  image-build:
+    name: Image (${{ matrix.service }}, ${{ matrix.environment }})
+    needs: detect-changes
+    if: needs.detect-changes.outputs.image-matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.detect-changes.outputs.image-matrix) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/build-image
+        with:
+          service: ${{ matrix.service }}
+          environment: ${{ matrix.environment }}
+          context: ${{ matrix.context }}
+          dockerfile: ${{ matrix.dockerfile }}
+          tags: cowork-${{ matrix.service }}:ci-${{ matrix.environment }}
+
+  image-validation:
+    name: Image validation
+    needs: [detect-changes, image-build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all selected image builds
+        env:
+          PREPARE_RESULT: ${{ needs.detect-changes.result }}
+          BUILD_RESULT: ${{ needs.image-build.result }}
+          IMAGE_MATRIX: ${{ needs.detect-changes.outputs.image-matrix }}
+        run: |
+          test "$PREPARE_RESULT" = success
+          if [ "$IMAGE_MATRIX" = '{"include":[]}' ]; then
+            test "$BUILD_RESULT" = skipped
+          else
+            test "$BUILD_RESULT" = success
+          fi
+
   notify:
     runs-on: ubuntu-latest
-    needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test]
+    needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test, image-validation]
     if: always()
 
     steps:
@@ -326,7 +366,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.validate-title.result }} ${{ needs.setup-pr-metadata.result }} ${{ needs.detect-changes.result }} ${{ needs.build-and-test.result }}"
+          RESULTS: "${{ needs.validate-title.result }} ${{ needs.setup-pr-metadata.result }} ${{ needs.detect-changes.result }} ${{ needs.build-and-test.result }} ${{ needs.image-validation.result }}"
         run: |
           status="success"
           color="0x4CAF50"
@@ -359,6 +399,7 @@ jobs:
             **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
             **Detect Changes:** ${{ needs.detect-changes.result }}
             **Build & Test:** ${{ needs.build-and-test.result }}
+            **Images:** ${{ needs.image-validation.result }}
 
   coverage-plan:
     if: github.event_name == 'pull_request'
@@ -593,6 +634,11 @@ jobs:
           import org.gradle.testing.jacoco.tasks.JacocoReport
 
           // Kept outside the measured checkout so base and PR use identical instrumentation.
+          // Included builds rerun init scripts without the root build's -P arguments.
+          // Instrument only the main build containing the selected service.
+          if (gradle.parent != null) {
+              return
+          }
           def coverageProjectDir = gradle.startParameter.projectProperties['coverageProjectDir']
           def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
           if (!coverageProjectDir || !coverageOutput) {
