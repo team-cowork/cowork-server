@@ -23,6 +23,15 @@
 Java, Go, Node.js, Elixir는 호스트에 설치할 필요가 없다. 모든 애플리케이션은 컨테이너 안에서
 빌드된다.
 
+local·prod Dockerfile은 동일한 런타임 사용자(UID/GID `10001`)와 패키징 방식을 사용한다.
+실행 프로파일과 접속 주소는 Compose 또는 Vault 설정으로 주입한다. 로컬 전용
+`application-local.yml`·`.env`와 빌드 캐시는 이미지 컨텍스트에서 제외하므로, 컨테이너용 값은
+`.env`와 Config Server의 `*-local.yml`을 통해 전달한다. chat의 `public/asyncapi.json`도 이미지에
+포함한다. 공유 로그 볼륨은 `logs-init`이 소유권을 맞춘 뒤 앱이 사용한다.
+
+환경을 시작하지 않고 구성을 점검하려면 `python3 deploy/validate.py`를 실행한다.
+PR에서는 local·prod Docker 이미지 빌드와 이미지 내부 파일 검사가 추가로 실행된다.
+
 ## 2. 로컬 설정 생성
 
 루트에 `.env`를 만든다.
