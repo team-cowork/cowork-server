@@ -38,7 +38,7 @@ cowork-server/
 ├── cowork-voice/         음성 채널 (MongoDB + Redis) — Go
 ├── cowork-notification/  알림 (FCM 푸시 + SSE) — Go
 ├── cowork-promotion/     서비스 소개 페이지 — TypeScript 정적 사이트 (프레임워크 없음)
-└── cowork-monitoring/    Prometheus/Grafana 설정 (앱 없음)
+└── deploy/config/monitoring/    Prometheus/Grafana 설정 (앱 없음)
 ```
 
 ### 모듈 네이밍 규칙
@@ -49,6 +49,9 @@ cowork-server/
 - 등록되어 있어도 빌드 소유권은 다를 수 있습니다. `cowork-project`는 Maven(`pom.xml`), `cowork-preference`는
   Amper(`module.yaml`)가 source of truth이고 `build.gradle.kts`는 위임만 합니다.
 - JVM 외 서비스(NestJS, Go, Elixir, 정적 사이트)는 Gradle에 포함하지 않습니다.
+- Gradle 공통 설정은 `build-logic` convention plugin에서 관리합니다. `cowork.jvm-conventions`는 Java toolchain·저장소·JUnit 설정을, `cowork.kotlin-conventions`는 Kotlin·Spring·ktlint 설정을 추가합니다. JPA 모듈은 `cowork.kotlin-jpa-conventions`를 적용합니다.
+- Java·Kotlin·ktlint 버전은 `gradle/libs.versions.toml`에서 변경합니다. Maven·Amper wrapper에는 convention plugin을 적용하지 않습니다.
+- Node.js 의존성은 `cowork-chat`과 `cowork-promotion`에서 각각 관리합니다. 각 디렉터리에서 `npm ci`를 실행하며, 루트에는 npm 패키지를 설치하지 않습니다.
 - 새 모듈을 만들면 `scripts/bump.sh`(`make bump`)에도 추가해 릴리스 버전이 스탬프되게 합니다.
 
 ---
@@ -403,7 +406,7 @@ cp .env.example .env
 
 ### 2단계 — 인프라 기동 (Docker Compose)
 
-루트의 `docker-compose.yml`과 자동 병합되는 `docker-compose.override.yml`로 인프라와 애플리케이션을 함께 띄웁니다.
+루트 `docker-compose.yml`이 `deploy/compose/stack.yaml`과 `deploy/compose/local.yaml`을 명시적으로 include하여 인프라와 애플리케이션을 함께 띄웁니다. 운영 분산 배포는 [배포 가이드](deployment.md)를 참고합니다.
 
 ```bash
 # 전체 기동
@@ -432,7 +435,7 @@ docker compose up -d mysql mongodb kafka
 | Grafana           | 3001        | 모니터링 대시보드                         |
 | Loki              | 3100        | 로그 수집                                 |
 
-MySQL 최초 기동 시 `docker/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다
+MySQL 최초 기동 시 `deploy/config/mysql/init.sh`가 자동 실행되어 서비스별 스키마를 생성합니다
 (`cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`, `cowork_notification`, `cowork_roadmap`).<br>
 볼륨이 이미 존재하면 init 스크립트는 재실행되지 않습니다. 초기화가 필요하면 볼륨을 삭제하세요.
 
@@ -454,7 +457,7 @@ docker compose down -v          # 중지 + 데이터 초기화
 
 > 로컬 DB·Kafka가 비어 있는 상태에서 처음 전체를 띄우는 절차, projection snapshot marker 확인,
 > 기동 실패 진단은 [`docs/local-run-guide.md`](./local-run-guide.md)를 따릅니다. 개별 서비스를
-> 호스트에서 직접 실행할 때는 `scripts/run/local/{service}.sh`를 사용합니다.
+> 호스트에서 직접 실행할 때는 `deploy/local/services/{service}.sh`를 사용합니다.
 
 ### 3단계 — 애플리케이션 서비스 기동 순서
 
@@ -492,7 +495,7 @@ Gateway 자체가 모든 backend의 기동 선행 조건은 아닙니다. user�
 make version   # VERSION 파일 내용 출력
 make bump      # scripts/bump.sh로 모든 빌드 파일에 버전 스탬프
 make setup     # Go 서비스(authorization·notification·voice) swagger 생성 및 의존성 설치
-make init-logs # scripts/init-log-dirs.sh로 로그 디렉터리 초기화
+make init-logs # deploy/local/init-log-dirs.sh로 로그 디렉터리 초기화
 make tag       # 버전 스탬프된 빌드 파일을 커밋하고 v{VERSION} 태그 생성
 make release   # make tag 후 origin main으로 태그까지 push
 ```
@@ -509,9 +512,10 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 
 ### Prometheus / Grafana
 
-`docker-compose.yml`에서 Prometheus/Grafana가 함께 기동되며, Prometheus는 `cowork-monitoring/prometheus/prometheus.yml`에 정의된 타겟을 스크랩합니다.
+`docker-compose.yml`에서 Prometheus/Grafana가 함께 기동되며, Prometheus는 `deploy/config/monitoring/prometheus/prometheus.yml`에 정의된 타겟을 스크랩합니다.
 
 - Grafana: `http://localhost:3001`
 - Prometheus: `http://localhost:9090`
 
-Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 가이드](grafana-logging-spec.md)를 참고합니다.
+Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
+
