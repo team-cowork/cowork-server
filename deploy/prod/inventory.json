@@ -1,0 +1,60 @@
+{
+  "targets": [
+    {
+      "service": "team",
+      "target": "team"
+    },
+    {
+      "service": "channel",
+      "target": "channel"
+    },
+    {
+      "service": "authorization",
+      "target": "authorization"
+    },
+    {
+      "service": "user",
+      "target": "user"
+    },
+    {
+      "service": "project",
+      "target": "project"
+    },
+    {
+      "service": "preference",
+      "target": "preference"
+    },
+    {
+      "service": "chat",
+      "target": "chat"
+    },
+    {
+      "service": "voice",
+      "target": "voice"
+    },
+    {
+      "service": "notification",
+      "target": "notification"
+    },
+    {
+      "service": "gateway",
+      "target": "gateway"
+    },
+    {
+      "service": "config",
+      "target": "config"
+    },
+    {
+      "service": "monitoring",
+      "target": "monitoring"
+    },
+    {
+      "service": "roadmap",
+      "target": "roadmap"
+    },
+    {
+      "service": "vault",
+      "target": "vault"
+    }
+  ]
+}

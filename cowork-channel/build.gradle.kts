@@ -1,19 +1,11 @@
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
-    alias(libs.plugins.kotlin.jpa)
+    id("cowork.kotlin-jpa-conventions")
 }
 
 group = "com.cowork"
-version = "20260910.0"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
+version = "20260912.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
@@ -54,16 +46,6 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
 }
 
 tasks.named("jar") {

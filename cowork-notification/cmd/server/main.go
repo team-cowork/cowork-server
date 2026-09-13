@@ -1,5 +1,5 @@
 // @title          cowork-notification API
-// @version        20260910.0
+// @version        20260912.0
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
 // @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
@@ -59,7 +59,7 @@ func main() {
 
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
-	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsFile)
+	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsJSON)
 	if err != nil {
 		slog.Error("fcm init failed", "err", err)
 		os.Exit(1)
