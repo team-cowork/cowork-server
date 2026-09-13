@@ -1,0 +1,35 @@
+local.file_match "application_logs" {
+  path_targets = [{
+    "__path__" = "/var/log/cowork/*/*.log",
+    "env"      = sys.env("ENV"),
+  }]
+}
+
+loki.source.file "application_logs" {
+  targets    = local.file_match.application_logs.targets
+  forward_to = [loki.process.application_logs.receiver]
+}
+
+loki.process "application_logs" {
+  stage.json {
+    expressions = {
+      level     = "level",
+      service   = "service",
+      timestamp = "\"@timestamp\"",
+    }
+  }
+  stage.labels {
+    values = { level = "", service = "" }
+  }
+  stage.timestamp {
+    source = "timestamp"
+    format = "RFC3339Nano"
+  }
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

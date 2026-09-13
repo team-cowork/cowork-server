@@ -45,6 +45,7 @@ vendor/
 bin/
 
 ### Environment ###
+*.env
 .env
 .env.*
 !.env.example
@@ -59,6 +60,7 @@ ehthumbs.db
 *.log
 logs/
 .run/
+__pycache__/
 screenlog.*
 
 ### LLM Outputs ###
@@ -75,8 +77,8 @@ SPEC.md
 .worktrees/
 
 ### Secrets ###
+# Keep the legacy location excluded until other checkouts move their local credentials.
 docker/secrets/
-!docker/secrets/.gitkeep
 deploy/local/secrets/*
 
 ### Maven ###
