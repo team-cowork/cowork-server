@@ -29,6 +29,22 @@ done
 for FILE in "$ROOT_DIR"/cowork-*/package.json; do
   if [ -f "$FILE" ] && grep -q "^\s*\"version\"\s*:" "$FILE"; then
     perl -i -pe "s/^(\s*\"version\"\s*:\s*\")[^\"]*/\${1}${NEW_VERSION}.0/" "$FILE"
+    # Keep npm's root package metadata in sync without changing dependency locks.
+    LOCK_FILE="$(dirname "$FILE")/package-lock.json"
+    if [ -f "$LOCK_FILE" ]; then
+      python3 - "$LOCK_FILE" "${NEW_VERSION}.0" <<'PYTHON'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+lock = json.loads(path.read_text())
+lock["version"] = sys.argv[2]
+if "" in lock.get("packages", {}):
+    lock["packages"][""]["version"] = sys.argv[2]
+path.write_text(json.dumps(lock, ensure_ascii=False, indent=2) + "\n")
+PYTHON
+    fi
   fi
 done
 

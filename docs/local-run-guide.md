@@ -6,22 +6,31 @@
 기존 채널·프로젝트 상태 토픽이 있는 환경의 v2 업그레이드는
 [상태 토픽 v2 운영 전환](./kafka-state-topic-cutover.md)을 따른다.
 
-기준 구성은 `docker-compose.yml`, `docker-compose.override.yml`, 각 서비스 `local.dockerfile`,
+기준 구성은 루트 `docker-compose.yml`이 include하는 `deploy/compose/stack.yaml`,
+`deploy/compose/local.yaml`, 각 서비스 `Dockerfile.local`,
 `cowork-config/src/main/resources/configs/*-local.yml`이다.
 
-일반 `docker compose` 명령은 두 Compose 파일을 자동 병합한다. 기본 파일의 `prod.dockerfile`
-지정은 로컬 override의 `local.dockerfile`과 build context로 교체된다. 이 가이드에서는
-`docker compose -f docker-compose.yml ...`처럼 기본 파일만 지정하지 않는다. 그렇게 실행하면
-로컬 override가 빠져 production Dockerfile로 빌드된다.
+루트 진입점이 local 빌드 파일까지 명시하므로 `docker compose`와
+`docker compose -f docker-compose.yml` 모두 같은 local 구성을 사용한다.
+운영 분산 배포와 최초 전환 절차는 [배포 가이드](deployment.md)를 참고한다.
 
 ## 1. 준비
 
 - Docker Desktop 또는 Docker Engine
-- Docker Compose v2
+- Docker Compose 2.24.4 이상
 - 이 저장소의 루트 디렉터리
 
 Java, Go, Node.js, Elixir는 호스트에 설치할 필요가 없다. 모든 애플리케이션은 컨테이너 안에서
 빌드된다.
+
+local·prod Dockerfile은 동일한 런타임 사용자(UID/GID `10001`)와 패키징 방식을 사용한다.
+실행 프로파일과 접속 주소는 Compose 또는 Vault 설정으로 주입한다. 로컬 전용
+`application-local.yml`·`.env`와 빌드 캐시는 이미지 컨텍스트에서 제외하므로, 컨테이너용 값은
+`.env`와 Config Server의 `*-local.yml`을 통해 전달한다. chat의 `public/asyncapi.json`도 이미지에
+포함한다. 공유 로그 볼륨은 `logs-init`이 소유권을 맞춘 뒤 앱이 사용한다.
+
+환경을 시작하지 않고 구성을 점검하려면 `python3 deploy/validate.py`를 실행한다.
+PR에서는 local·prod Docker 이미지 빌드와 이미지 내부 파일 검사가 추가로 실행된다.
 
 ## 2. 로컬 설정 생성
 
@@ -31,7 +40,7 @@ Java, Go, Node.js, Elixir는 호스트에 설치할 필요가 없다. 모든 애
 cp .env.example .env
 ```
 
-`.env`에서 최소한 다음 값을 채운다. `scripts/run/local/infra.sh`가 기동 전에 이 항목을
+`.env`에서 최소한 다음 값을 채운다. `deploy/local/stack.sh`가 기동 전에 이 항목을
 검사한다.
 
 | 키                                                    | 용도                                            |
@@ -63,14 +72,14 @@ openssl rand -base64 32
 
 ### Firebase credential
 
-`cowork-notification`을 포함한 전체 구성을 올리려면 다음 파일이 실제로 존재해야 한다.
+`cowork-notification`은 로컬 Vault의 `secret/cowork-notification/local`에 저장한
+`fcm.credentials-json`을 Config Server에서 읽는다. 서비스 계정 JSON 전체를 문자열로 등록한다.
+파일 마운트와 `FIREBASE_CREDENTIALS`·`FCM_CREDENTIALS_FILE` 설정은 사용하지 않는다.
 
-```text
-docker/secrets/firebase-credentials.json
-```
-
-Compose는 이 파일을 `/run/secrets/firebase-credentials.json`에 read-only secret으로 전달한다.
-파일이 없으면 로컬 실행 스크립트가 즉시 종료한다.
+빈 Vault를 처음 올리면 인프라 초기화 후 Vault UI에서 이 값을 등록하고
+`docker compose restart cowork-notification`으로 다시 기동한다. 등록 전에는 알림 서비스가
+필수 설정 누락으로 종료한다. local seed는 프로파일 경로를 덮어쓰지 않는다.
+기존 프로파일 문서의 다른 속성은 보존하고 실제 개인키를 저장소에 기록하지 않는다.
 
 ## 3. 빈 상태에서 전체 기동
 
@@ -90,10 +99,10 @@ docker compose config --quiet
 전체 스택을 기동한다.
 
 ```bash
-./scripts/run/local/infra.sh start
+./deploy/local/stack.sh start
 ```
 
-스크립트 이름은 `infra.sh`이지만 실제로는 일반 `docker compose up -d`를 실행해 인프라와
+`deploy/local/stack.sh`는 `docker compose up -d`를 실행해 인프라와
 애플리케이션을 모두 올린다. 실행 후 MySQL, PostgreSQL, MongoDB, Kafka, Vault, Redis, SeaweedFS
 일곱 core infra 컨테이너가 healthy가 될 때까지만 기다린다. 스크립트 종료는 모든 init job과
 애플리케이션의 readiness 완료를 의미하지 않으므로 아래 기동 확인 절차를 이어서 수행한다.
@@ -197,7 +206,8 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 ### 실행 스크립트가 바로 종료됨
 
-`.env`의 필수값과 `docker/secrets/firebase-credentials.json` 존재 여부를 먼저 확인한다.
+`.env`의 필수값을 확인한다. 알림 서비스만 종료되면 로컬 Vault의
+`secret/cowork-notification/local`에 `fcm.credentials-json`이 문자열로 등록되어 있는지 확인한다.
 
 ### init job이 `Exited (1)`
 
@@ -242,7 +252,7 @@ docker compose logs -f elasticsearch cowork-chat
 
 ### 외부 기기에서 S3 URL에 접속할 수 없음
 
-`scripts/run/local/infra.sh`는 `.env`의 `S3_PUBLIC_ENDPOINT` 또는 `S3_PUBLIC_BASE_URL`에 있는
+`deploy/local/stack.sh`는 `.env`의 `S3_PUBLIC_ENDPOINT` 또는 `S3_PUBLIC_BASE_URL`에 있는
 `__LOCAL_IP__`를 현재 LAN IP로 치환한다. `docker compose up`를 직접 실행하면 이 치환이
 적용되지 않는다. LAN IP를 찾지 못하면 스크립트는 경고만 출력하고 placeholder를 유지하므로,
 외부 실기기에서 확인할 때는 `.env`에 LAN IP를 직접 설정한다. 접근 정책과 ingress 문제는

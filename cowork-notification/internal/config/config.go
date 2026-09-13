@@ -22,7 +22,7 @@ type AppConfig struct {
 	KafkaTopicChannelNotification string
 	KafkaTopicUserProfile         string
 	KafkaTopicTeamLifecycle       string
-	FCMCredentialsFile            string
+	FCMCredentialsJSON            string
 	EurekaServerURL               string
 	EurekaAppName                 string
 	EurekaInstanceHost            string
@@ -46,7 +46,7 @@ func Load() (*AppConfig, error) {
 		KafkaTopicChannelNotification: lookup(flatMap, "kafka.topics.channel-notification", "preference.channel-notification.changed"),
 		KafkaTopicUserProfile:         lookup(flatMap, "kafka.topics.user-profile", "user.profile.event"),
 		KafkaTopicTeamLifecycle:       lookup(flatMap, "kafka.topics.team-lifecycle", "team.lifecycle"),
-		FCMCredentialsFile:            lookup(flatMap, "fcm.credentials-file", ""),
+		FCMCredentialsJSON:            lookup(flatMap, "fcm.credentials-json", ""),
 		EurekaServerURL:               lookup(flatMap, "eureka.server-url", "http://localhost:8761/eureka"),
 		EurekaAppName:                 lookup(flatMap, "eureka.app-name", "cowork-notification"),
 		EurekaInstanceHost:            lookup(flatMap, "eureka.instance.host", "localhost"),
@@ -117,9 +117,6 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("KAFKA_TOPIC_TEAM_LIFECYCLE"); v != "" {
 		cfg.KafkaTopicTeamLifecycle = v
 	}
-	if v := os.Getenv("FCM_CREDENTIALS_FILE"); v != "" {
-		cfg.FCMCredentialsFile = v
-	}
 	if v := os.Getenv("EUREKA_SERVER_URL"); v != "" {
 		cfg.EurekaServerURL = v
 	}
@@ -183,7 +180,7 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":                cfg.KafkaTopicNotify,
 		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                       cfg.KafkaGroupID,
 		"KAFKA_PROJECTION_GROUP_ID (or kafka.projection-group-id from config server)": cfg.KafkaProjectionGroupID,
-		"FCM_CREDENTIALS_FILE (or fcm.credentials-file from config server)":           cfg.FCMCredentialsFile,
+		"fcm.credentials-json from config server":                                     cfg.FCMCredentialsJSON,
 	}
 	for name, val := range required {
 		if val == "" {
@@ -191,9 +188,6 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 		}
 	}
 
-	if _, err := os.Stat(cfg.FCMCredentialsFile); err != nil {
-		return nil, fmt.Errorf("fcm credentials file %q is not accessible: %w", cfg.FCMCredentialsFile, err)
-	}
 	return cfg, nil
 }
 

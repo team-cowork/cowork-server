@@ -1,0 +1,16 @@
+# Run once on EACH application VM, regardless of where Loki is hosted.
+services:
+  alloy:
+    image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      LOKI_PUSH_URL: ${LOKI_PUSH_URL:?Set a Loki URL reachable from this VM}
+      LOG_HOST: ${LOG_HOST:?Set a stable VM identifier}
+    volumes:
+      - ./deploy/prod/log-agent/config.alloy:/etc/alloy/config.alloy:ro
+      - ${DOCKER_CONTAINER_LOG_DIR:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
+      - positions:/var/lib/alloy
+    command: run --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+volumes:
+  positions:

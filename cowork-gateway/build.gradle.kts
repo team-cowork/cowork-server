@@ -1,18 +1,11 @@
 plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
-    alias(libs.plugins.kotlin.jvm)
-    alias(libs.plugins.kotlin.spring)
+    id("cowork.kotlin-conventions")
 }
 
 group = "com.cowork"
-version = "20260910.0"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
+version = "20260912.0"
 
 dependencyManagement {
     imports {
@@ -46,14 +39,7 @@ dependencies {
     testImplementation(libs.reactor.test)
 }
 
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
+tasks.withType<Test>().configureEach {
     systemProperty(
         "gateway.config.dir",
         rootProject.file("cowork-config/src/main/resources/configs").absolutePath,

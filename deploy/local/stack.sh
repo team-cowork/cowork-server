@@ -1,0 +1,202 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+REQUIRED_VARS=(
+  MYSQL_ROOT_PASSWORD
+  MYSQL_USER
+  MYSQL_PASSWORD
+  POSTGRES_USER
+  POSTGRES_PASSWORD
+  MONGO_ROOT_USERNAME
+  MONGO_ROOT_PASSWORD
+  JWT_SECRET
+  DATAGSM_CLIENT_ID
+  ACCOUNT_CREDENTIAL_ENCRYPTION_KEY
+  ACCOUNT_SHARE_OAUTH_STATE_SECRET
+  TEAM_GITHUB_STATE_SECRET
+  GITHUB_APP_SLUG
+)
+
+CONTAINERS=(
+  cowork-mysql
+  cowork-postgres
+  cowork-mongodb
+  cowork-kafka
+  cowork-vault
+  cowork-redis
+  cowork-seaweedfs
+)
+
+load_env() {
+  if [ ! -f "$PROJECT_ROOT/.env" ]; then
+    echo "ERROR: .env file not found at $PROJECT_ROOT/.env"
+    echo "Copy .env.example to .env and fill in the required values."
+    exit 1
+  fi
+
+  set -a
+  source "$PROJECT_ROOT/.env"
+  set +a
+
+  local ip
+  ip="$(detect_local_ip || true)"
+  if [ -n "$ip" ]; then
+    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      export S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT/__LOCAL_IP__/$ip}"
+    fi
+    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      export S3_PUBLIC_BASE_URL="${S3_PUBLIC_BASE_URL/__LOCAL_IP__/$ip}"
+    fi
+  else
+    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; S3_PUBLIC_ENDPOINT still contains __LOCAL_IP__"
+    fi
+    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; S3_PUBLIC_BASE_URL still contains __LOCAL_IP__"
+    fi
+  fi
+}
+
+detect_local_ip() {
+  local ip=""
+
+  if command -v ipconfig >/dev/null 2>&1; then
+    ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+    if [ -z "$ip" ]; then
+      ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+    fi
+  fi
+
+  if [ -z "$ip" ] && command -v ifconfig >/dev/null 2>&1; then
+    ip="$(ifconfig | awk '/inet / && $2 != "127.0.0.1" {print $2; exit}')"
+  fi
+
+  echo "$ip"
+}
+
+validate_env() {
+  local missing=()
+
+  for var in "${REQUIRED_VARS[@]}"; do
+    if [ -z "${!var:-}" ]; then
+      missing+=("$var")
+    fi
+  done
+
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "ERROR: The following required environment variables are not set:"
+    for var in "${missing[@]}"; do
+      echo "  - $var"
+    done
+    echo "Check your .env file at $PROJECT_ROOT/.env"
+    exit 1
+  fi
+}
+
+wait_healthy() {
+  local container=$1
+  local timeout_seconds=120
+  local waited=0
+
+  echo "Waiting for $container to be healthy..."
+  until [ "$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null)" = "healthy" ]; do
+    if [ "$waited" -ge "$timeout_seconds" ]; then
+      echo "ERROR: Timed out waiting for $container to become healthy."
+      exit 1
+    fi
+    sleep 2
+    waited=$((waited + 2))
+  done
+  echo "$container is healthy."
+}
+
+start_stack() {
+  load_env
+  validate_env
+  cd "$PROJECT_ROOT"
+
+  echo ">>> Starting Docker Compose local stack..."
+  docker compose up -d
+
+  for container in "${CONTAINERS[@]}"; do
+    wait_healthy "$container"
+  done
+
+  echo ">>> Core infrastructure is healthy; check application readiness separately."
+}
+
+stop_stack() {
+  cd "$PROJECT_ROOT"
+  docker compose down
+}
+
+status_stack() {
+  cd "$PROJECT_ROOT"
+  docker compose ps
+}
+
+logs_stack() {
+  cd "$PROJECT_ROOT"
+  docker compose logs -f
+}
+
+monitor_stack() {
+  start_stack
+
+  shutdown() {
+    echo ""
+    echo ">>> Stopping local stack..."
+    stop_stack
+    echo ">>> Local stack stopped."
+    exit 0
+  }
+
+  trap shutdown SIGINT SIGTERM
+
+  echo ">>> Monitoring containers (Ctrl+C to stop all)..."
+  while true; do
+    sleep 30 &
+    wait $!
+    unhealthy=()
+    for container in "${CONTAINERS[@]}"; do
+      status="$(docker inspect -f '{{.State.Health.Status}}' "$container" 2>/dev/null)"
+      if [ "$status" != "healthy" ]; then
+        unhealthy+=("$container($status)")
+      fi
+    done
+    if [ ${#unhealthy[@]} -gt 0 ]; then
+      echo "[$(date '+%H:%M:%S')] WARN: unhealthy containers: ${unhealthy[*]}"
+    else
+      echo "[$(date '+%H:%M:%S')] OK: all containers healthy"
+    fi
+  done
+}
+
+case "${1:-start}" in
+  start)
+    start_stack
+    ;;
+  stop)
+    stop_stack
+    ;;
+  restart)
+    stop_stack
+    start_stack
+    ;;
+  status)
+    status_stack
+    ;;
+  logs)
+    logs_stack
+    ;;
+  monitor)
+    monitor_stack
+    ;;
+  *)
+    echo "Usage: $0 [start|stop|restart|status|logs|monitor]"
+    exit 1
+    ;;
+esac

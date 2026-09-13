@@ -2,17 +2,11 @@ plugins {
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.spotless)
-    java
+    id("cowork.jvm-conventions")
 }
 
 group = "com.cowork"
-version = "20260910.0"
-
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
-}
+version = "20260912.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
@@ -72,18 +66,6 @@ spotless {
         endWithNewline()
         trimTrailingWhitespace()
     }
-}
-
-tasks.named("compileJava") {
-    dependsOn("spotlessApply")
-}
-
-tasks.named("compileTestJava") {
-    dependsOn("spotlessApply")
-}
-
-tasks.withType<Test> {
-    useJUnitPlatform()
 }
 
 tasks.named<Jar>("jar") {
