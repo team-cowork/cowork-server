@@ -1,17 +1,17 @@
 # 상태 토픽 v2 운영 전환
 
-저장소의 v2 코드·설정 반영과 실제 운영 전환을 구분한다. 이 문서는 클라우드 담당자가 실행할 배포
-절차이며, 저장소 검증만으로 운영 토픽 생성·재구축·폐기가 완료된 것은 아니다. 운영 전환 결과는 PR의
-`협업 요청 사항`에서 확인한다.
+저장소의 v2 코드·설정 반영과 실제 운영 전환을 구분한다.
+**기존 데이터의 유지·복구·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.**
+이 문서는 기존 데이터 유지를 선택했을 때의 참고 절차다. 저장소 검증만으로 운영 토픽 생성·재구축·폐기가 완료된 것은 아니다.
 
 ## 확정 계약
 
-| 은퇴할 토픽 | 새 토픽 | 데이터 key | Producer | Consumer |
-|---|---|---|---|---|
-| `channel.event` | `channel.event.v2` | `<channelId>` | cowork-channel | cowork-project, cowork-chat |
-| `channel.member.event` | `channel.member.event.v2` | `<channelId>:<userId>` | cowork-channel | cowork-chat, cowork-voice |
-| `project.event` | `project.event.v2` | `<projectId>` | cowork-project | cowork-channel, cowork-chat |
-| `project.member.event` | `project.member.event.v2` | `<projectId>:<userId>` | cowork-project | cowork-chat |
+| 은퇴할 토픽            | 새 토픽                   | 데이터 key             | Producer       | Consumer                    |
+|------------------------|---------------------------|------------------------|----------------|-----------------------------|
+| `channel.event`        | `channel.event.v2`        | `<channelId>`          | cowork-channel | cowork-project, cowork-chat |
+| `channel.member.event` | `channel.member.event.v2` | `<channelId>:<userId>` | cowork-channel | cowork-chat, cowork-voice   |
+| `project.event`        | `project.event.v2`        | `<projectId>`          | cowork-project | cowork-channel, cowork-chat |
+| `project.member.event` | `project.member.event.v2` | `<projectId>:<userId>` | cowork-project | cowork-chat                 |
 
 네 토픽 모두 `cleanup.policy=compact`이며 현재 상태와 삭제 이력을 전량 발행한다. Kafka null-value
 tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`는 별도 예약 key로 각 partition에
@@ -30,7 +30,7 @@ tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`�
 2. 대상 DB/MongoDB의 복구 지점을 확보한다. 소유자 데이터와 삭제 이력은 초기화하지 않는다.
 3. Config Server에 새 voice 설정이 반영되는지 확인한다. Vault, Config Server overrides, 컨테이너
    환경변수에 같은 키가 있으면 함께 변경한다. Go 기본값만 바꿔서는 원격 override가 바뀌지 않는다.
-   로컬 실행의 `scripts/run/local/voice.sh`도 아래 기본값을 사용한다. 실행 전에 읽는 `.env`나 셸에
+   로컬 실행의 `deploy/local/services/voice.sh`도 아래 기본값을 사용한다. 실행 전에 읽는 `.env`나 셸에
    명시한 값이 있으면 이 기본값보다 우선하므로 구 토픽·group override를 함께 정리한다.
 
    ```text
@@ -84,12 +84,8 @@ done
 존재하는 토픽의 설정·데이터를 검증하거나 초기화하지 않는다. 이미 있는 v2 토픽은 계약, UUID, 설정,
 과거 발행자를 확인한다. 잘못 생성되었더라도 같은 이름을 삭제·재생성하지 않는다.
 
-Compose 환경은 갱신된 `kafka-init`으로도 생성할 수 있다. 이는 생성·설정 작업이며 기존 토픽을
-삭제하지 않는다. 운영 Compose 파일을 사용할 때는 배포 환경의 기존 `.env`와 두 `-f` 인자를 유지한다.
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm --no-deps kafka-init
-```
+운영 Kafka는 위 CLI 절차를 사용한다. 로컬 개발용 `kafka-init`의 전체 topic 목록은
+`deploy/compose/stack.yaml`을 참고하되, 운영 broker 주소·인증·partition·복제 계수를 따로 지정한다.
 
 ## 3. projection 초기화
 
@@ -151,12 +147,12 @@ rebuild를 요청한다. 서비스 내부 경로는 `/chat/admin/projections`, G
 `/api/chat/chat/admin/projections`다. Readiness가 닫히면 Eureka 경유 요청은 서비스에 도달하지 못할 수
 있으므로 관리자가 접근할 수 있는 컨테이너 내부에서 다음을 실행한다.
 
-아래는 운영 Compose 예시다. `OPERATOR_USER_ID`에 작업자의 실제 사용자 ID를 설정한다. 내부 관리
+아래는 chat이 실행 중인 VM에서의 명령이다. `OPERATOR_USER_ID`에 작업자의 실제 사용자 ID를 설정한다. 내부 관리
 접속에서만 Gateway 신뢰 헤더를 사용하며, 이 목적의 서비스 포트를 외부에 공개하지 않는다.
 
 ```bash
 : "${OPERATOR_USER_ID:?작업자의 사용자 ID를 설정한다}"
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T \
+docker exec -i \
   -e OPERATOR_USER_ID="$OPERATOR_USER_ID" cowork-chat node <<'JS'
 (async () => {
   const base = `http://127.0.0.1:${process.env.PORT || 8087}/chat/admin/projections`;
@@ -184,7 +180,7 @@ JS
 반복하지 않는다.
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T \
+docker exec -i \
   -e OPERATOR_USER_ID="$OPERATOR_USER_ID" cowork-chat node <<'JS'
 (async () => {
   const response = await fetch(`http://127.0.0.1:${process.env.PORT || 8087}/chat/admin/projections`, {
