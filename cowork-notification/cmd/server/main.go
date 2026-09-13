@@ -26,6 +26,7 @@ import (
 
 	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/config"
+	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"github.com/cowork/cowork-notification/internal/domain/projection"
 	tokendomain "github.com/cowork/cowork-notification/internal/domain/token"
 	"github.com/cowork/cowork-notification/internal/health"
@@ -66,10 +67,12 @@ func main() {
 	}
 
 	repo := mysqlinfra.NewTokenRepository(db)
+	deliveryRepo := mysqlinfra.NewDeliveryRepository(db)
 	projectionRepo := mysqlinfra.NewProjectionRepository(db)
 	projectionService := projection.NewService(projectionRepo)
-	svc := tokendomain.NewService(repo, fcmSender, projectionRepo)
+	svc := tokendomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
 	handler := tokendomain.NewHandler(svc)
+	deliveryWorker := delivery.NewWorker(deliveryRepo, repo, repo, fcmSender)
 
 	sseHub := sseinfra.NewHub()
 	projectionReadiness := health.NewReadiness()
@@ -152,6 +155,10 @@ func main() {
 	go func() {
 		slog.Info("notification kafka consumer waiting for projection barrier", "topic", cfg.KafkaTopicNotify)
 		notificationConsumer.Start(consumerCtx)
+	}()
+	go func() {
+		slog.Info("fcm delivery retry worker starting")
+		deliveryWorker.Run(consumerCtx)
 	}()
 	go func() {
 		slog.Info(
