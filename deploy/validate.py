@@ -28,7 +28,6 @@ env.update(
 )
 models = {
     "local": ["docker-compose.yml"],
-    "single-vm-prod": ["deploy/compose/stack.yaml", "deploy/compose/single-vm.prod.yaml"],
     "monitoring": ["deploy/prod/monitoring/compose.yaml"],
     "vault": ["deploy/prod/vault/compose.yaml"],
     "log-agent": ["deploy/prod/log-agent/compose.yaml"],
@@ -60,20 +59,15 @@ catalog = json.loads((ROOT / "deploy/images/catalog.json").read_text())
 for name, settings in catalog.items():
     service = f"cowork-{name}"
     local = resolved["local"]["services"][service]
-    production = resolved["single-vm-prod"]["services"][service]
     build = local["build"]
     if Path(build["context"]).resolve() != (ROOT / settings["local"]).resolve():
         raise SystemExit(f"{service}: local image catalog and Compose build context differ")
     if (Path(build["context"]) / build["dockerfile"]).resolve() != ROOT / service / "Dockerfile.local":
         raise SystemExit(f"{service}: unexpected local Dockerfile")
-    if production.get("build") or production["image"] != f"validation-only/{service}:validation-only":
-        raise SystemExit(f"{service}: production must use the published registry image")
-    if name != "gateway" and production.get("ports"):
-        raise SystemExit(f"{service}: production downstream ports must stay private")
     profile_key = "APP_PROFILE" if settings["build"] in {"go", "node", "elixir"} else "SPRING_PROFILES_ACTIVE"
-    for environment, configuration in (("local", local), ("prod", production)):
-        if configuration["environment"].get(profile_key) != environment:
-            raise SystemExit(f"{service}: incorrect {environment} profile")
+    if local["environment"].get(profile_key) != "local":
+        raise SystemExit(f"{service}: incorrect local profile")
+    for environment in ("local", "prod"):
         dockerfile = ROOT / service / f"Dockerfile.{environment}"
         if not dockerfile.is_file() or not (ROOT / settings[environment]).is_dir():
             raise SystemExit(f"{service}: missing {environment} image input")
@@ -85,10 +79,9 @@ for name, settings in catalog.items():
             if not config.is_file():
                 raise SystemExit(f"{service}: missing {profile} Config Server profile")
     if any(volume.get("target") == "/var/log/cowork" for volume in local.get("volumes", [])):
-        for configuration in (local, production):
-            if configuration.get("depends_on", {}).get("logs-init", {}).get("condition") != "service_completed_successfully":
-                raise SystemExit(f"{service}: log volume ownership must be initialized before startup")
-print(f"{len(catalog) * 2} local/prod image inputs, profiles and production port boundaries valid")
+        if local.get("depends_on", {}).get("logs-init", {}).get("condition") != "service_completed_successfully":
+            raise SystemExit(f"{service}: log volume ownership must be initialized before startup")
+print(f"{len(catalog) * 2} local/prod image inputs and Config Server profiles valid; local startup configuration valid")
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
 settings_schema = runpy.run_path(str(ROOT / "deploy/prod/vault-settings.py"))

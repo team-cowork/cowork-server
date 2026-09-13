@@ -1,4 +1,4 @@
-# Independent Vault lifecycle. Explicit external storage prevents an accidental empty Vault.
+# Independent Vault lifecycle. Pre-create the named volume for a fresh deployment or select an existing one.
 services:
   vault:
     image: hashicorp/vault:2.0.3
@@ -22,4 +22,4 @@ services:
 volumes:
   vault-data:
     external: true
-    name: ${VAULT_DATA_VOLUME:?Set the existing Vault volume name explicitly}
+    name: ${VAULT_DATA_VOLUME:?Set the pre-created Vault volume name explicitly}
