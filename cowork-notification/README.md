@@ -30,9 +30,7 @@
 | `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
 | `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
 
-- Config Server: 포트, Kafka topic·group, Eureka, FCM 파일 경로.
-- Vault: `db.dsn`.
+- Config Server: 포트, Kafka topic·group, Eureka.
+- Vault: `db.dsn`, 프로파일별 `fcm.credentials-json`.
 
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 가이드](../docs/configuration.md)를 참고합니다.
-
-Firebase 서비스 계정 JSON은 환경변수가 아닌 Docker secret으로 `/run/secrets/firebase-credentials.json`에 읽기 전용 마운트해야 합니다.

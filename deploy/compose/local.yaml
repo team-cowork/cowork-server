@@ -1,0 +1,62 @@
+# Local build settings, included explicitly by the root docker-compose.yml.
+# 소스에서 직접 빌드하는 build: 설정만 관리한다.
+services:
+  cowork-config:
+    build:
+      context: .
+      dockerfile: cowork-config/Dockerfile.local
+
+  cowork-gateway:
+    build:
+      context: .
+      dockerfile: cowork-gateway/Dockerfile.local
+
+  cowork-authorization:
+    build:
+      context: cowork-authorization
+      dockerfile: Dockerfile.local
+
+  cowork-preference:
+    build:
+      context: .
+      dockerfile: cowork-preference/Dockerfile.local
+
+  cowork-user:
+    build:
+      context: .
+      dockerfile: cowork-user/Dockerfile.local
+
+  cowork-team:
+    build:
+      context: .
+      dockerfile: cowork-team/Dockerfile.local
+
+  cowork-channel:
+    build:
+      context: .
+      dockerfile: cowork-channel/Dockerfile.local
+
+  cowork-project:
+    build:
+      context: .
+      dockerfile: cowork-project/Dockerfile.local
+
+  cowork-roadmap:
+    build:
+      context: .
+      dockerfile: cowork-roadmap/Dockerfile.local
+
+  cowork-notification:
+    build:
+      context: cowork-notification
+      dockerfile: Dockerfile.local
+
+  cowork-chat:
+    build:
+      context: cowork-chat
+      dockerfile: Dockerfile.local
+
+  cowork-voice:
+    build:
+      context: cowork-voice
+      dockerfile: Dockerfile.local

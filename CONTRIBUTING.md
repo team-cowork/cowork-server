@@ -263,7 +263,7 @@ Run commands from the repository root:
 | One Gradle Kotlin module                                       | `./gradlew :cowork-team:ktlintCheck`      | `./gradlew :cowork-team:ktlintFormat`     |
 | Java roadmap                                                   | `./gradlew :cowork-roadmap:spotlessCheck` | `./gradlew :cowork-roadmap:spotlessApply` |
 
-Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `compileJava` and `compileTestJava` depend on `spotlessApply`, so compiling or testing roadmap can reformat Java files.
+Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 
 `cowork-project` (Maven) and `cowork-preference` (Amper) do not apply the Gradle Kotlin plugin and have no `ktlintFormat` task. Root KtLint commands do not format them; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
 
