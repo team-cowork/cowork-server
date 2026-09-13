@@ -1,4 +1,4 @@
-# Shared single-machine stack. Use local.yaml for builds or single-vm.prod.yaml for registry images.
+# Local development stack. The root docker-compose.yml includes local.yaml build settings.
 services:
   mysql:
     image: mysql:9.7.1
