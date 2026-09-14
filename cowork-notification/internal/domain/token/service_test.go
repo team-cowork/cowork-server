@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/cowork/cowork-notification/internal/domain/token"
+	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,6 +18,9 @@ type mockRepo struct {
 
 func (m *mockRepo) Save(_ context.Context, _ *token.DeviceToken) error {
 	return m.err
+}
+func (m *mockRepo) FindByID(_ context.Context, _ int64) (*token.DeviceToken, error) {
+	return nil, m.err
 }
 func (m *mockRepo) FindByAccountID(_ context.Context, id int64) ([]token.DeviceToken, error) {
 	return m.tokens[id], m.err
@@ -42,7 +46,7 @@ type mockFCM struct {
 	err          error
 }
 
-func (m *mockFCM) Send(_ context.Context, tokens []string, _, _ string, _ map[string]string) ([]string, error) {
+func (m *mockFCM) Send(_ context.Context, tokens []string, _, _ string, _ map[string]string) ([]fcm.TokenResult, error) {
 	m.calledTokens = tokens
 	return nil, m.err
 }
@@ -70,9 +74,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{Token: "t2", AccountID: 2}},
 		}}
 		fcm := &mockFCM{}
-		svc := token.NewService(repo, fcm, &mockPref{enabled: true})
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, nil)
 
-		_, err := svc.Notify(context.Background(), []int64{1, 2}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledTokens)
@@ -83,9 +87,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {{Token: "t1", AccountID: 1}},
 		}}
 		fcm := &mockFCM{}
-		svc := token.NewService(repo, fcm, &mockPref{enabled: false})
+		svc := token.NewService(repo, fcm, &mockPref{enabled: false}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42)
 
 		require.NoError(t, err)
 		assert.Nil(t, fcm.calledTokens)
@@ -98,9 +102,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{Token: "t2", AccountID: 2}},
 		}}
 		fcm := &mockFCM{}
-		svc := token.NewService(repo, fcm, &mockPref{enabled: false})
+		svc := token.NewService(repo, fcm, &mockPref{enabled: false}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), []int64{1, 2}, []int64{2}, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{2}, "title", "body", 42)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"t2"}, fcm.calledTokens)
@@ -113,9 +117,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{Token: "t2", AccountID: 2}},
 		}}
 		fcm := &mockFCM{}
-		svc := token.NewService(repo, fcm, &mockPref{enabled: true})
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledTokens)
@@ -128,9 +132,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		}}
 		fcm := &mockFCM{}
 		pref := &mockPref{err: errors.New("preference service unreachable")}
-		svc := token.NewService(repo, fcm, pref)
+		svc := token.NewService(repo, fcm, pref, nil)
 
-		_, err := svc.Notify(context.Background(), []int64{1}, nil, "title", "body", 42)
+		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42)
 
 		require.Error(t, err)
 		assert.Nil(t, fcm.calledTokens)
