@@ -2,6 +2,7 @@ package mysql
 
 import (
 	"context"
+	"errors"
 
 	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/token"
@@ -24,6 +25,37 @@ func (r *TokenRepository) Save(ctx context.Context, t *token.DeviceToken) error 
 			DoUpdates: clause.AssignmentColumns([]string{"platform", "updated_at"}),
 		}).
 		Create(t).Error
+}
+
+func (r *TokenRepository) FindByID(ctx context.Context, id int64) (*token.DeviceToken, error) {
+	var t token.DeviceToken
+	err := r.db.WithContext(ctx).Where("id = ?", id).Take(&t).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, apperr.NotFound("token not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &t, nil
+}
+
+// CurrentToken satisfies delivery.TokenVerifier: it lets the FCM retry worker check
+// whether a device token row still exists before resending to it.
+func (r *TokenRepository) CurrentToken(ctx context.Context, deviceTokenID int64) (string, bool, error) {
+	t, err := r.FindByID(ctx, deviceTokenID)
+	if err != nil {
+		var appErr *apperr.AppError
+		if errors.As(err, &appErr) && appErr.Code == 404 {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return t.Token, true, nil
+}
+
+// DeleteInvalidToken satisfies delivery.InvalidTokenHandler.
+func (r *TokenRepository) DeleteInvalidToken(ctx context.Context, tkn string) error {
+	return r.DeleteByTokens(ctx, []string{tkn})
 }
 
 func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]token.DeviceToken, error) {
