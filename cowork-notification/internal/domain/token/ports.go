@@ -42,7 +42,7 @@ type DeliveryRepository interface {
 		title, body string,
 		data map[string]string,
 	) ([]delivery.TargetToken, error)
-	FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64) error
-	FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64) error
-	FinalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, errClass delivery.ErrorClass, now time.Time) (delivery.Status, error)
+	FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
+	FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
+	FinalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, claimToken string, errClass delivery.ErrorClass, now time.Time) (delivery.Status, error)
 }
