@@ -45,6 +45,11 @@ Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [�
 삭제·교체됐으면 `CANCELLED`로 종료한다.
 
 - `eventId`가 없는(아직 갱신되지 않은) producer는 원장에 적재하지 않고 기존처럼 1회만 시도한다.
+- `IN_PROGRESS` 상태에는 그때 발급한 `claim_token`이 함께 저장되며, 이 값이 일치할 때만 최종 상태를 기록한다
+  (fencing). 2분 넘게 `IN_PROGRESS`에 머문 행은 `ReclaimStale`이 `claim_token`을 지우고 `PENDING_RETRY`로
+  되돌리므로, 뒤늦게 도착한 이전 claim의 finalize 호출은 조건이 맞지 않아 안전하게 무시된다.
+- 종단 상태(`SUCCESS`/`INVALID`/`QUARANTINED`/`CANCELLED`)로 전환되는 즉시 `title`/`body`/`data_json`을
+  비우고, worker가 10분마다 7일 지난 종단 행을 삭제한다.
 - 운영 지표: `cowork_notification_fcm_delivery_outcomes_total`(outcome·source별),
   `cowork_notification_fcm_delivery_quarantined_total`(error_class별),
   `cowork_notification_fcm_delivery_pending`(현재 대기 건수).
