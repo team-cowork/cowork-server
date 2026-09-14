@@ -57,11 +57,18 @@ func (s *Sender) checkUnregistered(err error) bool {
 // SDK's own error classification is not this repository's business logic to freeze.
 func (s *Sender) classify(err error) Outcome {
 	switch {
-	case s.checkUnregistered(err), messaging.IsSenderIDMismatch(err), messaging.IsInvalidArgument(err):
+	case s.checkUnregistered(err), messaging.IsSenderIDMismatch(err):
 		return OutcomeInvalid
 	case messaging.IsInternal(err), messaging.IsUnavailable(err), messaging.IsQuotaExceeded(err):
 		return OutcomeRetryable
 	default:
+		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
+		// message-level problems (oversized payload, a malformed field) that are not
+		// specific to one token. Since a multicast batch sends the same message to
+		// every token in it, classifying it as OutcomeInvalid here would delete every
+		// recipient's token in the batch for what is actually a message construction
+		// bug. Routing it to OutcomeUnclassified instead only quarantines it (after
+		// MaxAttemptsUnclassified retries) without touching any token.
 		return OutcomeUnclassified
 	}
 }

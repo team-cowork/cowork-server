@@ -3,6 +3,7 @@ package delivery
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
@@ -13,6 +14,16 @@ const (
 	workerInterval       = 15 * time.Second
 	workerBatchSize      = 100
 	staleInProgressAfter = 2 * time.Minute
+	// attemptConcurrency bounds how many claimed rows Worker.tick sends to FCM at
+	// once. Attempting workerBatchSize rows one at a time is what let a slow FCM
+	// response push the tail of a batch past staleInProgressAfter, at which point
+	// another replica's ReclaimStale reverts a row this worker was still holding and
+	// a later ClaimDue can pick it up a second time. Fanning attempts out keeps the
+	// whole claimed batch's wall-clock time well under that threshold.
+	attemptConcurrency = 20
+
+	purgeInterval  = 10 * time.Minute
+	purgeRetention = 7 * 24 * time.Hour
 )
 
 // TokenVerifier answers whether a device token row is still current, so the retry
@@ -32,12 +43,15 @@ type fcmSender interface {
 	Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]fcm.TokenResult, error)
 }
 
-// Worker periodically resends PENDING_RETRY rows whose backoff has elapsed.
+// Worker periodically resends PENDING_RETRY rows whose backoff has elapsed. Run must
+// only ever be driven by one goroutine — tick's throttled purge state assumes it is
+// never called concurrently with itself.
 type Worker struct {
-	repo    Repository
-	tokens  TokenVerifier
-	invalid InvalidTokenHandler
-	fcm     fcmSender
+	repo      Repository
+	tokens    TokenVerifier
+	invalid   InvalidTokenHandler
+	fcm       fcmSender
+	lastPurge time.Time
 }
 
 func NewWorker(repo Repository, tokens TokenVerifier, invalid InvalidTokenHandler, sender fcmSender) *Worker {
@@ -73,9 +87,7 @@ func (w *Worker) tick(ctx context.Context) {
 		}
 		return
 	}
-	for _, rec := range due {
-		w.attempt(ctx, rec)
-	}
+	w.attemptAll(ctx, due)
 
 	if pending, err := w.repo.CountPending(ctx); err != nil {
 		if ctx.Err() == nil {
@@ -83,6 +95,47 @@ func (w *Worker) tick(ctx context.Context) {
 		}
 	} else {
 		monitoring.SetFCMDeliveryPending(float64(pending))
+	}
+
+	w.purgeIfDue(ctx)
+}
+
+// attemptAll fans claimed rows out across a bounded worker pool so the whole batch's
+// wall-clock time cannot approach staleInProgressAfter even when FCM is slow. Each
+// row belongs to a different device token, so attempts share no mutable state.
+func (w *Worker) attemptAll(ctx context.Context, due []Record) {
+	if len(due) == 0 {
+		return
+	}
+	sem := make(chan struct{}, attemptConcurrency)
+	var wg sync.WaitGroup
+	for _, rec := range due {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(rec Record) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			w.attempt(ctx, rec)
+		}(rec)
+	}
+	wg.Wait()
+}
+
+func (w *Worker) purgeIfDue(ctx context.Context) {
+	now := time.Now()
+	if now.Sub(w.lastPurge) < purgeInterval {
+		return
+	}
+	w.lastPurge = now
+	purged, err := w.repo.PurgeTerminal(ctx, now.Add(-purgeRetention))
+	if err != nil {
+		if ctx.Err() == nil {
+			slog.Error("fcm retry worker: purge terminal rows failed", "err", err)
+		}
+		return
+	}
+	if purged > 0 {
+		slog.Info("fcm retry worker: purged terminal delivery rows", "count", purged)
 	}
 }
 
@@ -93,10 +146,10 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 		return
 	}
 	if !ok || currentToken != rec.Token {
-		// The token was deleted, or the account re-registered a new one under the same
-		// row id is impossible (device_token_id is never reused), so a mismatch means
-		// the row is stale relative to the current device token state.
-		if err := w.repo.FinalizeCancelled(ctx, rec.ID); err != nil {
+		// The token was deleted, or replaced (device_token_id is never reused, so a
+		// mismatch means the current row for this id no longer holds the token the
+		// claimed delivery was for) — the row is stale relative to current state.
+		if err := w.repo.FinalizeCancelled(ctx, rec.ID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize cancelled failed", "id", rec.ID, "err", err)
 		}
 		return
@@ -117,11 +170,11 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 	monitoring.RecordFCMDeliveryOutcome(string(outcome), "retry")
 	switch outcome {
 	case fcm.OutcomeSuccess:
-		if err := w.repo.FinalizeSuccess(ctx, rec.EventID, rec.DeviceTokenID); err != nil {
+		if err := w.repo.FinalizeSuccess(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize success failed", "id", rec.ID, "err", err)
 		}
 	case fcm.OutcomeInvalid:
-		if err := w.repo.FinalizeInvalid(ctx, rec.EventID, rec.DeviceTokenID); err != nil {
+		if err := w.repo.FinalizeInvalid(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize invalid failed", "id", rec.ID, "err", err)
 		}
 		if err := w.invalid.DeleteInvalidToken(ctx, rec.Token); err != nil {
@@ -135,7 +188,7 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 }
 
 func (w *Worker) finalizeFailure(ctx context.Context, rec Record, errClass ErrorClass) {
-	status, err := w.repo.FinalizeFailure(ctx, rec.EventID, rec.DeviceTokenID, errClass, time.Now())
+	status, err := w.repo.FinalizeFailure(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken, errClass, time.Now())
 	if err != nil {
 		slog.Error("fcm retry worker: finalize failure failed", "id", rec.ID, "err", err)
 		return
