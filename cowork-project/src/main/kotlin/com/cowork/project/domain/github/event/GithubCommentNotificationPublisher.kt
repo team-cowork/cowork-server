@@ -3,6 +3,7 @@ package com.cowork.project.domain.github.event
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.stereotype.Component
+import java.util.UUID
 
 private const val TOPIC = "notification.trigger"
 private const val GITHUB_COMMENT_CREATED = "GITHUB_COMMENT_CREATED"
@@ -13,6 +14,7 @@ class GithubCommentNotificationPublisher(private val kafkaTemplate: KafkaTemplat
 
     fun publishCommentCreated(targetUserId: Long, data: Map<String, Any?>) {
         val event = NotificationTriggerEvent(
+            eventId = UUID.randomUUID().toString(),
             type = GITHUB_COMMENT_CREATED,
             targetUserIds = listOf(targetUserId),
             data = data,
