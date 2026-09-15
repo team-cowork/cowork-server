@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Inspect a built image's filesystem and user without starting any application."""
 import json
+import re
 import subprocess
 import sys
 import tarfile
@@ -13,9 +14,11 @@ def main():
         raise ValueError("The runtime must use the dedicated app user")
     if not config.get("Entrypoint"):
         raise ValueError("Missing runtime entrypoint")
+    if service == "user" and config["Entrypoint"] != ["/app/bin/cowork_user", "start"]:
+        raise ValueError("The user runtime must start its release directly")
     required = {
         "chat": {"app/dist/main.js", "app/public/asyncapi.json"},
-        "user": {"app/bin/cowork_user", "flyway/flyway"},
+        "user": {"app/bin/cowork_user"},
         "preference": {"app/app.jar"},
     }.get(service, {f"usr/local/bin/cowork-{service}"} if service in {"authorization", "notification", "voice"}
           else {"app/org/springframework/boot/loader/launch/JarLauncher.class"})
@@ -47,8 +50,14 @@ def main():
         if service in {"config", "gateway", "team", "channel", "project", "roadmap", "preference", "user"} and not writable_logs:
             raise ValueError("The app user cannot write its log directory")
         if service in {"authorization", "notification", "user"}:
-            prefix = "flyway/sql/" if service == "user" else "app/db/migration/"
-            if not any(path.startswith(prefix) and path.endswith(".sql") for path in paths):
+            if service == "user":
+                has_migrations = any(re.fullmatch(
+                    r"app/lib/cowork_user-[^/]+/priv/db/migration/V[0-9]+__[^/]+\.sql", path,
+                ) for path in paths)
+            else:
+                has_migrations = any(path.startswith("app/db/migration/") and path.endswith(".sql")
+                                     for path in paths)
+            if not has_migrations:
                 raise ValueError("Missing database migrations")
         print(f"{service}: runtime files, non-root identity and log ownership valid (application not started)")
     finally:
