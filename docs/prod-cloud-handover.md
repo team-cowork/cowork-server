@@ -192,7 +192,7 @@ MongoDB projection·색인·quarantine은 SQL migration 표의 범위 밖이다.
 `flyway_schema_history`의 실패 이력이 있으면 기동을 중단한다. MySQL DDL 부분 적용은 자동으로
 롤백되지 않을 수 있으므로 앱 재시작을 멈추고 실제 스키마를 복구한 뒤 실패 이력을 정리한다.
 단일 MySQL 서버에서 Flyway 12.8.1과 같은 named lock을 사용한다. Galera·Percona cluster의 대체 잠금은 지원하지 않는다.
-상세 절차와 SQL 지원 범위는 [cowork-user README](../cowork-user/README.md#db-마이그레이션)를 참고한다.
+상세 절차와 SQL 지원 범위는 [개발 가이드](./development-guide.md#elixir-서비스-cowork-user)를 참고한다.
 
 공통 Compose는 Kafka broker/controller 1개와 RF 1, Elasticsearch single-node·인증 비활성,
 Redis 인증 미지정 등을 포함한다. **로컬 기본 설정을 운영 인프라 설계로 복사하지 않는다.**
