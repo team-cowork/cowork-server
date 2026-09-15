@@ -125,7 +125,11 @@ cowork-{name}/
 
 ### Elixir 서비스 (cowork-user)
 
-`cowork-user`는 동일한 `src/main/resources/db/migration/` SQL을 사용합니다. 컨테이너 시작 시 `docker-entrypoint.sh`가 Flyway CLI로 migration을 적용한 뒤 Mix release를 실행합니다.
+`cowork-user`는 `priv/db/migration/`의 SQL을 Mix release에 포함합니다. 애플리케이션이 Config Server 설정을 조회한 뒤 임시 MyXQL 연결에서 migration을 동기 실행하고, 완료 후 Repo·Kafka·HTTP 프로세스를 시작합니다. 컨테이너는 `/app/bin/cowork_user start`를 직접 실행하며 Flyway CLI·JRE는 포함하지 않습니다.
+
+기존 `flyway_schema_history`의 성공 이력과 체크섬을 검증하고, MySQL named lock을 가진 동일 연결에서 미적용 파일을 순서대로 실행합니다. 양의 정수 버전의 일반 SQL만 추가하며, 한 파일의 여러 문장은 지원합니다. `DELIMITER`, `SOURCE`, `${...}` placeholder, 실행형 주석, 저장 프로시저, 트랜잭션·세션 제어문과 repeatable migration·callback은 지원하지 않습니다.
+
+MySQL DDL은 실패 전 일부 변경이 남을 수 있습니다. 실패 이력이 있으면 다음 기동도 중단하므로 재시작 전에 실제 스키마를 확인하고 부분 적용 객체와 실패 이력을 수동으로 복구합니다. 기존 SQL 수정이나 실패 이력만 삭제하는 방식으로 우회하지 않습니다. 상세 기동·복구 계약은 [cowork-user README](../cowork-user/README.md#db-마이그레이션)를 참고합니다.
 
 ### 파일 네이밍 규칙
 
@@ -518,4 +522,3 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Prometheus: `http://localhost:9090`
 
 Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
-
