@@ -131,7 +131,7 @@ State marker는 모두 동시에 생기지 않는다. 빈 상태에서도 upstre
 
 - `cowork-user`는 Kafka가 유일한 서비스 간 경로다. `KAFKA_ENABLED=false`로는 기동하지 않고 fail-fast 하므로
   로컬에서도 Kafka와 `kafka-init`을 함께 올린다.
-- 빈 관계형 DB에서는 Flyway 또는 Go·Elixir migration runner가 source와 projection 테이블을 생성한다.
+- 빈 관계형 DB에서는 Flyway 또는 Go migration runner가 source와 projection 테이블을 생성한다.
   MongoDB 컬렉션은 해당 서비스의 schema·repository 초기화 경로를 따른다.
 - 별도 `cowork-github-app` 저장소의 프로세스는 이 Compose에 포함되지 않는다. 기본 stack과 Kafka projection은
   그 프로세스 없이 기동한다. GitHub 조직 저장소와 PR 조회까지 확인하려면 github-app을 host `3000`에 별도로

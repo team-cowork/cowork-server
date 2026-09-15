@@ -66,7 +66,7 @@ cowork-server/
    - Gradle: config, gateway, channel, team, roadmap
    - Maven: project (`pom.xml`, Gradle 파일은 위임 wrapper)
    - Kotlin Toolchain(Amper): preference (`module.yaml`, Gradle 파일은 위임 wrapper)
-4. 아래 공통 구조에 맞춰 `cowork-{name}/README.md` 작성
+4. `cowork-{name}/README.md` 작성 (스택, 역할, 포트, DB 명시)
 5. 선택한 빌드 도구에 맞는 `.gitignore` 추가
 6. 관계형 DB 사용 시 [DB 스키마 관리](#3-db-스키마-관리) 절차 따르기
 7. 런타임에 맞는 Config Server client와 Eureka 등록 설정 추가
@@ -80,10 +80,6 @@ cowork-server/
 4. Gradle에는 **포함하지 않음**
 5. backend service는 Config Server·Eureka·Compose에 연결하고 `scripts/bump.sh`에 버전 반영 추가
    (정적 사이트는 Config Server·Eureka client를 사용하지 않음)
-
-### 모듈 README 공통 구조
-
-모든 `cowork-*/README.md`는 `역할` → `스택` → `포트` → `환경변수`의 네 개 `##` 섹션을 같은 순서로 유지합니다. DB는 스택에 명시하고, 모듈별 상세 구현·운영·복구 설명은 `docs/`에 작성한 뒤 관련 섹션에서 링크합니다. README에 별도 운영 섹션을 추가하지 않습니다.
 
 ---
 
@@ -129,24 +125,7 @@ cowork-{name}/
 
 ### Elixir 서비스 (cowork-user)
 
-`cowork-user`는 `priv/db/migration/`의 SQL을 Mix release에 포함합니다. 애플리케이션이 Config Server 설정을 조회한 뒤 임시 MyXQL 연결에서 migration을 동기 실행하고, 완료 후 Repo·Kafka·HTTP 프로세스를 시작합니다. 컨테이너는 `/app/bin/cowork_user start`를 직접 실행하며 Flyway CLI·JRE는 포함하지 않습니다.
-
-Config Server는 기동 시 한 번 조회합니다. 비어 있지 않은 환경변수가 원격 설정보다 우선하며, DB는 `DATABASE_URL` 또는 `DB_URL`로 지정할 수 있습니다. URL을 사용하지 않으면 `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`가 필요합니다. Repo와 migration은 같은 접속 옵션을 사용합니다. 필수값이 없거나 설정 조회·migration에 실패하면 기동하지 않습니다.
-
-`LOG_PATH`를 지정하면 해당 디렉터리를 기동 시 생성하므로 앱 사용자에게 쓰기 권한이 있어야 합니다. 기본 로그 경로는 release에서 `/var/log/cowork/user/application.log`, 로컬 Mix 실행에서 `_build/log/application.log`입니다.
-
-기존 `flyway_schema_history`의 성공 이력과 체크섬을 검증하고, Flyway 12.8.1과 같은 MySQL named lock을 가진 동일 연결에서 미적용 파일을 순서대로 실행합니다. 잠금 대기는 60초, 전체 migration 작업은 15분으로 제한합니다. SQL 파일은 `priv/db/migration/V{버전}__{설명}.sql`에 두고 기존 파일의 버전·이름·내용을 보존합니다. 양의 정수 버전의 일반 SQL만 추가하며, 한 파일의 여러 문장은 지원합니다. `DELIMITER`, `SOURCE`, `${...}` placeholder, 실행형 주석, 저장 프로시저, 트랜잭션·세션 제어문과 repeatable migration·callback은 지원하지 않습니다.
-
-실행을 시작한 migration은 실패 상태로 기록하고 모든 SQL이 성공하면 성공 상태로 변경합니다. MySQL DDL은 부분 적용 후 자동으로 롤백되지 않을 수 있습니다. 실패 이력이 있으면 다음 기동도 중단하므로 앱의 재시작을 멈추고 해당 SQL·실제 스키마·`flyway_schema_history`를 대조합니다. 먼저 부분 적용된 객체를 수동으로 정리한 다음 실패 이력을 복구하고 다시 기동합니다. 실패 행만 삭제하거나 성공으로 바꾸어 스키마 불일치를 숨기지 않습니다. 기존 파일의 체크섬 불일치는 원래 파일로 복원합니다.
-
-단일 MySQL 서버의 named lock을 기준으로 동시 기동을 직렬화합니다. Galera·Percona cluster의 Flyway 대체 잠금 방식은 지원하지 않습니다. 앱 이미지 롤백은 DB 변경을 되돌리지 않습니다.
-
-#### 사용자 검색의 DB 조건
-
-이름·닉네임·통합 검색어(`q`/`query`)는 MySQL `LIKE`로 부분 일치합니다(`CoworkUser.Accounts.like_pattern/1`). 대소문자 무시·와일드카드 무해화 계약을 유지하려면 다음 DB 설정이 필요합니다.
-
-- 대상 컬럼(`accounts.name`, `profiles.nickname`)의 collation은 `utf8mb4_unicode_ci`여야 합니다. 그렇지 않으면 검색이 대소문자를 구분합니다.
-- MySQL `sql_mode`에 `NO_BACKSLASH_ESCAPES`가 없어야 합니다. 설정되어 있으면 `like_pattern/1`이 `\`로 escape한 `%`/`_`/`\`가 다시 LIKE 연산자로 해석되어 와일드카드 주입이 가능해집니다.
+`cowork-user`는 동일한 `src/main/resources/db/migration/` SQL을 사용합니다. 컨테이너 시작 시 `docker-entrypoint.sh`가 Flyway CLI로 migration을 적용한 뒤 Mix release를 실행합니다.
 
 ### 파일 네이밍 규칙
 
@@ -539,3 +518,4 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Prometheus: `http://localhost:9090`
 
 Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
+
