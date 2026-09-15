@@ -176,7 +176,7 @@ MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_projec
 | 서비스 | 코드에 포함된 마지막 SQL migration | 적용 방식 |
 | --- | --- | --- |
 | authorization | V8 | Go 자체 migration runner |
-| user | V20 | 애플리케이션 내부 MyXQL runner, 기존 Flyway 이력 유지 |
+| user | V20 | 이미지 entrypoint의 Flyway |
 | team | V16 | Spring Flyway |
 | channel | V23 | Spring Flyway |
 | project | V18 | Spring Flyway |
@@ -187,12 +187,6 @@ MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_projec
 이 숫자는 저장소의 최대 버전이다. 운영 migration 이력과 checksum은 별도로 대조해야 한다.
 기존 migration 파일을 수정하거나 앱 롤백만으로 DB 변경이 취소된다고 가정하지 않는다.
 MongoDB projection·색인·quarantine은 SQL migration 표의 범위 밖이다.
-
-`cowork-user`는 `priv/db/migration/` SQL을 release에 포함하고 Repo·Kafka·HTTP 시작 전에 동기 실행한다.
-`flyway_schema_history`의 실패 이력이 있으면 기동을 중단한다. MySQL DDL 부분 적용은 자동으로
-롤백되지 않을 수 있으므로 앱 재시작을 멈추고 실제 스키마를 복구한 뒤 실패 이력을 정리한다.
-단일 MySQL 서버에서 Flyway 12.8.1과 같은 named lock을 사용한다. Galera·Percona cluster의 대체 잠금은 지원하지 않는다.
-상세 절차와 SQL 지원 범위는 [개발 가이드](./development-guide.md#elixir-서비스-cowork-user)를 참고한다.
 
 공통 Compose는 Kafka broker/controller 1개와 RF 1, Elasticsearch single-node·인증 비활성,
 Redis 인증 미지정 등을 포함한다. **로컬 기본 설정을 운영 인프라 설계로 복사하지 않는다.**
@@ -452,7 +446,7 @@ Config 응답 내 순서는 `server overrides > Vault 서비스 속성 > Vault �
 | Vert.x preference | `SPRING_PROFILES_ACTIVE`, `CONFIG_SERVER_URL` | 자체 컨테이너 env로 해석 |
 | Go authorization/notification/voice | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 정확한 flat key·리터럴 값 또는 구현된 env mapping 사용 |
 | NestJS chat | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 기존 비어 있지 않은 env를 보존 |
-| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 앱이 DB·일반 설정을 한 번 조회한 뒤 migration 실행 |
+| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. entrypoint가 DB/Flyway를, 앱이 일반 설정을 조회 |
 
 prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 사용한다. Config Server가 내려갔을 때
 모든 서비스의 재시작·교체가 가능한 구조로 생각하지 않는다. 값 변경 후에는 영향받는 앱을 재배포한다.
@@ -472,7 +466,7 @@ prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 �
 | 같은 channel 경로 | `<PROVIDER>_ACCOUNT_SHARE_CLIENT_ID`, `<PROVIDER>_ACCOUNT_SHARE_CLIENT_SECRET` | 활성 제공자별 `GITHUB`, `NOTION`, `JIRA`, `GOOGLE`, `FACEBOOK`; 비활성 기능의 빈 기본값과 구분 |
 | `cowork-team[/prod]` | `team-github.state-secret` / `TEAM_GITHUB_STATE_SECRET`, `team-github.app-slug` / `GITHUB_APP_SLUG` | GitHub App 설치 callback의 state·app 식별자 |
 | `cowork-project[/prod]` | `github-app.internal-api-key` | 외부 GitHub App 서비스와 동일 key. 배포 참조는 `COWORK_GITHUB_APP_INTERNAL_API_KEY`로 연결 |
-| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. user 앱은 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
+| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. 현재 user entrypoint는 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
 | `cowork-chat[/prod]` | `MONGODB_URI`, 필요 기능의 `DISCORD_WEBHOOK_URL`, 공통 JWT/S3 key | chat 배포 runtime이 만드는 URI·직접 env와 정합성 |
 | `cowork-notification[/prod]` | **`db.dsn`** | `DB_DSN` env와의 매핑은 있으나 Vault native key는 dotted 소문자 |
 | `cowork-notification/prod` | **`fcm.credentials-json`** | Firebase `service_account` JSON 전체를 문자열로 저장, 앱 메모리에서 사용 |

@@ -133,7 +133,7 @@ MongoDB 메시지가 원본이고 Elasticsearch는 파생 색인입니다. 메�
 }
 ```
 
-replica가 공유하는 단일 도큐먼트로, 마지막 전체 재구축 결과와 레거시 백필 완료 여부를 남깁니다. 운영 절차는 [검색 색인 운영 가이드](../../docs/chat-search-index-operations.md)를 참고합니다.
+replica가 공유하는 단일 도큐먼트로, 마지막 전체 재구축 결과와 레거시 백필 완료 여부를 남깁니다. 운영 절차는 [서비스 README](../README.md#검색-색인-운영)를 참고합니다.
 
 ## Collection: channelmembers
 

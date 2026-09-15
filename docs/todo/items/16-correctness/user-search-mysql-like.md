@@ -19,7 +19,7 @@
 > 정규화한 값을 받으므로 내부에서 `normalize_search_term/1`을 다시 부르지 않도록 정리했다. `normalize_search_term/1`·
 > `like_pattern/1`·`search_term/2`는 기존 관례(`student_event_newer?/2` 등)에 맞춰 `@doc false`로 되돌렸다.
 > escape 계약이 `sql_mode`의 `NO_BACKSLASH_ESCAPES` 부재와 컬럼 collation(`utf8mb4_unicode_ci`) 두 가지에 의존한다는
-> 점은 PR 본문·docstring뿐 아니라 `docs/development-guide.md`의 "사용자 검색의 DB 조건" 절에도 남겼다.
+> 점은 PR 본문·docstring뿐 아니라 `cowork-user/README.md`의 "사용자 검색" 절에도 남겼다.
 
 ## 문제
 
