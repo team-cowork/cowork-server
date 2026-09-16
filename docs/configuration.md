@@ -76,13 +76,13 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 ## 서비스별 부트스트랩
 
-| 런타임      | 방식                                                           | Config Server 실패 처리                                                      |
-|-------------|----------------------------------------------------------------|------------------------------------------------------------------------------|
-| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`              | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
-| Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                  | URL 지정 시 기동 실패                                                        |
-| NestJS      | bootstrap 전 Config Server 조회                                | 기동 실패                                                                    |
-| Vert.x      | 배포 전 Config Server 조회                                     | 3회 실패 후 종료                                                             |
-| Elixir      | entrypoint가 DB/Flyway 설정 조회 후 앱 내부에서 일반 설정 조회 | 기동 실패                                                                    |
+| 런타임      | 방식                                                            | Config Server 실패 처리                                                      |
+|-------------|-----------------------------------------------------------------|------------------------------------------------------------------------------|
+| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`               | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
+| Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                   | URL 지정 시 기동 실패                                                        |
+| NestJS      | bootstrap 전 Config Server 조회                                 | 기동 실패                                                                    |
+| Vert.x      | 배포 전 Config Server 조회                                      | 3회 실패 후 종료                                                             |
+| Elixir      | 앱에서 DB·일반 설정을 한 번 조회하고 migration 후 프로세스 시작 | 기동 실패                                                                    |
 
 ## Firebase 자격 증명 교체
 
