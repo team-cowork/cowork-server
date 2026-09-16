@@ -176,7 +176,7 @@ MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_projec
 | 서비스 | 코드에 포함된 마지막 SQL migration | 적용 방식 |
 | --- | --- | --- |
 | authorization | V8 | Go 자체 migration runner |
-| user | V20 | 이미지 entrypoint의 Flyway |
+| user | V20 | 애플리케이션 내부 MyXQL runner, 기존 Flyway 이력 유지 |
 | team | V16 | Spring Flyway |
 | channel | V23 | Spring Flyway |
 | project | V18 | Spring Flyway |
@@ -446,7 +446,7 @@ Config 응답 내 순서는 `server overrides > Vault 서비스 속성 > Vault �
 | Vert.x preference | `SPRING_PROFILES_ACTIVE`, `CONFIG_SERVER_URL` | 자체 컨테이너 env로 해석 |
 | Go authorization/notification/voice | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 정확한 flat key·리터럴 값 또는 구현된 env mapping 사용 |
 | NestJS chat | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 기존 비어 있지 않은 env를 보존 |
-| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. entrypoint가 DB/Flyway를, 앱이 일반 설정을 조회 |
+| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 앱이 DB·일반 설정을 한 번 조회한 뒤 migration 실행 |
 
 prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 사용한다. Config Server가 내려갔을 때
 모든 서비스의 재시작·교체가 가능한 구조로 생각하지 않는다. 값 변경 후에는 영향받는 앱을 재배포한다.
@@ -466,7 +466,7 @@ prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 �
 | 같은 channel 경로 | `<PROVIDER>_ACCOUNT_SHARE_CLIENT_ID`, `<PROVIDER>_ACCOUNT_SHARE_CLIENT_SECRET` | 활성 제공자별 `GITHUB`, `NOTION`, `JIRA`, `GOOGLE`, `FACEBOOK`; 비활성 기능의 빈 기본값과 구분 |
 | `cowork-team[/prod]` | `team-github.state-secret` / `TEAM_GITHUB_STATE_SECRET`, `team-github.app-slug` / `GITHUB_APP_SLUG` | GitHub App 설치 callback의 state·app 식별자 |
 | `cowork-project[/prod]` | `github-app.internal-api-key` | 외부 GitHub App 서비스와 동일 key. 배포 참조는 `COWORK_GITHUB_APP_INTERNAL_API_KEY`로 연결 |
-| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. 현재 user entrypoint는 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
+| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. user 앱은 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
 | `cowork-chat[/prod]` | `MONGODB_URI`, 필요 기능의 `DISCORD_WEBHOOK_URL`, 공통 JWT/S3 key | chat 배포 runtime이 만드는 URI·직접 env와 정합성 |
 | `cowork-notification[/prod]` | **`db.dsn`** | `DB_DSN` env와의 매핑은 있으나 Vault native key는 dotted 소문자 |
 | `cowork-notification/prod` | **`fcm.credentials-json`** | Firebase `service_account` JSON 전체를 문자열로 저장, 앱 메모리에서 사용 |
@@ -697,6 +697,7 @@ migration, readiness를 확인하지 않는다. 성공 후 같은 명령에서 `
 | 최초 컨테이너 배포 실패 | 이전 컨테이너가 없으므로 자동 롤백 대상 없음 |
 | `*-candidate`, `*-previous` 잔존 | 다음 배포가 중단된다. Docker 상태·포트·이미지를 확인하고 복구 후 정리 |
 | DB migration 이후 앱 실패 | 자동 앱 롤백은 DB를 되돌리지 않는다. 이전 이미지와 schema 호환 여부 확인 |
+| `cowork-user` migration 실패 | 재시작을 멈추고 부분 적용된 스키마를 복구한 뒤 실패 이력을 정리한다. 실패 행만 삭제하거나 성공으로 바꾸어 기동을 강행하지 않는다 |
 | 이전 SHA로 수동 롤백 | `sha`, `configuration_version` 지정. 참조 Vault 문서·Config 앱 속성·외부 키는 별도 복원 필요 |
 | Vault sealed/중단 | `service=vault`, `target=vault`, `vault_recovery=true`; 외부 보관한 `VAULT_BOOTSTRAP_JSON` 사용 |
 | Vault 미초기화 | 운영자가 초기화와 unseal 자료 보관을 수행. 기존 데이터 존재 여부부터 확인 |
