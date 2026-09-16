@@ -1,7 +1,5 @@
 ARG ELIXIR_IMAGE=hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250520-slim@sha256:ddd7c2a143023b873a72208ef6ae44f90ab3c2fb45cde9cc42ad0a8376f11071
 
-FROM flyway/flyway:12.8.1@sha256:b8a2d72926b98234c1fb8f45659fd23d8a001af9ee7f450326aa46af14d447bb AS flyway
-
 FROM ${ELIXIR_IMAGE} AS builder
 WORKDIR /app
 ENV MIX_ENV=prod
@@ -25,20 +23,16 @@ RUN mix compile \
 FROM debian:bookworm-20240926-slim@sha256:ad86386827b083b3d71139050b47ffb32bbd9559ea9b1345a739b14fec2d9ecf AS runtime
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl curl wget jq ca-certificates default-mysql-client default-jre-headless libstdc++6 libncurses5 locales \
+    && apt-get install -y --no-install-recommends openssl wget ca-certificates libstdc++6 libncurses5 locales \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r -g 10001 app \
     && useradd -r -u 10001 -g app app \
     && mkdir -p /var/log/cowork/user \
     && chown -R app:app /var/log/cowork
 
-COPY --from=flyway /flyway /flyway
-COPY cowork-user/src/main/resources/db/migration /flyway/sql
 COPY --chown=app:app --from=builder /app/_build/prod/rel/cowork_user ./
-COPY --chown=app:app cowork-user/docker-entrypoint.sh /app/docker-entrypoint.sh
-ENV PATH="/flyway:${PATH}"
 ENV ELIXIR_ERL_OPTIONS="+fnu"
-RUN chmod +x /app/docker-entrypoint.sh && chown app:app /app
+RUN chown app:app /app
 USER app
 EXPOSE 8082
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/bin/cowork_user", "start"]
