@@ -2,9 +2,7 @@ import Config
 
 config :cowork_user, ecto_repos: [CoworkUser.Repo]
 
-config :cowork_user, CoworkUser.Repo,
-  pool_size: String.to_integer(System.get_env("DB_POOL_SIZE", "10")),
-  timeout: 15_000
+config :cowork_user, CoworkUser.Repo, timeout: 15_000
 
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
