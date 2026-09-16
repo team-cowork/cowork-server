@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka, KafkaMessage } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
 import { Server } from 'socket.io';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
+import { getOptionalConfig, getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ChatMessageContractError, validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
@@ -11,6 +11,12 @@ import { ChatMessageProcessor } from './chat-message.processor';
 import { ChatMessageQuarantineService } from '../service/chat-message-quarantine.service';
 
 const CHAT_MESSAGE_TOPIC = 'chat.message';
+/**
+ * 파티션당 하나씩 순차 처리하는 KafkaJS 기본값(1) 대신, 서로 다른 채널(=파티션)의 메시지를
+ * 동시에 처리하기 위한 동시성. `channelId`가 파티션 키이므로 채널 내 순서는 그대로 유지된다.
+ * 실제 파티션 수보다 큰 값을 주면 KafkaJS가 초과분을 사용하지 않으므로 상한으로 안전하게 둔다.
+ */
+const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 
 /** Kafka `chat.message` record를 검증하고, poison record만 durable quarantine한다. */
 @Injectable()
@@ -37,7 +43,12 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         this.consumer = kafka.consumer({ groupId: 'cowork-chat' });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: CHAT_MESSAGE_TOPIC, fromBeginning: false });
+        const partitionsConsumedConcurrently = Number(
+            getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY')
+                ?? DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY,
+        );
         void this.consumer.run({
+            partitionsConsumedConcurrently,
             eachMessage: ({ topic, partition, message }) => this.processKafkaMessage(topic, partition, message),
         }).catch(async (error) => {
             this.logger.error('chat.message Kafka consumer failed', error);
