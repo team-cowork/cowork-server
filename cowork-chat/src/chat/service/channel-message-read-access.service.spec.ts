@@ -166,13 +166,12 @@ describe('ChannelMessageReadAccessService', () => {
     });
 
     describe('emitToReadableChannelUsers', () => {
-    it('room 단위 단일 emit을 사용하고, 읽기 불가능한 socket과 요청한 sender만 except로 제외한다', async () => {
+    it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
         const sender = { id: 'sender', data: { userId: 2 } };
         const otherAllowed = { id: 'allowed', data: { userId: 2 } };
         const denied = { id: 'denied', data: { userId: 3 } };
-        const exceptEmit = jest.fn();
-        const except = jest.fn().mockReturnValue({ emit: exceptEmit });
-        const to = jest.fn().mockReturnValue({ except });
+        const toEmit = jest.fn();
+        const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
         const io = {
             in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([sender, otherAllowed, denied]) }),
             to,
@@ -180,11 +179,13 @@ describe('ChannelMessageReadAccessService', () => {
 
         await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
 
-        expect(to).toHaveBeenCalledWith('chat:10');
-        expect(except).toHaveBeenCalledTimes(1);
-        expect(except.mock.calls[0][0]).toEqual(expect.arrayContaining(['sender', 'denied']));
-        expect(except.mock.calls[0][0]).toHaveLength(2);
-        expect(exceptEmit).toHaveBeenCalledWith('typing', { value: true });
+        // room 이름이 아니라 스냅샷에서 얻은 소켓 ID를 직접 대상으로 지정한다(allow-list).
+        // fetchSockets() 스냅샷 이후 emit 전에 room에 새로 합류하는 소켓이 있어도, 그 소켓은
+        // 이 배열에 없으므로 이번 emit의 대상이 되지 않는다 — room 이름을 대상으로 except(...)를
+        // 쓰는 deny-list 방식이었다면, emit 시점에 room 멤버십을 다시 읽어 그 소켓도 받았을 것이다.
+        expect(to).toHaveBeenCalledTimes(1);
+        expect(to.mock.calls[0][0]).toEqual(['allowed']);
+        expect(toEmit).toHaveBeenCalledWith('typing', { value: true });
     });
     });
 
