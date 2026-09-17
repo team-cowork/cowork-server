@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { Server } from 'socket.io';
 import { ChatMessageEvent } from './event/chat-message.event';
-import { MessageRepository } from '../repository/message.repository';
+import { MessageRepository, toMessageBroadcastPayload } from '../repository/message.repository';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 import { ChatMessageScopeValidator } from './chat-message-scope-validator';
@@ -51,7 +51,7 @@ export class ChatMessageProcessor {
             if (!this.io) {
                 this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
             } else {
-                await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, event.channelId, 'message', saved.toObject());
+                await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, event.channelId, 'message', toMessageBroadcastPayload(saved));
             }
             void this.channelMemberRepository.updateLastRead(event.channelId, event.authorId, saved._id)
                 .catch((error: unknown) => this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${String(error)}`));
