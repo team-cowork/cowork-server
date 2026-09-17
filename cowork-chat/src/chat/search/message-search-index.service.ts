@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DicoshotService } from 'dicoshot-nest';
 import { Counter, Gauge, register } from 'prom-client';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
-import { IndexWriteResult } from '../../search/message-index.contract';
+import { errorMessageOf, IndexWriteResult } from '../../search/message-index.contract';
 import { MessageRepository } from '../repository/message.repository';
 import {
     ClaimedIndexMessage,
@@ -128,14 +128,35 @@ export class MessageSearchIndexService {
      * {@link applyTombstone}의 배치 버전. 각 tombstone의 MongoDB 삭제를 전부 완결한 뒤에야
      * Elasticsearch 삭제를 `_bulk`로 묶어 보내, "메시지 삭제 먼저" 순서를 tombstone별로 유지한다
      * (서로 다른 tombstone 사이의 순서는 상관없다).
+     *
+     * MongoDB 삭제는 `Promise.allSettled`로 모아 한 tombstone의 실패가 나머지의 진행을 막지
+     * 않게 한다 — `Promise.all`이었다면 하나만 reject해도 배치 전체가 `PROCESSING`에 남아
+     * ES 삭제도 상태 전이도 못 했다. 실패한 항목은 RETRYABLE로 개별 처리하고, 성공한 항목만
+     * bulk 삭제 대상에 포함한다.
      */
     async applyTombstones(tombstones: TombstoneRecord[]): Promise<void> {
         if (tombstones.length === 0) return;
-        await Promise.all(tombstones.map((tombstone) => this.messageRepository.deleteById(tombstone.messageId)));
+        const deletions = await Promise.allSettled(
+            tombstones.map((tombstone) => this.messageRepository.deleteById(tombstone.messageId)),
+        );
+        const succeeded: TombstoneRecord[] = [];
+        const failures: Array<{ tombstone: TombstoneRecord; error: unknown }> = [];
+        tombstones.forEach((tombstone, i) => {
+            const outcome = deletions[i];
+            if (outcome.status === 'fulfilled') succeeded.push(tombstone);
+            else failures.push({ tombstone, error: outcome.reason });
+        });
 
-        const entries = tombstones.map((tombstone) => ({ messageId: tombstone.messageId, version: tombstone.version }));
+        await Promise.all(failures.map(({ tombstone, error }) => {
+            this.writes.inc({ operation: 'delete', outcome: 'RETRYABLE' });
+            this.logger.warn(`MongoDB delete failed for search tombstone, will retry messageId=${tombstone.messageId}: ${errorMessageOf(error)}`);
+            return this.finalizeDeleteResult(tombstone, { outcome: 'RETRYABLE', error: errorMessageOf(error) });
+        }));
+        if (succeeded.length === 0) return;
+
+        const entries = succeeded.map((tombstone) => ({ messageId: tombstone.messageId, version: tombstone.version }));
         const results = await this.elasticsearchService.bulkDeleteForOutbox(entries);
-        const byMessageId = new Map(tombstones.map((tombstone) => [tombstone.messageId, tombstone]));
+        const byMessageId = new Map(succeeded.map((tombstone) => [tombstone.messageId, tombstone]));
 
         await Promise.all(results.map(({ messageId, result }) => {
             this.writes.inc({ operation: 'delete', outcome: result.outcome });
