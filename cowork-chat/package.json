@@ -7,9 +7,9 @@
     "start": "node dist/main.js",
     "start:dev": "ts-node src/main.ts",
     "build": "tsc",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "npm run test -- --watch",
+    "test:cov": "npm run test -- --coverage",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts",
@@ -22,71 +22,79 @@
   "dependencies": {
     "@apollo/server": "^5.5.1",
     "@as-integrations/express5": "^1.1.2",
-    "@aws-sdk/client-s3": "^3.1107.0",
-    "@aws-sdk/s3-request-presigner": "^3.1107.0",
-    "@elastic/elasticsearch": "^9.4.2",
-    "@nestjs/apollo": "^13.4.2",
-    "@nestjs/common": "^11.1.27",
-    "@nestjs/config": "^4.0.4",
-    "@nestjs/core": "^11.1.27",
-    "@nestjs/graphql": "^13.4.2",
-    "@nestjs/jwt": "^11.0.2",
-    "@nestjs/microservices": "^11.1.27",
-    "@nestjs/mongoose": "^11.0.4",
-    "@nestjs/platform-express": "^11.1.27",
-    "@nestjs/platform-socket.io": "^11.1.27",
-    "@nestjs/swagger": "^11.4.4",
-    "@nestjs/websockets": "^11.1.27",
+    "@aws-sdk/client-s3": "^3.1133.0",
+    "@aws-sdk/s3-request-presigner": "^3.1133.0",
+    "@elastic/elasticsearch": "^9.5.1",
+    "@nestjs/apollo": "^13.4.5",
+    "@nestjs/common": "^11.2.5",
+    "@nestjs/config": "^12.0.0",
+    "@nestjs/core": "^11.2.5",
+    "@nestjs/graphql": "^13.4.5",
+    "@nestjs/jwt": "^12.0.2",
+    "@nestjs/microservices": "^11.2.5",
+    "@nestjs/mongoose": "^12.0.0",
+    "@nestjs/platform-express": "^11.2.5",
+    "@nestjs/platform-socket.io": "^11.2.5",
+    "@nestjs/swagger": "^11.4.7",
+    "@nestjs/websockets": "^11.2.5",
     "@socket.io/redis-adapter": "^8.3.0",
-    "@willsoto/nestjs-prometheus": "^6.1.0",
+    "@willsoto/nestjs-prometheus": "^6.1.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
-    "dicoshot-nest": "^0.3.0",
+    "dicoshot-nest": "^0.5.0",
     "dotenv": "^17.4.2",
     "graphql": "^16.14.2",
     "ioredis": "^5.11.1",
     "kafkajs": "^2.2.4",
     "mime-types": "^3.0.2",
-    "mongoose": "^9.7.1",
-    "nestjs-pino": "^4.6.1",
+    "mongoose": "^9.10.1",
+    "nestjs-pino": "^5.2.0",
     "pino": "^10.3.1",
     "prom-client": "^15.1.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
     "socket.io": "^4.8.3",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.2"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@nestjs/testing": "^11.1.27",
+    "@nestjs/testing": "^11.2.5",
     "@types/express": "^5.0.6",
-    "@types/ioredis-mock": "^8.2.7",
+    "@types/ioredis-mock": "^8.2.8",
     "@types/jest": "^30.0.0",
     "@types/mime-types": "^3.0.1",
-    "@types/node": "^24.13.2",
-    "@types/uuid": "^11.0.0",
-    "eslint": "^10.5.0",
-    "globals": "^17.6.0",
+    "@types/node": "^26.6.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
     "ioredis-mock": "^8.13.1",
-    "jest": "^30.4.2",
+    "jest": "^30.5.1",
     "socket.io-client": "^4.8.3",
-    "ts-jest": "^29.4.11",
+    "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.1"
+    "typescript-eslint": "^8.70.0"
   },
   "overrides": {
     "@nestjs/graphql": {
-      "ws": "8.21.1"
+      "ws": "8.21.3"
     },
     "engine.io": {
-      "ws": "8.21.1"
+      "ws": "8.21.3"
     },
     "engine.io-client": {
-      "ws": "8.21.1"
+      "ws": "8.21.3"
     },
     "socket.io-adapter": {
-      "ws": "8.21.1"
+      "ws": "8.21.3"
+    },
+    "@apollo/server-plugin-landing-page-graphql-playground": {
+      "@apollo/server": "^5.5.1"
+    },
+    "@nestjs/platform-express": {
+      "multer": "2.4.0"
     }
+  },
+  "engines": {
+    "node": ">=26.8.2 <27"
   }
 }
