@@ -133,7 +133,15 @@ func (s *Service) Notify(
 	// tb_device_token's uniqueness is (account_id, token), so the same token string can
 	// legitimately appear twice with different DeviceTokenIDs, and a string-keyed map
 	// would collapse them onto one target.
-	results, sendErr := s.fcm.Send(ctx, tokensToSend, title, body, nil)
+	//
+	// The Firebase Admin SDK's default HTTP client retries 503s and network errors up to
+	// 4 times, honoring Retry-After for as long as 2 minutes, so an unbounded ctx here
+	// would let this call alone approach the retry worker's staleInProgressAfter window
+	// while these rows are still held IN_PROGRESS — another replica's reclaim could then
+	// resend them. 30s keeps a single attempt well clear of that.
+	sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
+	results, sendErr := s.fcm.Send(sendCtx, tokensToSend, title, body, nil)
+	sendCancel()
 	if sendErr != nil {
 		slog.Warn("fcm send returned early; finalizing whatever results were attempted",
 			"attempted", len(results), "total", len(tokensToSend), "err", sendErr)
