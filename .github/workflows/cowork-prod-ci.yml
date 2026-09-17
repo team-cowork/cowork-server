@@ -189,7 +189,7 @@ jobs:
               {"service":"cowork-roadmap","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
+              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"26.8.2"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}
             ]}'
           else
@@ -217,7 +217,7 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"26.8.2"}]')
             [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]')
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
@@ -1873,7 +1873,7 @@ jobs:
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["jest","node"]'), matrix.runner)
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: ${{ matrix.module == 'cowork-promotion' && '24' || '26.8.2' }}
           cache: npm
           cache-dependency-path: source/${{ matrix.module }}/package-lock.json
       - name: Setup Elixir
