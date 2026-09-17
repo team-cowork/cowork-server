@@ -122,55 +122,80 @@ func (s *Service) Notify(
 	}
 
 	tokensToSend := make([]string, len(toSend))
-	targetByToken := make(map[string]delivery.TargetToken, len(toSend))
 	for i, t := range toSend {
 		tokensToSend[i] = t.Token
-		targetByToken[t.Token] = t
 	}
 
-	results, err := s.fcm.Send(ctx, tokensToSend, title, body, nil)
-	if err != nil {
-		return nil, err
+	// fcm.Send appends one TokenResult per attempted token in input order (see its
+	// doc comment), so results[i] always corresponds to toSend[i] — even when it
+	// returns early with a partial result set. Matching by token string instead would
+	// be wrong whenever the same physical device carries tokens for two accounts:
+	// tb_device_token's uniqueness is (account_id, token), so the same token string can
+	// legitimately appear twice with different DeviceTokenIDs, and a string-keyed map
+	// would collapse them onto one target.
+	//
+	// The Firebase Admin SDK's default HTTP client retries 503s and network errors up to
+	// 4 times, honoring Retry-After for as long as 2 minutes, so an unbounded ctx here
+	// would let this call alone approach the retry worker's staleInProgressAfter window
+	// while these rows are still held IN_PROGRESS — another replica's reclaim could then
+	// resend them. 30s keeps a single attempt well clear of that.
+	sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
+	results, sendErr := s.fcm.Send(sendCtx, tokensToSend, title, body, nil)
+	sendCancel()
+	if sendErr != nil {
+		slog.Warn("fcm send returned early; finalizing whatever results were attempted",
+			"attempted", len(results), "total", len(tokensToSend), "err", sendErr)
 	}
+
+	// Finalizing is bookkeeping for an FCM call that has already happened — it must
+	// run even if ctx (the Kafka consumer's lease context) is cancelled or expires
+	// while we do it, otherwise a token FCM already accepted could be resent by the
+	// retry worker. A short-lived detached context keeps these DB writes from being
+	// aborted by a ctx that dies for reasons unrelated to whether the writes succeed.
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
 
 	var invalidTokens []string
-	for _, r := range results {
-		target := targetByToken[r.Token]
+	for i, r := range results {
+		target := toSend[i]
 		monitoring.RecordFCMDeliveryOutcome(string(r.Outcome), "initial")
 		switch r.Outcome {
 		case fcm.OutcomeSuccess:
 			if durable {
-				if err := s.delivery.FinalizeSuccess(ctx, eventID, target.DeviceTokenID); err != nil {
+				if err := s.delivery.FinalizeSuccess(finalizeCtx, eventID, target.DeviceTokenID, target.ClaimToken); err != nil {
 					slog.Warn("failed to finalize successful delivery", "err", err)
 				}
 			}
 		case fcm.OutcomeInvalid:
 			invalidTokens = append(invalidTokens, r.Token)
 			if durable {
-				if err := s.delivery.FinalizeInvalid(ctx, eventID, target.DeviceTokenID); err != nil {
+				if err := s.delivery.FinalizeInvalid(finalizeCtx, eventID, target.DeviceTokenID, target.ClaimToken); err != nil {
 					slog.Warn("failed to finalize invalid delivery", "err", err)
 				}
 			}
 		case fcm.OutcomeUnclassified:
 			if durable {
-				s.finalizeFailure(ctx, eventID, target.DeviceTokenID, delivery.ErrorClassUnclassified)
+				s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassUnclassified)
 			}
 		default: // fcm.OutcomeRetryable
 			if durable {
-				s.finalizeFailure(ctx, eventID, target.DeviceTokenID, delivery.ErrorClassRetryable)
+				s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassRetryable)
 			}
 		}
 	}
 	if len(invalidTokens) > 0 {
-		if delErr := s.repo.DeleteByTokens(ctx, invalidTokens); delErr != nil {
+		if delErr := s.repo.DeleteByTokens(finalizeCtx, invalidTokens); delErr != nil {
 			slog.Warn("failed to bulk delete invalid tokens", "count", len(invalidTokens), "err", delErr)
 		}
+	}
+	if sendErr != nil {
+		return nil, sendErr
 	}
 	return enabledIDs, nil
 }
 
-func (s *Service) finalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, errClass delivery.ErrorClass) {
-	status, err := s.delivery.FinalizeFailure(ctx, eventID, deviceTokenID, errClass, time.Now())
+func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.TargetToken, errClass delivery.ErrorClass) {
+	status, err := s.delivery.FinalizeFailure(ctx, eventID, target.DeviceTokenID, target.ClaimToken, errClass, time.Now())
 	if err != nil {
 		slog.Warn("failed to finalize delivery failure", "errClass", errClass, "err", err)
 		return

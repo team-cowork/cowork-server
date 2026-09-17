@@ -2,7 +2,10 @@ package mysql
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"log/slog"
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
@@ -22,6 +25,7 @@ type deliveryRow struct {
 	AttemptCount   int        `gorm:"column:attempt_count"`
 	NextAttemptAt  *time.Time `gorm:"column:next_attempt_at"`
 	LastErrorClass *string    `gorm:"column:last_error_class"`
+	ClaimToken     *string    `gorm:"column:claim_token"`
 	CreatedAt      time.Time  `gorm:"column:created_at"`
 	UpdatedAt      time.Time  `gorm:"column:updated_at"`
 }
@@ -33,6 +37,27 @@ var terminalStatuses = map[string]bool{
 	string(delivery.StatusInvalid):     true,
 	string(delivery.StatusQuarantined): true,
 	string(delivery.StatusCancelled):   true,
+}
+
+// clearedContent is merged into every terminal-transition update so a delivered,
+// dropped, or quarantined row no longer carries a copy of the notification's title,
+// body, or data payload — the source message may since have been edited or deleted.
+var clearedContent = map[string]any{
+	"title":     "",
+	"body":      "",
+	"data_json": nil,
+}
+
+const purgeBatchSize = 1000
+
+// newClaimToken issues an opaque fencing token for one IN_PROGRESS claim. Finalize*
+// calls must echo it back; a mismatch means the row was reclaimed (stale worker
+// timeout) or already finalized by a different attempt, so the caller must not
+// overwrite whatever outcome that other attempt recorded.
+func newClaimToken() string {
+	var b [16]byte
+	_, _ = crand.Read(b[:]) // crypto/rand.Read is documented to never fail on supported platforms
+	return hex.EncodeToString(b[:])
 }
 
 type DeliveryRepository struct {
@@ -67,39 +92,63 @@ func (r *DeliveryRepository) ResumeOrCreate(
 	var toSend []delivery.TargetToken
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing []deliveryRow
-		if err := tx.
+		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
 			Where("event_id = ? AND device_token_id IN ?", eventID, deviceTokenIDs).
 			Find(&existing).Error; err != nil {
 			return err
 		}
-		existingStatus := make(map[int64]string, len(existing))
+		existingByDeviceToken := make(map[int64]deliveryRow, len(existing))
 		for _, row := range existing {
-			existingStatus[row.DeviceTokenID] = row.Status
+			existingByDeviceToken[row.DeviceTokenID] = row
 		}
 
 		now := time.Now()
-		newRows := make([]deliveryRow, 0, len(targets))
+		var newRows []deliveryRow
 		for _, t := range targets {
-			status, alreadyTracked := existingStatus[t.DeviceTokenID]
-			if alreadyTracked {
-				if terminalStatuses[status] {
-					continue
-				}
-				toSend = append(toSend, t)
+			row, tracked := existingByDeviceToken[t.DeviceTokenID]
+			if !tracked {
+				claimToken := newClaimToken()
+				newRows = append(newRows, deliveryRow{
+					EventID:       eventID,
+					DeviceTokenID: t.DeviceTokenID,
+					Token:         t.Token,
+					Title:         title,
+					Body:          body,
+					DataJSON:      dataJSON,
+					Status:        string(delivery.StatusInProgress),
+					ClaimToken:    &claimToken,
+				})
+				toSend = append(toSend, delivery.TargetToken{
+					DeviceTokenID: t.DeviceTokenID,
+					Token:         t.Token,
+					ClaimToken:    claimToken,
+				})
 				continue
 			}
-			newRows = append(newRows, deliveryRow{
-				EventID:       eventID,
+			if terminalStatuses[row.Status] || row.Status == string(delivery.StatusInProgress) {
+				// Terminal: already finished. IN_PROGRESS: the retry worker (or a
+				// concurrent redelivery of the same message) is already attempting
+				// it — never send a second copy on top of that.
+				continue
+			}
+			// PENDING_RETRY: only resume if its backoff has elapsed, using the same
+			// due condition as ClaimDue, so a redelivered message cannot jump its
+			// backoff schedule.
+			if row.NextAttemptAt != nil && row.NextAttemptAt.After(now) {
+				continue
+			}
+			claimToken := newClaimToken()
+			if err := tx.Model(&deliveryRow{}).Where("id = ?", row.ID).Updates(map[string]any{
+				"status":      string(delivery.StatusInProgress),
+				"claim_token": claimToken,
+			}).Error; err != nil {
+				return err
+			}
+			toSend = append(toSend, delivery.TargetToken{
 				DeviceTokenID: t.DeviceTokenID,
 				Token:         t.Token,
-				Title:         title,
-				Body:          body,
-				DataJSON:      dataJSON,
-				Status:        string(delivery.StatusPendingRetry),
-				AttemptCount:  0,
-				NextAttemptAt: &now,
+				ClaimToken:    claimToken,
 			})
-			toSend = append(toSend, t)
 		}
 		if len(newRows) == 0 {
 			return nil
@@ -112,22 +161,43 @@ func (r *DeliveryRepository) ResumeOrCreate(
 	return toSend, nil
 }
 
-func (r *DeliveryRepository) FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64) error {
-	return r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("event_id = ? AND device_token_id = ?", eventID, deviceTokenID).
-		Update("status", string(delivery.StatusSuccess)).Error
+func (r *DeliveryRepository) FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
+	updates := map[string]any{"status": string(delivery.StatusSuccess), "claim_token": nil}
+	for k, v := range clearedContent {
+		updates[k] = v
+	}
+	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
+		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
+			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	warnIfClaimStale(result.RowsAffected, "success", eventID, deviceTokenID)
+	return nil
 }
 
-func (r *DeliveryRepository) FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64) error {
-	return r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("event_id = ? AND device_token_id = ?", eventID, deviceTokenID).
-		Update("status", string(delivery.StatusInvalid)).Error
+func (r *DeliveryRepository) FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
+	updates := map[string]any{"status": string(delivery.StatusInvalid), "claim_token": nil}
+	for k, v := range clearedContent {
+		updates[k] = v
+	}
+	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
+		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
+			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	warnIfClaimStale(result.RowsAffected, "invalid", eventID, deviceTokenID)
+	return nil
 }
 
 func (r *DeliveryRepository) FinalizeFailure(
 	ctx context.Context,
 	eventID string,
 	deviceTokenID int64,
+	claimToken string,
 	errClass delivery.ErrorClass,
 	now time.Time,
 ) (delivery.Status, error) {
@@ -139,17 +209,33 @@ func (r *DeliveryRepository) FinalizeFailure(
 			Take(&row).Error; err != nil {
 			return err
 		}
+		if row.Status != string(delivery.StatusInProgress) || row.ClaimToken == nil || *row.ClaimToken != claimToken {
+			warnIfClaimStale(0, "failure", eventID, deviceTokenID)
+			// Report a non-terminal status rather than echoing row.Status: if another
+			// attempt already quarantined this row, returning its current status here
+			// would make this stale/duplicate call look like the one that quarantined it,
+			// double-counting the quarantine metric for a decision this call did not make.
+			status = delivery.StatusInProgress
+			return nil
+		}
 
 		var attempts int
 		var nextAttemptAt *time.Time
 		status, attempts, nextAttemptAt = delivery.NextAfterFailure(errClass, row.AttemptCount, now)
 		errClassStr := string(errClass)
-		return tx.Model(&deliveryRow{}).Where("id = ?", row.ID).Updates(map[string]any{
+		updates := map[string]any{
 			"status":           string(status),
 			"attempt_count":    attempts,
 			"next_attempt_at":  nextAttemptAt,
 			"last_error_class": errClassStr,
-		}).Error
+			"claim_token":      nil,
+		}
+		if status == delivery.StatusQuarantined {
+			for k, v := range clearedContent {
+				updates[k] = v
+			}
+		}
+		return tx.Model(&deliveryRow{}).Where("id = ?", row.ID).Updates(updates).Error
 	})
 	return status, err
 }
@@ -168,16 +254,16 @@ func (r *DeliveryRepository) ClaimDue(ctx context.Context, limit int, now time.T
 			Find(&due).Error; err != nil {
 			return err
 		}
-		if len(due) == 0 {
-			return nil
-		}
-		ids := make([]int64, len(due))
-		for i, row := range due {
-			ids[i] = row.ID
-		}
-		if err := tx.Model(&deliveryRow{}).Where("id IN ?", ids).
-			Update("status", string(delivery.StatusInProgress)).Error; err != nil {
-			return err
+		for i := range due {
+			claimToken := newClaimToken()
+			if err := tx.Model(&deliveryRow{}).Where("id = ?", due[i].ID).Updates(map[string]any{
+				"status":      string(delivery.StatusInProgress),
+				"claim_token": claimToken,
+			}).Error; err != nil {
+				return err
+			}
+			due[i].Status = string(delivery.StatusInProgress)
+			due[i].ClaimToken = &claimToken
 		}
 		claimed = due
 		return nil
@@ -197,10 +283,21 @@ func (r *DeliveryRepository) ClaimDue(ctx context.Context, limit int, now time.T
 	return records, nil
 }
 
-func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, id int64) error {
-	return r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("id = ?", id).
-		Update("status", string(delivery.StatusCancelled)).Error
+func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, id int64, claimToken string) error {
+	updates := map[string]any{"status": string(delivery.StatusCancelled), "claim_token": nil}
+	for k, v := range clearedContent {
+		updates[k] = v
+	}
+	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
+		Where("id = ? AND status = ? AND claim_token = ?", id, string(delivery.StatusInProgress), claimToken).
+		Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		slog.Warn("fcm delivery: finalize cancelled skipped — claim no longer matches (reclaimed or already finalized)", "id", id)
+	}
+	return nil
 }
 
 func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold time.Duration, now time.Time) (int64, error) {
@@ -210,8 +307,45 @@ func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold ti
 		Updates(map[string]any{
 			"status":          string(delivery.StatusPendingRetry),
 			"next_attempt_at": now,
+			// Clearing claim_token means a Finalize* call for the original (now
+			// stale) claim no longer matches and safely no-ops instead of resurrecting
+			// or overwriting whatever the row does next.
+			"claim_token": nil,
 		})
 	return result.RowsAffected, result.Error
+}
+
+// PurgeTerminal deletes terminal rows older than olderThan, repeating in purgeBatchSize
+// chunks within this call until the backlog is caught up (a chunk shorter than
+// purgeBatchSize) or ctx is cancelled. tb_notification_delivery_retry gets one row per
+// recipient device per message, so a single fixed-size chunk per call (previously the
+// whole behavior) could fall permanently behind once message volume grew past what one
+// chunk clears per worker tick; looping here keeps each individual DELETE's lock
+// duration bounded by purgeBatchSize while still draining any accumulated backlog.
+func (r *DeliveryRepository) PurgeTerminal(ctx context.Context, olderThan time.Time) (int64, error) {
+	terminal := []string{
+		string(delivery.StatusSuccess),
+		string(delivery.StatusInvalid),
+		string(delivery.StatusQuarantined),
+		string(delivery.StatusCancelled),
+	}
+	var total int64
+	for {
+		result := r.db.WithContext(ctx).
+			Where("status IN ? AND updated_at < ?", terminal, olderThan).
+			Limit(purgeBatchSize).
+			Delete(&deliveryRow{})
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+		if result.RowsAffected < purgeBatchSize {
+			return total, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+	}
 }
 
 func (r *DeliveryRepository) CountPending(ctx context.Context) (int64, error) {
@@ -220,6 +354,16 @@ func (r *DeliveryRepository) CountPending(ctx context.Context) (int64, error) {
 		Where("status IN ?", []string{string(delivery.StatusPendingRetry), string(delivery.StatusInProgress)}).
 		Count(&count).Error
 	return count, err
+}
+
+// warnIfClaimStale logs when an UPDATE's WHERE clause (including its claim_token
+// match) touched no row, meaning the claim was reclaimed or already finalized by a
+// different attempt.
+func warnIfClaimStale(rowsAffected int64, outcome, eventID string, deviceTokenID int64) {
+	if rowsAffected == 0 {
+		slog.Warn("fcm delivery: finalize "+outcome+" skipped — claim no longer matches (reclaimed or already finalized)",
+			"eventId", eventID, "deviceTokenId", deviceTokenID)
+	}
 }
 
 func toRecord(row deliveryRow) (delivery.Record, error) {
@@ -234,6 +378,10 @@ func toRecord(row deliveryRow) (delivery.Record, error) {
 		ec := delivery.ErrorClass(*row.LastErrorClass)
 		errClass = &ec
 	}
+	var claimToken string
+	if row.ClaimToken != nil {
+		claimToken = *row.ClaimToken
+	}
 	return delivery.Record{
 		ID:             row.ID,
 		EventID:        row.EventID,
@@ -246,6 +394,7 @@ func toRecord(row deliveryRow) (delivery.Record, error) {
 		AttemptCount:   row.AttemptCount,
 		NextAttemptAt:  row.NextAttemptAt,
 		LastErrorClass: errClass,
+		ClaimToken:     claimToken,
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}, nil
