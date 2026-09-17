@@ -19,18 +19,24 @@ const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
 const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
 
 /**
- * `filterReadableUsersByChannel`(메시지 브로드캐스트 수신자 산정)에만 적용하는 판정 캐시의
+ * `emitToReadableChannelUsers`(메시지 브로드캐스트 수신자 산정)에만 적용하는 판정 캐시의
  * 유효 기간. 이 시간만큼 세대(generation)를 통째로 비우는 방식이라 개별 항목은 최대 이
  * 시간만큼만 오래될 수 있다.
  *
- * 의도적으로 멤버십/권한 단건 검증(`canReadChannel`, `requireCanRead`)과
- * 강제 퇴장(`evictUnauthorizedSockets`)에는 적용하지 않는다 — 그 경로들은 "방금 권한을
- * 잃은 사용자가 즉시 차단되어야 한다"는 보장이 필요하므로 항상 최신 데이터로 평가해야 한다.
- * 캐시는 오직 "이 채널에 새 메시지가 올 때 현재 접속 중인 소켓 중 누구에게 보낼지" 판정에만
- * 쓰이며, 이 판정이 최대 {@link READABLE_USERS_CACHE_TTL_MS}만큼 오래돼도(막 초대된 사용자가
- * 몇 초 늦게 메시지를 받기 시작하는 정도) 서비스에 큰 영향이 없다는 전제다.
+ * 의도적으로 아래 경로에는 적용하지 않는다 — 이 캐시가 최대 {@link READABLE_USERS_CACHE_TTL_MS}만큼
+ * 오래돼도 괜찮은 이유("접속 중인 소켓"에게 몇 초 늦게 브로드캐스트되는 정도)가 성립하지 않기 때문이다.
+ * - `canReadChannel`/`requireCanRead`(멤버십·권한 단건 검증), `evictUnauthorizedSockets`(강제 퇴장):
+ *   방금 권한을 잃은 사용자가 즉시 차단되어야 한다.
+ * - `filterReadableUsersByChannel`을 통해 접근하는 `NotificationOutboxPoller`(푸시 알림 수신자 산정),
+ *   `ChatService.saveSystemMessage`(미읽음 카운터 증가 대상): 대상이 반드시 "지금 접속 중인 소켓"이
+ *   아니라서 `evictUnauthorizedSockets`의 즉시 차단 보장이 적용되지 않는다. 권한을 잃은 사용자의
+ *   `true` 판정이 캐시에 남아 있는 동안 푸시가 발송되면, 외부로 나간 푸시는 되돌릴 수 없다.
+ *   그래서 `filterReadableUsersByChannel` 자체는 캐시를 타지 않는 `evaluateMany`를 그대로 쓴다.
  */
 const READABLE_USERS_CACHE_TTL_MS = 2_000;
+
+/** 캐시 키에 평가 모드를 포함해, 다른 모드(`CHANNEL_METADATA` 등)가 같은 캐시를 쓰게 되어도 충돌하지 않게 한다. */
+const broadcastCacheKey = (channelId: number, userId: number) => `MESSAGE_READ:${accessKey(channelId, userId)}`;
 
 /**
  * role×channel `message_read` 정책의 단일 평가 지점.
@@ -102,16 +108,16 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
     }
 
     /**
-     * 메시지 브로드캐스트 수신자 산정 전용 진입점. {@link READABLE_USERS_CACHE_TTL_MS} 내에
-     * 반복되는 (channelId, userId) 판정은 MongoDB를 다시 조회하지 않고 캐시를 재사용한다.
-     * 멤버십/권한 단건 검증은 이 메서드를 거치지 않으므로 캐시의 영향을 받지 않는다.
+     * `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
+     * 카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
+     * 브로드캐스트 전용 캐시가 필요하면 `emitToReadableChannelUsers`를 사용한다.
      */
     async filterReadableUsersByChannel(
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
         const requests = [...usersByChannel].flatMap(([channelId, userIds]) =>
             [...new Set(userIds)].map((userId) => ({ channelId, userId })));
-        const result = await this.evaluateManyCached(requests);
+        const result = await this.evaluateMany(requests);
         return new Map([...usersByChannel].map(([channelId, userIds]) => [
             channelId,
             [...new Set(userIds)].filter((userId) => result.get(accessKey(channelId, userId)) === true),
@@ -119,29 +125,35 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
     }
 
     /**
-     * {@link evaluateMany}를 (channelId, userId) 단위로 캐싱해 감싼 버전.
-     * 캐시 히트 항목은 MongoDB를 왕복하지 않고, 미스만 모아 기존 배치 평가 한 번으로 채운다.
+     * {@link emitToReadableChannelUsers} 전용 (channelId, userId) 단위 캐시 조회.
+     * 캐시 히트 항목은 MongoDB를 왕복하지 않고, 미스만 모아 {@link evaluateMany} 한 번으로 채운다.
+     * `projectionReadiness`가 준비되지 않은 동안의 결과는 캐시에 쓰지 않는다 — 기동 직후·projection
+     * catch-up 중의 "전부 거부" 판정이 최대 TTL만큼 굳어 수신자 복구가 늦어지는 것을 막기 위함이다.
      */
-    private async evaluateManyCached(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-        const result = new Map<string, boolean>();
-        const misses: ChannelReadAccessRequest[] = [];
-        for (const request of requests) {
-            const key = accessKey(request.channelId, request.userId);
-            const cached = this.readableUsersCache.get(key);
+    private async filterReadableUsersForBroadcast(channelId: number, userIds: number[]): Promise<Set<number>> {
+        const uniqueUserIds = [...new Set(userIds)];
+        const result = new Map<number, boolean>();
+        const missedUserIds: number[] = [];
+        for (const userId of uniqueUserIds) {
+            const cached = this.readableUsersCache.get(broadcastCacheKey(channelId, userId));
             if (cached !== undefined) {
-                result.set(key, cached);
+                result.set(userId, cached);
             } else {
-                misses.push(request);
+                missedUserIds.push(userId);
             }
         }
-        if (misses.length > 0) {
-            const fresh = await this.evaluateMany(misses);
-            for (const [key, allowed] of fresh) {
-                result.set(key, allowed);
-                this.readableUsersCache.set(key, allowed);
+        if (missedUserIds.length > 0) {
+            const fresh = await this.evaluateMany(missedUserIds.map((userId) => ({ channelId, userId })));
+            const isReady = this.projectionReadiness.isReady();
+            for (const userId of missedUserIds) {
+                const allowed = fresh.get(accessKey(channelId, userId)) === true;
+                result.set(userId, allowed);
+                if (isReady) {
+                    this.readableUsersCache.set(broadcastCacheKey(channelId, userId), allowed);
+                }
             }
         }
-        return result;
+        return new Set([...result].filter(([, allowed]) => allowed).map(([userId]) => userId));
     }
 
     /** 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다. */
@@ -181,7 +193,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
      * 있어 `.to(socketId)`가 해당 소켓 하나만 정확히 가리킨다).
      *
      * room 이름을 대상으로 `except(...)`를 쓰는 deny-list 방식은 쓰지 않는다 — `fetchSockets()`
-     * 스냅샷 이후 `filterReadableUsersByChannel()`이 MongoDB를 왕복하는 동안 room에 새로 합류한
+     * 스냅샷 이후 `filterReadableUsersForBroadcast()`가 MongoDB를 왕복하는 동안 room에 새로 합류한
      * 소켓은 스냅샷에도, 그래서 계산된 제외 목록에도 없다. 그런데 `io.to(room)`은 emit 시점의
      * 실제 room 멤버십을 다시 읽으므로, 그 소켓은 이 메시지에 대해 전혀 평가되지 않았는데도
      * 기본으로 수신하게 된다(deny-list라 "명시적으로 막지 않으면 통과"). 소켓 ID를 직접
@@ -200,9 +212,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         const users = sockets
             .map((socket) => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
-        const readableUsers = new Set(
-            (await this.filterReadableUsersByChannel(new Map([[channelId, users]]))).get(channelId) ?? [],
-        );
+        const readableUsers = await this.filterReadableUsersForBroadcast(channelId, users);
         const targetSocketIds = sockets
             .filter((socket) => socket.id !== excludedSocketId)
             .filter((socket) => {
