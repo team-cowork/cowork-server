@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleInit, ServiceU
 import { Client, estypes } from '@elastic/elasticsearch';
 import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 import {
+    classifyBulkItemResult,
     classifyElasticsearchError,
     errorMessageOf,
     isElasticsearchBadRequest,
@@ -66,6 +67,17 @@ export interface BulkUpsertResult {
     applied: number;
     superseded: number;
     failures: Array<{ messageId: string; error: string }>;
+}
+
+export interface BulkDeleteEntry {
+    messageId: string;
+    version: number;
+}
+
+/** 색인 아웃박스가 사용하는 대량 쓰기 1건의 결과. 단일 쓰기의 {@link IndexWriteResult}와 같은 분류를 쓴다. */
+export interface BulkOutboxWriteResult {
+    messageId: string;
+    result: IndexWriteResult;
 }
 
 /**
@@ -337,6 +349,78 @@ export class ElasticsearchService implements OnModuleInit {
             }
         }
         return result;
+    }
+
+    /**
+     * 색인 아웃박스가 사용하는 대량 upsert. 개별 {@link upsertMessage}를 문서 수만큼 호출하는
+     * 대신 `_bulk` API 한 번으로 묶어 보낸다. 항목별로 RETRYABLE/PERMANENT까지 구분해 돌려주므로
+     * 호출자가 outbox 상태 전이(재시도 vs 영구 실패)에 그대로 쓸 수 있다.
+     *
+     * bulk 응답 항목은 요청과 같은 순서로 오므로 인덱스로 짝짓는다({@link bulkUpsertMessages}와
+     * 같은 전제).
+     *
+     * `client.bulk()` 자체가 던지는 요청 단위 실패(타임아웃·연결 끊김·429 등)는 항목별 결과가
+     * 아니므로 여기서 잡아 모든 항목에 {@link classifyElasticsearchError}의 같은 분류를
+     * 매핑해 돌려준다. 그러지 않으면 예외가 호출자까지 전파돼 배치 전체가 상태 전이
+     * (`markSynced`/`markRetry`) 없이 `PROCESSING`으로 남는다 — 단건 {@link upsertMessage}가
+     * 절대 throw하지 않는 것과 같은 이유다.
+     */
+    async bulkUpsertForOutbox(entries: BulkUpsertEntry[], index: string = MESSAGE_SEARCH_ALIAS): Promise<BulkOutboxWriteResult[]> {
+        if (entries.length === 0) return [];
+        let response;
+        try {
+            response = await this.client.bulk({
+                operations: entries.flatMap(({ doc, version }) => [
+                    { index: { _index: index, _id: doc.messageId, version, version_type: 'external' as const } },
+                    doc,
+                ]),
+            });
+        } catch (error) {
+            const result = this.classifyWrite('bulk upsert', `${entries.length} messages`, error);
+            return entries.map(({ doc }) => ({ messageId: doc.messageId, result }));
+        }
+        return response.items.map((item, i) => {
+            const operation = item.index;
+            const messageId = entries[i].doc.messageId;
+            if (!operation?.error) return { messageId, result: { outcome: 'APPLIED' as const } };
+            const result = classifyBulkItemResult('index', operation.status, operation.error);
+            if (result.outcome === 'RETRYABLE') {
+                this.logger.warn(`Search index upsert failed, will retry messageId=${messageId}: ${result.error}`);
+            }
+            return { messageId, result };
+        });
+    }
+
+    /**
+     * 색인 아웃박스가 사용하는 대량 삭제. {@link bulkUpsertForOutbox}와 같은 방식으로 항목별 결과를
+     * 돌려주고, 요청 단위 실패도 같은 방식으로 모든 항목에 매핑한다.
+     */
+    async bulkDeleteForOutbox(entries: BulkDeleteEntry[], index: string = MESSAGE_SEARCH_ALIAS): Promise<BulkOutboxWriteResult[]> {
+        if (entries.length === 0) return [];
+        let response;
+        try {
+            response = await this.client.bulk({
+                operations: entries.map(({ messageId, version }) => ({
+                    delete: { _index: index, _id: messageId, version, version_type: 'external' as const },
+                })),
+            });
+        } catch (error) {
+            const result = this.classifyWrite('bulk delete', `${entries.length} messages`, error);
+            return entries.map(({ messageId }) => ({ messageId, result }));
+        }
+        return response.items.map((item, i) => {
+            const operation = item.delete;
+            const messageId = entries[i].messageId;
+            // 외부 버전 삭제는 문서가 이미 없어도 tombstone만 남기고 404를 error 필드 없이 돌려준다
+            // (deleteMessage()와 같은 전제). 이 흔한 경로가 여기서 바로 APPLIED로 끝나므로,
+            // classifyBulkItemResult의 delete-404 분기는 error 객체가 실려 온 드문 404만 다룬다.
+            if (!operation?.error) return { messageId, result: { outcome: 'APPLIED' as const } };
+            const result = classifyBulkItemResult('delete', operation.status, operation.error);
+            if (result.outcome === 'RETRYABLE') {
+                this.logger.warn(`Search index delete failed, will retry messageId=${messageId}: ${result.error}`);
+            }
+            return { messageId, result };
+        });
     }
 
     /** 재구축 검증이 사용하는 표본 조회. 필수 필드 누락을 확인한다. */
