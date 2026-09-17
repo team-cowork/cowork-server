@@ -43,33 +43,44 @@ class PreferenceTeamRoleChangedConsumer(
         return when (event.eventType) {
             "ROLE_UPSERTED" -> when {
                 event.roleId == null || event.roleId <= 0 -> "ROLE_UPSERTED에는 유효한 roleId가 필요합니다."
+
                 key != "role:${event.teamId}:${event.roleId}" -> "role aggregate key가 일치하지 않습니다."
+
                 event.name.isNullOrBlank() ||
                     event.colorHex.isNullOrBlank() ||
                     event.priority == null ||
                     event.mentionable == null ||
                     event.permissions == null ->
                     "ROLE_UPSERTED read model이 완전하지 않습니다."
+
                 else -> null
             }
+
             "ROLE_DELETED" -> when {
                 event.roleId == null || event.roleId <= 0 -> "ROLE_DELETED에는 유효한 roleId가 필요합니다."
                 key != "role:${event.teamId}:${event.roleId}" -> "role aggregate key가 일치하지 않습니다."
                 else -> null
             }
+
             "ASSIGNMENT_UPSERTED", "ASSIGNMENT_DELETED" -> when {
                 event.roleId == null || event.roleId <= 0 || event.accountId == null || event.accountId <= 0 ->
                     "assignment 이벤트에는 유효한 roleId와 accountId가 필요합니다."
+
                 key != "assignment:${event.teamId}:${event.accountId}:${event.roleId}" ->
                     "assignment aggregate key가 일치하지 않습니다."
+
                 else -> null
             }
+
             "MEMBER_ASSIGNMENTS_DELETED" -> when {
                 event.accountId == null || event.accountId <= 0 ->
                     "멤버 tombstone에는 유효한 accountId가 필요합니다."
+
                 key != "member:${event.teamId}:${event.accountId}" -> "member aggregate key가 일치하지 않습니다."
+
                 else -> null
             }
+
             else -> "지원하지 않는 eventType입니다."
         }
     }
