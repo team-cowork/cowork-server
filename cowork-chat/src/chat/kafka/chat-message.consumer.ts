@@ -5,6 +5,7 @@ import { DicoshotService } from 'dicoshot-nest';
 import { Server } from 'socket.io';
 import { getOptionalConfig, getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { ChatMessageContractError, validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
 import { ChatMessageProcessor } from './chat-message.processor';
@@ -35,6 +36,25 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         this.processor.setSocketServer(io);
     }
 
+    /**
+     * `CHAT_MESSAGE_CONSUMER_CONCURRENCY`를 안전한 양의 정수로 해석한다.
+     *
+     * 정수가 아니거나 1 미만이면(예: 오타로 `abc`, `2.5`, `-1`, `0`) 그대로 KafkaJS에 넘기지 않는다.
+     * `0`은 예외 없이 워커 0개로 이어져 컨슈머가 아무 메시지도 처리하지 못한 채 조용히 멈추고,
+     * 그 외 잘못된 값은 KafkaJS 내부에서 `RangeError`를 던져 `run()`이 거부되고 프로세스가 재시작
+     * 크래시 루프에 빠진다. 값이 유효하지 않으면 경고 로그만 남기고 기본값으로 대체한다.
+     */
+    private resolveConcurrency(): number {
+        const raw = getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY');
+        if (raw === undefined) return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+        const parsed = Number(raw);
+        if (isSafePositiveInteger(parsed)) return parsed;
+        this.logger.warn(
+            `CHAT_MESSAGE_CONSUMER_CONCURRENCY 값이 유효하지 않아(${raw}) 기본값(${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})을 사용합니다.`,
+        );
+        return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+    }
+
     async onModuleInit(): Promise<void> {
         const kafka = new Kafka({
             clientId: 'cowork-chat-consumer',
@@ -43,10 +63,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         this.consumer = kafka.consumer({ groupId: 'cowork-chat' });
         await this.consumer.connect();
         await this.consumer.subscribe({ topic: CHAT_MESSAGE_TOPIC, fromBeginning: false });
-        const partitionsConsumedConcurrently = Number(
-            getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY')
-                ?? DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY,
-        );
+        const partitionsConsumedConcurrently = this.resolveConcurrency();
         void this.consumer.run({
             partitionsConsumedConcurrently,
             eachMessage: ({ topic, partition, message }) => this.processKafkaMessage(topic, partition, message),
