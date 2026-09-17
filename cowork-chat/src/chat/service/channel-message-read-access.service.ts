@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
@@ -19,6 +19,20 @@ const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
 const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
 
 /**
+ * `filterReadableUsersByChannel`(메시지 브로드캐스트 수신자 산정)에만 적용하는 판정 캐시의
+ * 유효 기간. 이 시간만큼 세대(generation)를 통째로 비우는 방식이라 개별 항목은 최대 이
+ * 시간만큼만 오래될 수 있다.
+ *
+ * 의도적으로 멤버십/권한 단건 검증(`canReadChannel`, `requireCanRead`)과
+ * 강제 퇴장(`evictUnauthorizedSockets`)에는 적용하지 않는다 — 그 경로들은 "방금 권한을
+ * 잃은 사용자가 즉시 차단되어야 한다"는 보장이 필요하므로 항상 최신 데이터로 평가해야 한다.
+ * 캐시는 오직 "이 채널에 새 메시지가 올 때 현재 접속 중인 소켓 중 누구에게 보낼지" 판정에만
+ * 쓰이며, 이 판정이 최대 {@link READABLE_USERS_CACHE_TTL_MS}만큼 오래돼도(막 초대된 사용자가
+ * 몇 초 늦게 메시지를 받기 시작하는 정도) 서비스에 큰 영향이 없다는 전제다.
+ */
+const READABLE_USERS_CACHE_TTL_MS = 2_000;
+
+/**
  * role×channel `message_read` 정책의 단일 평가 지점.
  *
  * custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
@@ -27,7 +41,11 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  * 채널 메타데이터는 공개 채널만 멤버십 없이 볼 수 있다.
  */
 @Injectable()
-export class ChannelMessageReadAccessService {
+export class ChannelMessageReadAccessService implements OnModuleDestroy {
+    /** `${channelId}:${userId}` → 최근 판정. {@link READABLE_USERS_CACHE_TTL_MS}마다 통째로 비운다. */
+    private readableUsersCache = new Map<string, boolean>();
+    private readonly cacheClearTimer: ReturnType<typeof setInterval>;
+
     constructor(
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
@@ -35,7 +53,15 @@ export class ChannelMessageReadAccessService {
         private readonly teamRoleRepository: TeamRoleProjectionRepository,
         private readonly policyRepository: ChannelRolePolicyProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
-    ) {}
+    ) {
+        this.cacheClearTimer = setInterval(() => {
+            this.readableUsersCache = new Map();
+        }, READABLE_USERS_CACHE_TTL_MS);
+    }
+
+    onModuleDestroy(): void {
+        clearInterval(this.cacheClearTimer);
+    }
 
     async canReadChannel(channelId: number, userId: number): Promise<boolean> {
         const result = await this.evaluateMany([{ channelId, userId }]);
@@ -75,16 +101,47 @@ export class ChannelMessageReadAccessService {
         return this.filterReadableChannelIds(0, userId, channelIds);
     }
 
+    /**
+     * 메시지 브로드캐스트 수신자 산정 전용 진입점. {@link READABLE_USERS_CACHE_TTL_MS} 내에
+     * 반복되는 (channelId, userId) 판정은 MongoDB를 다시 조회하지 않고 캐시를 재사용한다.
+     * 멤버십/권한 단건 검증은 이 메서드를 거치지 않으므로 캐시의 영향을 받지 않는다.
+     */
     async filterReadableUsersByChannel(
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
         const requests = [...usersByChannel].flatMap(([channelId, userIds]) =>
             [...new Set(userIds)].map((userId) => ({ channelId, userId })));
-        const result = await this.evaluateMany(requests);
+        const result = await this.evaluateManyCached(requests);
         return new Map([...usersByChannel].map(([channelId, userIds]) => [
             channelId,
             [...new Set(userIds)].filter((userId) => result.get(accessKey(channelId, userId)) === true),
         ]));
+    }
+
+    /**
+     * {@link evaluateMany}를 (channelId, userId) 단위로 캐싱해 감싼 버전.
+     * 캐시 히트 항목은 MongoDB를 왕복하지 않고, 미스만 모아 기존 배치 평가 한 번으로 채운다.
+     */
+    private async evaluateManyCached(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
+        const result = new Map<string, boolean>();
+        const misses: ChannelReadAccessRequest[] = [];
+        for (const request of requests) {
+            const key = accessKey(request.channelId, request.userId);
+            const cached = this.readableUsersCache.get(key);
+            if (cached !== undefined) {
+                result.set(key, cached);
+            } else {
+                misses.push(request);
+            }
+        }
+        if (misses.length > 0) {
+            const fresh = await this.evaluateMany(misses);
+            for (const [key, allowed] of fresh) {
+                result.set(key, allowed);
+                this.readableUsersCache.set(key, allowed);
+            }
+        }
+        return result;
     }
 
     /** 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다. */
