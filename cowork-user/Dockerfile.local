@@ -1,4 +1,4 @@
-ARG ELIXIR_IMAGE=hexpm/elixir:1.18.4-erlang-27.3.4-debian-bookworm-20250520-slim@sha256:ddd7c2a143023b873a72208ef6ae44f90ab3c2fb45cde9cc42ad0a8376f11071
+ARG ELIXIR_IMAGE=hexpm/elixir:1.20.4-erlang-29.1-debian-trixie-20260824-slim@sha256:871867d46185c7be1c74fe69c1d3e90aca5779f0d9393f4fe0399cf48f5df181
 
 FROM ${ELIXIR_IMAGE} AS builder
 WORKDIR /app
@@ -20,10 +20,10 @@ COPY cowork-user/priv priv
 RUN mix compile \
     && mix release
 
-FROM debian:bookworm-20240926-slim@sha256:ad86386827b083b3d71139050b47ffb32bbd9559ea9b1345a739b14fec2d9ecf AS runtime
+FROM debian:trixie-20260824-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS runtime
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl wget ca-certificates libstdc++6 libncurses5 locales \
+    && apt-get install -y --no-install-recommends openssl wget ca-certificates libstdc++6 libncurses6 locales \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -r -g 10001 app \
     && useradd -r -u 10001 -g app app \
