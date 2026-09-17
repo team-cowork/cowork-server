@@ -6,8 +6,10 @@ defmodule CoworkUser.AppConfig do
     :eureka_instance_host,
     :eureka_instance_id
   ]
+  @derive {Inspect, except: [:repo_options]}
   defstruct [
     :port,
+    :repo_options,
     :eureka_server_url,
     :eureka_app_name,
     :eureka_instance_host,
@@ -76,6 +78,7 @@ defmodule CoworkUser.AppConfig do
 
     %__MODULE__{
       port: port,
+      repo_options: database_options(remote),
       eureka_server_url:
         lookup(
           remote,
@@ -230,7 +233,10 @@ defmodule CoworkUser.AppConfig do
       |> Enum.reduce(%{}, fn
         %{"source" => source}, acc when is_map(source) ->
           Enum.reduce(source, acc, fn {key, value}, inner ->
-            Map.put(inner, key, stringify(value))
+            case stringify(value) do
+              "" -> inner
+              value -> Map.put(inner, key, value)
+            end
           end)
 
         _, acc ->
@@ -247,9 +253,81 @@ defmodule CoworkUser.AppConfig do
   defp stringify(value), do: to_string(value)
 
   defp lookup(remote, keys, default) do
-    Enum.find_value(keys, default, fn key ->
-      System.get_env(key) || Map.get(remote, key)
-    end)
+    Enum.find_value(keys, &nonempty(System.get_env(&1))) ||
+      Enum.find_value(keys, &nonempty(Map.get(remote, &1))) || default
+  end
+
+  defp nonempty(nil), do: nil
+  defp nonempty(""), do: nil
+  defp nonempty(value), do: value
+
+  defp database_options(remote) do
+    pool_size = lookup(remote, ["DB_POOL_SIZE", "db_pool_size"], "10")
+
+    options =
+      case lookup(remote, ["DATABASE_URL", "DB_URL"], nil) do
+        nil ->
+          [
+            hostname: required_database_value!(remote, "DB_HOST"),
+            port: required_database_value!(remote, "DB_PORT"),
+            database: required_database_value!(remote, "DB_NAME"),
+            username: required_database_value!(remote, "DB_USERNAME"),
+            password: required_database_value!(remote, "DB_PASSWORD"),
+            pool_size: pool_size
+          ]
+
+        url ->
+          defaults = [
+            username: lookup(remote, ["DB_USERNAME", "db_username"], "cowork"),
+            password: lookup(remote, ["DB_PASSWORD", "db_password"], ""),
+            port: 3306,
+            pool_size: pool_size
+          ]
+
+          Keyword.merge(defaults, parse_database_url!(url))
+      end
+
+    options
+    |> Keyword.update!(:port, &positive_integer!(&1, "DB_PORT", 65_535))
+    |> Keyword.update!(:pool_size, &positive_integer!(&1, "DB_POOL_SIZE"))
+    |> Keyword.put(:show_sensitive_data_on_connection_error, false)
+  end
+
+  defp required_database_value!(remote, key) do
+    lookup(remote, [key, String.downcase(key)], nil) ||
+      raise "#{key} is required for cowork-user database configuration"
+  end
+
+  defp parse_database_url!(url) do
+    # Resolve once so migrations and the Repo connect to exactly the same database.
+    # Ecto's parser also preserves supported URL options such as ssl and timeout.
+    unless URI.parse(url).scheme in ["ecto", "mysql"] do
+      raise ArgumentError
+    end
+
+    options = Ecto.Repo.Supervisor.parse_url(url)
+
+    # A nested URL would be interpreted again by Ecto, but not by MyXQL.
+    if Keyword.has_key?(options, :url), do: raise(ArgumentError)
+
+    Keyword.delete(options, :scheme)
+  rescue
+    _error in [Ecto.InvalidURLError, ArgumentError] ->
+      raise "DATABASE_URL/DB_URL must be a valid ecto:// or mysql:// database URL"
+  end
+
+  defp positive_integer!(value, key, maximum \\ nil) do
+    parsed =
+      case Integer.parse(to_string(value)) do
+        {number, ""} when number > 0 -> number
+        _ -> raise "#{key} must be a positive integer"
+      end
+
+    if maximum && parsed > maximum do
+      raise "#{key} must not exceed #{maximum}"
+    end
+
+    parsed
   end
 
   defp require_kafka_enabled!(remote) do

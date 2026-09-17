@@ -219,6 +219,10 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
 
         await this.triggerProducer.send({
+            // 메시지 자체의 안정적 식별자를 재사용한다. 이 폴러의 processMessageAndUpdateStatus가
+            // 실패 시 같은 메시지를 다시 발행할 수 있으므로, 매번 새 id를 만들면 FCM 선택적 재시도가
+            // 같은 논리적 알림을 서로 다른 이벤트로 취급해 중복 발송을 막지 못한다.
+            eventId: msg._id.toString(),
             type: 'CHAT_MESSAGE',
             targetUserIds,
             forcedUserIds: [...forcedSet],
