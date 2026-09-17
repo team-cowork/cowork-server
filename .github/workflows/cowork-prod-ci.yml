@@ -545,7 +545,8 @@ jobs:
                       if not isinstance(scripts, dict):
                           raise ValueError('package.json scripts must be an object')
                       command = test_commands(scripts)
-                      if re.search(r'(?:^|[\s;&|])jest(?:\s|$)', command):
+                      # ESM scripts invoke Jest through its Node entry point.
+                      if re.search(r'(?:^|[\s;&|])(?:jest|(?:\./)?node_modules/jest/bin/jest\.js)(?:\s|$)', command):
                           return coverage_metadata(directory, 'jest')
                       if re.search(r'(?:^|[\s;&|])node\s+[^;&|]*--test(?:\s|=|$)', command):
                           return coverage_metadata(directory, 'node')
