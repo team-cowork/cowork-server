@@ -149,3 +149,24 @@ export function classifyElasticsearchError(error: unknown): IndexWriteResult {
     if (statusCode === 400) return { outcome: 'PERMANENT', error: errorMessageOf(error) };
     return { outcome: 'RETRYABLE', error: errorMessageOf(error) };
 }
+
+/**
+ * `_bulk` 응답의 개별 항목을 {@link classifyElasticsearchError}와 같은 기준으로 분류한다.
+ *
+ * bulk 응답은 예외를 던지지 않고 항목마다 상태 코드와 오류 원인을 값으로 돌려주므로, 예외 기반인
+ * {@link classifyElasticsearchError}를 그대로 재사용할 수 없다. delete 항목의 `404`만
+ * {@link deleteMessage}와 동일한 이유로 예외 처리한다: 외부 버전 삭제는 문서가 이미 없어도
+ * 버전 tombstone을 남기고 `404`로 응답하므로, index 자체가 없는 경우가 아니면 성공으로 본다.
+ */
+export function classifyBulkItemResult(
+    action: 'index' | 'delete',
+    status: number | undefined,
+    error: estypes.ErrorCause | null | undefined,
+): IndexWriteResult {
+    if (action === 'delete' && status === 404 && error?.type !== 'index_not_found_exception') {
+        return { outcome: 'APPLIED' };
+    }
+    if (status === 409) return { outcome: 'SUPERSEDED' };
+    if (status === 400) return { outcome: 'PERMANENT', error: error?.reason ?? error?.type ?? 'bad request' };
+    return { outcome: 'RETRYABLE', error: error?.reason ?? error?.type ?? `bulk ${action} failed with status ${status ?? 'unknown'}` };
+}
