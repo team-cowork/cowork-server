@@ -122,7 +122,10 @@ export class Message {
      */
     @Prop({ default: false }) isEdited!: boolean;
 
-    /** 이전 편집 내용의 이력 목록. 편집 시 기존 내용이 앞에 추가됩니다. */
+    /**
+     * 이전 편집 내용의 이력 목록. 편집 시 수정 직전 내용이 배열 뒤(가장 최근)에 추가됩니다.
+     * 최근 20건만 보관하며 그보다 오래된 이력은 버립니다.
+     */
     @Prop({ type: [EditHistory], default: [] }) editHistory!: EditHistory[];
 
     /**
