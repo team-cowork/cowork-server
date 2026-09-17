@@ -11,6 +11,7 @@ import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { toMessageBroadcastPayload } from '../repository/message.repository';
 
 /** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
 const MESSAGE_CONTENT_MAX_LENGTH = 25000;
@@ -126,7 +127,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         for (const target of targets) {
             const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary, target.projectId);
-            await this.notifyClient(target.channelId, saved.toObject());
+            await this.notifyClient(target.channelId, toMessageBroadcastPayload(saved));
         }
     }
 
