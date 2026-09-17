@@ -1,7 +1,7 @@
 product: jvm/app
 layout: maven-like
 dependencies:
-  - bom: io.vertx:vertx-stack-depchain:5.1.1
+  - bom: io.vertx:vertx-stack-depchain:5.1.8
   - io.vertx:vertx-core
   - io.vertx:vertx-web
   # Amper does not currently package vertx-web's required auth-common transitive dependency.
@@ -14,27 +14,27 @@ dependencies:
   - io.vertx:vertx-kafka-client
   - io.vertx:vertx-service-discovery
   - io.vertx:vertx-micrometer-metrics
-  - io.micrometer:micrometer-registry-prometheus:1.17.0
+  - io.micrometer:micrometer-registry-prometheus:1.17.1
   - com.netflix.eureka:eureka-client:2.0.6
-  - org.flywaydb:flyway-core:12.8.1
-  - org.flywaydb:flyway-database-postgresql:12.8.1
-  - org.postgresql:postgresql:42.7.11
-  - org.apache.logging.log4j:log4j-core:2.26.0
-  - org.apache.logging.log4j:log4j-layout-template-json:2.26.0
-  - org.apache.logging.log4j:log4j-slf4j2-impl:2.26.0
+  - org.flywaydb:flyway-core:13.7.0
+  - org.flywaydb:flyway-database-postgresql:13.7.0
+  - org.postgresql:postgresql:42.7.13
+  - org.apache.logging.log4j:log4j-core:2.26.1
+  - org.apache.logging.log4j:log4j-layout-template-json:2.26.1
+  - org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1
   - $kotlin.reflect
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0
 
 test-dependencies:
-  - io.vertx:vertx-junit5:5.1.1
-  - io.mockk:mockk:1.14.3
+  - io.vertx:vertx-junit5:5.1.8
+  - io.mockk:mockk:1.14.11
 
 settings:
   jvm:
     mainClass: com.cowork.preference.CoworkPreferenceMainKt
-    release: 25
+    release: 26
     jdk:
-      version: 25
+      version: 26
   kotlin:
-    version: 2.4.0
+    version: 2.4.20
     freeCompilerArgs: [-Xjsr305=strict]
