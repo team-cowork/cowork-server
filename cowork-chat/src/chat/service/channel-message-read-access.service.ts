@@ -115,6 +115,12 @@ export class ChannelMessageReadAccessService {
         }
     }
 
+    /**
+     * room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 없는(또는 명시적으로
+     * 제외된) 소켓 ID만 모아 `io.to(room).except(...).emit()`을 한 번 호출한다. 개별 emit은
+     * 소켓 수만큼 payload를 매번 새로 직렬화하지만, room 단위 단일 emit은 한 번만 직렬화한
+     * 패킷을 모든 대상 소켓에 그대로 전달한다.
+     */
     async emitToReadableChannelUsers(
         io: Server | undefined,
         channelId: number,
@@ -123,18 +129,20 @@ export class ChannelMessageReadAccessService {
         excludedSocketId?: string,
     ): Promise<void> {
         if (!io) return;
-        const sockets = await io.in(`chat:${channelId}`).fetchSockets();
+        const room = `chat:${channelId}`;
+        const sockets = await io.in(room).fetchSockets();
         const users = sockets
             .map((socket) => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
         const readableUsers = new Set(
             (await this.filterReadableUsersByChannel(new Map([[channelId, users]]))).get(channelId) ?? [],
         );
+        const excludeIds: string[] = excludedSocketId ? [excludedSocketId] : [];
         for (const socket of sockets) {
-            if (socket.id === excludedSocketId) continue;
             const userId = this.socketUserId(socket);
-            if (userId !== null && readableUsers.has(userId)) socket.emit(event, payload);
+            if (userId === null || !readableUsers.has(userId)) excludeIds.push(socket.id);
         }
+        io.to(room).except(excludeIds).emit(event, payload);
     }
 
     async emitChannelEventToVisibleTeamUsers(
