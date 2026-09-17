@@ -16,17 +16,20 @@ describe('ChannelMessageReadAccessService', () => {
     };
     const policyRepository = { findByChannelIdsAndRoleIds: jest.fn() };
     const projectionReadiness = { isReady: jest.fn() };
-    const service = new ChannelMessageReadAccessService(
-        channelRepository as unknown as ChannelProjectionRepository,
-        channelMemberRepository as unknown as ChannelMemberRepository,
-        teamMemberRepository as unknown as TeamMemberProjectionRepository,
-        teamRoleRepository as unknown as TeamRoleProjectionRepository,
-        policyRepository as unknown as ChannelRolePolicyProjectionRepository,
-        projectionReadiness as unknown as ProjectionReadinessService,
-    );
+    // 브로드캐스트 판정 캐시가 인스턴스에 상태로 남으므로, 테스트 간 오염을 막기 위해
+    // 매 테스트마다 새 인스턴스를 만든다(캐시도 함께 초기화됨).
+    let service: ChannelMessageReadAccessService;
 
     beforeEach(() => {
         jest.clearAllMocks();
+        service = new ChannelMessageReadAccessService(
+            channelRepository as unknown as ChannelProjectionRepository,
+            channelMemberRepository as unknown as ChannelMemberRepository,
+            teamMemberRepository as unknown as TeamMemberProjectionRepository,
+            teamRoleRepository as unknown as TeamRoleProjectionRepository,
+            policyRepository as unknown as ChannelRolePolicyProjectionRepository,
+            projectionReadiness as unknown as ProjectionReadinessService,
+        );
         projectionReadiness.isReady.mockReturnValue(true);
         channelRepository.findByIds.mockResolvedValue([
             { channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false },
@@ -75,6 +78,10 @@ describe('ChannelMessageReadAccessService', () => {
             { teamId: 1, channelId: 20, roleId: 101, messageRead: true },
             { teamId: 1, channelId: 10, roleId: 302, messageRead: true },
         ]);
+    });
+
+    afterEach(() => {
+        service.onModuleDestroy();
     });
 
     describe('canReadChannel', () => {
@@ -205,6 +212,37 @@ describe('ChannelMessageReadAccessService', () => {
         expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
         expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
         expect(stale.emit).not.toHaveBeenCalled();
+    });
+    });
+
+    describe('filterReadableUsersByChannel 캐싱', () => {
+    it('TTL 내 동일한 (channelId, userId) 판정은 저장소를 다시 조회하지 않는다', async () => {
+        const first = await service.filterReadableUsersByChannel(new Map([[10, [2, 3]]]));
+        expect(first.get(10)).toEqual([2]);
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+
+        const second = await service.filterReadableUsersByChannel(new Map([[10, [2, 3]]]));
+        expect(second.get(10)).toEqual([2]);
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+    });
+
+    it('캐시에 없는 사용자만 저장소에서 다시 조회한다(부분 캐시 히트)', async () => {
+        await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
+        channelMemberRepository.findByChannelIdsAndUserIds.mockClear();
+
+        const result = await service.filterReadableUsersByChannel(new Map([[10, [2, 4]]]));
+
+        expect(result.get(10)).toEqual([2]);
+        expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([10], [4]);
+    });
+
+    it('단건 권한 검증(canReadChannel)은 브로드캐스트 캐시를 사용하지 않고 항상 새로 조회한다', async () => {
+        await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
+        channelRepository.findByIds.mockClear();
+
+        await service.canReadChannel(10, 2);
+
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
     });
     });
 });
