@@ -65,7 +65,9 @@ class ChannelRolePolicyCommandResultConsumer(
 
         when (result.status) {
             ChannelRolePolicyOperationStatus.FAILED -> handleFailure(operation, result)
+
             ChannelRolePolicyOperationStatus.SUCCEEDED -> handleSuccess(operation, result)
+
             ChannelRolePolicyOperationStatus.PENDING, ChannelRolePolicyOperationStatus.PROCESSING ->
                 error("unreachable result status")
         }

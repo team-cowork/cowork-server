@@ -22,5 +22,5 @@ public record CreateAssignmentReqDto(
 
         @Schema(description = "온보딩 대상 사용자 ID") @NotNull Long assigneeUserId,
 
-        @Schema(description = "마감 일시 (선택)") LocalDateTime dueDate){
+        @Schema(description = "마감 일시 (선택)") LocalDateTime dueDate) {
 }
