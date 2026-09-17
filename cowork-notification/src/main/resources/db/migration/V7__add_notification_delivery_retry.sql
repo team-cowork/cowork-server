@@ -11,6 +11,7 @@ CREATE TABLE tb_notification_delivery_retry
     attempt_count    INT          NOT NULL DEFAULT 0,
     next_attempt_at  DATETIME(6)  NULL,
     last_error_class VARCHAR(20)  NULL COMMENT 'RETRYABLE | UNCLASSIFIED',
+    claim_token      VARCHAR(32)  NULL COMMENT 'IN_PROGRESS 동안만 값이 있음. 재시도/재개 시 새로 발급하며, 이 값이 일치하는 claim만 최종 상태를 기록할 수 있음(fencing)',
     created_at       DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at       DATETIME(6)  NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
