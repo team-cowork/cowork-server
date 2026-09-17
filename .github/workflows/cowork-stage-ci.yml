@@ -153,7 +153,7 @@ jobs:
             MATRIX='{"include":[
               {"service":"cowork-gateway","build":"gradle","working-directory":"."},
               {"service":"cowork-config","build":"gradle","working-directory":"."},
-              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"},
+              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.20.4","otp-version":"29.1"},
               {"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"},
               {"service":"cowork-project","build":"gradle","working-directory":"."},
@@ -172,7 +172,7 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-config == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.20.4","otp-version":"29.1"}]')
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-preference }}" == "true" ] && \
@@ -274,9 +274,9 @@ jobs:
           path: |
             ${{ matrix.working-directory }}/deps
             ${{ matrix.working-directory }}/_build
-          key: ${{ runner.os }}-elixir-${{ matrix.service }}-${{ hashFiles(format('{0}/mix.lock', matrix.working-directory)) }}
+          key: ${{ runner.os }}-elixir-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ matrix.service }}-${{ hashFiles(format('{0}/mix.lock', matrix.working-directory)) }}
           restore-keys: |
-            ${{ runner.os }}-elixir-${{ matrix.service }}-
+            ${{ runner.os }}-elixir-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ matrix.service }}-
       - name: Build & Test (Go)
         if: matrix.build == 'go'
         working-directory: ${{ matrix.working-directory }}
@@ -1849,8 +1849,8 @@ jobs:
         if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.18.4'
-          otp-version: '27.3.4'
+          elixir-version: '1.20.4'
+          otp-version: '29.1'
       - name: Cache Elixir Dependencies
         if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
         uses: actions/cache@v6
@@ -1858,8 +1858,8 @@ jobs:
           path: |
             source/${{ matrix.module }}/deps
             source/${{ matrix.module }}/_build
-          key: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-${{ hashFiles(format('source/{0}/mix.lock', matrix.module)) }}
-          restore-keys: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-
+          key: ${{ runner.os }}-coverage-elixir-1.20.4-29.1-${{ matrix.module }}-${{ hashFiles(format('source/{0}/mix.lock', matrix.module)) }}
+          restore-keys: ${{ runner.os }}-coverage-elixir-1.20.4-29.1-${{ matrix.module }}-
       - name: Measure Module Coverage
         env:
           COVERAGE_MODULE: ${{ matrix.module }}
