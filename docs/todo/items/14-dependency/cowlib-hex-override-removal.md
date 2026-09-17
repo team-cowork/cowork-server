@@ -2,7 +2,23 @@
 
 - **서비스**: cowork-user, 컨테이너 빌드 인프라
 - **우선순위**: 🟠 중간
-- **현재 상태**: CVE-2026-43971 픽스가 포함된 upstream 커밋을 git 의존성으로 고정해 취약점은 해소했으나, Hex에 픽스 릴리스가 없어 임시 override가 유지되고 있음
+- **현재 상태**: 완료. CVE-2026-43971 수정 커밋을 포함한 Hex `2.20.0`으로 전환하고 git override를 제거했다
+- **결론**: 선언·잠금·수정 소스와 로컬 컴파일·핵심 비즈니스 단위 테스트로 Hex 복귀를 확인했다. 새 런타임의 컨테이너·HTTP 검증은 별도 배포 확인 사항으로 둔다
+
+## 진행 상태 (2026-09-16)
+
+| 항목 | 확인 결과 |
+| --- | --- |
+| 수정 커밋 포함 | upstream에서 `89da27ee4c241f5d649ba7d9b7f2188918af6cea...2.20.0`을 비교한 결과 `ahead_by: 6`, `behind_by: 0`이며 merge base가 기존 고정 커밋과 같다. `2.20.0`이 수정 커밋을 포함한다. |
+| 선언·잠금 | `mix.exs`는 `{:cowlib, "~> 2.20"}`이고 `mix.lock`은 Hex `2.20.0`과 체크섬을 기록한다. git 선언과 `override: true`는 제거했다. |
+| 상위 의존성 | 함께 갱신한 `cowboy 2.19.0`의 `cowlib >= 2.20.0 and < 3.0.0` 제약을 만족한다. |
+| 확보한 소스 | `deps/cowlib/hex_metadata.config`의 버전이 `2.20.0`이며 `deps/cowlib/.git`이 없다. `cow_link.erl`의 이스케이프 수정도 확인했다. 경로는 `cowork-user/` 기준이다. |
+| 로컬 검증 | 의존성 갱신, 프로덕션 컴파일·릴리스 생성, 핵심 비즈니스 단위 테스트 47개가 통과했다. 검증 런타임은 Elixir `1.20.1` / OTP `29.0.2`이다. |
+| 별도 참고 | `Dockerfile.local`·`Dockerfile.prod`의 Elixir `1.20.4` / OTP `29.1` 조합에서 이미지 빌드와 Plug/Cowboy 기동·HTTP 요청은 미검증이다. IDE의 이전 VCS root 매핑도 확인하지 않았다. 이 항목들은 저장소의 git override 제거·Hex 복귀 완료 여부와 별도로 관리한다. |
+
+근거는 [Hex 2.20.0](https://hex.pm/packages/cowlib/2.20.0)과 [수정 커밋에서 릴리스 태그까지의 비교](https://github.com/ninenines/cowlib/compare/89da27ee4c241f5d649ba7d9b7f2188918af6cea...2.20.0)이다. [OSV의 CVE-2026-43971](https://osv.dev/vulnerability/EEF-CVE-2026-43971)에는 확인 시점까지 수정된 Hex 버전이 반영되지 않아 패키지 경고가 남는다. 이는 위의 커밋·소스 확인 결과와 구분한다. 함께 보고되는 CVE-2026-43966·43969의 해결 여부는 이 확인으로 입증하지 않는다.
+
+아래 문제와 선언, 복귀 절차는 최초 점검 당시의 배경·작업 명세다. 완료 결과와 검증 범위는 위 표를 기준으로 한다.
 
 ## 문제
 
@@ -34,7 +50,7 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 코드는 `cow_link`를 직접 호출하지 않으므로 실제 노출은 `cowboy`가 `Link:` 헤더를 직렬화하는
 경로에 한정되며, 이 범위는 아직 별도로 확인하지 않았다.
 
-## 현재 선언
+## 최초 점검 당시 선언
 
 `cowork-user/mix.exs`:
 
@@ -96,9 +112,15 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 - `mix deps.get`과 `mix compile`이 새 의존성 구성에서 성공한다.
 - `mix deps` 출력에서 `cowlib`이 Hex 패키지로 표시되고 `override` 표기가 사라진다.
 - `mix.lock`의 `cowlib` 항목이 `:hex` 형식이고 체크섬을 포함한다.
-- `Dockerfile.local`과 `Dockerfile.prod` 빌드가 모두 성공한다.
-- 핵심 비즈니스 단위 테스트가 통과하고 Plug/Cowboy HTTP 서버의 기동·요청 처리는 수동 smoke로 확인한다.
+- 핵심 비즈니스 단위 테스트가 통과한다.
 - 복귀한 Hex 버전에서 `cow_link` 픽스가 실제로 적용되어 있는지 소스로 확인한다.
+
+### 배포 전 추가 확인
+
+새 Elixir·OTP 런타임에 대한 아래 확인은 Hex 복귀 TODO의 완료 조건에 포함하지 않으며, 아직 수행하지 않았다.
+
+- `Dockerfile.local`과 `Dockerfile.prod`의 이미지 빌드를 확인한다.
+- Plug/Cowboy HTTP 서버의 기동·요청 처리를 수동으로 확인한다.
 
 ## 완료 조건
 
@@ -106,4 +128,4 @@ hex.pm 외에 github.com 도달성과 이미지 내 `git` 바이너리에 의존
 - `mix.lock`의 `cowlib`이 Hex 패키지와 체크섬으로 고정되어 있다.
 - 사용하는 `cowlib` 버전에 CVE-2026-43971 픽스가 포함되어 있다.
 - `cowork-user/deps` 아래에 중첩 git 저장소가 생기지 않는다.
-- 의존성 확보가 hex.pm만으로 완결되고 빌드가 github.com 도달성에 의존하지 않는다.
+- `cowlib` 확보가 Hex 패키지로 완결되고 해당 의존성을 받기 위한 GitHub clone이 필요하지 않다.
