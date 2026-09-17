@@ -116,10 +116,19 @@ export class ChannelMessageReadAccessService {
     }
 
     /**
-     * room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 없는(또는 명시적으로
-     * 제외된) 소켓 ID만 모아 `io.to(room).except(...).emit()`을 한 번 호출한다. 개별 emit은
-     * 소켓 수만큼 payload를 매번 새로 직렬화하지만, room 단위 단일 emit은 한 번만 직렬화한
-     * 패킷을 모든 대상 소켓에 그대로 전달한다.
+     * room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 있는 소켓 ID만 모아
+     * `io.to(targetSocketIds).emit()`을 한 번 호출한다. 개별 emit은 소켓 수만큼 payload를
+     * 매번 새로 직렬화하지만, 이 방식은 한 번만 직렬화한 패킷을 모든 대상 소켓에 그대로
+     * 전달한다(Socket.IO의 room 대상 브로드캐스트와 동일한 방식 — 대상을 room 이름 대신
+     * 소켓 ID 배열로 지정한 것뿐이다. 각 소켓은 자신의 id와 같은 이름의 room에 자동 가입돼
+     * 있어 `.to(socketId)`가 해당 소켓 하나만 정확히 가리킨다).
+     *
+     * room 이름을 대상으로 `except(...)`를 쓰는 deny-list 방식은 쓰지 않는다 — `fetchSockets()`
+     * 스냅샷 이후 `filterReadableUsersByChannel()`이 MongoDB를 왕복하는 동안 room에 새로 합류한
+     * 소켓은 스냅샷에도, 그래서 계산된 제외 목록에도 없다. 그런데 `io.to(room)`은 emit 시점의
+     * 실제 room 멤버십을 다시 읽으므로, 그 소켓은 이 메시지에 대해 전혀 평가되지 않았는데도
+     * 기본으로 수신하게 된다(deny-list라 "명시적으로 막지 않으면 통과"). 소켓 ID를 직접
+     * 대상으로 지정하면 스냅샷에 없던 소켓은 애초에 대상 목록에 들어가지 않아 이 문제가 없다.
      */
     async emitToReadableChannelUsers(
         io: Server | undefined,
@@ -137,12 +146,15 @@ export class ChannelMessageReadAccessService {
         const readableUsers = new Set(
             (await this.filterReadableUsersByChannel(new Map([[channelId, users]]))).get(channelId) ?? [],
         );
-        const excludeIds: string[] = excludedSocketId ? [excludedSocketId] : [];
-        for (const socket of sockets) {
-            const userId = this.socketUserId(socket);
-            if (userId === null || !readableUsers.has(userId)) excludeIds.push(socket.id);
-        }
-        io.to(room).except(excludeIds).emit(event, payload);
+        const targetSocketIds = sockets
+            .filter((socket) => socket.id !== excludedSocketId)
+            .filter((socket) => {
+                const userId = this.socketUserId(socket);
+                return userId !== null && readableUsers.has(userId);
+            })
+            .map((socket) => socket.id);
+        if (targetSocketIds.length === 0) return;
+        io.to(targetSocketIds).emit(event, payload);
     }
 
     async emitChannelEventToVisibleTeamUsers(
