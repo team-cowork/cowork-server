@@ -34,9 +34,14 @@ const (
 )
 
 // TargetToken is one device token a caller wants to (re)send a notification to.
+// ClaimToken is set whenever the repository just claimed (or created) the row as
+// IN_PROGRESS for this attempt; the caller must echo it back to Finalize* so a row
+// reclaimed by someone else in the meantime (stale-reclaim, or a slower duplicate
+// attempt) cannot have its outcome overwritten by this attempt.
 type TargetToken struct {
 	DeviceTokenID int64
 	Token         string
+	ClaimToken    string
 }
 
 // Record is one durable (EventID, DeviceTokenID) delivery row.
@@ -52,6 +57,9 @@ type Record struct {
 	AttemptCount   int
 	NextAttemptAt  *time.Time
 	LastErrorClass *ErrorClass
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// ClaimToken is set while Status is IN_PROGRESS; the worker must echo it back to
+	// Finalize* (see TargetToken.ClaimToken).
+	ClaimToken string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
