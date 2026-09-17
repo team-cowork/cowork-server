@@ -50,7 +50,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         const parsed = Number(raw);
         if (isSafePositiveInteger(parsed)) return parsed;
         this.logger.warn(
-            `CHAT_MESSAGE_CONSUMER_CONCURRENCY 값이 유효하지 않아(${raw}) 기본값(${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})을 사용합니다.`,
+            `Invalid CHAT_MESSAGE_CONSUMER_CONCURRENCY value (${raw}), falling back to default (${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})`,
         );
         return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
     }
