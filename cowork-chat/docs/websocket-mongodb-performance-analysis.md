@@ -17,7 +17,7 @@
 
 억지로 개선점을 만들지 않기 위해, 실제로 문제가 없다고 확인한 부분을 먼저 기록한다.
 
-- **Broadcast**: [channel-message-read-access.service.ts:118-146](../src/chat/service/channel-message-read-access.service.ts)의 `emitToReadableChannelUsers`는 room의 소켓마다 개별 `emit()`을 호출하지 않고 `io.to(room).except(excludeIds).emit()` 한 번으로 처리한다. 패킷 직렬화가 소켓 수와 무관하게 1회만 일어난다.
+- **Broadcast (별도 PR로 진행 중)**: `emitToReadableChannelUsers`가 room 소켓마다 개별 `emit()`을 호출하는 대신 `io.to(room).except(...).emit()` 한 번으로 처리하도록 하는 변경이 PR #386으로 진행 중이다. 이 문서를 작성한 브랜치의 기준(`develop`)에는 #386이 아직 병합되지 않아 개별 emit 방식이 남아있다 — 아래 분석과 이 PR의 payload 정리 작업은 어느 쪽 emit 방식이든 동일하게 적용되며 서로 독립적이다.
 - **Scale-out**: [redis-io.adapter.ts](../src/common/adapter/redis-io.adapter.ts)로 Socket.IO Redis pub/sub이 이미 적용돼 있다. Kafka consumer group이 competing consumer로 동작해 메시지가 특정 인스턴스 하나에만 도착하는 구조상, 멀티 replica 환경에서는 room 브로드캐스트 동기화가 필수적이다. 현재 트래픽 규모와 무관하게 이미 정당한 구조이며, 추가 도입을 검토할 필요가 없다.
 - **미읽음 카운트**: `UnreadCounterService`가 Redis cache-aside + Lua 스크립트로 원자적 증가를 처리하고, 캐시 미스일 때만 MongoDB로 폴백한다(`chat.service.ts:735-757`).
 - **Rate limit**: `typing` 이벤트는 Redis sorted set 기반 슬라이딩 윈도우로 인스턴스 간에도 일관되게 제한된다([redis-rate-limiter.ts](../src/common/util/redis-rate-limiter.ts)).
@@ -27,7 +27,7 @@
 
 ## 발견된 문제
 
-### 1. [Critical] 메시지 브로드캐스트마다 접근 제어를 처음부터 재계산함
+### 1. [Critical] 메시지 브로드캐스트마다 접근 제어를 처음부터 재계산함 — 별도 PR(#388)에서 조치 중
 
 **위치**
 ```
@@ -50,7 +50,7 @@ sendMessage (chat.service.ts:279)
            2) teamMemberRepository.findByTeamIdsAndUserIds                                                     // RTT #2, 쿼리 1개
            3) teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds (내부에서 assignment+tombstone 병렬 조회) // RTT #3, 쿼리 2개
            4) Promise.all([teamRoleRepository.findRolesByIds, policyRepository.findByChannelIdsAndRoleIds])    // RTT #4, 쿼리 2개
-   → io.to(room).except(...).emit('message', ...)
+   → (emit 방식은 PR #386 병합 여부에 따라 다름 — 위 Broadcast 항목 참고)
 ```
 
 **문제**
@@ -157,7 +157,7 @@ src/chat/schema/message.schema.ts:225-262  (인덱스 목록)
 
 | 등급 | 문제 | 핵심 이유 |
 |---|---|---|
-| Critical | 1. 메시지 브로드캐스트마다 접근 제어 최대 7쿼리 재계산 | 메시지 처리량에 정비례해 커지는 유일한 항목, 실시간 전달 지연에 직결 |
+| Critical | 1. 메시지 브로드캐스트마다 접근 제어 최대 7쿼리 재계산 — **별도 PR(#388)에서 조치 중** | 메시지 처리량에 정비례해 커지는 유일한 항목, 실시간 전달 지연에 직결 |
 | High | 2. 편집/삭제/고정/반응마다 접근 제어 이중 계산 | 순수 중복 계산, reaction처럼 고빈도 액션에 영향 |
 | High | 3. 신규 메시지 브로드캐스트가 내부 필드까지 전체 전송 — **조치 완료** | 수정 리스크 낮고 즉시 적용 가능한 payload/정보노출 개선 |
 | Medium | 4. 파일 목록 조회 `type` 인덱스 부재 | 특정 엔드포인트 한정, 채널 히스토리 증가 시 점진적으로 악화 |
