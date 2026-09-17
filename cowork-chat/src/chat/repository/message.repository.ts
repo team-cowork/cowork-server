@@ -142,8 +142,10 @@ export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
  * 저장 직후의 메시지 도큐먼트를 브로드캐스트에 필요한 필드만 남긴 평범한 객체로 변환합니다.
  *
  * `notificationStatus`, `searchIndexStatus` 등 아웃박스 처리용 내부 필드는 클라이언트가 쓰지 않으므로
- * 제외합니다. `findMessages`의 {@link MESSAGE_ROW_PROJECTION}과 동일한 필드 집합을 유지해
- * REST 응답과 WebSocket 브로드캐스트의 메시지 형태를 일치시킵니다.
+ * 제외합니다. `findMessages`의 {@link MESSAGE_ROW_PROJECTION}과 `mentionedMessage`를 제외한
+ * 나머지 필드 집합을 유지해 REST 응답과 WebSocket 브로드캐스트의 메시지 형태를 맞춥니다.
+ * `mentionedMessage`(스레드 부모 메시지 요약)는 `$lookup` 조인 결과라 여기서는 채우지 않으며,
+ * 이는 기존 `saved.toObject()` 방식에서도 마찬가지였던 동작이라 회귀가 아닙니다.
  */
 export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
     const {
