@@ -4,10 +4,11 @@ defmodule CoworkUser.Application do
   @impl true
   def start(_type, _args) do
     config = CoworkUser.AppConfig.load()
+    CoworkUser.SchemaMigration.run!(config.repo_options)
 
     children = [
       {CoworkUser.Metrics.Store, []},
-      {CoworkUser.Repo, []},
+      {CoworkUser.Repo, config.repo_options},
       {CoworkUser.Kafka.Producer, config: config},
       {CoworkUser.Kafka.ProfileOutboxRelay, config: config},
       {CoworkUser.Kafka.ProfileSnapshotPublisher, config: config},
