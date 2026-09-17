@@ -8,6 +8,18 @@ import { isSearchIndexed } from '../search/message-index-scope';
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
 
+/**
+ * 메시지당 보관하는 최대 편집 이력 수.
+ * 상한이 없으면 자주 수정되는 메시지의 문서가 무한정 커져 WiredTiger 문서 재배치(move)가
+ * 반복되며 쓰기 지연이 누적된다. 최근 N개만 유지해 문서 크기를 상한선 안으로 고정한다.
+ * `content`는 최대 25,000자(≈25KB)라 이력 20건 기준 문서 크기 상한은 약 500KB다.
+ *
+ * 이 상한은 이후 수정에서만 적용된다. 이미 20건을 넘겨 비대해진 기존 문서는 다음 수정이
+ * 한 번 더 일어나야 잘리며, 그 전까지 별도 일괄 정리(backfill)는 이 변경 범위에 포함하지
+ * 않는다 — 신규 증가만 막는 것이 목적이다.
+ */
+const MAX_EDIT_HISTORY_ENTRIES = 20;
+
 /** {@link MessageRow}에 필요한 필드만 남기는 프로젝션. `editHistory` 등 클라이언트 미사용 필드 전송을 막는다. */
 const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
     $project: {
@@ -253,6 +265,7 @@ export class MessageRepository {
      *
      * 도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
      * 색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
+     * `editHistory`는 최근 {@link MAX_EDIT_HISTORY_ENTRIES}개만 보관하며 그보다 오래된 이력은 버립니다.
      *
      * @param indexed - 검색 색인 대상 메시지인지 여부
      * @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
@@ -266,9 +279,14 @@ export class MessageRepository {
                     content,
                     isEdited: true,
                     editHistory: {
-                        $concatArrays: [
-                            { $ifNull: ['$editHistory', []] },
-                            [{ content: '$content', editedAt: now }],
+                        $slice: [
+                            {
+                                $concatArrays: [
+                                    { $ifNull: ['$editHistory', []] },
+                                    [{ content: '$content', editedAt: now }],
+                                ],
+                            },
+                            -MAX_EDIT_HISTORY_ENTRIES,
                         ],
                     },
                     updatedAt: now,
