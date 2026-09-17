@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, Logger, OnModuleInit, ServiceU
 import { Client, estypes } from '@elastic/elasticsearch';
 import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 import {
+    classifyBulkItemResult,
     classifyElasticsearchError,
     errorMessageOf,
     isElasticsearchBadRequest,
@@ -66,6 +67,17 @@ export interface BulkUpsertResult {
     applied: number;
     superseded: number;
     failures: Array<{ messageId: string; error: string }>;
+}
+
+export interface BulkDeleteEntry {
+    messageId: string;
+    version: number;
+}
+
+/** 색인 아웃박스가 사용하는 대량 쓰기 1건의 결과. 단일 쓰기의 {@link IndexWriteResult}와 같은 분류를 쓴다. */
+export interface BulkOutboxWriteResult {
+    messageId: string;
+    result: IndexWriteResult;
 }
 
 /**
@@ -337,6 +349,46 @@ export class ElasticsearchService implements OnModuleInit {
             }
         }
         return result;
+    }
+
+    /**
+     * 색인 아웃박스가 사용하는 대량 upsert. 개별 {@link upsertMessage}를 문서 수만큼 호출하는
+     * 대신 `_bulk` API 한 번으로 묶어 보낸다. 항목별로 RETRYABLE/PERMANENT까지 구분해 돌려주므로
+     * 호출자가 outbox 상태 전이(재시도 vs 영구 실패)에 그대로 쓸 수 있다.
+     *
+     * bulk 응답 항목은 요청과 같은 순서로 오므로 인덱스로 짝짓는다({@link bulkUpsertMessages}와
+     * 같은 전제).
+     */
+    async bulkUpsertForOutbox(entries: BulkUpsertEntry[], index: string = MESSAGE_SEARCH_ALIAS): Promise<BulkOutboxWriteResult[]> {
+        if (entries.length === 0) return [];
+        const response = await this.client.bulk({
+            operations: entries.flatMap(({ doc, version }) => [
+                { index: { _index: index, _id: doc.messageId, version, version_type: 'external' as const } },
+                doc,
+            ]),
+        });
+        return response.items.map((item, i) => {
+            const operation = item.index;
+            const messageId = entries[i].doc.messageId;
+            if (!operation?.error) return { messageId, result: { outcome: 'APPLIED' as const } };
+            return { messageId, result: classifyBulkItemResult('index', operation.status, operation.error) };
+        });
+    }
+
+    /** 색인 아웃박스가 사용하는 대량 삭제. {@link bulkUpsertForOutbox}와 같은 방식으로 항목별 결과를 돌려준다. */
+    async bulkDeleteForOutbox(entries: BulkDeleteEntry[], index: string = MESSAGE_SEARCH_ALIAS): Promise<BulkOutboxWriteResult[]> {
+        if (entries.length === 0) return [];
+        const response = await this.client.bulk({
+            operations: entries.map(({ messageId, version }) => ({
+                delete: { _index: index, _id: messageId, version, version_type: 'external' as const },
+            })),
+        });
+        return response.items.map((item, i) => {
+            const operation = item.delete;
+            const messageId = entries[i].messageId;
+            if (!operation?.error) return { messageId, result: { outcome: 'APPLIED' as const } };
+            return { messageId, result: classifyBulkItemResult('delete', operation.status, operation.error) };
+        });
     }
 
     /** 재구축 검증이 사용하는 표본 조회. 필수 필드 누락을 확인한다. */
