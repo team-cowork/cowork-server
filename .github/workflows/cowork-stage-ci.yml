@@ -222,7 +222,7 @@ jobs:
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v6
         with:
-          java-version: '25'
+          java-version: '26'
           distribution: 'temurin'
       - name: Setup Gradle
         if: matrix.build == 'gradle'
@@ -238,8 +238,8 @@ jobs:
         if: matrix.build == 'amper'
         working-directory: ${{ matrix.working-directory }}
         env:
-          KOTLIN_CLI_VERSION: '0.11.0'
-          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+          KOTLIN_CLI_VERSION: '0.12.2'
+          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
         run: |
           mkdir -p "$HOME/.local/bin"
           curl -fsSL -o "$HOME/.local/bin/kotlin" \
@@ -660,7 +660,7 @@ jobs:
               project.pluginManager.withPlugin('java') {
                   project.pluginManager.apply('jacoco')
                   project.extensions.configure(JacocoPluginExtension) { jacoco ->
-                      jacoco.toolVersion = '0.8.14'
+                      jacoco.toolVersion = '0.8.15'
                   }
                   def executionFile = new File(coverageOutput, 'jacoco.exec')
                   def testTask = project.tasks.named('test', Test) { test ->
@@ -763,7 +763,7 @@ jobs:
             local temporary
             temporary=$(mktemp "${destination}.XXXXXX")
             if ! curl --fail --silent --show-error --location --retry 3 \
-              "https://repo.maven.apache.org/maven2/org/jacoco/$artifact/0.8.14/$artifact-0.8.14-$classifier.jar" \
+              "https://repo.maven.apache.org/maven2/org/jacoco/$artifact/0.8.15/$artifact-0.8.15-$classifier.jar" \
               --output "$temporary"; then
               rm -f "$temporary"
               return 1
@@ -813,18 +813,18 @@ jobs:
                 -Dmaven.test.skip=false -DskipTests=false -Dmaven.test.failure.ignore=false -DfailIfNoTests=true \
                 "-Djacoco.destFile=$output/jacoco.exec" "-Djacoco.dataFile=$output/jacoco.exec" \
                 -Djacoco.append=true \
-                clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent \
-                test org.jacoco:jacoco-maven-plugin:0.8.14:report
+                clean org.jacoco:jacoco-maven-plugin:0.8.15:prepare-agent \
+                test org.jacoco:jacoco-maven-plugin:0.8.15:report
               validate_tests "$module_dir/target/surefire-reports"
               cp "$module_dir/target/site/jacoco/jacoco.xml" "$output/report.xml"
               ;;
             amper)
               kotlin_cli=${KOTLIN_CLI:-kotlin}
-              if ! "$kotlin_cli" --version | grep -Eq 'version 0\.11\.0([[:space:]]|$)'; then
-                echo 'Coverage requires Kotlin Toolchain (Amper) 0.11.0.' >&2
+              if ! "$kotlin_cli" --version | grep -Eq 'version 0\.12\.2([[:space:]]|$)'; then
+                echo 'Coverage requires Kotlin Toolchain (Amper) 0.12.2.' >&2
                 exit 1
               fi
-              tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.14
+              tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.15
               mkdir -p "$tools_dir"
               tools_dir=$(cd "$tools_dir" && pwd -P)
               agent="$tools_dir/jacocoagent.jar"
@@ -1808,7 +1808,7 @@ jobs:
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","amper"]'), matrix.runner)
         uses: actions/setup-java@v6
         with:
-          java-version: '25'
+          java-version: '26'
           distribution: temurin
       - name: Setup Gradle
         if: steps.module.outputs.present == 'true' && matrix.runner == 'gradle'
@@ -1823,8 +1823,8 @@ jobs:
       - name: Setup Kotlin Toolchain
         if: steps.module.outputs.present == 'true' && matrix.runner == 'amper'
         env:
-          KOTLIN_CLI_VERSION: '0.11.0'
-          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+          KOTLIN_CLI_VERSION: '0.12.2'
+          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
         run: |
           mkdir -p "$RUNNER_TEMP/kotlin-bin"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/kotlin-bin/kotlin" \
