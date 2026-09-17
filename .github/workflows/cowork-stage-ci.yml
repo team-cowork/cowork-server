@@ -259,7 +259,7 @@ jobs:
         if: matrix.build == 'go'
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.13.2
           working-directory: ${{ matrix.working-directory }}
       - name: Setup Elixir
         if: matrix.build == 'elixir'
