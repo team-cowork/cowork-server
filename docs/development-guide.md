@@ -66,7 +66,7 @@ cowork-server/
    - Gradle: config, gateway, channel, team, roadmap
    - Maven: project (`pom.xml`, Gradle 파일은 위임 wrapper)
    - Kotlin Toolchain(Amper): preference (`module.yaml`, Gradle 파일은 위임 wrapper)
-4. `cowork-{name}/README.md` 작성 (스택, 역할, 포트, DB 명시)
+4. 아래 공통 구조에 맞춰 `cowork-{name}/README.md` 작성
 5. 선택한 빌드 도구에 맞는 `.gitignore` 추가
 6. 관계형 DB 사용 시 [DB 스키마 관리](#3-db-스키마-관리) 절차 따르기
 7. 런타임에 맞는 Config Server client와 Eureka 등록 설정 추가
@@ -80,6 +80,10 @@ cowork-server/
 4. Gradle에는 **포함하지 않음**
 5. backend service는 Config Server·Eureka·Compose에 연결하고 `scripts/bump.sh`에 버전 반영 추가
    (정적 사이트는 Config Server·Eureka client를 사용하지 않음)
+
+### 모듈 README 공통 구조
+
+모든 `cowork-*/README.md`는 `역할` → `스택` → `포트` → `환경변수`의 네 개 `##` 섹션을 유지합니다. 추가 문서는 코드로 알 수 없는 프로젝트 결정·운영 제약만 `docs/`에 기록하며, 구현 설명이나 일반 지식을 반복하지 않습니다.
 
 ---
 
@@ -125,7 +129,11 @@ cowork-{name}/
 
 ### Elixir 서비스 (cowork-user)
 
-`cowork-user`는 동일한 `src/main/resources/db/migration/` SQL을 사용합니다. 컨테이너 시작 시 `docker-entrypoint.sh`가 Flyway CLI로 migration을 적용한 뒤 Mix release를 실행합니다.
+기존 Flyway 이력은 유지합니다. migration 실패 시 이력을 고치기 전에 실제 스키마를 복구하는 운영 원칙은 [실패와 복구](./prod-cloud-handover.md#134-실패와-복구)를 참고합니다.
+
+#### 사용자 검색의 DB 조건
+
+운영 DB의 사용자 검색 컬럼 collation은 `utf8mb4_unicode_ci`를 유지하고, 세션 `sql_mode`에 `NO_BACKSLASH_ESCAPES`를 추가하지 않습니다. 대소문자 구분 없는 검색과 `%`·`_`를 문자 그대로 찾는 검색 계약이 이 두 조건에 의존합니다.
 
 ### 파일 네이밍 규칙
 
@@ -518,4 +526,3 @@ Gateway는 서비스별 OpenAPI 문서를 `/v3/api-docs/{service}`로 프록시�
 - Prometheus: `http://localhost:9090`
 
 Loki 파일 로그 수집은 아직 모든 서비스에 적용되지 않았습니다. 실제 수집 범위와 남은 작업은 [로그 수집 TODO](todo/items/43-monitoring/log-collection-contract.md)를 참고합니다.
-
