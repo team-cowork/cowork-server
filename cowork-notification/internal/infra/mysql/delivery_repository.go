@@ -211,7 +211,11 @@ func (r *DeliveryRepository) FinalizeFailure(
 		}
 		if row.Status != string(delivery.StatusInProgress) || row.ClaimToken == nil || *row.ClaimToken != claimToken {
 			warnIfClaimStale(0, "failure", eventID, deviceTokenID)
-			status = delivery.Status(row.Status)
+			// Report a non-terminal status rather than echoing row.Status: if another
+			// attempt already quarantined this row, returning its current status here
+			// would make this stale/duplicate call look like the one that quarantined it,
+			// double-counting the quarantine metric for a decision this call did not make.
+			status = delivery.StatusInProgress
 			return nil
 		}
 
@@ -311,6 +315,13 @@ func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold ti
 	return result.RowsAffected, result.Error
 }
 
+// PurgeTerminal deletes terminal rows older than olderThan, repeating in purgeBatchSize
+// chunks within this call until the backlog is caught up (a chunk shorter than
+// purgeBatchSize) or ctx is cancelled. tb_notification_delivery_retry gets one row per
+// recipient device per message, so a single fixed-size chunk per call (previously the
+// whole behavior) could fall permanently behind once message volume grew past what one
+// chunk clears per worker tick; looping here keeps each individual DELETE's lock
+// duration bounded by purgeBatchSize while still draining any accumulated backlog.
 func (r *DeliveryRepository) PurgeTerminal(ctx context.Context, olderThan time.Time) (int64, error) {
 	terminal := []string{
 		string(delivery.StatusSuccess),
@@ -318,11 +329,23 @@ func (r *DeliveryRepository) PurgeTerminal(ctx context.Context, olderThan time.T
 		string(delivery.StatusQuarantined),
 		string(delivery.StatusCancelled),
 	}
-	result := r.db.WithContext(ctx).
-		Where("status IN ? AND updated_at < ?", terminal, olderThan).
-		Limit(purgeBatchSize).
-		Delete(&deliveryRow{})
-	return result.RowsAffected, result.Error
+	var total int64
+	for {
+		result := r.db.WithContext(ctx).
+			Where("status IN ? AND updated_at < ?", terminal, olderThan).
+			Limit(purgeBatchSize).
+			Delete(&deliveryRow{})
+		if result.Error != nil {
+			return total, result.Error
+		}
+		total += result.RowsAffected
+		if result.RowsAffected < purgeBatchSize {
+			return total, nil
+		}
+		if err := ctx.Err(); err != nil {
+			return total, err
+		}
+	}
 }
 
 func (r *DeliveryRepository) CountPending(ctx context.Context) (int64, error) {
