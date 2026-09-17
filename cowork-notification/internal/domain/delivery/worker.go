@@ -22,6 +22,18 @@ const (
 	// whole claimed batch's wall-clock time well under that threshold.
 	attemptConcurrency = 20
 
+	// fcmSendTimeout bounds a single Send call. The Firebase Admin SDK's default HTTP
+	// client retries 503s and network errors up to 4 times, honoring Retry-After for as
+	// long as 2 minutes, so an unbounded ctx lets one attempt approach
+	// staleInProgressAfter on its own — another replica's ReclaimStale would then revert
+	// a row this worker still holds, and a later ClaimDue could send it again.
+	fcmSendTimeout = 30 * time.Second
+	// finalizeTimeout bounds the detached context used to record an FCM result that has
+	// already happened. It must survive ctx (the Kafka consumer's lease) being cancelled
+	// or expiring, otherwise a token FCM already accepted could be resent by the retry
+	// worker before the row is marked done.
+	finalizeTimeout = 30 * time.Second
+
 	purgeInterval  = 10 * time.Minute
 	purgeRetention = 7 * 24 * time.Hour
 )
@@ -149,41 +161,48 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 		// The token was deleted, or replaced (device_token_id is never reused, so a
 		// mismatch means the current row for this id no longer holds the token the
 		// claimed delivery was for) — the row is stale relative to current state.
-		if err := w.repo.FinalizeCancelled(ctx, rec.ID, rec.ClaimToken); err != nil {
+		finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
+		defer cancel()
+		if err := w.repo.FinalizeCancelled(finalizeCtx, rec.ID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize cancelled failed", "id", rec.ID, "err", err)
 		}
 		return
 	}
 
-	results, err := w.fcm.Send(ctx, []string{rec.Token}, rec.Title, rec.Body, rec.Data)
+	sendCtx, cancel := context.WithTimeout(ctx, fcmSendTimeout)
+	results, err := w.fcm.Send(sendCtx, []string{rec.Token}, rec.Title, rec.Body, rec.Data)
+	cancel()
 	if err != nil || len(results) == 0 {
-		// ctx cancellation (shutdown) or an empty result for a non-empty input, which
-		// Send's contract does not produce. Leave the row IN_PROGRESS; ReclaimStale
-		// will return it to PENDING_RETRY on a later tick.
+		// ctx cancellation (shutdown), the fcmSendTimeout bound, or an empty result for a
+		// non-empty input, which Send's contract does not produce. Leave the row
+		// IN_PROGRESS; ReclaimStale will return it to PENDING_RETRY on a later tick.
 		if err != nil && ctx.Err() == nil {
 			slog.Error("fcm retry worker: send failed", "deviceTokenId", rec.DeviceTokenID, "err", err)
 		}
 		return
 	}
 
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
+	defer cancel()
+
 	outcome := results[0].Outcome
 	monitoring.RecordFCMDeliveryOutcome(string(outcome), "retry")
 	switch outcome {
 	case fcm.OutcomeSuccess:
-		if err := w.repo.FinalizeSuccess(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeSuccess(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize success failed", "id", rec.ID, "err", err)
 		}
 	case fcm.OutcomeInvalid:
-		if err := w.repo.FinalizeInvalid(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeInvalid(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize invalid failed", "id", rec.ID, "err", err)
 		}
-		if err := w.invalid.DeleteInvalidToken(ctx, rec.Token); err != nil {
+		if err := w.invalid.DeleteInvalidToken(finalizeCtx, rec.Token); err != nil {
 			slog.Warn("fcm retry worker: delete invalid token failed", "err", err)
 		}
 	case fcm.OutcomeUnclassified:
-		w.finalizeFailure(ctx, rec, ErrorClassUnclassified)
+		w.finalizeFailure(finalizeCtx, rec, ErrorClassUnclassified)
 	default: // fcm.OutcomeRetryable
-		w.finalizeFailure(ctx, rec, ErrorClassRetryable)
+		w.finalizeFailure(finalizeCtx, rec, ErrorClassRetryable)
 	}
 }
 
