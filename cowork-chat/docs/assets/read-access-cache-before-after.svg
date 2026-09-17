@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420">
+  <rect x="0" y="0" width="720" height="420" fill="#ffffff" />
+  <text x="360" y="24" font-size="16" font-weight="600" text-anchor="middle" fill="#111827" font-family="Helvetica, Arial, sans-serif">2초 버스트 내 메시지 수에 따른 접근 제어 저장소 호출 횟수</text>
+  <line x1="70" y1="360.0" x2="690.0" y2="360.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="312.0" x2="690.0" y2="312.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="264.0" x2="690.0" y2="264.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="216.0" x2="690.0" y2="216.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="168.0" x2="690.0" y2="168.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="120.0" x2="690.0" y2="120.0" stroke="#e5e7eb" stroke-width="1" /><line x1="70" y1="72.0" x2="690.0" y2="72.0" stroke="#e5e7eb" stroke-width="1" />
+  <text x="60.0" y="364.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">0</text><text x="60.0" y="316.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">100</text><text x="60.0" y="268.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">200</text><text x="60.0" y="220.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">300</text><text x="60.0" y="172.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">400</text><text x="60.0" y="124.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">500</text><text x="60.0" y="76.0" font-size="12" text-anchor="end" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">600</text>
+  
+    <rect x="85.5" y="357.1" width="33.1" height="2.9" fill="#3b82f6" rx="2" />
+    <text x="102.0" y="349.1" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="124.8" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="141.3" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="188.8" y="345.6" width="33.1" height="14.4" fill="#3b82f6" rx="2" />
+    <text x="205.4" y="337.6" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">30</text>
+    <rect x="228.1" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="244.6" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="292.2" y="331.2" width="33.1" height="28.8" fill="#3b82f6" rx="2" />
+    <text x="308.7" y="323.2" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">60</text>
+    <rect x="331.4" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="348.0" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="395.5" y="302.4" width="33.1" height="57.6" fill="#3b82f6" rx="2" />
+    <text x="412.0" y="294.4" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">120</text>
+    <rect x="434.8" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="451.3" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="498.8" y="216.0" width="33.1" height="144.0" fill="#3b82f6" rx="2" />
+    <text x="515.4" y="208.0" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">300</text>
+    <rect x="538.1" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="554.6" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+    <rect x="602.2" y="72.0" width="33.1" height="288.0" fill="#3b82f6" rx="2" />
+    <text x="618.7" y="64.0" font-size="13" text-anchor="middle" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">600</text>
+    <rect x="641.4" y="357.1" width="33.1" height="2.9" fill="#22c55e" rx="2" />
+    <text x="658.0" y="349.1" font-size="13" text-anchor="middle" fill="#166534" font-family="Helvetica, Arial, sans-serif">6</text>
+  <text x="121.7" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">1건</text><text x="225.0" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">5건</text><text x="328.3" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">10건</text><text x="431.7" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">20건</text><text x="535.0" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">50건</text><text x="638.3" y="384.0" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">100건</text>
+  <text x="380" y="408" font-size="13" text-anchor="middle" fill="#374151" font-family="Helvetica, Arial, sans-serif">2초 이내 연속 전송된 메시지 수</text>
+  <text x="15" y="66" font-size="12" fill="#6b7280" font-family="Helvetica, Arial, sans-serif">호출 횟수</text>
+  <g transform="translate(70, 46)">
+    <rect x="0" y="0" width="14" height="14" fill="#3b82f6" rx="2" />
+    <text x="20" y="12" font-size="13" fill="#1e3a8a" font-family="Helvetica, Arial, sans-serif">Before (캐시 없음)</text>
+    <rect x="180" y="0" width="14" height="14" fill="#22c55e" rx="2" />
+    <text x="200" y="12" font-size="13" fill="#166534" font-family="Helvetica, Arial, sans-serif">After (캐시 적용)</text>
+  </g>
+</svg>
