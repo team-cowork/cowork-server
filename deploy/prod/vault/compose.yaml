@@ -1,7 +1,7 @@
 # Independent Vault lifecycle. Pre-create the named volume for a fresh deployment or select an existing one.
 services:
   vault:
-    image: hashicorp/vault:2.0.3
+    image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
     container_name: cowork-vault-prod
     restart: unless-stopped
     command: [server, -config=/vault/config/server.hcl]

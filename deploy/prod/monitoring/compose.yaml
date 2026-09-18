@@ -1,7 +1,7 @@
 # Independent monitoring VM. Infrastructure endpoints may be on different VMs.
 services:
   loki:
-    image: grafana/loki:3.7.2
+    image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
     restart: unless-stopped
     ports:
       - ${MONITORING_BIND_IP:?MONITORING_BIND_IP is required}:3100:3100
@@ -19,14 +19,14 @@ services:
       timeout: 5s
       retries: 5
   blackbox_exporter:
-    image: prom/blackbox-exporter:v0.28.0
+    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
     restart: unless-stopped
     volumes:
       - ./deploy/config/monitoring/blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
     command:
       - --config.file=/etc/blackbox_exporter/config.yml
   prometheus:
-    image: prom/prometheus:v3.12.0
+    image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     restart: unless-stopped
     ports:
       - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:9090:9090
@@ -46,7 +46,7 @@ services:
       timeout: 5s
       retries: 12
   alertmanager-config-init:
-    image: busybox:1.36
+    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
     restart: 'no'
     environment:
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}
@@ -66,7 +66,7 @@ services:
         chmod 0400 /generated/discord-webhook-url
         chmod 0444 /generated/alertmanager.yml
   alertmanager:
-    image: prom/alertmanager:v0.33.0
+    image: prom/alertmanager:v0.34.0@sha256:690c7b525f4367aa91f73e2f91c632206d32e97c6384bdbf2fb7a861b420340d
     restart: unless-stopped
     depends_on:
       alertmanager-config-init:
@@ -85,7 +85,7 @@ services:
       timeout: 5s
       retries: 5
   grafana:
-    image: grafana/grafana:13.0.2
+    image: grafana/grafana:13.2.2@sha256:ac461fb352abc50da10a51c7d02462e9c05488f11f53f14b3ad79a8145f638a0
     restart: unless-stopped
     ports:
       - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:3001:3000
@@ -99,7 +99,7 @@ services:
     depends_on:
       - prometheus
   mysqld_exporter:
-    image: prom/mysqld-exporter:v0.19.0
+    image: prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e
     restart: unless-stopped
     environment:
       MYSQLD_EXPORTER_PASSWORD: ${MYSQL_EXPORTER_PASSWORD:?MYSQL_EXPORTER_PASSWORD is required}
@@ -107,22 +107,22 @@ services:
       - --mysqld.address=${MYSQL_HOST:?MYSQL_HOST is required}:${MYSQL_PORT:-3306}
       - --mysqld.username=${MYSQL_EXPORTER_USER:-root}
   redis_exporter:
-    image: oliver006/redis_exporter:v1.86.0
+    image: oliver006/redis_exporter:v1.91.1@sha256:c67a432dba6b4ae30f471e3c77cf14a289133bbeeb89abb0bb03e6092efb2836
     restart: unless-stopped
     environment:
       REDIS_ADDR: redis://${REDIS_HOST:?REDIS_HOST is required}:${REDIS_PORT:-6379}
   kafka_exporter:
-    image: danielqsj/kafka-exporter:v1.9.0
+    image: danielqsj/kafka-exporter:v1.10.0@sha256:346a53c2489a3530790d01f7b96632496d0d58926662f4c35bb65f569db2ab42
     restart: unless-stopped
     command:
       - --kafka.server=${KAFKA_EXPORTER_SERVER:?Set one reachable broker host:port}
   postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.19.1
+    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
     restart: unless-stopped
     environment:
       DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN:?POSTGRES_EXPORTER_DSN is required}
   mongodb_exporter:
-    image: percona/mongodb_exporter:0.51.0
+    image: percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1
     restart: unless-stopped
     environment:
       MONGODB_URI: ${MONGO_EXPORTER_URI:?MONGO_EXPORTER_URI is required}
