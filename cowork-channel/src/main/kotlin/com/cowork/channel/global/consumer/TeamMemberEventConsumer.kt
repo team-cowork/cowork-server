@@ -52,6 +52,7 @@ class TeamMemberEventConsumer(
         processor.applyRecord(streams.teamMember, record) {
             when (payload.eventType) {
                 "UPSERT" -> handler.onMemberUpsert(payload.teamId, payload.userId, payload.role, eventOccurredAt)
+
                 "DELETE" -> handler.onMemberRemovedFromTeam(
                     payload.teamId,
                     payload.userId,

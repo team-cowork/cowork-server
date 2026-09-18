@@ -68,6 +68,7 @@ class PreferenceTeamRoleCommandResultConsumer(
                 }
                 operation.markFailed(error.code, error.message)
             }
+
             TeamRoleOperationStatus.SUCCEEDED -> {
                 require(result.error == null) { "SUCCEEDED result에는 error가 포함될 수 없습니다." }
                 val expectation = requireNotNull(result.projection) {
@@ -83,6 +84,7 @@ class PreferenceTeamRoleCommandResultConsumer(
                 operation.markProcessing(result.role?.let(objectMapper::writeValueAsString), expectation)
                 finalizer.tryFinalize(operation)
             }
+
             TeamRoleOperationStatus.PENDING, TeamRoleOperationStatus.PROCESSING ->
                 error("unreachable result status")
         }
@@ -108,6 +110,7 @@ class PreferenceTeamRoleCommandResultConsumer(
         val keyPrefix = when (result.commandType) {
             TeamRoleCommandType.CREATE, TeamRoleCommandType.UPDATE, TeamRoleCommandType.DELETE ->
                 "role:${result.teamId}:"
+
             TeamRoleCommandType.ASSIGN, TeamRoleCommandType.REVOKE -> "assignment:${result.teamId}:"
         }
         require(requireNotNull(result.projection).key.startsWith(keyPrefix)) {
