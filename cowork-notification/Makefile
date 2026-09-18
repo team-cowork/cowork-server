@@ -16,7 +16,7 @@ build:
 	go build -o bin/notification ./cmd/server/...
 
 lint-install:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 
 fmt:
 	golangci-lint fmt ./...
