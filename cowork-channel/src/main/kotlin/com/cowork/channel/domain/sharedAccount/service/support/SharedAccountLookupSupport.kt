@@ -35,7 +35,9 @@ class SharedAccountLookupSupport(
     fun toResponse(account: SharedAccount, listOnly: Boolean = false): SharedAccountResponse {
         val maskedCredential = when {
             account.credential == null -> null
+
             listOnly -> "••••"
+
             else -> runCatching { credentialEncryptionService.decrypt(account.credential!!) }
                 .getOrNull()
                 ?.let { credentialEncryptionService.mask(it) }
