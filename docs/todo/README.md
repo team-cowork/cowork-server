@@ -14,7 +14,7 @@
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
-- dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)
+- ~~dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)~~
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
 - ~~correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)~~
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md)
@@ -43,9 +43,11 @@
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md)
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
+- dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
 
 ## 점검 스냅샷
 
+- [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
 - [20260828](./20260828_TODO.md) — 서버 의존성·애플리케이션 코드 점검

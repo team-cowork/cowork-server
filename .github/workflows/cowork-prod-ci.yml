@@ -180,7 +180,7 @@ jobs:
             MATRIX='{"include":[
               {"service":"cowork-gateway","build":"gradle","working-directory":"."},
               {"service":"cowork-config","build":"gradle","working-directory":"."},
-              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"},
+              {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.20.4","otp-version":"29.1"},
               {"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"},
               {"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"},
               {"service":"cowork-team","build":"gradle","working-directory":"."},
@@ -189,7 +189,7 @@ jobs:
               {"service":"cowork-roadmap","build":"gradle","working-directory":"."},
               {"service":"cowork-authorization","build":"go","working-directory":"cowork-authorization","go-version-file":"cowork-authorization/go.mod","build-command":"go build ./..."},
               {"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"},
+              {"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"26.8.2"},
               {"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}
             ]}'
           else
@@ -199,7 +199,7 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-config == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-config","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-user }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.18.4","otp-version":"27.3.4"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.20.4","otp-version":"29.1"}]')
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-preference }}" == "true" ] && \
@@ -217,7 +217,7 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-voice }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-voice","build":"go","working-directory":"cowork-voice","go-version-file":"cowork-voice/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-chat }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"24"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-chat","build":"node","working-directory":"cowork-chat","node-version":"26.8.2"}]')
             [ "${{ steps.filter.outputs.cowork-promotion }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-promotion","build":"node","working-directory":"cowork-promotion","node-version":"24"}]')
             if [ "$(echo "$MATRIX" | jq '.include | length')" == "0" ]; then
@@ -252,7 +252,7 @@ jobs:
         if: matrix.build == 'gradle'
         uses: actions/setup-java@v6
         with:
-          java-version: '25'
+          java-version: '26'
           distribution: 'temurin'
       - name: Setup Gradle
         if: matrix.build == 'gradle'
@@ -268,8 +268,8 @@ jobs:
         if: matrix.build == 'amper'
         working-directory: ${{ matrix.working-directory }}
         env:
-          KOTLIN_CLI_VERSION: '0.11.0'
-          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+          KOTLIN_CLI_VERSION: '0.12.2'
+          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
         run: |
           mkdir -p "$HOME/.local/bin"
           curl -fsSL -o "$HOME/.local/bin/kotlin" \
@@ -289,7 +289,7 @@ jobs:
         if: matrix.build == 'go'
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.13.2
           working-directory: ${{ matrix.working-directory }}
       - name: Setup Elixir
         if: matrix.build == 'elixir'
@@ -304,9 +304,9 @@ jobs:
           path: |
             ${{ matrix.working-directory }}/deps
             ${{ matrix.working-directory }}/_build
-          key: ${{ runner.os }}-elixir-${{ matrix.service }}-${{ hashFiles(format('{0}/mix.lock', matrix.working-directory)) }}
+          key: ${{ runner.os }}-elixir-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ matrix.service }}-${{ hashFiles(format('{0}/mix.lock', matrix.working-directory)) }}
           restore-keys: |
-            ${{ runner.os }}-elixir-${{ matrix.service }}-
+            ${{ runner.os }}-elixir-${{ matrix.elixir-version }}-${{ matrix.otp-version }}-${{ matrix.service }}-
       - name: Build & Test (Go)
         if: matrix.build == 'go'
         working-directory: ${{ matrix.working-directory }}
@@ -545,7 +545,8 @@ jobs:
                       if not isinstance(scripts, dict):
                           raise ValueError('package.json scripts must be an object')
                       command = test_commands(scripts)
-                      if re.search(r'(?:^|[\s;&|])jest(?:\s|$)', command):
+                      # ESM scripts invoke Jest through its Node entry point.
+                      if re.search(r'(?:^|[\s;&|])(?:jest|(?:\./)?node_modules/jest/bin/jest\.js)(?:\s|$)', command):
                           return coverage_metadata(directory, 'jest')
                       if re.search(r'(?:^|[\s;&|])node\s+[^;&|]*--test(?:\s|=|$)', command):
                           return coverage_metadata(directory, 'node')
@@ -691,7 +692,7 @@ jobs:
               project.pluginManager.withPlugin('java') {
                   project.pluginManager.apply('jacoco')
                   project.extensions.configure(JacocoPluginExtension) { jacoco ->
-                      jacoco.toolVersion = '0.8.14'
+                      jacoco.toolVersion = '0.8.15'
                   }
                   def executionFile = new File(coverageOutput, 'jacoco.exec')
                   def testTask = project.tasks.named('test', Test) { test ->
@@ -794,7 +795,7 @@ jobs:
             local temporary
             temporary=$(mktemp "${destination}.XXXXXX")
             if ! curl --fail --silent --show-error --location --retry 3 \
-              "https://repo.maven.apache.org/maven2/org/jacoco/$artifact/0.8.14/$artifact-0.8.14-$classifier.jar" \
+              "https://repo.maven.apache.org/maven2/org/jacoco/$artifact/0.8.15/$artifact-0.8.15-$classifier.jar" \
               --output "$temporary"; then
               rm -f "$temporary"
               return 1
@@ -844,26 +845,26 @@ jobs:
                 -Dmaven.test.skip=false -DskipTests=false -Dmaven.test.failure.ignore=false -DfailIfNoTests=true \
                 "-Djacoco.destFile=$output/jacoco.exec" "-Djacoco.dataFile=$output/jacoco.exec" \
                 -Djacoco.append=true \
-                clean org.jacoco:jacoco-maven-plugin:0.8.14:prepare-agent \
-                test org.jacoco:jacoco-maven-plugin:0.8.14:report
+                clean org.jacoco:jacoco-maven-plugin:0.8.15:prepare-agent \
+                test org.jacoco:jacoco-maven-plugin:0.8.15:report
               validate_tests "$module_dir/target/surefire-reports"
               cp "$module_dir/target/site/jacoco/jacoco.xml" "$output/report.xml"
               ;;
             amper)
               kotlin_cli=${KOTLIN_CLI:-kotlin}
-              if ! "$kotlin_cli" --version | grep -Eq 'version 0\.11\.0([[:space:]]|$)'; then
-                echo 'Coverage requires Kotlin Toolchain (Amper) 0.11.0.' >&2
+              if ! "$kotlin_cli" --version | grep -Eq 'version 0\.12\.2([[:space:]]|$)'; then
+                echo 'Coverage requires Kotlin Toolchain (Amper) 0.12.2.' >&2
                 exit 1
               fi
-              tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.14
+              tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.15
               mkdir -p "$tools_dir"
               tools_dir=$(cd "$tools_dir" && pwd -P)
               agent="$tools_dir/jacocoagent.jar"
               cli="$tools_dir/jacococli.jar"
               download_jacoco org.jacoco.agent runtime \
-                3fb76eea65f81bd9415202bab34b6571728841dff1ab8e6bbe81adc2e299face "$agent"
+                fb5b0036a0899ea97edfa0fc2c7985b55f3f7c5695028163e5e60d4f3cf6075d "$agent"
               download_jacoco org.jacoco.cli nodeps \
-                811c7f8c6b358c5d68a8973cfa867f6892be7a671b697a4b13c4b447e6daf75c "$cli"
+                d2b74b20b415163c1f53261e7c5ef4445b788327094208ff821e0c2baf9bc8f1 "$cli"
               cd "$module_dir"
               "$kotlin_cli" clean
               "$kotlin_cli" test --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
@@ -1839,7 +1840,7 @@ jobs:
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","amper"]'), matrix.runner)
         uses: actions/setup-java@v6
         with:
-          java-version: '25'
+          java-version: '26'
           distribution: temurin
       - name: Setup Gradle
         if: steps.module.outputs.present == 'true' && matrix.runner == 'gradle'
@@ -1854,8 +1855,8 @@ jobs:
       - name: Setup Kotlin Toolchain
         if: steps.module.outputs.present == 'true' && matrix.runner == 'amper'
         env:
-          KOTLIN_CLI_VERSION: '0.11.0'
-          KOTLIN_CLI_WRAPPER_SHA256: f53d26ee0bb6ef3078c33bda3c180d19fbca665408c27b62b7dfce335551c3d7
+          KOTLIN_CLI_VERSION: '0.12.2'
+          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
         run: |
           mkdir -p "$RUNNER_TEMP/kotlin-bin"
           curl -fsSL --retry 3 -o "$RUNNER_TEMP/kotlin-bin/kotlin" \
@@ -1873,15 +1874,15 @@ jobs:
         if: steps.module.outputs.present == 'true' && contains(fromJSON('["jest","node"]'), matrix.runner)
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: ${{ matrix.module == 'cowork-promotion' && '24' || '26.8.2' }}
           cache: npm
           cache-dependency-path: source/${{ matrix.module }}/package-lock.json
       - name: Setup Elixir
         if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
         uses: erlef/setup-beam@v1
         with:
-          elixir-version: '1.18.4'
-          otp-version: '27.3.4'
+          elixir-version: '1.20.4'
+          otp-version: '29.1'
       - name: Cache Elixir Dependencies
         if: steps.module.outputs.present == 'true' && matrix.runner == 'elixir'
         uses: actions/cache@v6
@@ -1889,8 +1890,8 @@ jobs:
           path: |
             source/${{ matrix.module }}/deps
             source/${{ matrix.module }}/_build
-          key: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-${{ hashFiles(format('source/{0}/mix.lock', matrix.module)) }}
-          restore-keys: ${{ runner.os }}-coverage-elixir-1.18.4-27.3.4-${{ matrix.module }}-
+          key: ${{ runner.os }}-coverage-elixir-1.20.4-29.1-${{ matrix.module }}-${{ hashFiles(format('source/{0}/mix.lock', matrix.module)) }}
+          restore-keys: ${{ runner.os }}-coverage-elixir-1.20.4-29.1-${{ matrix.module }}-
       - name: Measure Module Coverage
         env:
           COVERAGE_MODULE: ${{ matrix.module }}

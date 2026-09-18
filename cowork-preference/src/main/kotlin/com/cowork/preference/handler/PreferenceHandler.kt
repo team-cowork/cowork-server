@@ -11,7 +11,7 @@ import kotlinx.coroutines.launch
 class PreferenceHandler(private val service: PreferenceService, private val scope: CoroutineScope) {
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
-        val resourceId = ctx.pathParam("id").toLongOrNull()
+        val resourceId = ctx.pathParam("id")?.toLongOrNull()
         if (resourceId == null) {
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
@@ -44,7 +44,7 @@ class PreferenceHandler(private val service: PreferenceService, private val scop
     }
 
     fun updateSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
-        val resourceId = ctx.pathParam("id").toLongOrNull()
+        val resourceId = ctx.pathParam("id")?.toLongOrNull()
         if (resourceId == null) {
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
