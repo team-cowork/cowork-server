@@ -26,12 +26,14 @@ internal class BoundedResponseBodyTransformer(private val maxBytes: Int) {
             .concatMap({ dataBuffer ->
                 when (val action = collector.accept(dataBuffer)) {
                     CollectAction.Hold -> Mono.empty()
+
                     is CollectAction.Emit -> {
                         if (thresholdRecorded.compareAndSet(false, true)) {
                             onThresholdExceeded(action.totalBytes)
                         }
                         Flux.fromIterable(action.buffers)
                     }
+
                     is CollectAction.Relay -> Mono.just(action.dataBuffer)
                 }
             }, 1)

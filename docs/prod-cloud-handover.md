@@ -4,6 +4,8 @@
 코드베이스, Git 이력, GitHub PR·배포 기록·설정 이름을 점검했다. 실제 VM·Vault·DB·방화벽·DNS에 접속하거나
 운영 설정을 변경하지 않았다. 비밀번호, 토큰, SSH 개인키, Firebase JSON의 실제 값은 포함하지 않는다.
 
+이미지 버전 표는 2026-09-16의 저장소 의존성 갱신을 반영했다. 나머지 운영 현황은 위 작성 기준일의 점검 결과다.
+
 **기존 데이터의 유지·복구·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.**
 이 문서는 필요한 운영 구성과 설정을 정리하며, 데이터 처리 방식은 지정하지 않는다.
 
@@ -159,15 +161,15 @@ DB/Kafka/Redis/S3/Elasticsearch/LiveKit의 다중 VM 생성·업그레이드는 
 
 | 구성 요소 | 저장소 이미지 / 기본 포트 | 준비할 데이터·설정 |
 | --- | --- | --- |
-| MySQL | `mysql:9.7.1`, 3306 | 아래 7개 DB, 계정·권한, 영속 디스크, 백업 |
-| PostgreSQL | `postgres:18.4`, 5432 | `cowork_preference`, `preference` schema, `search_path=preference,public` |
-| MongoDB | `mongo:8.3`, 27017 | `cowork_chat`, `cowork_voice`; 현재 URI 생성은 `authSource=admin` |
-| Kafka | `apache/kafka:4.3.0`, 앱 listener 9092/9094 | 실제 advertised listener, 토픽·partition·RF·보존 정책, 영속 데이터 |
-| Redis | `redis:8.8.0-alpine`, 6379 | cache·rate limit·pub/sub; 데이터 보존과 장애 시 영향 범위 |
-| SeaweedFS | `chrislusf/seaweedfs:4.44`, S3 9000 | bucket, key pair, CORS, 공개/비공개 정책 |
-| Elasticsearch | `9.4.2` + `analysis-nori`, 9200 | MongoDB 기반 검색 색인, nori 플러그인, 디스크 |
-| LiveKit | `livekit/livekit-server:v1.13.3` | API/WSS·RTC·TURN, 실제 node IP, key pair |
-| Vault | `hashicorp/vault:2.0.3`, 8200 | file storage `/vault/data`, KV v2, 정책·토큰·unseal 자료 |
+| MySQL | `mysql:9.7.2`, 3306 | 아래 7개 DB, 계정·권한, 영속 디스크, 백업 |
+| PostgreSQL | `postgres:18.6`, 5432 | `cowork_preference`, `preference` schema, `search_path=preference,public` |
+| MongoDB | `mongo:8.3.11`, 27017 | `cowork_chat`, `cowork_voice`; 현재 URI 생성은 `authSource=admin` |
+| Kafka | `apache/kafka:4.3.1`, 앱 listener 9092/9094 | 실제 advertised listener, 토픽·partition·RF·보존 정책, 영속 데이터 |
+| Redis | `redis:8.10.1-alpine`, 6379 | cache·rate limit·pub/sub; 데이터 보존과 장애 시 영향 범위 |
+| SeaweedFS | `chrislusf/seaweedfs:4.47`, S3 9000 | bucket, key pair, CORS, 공개/비공개 정책 |
+| Elasticsearch | `9.5.4` + `analysis-nori`, 9200 | MongoDB 기반 검색 색인, nori 플러그인, 디스크 |
+| LiveKit | `livekit/livekit-server:v1.13.7` | API/WSS·RTC·TURN, 실제 node IP, key pair |
+| Vault | `hashicorp/vault:2.1.0`, 8200 | file storage `/vault/data`, KV v2, 정책·토큰·unseal 자료 |
 
 MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`,
 `cowork_notification`, `cowork_roadmap`이다. 현재 bootstrap은 하나의 MySQL 계정에 7개 DB 권한을 부여한다.
@@ -583,10 +585,10 @@ Snapshot 재발행 간격 300초는 완료 상한이 아니며, 기본 배포 �
 
 | 구성 | 저장소 이미지 | 게시 포트 / 보존 |
 | --- | --- | --- |
-| Prometheus | `prom/prometheus:v3.12.0` | 기본 `127.0.0.1:9090`, TSDB 15일 |
-| Grafana | `grafana/grafana:13.0.2` | 기본 `127.0.0.1:3001` → 3000, 지정한 Grafana DB 볼륨 |
-| Loki | `grafana/loki:3.7.2` | `MONITORING_BIND_IP:3100`, filesystem 저장, retention 240h(10일) |
-| Alertmanager | `prom/alertmanager:v0.33.0` | 기본 `127.0.0.1:9093`, Discord URL 파일 공급 |
+| Prometheus | `prom/prometheus:v3.14.0` | 기본 `127.0.0.1:9090`, TSDB 15일 |
+| Grafana | `grafana/grafana:13.2.2` | 기본 `127.0.0.1:3001` → 3000, 지정한 Grafana DB 볼륨 |
+| Loki | `grafana/loki:3.7.7` | `MONITORING_BIND_IP:3100`, filesystem 저장, retention 240h(10일) |
+| Alertmanager | `prom/alertmanager:v0.34.0` | 기본 `127.0.0.1:9093`, Discord URL 파일 공급 |
 | Blackbox | `prom/blackbox-exporter:v0.28.0` | Compose 내부 9115 |
 | Alloy | `grafana/alloy:v1.19.2` + digest 고정 | 앱 VM별 로그 디렉터리 read-only mount, positions 영속 볼륨 |
 | DB/인프라 exporter | MySQL, Redis, Kafka, PostgreSQL, MongoDB | monitoring Compose 내부 9104/9121/9308/9187/9216 |
