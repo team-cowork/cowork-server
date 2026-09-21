@@ -19,7 +19,6 @@ import team.themoment.sdk.exception.ExpectedException
 import java.util.Base64
 
 @Service
-@Transactional
 class HandleOAuthCallbackServiceImpl(
     private val oAuthProperties: OAuthProperties,
     private val sharedAccountRepository: SharedAccountRepository,
@@ -30,6 +29,7 @@ class HandleOAuthCallbackServiceImpl(
 ) : HandleOAuthCallbackService {
     private val restClient = restClientBuilder.build()
 
+    @Transactional
     override fun handleCallback(providerName: String, code: String, state: String): SharedAccount {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
             throw ExpectedException("지원하지 않는 OAuth provider입니다.", HttpStatus.BAD_REQUEST)
