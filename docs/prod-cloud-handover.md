@@ -225,20 +225,29 @@ DB용 `mysql`, 브로커용 `kafka`, `redis`, `cowork-config` 등의 Docker 이�
 
 ### 5.2 공개 URL의 의미
 
-| 설정 | 값의 형태 / 사용처 |
-| --- | --- |
-| `PUBLIC_WEB_ORIGIN` | 웹 origin. Gateway HTTP CORS·WS 허용 origin 및 OAuth 반환 대상 |
-| `PUBLIC_API_BASE_URL` | 클라이언트가 사용하는 API base URL. OAuth callback 생성 기준 |
-| `CONFIG_SERVER_URL` | 앱이 접근하는 Config Server base URL, `/eureka/`를 포함하지 않음 |
-| `EUREKA_SERVER_URL` | Eureka API URL, 예: `http://config.internal:8761/eureka/` |
-| `VAULT_ADDR` | GitHub Environment의 Vault HTTPS URL |
-| `VAULT_EXTERNAL_HOST` | Config/Vault 배포 runtime의 **호스트명만**, 스킴·경로 제외 |
-| `S3_INTERNAL_ENDPOINT` | 서버의 S3 접근 주소 |
-| `S3_PUBLIC_ENDPOINT` | 브라우저가 접근할 S3 endpoint. 내부 주소와 같다고 가정하지 않음 |
-| `S3_PUBLIC_BASE_URL` | 응답 URL 생성에 사용하는 공개 base. bucket 경로 포함 여부를 실제 계약과 대조 |
-| `LIVEKIT_URL` | voice가 호출하는 LiveKit 서버 API |
-| `LIVEKIT_WS_URL` | 사용자에게 반환하는 LiveKit WebSocket URL |
-| `GITHUB_APP_SERVICE_URL` | 이 저장소 밖 GitHub App 연동 서비스의 base URL |
+| 설정                     | 값의 형태 / 사용처                                                                                                          |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `PUBLIC_WEB_ORIGINS`     | 필수 웹 Origin 목록. Gateway HTTP CORS·WS·채널 OAuth 복귀 검사에 함께 사용하며, `return_origin` 생략 시 첫 번째 주소로 복귀 |
+| `PUBLIC_API_BASE_URL`    | 클라이언트가 사용하는 API base URL. OAuth callback 생성 기준                                                                |
+| `CONFIG_SERVER_URL`      | 앱이 접근하는 Config Server base URL, `/eureka/`를 포함하지 않음                                                            |
+| `EUREKA_SERVER_URL`      | Eureka API URL, 예: `http://config.internal:8761/eureka/`                                                                   |
+| `VAULT_ADDR`             | GitHub Environment의 Vault HTTPS URL                                                                                        |
+| `VAULT_EXTERNAL_HOST`    | Config/Vault 배포 runtime의 **호스트명만**, 스킴·경로 제외                                                                  |
+| `S3_INTERNAL_ENDPOINT`   | 서버의 S3 접근 주소                                                                                                         |
+| `S3_PUBLIC_ENDPOINT`     | 브라우저가 접근할 S3 endpoint. 내부 주소와 같다고 가정하지 않음                                                             |
+| `S3_PUBLIC_BASE_URL`     | 응답 URL 생성에 사용하는 공개 base. bucket 경로 포함 여부를 실제 계약과 대조                                                |
+| `LIVEKIT_URL`            | voice가 호출하는 LiveKit 서버 API                                                                                           |
+| `LIVEKIT_WS_URL`         | 사용자에게 반환하는 LiveKit WebSocket URL                                                                                   |
+| `GITHUB_APP_SERVICE_URL` | 이 저장소 밖 GitHub App 연동 서비스의 base URL                                                                              |
+
+웹 Origin은 `secret/deploy/config`의 `runtime.PUBLIC_WEB_ORIGINS`에
+`https://app.example.com,https://admin.example.com`처럼 쉼표 구분 문자열로 전달한다.
+서비스는 항상 목록으로 바인딩하며 주소가 하나면 원소 하나인 목록이다. 빈 목록은 허용하지 않는다.
+각 값은 경로·쿼리·후행 `/` 없는 `scheme://host[:port]` 형식으로 작성한다.
+프런트는 채널 OAuth 시작 API에 `return_origin`을 전달해 허용 목록 중 복귀할 주소를 선택한다.
+서버는 이 값을 서명된 `state`에 보관하고 콜백에서 재검증한다.
+설정 변경 후 Config Server를 먼저 재배포하고 Gateway와 Channel을 재배포한다.
+프런트의 `return_origin` 사용은 Channel 배포 완료 후 시작한다.
 
 Gateway의 주요 공개 경로는 `/api/<service>/...`, Chat `/ws/chat/**`,
 알림 SSE `/api/notification/notifications/stream`, 문서 `/v3/api-docs/<service>`다.
@@ -385,7 +394,7 @@ mount가 바뀌면 정책, GitHub `VAULT_KV_MOUNT`, Config `VAULT_BACKEND`를 �
 | S3 | `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | bucket 기본 `cowork-bucket`; key pair는 실제 서버 설정과 일치 |
 | LiveKit | `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 서버 API·클라이언트 WSS·서명 key pair |
 | GitHub App | `GITHUB_APP_SERVICE_URL`, `COWORK_GITHUB_APP_INTERNAL_API_KEY` | project는 후자를 `GITHUB_APP_INTERNAL_API_KEY`로 전달 |
-| 공개 앱 주소 | `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL` | config의 prod 필수, 공통 overrides로 배포 |
+| 공개 앱 주소 | `PUBLIC_WEB_ORIGINS`, `PUBLIC_API_BASE_URL` | config의 prod 필수, 공통 overrides로 배포. 웹 Origin은 쉼표 구분 목록 |
 | JWT | `JWT_SECRET`, `JWT_ACCESS_EXPIRE`, `JWT_REFRESH_EXPIRE` | chat 직접 검증용 secret; authorization 만료 기본 `30m`, `2160h` |
 | Vault 접속 | `VAULT_EXTERNAL_HOST`, `VAULT_PORT`, `VAULT_BACKEND`, `VAULT_TOKEN` | config용 HTTPS, port 기본 `443`, backend 기본 `secret` |
 | Vault 저장·복구 | `VAULT_BIND_IP`, `VAULT_DATA_VOLUME`, `VAULT_COMPOSE_PROJECT`, `VAULT_UNSEAL_KEY` | 사용할 외부 볼륨 이름 필수. project 기본 `vault`; sealed 상태에서 unseal key 필요 |
@@ -408,7 +417,7 @@ config 외 앱은 `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`, `KAFKA_BOOTSTRAP_SER
 
 | target | 공통값에 추가할 runtime / 참조 |
 | --- | --- |
-| config | `VAULT_EXTERNAL_HOST`, 전용 `VAULT_TOKEN`, `KAFKA_BOOTSTRAP_SERVERS`, S3 endpoint 3종, `LIVEKIT_URL`, `LIVEKIT_WS_URL`; prod에서 `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL` |
+| config | `VAULT_EXTERNAL_HOST`, 전용 `VAULT_TOKEN`, `KAFKA_BOOTSTRAP_SERVERS`, S3 endpoint 3종, `LIVEKIT_URL`, `LIVEKIT_WS_URL`; prod에서 `PUBLIC_WEB_ORIGINS`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL` |
 | gateway | Redis 주소 |
 | authorization | MySQL 4종; 필요 시 JWT 만료값. JWT secret·DataGSM 값은 앱 Vault로 공급 |
 | user | MySQL 4종, Redis 주소, S3 endpoint 3종 및 bucket/credential 계약 |
@@ -526,7 +535,7 @@ key/IP가 실제로 교체됐다고 판단하지 않는다. 실제 LiveKit 운�
 - `cowork-promotion`은 `npm run build` → `public/`, Vercel 정적 배포다.
   `SITE_URL`은 canonical/OG URL용 선택 설정이며 필수 런타임 Secret은 없다.
   Root Directory가 `cowork-promotion`이면 상위 `docs/todo`를 읽도록 외부 source 포함 옵션이 필요하다.
-  제품 웹 앱의 `PUBLIC_WEB_ORIGIN`과 promotion domain이 같다고 추정하지 않는다.
+  제품 웹 앱의 `PUBLIC_WEB_ORIGINS` 목록에 promotion domain이 포함된다고 추정하지 않는다.
 
 근거: [OAuth URL 생성](../cowork-channel/src/main/kotlin/com/cowork/channel/global/config/OAuthProperties.kt),
 [promotion 안내](../cowork-promotion/README.md), [Vercel 설정](../cowork-promotion/vercel.json).
