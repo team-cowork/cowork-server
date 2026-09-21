@@ -21,12 +21,17 @@ class BuildOAuthAuthorizeUrlServiceImpl(
     private val oAuthStateSupport: OAuthStateSupport,
 ) : BuildOAuthAuthorizeUrlService {
 
-    override fun buildAuthorizeUrl(channelId: Long, userId: Long, provider: AccountProvider): String {
+    override fun buildAuthorizeUrl(
+        channelId: Long,
+        userId: Long,
+        provider: AccountProvider,
+        returnOrigin: String?,
+    ): String {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
         val config = oAuthStateSupport.providerConfigOf(provider)
-        val state = oAuthStateSupport.buildState(channelId, userId, provider)
+        val state = oAuthStateSupport.buildState(channelId, userId, provider, returnOrigin)
         val callbackUrl = oAuthProperties.callbackUrl(provider.name)
 
         return when (provider) {
