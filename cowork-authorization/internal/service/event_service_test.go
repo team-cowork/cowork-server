@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/cowork/authorization/internal/config"
@@ -14,7 +15,7 @@ import (
 const testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 func newSignatureService(secret string) *EventService {
-	return NewEventService(&config.AppConfig{DataGSMWebhookSecret: secret}, nil, nil)
+	return NewEventService(&config.AppConfig{DataGSMWebhookSecret: secret}, nil)
 }
 
 func sign(body []byte) string {
@@ -55,7 +56,6 @@ func TestBuildUserSyncMessages_AccordingToStudentPayload(t *testing.T) {
 
 	t.Run("a valid student update maps the account fields", func(t *testing.T) {
 		t.Parallel()
-		service := newSignatureService(testSecret)
 		envelope := WebhookEvent{
 			ID:        "event-1",
 			Event:     "student.updated",
@@ -69,7 +69,7 @@ func TestBuildUserSyncMessages_AccordingToStudentPayload(t *testing.T) {
 			}`),
 		}
 
-		messages, err := service.buildUserSyncMessages(envelope)
+		messages, err := validatedStudentMessages(envelope)
 		if err != nil || len(messages) != 1 {
 			t.Fatalf("buildUserSyncMessages() = %+v, %v", messages, err)
 		}
@@ -90,15 +90,88 @@ func TestBuildUserSyncMessages_AccordingToStudentPayload(t *testing.T) {
 		{name: "a non-positive student id is rejected", data: `{"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
 		{name: "missing identity fields are rejected", data: `{"new":[{"index":0,"object":{"student_id":7,"email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
 		{name: "missing student role is rejected", data: `{"new":[{"index":0,"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN"}}]}`},
+		{name: "blank names are rejected before acceptance", data: `{"new":[{"index":0,"object":{"student_id":7,"name":"  ","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
+		{name: "a missing item index is not index zero", data: `{"new":[{"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
+		{name: "negative item indices are rejected", data: `{"new":[{"index":-1,"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
+		{name: "null student objects are not no-ops", data: `{"new":[{"index":0,"object":null}]}`},
+		{name: "duplicate indices are rejected even for no-ops", data: `{"new":[{"index":0,"object":{}},{"index":0,"object":{}}]}`},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			messages, err := newSignatureService(testSecret).buildUserSyncMessages(WebhookEvent{
+			messages, err := validatedStudentMessages(WebhookEvent{
 				ID: "event-1", Event: "student.updated", Timestamp: "2026-08-26T01:02:03Z", Data: json.RawMessage(test.data),
 			})
 			if !errors.Is(err, ErrInvalidPayload) || messages != nil {
 				t.Fatalf("buildUserSyncMessages() = %+v, %v; want invalid payload", messages, err)
+			}
+		})
+	}
+}
+
+// Exercise the same input policy and mapping functions used by ProcessEvent.
+func validatedStudentMessages(envelope WebhookEvent) ([]userSyncMessage, error) {
+	items, err := parseStudentItems(envelope.Data)
+	if err != nil {
+		return nil, err
+	}
+	return studentMessages(envelope, items), nil
+}
+
+func TestStudentBatchPolicy(t *testing.T) {
+	t.Parallel()
+	student := `{"student_id":7,"name":"홍길동","email":"student@example.com","sex":"MAN","role":"STUDENT"}`
+	for _, test := range []struct {
+		name, data   string
+		wantMessages int
+		invalid      bool
+	}{
+		{"empty objects are explicit no-ops", `{"new":[{"index":0,"object":{}}]}`, 0, false},
+		{"no-op and student change can coexist", `{"new":[{"index":0,"object":{}},{"index":1,"object":` + student + `}]}`, 1, false},
+		{"one student cannot change twice in a batch", `{"new":[{"index":0,"object":` + student + `},{"index":1,"object":` + student + `}]}`, 0, true},
+		{"one invalid item rejects the complete batch", `{"new":[{"index":0,"object":` + student + `},{"index":1,"object":{"student_id":8}}]}`, 0, true},
+		{"oversized names cannot reach the consumer", `{"new":[{"index":0,"object":` + strings.Replace(student, "홍길동", strings.Repeat("가", 51), 1) + `}]}`, 0, true},
+		{"duplicate business fields are ambiguous", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id":7`, `"student_id":7,"student_id":8`, 1) + `}]}`, 0, true},
+		{"student IDs must fit the owner's signed integer", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id":7`, `"student_id":9223372036854775808`, 1) + `}]}`, 0, true},
+		{"case variants cannot impersonate provider fields", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id"`, `"STUDENT_ID"`, 1) + `}]}`, 0, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			messages, err := validatedStudentMessages(WebhookEvent{Data: json.RawMessage(test.data)})
+			if test.invalid {
+				if !errors.Is(err, ErrInvalidPayload) || messages != nil {
+					t.Fatalf("accepted invalid batch: %v", err)
+				}
+				return
+			}
+			if err != nil || len(messages) != test.wantMessages {
+				t.Fatalf("messages = %d, error = %v", len(messages), err)
+			}
+		})
+	}
+}
+
+func TestWebhookEnvelopePolicy(t *testing.T) {
+	t.Parallel()
+	valid := `{"id":"event-1","event":"student.updated","timestamp":"2026-09-22T01:02:03Z","data":{"new":[]}}`
+	for _, test := range []struct {
+		name, body string
+		valid      bool
+	}{
+		{"well-formed envelope", valid, true},
+		{"empty identity", strings.Replace(valid, `"event-1"`, `""`, 1), false},
+		{"identity with trailing whitespace", strings.Replace(valid, `"event-1"`, `"event-1 "`, 1), false},
+		{"identity beyond storage byte limit", strings.Replace(valid, "event-1", strings.Repeat("가", 86), 1), false},
+		{"duplicate event IDs", strings.Replace(valid, `"id":"event-1"`, `"id":"event-1","id":"event-2"`, 1), false},
+		{"malformed timestamp", strings.Replace(valid, "2026-09-22T01:02:03Z", "not-a-time", 1), false},
+		{"multiple JSON documents", valid + `{}`, false},
+		{"invalid UTF-8", strings.Replace(valid, "event-1", string([]byte{255}), 1), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, _, err := parseWebhookEnvelope([]byte(test.body))
+			if (err == nil) != test.valid {
+				t.Fatalf("envelope error = %v", err)
 			}
 		})
 	}
