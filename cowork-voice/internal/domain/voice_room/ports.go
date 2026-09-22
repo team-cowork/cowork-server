@@ -13,6 +13,9 @@ type Service interface {
 }
 
 type Repository interface {
+	// FindActiveSession은 channelID의 현재 active 세션을 반환하거나, active 세션이 없으면
+	// nil을 반환한다. 구현체는 caching 여부와 무관하게 반환값이 항상 MongoDB 기준으로
+	// status가 active인 세션이도록 보장해야 한다(stale cache hit을 그대로 반환하지 않는다).
 	FindActiveSession(ctx context.Context, channelID int64) (*VoiceSession, error)
 	FindSessionByRoomName(ctx context.Context, roomName string) (*VoiceSession, error)
 	// CreateSession은 새 세션을 만들고 (session, created=true)를 반환한다.
