@@ -72,14 +72,15 @@ func (r *cachedSessionRepository) getFromCache(ctx context.Context, key string) 
 }
 
 func (r *cachedSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
-	s, err := r.getFromCache(ctx, channelKey(channelID))
-	if err != nil {
+	if cached, err := r.getFromCache(ctx, channelKey(channelID)); err != nil {
 		slog.Warn("redis: FindActiveSession cache error, falling back to mongo", "err", err, "channel_id", channelID)
-	} else if s != nil {
-		return s, nil
+	} else if cached != nil {
+		if verified := r.verifyStillActive(ctx, cached); verified != nil {
+			return verified, nil
+		}
 	}
 
-	s, err = r.mongo.FindActiveSession(ctx, channelID)
+	s, err := r.mongo.FindActiveSession(ctx, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -90,14 +91,15 @@ func (r *cachedSessionRepository) FindActiveSession(ctx context.Context, channel
 }
 
 func (r *cachedSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*room.VoiceSession, error) {
-	s, err := r.getFromCache(ctx, roomKey(roomName))
-	if err != nil {
+	if cached, err := r.getFromCache(ctx, roomKey(roomName)); err != nil {
 		slog.Warn("redis: FindSessionByRoomName cache error, falling back to mongo", "err", err, "room_name", roomName)
-	} else if s != nil {
-		return s, nil
+	} else if cached != nil {
+		if verified := r.verifyStillActive(ctx, cached); verified != nil {
+			return verified, nil
+		}
 	}
 
-	s, err = r.mongo.FindSessionByRoomName(ctx, roomName)
+	s, err := r.mongo.FindSessionByRoomName(ctx, roomName)
 	if err != nil {
 		return nil, err
 	}
@@ -105,6 +107,27 @@ func (r *cachedSessionRepository) FindSessionByRoomName(ctx context.Context, roo
 		r.cacheSession(ctx, s)
 	}
 	return s, nil
+}
+
+// verifyStillActive는 cache hit을 후보로만 취급하고 MongoDB의 현재 상태로 재확인한다.
+// eviction 실패나 지연된 write로 종료된 세션이 sessionTTL 동안 active로 반환되는 것을
+// 막기 위한 것이다(docs/todo/items/35-reliability/voice-session-cache-staleness.md).
+// cached session이 더 이상 active가 아니면 stale key를 지우고 nil을 반환해 호출부가
+// MongoDB를 authoritative source로 다시 조회하게 한다.
+//
+// 매 cache hit마다 MongoDB round-trip이 추가되어 읽기 경로에서의 캐시 이점이 사실상
+// 사라진다. 저비용 검증(generation/tombstone 비교)은 후속 작업으로 남겨둔다.
+func (r *cachedSessionRepository) verifyStillActive(ctx context.Context, cached *room.VoiceSession) *room.VoiceSession {
+	authoritative, err := r.mongo.GetSession(ctx, cached.SessionID)
+	if err != nil {
+		slog.Warn("redis: cache verification failed, falling back to mongo", "err", err, "session_id", cached.SessionID)
+		return nil
+	}
+	if authoritative != nil && authoritative.Status == room.StatusActive {
+		return authoritative
+	}
+	r.evictSession(ctx, cached)
+	return nil
 }
 
 func (r *cachedSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, bool, error) {
