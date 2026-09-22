@@ -67,22 +67,82 @@ defmodule CoworkUser.Accounts do
   end
 
   def update_my_profile(user_id, attrs) do
-    roles = attrs["roles"] |> normalize_roles()
-    account_update_attrs = build_profile_account_attrs(attrs, user_id)
+    with {:ok, plan} <- build_profile_update_plan(attrs) do
+      if no_op_plan?(plan) do
+        get_my_profile(user_id)
+      else
+        apply_profile_update_plan(user_id, plan)
+      end
+    end
+  end
 
+  # nickname/description/github_id: 키가 없으면 기존 값 유지, 명시적 null은 값을 비움.
+  # name: 필수 필드라 명시적 null은 오류로 거부.
+  # roles: 키가 없으면 기존 목록 유지, null/비배열은 오류, 배열이면(빈 배열 포함) 전체 교체.
+  @doc false
+  def build_profile_update_plan(attrs) when is_map(attrs) do
+    with {:ok, nickname_change} <- nilable_field_change(attrs, "nickname", :nickname),
+         {:ok, description_change} <- nilable_field_change(attrs, "description", :description),
+         {:ok, name_change} <- required_on_provide_field_change(attrs, "name", :name),
+         {:ok, github_change} <- nilable_field_change(attrs, "github_id", :github),
+         {:ok, roles_plan} <- role_replacement_plan(attrs) do
+      {:ok,
+       %{
+         profile_changes: Map.merge(nickname_change, description_change),
+         account_changes: Map.merge(name_change, github_change),
+         roles: roles_plan
+       }}
+    end
+  end
+
+  defp no_op_plan?(%{
+         profile_changes: profile_changes,
+         account_changes: account_changes,
+         roles: :keep
+       }),
+       do: profile_changes == %{} and account_changes == %{}
+
+  defp no_op_plan?(_plan), do: false
+
+  defp nilable_field_change(attrs, key, field) do
+    if Map.has_key?(attrs, key) do
+      {:ok, %{field => attrs[key]}}
+    else
+      {:ok, %{}}
+    end
+  end
+
+  defp required_on_provide_field_change(attrs, key, field) do
+    case Map.fetch(attrs, key) do
+      :error -> {:ok, %{}}
+      {:ok, nil} -> {:error, {:validation, "#{key} 값은 null일 수 없습니다."}}
+      {:ok, value} -> {:ok, %{field => value}}
+    end
+  end
+
+  defp role_replacement_plan(attrs) do
+    case Map.fetch(attrs, "roles") do
+      :error -> {:ok, :keep}
+      {:ok, nil} -> {:error, {:validation, "roles 값은 null일 수 없습니다."}}
+      {:ok, roles} when is_list(roles) -> {:ok, {:replace, normalize_roles(roles)}}
+      {:ok, _invalid} -> {:error, {:validation, "roles 값은 배열이어야 합니다."}}
+    end
+  end
+
+  defp apply_profile_update_plan(user_id, plan) do
     Repo.transaction(fn ->
       with %Account{} = account <- lock_account(user_id),
            %Profile{} = profile <- lock_profile(user_id),
            {:ok, _profile} <-
              profile
-             |> Profile.changeset(%{
-               nickname: Map.get(attrs, "nickname"),
-               description: Map.get(attrs, "description"),
-               last_modified_by: user_id
-             })
+             |> Profile.changeset(Map.put(plan.profile_changes, :last_modified_by, user_id))
              |> Repo.update(),
-           :ok <- replace_roles_in_transaction(profile.id, roles),
-           {:ok, _account} <- maybe_update_profile_account(account, account_update_attrs) do
+           :ok <- apply_roles_plan(profile.id, plan.roles),
+           {:ok, _account} <-
+             maybe_update_profile_account(
+               account,
+               Map.put(plan.account_changes, :last_modified_by, user_id)
+             ) do
         ProfileEventPublisher.enqueue_current_upsert!(Repo, user_id)
         :ok
       else
@@ -101,6 +161,11 @@ defmodule CoworkUser.Accounts do
         {:error, {:validation, format_changeset_errors(changeset)}}
     end
   end
+
+  defp apply_roles_plan(_profile_id, :keep), do: :ok
+
+  defp apply_roles_plan(profile_id, {:replace, roles}),
+    do: replace_roles_in_transaction(profile_id, roles)
 
   defp maybe_update_profile_account(account, attrs) when map_size(attrs) > 1 do
     account
@@ -450,14 +515,6 @@ defmodule CoworkUser.Accounts do
             {:error, {:team_projection, reason}}
         end
     end
-  end
-
-  defp build_profile_account_attrs(attrs, user_id) do
-    Enum.reduce([{"name", :name}, {"github_id", :github}], %{last_modified_by: user_id}, fn {key,
-                                                                                             field},
-                                                                                            acc ->
-      if Map.has_key?(attrs, key), do: Map.put(acc, field, attrs[key]), else: acc
-    end)
   end
 
   @doc false

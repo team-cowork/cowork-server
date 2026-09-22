@@ -230,9 +230,9 @@ defmodule CoworkUser.OpenAPI do
     %{
       type: "object",
       properties: %{
-        nickname: %{type: "string"},
+        nickname: %{type: "string", nullable: true},
         name: %{type: "string"},
-        description: %{type: "string"},
+        description: %{type: "string", nullable: true},
         github_id: %{type: "string", nullable: true},
         roles: %{type: "array", items: %{type: "string"}}
       }
