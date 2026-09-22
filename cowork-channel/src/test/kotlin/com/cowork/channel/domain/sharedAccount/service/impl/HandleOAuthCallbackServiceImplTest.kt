@@ -55,7 +55,7 @@ class HandleOAuthCallbackServiceImplTest :
 
         val oAuthProperties = OAuthProperties(
             callbackBaseUrl = "https://example.com",
-            clientRedirectUrl = "https://client.example.com",
+            allowedReturnOrigins = listOf("https://client.example.com"),
             stateSecret = STATE_SECRET,
             github = OAuthProviderConfig(
                 clientId = "gh-id",
@@ -90,6 +90,7 @@ class HandleOAuthCallbackServiceImplTest :
                 "channelId" to channelId,
                 "userId" to userId,
                 "provider" to provider.name,
+                "returnOrigin" to oAuthProperties.allowedReturnOrigins.first(),
                 "nonce" to UUID.randomUUID().toString(),
                 "exp" to (Instant.now().epochSecond + expOffset),
             )
