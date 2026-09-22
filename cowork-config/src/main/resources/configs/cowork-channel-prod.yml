@@ -6,6 +6,18 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
+    hikari:
+      # Tomcat 처리 스레드가 동시에 요청하는 connection 수를 상회하도록 잡되,
+      # MySQL max_connections를 서비스 인스턴스 수로 나눈 값을 넘지 않게 유지한다.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:20}
+      minimum-idle: ${DB_POOL_MIN_IDLE:5}
+      # pool 고갈 시 무한 대기 대신 빠르게 실패시켜 스레드 점유가 번지지 않게 한다.
+      connection-timeout: 3000
+      validation-timeout: 1000
+      idle-timeout: 600000
+      max-lifetime: 1500000
+      keepalive-time: 120000
+      pool-name: channel-hikari
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
@@ -34,6 +46,10 @@ projection:
 account-share:
   encryption-key: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}
   oauth:
+    # 외부 제공자 지연이 무한정 이어지지 않도록 상한을 둔다. OAuth 콜백은
+    # transaction 밖에서 호출되지만, 상한이 없으면 요청 스레드가 묶인다.
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
     callback-base-url: ${PUBLIC_API_BASE_URL}
     allowed-return-origins: "${PUBLIC_WEB_ORIGINS}"
     state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
