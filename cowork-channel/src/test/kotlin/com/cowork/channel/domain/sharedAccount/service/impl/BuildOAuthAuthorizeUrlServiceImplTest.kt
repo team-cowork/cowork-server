@@ -11,135 +11,119 @@ import com.cowork.channel.domain.sharedAccount.service.SharedAccountAccessGuard
 import com.cowork.channel.domain.sharedAccount.service.support.OAuthStateSupport
 import com.cowork.channel.global.config.OAuthProperties
 import com.cowork.channel.global.config.OAuthProviderConfig
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldStartWith
 import io.mockk.every
 import io.mockk.mockk
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import org.springframework.web.util.UriComponentsBuilder
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.Optional
 
-class BuildOAuthAuthorizeUrlServiceImplTest {
-
-    private val objectMapper = jacksonObjectMapper()
-
-    private val oAuthProperties = OAuthProperties(
-        callbackBaseUrl = "https://example.com",
-        clientRedirectUrl = "https://client.example.com",
-        stateSecret = "test-state-secret-key",
-        github = OAuthProviderConfig(
-            "gh-id",
-            "gh-secret",
-            "https://github.com/login/oauth/access_token",
-            "https://api.github.com/user",
-            "read:user",
-        ),
-        notion = OAuthProviderConfig(
-            "no-id",
-            "no-secret",
-            "https://api.notion.com/v1/oauth/token",
-            "https://api.notion.com/v1/users/me",
-            "",
-        ),
-        jira = OAuthProviderConfig(
-            "jira-id",
-            "jira-secret",
-            "https://auth.atlassian.com/oauth/token",
-            "https://api.atlassian.com/me",
-            "read:me",
-        ),
-        google = OAuthProviderConfig(
-            "go-id",
-            "go-secret",
-            "https://oauth2.googleapis.com/token",
-            "https://openidconnect.googleapis.com/v1/userinfo",
-            "openid email",
-        ),
-        facebook = OAuthProviderConfig(
-            "fb-id",
-            "fb-secret",
-            "https://graph.facebook.com/v18.0/oauth/access_token",
-            "https://graph.facebook.com/me",
-            "public_profile",
-        ),
-    )
-
-    private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val teamPermissionService = mockk<TeamPermissionService>()
-    private val channelAccessGuard = ChannelAccessGuard(channelRepository)
-    private val sharedAccountAccessGuard = SharedAccountAccessGuard()
-    private val oAuthStateSupport = OAuthStateSupport(oAuthProperties, objectMapper)
-
-    private val service = BuildOAuthAuthorizeUrlServiceImpl(
-        oAuthProperties,
-        channelAccessGuard,
-        teamPermissionService,
-        sharedAccountAccessGuard,
-        oAuthStateSupport,
-    )
-
-    private fun accountShareChannel(teamId: Long = 100L) = Channel(
-        id = 1L, teamId = teamId, name = "ch", type = ChannelType.TEXT,
-        viewType = ChannelViewType.ACCOUNT_SHARE, description = null,
-        isPrivate = false, position = 0, createdBy = 1L, projectId = null,
-    )
-
-    private fun textChannel() = Channel(
-        id = 1L, teamId = 100L, name = "ch", type = ChannelType.TEXT,
-        viewType = ChannelViewType.TEXT, description = null,
-        isPrivate = false, position = 0, createdBy = 1L, projectId = null,
-    )
-
-    @Test
-    fun `buildAuthorizeUrl는 ACCOUNT_SHARE 채널이 아니면 BAD_REQUEST`() {
-        every { channelRepository.findById(1L) } returns Optional.of(textChannel())
-
-        val ex = assertThrows<ExpectedException> {
-            service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB)
-        }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-    }
-
-    @Test
-    fun `buildAuthorizeUrl는 팀 비멤버이면 FORBIDDEN`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 7L) } throws
-            ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-
-        val ex = assertThrows<ExpectedException> {
-            service.buildAuthorizeUrl(1L, 7L, AccountProvider.GITHUB)
-        }
-        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-    }
-
-    @Test
-    fun `buildAuthorizeUrl는 OAuth 미지원 provider이면 BAD_REQUEST`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
-
-        val ex = assertThrows<ExpectedException> {
-            service.buildAuthorizeUrl(1L, 1L, AccountProvider.NPM)
-        }
-        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-    }
-
-    @Test
-    fun `buildAuthorizeUrl는 GITHUB provider이면 github 인증 URL을 반환함`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
-
-        val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB)
-
-        assertTrue(url.startsWith("https://github.com/login/oauth/authorize"))
-        assertTrue(url.contains("client_id=gh-id"))
-        assertTrue(url.contains("state="))
-        assertEquals(
-            "https://example.com/api/channel/channels/oauth/callback/github",
-            UriComponentsBuilder.fromUriString(url).build().queryParams.getFirst("redirect_uri"),
+class BuildOAuthAuthorizeUrlServiceImplTest :
+    DescribeSpec({
+        val defaultOrigin = "https://client.example.com"
+        val otherOrigin = "https://admin.example.com"
+        val properties = OAuthProperties(
+            callbackBaseUrl = "https://example.com",
+            allowedReturnOrigins = listOf(defaultOrigin, otherOrigin),
+            stateSecret = "test-state-secret-key",
+            github = OAuthProviderConfig(
+                "gh-id",
+                "gh-secret",
+                "https://github.com/login/oauth/access_token",
+                "https://api.github.com/user",
+                "read:user",
+            ),
         )
-    }
-}
+        val stateSupport = OAuthStateSupport(properties, jacksonObjectMapper())
+        val channel = Channel(
+            id = 1L, teamId = 100L, name = "ch", type = ChannelType.TEXT,
+            viewType = ChannelViewType.ACCOUNT_SHARE, description = null,
+            isPrivate = false, position = 0, createdBy = 1L, projectId = null,
+        )
+        lateinit var channelRepository: ChannelRepository
+        lateinit var teamPermissionService: TeamPermissionService
+        lateinit var service: BuildOAuthAuthorizeUrlServiceImpl
+
+        beforeEach {
+            channelRepository = mockk()
+            teamPermissionService = mockk()
+            every { channelRepository.findById(1L) } returns Optional.of(channel)
+            every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+            service = BuildOAuthAuthorizeUrlServiceImpl(
+                properties,
+                ChannelAccessGuard(channelRepository),
+                teamPermissionService,
+                SharedAccountAccessGuard(),
+                stateSupport,
+            )
+        }
+
+        describe("buildAuthorizeUrl 메서드는") {
+            it("ACCOUNT_SHARE 채널이 아니면 BAD_REQUEST를 반환한다") {
+                val textChannel = Channel(
+                    id = 1L, teamId = 100L, name = "ch", type = ChannelType.TEXT,
+                    viewType = ChannelViewType.TEXT, description = null,
+                    isPrivate = false, position = 0, createdBy = 1L, projectId = null,
+                )
+                every { channelRepository.findById(1L) } returns Optional.of(textChannel)
+
+                shouldThrow<ExpectedException> {
+                    service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB)
+                }.statusCode shouldBe HttpStatus.BAD_REQUEST
+            }
+
+            it("팀 비멤버이면 FORBIDDEN을 반환한다") {
+                every { teamPermissionService.requireTeamMember(100L, 7L) } throws
+                    ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+
+                shouldThrow<ExpectedException> {
+                    service.buildAuthorizeUrl(1L, 7L, AccountProvider.GITHUB, otherOrigin)
+                }.statusCode shouldBe HttpStatus.FORBIDDEN
+            }
+
+            it("OAuth 미지원 provider이면 BAD_REQUEST를 반환한다") {
+                shouldThrow<ExpectedException> {
+                    service.buildAuthorizeUrl(1L, 1L, AccountProvider.NPM)
+                }.statusCode shouldBe HttpStatus.BAD_REQUEST
+            }
+
+            it("복귀 Origin을 생략하면 기본 주소를 담은 GitHub 인증 URL을 반환한다") {
+                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB)
+                val params = UriComponentsBuilder.fromUriString(url).build().queryParams
+
+                url shouldStartWith "https://github.com/login/oauth/authorize"
+                params.getFirst("client_id") shouldBe "gh-id"
+                params.getFirst("redirect_uri") shouldBe
+                    "https://example.com/api/channel/channels/oauth/callback/github"
+                stateSupport.verifyState(
+                    requireNotNull(params.getFirst("state")),
+                    AccountProvider.GITHUB,
+                ).returnOrigin shouldBe
+                    defaultOrigin
+            }
+
+            it("선택한 복귀 Origin을 state에 저장하고 provider 콜백은 서버 주소를 유지한다") {
+                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB, otherOrigin)
+                val params = UriComponentsBuilder.fromUriString(url).build().queryParams
+
+                params.getFirst("redirect_uri") shouldBe
+                    "https://example.com/api/channel/channels/oauth/callback/github"
+                stateSupport.verifyState(
+                    requireNotNull(params.getFirst("state")),
+                    AccountProvider.GITHUB,
+                ).returnOrigin shouldBe
+                    otherOrigin
+            }
+
+            it("허용되지 않은 Origin으로는 인증을 시작할 수 없다") {
+                shouldThrow<ExpectedException> {
+                    service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB, "https://evil.example.com")
+                }.statusCode shouldBe HttpStatus.BAD_REQUEST
+            }
+        }
+    })
