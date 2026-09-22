@@ -51,7 +51,7 @@ account-share:
     connect-timeout-ms: 3000
     read-timeout-ms: 5000
     callback-base-url: ${PUBLIC_API_BASE_URL}
-    client-redirect-url: ${PUBLIC_WEB_ORIGIN}
+    allowed-return-origins: "${PUBLIC_WEB_ORIGINS}"
     state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
     github:
       client-id: ${GITHUB_ACCOUNT_SHARE_CLIENT_ID:}

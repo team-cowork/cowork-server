@@ -11,7 +11,7 @@ class OAuthPropertiesConfig
 @ConfigurationProperties(prefix = "account-share.oauth")
 data class OAuthProperties(
     val callbackBaseUrl: String = "http://localhost:8080",
-    val clientRedirectUrl: String = "http://localhost:3000",
+    val allowedReturnOrigins: List<String> = listOf("http://localhost:3000"),
     val stateSecret: String = "",
     val connectTimeoutMs: Long = 3_000,
     val readTimeoutMs: Long = 5_000,
