@@ -3,8 +3,11 @@ package kafka
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log"
 	"time"
+
+	"github.com/cowork/authorization/internal/monitoring"
 )
 
 const (
@@ -26,6 +29,7 @@ type outboxRecord struct {
 	key       string
 	payload   []byte
 	partition *int
+	webhook   bool
 }
 
 // OutboxRelay publishes committed rows in id order. A crash after Kafka accepts a
@@ -97,6 +101,7 @@ func (r *OutboxRelay) relayOnce(ctx context.Context) {
 		return
 	}
 
+	completedWebhooks := 0
 	for _, record := range records {
 		publishCtx, cancel := context.WithTimeout(ctx, outboxPublishTimeout)
 		var err error
@@ -113,12 +118,27 @@ func (r *OutboxRelay) relayOnce(ctx context.Context) {
 		}
 		cancel()
 		if err != nil {
-			if ctx.Err() == nil {
-				markOutboxFailure(ctx, tx, record.id, err)
-				log.Printf("failed to publish authorization outbox row %d to %s: %v", record.id, record.topic, err)
+			if record.webhook {
+				monitoring.RecordWebhookPublishFailure()
 			}
-			if commitErr := tx.Commit(); commitErr != nil && ctx.Err() == nil {
-				log.Printf("failed to commit authorization outbox failure state: %v", commitErr)
+			if ctx.Err() == nil {
+				failure := err
+				if record.webhook {
+					failure = errors.New("webhook_publish_failed")
+				}
+				markOutboxFailure(ctx, tx, record.id, failure)
+				if record.webhook {
+					log.Println("Failed to publish webhook outbox row")
+				} else {
+					log.Printf("failed to publish authorization outbox row %d to %s: %v", record.id, record.topic, err)
+				}
+			}
+			if commitErr := tx.Commit(); commitErr != nil {
+				if ctx.Err() == nil {
+					log.Println("Failed to commit authorization outbox failure state")
+				}
+			} else {
+				monitoring.RecordWebhookPublished(completedWebhooks)
 			}
 			return
 		}
@@ -129,9 +149,16 @@ func (r *OutboxRelay) relayOnce(ctx context.Context) {
 			}
 			return
 		}
+		if record.webhook {
+			completedWebhooks++
+		}
 	}
-	if err := tx.Commit(); err != nil && ctx.Err() == nil {
-		log.Printf("failed to commit authorization outbox relay transaction: %v", err)
+	if err := tx.Commit(); err != nil {
+		if ctx.Err() == nil {
+			log.Println("Failed to commit authorization outbox relay transaction")
+		}
+	} else {
+		monitoring.RecordWebhookPublished(completedWebhooks)
 	}
 }
 
@@ -160,7 +187,7 @@ func releaseOutboxLock(conn *sql.Conn) {
 func loadOutboxBatch(ctx context.Context, tx *sql.Tx) ([]outboxRecord, error) {
 	rows, err := tx.QueryContext(
 		ctx,
-		`SELECT id, topic, partition_id, event_key, payload
+		`SELECT id, topic, partition_id, event_key, payload, source_event_id IS NOT NULL
 		 FROM tb_kafka_outbox
 		 ORDER BY id ASC
 		 LIMIT ?
@@ -176,7 +203,7 @@ func loadOutboxBatch(ctx context.Context, tx *sql.Tx) ([]outboxRecord, error) {
 	for rows.Next() {
 		var record outboxRecord
 		var partition sql.NullInt64
-		if err := rows.Scan(&record.id, &record.topic, &partition, &record.key, &record.payload); err != nil {
+		if err := rows.Scan(&record.id, &record.topic, &partition, &record.key, &record.payload, &record.webhook); err != nil {
 			return nil, err
 		}
 		if partition.Valid {
