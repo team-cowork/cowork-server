@@ -13,6 +13,8 @@ data class OAuthProperties(
     val callbackBaseUrl: String = "http://localhost:8080",
     val allowedReturnOrigins: List<String> = listOf("http://localhost:3000"),
     val stateSecret: String = "",
+    val connectTimeoutMs: Long = 3_000,
+    val readTimeoutMs: Long = 5_000,
     val github: OAuthProviderConfig = OAuthProviderConfig(),
     val notion: OAuthProviderConfig = OAuthProviderConfig(),
     val jira: OAuthProviderConfig = OAuthProviderConfig(),
