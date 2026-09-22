@@ -2,11 +2,22 @@
 
 - **서비스**: cowork-authorization
 - **우선순위**: 🔴 높음
-- **현재 상태**: `POST /events/datagsm`가 처리 여부 조회, 학생별 Kafka 직접 발행, 처리 완료 기록을 서로 분리해 실행함
+- **현재 상태**: 웹훅 전체 배치의 inbox·outbox 원자 접수와 30일 접수·보관 정책을 구현함
 
-> **설계 결정:** 중복 방지 기록은 30일 보관하고 발생 후 30일 이상 지난 이벤트의 신규 접수는 거부한다. 발행 대기 outbox가 남은 기록은 발행 완료까지 보존한다. 구버전 병행 운영과 과거 데이터 이관은 구현 범위에 포함하지 않는다. 아래 내용은 구현 명세이며 아직 코드에 적용하지 않았다.
+> **설계 결정:** 중복 방지 기록은 30일 보관하고 발생 후 30일 이상 지난 이벤트의 신규 접수는 거부한다. 발행 대기 outbox가 남은 기록은 발행 완료까지 보존한다. 구버전 병행 운영과 과거 데이터 이관은 구현 범위에 포함하지 않는다. 아래 명세를 코드에 반영했으며 검증 결과와 운영 확인 범위는 진행 상태에 기록한다.
 
-## 문제
+## 진행 상태
+
+| 범위 | 결과 |
+|---|---|
+| 원자 접수 | `WebhookInboxRepository.SubmitBatch`가 ID claim과 전체 outbox를 한 transaction으로 저장한다. 서비스의 Kafka 직접 발행과 기존 7일 정리 경로를 제거했다. |
+| 입력·응답 | 전체 배치 검증, 내용 충돌, 본문 한도, 서명 검증과 접수 결과별 HTTP 응답을 반영했다. |
+| 보관·관측 | DB 시각의 30일 접수 기한과 5분 미래 허용, 미발행 참조 보호, 만료 정리와 접수·발행·cleanup 지표를 반영했다. |
+| schema·문서 | `V9__add_webhook_inbox.sql`, schema runner, Swagger와 [운영 문서](../../../authorization-webhooks.md)를 갱신했다. |
+| 자동 검증 | 핵심 입력·서명·접수 시각 단위 테스트, `go build`, `go vet`, `golangci-lint`와 Swagger 생성이 통과했다. |
+| 운영 확인 | 실제 DB migration·동시 접수·commit 경계 종료·Kafka 장애 복구·만료 정리는 실행하지 않았다. 자동화 통합·회귀 테스트는 추가하거나 실행하지 않았다. |
+
+## 구현 전 문제
 
 `cowork-authorization/internal/service/event_service.go`의 `ProcessEvent`는 webhook `event_id`로 `ProcessedEventStore.Exists`를 먼저 조회한다. 미처리 event이면 `data.new[]`를 여러 `user.data.sync` 메시지로 만든 뒤 `EventPublisher.Publish`를 순차 호출하고, 모든 호출이 끝난 다음 `MarkProcessed`를 실행한다. 조회와 완료 기록 사이에 원자적인 claim이 없어 동일 event의 동시 요청 두 개가 모두 미처리 상태를 관측하고 같은 batch를 발행할 수 있다.
 
@@ -101,7 +112,7 @@ relay의 기존 순서 보장과 retry를 유지한다. 실패 row를 임의로 
 ### 2. inbox와 outbox 저장
 
 - `ProcessedEventStore`, `ProcessedEventRepository`, `ProcessedEvent`를 inbox 모델과 `SubmitBatch` repository로 교체한다.
-- 신규 schema migration에서 inbox와 outbox source 제약을 정의하고 사용하지 않는 `tb_processed_events`를 제거한다. 현재 마지막 migration은 `V8`이며 구현 시 해당 서비스의 최신 번호를 다시 확인한다.
+- 신규 schema migration에서 inbox와 outbox source 제약을 정의하고 사용하지 않는 `tb_processed_events`를 제거한다. 이 변경에서는 `V9__add_webhook_inbox.sql`로 적용했다.
 - 커밋된 migration 파일은 수정하지 않는다. 새 DDL은 빈 DB에서 전체 migration을 적용하는 경로를 기준으로 작성하고 구버전 기록의 hash 생성·backfill·병행 코드 경로는 만들지 않는다. 운영 DB 초기화나 데이터 삭제는 이 설계 작업에서 실행하지 않는다.
 - `cowork-authorization/internal/infra/mysql/migrate.go`의 새 버전 schema 검증도 갱신한다. 이 runner는 SQL 파일만 추가하면 미등록 schema 검사 때문에 기동을 거부한다.
 - `cowork-authorization/cmd/main.go`의 주입과 cleanup을 교체하고 기존 7일 정리 코드를 제거한다. 요청·worker 종료 context를 전달한다.
