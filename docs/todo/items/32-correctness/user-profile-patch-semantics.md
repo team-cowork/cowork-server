@@ -4,6 +4,15 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: `PATCH /users/me`에서 미제공 필드가 기존 값 유지가 아니라 `nil` 또는 빈 역할 목록으로 해석됨
 
+> **2026-09-22 진척:** `cowork-user/lib/cowork_user/accounts.ex`에 필드별 PATCH 정책을 판별하는
+> 순수 함수 `build_profile_update_plan/1`을 분리했다. `nickname`/`description`/`github_id`는
+> 키 부재 시 기존 값을 유지하고 명시적 `null`만 값을 비우며, `name`은 명시적 `null`을 오류로
+> 거부하고, `roles`는 키 부재 시 기존 목록을 유지하고 배열이면(빈 배열 포함) 전체 교체한다.
+> `update_my_profile/2`는 이 계획을 적용해 실제로 변경 요청된 필드만 갱신하고, 모든 필드가
+> 미제공된 요청은 no-op으로 처리해 기존 프로필을 그대로 반환한다. `cowork-user/lib/cowork_user/open_api.ex`의
+> `nickname`/`description` schema에 `nullable: true`를 반영했다. 정책 함수 단위 테스트를
+> `cowork-user/test/cowork_user/accounts_profile_patch_policy_test.exs`에 추가했다.
+
 ## 문제
 
 `cowork-user/lib/cowork_user/router.ex`는 `PATCH /users/me`의 JSON 본문 전체를 `Accounts.update_my_profile/2`에 전달한다. `cowork-user/lib/cowork_user/accounts.ex`의 해당 함수는 `nickname`과 `description`을 항상 `Map.get/2`로 읽어 changeset에 넣으므로 키가 없을 때도 두 필드를 `nil`로 갱신한다. 반면 `name`과 `github_id`는 `build_profile_account_attrs/2`에서 `Map.has_key?/2`로 미제공 여부를 구분해 동작이 서로 다르다.
