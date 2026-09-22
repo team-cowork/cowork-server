@@ -100,3 +100,42 @@ groups:
         annotations:
           summary: "High Kafka consumer lag"
           description: "Consumer group {{ $labels.consumergroup }} lag is above 1000 for 5 minutes."
+
+  - name: cowork-datasource
+    rules:
+      # connection을 기다리는 스레드가 쌓이는 것은 pool 고갈의 선행 신호다.
+      # 기존 5xx 알림은 요청이 이미 실패한 뒤에야 울리므로 이 규칙으로 앞당겨 탐지한다.
+      - alert: coworkDbConnectionPoolPending
+        expr: hikaricp_connections_pending > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "DB connection pool has waiting threads"
+          description: "Service {{ $labels.service }} has threads waiting for a DB connection for more than 2 minutes."
+
+      - alert: coworkDbConnectionPoolSaturated
+        expr: |
+          (
+            hikaricp_connections_active /
+            hikaricp_connections_max
+          ) > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "DB connection pool near saturation"
+          description: "Service {{ $labels.service }} is using more than 90% of its DB connection pool for 5 minutes."
+
+      - alert: coworkDbConnectionAcquireSlow
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(hikaricp_connections_acquire_seconds_bucket[5m])) by (le, service)
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow DB connection acquisition"
+          description: "Service {{ $labels.service }} P99 connection acquire time is above 1s for 5 minutes."

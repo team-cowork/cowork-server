@@ -6,29 +6,40 @@ import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.domain.sharedAccount.entity.SharedAccount
 import com.cowork.channel.domain.sharedAccount.repository.SharedAccountRepository
 import com.cowork.channel.domain.sharedAccount.service.HandleOAuthCallbackService
+import com.cowork.channel.domain.sharedAccount.service.support.OAuthIdentityResolver
 import com.cowork.channel.domain.sharedAccount.service.support.OAuthStateSupport
 import com.cowork.channel.global.config.OAuthProperties
-import com.cowork.channel.global.config.OAuthProviderConfig
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.util.LinkedMultiValueMap
-import org.springframework.web.client.RestClient
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Base64
 
+/**
+ * OAuth 콜백을 세 단계로 나누어 처리한다.
+ *
+ * 1. 권한 검증 — 짧은 read transaction
+ * 2. 제공자 호출 — transaction 없음
+ * 3. 계정 저장 — 짧은 write transaction
+ *
+ * 외부 제공자 응답을 기다리는 동안 database connection을 점유하지 않도록 2단계를
+ * transaction 밖에 둔다. 자기 호출은 Spring proxy를 거치지 않아 `@Transactional`이
+ * 적용되지 않으므로, 경계는 [TransactionTemplate]으로 명시한다.
+ */
 @Service
-@Transactional
 class HandleOAuthCallbackServiceImpl(
     private val oAuthProperties: OAuthProperties,
     private val sharedAccountRepository: SharedAccountRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val oAuthStateSupport: OAuthStateSupport,
-    restClientBuilder: RestClient.Builder,
+    private val oAuthIdentityResolver: OAuthIdentityResolver,
+    transactionManager: PlatformTransactionManager,
 ) : HandleOAuthCallbackService {
-    private val restClient = restClientBuilder.build()
+
+    private val readTransaction = TransactionTemplate(transactionManager).apply { isReadOnly = true }
+    private val writeTransaction = TransactionTemplate(transactionManager)
 
     override fun handleCallback(providerName: String, code: String, state: String): SharedAccount {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
@@ -36,15 +47,33 @@ class HandleOAuthCallbackServiceImpl(
         }
 
         val (channelId, userId) = oAuthStateSupport.verifyState(state, provider)
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        readTransaction.executeWithoutResult { authorize(channelId, userId) }
+
         val config = oAuthStateSupport.providerConfigOf(provider)
         val callbackUrl = oAuthProperties.callbackUrl(provider.name)
+        val identifier = oAuthIdentityResolver.resolveIdentifier(provider, config, code, callbackUrl)
 
-        val accessToken = exchangeCode(provider, config, code, callbackUrl)
-        val identifier = fetchIdentifier(provider, config, accessToken)
-            ?: throw ExpectedException("사용자 식별자를 가져오지 못했습니다.", HttpStatus.BAD_GATEWAY)
+        return try {
+            requireNotNull(
+                writeTransaction.execute { persist(channelId, userId, provider, identifier) },
+            ) { "Shared account persistence returned no result." }
+        } catch (exception: DataIntegrityViolationException) {
+            // 같은 계정으로 콜백이 동시에 도착하면 uq_tb_channel_accounts_channel_provider_identifier
+            // 충돌이 날 수 있다. 재조회로 흡수해 멱등하게 만든다.
+            readTransaction.execute {
+                sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(channelId, provider, identifier)
+            } ?: throw exception
+        }
+    }
 
+    /** 채널 접근 권한을 검증한다. 외부 호출 전에 완료되어 connection을 즉시 반납한다. */
+    private fun authorize(channelId: Long, userId: Long) {
+        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+    }
+
+    /** 이미 연결된 계정이면 그대로 반환하고, 없으면 새로 저장한다. */
+    private fun persist(channelId: Long, userId: Long, provider: AccountProvider, identifier: String): SharedAccount {
         sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(channelId, provider, identifier)
             ?.let { return it }
 
@@ -54,114 +83,10 @@ class HandleOAuthCallbackServiceImpl(
                 provider = provider,
                 providerLabel = null,
                 accountIdentifier = identifier,
-                credential = null,
                 connectedViaOAuth = true,
+                credential = null,
                 createdBy = userId,
             ),
         )
-    }
-
-    private fun exchangeCode(
-        provider: AccountProvider,
-        config: OAuthProviderConfig,
-        code: String,
-        callbackUrl: String,
-    ): String = when (provider) {
-        AccountProvider.GITHUB -> {
-            val body = LinkedMultiValueMap<String, String>().apply {
-                add("client_id", config.clientId)
-                add("client_secret", config.clientSecret)
-                add("code", code)
-                add("redirect_uri", callbackUrl)
-            }
-            val response = restClient.post()
-                .uri(config.tokenUrl)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .accept(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-            response["access_token"] as? String
-                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-        }
-
-        AccountProvider.NOTION -> {
-            val credentials = Base64.getEncoder()
-                .encodeToString("${config.clientId}:${config.clientSecret}".toByteArray())
-            val requestBody = mapOf(
-                "grant_type" to "authorization_code",
-                "code" to code,
-                "redirect_uri" to callbackUrl,
-            )
-            val response = restClient.post()
-                .uri(config.tokenUrl)
-                .header("Authorization", "Basic $credentials")
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(requestBody)
-                .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-            response["access_token"] as? String
-                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-        }
-
-        AccountProvider.JIRA -> {
-            val body = LinkedMultiValueMap<String, String>().apply {
-                add("grant_type", "authorization_code")
-                add("client_id", config.clientId)
-                add("client_secret", config.clientSecret)
-                add("code", code)
-                add("redirect_uri", callbackUrl)
-            }
-            val response = restClient.post()
-                .uri(config.tokenUrl)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(body)
-                .retrieve()
-                .body(Map::class.java) ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-            response["access_token"] as? String
-                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-        }
-
-        AccountProvider.GOOGLE, AccountProvider.FACEBOOK -> {
-            val body = LinkedMultiValueMap<String, String>().apply {
-                add("grant_type", "authorization_code")
-                add("client_id", config.clientId)
-                add("client_secret", config.clientSecret)
-                add("code", code)
-                add("redirect_uri", callbackUrl)
-            }
-            val response = restClient.post()
-                .uri(config.tokenUrl)
-                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                .body(body)
-                .retrieve()
-                .body(Map::class.java)
-                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-            response["access_token"] as? String
-                ?: throw ExpectedException("OAuth 토큰 교환에 실패했습니다.", HttpStatus.BAD_GATEWAY)
-        }
-
-        else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
-    }
-
-    private fun fetchIdentifier(provider: AccountProvider, config: OAuthProviderConfig, accessToken: String): String? {
-        val response = restClient.get()
-            .uri(config.userinfoUrl)
-            .header("Authorization", "Bearer $accessToken")
-            .header("Accept", "application/json")
-            .also {
-                if (provider == AccountProvider.NOTION) it.header("Notion-Version", "2022-06-28")
-            }
-            .retrieve()
-            .body(Map::class.java) ?: return null
-
-        return when (provider) {
-            AccountProvider.GITHUB -> response["login"] as? String
-            AccountProvider.NOTION -> response["id"] as? String
-            AccountProvider.JIRA -> response["account_id"] as? String
-            AccountProvider.GOOGLE -> response["sub"] as? String
-            AccountProvider.FACEBOOK -> response["id"] as? String
-            else -> null
-        }
     }
 }
