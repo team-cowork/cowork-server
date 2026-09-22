@@ -226,7 +226,7 @@ const docTemplate = `{
         },
         "/events/datagsm": {
             "post": {
-                "description": "DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.",
+                "description": "서명을 검증한 student.updated 배치의 inbox와 전체 outbox를 같은 DB 트랜잭션으로 저장합니다. 200은 접수 완료이며 Kafka 발행 및 학생 정보 반영은 비동기입니다. 동일 ID·동일 내용은 duplicate, 내용 충돌은 409입니다. 발생 후 30일 이상 지난 이벤트와 5분 초과 미래 이벤트는 거부합니다. 기록은 30일 보관하며 미발행 작업이 남으면 보존합니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -236,7 +236,7 @@ const docTemplate = `{
                 "tags": [
                     "events"
                 ],
-                "summary": "DataGSM webhook 수신",
+                "summary": "DataGSM webhook 영속 접수",
                 "parameters": [
                     {
                         "type": "string",
@@ -248,7 +248,16 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "수신 완료",
+                        "description": "accepted | duplicate | ignored",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "invalid_payload | event_expired | invalid_event_timestamp",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -257,7 +266,25 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "서명 검증 실패",
+                        "description": "invalid_signature",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "409": {
+                        "description": "event_id_conflict",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "413": {
+                        "description": "payload_too_large",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -266,7 +293,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "webhook secret 미설정",
+                        "description": "temporarily_unavailable | webhook_not_configured",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -309,7 +336,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "20260820.0",
+	Version:          "20260912.0",
 	Host:             "",
 	BasePath:         "/api/authorization",
 	Schemes:          []string{},
