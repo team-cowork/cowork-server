@@ -125,6 +125,74 @@
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
+    },
+    {
+      "id": 8,
+      "title": "DB Connection Pool 사용량",
+      "type": "timeseries",
+      "description": "Active가 Max에 붙으면 pool 고갈 상태다.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active{service=\"channel\"}",
+          "legendFormat": "Active",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "hikaricp_connections_idle{service=\"channel\"}",
+          "legendFormat": "Idle",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "hikaricp_connections_max{service=\"channel\"}",
+          "legendFormat": "Max",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "title": "DB Connection 대기 스레드",
+      "type": "timeseries",
+      "description": "0보다 크면 connection을 받지 못한 요청 스레드가 쌓이고 있다는 뜻이다. pool 고갈의 선행 신호다.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_pending{service=\"channel\"}",
+          "legendFormat": "Pending",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "title": "DB Connection 획득 시간 P99 (ms)",
+      "type": "timeseries",
+      "description": "pool 고갈이 시작되면 가장 먼저 치솟는 지표다.",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(hikaricp_connections_acquire_seconds_bucket{service=\"channel\"}[5m]))) * 1000",
+          "legendFormat": "P99",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "OAuth 외부 호출 P99 (ms)",
+      "type": "timeseries",
+      "description": "transaction 밖으로 분리한 외부 제공자 호출 지연이다.",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, provider, stage) (rate(channel_oauth_external_call_seconds_bucket{service=\"channel\"}[5m]))) * 1000",
+          "legendFormat": "{{provider}}/{{stage}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ]
     }
   ],
   "templating": {
