@@ -4,6 +4,8 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: `POST /events/datagsm`가 처리 여부 조회, 학생별 Kafka 직접 발행, 처리 완료 기록을 서로 분리해 실행함
 
+> **설계 결정:** 중복 방지 기록은 30일 보관하고 발생 후 30일 이상 지난 이벤트의 신규 접수는 거부한다. 발행 대기 outbox가 남은 기록은 발행 완료까지 보존한다. 구버전 병행 운영과 과거 데이터 이관은 구현 범위에 포함하지 않는다. 아래 내용은 구현 명세이며 아직 코드에 적용하지 않았다.
+
 ## 문제
 
 `cowork-authorization/internal/service/event_service.go`의 `ProcessEvent`는 webhook `event_id`로 `ProcessedEventStore.Exists`를 먼저 조회한다. 미처리 event이면 `data.new[]`를 여러 `user.data.sync` 메시지로 만든 뒤 `EventPublisher.Publish`를 순차 호출하고, 모든 호출이 끝난 다음 `MarkProcessed`를 실행한다. 조회와 완료 기록 사이에 원자적인 claim이 없어 동일 event의 동시 요청 두 개가 모두 미처리 상태를 관측하고 같은 batch를 발행할 수 있다.
