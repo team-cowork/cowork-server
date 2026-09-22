@@ -6,241 +6,85 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"log"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/domain"
 )
 
 const signaturePrefix = "sha256="
 
-// ErrInvalidPayload marks client/payload errors so the handler can respond 4xx
-// instead of triggering DataGSM retries with a 5xx.
-var ErrInvalidPayload = errors.New("invalid webhook payload")
+var ErrInvalidPayload = domain.ErrInvalidWebhookPayload
 
-// EventPublisher publishes a sync message to the user-owned sync stream.
-type EventPublisher interface {
-	Publish(ctx context.Context, key string, value []byte) error
-}
-
-// ProcessedEventStore records handled event ids for idempotency.
-type ProcessedEventStore interface {
-	Exists(eventID string) (bool, error)
-	MarkProcessed(eventID, eventType string) (bool, error)
-}
-
-// DataGSM webhook envelope.
-type WebhookEvent struct {
-	ID        string          `json:"id"`
-	Event     string          `json:"event"`
-	Timestamp string          `json:"timestamp"`
-	Data      json.RawMessage `json:"data"`
-}
-
-type studentEventData struct {
-	StudentID int64  `json:"student_id"`
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Sex       string `json:"sex"`
-	Role      string `json:"role"`
-
-	StudentNumber *int64  `json:"student_number"`
-	Major         *string `json:"major"`
-	Specialty     *string `json:"specialty"`
-	GithubID      *string `json:"github_id"`
-}
-
-type webhookEventData struct {
-	Old []indexedEventObject `json:"old"`
-	New []indexedEventObject `json:"new"`
-}
-
-type indexedEventObject struct {
-	Index  int             `json:"index"`
-	Object json.RawMessage `json:"object"`
-}
-
-type userSyncMessage struct {
-	EventType     string  `json:"event_type"`
-	EventID       string  `json:"event_id"`
-	EventIndex    int     `json:"event_index"`
-	OccurredAt    string  `json:"occurred_at"`
-	Email         string  `json:"email"`
-	Name          string  `json:"name"`
-	Sex           string  `json:"sex"`
-	StudentRole   string  `json:"student_role"`
-	StudentNumber *int64  `json:"student_number"`
-	Major         *string `json:"major"`
-	Specialty     *string `json:"specialty"`
-	GithubID      *string `json:"github_id"`
-	DataGSMRefID  int64   `json:"datagsm_student_id"`
-}
-
-var supportedStudentEvents = map[string]struct{}{
-	"student.updated": {},
+type WebhookInbox interface {
+	SubmitBatch(context.Context, domain.WebhookBatch, string) (domain.WebhookResult, error)
 }
 
 type EventService struct {
-	cfg           *config.AppConfig
-	publisher     EventPublisher
-	processedRepo ProcessedEventStore
+	cfg   *config.AppConfig
+	inbox WebhookInbox
 }
 
-func NewEventService(
-	cfg *config.AppConfig,
-	publisher EventPublisher,
-	processedRepo ProcessedEventStore,
-) *EventService {
-	return &EventService{
-		cfg:           cfg,
-		publisher:     publisher,
-		processedRepo: processedRepo,
-	}
+func NewEventService(cfg *config.AppConfig, inbox WebhookInbox) *EventService {
+	return &EventService{cfg: cfg, inbox: inbox}
 }
 
-// SecretConfigured reports whether webhook verification is available.
 func (s *EventService) SecretConfigured() bool {
 	return s.cfg.DataGSMWebhookSecret != ""
 }
 
-// VerifySignature validates the X-DataGSM-Signature header against the raw body.
 func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool {
-	if s.cfg.DataGSMWebhookSecret == "" {
+	if !s.SecretConfigured() {
 		return false
 	}
-	provided := strings.TrimPrefix(signatureHeader, signaturePrefix)
-	if provided == signatureHeader || provided == "" {
+	provided, ok := strings.CutPrefix(signatureHeader, signaturePrefix)
+	if !ok {
 		return false
 	}
-
 	providedBytes, err := hex.DecodeString(provided)
-	if err != nil {
+	if err != nil || len(providedBytes) != sha256.Size {
 		return false
 	}
-
 	mac := hmac.New(sha256.New, []byte(s.cfg.DataGSMWebhookSecret))
 	mac.Write(body)
-	expected := mac.Sum(nil)
-
-	return hmac.Equal(expected, providedBytes)
+	return hmac.Equal(mac.Sum(nil), providedBytes)
 }
 
-// ProcessEvent parses the verified webhook body and forwards student.updated
-// changes to cowork-user's owner sync stream. It is idempotent on event id.
-func (s *EventService) ProcessEvent(ctx context.Context, body []byte) error {
-	var envelope WebhookEvent
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		log.Printf("failed to parse webhook envelope: %v", err)
-		return fmt.Errorf("%w: failed to parse webhook envelope", ErrInvalidPayload)
-	}
-	if envelope.ID == "" || envelope.Event == "" {
-		return fmt.Errorf("%w: missing id or event", ErrInvalidPayload)
-	}
-	occurredAt, err := time.Parse(time.RFC3339Nano, envelope.Timestamp)
+// ProcessEvent acknowledges durable acceptance, not Kafka delivery or user mutation.
+func (s *EventService) ProcessEvent(ctx context.Context, body []byte) (domain.WebhookResult, error) {
+	envelope, occurredAt, err := parseWebhookEnvelope(body)
 	if err != nil {
-		return fmt.Errorf("%w: timestamp must be RFC3339", ErrInvalidPayload)
+		return "", err
+	}
+	if envelope.Event != "student.updated" {
+		return domain.WebhookIgnored, nil
+	}
+	items, err := parseStudentItems(envelope.Data)
+	if err != nil {
+		return "", err
+	}
+	canonical, err := json.Marshal(struct {
+		Event     string        `json:"event"`
+		Timestamp string        `json:"timestamp"`
+		Items     []studentItem `json:"items"`
+	}{envelope.Event, occurredAt.UTC().Format(time.RFC3339Nano), items})
+	if err != nil {
+		return "", err
+	}
+	batch := domain.WebhookBatch{
+		EventID: envelope.ID, EventType: envelope.Event,
+		OccurredAt: occurredAt, PayloadHash: sha256.Sum256(canonical),
 	}
 	envelope.Timestamp = occurredAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
-
-	if _, ok := supportedStudentEvents[envelope.Event]; !ok {
-		log.Printf("ignoring unsupported webhook event: %s", envelope.Event)
-		return nil
-	}
-
-	processed, err := s.processedRepo.Exists(envelope.ID)
-	if err != nil {
-		log.Printf("failed to check processed event %s: %v", envelope.ID, err)
-		return fmt.Errorf("failed to check processed event state")
-	}
-	if processed {
-		log.Printf("duplicate webhook event ignored: %s (%s)", envelope.ID, envelope.Event)
-		return nil
-	}
-
-	messages, err := s.buildUserSyncMessages(envelope)
-	if err != nil {
-		return err
-	}
-	for _, message := range messages {
+	for _, message := range studentMessages(envelope, items) {
 		payload, err := json.Marshal(message)
 		if err != nil {
-			return fmt.Errorf("failed to marshal sync message: %w", err)
+			return "", err
 		}
-		if err := s.publisher.Publish(ctx, strconv.FormatInt(message.DataGSMRefID, 10), payload); err != nil {
-			return fmt.Errorf("failed to publish sync message: %w", err)
-		}
-	}
-	if _, err := s.processedRepo.MarkProcessed(envelope.ID, envelope.Event); err != nil {
-		log.Printf("failed to record processed event %s after publish: %v", envelope.ID, err)
-	}
-
-	return nil
-}
-
-func (s *EventService) buildUserSyncMessages(envelope WebhookEvent) ([]userSyncMessage, error) {
-	var data webhookEventData
-	if err := json.Unmarshal(envelope.Data, &data); err != nil {
-		log.Printf("failed to unmarshal student event data for %s: %v", envelope.ID, err)
-		return nil, fmt.Errorf("%w: failed to parse student event data", ErrInvalidPayload)
-	}
-	if len(data.New) == 0 {
-		return nil, fmt.Errorf("%w: event %s missing data.new", ErrInvalidPayload, envelope.ID)
-	}
-
-	messages := make([]userSyncMessage, 0, len(data.New))
-	for _, item := range data.New {
-		if isEmptyObject(item.Object) {
-			log.Printf("skipping empty student.updated new object for event %s index %d", envelope.ID, item.Index)
-			continue
-		}
-
-		var student studentEventData
-		if err := json.Unmarshal(item.Object, &student); err != nil {
-			log.Printf("failed to unmarshal student object for %s index %d: %v", envelope.ID, item.Index, err)
-			return nil, fmt.Errorf("%w: failed to parse student object", ErrInvalidPayload)
-		}
-		if student.StudentID <= 0 {
-			return nil, fmt.Errorf("%w: event %s index %d missing student_id", ErrInvalidPayload, envelope.ID, item.Index)
-		}
-		if student.Name == "" || student.Email == "" || student.Sex == "" {
-			return nil, fmt.Errorf("%w: event %s index %d missing required student field", ErrInvalidPayload, envelope.ID, item.Index)
-		}
-		if student.Role == "" {
-			return nil, fmt.Errorf("%w: event %s index %d missing role", ErrInvalidPayload, envelope.ID, item.Index)
-		}
-
-		messages = append(messages, userSyncMessage{
-			EventType:     envelope.Event,
-			EventID:       envelope.ID,
-			EventIndex:    item.Index,
-			OccurredAt:    envelope.Timestamp,
-			Email:         student.Email,
-			Name:          student.Name,
-			Sex:           student.Sex,
-			StudentRole:   student.Role,
-			StudentNumber: student.StudentNumber,
-			Major:         student.Major,
-			Specialty:     student.Specialty,
-			GithubID:      student.GithubID,
-			DataGSMRefID:  student.StudentID,
+		batch.Messages = append(batch.Messages, domain.WebhookMessage{
+			Index: message.EventIndex, Key: studentKey(message.DataGSMRefID), Payload: payload,
 		})
 	}
-
-	if len(messages) == 0 {
-		log.Printf("no student objects to publish for event %s", envelope.ID)
-	}
-
-	return messages, nil
-}
-
-func isEmptyObject(raw json.RawMessage) bool {
-	var object map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &object); err != nil {
-		return false
-	}
-	return len(object) == 0
+	return s.inbox.SubmitBatch(ctx, batch, s.cfg.KafkaTopicUserSync)
 }
