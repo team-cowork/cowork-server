@@ -304,8 +304,10 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
 계정과 프로필 identity는 `cowork-user`가 소유합니다. authorization은 DataGSM 인증 정보로
 `user.identity.command`를 발행하고 user의 commit 결과를 확인한 뒤에만 세션과 토큰을 발급합니다.
-DataGSM webhook 변경은 `user.data.sync`로 전달하며, 공개 프로필의 `name`과 `github_id` 변경도
-user의 공개 API와 저장소에서 처리합니다.
+DataGSM webhook 변경은 authorization의 inbox와 outbox에 배치 전체를 원자적으로 접수한 뒤 `user.data.sync`로 전달합니다.
+웹훅의 `200`은 영속 접수 완료를 의미하며, 동일 ID·동일 내용은 중복 접수 없이 성공하고 다른 내용은 `409`로 거부합니다.
+접수 기록은 30일 보관하고 발생 후 30일 이상 지난 이벤트는 거부합니다. 미발행 작업의 보존·지표·복구 절차는
+[웹훅 운영 문서](./authorization-webhooks.md)를 따릅니다. 공개 프로필의 `name`과 `github_id` 변경도 user의 공개 API와 저장소에서 처리합니다.
 팀의 built-in 멤버십 역할은 `cowork-team`이 소유하고, 사용자 정의 역할과 할당은
 `cowork-preference`가 소유합니다. team의 공개 API 위치는 소유권을 옮기지 않으며,
 command/result와 local state projection으로 비동기 처리합니다. GitHub 저장소의 `label_auto_apply`도
