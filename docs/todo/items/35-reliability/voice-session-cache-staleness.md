@@ -3,6 +3,29 @@
 - **서비스**: cowork-voice
 - **우선순위**: 🔴 높음
 - **현재 상태**: MongoDB에서 종료된 음성 세션이 Redis eviction 실패나 경쟁 조건으로 최대 2시간 동안 active cache hit로 반환될 수 있음
+- **결론**: "stale read 차단"은 처리했다. "tombstone과 repair"(durable invalidation marker, repair worker, metric, runbook)는 남은 범위다.
+
+> **2026-09-22 진척:** `cowork-voice/internal/infra/redis/session_repository.go`의
+> `FindActiveSession`/`FindSessionByRoomName`이 cache hit을 후보로만 취급하도록 바꿨다.
+> 새 `verifyStillActive`가 cached session의 `SessionID`로 `mongo.GetSession`을 호출해
+> MongoDB의 현재 status가 `active`일 때만 그 값을 반환하고, 아니면 세 관련 key를 evict한 뒤
+> 호출부가 MongoDB를 다시 조회하게 한다. 이로써 eviction 실패나 지연된 write로 종료된
+> 세션이 `sessionTTL`(2시간) 동안 active로 반환되던 문제가 막힌다. 다만 매 cache hit마다
+> MongoDB round-trip이 추가되어 읽기 경로에서의 캐시 이점은 사실상 사라진다 — 저비용
+> 검증(generation/tombstone 비교)은 "tombstone과 repair" 절의 후속 작업으로 남겨둔다.
+>
+> `cowork-voice/internal/domain/voice_room/ports.go`의 `Repository.FindActiveSession`에
+> "항상 MongoDB 기준으로 active인 세션만 반환해야 한다"는 계약을 문서화했고,
+> `cowork-voice/internal/domain/voice_room/service.go`의 `Join`에 그 계약을 어기는 stale
+> 값이 오더라도 종료된 room으로 LiveKit token을 재발급하지 않는 방어적 재확인을 추가했다.
+> `cowork-voice/internal/domain/voice_room/service_test.go`에 "repository가 계약을 어기고
+> 종료된 세션을 반환해도 재사용하지 않는다" 단위 테스트를 추가했다(`go test ./...` 전체 통과).
+>
+> 남은 범위(미착수): 종료 update와 함께 기록하는 durable invalidation marker(tombstone),
+> Redis delete를 tombstone·version 비교로 원자화하는 것, repair worker, backoff/상한,
+> pending marker 수·최고 지연·stale 차단 횟수·repair 실패 metric, 그리고 복구 절차
+> runbook. 지금 구현은 "eviction이 실패해도 결국 stale 값이 나갈 수 있다"는 증상 자체는
+> 막았지만, 그 실패를 감지·복구하는 운영 메커니즘은 없다.
 
 ## 문제
 
