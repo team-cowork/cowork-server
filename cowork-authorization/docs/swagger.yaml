@@ -15,7 +15,7 @@ info:
   contact: {}
   description: 인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
   title: Cowork Authorization API
-  version: "20260820.0"
+  version: "20260912.0"
 paths:
   /auth/refresh:
     post:
@@ -156,8 +156,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로
-        전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+      description: 서명을 검증한 student.updated 배치의 inbox와 전체 outbox를 같은 DB 트랜잭션으로 저장합니다.
+        200은 접수 완료이며 Kafka 발행 및 학생 정보 반영은 비동기입니다. 동일 ID·동일 내용은 duplicate, 내용 충돌은 409입니다.
+        발생 후 30일 이상 지난 이벤트와 5분 초과 미래 이벤트는 거부합니다. 기록은 30일 보관하며 미발행 작업이 남으면 보존합니다.
       parameters:
       - description: sha256=<HMAC-SHA256(secret, body)>
         in: header
@@ -168,24 +169,42 @@ paths:
       - application/json
       responses:
         "200":
-          description: 수신 완료
+          description: accepted | duplicate | ignored
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: invalid_payload | event_expired | invalid_event_timestamp
           schema:
             additionalProperties:
               type: string
             type: object
         "401":
-          description: 서명 검증 실패
+          description: invalid_signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: event_id_conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: payload_too_large
           schema:
             additionalProperties:
               type: string
             type: object
         "503":
-          description: webhook secret 미설정
+          description: temporarily_unavailable | webhook_not_configured
           schema:
             additionalProperties:
               type: string
             type: object
-      summary: DataGSM webhook 수신
+      summary: DataGSM webhook 영속 접수
       tags:
       - events
 securityDefinitions:
