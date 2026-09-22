@@ -41,8 +41,6 @@ const (
 	healthTrailingPath  = "/health/"
 	metricsPath         = "/metrics"
 	metricsTrailingPath = "/metrics/"
-
-	processedEventRetention = 7 * 24 * time.Hour
 )
 
 func main() {
@@ -76,7 +74,7 @@ func main() {
 		log.Fatalf("failed to migrate schema: %v", err)
 	}
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
-	processedEventRepo := repository.NewProcessedEventRepository(db)
+	webhookInbox := repository.NewWebhookInboxRepository(sqlDB)
 	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
 	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
@@ -125,7 +123,13 @@ func main() {
 		identityResultConsumer.Run(outboxCtx)
 	}()
 
-	eventSvc := service.NewEventService(cfg, kafkaProducer, processedEventRepo)
+	webhookMaintenanceDone := make(chan struct{})
+	go func() {
+		defer close(webhookMaintenanceDone)
+		webhookInbox.RunMaintenance(outboxCtx)
+	}()
+
+	eventSvc := service.NewEventService(cfg, webhookInbox)
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
@@ -185,9 +189,6 @@ func main() {
 				); err != nil {
 					log.Printf("failed to reconcile expired refresh sessions: %v", err)
 				}
-				if err := processedEventRepo.DeleteOlderThan(processedEventRetention); err != nil {
-					log.Printf("failed to delete old processed events: %v", err)
-				}
 			case <-stopCleanup:
 				return
 			}
@@ -208,6 +209,11 @@ func main() {
 		log.Fatalf("server forced to shutdown: %v", err)
 	}
 	stopOutboxRelay()
+	select {
+	case <-webhookMaintenanceDone:
+	case <-time.After(5 * time.Second):
+		log.Println("Webhook maintenance did not stop within 5 seconds")
+	}
 	if err := identityResultConsumer.Close(); err != nil {
 		log.Printf("failed to close user identity result consumer: %v", err)
 	}
