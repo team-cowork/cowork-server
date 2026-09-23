@@ -8,7 +8,6 @@ require (
 	github.com/livekit/protocol v1.50.4 // v1.51 changes the SIP response type required by server-sdk-go v2.18.1.
 	github.com/livekit/server-sdk-go/v2 v2.18.1
 	github.com/prometheus/client_golang v1.24.1
-	github.com/redis/go-redis/v9 v9.22.0
 	github.com/segmentio/kafka-go v0.4.51
 	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/swaggo/swag v1.16.6
@@ -86,6 +85,7 @@ require (
 	github.com/prometheus/common v0.71.0 // indirect
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/puzpuzpuz/xsync/v4 v4.5.0 // indirect
+	github.com/redis/go-redis/v9 v9.22.0 // indirect
 	github.com/swaggo/files/v2 v2.0.2 // indirect
 	github.com/twitchtv/twirp v8.1.3+incompatible // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
