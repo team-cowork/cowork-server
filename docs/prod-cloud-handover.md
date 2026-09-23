@@ -118,7 +118,7 @@ flowchart TB
 | `notification` | Go, 알림·SSE·FCM | 8086 → 8086 | `/health/ready` | MySQL, Kafka, Firebase |
 | `chat` | NestJS/Node.js, 채팅·검색·첨부 | 8087 → 8087 | `/health/ready` | MongoDB, Kafka, Redis, Elasticsearch, S3 |
 | `roadmap` | Java/Spring WebFlux, 로드맵 | 8088 → 8088 | `/actuator/health/readiness` | MySQL(R2DBC + JDBC Flyway), Kafka |
-| `voice` | Go, 음성 세션 | 8089 → 8089 | `/health/ready` | MongoDB, Kafka, Redis, LiveKit |
+| `voice` | Go, 음성 세션 | 8089 → 8089 | `/health/ready` | MongoDB, Kafka, LiveKit |
 | `preference` | Kotlin/Vert.x, 설정·권한 정책 | **9001 → 9001 고정** | `/health/ready` | PostgreSQL, Kafka, Redis |
 | `monitoring` | 별도 Compose | 아래 모니터링 표 참고 | Prometheus `/-/ready` 등 | 각 앱 및 인프라 exporter |
 | `vault` | 별도 Compose, KV v2 | 사설 8200 → 8200 | `/v1/sys/health` | 지정한 영속 볼륨, HTTPS 프록시 |
@@ -389,7 +389,7 @@ mount가 바뀌면 정책, GitHub `VAULT_KV_MOUNT`, Config `VAULT_BACKEND`를 �
 | MySQL | `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `COWORK_MYSQL_PASSWORD` | port 기본 `3306`; 서비스별 DSN/DB env로 변환 |
 | PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `COWORK_POSTGRES_PASSWORD` | port 기본 `5432`; preference용 |
 | MongoDB | `MONGO_HOST`, `MONGO_PORT`, `MONGO_USER`, `COWORK_MONGO_PASSWORD` | port 기본 `27017`; chat/voice URI 생성 |
-| Redis | `REDIS_HOST`, `REDIS_PORT` | port 기본 `6379`; voice는 `REDIS_ADDR`로 변환 |
+| Redis | `REDIS_HOST`, `REDIS_PORT` | port 기본 `6379` |
 | 검색 | `ELASTICSEARCH_URL` | chat에서 접근 가능한 Elasticsearch URL |
 | S3 | `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | bucket 기본 `cowork-bucket`; key pair는 실제 서버 설정과 일치 |
 | LiveKit | `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 서버 API·클라이언트 WSS·서명 key pair |
@@ -428,7 +428,7 @@ config 외 앱은 `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`, `KAFKA_BOOTSTRAP_SER
 | preference | PostgreSQL 4종, Redis 주소; `HOST_PORT=9001` |
 | notification | MySQL 4종; Firebase는 앱 프로파일 Vault로 공급 |
 | chat | MongoDB 4종, `JWT_SECRET`, Redis 주소, `ELASTICSEARCH_URL`, S3 endpoint 3종 및 bucket/credential 계약 |
-| voice | MongoDB 4종, Redis 주소, LiveKit URL 2종·key pair |
+| voice | MongoDB 4종, LiveKit URL 2종·key pair |
 | vault | `VAULT_EXTERNAL_HOST`, `VAULT_BIND_IP`, `VAULT_DATA_VOLUME`; 사용할 project 이름, 필요 시 `VAULT_UNSEAL_KEY` |
 | monitoring | Config/Eureka URL, `MYSQL_HOST`, `REDIS_HOST`, `MONITORING_BIND_IP`, `MONITORING_VOLUME_PREFIX`, Grafana 비밀번호·Discord URL, 모든 exporter 접속값 |
 | log-agent | `LOG_HOST`, `LOKI_PUSH_URL`; Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR` |
