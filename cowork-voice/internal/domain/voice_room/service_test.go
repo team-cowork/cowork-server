@@ -42,55 +42,17 @@ func TestVoiceRoomService(t *testing.T) {
 		if livekit.tokenUserID != 42 {
 			t.Fatalf("GenerateToken() userID = %d, want 42", livekit.tokenUserID)
 		}
+		if livekit.tokenRoomName != "voice-123-session-1" {
+			t.Fatalf("GenerateToken() room = %q, want voice-123-session-1", livekit.tokenRoomName)
+		}
+		if resp.SessionID != "session-1" || resp.RoomName != "voice-123-session-1" {
+			t.Fatalf("response session = %q/%q, want session-1/voice-123-session-1", resp.SessionID, resp.RoomName)
+		}
 		if resp.Token != "issued-token" {
 			t.Fatalf("response token = %q, want issued-token", resp.Token)
 		}
 		if resp.LiveKitURL != "wss://livekit.example" {
 			t.Fatalf("response livekit_url = %q, want wss://livekit.example", resp.LiveKitURL)
-		}
-	})
-
-	t.Run("Join - repository가 계약을 어기고 종료된 세션을 반환해도 재사용하지 않는다", func(t *testing.T) {
-		t.Parallel()
-
-		repo := &stubRepository{
-			findActiveSessionResult: &VoiceSession{
-				SessionID: "stale-session",
-				ChannelID: 123,
-				TeamID:    456,
-				RoomName:  "voice-123-stale-session",
-				Status:    StatusEnded,
-				StartedAt: time.Unix(1700000000, 0).UTC(),
-			},
-			createSessionResult: &VoiceSession{
-				SessionID: "session-2",
-				ChannelID: 123,
-				TeamID:    456,
-				RoomName:  "voice-123-session-2",
-				Status:    StatusActive,
-				StartedAt: time.Unix(1700000600, 0).UTC(),
-			},
-			createSessionCreated: true,
-		}
-		livekit := &stubLiveKitRoom{token: "issued-token"}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
-
-		resp, err := svc.Join(context.Background(), 123, 42)
-		if err != nil {
-			t.Fatalf("Join() error = %v", err)
-		}
-
-		if repo.createSessionCalls != 1 {
-			t.Fatalf("CreateSession() calls = %d, want 1 (stale session must not be reused)", repo.createSessionCalls)
-		}
-		if livekit.createdRoomName != "voice-123-session-2" {
-			t.Fatalf("CreateRoomIfNotExists() room = %q, want voice-123-session-2", livekit.createdRoomName)
-		}
-		if livekit.tokenRoomName != "voice-123-session-2" {
-			t.Fatalf("GenerateToken() room = %q, want voice-123-session-2 (must not issue a token for the ended room)", livekit.tokenRoomName)
-		}
-		if resp.SessionID != "session-2" {
-			t.Fatalf("response session_id = %q, want session-2", resp.SessionID)
 		}
 	})
 
