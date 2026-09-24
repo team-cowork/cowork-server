@@ -31,12 +31,6 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	if err != nil {
 		return nil, err
 	}
-	// FindActiveSession의 계약은 status가 active인 세션만 반환하는 것이다. cache
-	// 무효화 실패 등으로 계약을 어기는 stale 값이 오더라도, 이미 종료된 room으로
-	// LiveKit token을 재발급하지 않도록 방어적으로 재확인한다.
-	if voiceSession != nil && voiceSession.Status != StatusActive {
-		voiceSession = nil
-	}
 	sessionCreatedByUs := false
 	if voiceSession == nil {
 		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, teamID)
