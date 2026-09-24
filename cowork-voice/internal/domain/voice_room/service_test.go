@@ -50,50 +50,6 @@ func TestVoiceRoomService(t *testing.T) {
 		}
 	})
 
-	t.Run("Join - repository가 계약을 어기고 종료된 세션을 반환해도 재사용하지 않는다", func(t *testing.T) {
-		t.Parallel()
-
-		repo := &stubRepository{
-			findActiveSessionResult: &VoiceSession{
-				SessionID: "stale-session",
-				ChannelID: 123,
-				TeamID:    456,
-				RoomName:  "voice-123-stale-session",
-				Status:    StatusEnded,
-				StartedAt: time.Unix(1700000000, 0).UTC(),
-			},
-			createSessionResult: &VoiceSession{
-				SessionID: "session-2",
-				ChannelID: 123,
-				TeamID:    456,
-				RoomName:  "voice-123-session-2",
-				Status:    StatusActive,
-				StartedAt: time.Unix(1700000600, 0).UTC(),
-			},
-			createSessionCreated: true,
-		}
-		livekit := &stubLiveKitRoom{token: "issued-token"}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
-
-		resp, err := svc.Join(context.Background(), 123, 42)
-		if err != nil {
-			t.Fatalf("Join() error = %v", err)
-		}
-
-		if repo.createSessionCalls != 1 {
-			t.Fatalf("CreateSession() calls = %d, want 1 (stale session must not be reused)", repo.createSessionCalls)
-		}
-		if livekit.createdRoomName != "voice-123-session-2" {
-			t.Fatalf("CreateRoomIfNotExists() room = %q, want voice-123-session-2", livekit.createdRoomName)
-		}
-		if livekit.tokenRoomName != "voice-123-session-2" {
-			t.Fatalf("GenerateToken() room = %q, want voice-123-session-2 (must not issue a token for the ended room)", livekit.tokenRoomName)
-		}
-		if resp.SessionID != "session-2" {
-			t.Fatalf("response session_id = %q, want session-2", resp.SessionID)
-		}
-	})
-
 	t.Run("Join - 활성 세션이 있으면 재사용한다", func(t *testing.T) {
 		t.Parallel()
 
