@@ -13,7 +13,7 @@ type Service interface {
 }
 
 type Repository interface {
-	// FindActiveSession은 저장된 상태가 active인 channelID의 세션을 반환한다.
+	// FindActiveSession은 MongoDB에 저장된 상태가 active인 channelID의 세션을 반환한다.
 	// active 세션이 없으면 nil을 반환한다.
 	FindActiveSession(ctx context.Context, channelID int64) (*VoiceSession, error)
 	// FindSessionByRoomName은 종료된 세션을 포함해 roomName에 해당하는 세션을 반환한다.
