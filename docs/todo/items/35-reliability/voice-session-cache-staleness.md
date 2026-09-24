@@ -2,38 +2,31 @@
 
 - **서비스**: cowork-voice
 - **우선순위**: 🔴 높음
-- **현재 상태**: MongoDB에서 종료된 음성 세션이 Redis eviction 실패나 경쟁 조건으로 최대 2시간 동안 active cache hit로 반환될 수 있음
+- **현재 상태**: 세션 조회는 MongoDB에 직접 위임해 Redis stale hit을 사용하지 않는다. durable invalidation과 복구 체계는 미구현 상태다.
 - **결론**: "stale read 차단"은 처리했다. "tombstone과 repair"(durable invalidation marker, repair worker, metric, runbook)는 남은 범위다.
 
-> **2026-09-22 진척:** `cowork-voice/internal/infra/redis/session_repository.go`의
-> `FindActiveSession`/`FindSessionByRoomName`이 cache hit을 후보로만 취급하도록 바꿨다.
-> 새 `verifyStillActive`가 cached session의 `SessionID`로 `mongo.GetSession`을 호출해
-> MongoDB의 현재 status가 `active`일 때만 그 값을 반환하고, 아니면 세 관련 key를 evict한 뒤
-> 호출부가 MongoDB를 다시 조회하게 한다. 이로써 eviction 실패나 지연된 write로 종료된
-> 세션이 `sessionTTL`(2시간) 동안 active로 반환되던 문제가 막힌다. 다만 매 cache hit마다
-> MongoDB round-trip이 추가되어 읽기 경로에서의 캐시 이점은 사실상 사라진다 — 저비용
-> 검증(generation/tombstone 비교)은 "tombstone과 repair" 절의 후속 작업으로 남겨둔다.
+> **2026-09-24 진척:** `cowork-voice/internal/infra/redis/session_repository.go`의
+> `FindActiveSession`/`FindSessionByRoomName`을 MongoDB에 직접 위임한다. 두 조회 경로는
+> Redis에 남은 active 값을 읽지 않으므로 eviction 실패나 지연된 cache write가 종료된
+> 세션을 반환하지 않는다. 저비용 검증(generation/tombstone 비교)을 설계하기 전까지
+> 이 경로의 읽기 캐시는 사용하지 않는다.
 >
 > `cowork-voice/internal/domain/voice_room/ports.go`의 `Repository.FindActiveSession`에
-> "항상 MongoDB 기준으로 active인 세션만 반환해야 한다"는 계약을 문서화했고,
-> `cowork-voice/internal/domain/voice_room/service.go`의 `Join`에 그 계약을 어기는 stale
-> 값이 오더라도 종료된 room으로 LiveKit token을 재발급하지 않는 방어적 재확인을 추가했다.
-> `cowork-voice/internal/domain/voice_room/service_test.go`에 "repository가 계약을 어기고
-> 종료된 세션을 반환해도 재사용하지 않는다" 단위 테스트를 추가했다(`go test ./...` 전체 통과).
+> "항상 MongoDB 기준으로 active인 세션만 반환해야 한다"는 계약을 문서화했다.
 >
 > 남은 범위(미착수): 종료 update와 함께 기록하는 durable invalidation marker(tombstone),
 > Redis delete를 tombstone·version 비교로 원자화하는 것, repair worker, backoff/상한,
 > pending marker 수·최고 지연·stale 차단 횟수·repair 실패 metric, 그리고 복구 절차
-> runbook. 지금 구현은 "eviction이 실패해도 결국 stale 값이 나갈 수 있다"는 증상 자체는
-> 막았지만, 그 실패를 감지·복구하는 운영 메커니즘은 없다.
+> runbook. 현재 세션 조회는 stale Redis 값을 사용하지 않지만, eviction 실패를 감지·복구하는
+> 운영 메커니즘은 없다.
 
 ## 문제
 
-`cowork-voice/internal/infra/redis/session_repository.go`는 active 음성 세션 JSON을 channel, room name, session ID 기준의 Redis key 세 개에 `sessionTTL` 2시간으로 저장한다. `FindActiveSession`은 channel key의 cache hit를 받으면 cached object의 `status`나 현재 MongoDB 상태를 확인하지 않고 즉시 반환한다. TTL은 stale entry의 존속 시간을 제한할 뿐 종료된 세션이 그 시간 동안 사용되는 것을 막지 않는다.
+`cowork-voice/internal/infra/redis/session_repository.go`는 active 음성 세션 JSON을 channel, room name, session ID 기준의 Redis key 세 개에 `sessionTTL` 2시간으로 저장한다. 변경 전 `FindActiveSession`은 channel key의 cache hit를 현재 MongoDB 상태와 대조하지 않고 반환했다. 지금은 `FindActiveSession`과 `FindSessionByRoomName`이 MongoDB에 직접 위임하므로 Redis TTL이나 eviction 성공 여부가 두 조회 결과에 영향을 주지 않는다.
 
-`EndSession`과 `EndSessionAndEnqueue`는 MongoDB의 상태를 `ended`로 바꾼 뒤 세 Redis key를 삭제한다. 삭제 실패는 error log만 남기고 종료 결과는 성공으로 반환한다. 또한 cache miss 조회가 MongoDB의 active 세션을 읽은 직후 다른 요청이 종료 처리하면, 늦게 실행된 `cacheSession`이 eviction 뒤에 예전 active 값을 다시 쓸 수 있다.
+`EndSession`과 `EndSessionAndEnqueue`는 MongoDB의 상태를 `ended`로 바꾼 뒤 세 Redis key를 삭제한다. 삭제 실패는 error log만 남기고 종료 결과는 성공으로 반환한다. `CreateSession` 등에서 늦게 실행된 `cacheSession`이 eviction 뒤에 예전 active 값을 다시 쓸 수 있다. 현재 두 조회는 이 값을 사용하지 않지만, 읽기 캐시를 다시 사용하려면 지연된 쓰기와 복구 상태를 함께 처리해야 한다.
 
-`cowork-voice/internal/domain/voice_room/service.go`의 `Join`은 `FindActiveSession` 결과를 그대로 재사용해 LiveKit room을 준비하고 token을 발급한다. 따라서 stale hit가 있으면 MongoDB에서는 이미 종료된 session ID와 room name으로 재입장할 수 있고 새 active 세션 생성도 건너뛴다. 현재 단위 테스트는 입장 권한과 room lifecycle 같은 핵심 비즈니스 규칙을 다루며 Redis·MongoDB cache 일관성 메커니즘은 테스트 범위에서 제외한다. MongoDB-backed 서비스에는 SQL migration이 없고, 현재 model·index 코드에도 cache generation이나 durable invalidation 상태가 없다.
+`cowork-voice/internal/domain/voice_room/service.go`의 `Join`은 `FindActiveSession` 결과를 재사용해 LiveKit room을 준비하고 token을 발급한다. 기존 stale hit가 종료된 room으로 재입장하게 만들던 문제는 MongoDB 직접 조회로 차단했다. 현재 단위 테스트는 입장 권한과 room lifecycle 같은 핵심 비즈니스 규칙을 다루며 Redis·MongoDB cache 일관성 메커니즘은 테스트 범위에서 제외한다. MongoDB-backed 서비스에는 SQL migration이 없고, 현재 model·index 코드에도 cache generation이나 durable invalidation 상태가 없다.
 
 ## cache 일관성 정책
 
@@ -50,7 +43,7 @@
 
 ### stale read 차단
 
-- `FindActiveSession`의 cache 값을 후보로만 취급하고 MongoDB의 현재 active session ID·status 또는 단조 증가 version으로 검증한 뒤 반환한다.
+- 읽기 캐시를 다시 사용하기 전에 `FindActiveSession`의 cache 값을 MongoDB의 현재 active session ID·status 또는 단조 증가 version으로 검증한 뒤 반환한다.
 - cached `status`가 `active`가 아니거나 authoritative session과 ID·version이 다르면 세 관련 key를 제거하고 MongoDB 결과로 교체한다.
 - `Join` 직전에 repository가 active 상태를 보장한다는 계약을 명시하고 종료 session으로 token을 발급하지 않게 한다.
 - Redis 오류가 발생한 조회는 cache를 우회해 MongoDB를 authoritative source로 사용한다.
