@@ -1,6 +1,6 @@
 # Contributing
 
-Kotlin/Java coding conventions for this project. `CLAUDE.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
+Kotlin/Java coding conventions for this project. `AGENTS.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
 
 Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, and `cowork-project`. `cowork-roadmap` uses Java with WebFlux/R2DBC; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into reactive services. Go, Elixir, and TypeScript modules follow their own build files and module documentation.
 
