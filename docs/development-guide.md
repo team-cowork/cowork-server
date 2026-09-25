@@ -35,7 +35,7 @@ cowork-server/
 ├── cowork-channel/       채널 관리 (텍스트/음성/웹훅 등) — Kotlin (Spring Boot)
 ├── cowork-preference/    사용자·팀·채널·저장소 설정 및 사용자 정의 팀 역할 관리 — Kotlin (Vert.x)
 ├── cowork-chat/          채팅 메시지 (MongoDB + Elasticsearch) — NestJS (TypeScript)
-├── cowork-voice/         음성 채널 (MongoDB + Redis) — Go
+├── cowork-voice/         음성 채널 (MongoDB) — Go
 ├── cowork-notification/  알림 (FCM 푸시 + SSE) — Go
 ├── cowork-promotion/     서비스 소개 페이지 — TypeScript 정적 사이트 (프레임워크 없음)
 └── deploy/config/monitoring/    Prometheus/Grafana 설정 (앱 없음)
@@ -439,7 +439,7 @@ docker compose up -d mysql mongodb kafka
 | SeaweedFS         | 9000        | S3 호환 오브젝트 스토리지                 |
 | SeaweedFS Console | 9002        | 브라우저 UI                               |
 | Elasticsearch     | 9200        | 채팅 메시지 검색 (cowork-chat)            |
-| Redis             | 6379        | Gateway rate limit, chat·voice·preference |
+| Redis             | 6379        | Gateway rate limit, chat·preference       |
 | LiveKit           | 7880        | 음성 서버                                 |
 | Prometheus        | 9090        | 메트릭 수집                               |
 | Grafana           | 3001        | 모니터링 대시보드                         |
@@ -480,7 +480,7 @@ authorization healthy → user 기동
 각 필수 projection의 snapshot/catch-up 완료 → 해당 서비스 readiness 허용
 ```
 
-Gateway 자체가 모든 backend의 기동 선행 조건은 아닙니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·Redis·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
+Gateway 자체가 모든 backend의 기동 선행 조건은 아닙니다. user는 authorization의 presence snapshot source가 기동한 뒤 시작합니다. 직접 실행할 때는 voice가 Kafka의 channel membership projection과 LiveKit·MongoDB에, notification이 Kafka의 user/team/preference projection과 MySQL에 의존한다는 점을 함께 확인합니다.
 
 **서비스 포트 정보**
 
