@@ -11,7 +11,7 @@ swagger-deps:
 	go get github.com/swaggo/http-swagger/v2@v2.0.2
 
 swagger-gen:
-	$(SWAG) init -g cmd/server/main.go -o docs --parseDependency --parseInternal
+	$(SWAG) init -g cmd/server/main.go -o swagger --parseDependency --parseInternal
 
 tidy:
 	go mod tidy
