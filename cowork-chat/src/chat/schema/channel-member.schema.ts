@@ -37,7 +37,10 @@ export class ChannelMember {
      */
     @Prop({ default: 'MEMBER' }) role!: string;
 
-    /** 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`. */
+    /**
+     * 이 채널에서 마지막으로 읽은 메시지의 ObjectId. 한 번도 읽지 않은 경우 `null`.
+     * `Types.ObjectId` 선언은 `Mixed` 경로로 생성되므로 스키마가 ObjectId 타입을 강제하지 않습니다.
+     */
     @Prop({ type: Types.ObjectId, default: null }) lastReadMessageId!: Types.ObjectId | null;
 
     /** `channel.member.event.v2` LEAVE 삭제 상태 여부. */
