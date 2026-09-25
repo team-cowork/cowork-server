@@ -902,8 +902,6 @@ services:
     depends_on:
       logs-init:
         condition: service_completed_successfully
-      redis:
-        condition: service_healthy
       mongodb:
         condition: service_healthy
       kafka:
