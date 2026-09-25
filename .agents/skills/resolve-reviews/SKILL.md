@@ -30,7 +30,7 @@ For each comment in `pr_comments.json`, apply the following **layered judgment c
 
 ### Judgment criteria (priority order)
 
-1. **Project conventions** (primary): cross-reference AGENTS.md, `.claude/rules/**`, and CONTRIBUTING.md
+1. **Project conventions** (primary): cross-reference CLAUDE.md and CONTRIBUTING.md
    - DTO annotation rules, commit scope, logging style, exception message format, etc.
 2. **Language/framework best practices** (secondary): Kotlin official guide, Spring Boot recommendations
    - Apply only when no matching project rule exists
@@ -41,7 +41,7 @@ For each comment in `pr_comments.json`, apply the following **layered judgment c
 - **INVALID**: reviewer is wrong with a clear refutation → skip, post refutation reply
 - **PARTIAL**: intent is correct but application method or scope is ambiguous → confirm with AskUserQuestion
 
-Always cite a specific source in the rationale (e.g. `AGENTS.md`, `.claude/rules/security.md`, `Kotlin: prefer val over var`).
+Always cite a specific source in the rationale (e.g. `CLAUDE.md §Logging Style`, `Kotlin: prefer val over var`).
 
 ## Step 3 — Act on Each Verdict
 
@@ -83,8 +83,8 @@ Accept? (y / n / s = skip for now)
 
 | # | Reviewer | File | Verdict | Rationale | Action |
 |---|----------|------|---------|-----------|--------|
-| 1 | alice | Foo.kt:12 | ✅ VALID | AGENTS.md | Auto-fixed (abc1234) |
-| 2 | bob | Bar.kt:34 | ❌ INVALID | AGENTS.md | Skipped |
+| 1 | alice | Foo.kt:12 | ✅ VALID | CLAUDE.md §Logging Style | Auto-fixed (abc1234) |
+| 2 | bob | Bar.kt:34 | ❌ INVALID | CLAUDE.md §Exception Message | Skipped |
 | 3 | alice | Baz.kt:56 | ⚠️ PARTIAL | - | PENDING |
 ```
 
