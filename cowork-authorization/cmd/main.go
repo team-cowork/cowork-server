@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/cowork/authorization/docs"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -27,6 +26,7 @@ import (
 	"github.com/cowork/authorization/internal/service"
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/cowork/authorization/pkg/logger"
+	_ "github.com/cowork/authorization/swagger"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
