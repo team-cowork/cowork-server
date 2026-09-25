@@ -165,7 +165,7 @@ team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
 
 ### MongoDB 서비스 (cowork-chat, cowork-voice)
 
-Flyway를 사용하지 않습니다. `cowork-chat`은 Mongoose schema와 `schema/message.schema.md`를 함께 관리합니다. `cowork-voice`의 컬렉션 구조는 Go 모델·repository가 현재 구현 기준이며, 구조 변경 시 별도 `schema/` 문서를 추가해 저장 형식을 명시합니다.
+Flyway를 사용하지 않습니다. 컬렉션 구조와 인덱스는 `cowork-chat`의 Mongoose schema(`src/chat/schema/`)와 `cowork-voice`의 Go 모델·repository가 기준이며, 별도 스키마 문서를 두지 않습니다.
 
 ### PostgreSQL 서비스 (cowork-preference)
 
