@@ -2,62 +2,34 @@
 
 - **서비스**: cowork-voice
 - **우선순위**: 🔴 높음
-- **현재 상태**: MongoDB에서 종료된 음성 세션이 Redis eviction 실패나 경쟁 조건으로 최대 2시간 동안 active cache hit로 반환될 수 있음
+- **현재 상태**: 완료. 음성 세션을 MongoDB에서 직접 조회하고 갱신한다.
+- **결론**: 세션 캐시를 제거해 무효화 실패와 지연된 캐시 쓰기의 원인을 없앴다. 캐시용 tombstone, repair worker, 복구 metric·runbook은 후속 작업으로 남기지 않는다.
 
 ## 문제
 
-`cowork-voice/internal/infra/redis/session_repository.go`는 active 음성 세션 JSON을 channel, room name, session ID 기준의 Redis key 세 개에 `sessionTTL` 2시간으로 저장한다. `FindActiveSession`은 channel key의 cache hit를 받으면 cached object의 `status`나 현재 MongoDB 상태를 확인하지 않고 즉시 반환한다. TTL은 stale entry의 존속 시간을 제한할 뿐 종료된 세션이 그 시간 동안 사용되는 것을 막지 않는다.
+기존 구현은 active 음성 세션을 channel, room name, session ID별 Redis key에 2시간 동안 저장했다. MongoDB에서 세션을 종료한 뒤 Redis 삭제가 실패하거나 늦은 캐시 쓰기가 실행되면, 이미 종료된 세션이 active 조회로 반환될 수 있었다.
 
-`EndSession`과 `EndSessionAndEnqueue`는 MongoDB의 상태를 `ended`로 바꾼 뒤 세 Redis key를 삭제한다. 삭제 실패는 error log만 남기고 종료 결과는 성공으로 반환한다. 또한 cache miss 조회가 MongoDB의 active 세션을 읽은 직후 다른 요청이 종료 처리하면, 늦게 실행된 `cacheSession`이 eviction 뒤에 예전 active 값을 다시 쓸 수 있다.
+PR #396의 초기 수정은 cache hit마다 MongoDB 상태를 재확인했다. 모든 조회에서 MongoDB 접근이 필요해 Redis 조회·저장·삭제 비용만 추가되는 구조였다.
 
-`cowork-voice/internal/domain/voice_room/service.go`의 `Join`은 `FindActiveSession` 결과를 그대로 재사용해 LiveKit room을 준비하고 token을 발급한다. 따라서 stale hit가 있으면 MongoDB에서는 이미 종료된 session ID와 room name으로 재입장할 수 있고 새 active 세션 생성도 건너뛴다. 현재 단위 테스트는 입장 권한과 room lifecycle 같은 핵심 비즈니스 규칙을 다루며 Redis·MongoDB cache 일관성 메커니즘은 테스트 범위에서 제외한다. MongoDB-backed 서비스에는 SQL migration이 없고, 현재 model·index 코드에도 cache generation이나 durable invalidation 상태가 없다.
+## 반영 내용
 
-## cache 일관성 정책
-
-| 상황                    | 목표 동작                                                                                    |
-|-------------------------|----------------------------------------------------------------------------------------------|
-| active cache hit        | cached session ID가 MongoDB의 현재 active session과 일치하고 status가 `active`일 때만 반환함 |
-| MongoDB 종료 성공       | session generation을 종료 tombstone으로 전환하고 이전 generation의 cache write를 차단함      |
-| Redis eviction 실패     | 요청 성공 여부와 무관하게 durable repair 대상으로 남기고 active 조회는 MongoDB를 우선함      |
-| 늦게 도착한 cache write | session ID 또는 version 비교에 실패하면 tombstone을 덮어쓰지 못함                            |
-| 손상·unknown cache 값   | 해당 key를 우회하고 MongoDB 결과로 복구함                                                    |
-| 새 active 세션 생성     | 이전 session의 channel·room·session key와 구분되는 새 generation만 노출함                    |
-
-## 할 일
-
-### stale read 차단
-
-- `FindActiveSession`의 cache 값을 후보로만 취급하고 MongoDB의 현재 active session ID·status 또는 단조 증가 version으로 검증한 뒤 반환한다.
-- cached `status`가 `active`가 아니거나 authoritative session과 ID·version이 다르면 세 관련 key를 제거하고 MongoDB 결과로 교체한다.
-- `Join` 직전에 repository가 active 상태를 보장한다는 계약을 명시하고 종료 session으로 token을 발급하지 않게 한다.
-- Redis 오류가 발생한 조회는 cache를 우회해 MongoDB를 authoritative source로 사용한다.
-
-### tombstone과 repair
-
-- 종료 update와 함께 session ID 또는 generation 기반의 durable cache invalidation marker를 MongoDB document에 기록한다.
-- Redis에서 delete만 수행하는 대신 tombstone과 version 비교를 원자적으로 적용해 종료 전의 지연된 `cacheSession`이 active 값을 되살리지 못하게 한다.
-- repair worker가 Redis 복구 뒤 channel, room name, session ID key를 정리하고 durable marker를 완료 상태로 바꾼다.
-- repair에 backoff와 상한을 두고 pending marker 수, 최고 지연, stale 차단 횟수, repair 실패를 metric으로 노출한다.
-- MongoDB schema field와 index가 필요하면 `cowork-voice/internal/domain/voice_room/model.go`와 `CreateIndexes`에 코드 기반으로 반영한다.
-
-### 정적·운영 검증과 핵심 정책
-
-- cache hit 검증, tombstone compare-and-set, eviction, repair의 조건을 repository 코드와 상태 전이표로 점검한다.
-- stale 차단, repair 적체, Redis 복구 뒤 수렴은 metric과 통제된 운영 rehearsal로 확인한다.
-- `Join`이 종료된 session으로 token을 발급하지 않는 핵심 판단은 repository mock을 사용한 서비스 단위 테스트로 검증한다.
-- Redis test server, MongoDB repository, cache 경쟁·복구를 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
+- `cowork-voice/cmd/server/main.go`에서 음성 서비스와 webhook에 MongoDB repository를 직접 주입한다.
+- `FindActiveSession`은 `channel_id`와 `status=active`로 조회한다. `Join`, `Leave`, `GetParticipants`는 이 repository 계약을 공통으로 사용한다.
+- `FindSessionByRoomName`은 종료된 세션도 반환해 종료 후 도착한 webhook을 처리할 수 있게 한다. `room_name` unique index로 조회를 지원한다.
+- Redis session repository와 클라이언트 초기화·종료 코드를 제거한다. `Join`에만 있던 캐시 방어 분기와 해당 분기 전용 테스트도 제거한다.
+- 음성 서비스의 Redis 설정, local·prod 실행 환경변수, Compose 기동 의존성과 서비스 문서를 정리한다.
+- LiveKit에서 사용하는 Redis 라이브러리는 Go 간접 의존성으로 유지한다.
 
 ## 검증
 
-- authoritative session 확인과 tombstone/version 비교가 모든 cache hit·fill 경로에 적용되는지 정적으로 점검한다.
-- 종료 session 재사용 차단은 `Join` 서비스 단위 테스트로 검증한다.
-- eviction 실패, 지연 cache write, Redis 복구, 이전 generation repair 결과는 metric과 운영 rehearsal로 확인한다.
-- 새 active session이 이전 generation의 repair 대상과 구분되는지 key·version 설계를 검토한다.
+- `cowork-voice`에서 `go test -count=1 ./internal/domain/voice_room ./internal/domain/webhook`으로 핵심 서비스 단위 테스트를 실행했고 통과했다. 새 세션 입장 시 발급 토큰과 응답이 해당 세션의 room을 가리키는 검증을 보강했다.
+- `cowork-voice`에서 `go build ./...`와 `go vet ./...`가 통과했다.
+- `bash -n deploy/local/services/voice.sh deploy/prod/services/voice.sh`와 `docker compose -f deploy/compose/stack.yaml config --no-interpolate --no-env-resolution --quiet`가 통과했다.
+- 런타임의 Redis session cache 참조가 제거된 것을 정적으로 확인했다. MongoDB·Redis를 기동하는 통합·회귀 테스트는 실행하지 않았다.
 
 ## 완료 조건
 
-- MongoDB에서 ended인 음성 session은 Redis TTL과 무관하게 active 조회로 반환되지 않는다.
-- eviction 실패와 지연된 cache write가 종료 tombstone보다 오래된 active 값을 되살리지 않는다.
-- `Join`이 종료 session의 session ID와 room name으로 LiveKit token을 발급하지 않는다.
-- durable invalidation marker가 Redis 복구 뒤 완료 상태로 수렴한다.
-- stale 차단과 repair 동작이 metric으로 확인되고 복구 절차가 runbook에 명시되어 있다.
+- 활성 음성 세션 조회는 MongoDB의 저장된 상태를 기준으로 한다.
+- 세션 캐시 조회·저장·무효화 경로가 없어 stale cache가 세션 선택에 관여하지 않는다.
+- 음성 애플리케이션은 Redis 연결 없이 기동하고 세션을 처리한다.
+- 캐시 마이그레이션이나 복구 워커를 요구하는 후속 작업이 남아 있지 않다.

@@ -8,11 +8,13 @@ LiveKit 기반 음성 채널과 1:N 라이브 룸을 관리합니다.
 - LiveKit access token 발급과 참가 권한 확인
 - LiveKit webhook 상태 동기화와 음성·라이브 이벤트 발행
 
+음성·라이브 세션은 MongoDB에서 직접 조회하고 갱신합니다. 활성 음성 세션은 채널 ID와 `status=active`로 조회하며, webhook의 room 이름 조회는 종료된 세션도 포함합니다.
+
 ## 스택
 
 - Go / Chi
 - Go modules + Makefile
-- LiveKit Server SDK / MongoDB / Redis
+- LiveKit Server SDK / MongoDB
 - Kafka / Eureka / Config Server
 
 ## 포트
@@ -32,7 +34,7 @@ LiveKit 미디어 서버 포트는 이 서비스 포트와 별개이며 [Docker 
 | `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
 | `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
 
-- Config Server: 포트, MongoDB DB명, Redis, LiveKit API·WebSocket endpoint, Kafka topic·group, Eureka.
+- Config Server: 포트, MongoDB DB명, LiveKit API·WebSocket endpoint, Kafka topic·group, Eureka.
 - Vault: `MONGODB_URI`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
 
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 가이드](../docs/configuration.md)를 참고합니다.
