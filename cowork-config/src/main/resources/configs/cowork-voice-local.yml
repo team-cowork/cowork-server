@@ -1,8 +1,6 @@
 # MONGODB_URI, LIVEKIT_API_KEY, LIVEKIT_API_SECRET은 Vault secret/cowork-voice 에서 주입됨
 PORT: 8089
 MONGODB_DB: cowork_voice
-REDIS_ADDR: redis:6379
-REDIS_DB: 0
 LIVEKIT_URL: http://cowork-livekit:7880
 LIVEKIT_WS_URL: ws://localhost:7880
 LIVEKIT_TOKEN_TTL_SECS: 3600

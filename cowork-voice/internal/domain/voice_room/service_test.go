@@ -42,6 +42,12 @@ func TestVoiceRoomService(t *testing.T) {
 		if livekit.tokenUserID != 42 {
 			t.Fatalf("GenerateToken() userID = %d, want 42", livekit.tokenUserID)
 		}
+		if livekit.tokenRoomName != "voice-123-session-1" {
+			t.Fatalf("GenerateToken() room = %q, want voice-123-session-1", livekit.tokenRoomName)
+		}
+		if resp.SessionID != "session-1" || resp.RoomName != "voice-123-session-1" {
+			t.Fatalf("response session = %q/%q, want session-1/voice-123-session-1", resp.SessionID, resp.RoomName)
+		}
 		if resp.Token != "issued-token" {
 			t.Fatalf("response token = %q, want issued-token", resp.Token)
 		}
