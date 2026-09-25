@@ -3,8 +3,6 @@
 # LIVEKIT_URL, LIVEKIT_WS_URL은 Config Server overrides가 같은 키 이름으로 덮어쓴다.
 PORT: 8089
 MONGODB_DB: cowork_voice
-REDIS_ADDR: redis:6379
-REDIS_DB: 0
 LIVEKIT_TOKEN_TTL_SECS: 3600
 KAFKA_BROKERS: kafka:9092
 KAFKA_TOPIC_VOICE_EVENT: voice.event
