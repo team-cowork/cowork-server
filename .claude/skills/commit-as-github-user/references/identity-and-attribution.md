@@ -4,7 +4,7 @@
 
 `gh api --hostname github.com users/LOGIN` returns the canonical login, numeric account ID, public display name, public email when configured, and account creation date. The helper accepts personal user accounts and rejects organizations and bots for this team workflow. API/network errors stop resolution instead of falling back to the machine identity.
 
-The `name` field is the exact self-declared profile display name, not a legal-name verification service. If absent, obtain the person's preferred commit name through `--name`. Never infer a full name from a username, commit history, or the current CLI account.
+The `name` field is the exact self-declared profile display name, not a legal-name verification service. If absent, the helper uses the canonical login and labels it `github-login`; pass `--name` when the person supplies a preferred commit name. Never infer a full name from a username, commit history, or the current CLI account.
 
 The `email` field can be null. The `/user/emails` endpoint belongs to the authenticated account, so it cannot discover a teammate's private email from the machine owner's session. This helper deliberately does not call that endpoint or request authentication changes.
 
@@ -34,7 +34,7 @@ For a shared-machine verification, record only relevant configuration/account st
 
 ## Helper validation
 
-Run `python3 -B -m unittest discover -s scripts -p 'test_*.py' -v` from this skill directory. [The test suite](../scripts/test_github_identity.py) mocks profile lookups and creates real commits only in disposable repositories. It checks missing/private fields, both identities across multiple commits, literal handling of shell-like names, unchanged configuration/environment, dry runs, and hook failures.
+Run `python3 -B -m unittest discover -s scripts -p 'test_*.py' -v` from this skill directory. [The test suite](../scripts/test_github_identity.py) mocks profile lookups and creates real commits only in disposable repositories. It checks the login fallback for a missing name, missing/private emails, both identities across multiple commits, literal handling of shell-like names, unchanged configuration/environment, dry runs, and hook failures.
 
 ## Official sources
 
