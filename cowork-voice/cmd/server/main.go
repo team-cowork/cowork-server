@@ -40,7 +40,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
@@ -55,6 +54,7 @@ import (
 	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
+	_ "github.com/cowork/cowork-voice/swagger"
 )
 
 func main() {
