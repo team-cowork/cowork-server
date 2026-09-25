@@ -34,7 +34,7 @@ find .claude/rules -name "*.md" 2>/dev/null
 
 Read each returned file in full. These are the authoritative rules for judging each review comment.
 
-**Rule priority**: `AGENTS.md` > `.claude/rules/**` > `.gemini/styleguide.md` > `CONTRIBUTING.md`
+**Rule priority**: `CLAUDE.md` > `.claude/rules/**` > `.gemini/styleguide.md` > `CONTRIBUTING.md`
 
 For each comment in `pr_comments.json`, apply the following **layered judgment criteria**:
 
@@ -51,7 +51,7 @@ For each comment in `pr_comments.json`, apply the following **layered judgment c
 - **INVALID**: reviewer is wrong with a clear refutation → skip, post refutation reply
 - **PARTIAL**: intent is correct but application method or scope is ambiguous → confirm with AskUserQuestion
 
-Always cite a specific source in the rationale (e.g. `AGENTS.md`, `.claude/rules/security.md`, `Kotlin: prefer val over var`).
+Always cite a specific source in the rationale (e.g. `CLAUDE.md §Logging Style`, `Kotlin: prefer val over var`).
 
 ## Step 3 — Act on Each Verdict
 
@@ -93,8 +93,8 @@ Accept? (y / n / s = skip for now)
 
 | # | Reviewer | File | Verdict | Rationale | Action |
 |---|----------|------|---------|-----------|--------|
-| 1 | alice | Foo.kt:12 | ✅ VALID | AGENTS.md | Auto-fixed (abc1234) |
-| 2 | bob | Bar.kt:34 | ❌ INVALID | AGENTS.md | Skipped |
+| 1 | alice | Foo.kt:12 | ✅ VALID | CLAUDE.md §Logging Style | Auto-fixed (abc1234) |
+| 2 | bob | Bar.kt:34 | ❌ INVALID | CLAUDE.md §Exception Message | Skipped |
 | 3 | alice | Baz.kt:56 | ⚠️ PARTIAL | - | PENDING |
 ```
 
