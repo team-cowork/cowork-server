@@ -63,7 +63,7 @@ class Reaction {
  * - `versionKey: false` 옵션으로 Mongoose 기본 `__v` 버전 필드를 비활성화합니다.
  * - `type` 필드로 일반 텍스트(`TEXT`), 파일 첨부(`FILE`), 시스템 메시지(`SYSTEM`)를 구분합니다.
  * - `clientMessageId`는 클라이언트가 생성한 멱등성 키로, sparse 유니크 인덱스가 적용되어
- *   있어 `null`/`undefined`인 도큐먼트는 중복 검사에서 제외됩니다.
+ *   있어 필드가 없는 도큐먼트만 중복 검사에서 제외됩니다.
  * - `notificationStatus`는 아웃박스(outbox) 패턴으로 알림 발송을 추적합니다.
  */
 @Schema({ timestamps: true, versionKey: false })
@@ -113,6 +113,7 @@ export class Message {
      * 스레드(답글)의 부모 메시지 ObjectId.
      * 최상위 메시지이거나 스레드가 아닌 경우 `null`입니다.
      * `$lookup` 집계로 부모 메시지 정보를 `mentionedMessage` 필드에 조인합니다.
+     * `Types.ObjectId` 선언은 `Mixed` 경로로 생성되므로 스키마가 ObjectId 타입을 강제하지 않습니다.
      */
     @Prop({ type: Types.ObjectId, default: null }) parentMessageId!: Types.ObjectId | null;
 
@@ -140,7 +141,8 @@ export class Message {
     /**
      * 클라이언트가 생성한 멱등성 키.
      * 네트워크 재시도 등으로 인한 메시지 중복 생성을 방지하기 위해 사용합니다.
-     * sparse 유니크 인덱스가 적용되어 값이 없는 도큐먼트는 중복 검사 대상에서 제외됩니다.
+     * sparse 유니크 인덱스는 필드가 없는 도큐먼트만 제외하고 명시적인 `null`은 색인하므로,
+     * 키가 없는 메시지는 `null`을 저장하지 않고 필드를 생략해야 합니다.
      */
     @Prop({ type: String }) clientMessageId?: string | null;
 
@@ -154,7 +156,7 @@ export class Message {
      * 알림 발송 상태. 아웃박스(outbox) 패턴으로 알림 파이프라인을 추적합니다.
      * - `PENDING`: 발송 대기 중
      * - `PROCESSING`: 발송 처리 중 (워커가 원자적으로 전환)
-     * - `SENT`: 발송 완료
+     * - `SENT`: `notification.trigger` 발행 완료. 최종 FCM 전달 성공을 뜻하지 않음
      * - `FAILED`: 재시도 한도 초과로 발송 실패
      */
     @Prop({ enum: ['PENDING', 'PROCESSING', 'SENT', 'FAILED'], default: 'PENDING' }) notificationStatus!: string;
@@ -242,7 +244,7 @@ MessageSchema.index({ isPinned: 1, channelId: 1 });
 
 /**
  * `clientMessageId` 유니크 인덱스.
- * `sparse: true`로 값이 없는(`null`/`undefined`) 도큐먼트는 중복 검사에서 제외합니다.
+ * `sparse: true`는 필드가 없는 도큐먼트만 제외하며, 명시적인 `null`끼리는 중복으로 충돌합니다.
  */
 MessageSchema.index({ clientMessageId: 1 }, { unique: true, sparse: true });
 

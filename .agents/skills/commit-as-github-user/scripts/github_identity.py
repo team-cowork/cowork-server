@@ -42,7 +42,13 @@ def resolve_identity(login, name=None, email=None, noreply=False):
     if type(account_id) is not int or account_id <= 0:
         raise ValueError("GitHub did not return a valid numeric account ID.")
 
-    selected_name = identity_field(name if name is not None else profile.get("name"), "name")
+    if name is not None:
+        selected_name, name_source = name, "user-supplied"
+    elif isinstance(profile.get("name"), str) and profile["name"].strip():
+        selected_name, name_source = profile["name"], "github-public-profile"
+    else:
+        selected_name, name_source = canonical, "github-login"
+    selected_name = identity_field(selected_name, "name")
     if email is not None:
         selected_email, email_source = email, "user-supplied"
     elif profile.get("email") and not noreply:
@@ -59,7 +65,7 @@ def resolve_identity(login, name=None, email=None, noreply=False):
         "id": account_id,
         "name": selected_name,
         "email": selected_email,
-        "name_source": "user-supplied" if name is not None else "github-public-profile",
+        "name_source": name_source,
         "email_source": email_source,
         "public_name": profile.get("name"),
         "public_email": profile.get("email"),
