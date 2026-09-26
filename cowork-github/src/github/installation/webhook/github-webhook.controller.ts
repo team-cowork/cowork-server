@@ -3,10 +3,14 @@ import {
   Controller,
   Headers,
   HttpCode,
+  Inject,
   Logger,
   Post,
   UseGuards,
 } from '@nestjs/common';
+import type Redis from 'ioredis';
+import { REDIS_CLIENT } from '../../constants';
+import { githubCacheKeys } from '../../github.cache';
 import { RepoEventProducer } from '../kafka/repo-event.producer';
 import { TeamGithubProducer } from '../kafka/team-github.producer';
 import type { GithubWebhookPayload } from './github-webhook-payload';
@@ -22,6 +26,7 @@ export class GithubWebhookController {
   constructor(
     private readonly producer: TeamGithubProducer,
     private readonly repoEventProducer: RepoEventProducer,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   @Post()
@@ -57,8 +62,13 @@ export class GithubWebhookController {
       return;
     }
     if (!payload.installation) return;
+    const installationId = payload.installation.id;
+    const revision = await this.redis.incr(
+      githubCacheKeys.installationRevision(installationId),
+    );
     await this.producer.send('team.github.disconnected', {
-      installationId: payload.installation.id,
+      installationId,
+      revision,
     });
   }
 
