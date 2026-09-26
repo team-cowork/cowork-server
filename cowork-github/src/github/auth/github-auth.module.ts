@@ -21,6 +21,6 @@ import { GithubAuthService } from './github-auth.service';
     },
     GithubAuthService,
   ],
-  exports: [GithubAuthService],
+  exports: [GithubAuthService, REDIS_CLIENT],
 })
 export class GithubAuthModule {}
