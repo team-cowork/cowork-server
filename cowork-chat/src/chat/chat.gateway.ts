@@ -15,6 +15,7 @@ import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.consumer';
 import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
@@ -82,6 +83,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
+        private readonly chatGithubIssueResultConsumer: ChatGithubIssueResultConsumer,
         private readonly githubRepoEventConsumer: GithubRepoEventConsumer,
         private readonly channelEventConsumer: ChannelEventConsumer,
         private readonly projectEventConsumer: ProjectEventConsumer,
@@ -125,6 +127,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         });
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
+        this.chatGithubIssueResultConsumer.setSocketServer(server);
         this.githubRepoEventConsumer.setSocketServer(server);
         this.channelEventConsumer.setSocketServer(server);
         this.projectEventConsumer.setSocketServer(server);
