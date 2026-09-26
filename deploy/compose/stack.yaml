@@ -143,6 +143,9 @@ services:
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
         project.chat-github-issue.result
+        github-app.issue-write.command
+        github-app.issue-write.result
+        github-app.issue-write.result-dlt
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event
         user.presence.event
