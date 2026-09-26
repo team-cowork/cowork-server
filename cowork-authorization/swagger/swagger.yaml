@@ -1,0 +1,216 @@
+basePath: /api/authorization
+definitions:
+  github_com_cowork_authorization_internal_service.TokenPair:
+    properties:
+      access_token:
+        type: string
+      expires_in:
+        type: integer
+      refresh_token:
+        type: string
+      token_type:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: 인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
+  title: Cowork Authorization API
+  version: "20260926.0"
+paths:
+  /auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 리프레시 토큰으로 새로운 액세스/리프레시 토큰 쌍을 발급합니다.
+      parameters:
+      - description: 리프레시 토큰
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 새 access_token, refresh_token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: refresh_token is required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: invalid or expired refresh token
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 액세스 토큰 갱신
+      tags:
+      - auth
+  /auth/signout:
+    post:
+      consumes:
+      - application/json
+      description: 리프레시 토큰을 무효화합니다. Authorization 헤더(Bearer) 필요.
+      parameters:
+      - description: 리프레시 토큰
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            refresh_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: 로그아웃 성공
+        "400":
+          description: refresh_token is required
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 로그아웃
+      tags:
+      - auth
+  /auth/token:
+    post:
+      consumes:
+      - application/json
+      description: 프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
+      parameters:
+      - description: 코드 교환 요청
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            code:
+              type: string
+            code_verifier:
+              type: string
+            redirect_uri:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/github_com_cowork_authorization_internal_service.TokenPair'
+        "400":
+          description: missing required fields
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: authentication failed
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: authentication temporarily unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: 토큰 발급 (PKCE code exchange)
+      tags:
+      - auth
+  /events/datagsm:
+    post:
+      consumes:
+      - application/json
+      description: 서명을 검증한 student.updated 배치의 inbox와 전체 outbox를 같은 DB 트랜잭션으로 저장합니다.
+        200은 접수 완료이며 Kafka 발행 및 학생 정보 반영은 비동기입니다. 동일 ID·동일 내용은 duplicate, 내용 충돌은 409입니다.
+        발생 후 30일 이상 지난 이벤트와 5분 초과 미래 이벤트는 거부합니다. 기록은 30일 보관하며 미발행 작업이 남으면 보존합니다.
+      parameters:
+      - description: sha256=<HMAC-SHA256(secret, body)>
+        in: header
+        name: X-DataGSM-Signature
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: accepted | duplicate | ignored
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: invalid_payload | event_expired | invalid_event_timestamp
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: invalid_signature
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "409":
+          description: event_id_conflict
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "413":
+          description: payload_too_large
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: temporarily_unavailable | webhook_not_configured
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: DataGSM webhook 영속 접수
+      tags:
+      - events
+securityDefinitions:
+  BearerAuth:
+    description: '"Bearer {access_token}" 형식으로 입력하세요.'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
