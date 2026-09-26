@@ -142,34 +142,44 @@ class GithubPullRequestController(
         @PathVariable prNumber: Int,
     ): List<GithubCommentResDto> = listGithubCommentsService.execute(userId, projectId, repoId, prNumber)
 
-    @Operation(summary = "PR 댓글 작성", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 댓글 작성 (비동기)",
+        description = "cowork-github-app에 Kafka(`github-app.issue-write.command`)로 CREATE_COMMENT 커맨드를 " +
+            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미하며, 생성된 댓글 정보는 " +
+            "이 API로 확인할 수 없다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "작성 성공"),
+        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
         ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 PR 없음"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
     )
     @PostMapping("/comments")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun createComment(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
         @RequestBody request: CreateGithubCommentReqDto,
-    ): GithubCommentResDto =
-        createGithubCommentService.execute(userId, projectId, repoId, GithubCommentParentType.PULL_REQUEST, prNumber, request)
+    ) = createGithubCommentService.execute(userId, projectId, repoId, GithubCommentParentType.PULL_REQUEST, prNumber, request)
 
-    @Operation(summary = "PR 댓글 수정", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 댓글 수정 (비동기)",
+        description = "cowork-github-app에 Kafka(`github-app.issue-write.command`)로 UPDATE_COMMENT 커맨드를 " +
+            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
         ApiResponse(responseCode = "403", description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 댓글 없음"),
         ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
     )
     @PatchMapping("/comments/{commentId}")
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun updateComment(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
@@ -177,18 +187,23 @@ class GithubPullRequestController(
         @PathVariable prNumber: Int,
         @PathVariable commentId: Long,
         @RequestBody request: UpdateGithubCommentReqDto,
-    ): GithubCommentResDto = updateGithubCommentService.execute(userId, projectId, repoId, commentId, request)
+    ) = updateGithubCommentService.execute(userId, projectId, repoId, commentId, request)
 
-    @Operation(summary = "PR 댓글 삭제", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 댓글 삭제 (비동기)",
+        description = "cowork-github-app에 Kafka(`github-app.issue-write.command`)로 DELETE_COMMENT 커맨드를 " +
+            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "삭제 성공"),
+        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
         ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
         ApiResponse(responseCode = "403", description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 또는 댓글 없음"),
         ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
     )
     @DeleteMapping("/comments/{commentId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     fun deleteComment(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
