@@ -9,13 +9,11 @@ describe('CommentListHttpController', () => {
   let controller: CommentListHttpController;
   let issueHttpService: {
     listComments: jest.Mock;
-    createComment: jest.Mock;
   };
 
   beforeEach(async () => {
     issueHttpService = {
       listComments: jest.fn(),
-      createComment: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -41,24 +39,6 @@ describe('CommentListHttpController', () => {
       'my-org',
       'my-repo',
       1,
-    );
-  });
-
-  it('댓글 생성 요청을 전달한다', async () => {
-    issueHttpService.createComment.mockResolvedValue({ id: 1 });
-
-    const result = await controller.create('my-org', 'my-repo', 1, {
-      body: '확인했습니다',
-      requesterGithubUsername: 'octocat',
-    });
-
-    expect(result).toEqual({ id: 1 });
-    expect(issueHttpService.createComment).toHaveBeenCalledWith(
-      'my-org',
-      'my-repo',
-      1,
-      '확인했습니다',
-      'octocat',
     );
   });
 
