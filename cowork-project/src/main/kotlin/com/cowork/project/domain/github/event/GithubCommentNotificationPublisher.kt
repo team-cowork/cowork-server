@@ -2,8 +2,6 @@ package com.cowork.project.domain.github.event
 
 import com.cowork.project.global.outbox.OutboxWriter
 import org.springframework.stereotype.Component
-import org.springframework.transaction.annotation.Propagation
-import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 private const val TOPIC = "notification.trigger"
@@ -12,7 +10,6 @@ private const val GITHUB_COMMENT_CREATED = "GITHUB_COMMENT_CREATED"
 @Component
 class GithubCommentNotificationPublisher(private val outboxWriter: OutboxWriter) {
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun publishCommentCreated(targetUserId: Long, data: Map<String, Any?>) {
         val event = NotificationTriggerEvent(
             eventId = UUID.randomUUID().toString(),
