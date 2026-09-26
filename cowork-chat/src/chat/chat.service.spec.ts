@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
+import { ChatGithubIssueCreateCommand } from './kafka/event/chat-github-issue.event';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
@@ -94,12 +95,11 @@ const mockChatMessageProducer = {
     sendMessage: jest.fn(),
 };
 
-const mockGithubIssueProducer = {
-    send: jest.fn(),
+const mockChatGithubIssueCommandProducer = {
+    send: jest.fn<Promise<void>, [ChatGithubIssueCreateCommand]>(),
 };
 
 const mockProjectClient = {
-    getGithubRepoInfo: jest.fn(),
     isMember: jest.fn(),
 };
 
@@ -136,7 +136,7 @@ describe('ChatService', () => {
             mockElasticsearchService as never,
             mockObjectStorageService as never,
             mockChatMessageProducer as never,
-            mockGithubIssueProducer as never,
+            mockChatGithubIssueCommandProducer as never,
             mockProjectClient as never,
             mockChannelClient as never,
             mockUserClient as never,
@@ -350,69 +350,50 @@ describe('ChatService', () => {
     });
 
     describe('publishGithubIssueCreateCommand', () => {
-        it('프로젝트에 연결된 단일 저장소의 팀 경계를 검증한 뒤 명령을 발행한다', async () => {
+        it('채널 멤버십과 채널 팀을 확인한 뒤 project에 커맨드를 발행한다', async () => {
             mockChannelMemberRepository.findTeamIdByChannelAndUser.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({
-                repoId: 7,
-                teamId: 10,
-                owner: 'cowork-org',
-                repo: 'server',
-            });
 
             await service.publishGithubIssueCreateCommand(
                 { channelId: 3, userId: 42 },
                 { projectId: 5, title: '배포 오류', body: '재현 절차' },
             );
 
-            expect(mockProjectClient.getGithubRepoInfo).toHaveBeenCalledWith(5);
-            expect(mockGithubIssueProducer.send).toHaveBeenCalledWith({
-                channelId: 3,
-                teamId: 10,
-                projectId: 5,
-                owner: 'cowork-org',
-                repo: 'server',
-                title: '배포 오류',
-                body: '재현 절차',
-                requesterId: 42,
-            });
+            expect(mockChannelMessageReadAccess.requireCanRead).toHaveBeenCalledWith(3, 42);
+            expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledTimes(1);
+            const command = mockChatGithubIssueCommandProducer.send.mock.calls[0][0];
+            expect(command.projectId).toBe(5);
+            expect(command.channelId).toBe(3);
+            expect(command.teamId).toBe(10);
+            expect(command.requesterId).toBe(42);
+            expect(command.title).toBe('배포 오류');
+            expect(command.body).toBe('재현 절차');
+            expect(typeof command.operationId).toBe('string');
+            expect(typeof command.idempotencyKey).toBe('string');
+            expect(typeof command.occurredAt).toBe('string');
+            expect(command.operationId).not.toBe(command.idempotencyKey);
         });
 
-        it('프로젝트에 연결된 저장소가 없으면 명령을 발행하지 않는다', async () => {
+        it('본문이 없으면 body를 null로 발행한다', async () => {
             mockChannelMemberRepository.findTeamIdByChannelAndUser.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue(null);
 
-            await expect(service.publishGithubIssueCreateCommand(
+            await service.publishGithubIssueCreateCommand(
                 { channelId: 3, userId: 42 },
                 { projectId: 5, title: '배포 오류' },
-            )).rejects.toBeInstanceOf(BadRequestException);
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+            );
+
+            expect(mockChatGithubIssueCommandProducer.send).toHaveBeenCalledWith(
+                expect.objectContaining({ body: null }),
+            );
         });
 
-        it('저장소가 속한 팀과 채널 팀이 다르면 명령을 발행하지 않는다', async () => {
-            mockChannelMemberRepository.findTeamIdByChannelAndUser.mockResolvedValue(10);
-            mockProjectClient.getGithubRepoInfo.mockResolvedValue({
-                repoId: 7,
-                teamId: 20,
-                owner: 'cowork-org',
-                repo: 'server',
-            });
-
-            await expect(service.publishGithubIssueCreateCommand(
-                { channelId: 3, userId: 42 },
-                { projectId: 5, title: '배포 오류' },
-            )).rejects.toBeInstanceOf(ForbiddenException);
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
-        });
-
-        it('팀에 속하지 않는 채널에서는 명령을 발행하지 않는다', async () => {
+        it('팀에 속하지 않는 채널에서는 커맨드를 발행하지 않는다', async () => {
             mockChannelMemberRepository.findTeamIdByChannelAndUser.mockResolvedValue(null);
 
             await expect(service.publishGithubIssueCreateCommand(
                 { channelId: 3, userId: 42 },
                 { projectId: 5, title: '배포 오류' },
             )).rejects.toBeInstanceOf(ForbiddenException);
-            expect(mockProjectClient.getGithubRepoInfo).not.toHaveBeenCalled();
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+            expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
         });
     });
 
@@ -539,7 +520,7 @@ describe('ChatService', () => {
                 { channelId: 1, userId: 42 },
                 { command: 'unsupported', payload: {} } as never,
             )).rejects.toBeInstanceOf(BadRequestException);
-            expect(mockGithubIssueProducer.send).not.toHaveBeenCalled();
+            expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
         });
     });
 
