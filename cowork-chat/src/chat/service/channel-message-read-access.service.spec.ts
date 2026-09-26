@@ -16,17 +16,20 @@ describe('ChannelMessageReadAccessService', () => {
     };
     const policyRepository = { findByChannelIdsAndRoleIds: jest.fn() };
     const projectionReadiness = { isReady: jest.fn() };
-    const service = new ChannelMessageReadAccessService(
-        channelRepository as unknown as ChannelProjectionRepository,
-        channelMemberRepository as unknown as ChannelMemberRepository,
-        teamMemberRepository as unknown as TeamMemberProjectionRepository,
-        teamRoleRepository as unknown as TeamRoleProjectionRepository,
-        policyRepository as unknown as ChannelRolePolicyProjectionRepository,
-        projectionReadiness as unknown as ProjectionReadinessService,
-    );
+    // 브로드캐스트 판정 캐시가 인스턴스에 상태로 남으므로, 테스트 간 오염을 막기 위해
+    // 매 테스트마다 새 인스턴스를 만든다(캐시도 함께 초기화됨).
+    let service: ChannelMessageReadAccessService;
 
     beforeEach(() => {
         jest.clearAllMocks();
+        service = new ChannelMessageReadAccessService(
+            channelRepository as unknown as ChannelProjectionRepository,
+            channelMemberRepository as unknown as ChannelMemberRepository,
+            teamMemberRepository as unknown as TeamMemberProjectionRepository,
+            teamRoleRepository as unknown as TeamRoleProjectionRepository,
+            policyRepository as unknown as ChannelRolePolicyProjectionRepository,
+            projectionReadiness as unknown as ProjectionReadinessService,
+        );
         projectionReadiness.isReady.mockReturnValue(true);
         channelRepository.findByIds.mockResolvedValue([
             { channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false },
@@ -75,6 +78,10 @@ describe('ChannelMessageReadAccessService', () => {
             { teamId: 1, channelId: 20, roleId: 101, messageRead: true },
             { teamId: 1, channelId: 10, roleId: 302, messageRead: true },
         ]);
+    });
+
+    afterEach(() => {
+        service.onModuleDestroy();
     });
 
     describe('canReadChannel', () => {
@@ -166,19 +173,26 @@ describe('ChannelMessageReadAccessService', () => {
     });
 
     describe('emitToReadableChannelUsers', () => {
-    it('실시간 이벤트는 읽기 가능한 socket에만 보내고 요청한 sender는 제외한다', async () => {
-        const sender = { id: 'sender', data: { userId: 2 }, emit: jest.fn() };
-        const otherAllowed = { id: 'allowed', data: { userId: 2 }, emit: jest.fn() };
-        const denied = { id: 'denied', data: { userId: 3 }, emit: jest.fn() };
+    it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
+        const sender = { id: 'sender', data: { userId: 2 } };
+        const otherAllowed = { id: 'allowed', data: { userId: 2 } };
+        const denied = { id: 'denied', data: { userId: 3 } };
+        const toEmit = jest.fn();
+        const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
         const io = {
             in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([sender, otherAllowed, denied]) }),
+            to,
         };
 
         await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
 
-        expect(sender.emit).not.toHaveBeenCalled();
-        expect(otherAllowed.emit).toHaveBeenCalledWith('typing', { value: true });
-        expect(denied.emit).not.toHaveBeenCalled();
+        // room 이름이 아니라 스냅샷에서 얻은 소켓 ID를 직접 대상으로 지정한다(allow-list).
+        // fetchSockets() 스냅샷 이후 emit 전에 room에 새로 합류하는 소켓이 있어도, 그 소켓은
+        // 이 배열에 없으므로 이번 emit의 대상이 되지 않는다 — room 이름을 대상으로 except(...)를
+        // 쓰는 deny-list 방식이었다면, emit 시점에 room 멤버십을 다시 읽어 그 소켓도 받았을 것이다.
+        expect(to).toHaveBeenCalledTimes(1);
+        expect(to.mock.calls[0][0]).toEqual(['allowed']);
+        expect(toEmit).toHaveBeenCalledWith('typing', { value: true });
     });
     });
 
@@ -198,6 +212,76 @@ describe('ChannelMessageReadAccessService', () => {
         expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
         expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
         expect(stale.emit).not.toHaveBeenCalled();
+    });
+    });
+
+    describe('emitToReadableChannelUsers 캐싱', () => {
+    const makeIo = (sockets: Array<{ id: string; data: { userId: number } }>) => {
+        const toEmit = jest.fn();
+        const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
+        const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue(sockets) }), to };
+        return { io, to, toEmit };
+    };
+
+    it('TTL 내 같은 채널·같은 접속자 조합은 저장소를 다시 조회하지 않는다', async () => {
+        const sockets = [{ id: 's2', data: { userId: 2 } }, { id: 's3', data: { userId: 3 } }];
+        const { io, to } = makeIo(sockets);
+
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 1 });
+        expect(to).toHaveBeenCalledWith(['s2']);
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+
+        to.mockClear();
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 2 });
+
+        expect(to).toHaveBeenCalledWith(['s2']);
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+    });
+
+    it('접속자 구성이 바뀌면 캐시에 없는 사용자만 저장소에서 다시 조회한다(부분 캐시 히트)', async () => {
+        const first = makeIo([{ id: 's2', data: { userId: 2 } }]);
+        await service.emitToReadableChannelUsers(first.io as never, 10, 'message', {});
+        channelMemberRepository.findByChannelIdsAndUserIds.mockClear();
+
+        const second = makeIo([{ id: 's2', data: { userId: 2 } }, { id: 's4', data: { userId: 4 } }]);
+        await service.emitToReadableChannelUsers(second.io as never, 10, 'message', {});
+
+        expect(second.to).toHaveBeenCalledWith(['s2']);
+        expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([10], [4]);
+    });
+
+    it('단건 권한 검증(canReadChannel)은 브로드캐스트 캐시를 사용하지 않고 항상 새로 조회한다', async () => {
+        const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+        channelRepository.findByIds.mockClear();
+
+        await service.canReadChannel(10, 2);
+
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+    });
+
+    it('알림·시스템 메시지 경로(filterReadableUsersByChannel)는 브로드캐스트 캐시를 사용하지 않는다', async () => {
+        const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+        channelRepository.findByIds.mockClear();
+
+        const result = await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
+
+        expect(result.get(10)).toEqual([2]);
+        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+    });
+
+    it('projectionReadiness가 준비되지 않은 동안의 판정은 캐시에 쓰지 않는다', async () => {
+        projectionReadiness.isReady.mockReturnValue(false);
+        const { io, to } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+        expect(to).not.toHaveBeenCalled();
+
+        projectionReadiness.isReady.mockReturnValue(true);
+        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+
+        expect(to).toHaveBeenCalledWith(['s2']);
     });
     });
 });

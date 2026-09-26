@@ -6,6 +6,13 @@ spring:
     url: jdbc:mysql://mysql:3306/cowork_channel?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     username: ${MYSQL_USER}
     password: ${MYSQL_PASSWORD}
+    hikari:
+      # 로컬은 부하 재현 시 고갈 지점을 관찰하기 쉽도록 작게 유지한다.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: 3000
+      validation-timeout: 1000
+      pool-name: channel-hikari
   kafka:
     bootstrap-servers: kafka:9092
 
@@ -34,8 +41,11 @@ projection:
 account-share:
   encryption-key: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}
   oauth:
+    connect-timeout-ms: 3000
+    read-timeout-ms: 5000
     callback-base-url: http://localhost:8080
-    client-redirect-url: http://localhost:3000
+    allowed-return-origins:
+      - http://localhost:3000
     state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
     github:
       client-id: ${GITHUB_ACCOUNT_SHARE_CLIENT_ID:}

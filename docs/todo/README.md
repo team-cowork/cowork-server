@@ -14,7 +14,7 @@
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
-- dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)
+- ~~dependency: [cowlib git override 제거와 Hex 릴리스 복귀](./items/14-dependency/cowlib-hex-override-removal.md)~~
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
 - ~~correctness: [사용자 통합 검색의 MySQL 호환성 복구](./items/16-correctness/user-search-mysql-like.md)~~
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md)
@@ -33,23 +33,27 @@
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md)
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
 - ~~correctness: [사용자 프로필 PATCH 부분 수정 의미 보장](./items/32-correctness/user-profile-patch-semantics.md)~~
-- reliability: [FCM 개별 전송 실패의 선택적 재시도](./items/33-reliability/fcm-partial-failure-retry.md)
-- reliability: [Authorization 웹훅 멱등 처리와 outbox 원자화](./items/34-reliability/authorization-webhook-atomicity.md)
-- reliability: [종료 음성 세션의 Redis stale cache 차단](./items/35-reliability/voice-session-cache-staleness.md)
+- ~~reliability: [FCM 개별 전송 실패의 선택적 재시도](./items/33-reliability/fcm-partial-failure-retry.md)~~
+- ~~reliability: [Authorization 웹훅 멱등 처리와 outbox 원자화](./items/34-reliability/authorization-webhook-atomicity.md)~~
+- ~~reliability: [종료 음성 세션의 Redis stale cache 차단](./items/35-reliability/voice-session-cache-staleness.md)~~
 - ~~security: [역할 기반 채널·메시지 읽기 권한 적용](./items/36-security/role-based-channel-message-read-authorization.md)~~
 - performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
 - security: [기존 역할·채널 정책의 운영 전환](./items/38-security/existing-channel-role-policy-transition.md)
 - security: [채널 삭제 시 역할 정책 정리와 재생성 차단](./items/39-security/channel-deletion-role-policy-fence.md)
-- ~~reliability: [상태 토픽 키 포맷 변경에 따른 토픽 버전 분리](./items/40-reliability/state-topic-key-versioning.md)~~
-- configuration: [cowork-user 기동 부트스트랩의 애플리케이션 내부 이관](./items/41-configuration/user-entrypoint-in-app-bootstrap.md)
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md)
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
+- dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+- ~~security: [채팅 GitHub 이슈 생성 command의 프로젝트 수정 권한 검증](./items/46-security/chat-github-issue-command-authorization.md)~~
+- api: [GitHub App 이슈·댓글·라벨 외부 계약 정립](./items/47-api/github-app-issue-comment-label-contract.md)
+- ~~reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)~~
+- ~~reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)~~
 
 ## 점검 스냅샷
 
+- [20260926](./20260926_TODO.md) — GitHub App 연동 갭 점검
+- [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
-- [20260907](./20260907_TODO.md) — 상태 토픽 키 계약과 projection 복구 경로 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
 - [20260828](./20260828_TODO.md) — 서버 의존성·애플리케이션 코드 점검
 - [20260825](./20260825_TODO.md) — Gateway·Swagger 외부 API 계약 점검
