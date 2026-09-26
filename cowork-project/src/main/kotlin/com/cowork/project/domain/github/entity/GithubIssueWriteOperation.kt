@@ -1,6 +1,7 @@
 package com.cowork.project.domain.github.entity
 
 import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
+import com.cowork.project.domain.github.service.GithubCommentParentType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -41,11 +42,22 @@ class GithubIssueWriteOperation(
     @Column(name = "repo_id", nullable = false)
     val repoId: Long,
 
+    @Column(nullable = false, length = 255)
+    val owner: String,
+
+    @Column(nullable = false, length = 255)
+    val repo: String,
+
     @Column(name = "issue_number")
     val issueNumber: Int? = null,
 
     @Column(name = "comment_id")
     val commentId: Long? = null,
+
+    /** CREATE_COMMENT 전용: 댓글 생성 성공 시 부모 이슈/PR 작성자에게 알림을 보내기 위해 필요하다. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "parent_type", length = 20)
+    val parentType: GithubCommentParentType? = null,
 
     @Column(name = "requested_by", nullable = false)
     val requestedBy: Long,
