@@ -2,7 +2,8 @@
 
 - **서비스**: cowork-project, cowork-notification
 - **우선순위**: 🟡 낮음
-- **현재 상태**: 댓글 부가 알림을 transactional outbox 없이 `notification.trigger`로 직접 발행한다
+- **현재 상태**: 완료. 댓글 부가 알림을 project의 transactional outbox에 기록하고 relay가 `notification.trigger`로 발행한다
+- **결론**: 부모 작성자 조회 실패(GitHub 조회 실패, 프로필 매핑 누락·모호)는 재시도하지 않고 알림 생략으로 확정했다. 댓글 생성은 성공으로 응답하며 경고 로그만 남긴다
 
 ## 문제
 
@@ -14,7 +15,9 @@
 
 - 알림 대상이 결정된 뒤 알림 이벤트를 project의 transactional outbox에 기록한다.
 - 부모 작성자 조회 실패를 재시도할지, 알림 생략으로 확정할지 정한다.
+  - 알림 생략으로 확정했다. 알림은 댓글 생성의 부가 효과이며 GitHub 조회 재시도는 이 항목의 완료 조건(Kafka 발행 유실 방지) 밖이다.
 - `GithubCommentNotificationPublisher`의 직접 발행을 제거한다.
+- `CreateGithubCommentServiceImpl.execute`의 request transaction을 제거하고, GitHub 호출은 transaction 밖에서 수행한 뒤 outbox 기록만 짧은 쓰기 transaction으로 감싼다. publisher는 호출자 transaction에 참여한다.
 
 ## 검증
 
