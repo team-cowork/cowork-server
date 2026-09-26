@@ -8,6 +8,18 @@ import { isSearchIndexed } from '../search/message-index-scope';
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
 
+/**
+ * 메시지당 보관하는 최대 편집 이력 수.
+ * 상한이 없으면 자주 수정되는 메시지의 문서가 무한정 커져 WiredTiger 문서 재배치(move)가
+ * 반복되며 쓰기 지연이 누적된다. 최근 N개만 유지해 문서 크기를 상한선 안으로 고정한다.
+ * `content`는 최대 25,000자(≈25KB)라 이력 20건 기준 문서 크기 상한은 약 500KB다.
+ *
+ * 이 상한은 이후 수정에서만 적용된다. 이미 20건을 넘겨 비대해진 기존 문서는 다음 수정이
+ * 한 번 더 일어나야 잘리며, 그 전까지 별도 일괄 정리(backfill)는 이 변경 범위에 포함하지
+ * 않는다 — 신규 증가만 막는 것이 목적이다.
+ */
+const MAX_EDIT_HISTORY_ENTRIES = 20;
+
 /** {@link MessageRow}에 필요한 필드만 남기는 프로젝션. `editHistory` 등 클라이언트 미사용 필드 전송을 막는다. */
 const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
     $project: {
@@ -119,6 +131,34 @@ export type MessageRow = {
     /** 스레드 부모 메시지 요약. 부모가 없거나 삭제된 경우 `null` */
     mentionedMessage: MentionedMessageRow | null;
 };
+
+/**
+ * 신규 메시지 생성 직후 WebSocket으로 브로드캐스트할 때 사용하는 필드 집합.
+ * `MessageRow`에서 `$lookup`으로만 채워지는 `mentionedMessage`를 제외한 나머지와 동일합니다.
+ */
+export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
+
+/**
+ * 저장 직후의 메시지 도큐먼트를 브로드캐스트에 필요한 필드만 남긴 평범한 객체로 변환합니다.
+ *
+ * `notificationStatus`, `searchIndexStatus` 등 아웃박스 처리용 내부 필드는 클라이언트가 쓰지 않으므로
+ * 제외합니다. `findMessages`의 {@link MESSAGE_ROW_PROJECTION}과 `mentionedMessage`를 제외한
+ * 나머지 필드 집합을 유지해 REST 응답과 WebSocket 브로드캐스트의 메시지 형태를 맞춥니다.
+ * `mentionedMessage`(스레드 부모 메시지 요약)는 `$lookup` 조인 결과라 여기서는 채우지 않으며,
+ * 이는 기존 `saved.toObject()` 방식에서도 마찬가지였던 동작이라 회귀가 아닙니다.
+ */
+export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
+    const {
+        _id, teamId, projectId, channelId, authorId, content, type,
+        attachments, parentMessageId, isEdited, isPinned, clientMessageId,
+        mentions, reactions, createdAt, updatedAt,
+    } = doc.toObject();
+    return {
+        _id, teamId, projectId, channelId, authorId, content, type,
+        attachments, parentMessageId, isEdited, isPinned, clientMessageId,
+        mentions, reactions, createdAt, updatedAt,
+    };
+}
 
 /** `addReaction` / `removeReaction` 내부에서 reactions 배열만 추출하기 위한 타입 */
 type ReactionDoc = { reactions: Array<{ emoji: string; userIds: number[] }> };
@@ -253,6 +293,7 @@ export class MessageRepository {
      *
      * 도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
      * 색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
+     * `editHistory`는 최근 {@link MAX_EDIT_HISTORY_ENTRIES}개만 보관하며 그보다 오래된 이력은 버립니다.
      *
      * @param indexed - 검색 색인 대상 메시지인지 여부
      * @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
@@ -266,9 +307,14 @@ export class MessageRepository {
                     content,
                     isEdited: true,
                     editHistory: {
-                        $concatArrays: [
-                            { $ifNull: ['$editHistory', []] },
-                            [{ content: '$content', editedAt: now }],
+                        $slice: [
+                            {
+                                $concatArrays: [
+                                    { $ifNull: ['$editHistory', []] },
+                                    [{ content: '$content', editedAt: now }],
+                                ],
+                            },
+                            -MAX_EDIT_HISTORY_ENTRIES,
                         ],
                     },
                     updatedAt: now,

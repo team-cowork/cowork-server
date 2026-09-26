@@ -8,6 +8,7 @@ package com.cowork.project.domain.github.event
  * 형태(`type`/`targetUserIds`/`forcedUserIds`/`data`)를 따른다.
  */
 data class NotificationTriggerEvent(
+    val eventId: String,
     val type: String,
     val targetUserIds: List<Long>,
     val forcedUserIds: List<Long> = emptyList(),
