@@ -119,4 +119,7 @@ class KafkaConsumerConfig(
 
     @Bean
     fun chatGithubIssueCommandListenerContainerFactory() = durableResultListenerContainerFactory()
+
+    @Bean
+    fun githubIssueWriteResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

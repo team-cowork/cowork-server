@@ -1,35 +1,28 @@
 package com.cowork.project.domain.github.service.impl
 
-import com.cowork.project.domain.github.client.GithubAppClient
-import com.cowork.project.domain.github.client.GithubAppCreateCommentReqDto
-import com.cowork.project.domain.github.event.GithubCommentNotificationPublisher
+import com.cowork.project.domain.github.event.GithubIssueWriteCommandPublisher
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
-import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
 import com.cowork.project.domain.github.service.CreateGithubCommentService
-import com.cowork.project.domain.github.service.GithubAppCallExecutor
 import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
-import com.cowork.project.domain.github.service.GithubRepoRef
 import com.cowork.project.domain.github.service.GithubUsernameResolver
-import com.cowork.project.domain.user.service.UserProfileProjectionReader
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.PlatformTransactionManager
-import org.springframework.transaction.support.TransactionTemplate
+import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
+/**
+ * 댓글 생성을 `github-app.issue-write.command` Kafka 커맨드로 발행한다(비동기). 실제 생성 성공 여부와
+ * 부모 이슈/PR 작성자 알림은 [com.cowork.project.domain.github.service.GithubIssueWriteResultHandler]가
+ * `github-app.issue-write.result`를 받은 뒤 [com.cowork.project.domain.github.service.GithubCommentParentAuthorNotifier]로 처리한다.
+ */
 @Service
 class CreateGithubCommentServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
     private val usernameResolver: GithubUsernameResolver,
-    private val callExecutor: GithubAppCallExecutor,
-    private val githubAppClient: GithubAppClient,
-    private val profileReader: UserProfileProjectionReader,
-    private val notificationPublisher: GithubCommentNotificationPublisher,
-    transactionManager: PlatformTransactionManager,
+    private val commandPublisher: GithubIssueWriteCommandPublisher,
 ) : CreateGithubCommentService {
-    private val logger = LoggerFactory.getLogger(CreateGithubCommentServiceImpl::class.java)
-    private val transaction = TransactionTemplate(transactionManager)
 
+    @Transactional
     override fun execute(
         userId: Long,
         projectId: Long,
@@ -37,54 +30,20 @@ class CreateGithubCommentServiceImpl(
         parentType: GithubCommentParentType,
         number: Int,
         request: CreateGithubCommentReqDto,
-    ): GithubCommentResDto {
+    ) {
         val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
         val requesterGithubUsername = usernameResolver.resolve(userId)
 
-        val comment = callExecutor.execute {
-            githubAppClient.createIssueComment(
-                repo.owner,
-                repo.repo,
-                number,
-                GithubAppCreateCommentReqDto(body = request.body, requesterGithubUsername = requesterGithubUsername),
-            )
-        }
-
-        notifyParentAuthor(repo, parentType, number, comment)
-        return comment
-    }
-
-    private fun notifyParentAuthor(
-        repo: GithubRepoRef,
-        parentType: GithubCommentParentType,
-        number: Int,
-        comment: GithubCommentResDto,
-    ) {
-        runCatching {
-            val parentAuthorGithubUsername = when (parentType) {
-                GithubCommentParentType.ISSUE ->
-                    callExecutor.execute { githubAppClient.getIssue(repo.owner, repo.repo, number) }.author
-                GithubCommentParentType.PULL_REQUEST ->
-                    callExecutor.execute { githubAppClient.getPullRequest(repo.owner, repo.repo, number) }.author
-            }
-            if (parentAuthorGithubUsername == comment.author) return
-
-            val targetUserId = profileReader.resolveUniqueUserId(parentAuthorGithubUsername)
-            transaction.executeWithoutResult {
-                notificationPublisher.publishCommentCreated(
-                    targetUserId = targetUserId,
-                    data = mapOf(
-                        "repo" to "${repo.owner}/${repo.repo}",
-                        "number" to number,
-                        "parentType" to parentType.name,
-                        "commentAuthor" to comment.author,
-                        "body" to comment.body,
-                        "htmlUrl" to comment.htmlUrl,
-                    ),
-                )
-            }
-        }.onFailure { ex ->
-            logger.warn("댓글 생성 알림 처리 실패 (댓글 생성 자체는 성공) [repo={}/{}, number={}]", repo.owner, repo.repo, number, ex)
-        }
+        commandPublisher.publishCreateComment(
+            owner = repo.owner,
+            repo = repo.repo,
+            repoId = repoId,
+            issueNumber = number,
+            body = request.body,
+            requesterGithubUsername = requesterGithubUsername,
+            parentType = parentType,
+            requestedBy = userId,
+            occurredAt = Instant.now(),
+        )
     }
 }
