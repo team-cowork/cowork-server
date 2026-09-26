@@ -15,6 +15,8 @@ export interface IssueDetail {
   labels: { name: string }[];
   created_at: string;
   updated_at: string;
+  // GitHub의 이슈 목록 API는 PR도 함께 반환하며, PR인 항목에만 이 필드가 존재한다.
+  pull_request?: unknown;
 }
 
 export interface GithubComment {
@@ -44,6 +46,34 @@ export class IssueHttpApiClient {
         this.httpService.get<IssueDetail>(
           `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}`,
           { headers: this.authHeaders(token) },
+        ),
+      );
+      return data;
+    } catch (error) {
+      this.handleGithubError(error);
+    }
+  }
+
+  // MVP: per_page=100 단일 페이지만 조회. 100개 초과 이슈 페이지네이션은 후속 과제.
+  async listIssues(
+    owner: string,
+    repo: string,
+    state: string,
+  ): Promise<IssueDetail[]> {
+    const token = await this.authService.getInstallationToken(owner);
+    try {
+      const { data } = await firstValueFrom(
+        this.httpService.get<IssueDetail[]>(
+          `${GITHUB_API}/repos/${owner}/${repo}/issues`,
+          {
+            headers: this.authHeaders(token),
+            params: {
+              state,
+              per_page: 100,
+              sort: 'created',
+              direction: 'desc',
+            },
+          },
         ),
       );
       return data;

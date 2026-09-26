@@ -8,6 +8,7 @@ import { CommentHttpController } from './comment-http.controller';
 import { CommentListHttpController } from './comment-list-http.controller';
 import { IssueHttpController } from './issue-http.controller';
 import { IssueHttpService } from './issue-http.service';
+import { IssueListHttpController } from './issue-list-http.controller';
 
 @Module({
   imports: [HttpModule, GithubAuthModule],
@@ -19,6 +20,7 @@ import { IssueHttpService } from './issue-http.service';
   ],
   controllers: [
     IssueHttpController,
+    IssueListHttpController,
     CommentListHttpController,
     CommentHttpController,
   ],

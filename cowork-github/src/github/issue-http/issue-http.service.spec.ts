@@ -6,6 +6,7 @@ describe('IssueHttpService', () => {
   let service: IssueHttpService;
   let apiClient: {
     getIssue: jest.Mock;
+    listIssues: jest.Mock;
     listComments: jest.Mock;
     createComment: jest.Mock;
     getComment: jest.Mock;
@@ -36,6 +37,7 @@ describe('IssueHttpService', () => {
   beforeEach(async () => {
     apiClient = {
       getIssue: jest.fn(),
+      listIssues: jest.fn(),
       listComments: jest.fn(),
       createComment: jest.fn(),
       getComment: jest.fn(),
@@ -77,6 +79,59 @@ describe('IssueHttpService', () => {
       const result = await service.getIssueDetail('my-org', 'my-repo', 1);
 
       expect(result.author).toBe('ghost');
+    });
+  });
+
+  describe('listIssues', () => {
+    it('raw 목록 아이템을 응답 DTO로 매핑한다', async () => {
+      apiClient.listIssues.mockResolvedValue([baseIssue]);
+
+      const result = await service.listIssues('my-org', 'my-repo', 'all');
+
+      expect(result).toEqual([
+        {
+          number: 1,
+          title: 'Bug report',
+          author: 'author',
+          state: 'open',
+          htmlUrl: 'https://github.com/my-org/my-repo/issues/1',
+          labels: ['bug'],
+          createdAt: '2024-01-01T00:00:00Z',
+          updatedAt: '2024-01-02T00:00:00Z',
+        },
+      ]);
+      expect(apiClient.listIssues).toHaveBeenCalledWith(
+        'my-org',
+        'my-repo',
+        'all',
+      );
+    });
+
+    it('pull_request 필드가 있는 항목은 목록에서 제외한다', async () => {
+      apiClient.listIssues.mockResolvedValue([
+        baseIssue,
+        { ...baseIssue, number: 2, pull_request: { url: 'https://...' } },
+      ]);
+
+      const result = await service.listIssues('my-org', 'my-repo', 'open');
+
+      expect(result).toHaveLength(1);
+      expect(result[0].number).toBe(1);
+    });
+
+    it('user가 null이면 author를 ghost로 매핑한다', async () => {
+      apiClient.listIssues.mockResolvedValue([{ ...baseIssue, user: null }]);
+
+      const result = await service.listIssues('my-org', 'my-repo', 'open');
+
+      expect(result[0].author).toBe('ghost');
+    });
+
+    it('허용되지 않은 state 값은 GitHub 호출 없이 400 GithubClientError를 던진다', async () => {
+      await expect(
+        service.listIssues('my-org', 'my-repo', 'invalid'),
+      ).rejects.toMatchObject({ statusCode: 400 });
+      expect(apiClient.listIssues).not.toHaveBeenCalled();
     });
   });
 

@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
+import { GithubClientError } from '../github.errors';
 import {
   GithubComment,
+  IssueDetail,
   IssueHttpApiClient,
 } from './client/issue-http-api.client';
+
+export const ALLOWED_ISSUE_STATES = ['open', 'closed', 'all'] as const;
 
 export interface IssueDetailResponse {
   number: number;
@@ -40,16 +44,22 @@ export class IssueHttpService {
     issueNumber: number,
   ): Promise<IssueDetailResponse> {
     const issue = await this.apiClient.getIssue(owner, repo, issueNumber);
-    return {
-      number: issue.number,
-      title: issue.title,
-      author: issue.user?.login ?? 'ghost',
-      state: issue.state,
-      htmlUrl: issue.html_url,
-      labels: issue.labels?.map((label) => label.name) ?? [],
-      createdAt: issue.created_at,
-      updatedAt: issue.updated_at,
-    };
+    return this.toIssueDetailResponse(issue);
+  }
+
+  async listIssues(
+    owner: string,
+    repo: string,
+    state: string,
+  ): Promise<IssueDetailResponse[]> {
+    this.assertValidState(state);
+
+    const issues = await this.apiClient.listIssues(owner, repo, state);
+
+    // GitHub의 이슈 목록 API는 PR도 함께 반환하므로, pull_request 필드가 있는 항목은 제외한다.
+    return issues
+      .filter((issue) => issue.pull_request == null)
+      .map((issue) => this.toIssueDetailResponse(issue));
   }
 
   async listComments(
@@ -115,6 +125,32 @@ export class IssueHttpService {
     commentId: number,
   ): Promise<void> {
     await this.apiClient.deleteComment(owner, repo, commentId);
+  }
+
+  private toIssueDetailResponse(issue: IssueDetail): IssueDetailResponse {
+    return {
+      number: issue.number,
+      title: issue.title,
+      author: issue.user?.login ?? 'ghost',
+      state: issue.state,
+      htmlUrl: issue.html_url,
+      labels: issue.labels?.map((label) => label.name) ?? [],
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at,
+    };
+  }
+
+  private assertValidState(state: string): void {
+    if (
+      !ALLOWED_ISSUE_STATES.includes(
+        state as (typeof ALLOWED_ISSUE_STATES)[number],
+      )
+    ) {
+      throw new GithubClientError(
+        'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
+        400,
+      );
+    }
   }
 
   private toCommentResponse(comment: GithubComment): CommentResponse {
