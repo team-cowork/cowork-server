@@ -1,32 +1,22 @@
 package com.cowork.project.domain.github.service.impl
 
-import com.cowork.project.domain.github.client.GithubAppClient
-import com.cowork.project.domain.github.event.GithubCommentNotificationPublisher
 import com.cowork.project.domain.github.event.GithubIssueWriteCommandPublisher
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
-import com.cowork.project.domain.github.service.GithubAppCallExecutor
 import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.GithubRepoRef
 import com.cowork.project.domain.github.service.GithubUsernameResolver
-import com.cowork.project.domain.user.service.UserProfileProjectionReader
 import io.kotest.core.spec.style.DescribeSpec
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import org.springframework.transaction.PlatformTransactionManager
 
 class CreateGithubCommentServiceImplTest :
     DescribeSpec({
 
         lateinit var repoAccessResolver: GithubRepoAccessResolver
         lateinit var usernameResolver: GithubUsernameResolver
-        lateinit var callExecutor: GithubAppCallExecutor
-        lateinit var githubAppClient: GithubAppClient
         lateinit var commandPublisher: GithubIssueWriteCommandPublisher
-        lateinit var profileReader: UserProfileProjectionReader
-        lateinit var notificationPublisher: GithubCommentNotificationPublisher
-        lateinit var transactionManager: PlatformTransactionManager
         lateinit var service: CreateGithubCommentServiceImpl
 
         val repo = GithubRepoRef("my-org", "my-repo")
@@ -35,21 +25,11 @@ class CreateGithubCommentServiceImplTest :
         beforeEach {
             repoAccessResolver = mockk()
             usernameResolver = mockk()
-            callExecutor = mockk()
-            githubAppClient = mockk()
             commandPublisher = mockk()
-            profileReader = mockk()
-            notificationPublisher = mockk()
-            transactionManager = mockk(relaxed = true)
             service = CreateGithubCommentServiceImpl(
                 repoAccessResolver,
                 usernameResolver,
-                callExecutor,
-                githubAppClient,
                 commandPublisher,
-                profileReader,
-                notificationPublisher,
-                transactionManager,
             )
 
             every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns repo
@@ -62,6 +42,7 @@ class CreateGithubCommentServiceImplTest :
                     issueNumber = any(),
                     body = any(),
                     requesterGithubUsername = any(),
+                    parentType = any(),
                     requestedBy = any(),
                     occurredAt = any(),
                 )
@@ -82,6 +63,7 @@ class CreateGithubCommentServiceImplTest :
                                 issueNumber = 3,
                                 body = "확인했습니다",
                                 requesterGithubUsername = "commenter",
+                                parentType = GithubCommentParentType.ISSUE,
                                 requestedBy = 7L,
                                 occurredAt = any(),
                             )
@@ -101,6 +83,7 @@ class CreateGithubCommentServiceImplTest :
                                 issueNumber = 3,
                                 body = "확인했습니다",
                                 requesterGithubUsername = "commenter",
+                                parentType = GithubCommentParentType.PULL_REQUEST,
                                 requestedBy = 7L,
                                 occurredAt = any(),
                             )
