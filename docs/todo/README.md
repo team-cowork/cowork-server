@@ -44,9 +44,9 @@
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
-- security: [채팅 GitHub 이슈 생성 command의 프로젝트 수정 권한 검증](./items/46-security/chat-github-issue-command-authorization.md)
+- ~~security: [채팅 GitHub 이슈 생성 command의 프로젝트 수정 권한 검증](./items/46-security/chat-github-issue-command-authorization.md)~~
 - api: [GitHub App 이슈·댓글·라벨 외부 계약 정립](./items/47-api/github-app-issue-comment-label-contract.md)
-- reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)
+- ~~reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)~~
 - ~~reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)~~
 
 ## 점검 스냅샷
