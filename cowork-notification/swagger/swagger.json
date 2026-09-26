@@ -4,7 +4,7 @@
         "description": "FCM 디바이스 토큰 관리 및 푸시 알림 서비스",
         "title": "cowork-notification API",
         "contact": {},
-        "version": "20260820.0"
+        "version": "20260926.0"
     },
     "basePath": "/api/notification",
     "paths": {

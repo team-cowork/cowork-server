@@ -36,8 +36,13 @@ class ResolutionTests(unittest.TestCase):
         self.assertEqual(identity["email"], "123456+TeamMember@users.noreply.github.com")
         self.assertEqual(identity["email_source"], "github-id-noreply-derived")
 
-    def test_missing_name_legacy_email_and_organization_stop(self):
-        for changes in ({"name": None}, {"email": None, "created_at": "2017-07-18T12:00:00Z"}, {"type": "Organization"}):
+    def test_missing_name_uses_canonical_login(self):
+        identity = self.resolve(name=None)
+        self.assertEqual(identity["name"], "TeamMember")
+        self.assertEqual(identity["name_source"], "github-login")
+
+    def test_legacy_email_and_organization_stop(self):
+        for changes in ({"email": None, "created_at": "2017-07-18T12:00:00Z"}, {"type": "Organization"}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 self.resolve(**changes)
 
