@@ -425,6 +425,17 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				},
 			},
 		}, true
+	case 7:
+		return []tableExpectation{
+			{
+				name: "tb_notification_delivery_retry",
+				columns: []string{
+					"id", "event_id", "device_token_id", "token", "title", "body", "data_json",
+					"status", "attempt_count", "next_attempt_at", "last_error_class", "claim_token",
+					"created_at", "updated_at",
+				},
+			},
+		}, true
 	default:
 		return nil, false
 	}

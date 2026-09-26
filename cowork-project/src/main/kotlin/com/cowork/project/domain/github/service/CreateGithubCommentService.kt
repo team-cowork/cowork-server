@@ -1,7 +1,6 @@
 package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
-import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
 
 interface CreateGithubCommentService {
     fun execute(
@@ -11,5 +10,5 @@ interface CreateGithubCommentService {
         parentType: GithubCommentParentType,
         number: Int,
         request: CreateGithubCommentReqDto,
-    ): GithubCommentResDto
+    )
 }

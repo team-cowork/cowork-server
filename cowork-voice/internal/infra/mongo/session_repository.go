@@ -25,6 +25,10 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 			Options: options.Index().SetUnique(true),
 		},
 		{
+			Keys:    bson.D{{Key: "room_name", Value: 1}},
+			Options: options.Index().SetUnique(true),
+		},
+		{
 			Keys: bson.D{{Key: "channel_id", Value: 1}},
 			Options: options.Index().
 				SetUnique(true).
