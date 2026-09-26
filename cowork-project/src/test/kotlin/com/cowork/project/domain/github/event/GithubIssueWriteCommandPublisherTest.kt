@@ -3,6 +3,7 @@ package com.cowork.project.domain.github.event
 import com.cowork.project.domain.github.entity.GithubIssueWriteOperation
 import com.cowork.project.domain.github.entity.GithubIssueWriteOperationStatus
 import com.cowork.project.domain.github.repository.GithubIssueWriteOperationRepository
+import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.global.outbox.OutboxWriter
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldHaveSize
@@ -82,6 +83,7 @@ class GithubIssueWriteCommandPublisherTest :
                         issueNumber = 3,
                         body = "첫 댓글",
                         requesterGithubUsername = "octocat",
+                        parentType = GithubCommentParentType.ISSUE,
                         requestedBy = 7L,
                         occurredAt = Instant.now(),
                     )
@@ -92,12 +94,31 @@ class GithubIssueWriteCommandPublisherTest :
                         issueNumber = 3,
                         body = "두 번째 댓글",
                         requesterGithubUsername = "octocat",
+                        parentType = GithubCommentParentType.ISSUE,
                         requestedBy = 7L,
                         occurredAt = Instant.now(),
                     )
 
                     verify(exactly = 2) { outboxWriter.enqueue(GITHUB_ISSUE_WRITE_COMMAND_TOPIC, "my-org/my-repo", any()) }
                     savedOperations.map { it.operationId }.toSet() shouldHaveSize 2
+                }
+
+                it("나중에 부모 작성자 알림을 보낼 수 있도록 owner/repo/parentType을 operation에 남긴다") {
+                    publisher.publishCreateComment(
+                        owner = "my-org",
+                        repo = "my-repo",
+                        repoId = 5L,
+                        issueNumber = 3,
+                        body = "확인했습니다",
+                        requesterGithubUsername = "octocat",
+                        parentType = GithubCommentParentType.PULL_REQUEST,
+                        requestedBy = 7L,
+                        occurredAt = Instant.now(),
+                    )
+
+                    savedOperations.single().owner shouldBe "my-org"
+                    savedOperations.single().repo shouldBe "my-repo"
+                    savedOperations.single().parentType shouldBe GithubCommentParentType.PULL_REQUEST
                 }
             }
 

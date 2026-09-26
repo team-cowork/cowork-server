@@ -3,6 +3,7 @@ package com.cowork.project.global.consumer
 import com.cowork.project.domain.github.event.GITHUB_ISSUE_WRITE_RESULT_TOPIC
 import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
 import com.cowork.project.domain.github.event.GithubIssueWriteResult
+import com.cowork.project.domain.github.service.GithubCommentParentAuthorNotifier
 import com.cowork.project.domain.github.service.GithubIssueWriteResultHandler
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
@@ -13,6 +14,7 @@ import java.util.UUID
 @Component
 class GithubIssueWriteResultConsumer(
     private val handler: GithubIssueWriteResultHandler,
+    private val commentNotifier: GithubCommentParentAuthorNotifier,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -25,7 +27,20 @@ class GithubIssueWriteResultConsumer(
             requireNotNull(objectMapper.readValue(record.value(), GithubIssueWriteResult::class.java))
         }.getOrElse { throw IllegalArgumentException("GitHub 이슈 쓰기 result JSON이 유효하지 않습니다.", it) }
         validate(payload)
-        handler.apply(payload)
+
+        // 원장 반영(짧은 트랜잭션)이 끝난 뒤에만, 트랜잭션 밖에서 부모 작성자 알림(GitHub 조회 + outbox 기록)을 수행한다.
+        val pendingNotification = handler.apply(payload)
+        if (pendingNotification != null) {
+            commentNotifier.notify(
+                owner = pendingNotification.owner,
+                repo = pendingNotification.repo,
+                parentType = pendingNotification.parentType,
+                number = pendingNotification.issueNumber,
+                commentAuthor = pendingNotification.commentAuthor,
+                commentBody = pendingNotification.commentBody,
+                commentHtmlUrl = pendingNotification.commentHtmlUrl,
+            )
+        }
     }
 
     internal fun validate(result: GithubIssueWriteResult) {

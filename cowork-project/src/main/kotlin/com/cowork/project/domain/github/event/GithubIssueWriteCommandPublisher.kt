@@ -2,6 +2,7 @@ package com.cowork.project.domain.github.event
 
 import com.cowork.project.domain.github.entity.GithubIssueWriteOperation
 import com.cowork.project.domain.github.repository.GithubIssueWriteOperationRepository
+import com.cowork.project.domain.github.service.GithubCommentParentType
 import com.cowork.project.global.outbox.OutboxWriter
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Component
@@ -59,6 +60,7 @@ class GithubIssueWriteCommandPublisher(
             repoId = repoId,
             issueNumber = issueNumber,
             commentId = null,
+            parentType = null,
             requestedBy = requestedBy,
             occurredAt = occurredAt,
             payload = GithubReplaceLabelsPayload(issueNumber, labels),
@@ -73,6 +75,7 @@ class GithubIssueWriteCommandPublisher(
         issueNumber: Int,
         body: String,
         requesterGithubUsername: String,
+        parentType: GithubCommentParentType,
         requestedBy: Long,
         occurredAt: Instant,
     ): String {
@@ -85,6 +88,7 @@ class GithubIssueWriteCommandPublisher(
             repoId = repoId,
             issueNumber = issueNumber,
             commentId = null,
+            parentType = parentType,
             requestedBy = requestedBy,
             occurredAt = occurredAt,
             payload = GithubCreateCommentPayload(issueNumber, body, requesterGithubUsername),
@@ -110,6 +114,7 @@ class GithubIssueWriteCommandPublisher(
             repoId = repoId,
             issueNumber = null,
             commentId = commentId,
+            parentType = null,
             requestedBy = requestedBy,
             occurredAt = occurredAt,
             payload = GithubUpdateCommentPayload(commentId, body),
@@ -134,6 +139,7 @@ class GithubIssueWriteCommandPublisher(
             repoId = repoId,
             issueNumber = null,
             commentId = commentId,
+            parentType = null,
             requestedBy = requestedBy,
             occurredAt = occurredAt,
             payload = GithubDeleteCommentPayload(commentId),
@@ -148,6 +154,7 @@ class GithubIssueWriteCommandPublisher(
         repoId: Long,
         issueNumber: Int?,
         commentId: Long?,
+        parentType: GithubCommentParentType?,
         requestedBy: Long,
         occurredAt: Instant,
         payload: Any,
@@ -162,8 +169,11 @@ class GithubIssueWriteCommandPublisher(
                     idempotencyKey = idempotencyKey,
                     commandType = commandType,
                     repoId = repoId,
+                    owner = owner,
+                    repo = repo,
                     issueNumber = issueNumber,
                     commentId = commentId,
+                    parentType = parentType,
                     requestedBy = requestedBy,
                 ),
             )
