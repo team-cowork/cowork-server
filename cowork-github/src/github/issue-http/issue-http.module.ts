@@ -24,5 +24,6 @@ import { IssueListHttpController } from './issue-list-http.controller';
     CommentListHttpController,
     CommentHttpController,
   ],
+  exports: [IssueHttpService],
 })
 export class IssueHttpModule {}
