@@ -1,22 +1,26 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GithubSetupController } from './github-setup.controller';
 import { GithubAuthService } from '../../auth/github-auth.service';
+import { REDIS_CLIENT } from '../../constants';
 import { TeamGithubProducer } from '../kafka/team-github.producer';
 
 describe('GithubSetupController', () => {
   let controller: GithubSetupController;
   let authService: { getInstallationAccountLogin: jest.Mock };
   let producer: { send: jest.Mock };
+  let redis: { incr: jest.Mock };
 
   beforeEach(async () => {
     authService = { getInstallationAccountLogin: jest.fn() };
     producer = { send: jest.fn() };
+    redis = { incr: jest.fn().mockResolvedValue(5) };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [GithubSetupController],
       providers: [
         { provide: GithubAuthService, useValue: authService },
         { provide: TeamGithubProducer, useValue: producer },
+        { provide: REDIS_CLIENT, useValue: redis },
       ],
     }).compile();
 
@@ -43,10 +47,12 @@ describe('GithubSetupController', () => {
     const result = await controller.handle('42', 'install', 'team-state');
 
     expect(result).toContain('연동이 완료되었습니다');
+    expect(redis.incr).toHaveBeenCalledWith('github:installation:revision:42');
     expect(producer.send).toHaveBeenCalledWith('team.github.connected', {
       state: 'team-state',
       installationId: 42,
       orgLogin: 'my-org',
+      revision: 5,
     });
   });
 

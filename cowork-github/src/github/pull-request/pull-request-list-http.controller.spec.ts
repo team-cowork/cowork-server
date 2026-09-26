@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { HttpException } from '@nestjs/common';
 import { PullRequestListHttpController } from './pull-request-list-http.controller';
 import { PullRequestService } from './pull-request.service';
-import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
+import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { GithubClientError } from '../github.errors';
 
 describe('PullRequestListHttpController', () => {
