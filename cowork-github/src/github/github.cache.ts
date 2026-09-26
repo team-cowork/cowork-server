@@ -1,4 +1,6 @@
 export const githubCacheKeys = {
   installation: (owner: string): string => `github:installation:${owner}`,
   token: (installationId: number): string => `github:token:${installationId}`,
+  installationRevision: (installationId: number): string =>
+    `github:installation:revision:${installationId}`,
 };

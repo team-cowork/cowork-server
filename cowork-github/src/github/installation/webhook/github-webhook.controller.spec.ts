@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { GithubWebhookController } from './github-webhook.controller';
+import { REDIS_CLIENT } from '../../constants';
 import { TeamGithubProducer } from '../kafka/team-github.producer';
 import { RepoEventProducer } from '../kafka/repo-event.producer';
 import { GithubWebhookSignatureGuard } from './github-webhook-signature.guard';
@@ -8,16 +9,19 @@ describe('GithubWebhookController', () => {
   let controller: GithubWebhookController;
   let producer: { send: jest.Mock };
   let repoEventProducer: { send: jest.Mock };
+  let redis: { incr: jest.Mock };
 
   beforeEach(async () => {
     producer = { send: jest.fn() };
     repoEventProducer = { send: jest.fn() };
+    redis = { incr: jest.fn().mockResolvedValue(5) };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [GithubWebhookController],
       providers: [
         { provide: TeamGithubProducer, useValue: producer },
         { provide: RepoEventProducer, useValue: repoEventProducer },
+        { provide: REDIS_CLIENT, useValue: redis },
       ],
     })
       .overrideGuard(GithubWebhookSignatureGuard)
@@ -34,8 +38,10 @@ describe('GithubWebhookController', () => {
     });
 
     expect(result).toEqual({ ok: true });
+    expect(redis.incr).toHaveBeenCalledWith('github:installation:revision:42');
     expect(producer.send).toHaveBeenCalledWith('team.github.disconnected', {
       installationId: 42,
+      revision: 5,
     });
   });
 

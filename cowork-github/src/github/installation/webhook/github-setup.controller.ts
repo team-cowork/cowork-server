@@ -1,5 +1,8 @@
-import { Controller, Get, Header, Logger, Query } from '@nestjs/common';
+import { Controller, Get, Header, Inject, Logger, Query } from '@nestjs/common';
+import type Redis from 'ioredis';
 import { GithubAuthService } from '../../auth/github-auth.service';
+import { REDIS_CLIENT } from '../../constants';
+import { githubCacheKeys } from '../../github.cache';
 import { TeamGithubProducer } from '../kafka/team-github.producer';
 
 @Controller('github/setup')
@@ -9,6 +12,7 @@ export class GithubSetupController {
   constructor(
     private readonly authService: GithubAuthService,
     private readonly producer: TeamGithubProducer,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   @Get()
@@ -39,10 +43,15 @@ export class GithubSetupController {
         );
       }
 
+      const revision = await this.redis.incr(
+        githubCacheKeys.installationRevision(installationId),
+      );
+
       await this.producer.send('team.github.connected', {
         state,
         installationId,
         orgLogin,
+        revision,
       });
       return this.page(
         'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
