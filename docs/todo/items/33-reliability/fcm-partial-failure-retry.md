@@ -5,6 +5,8 @@
 - **현재 상태**: FCM multicast 요청 자체가 성공하면 재시도 가능한 개별 token 실패를 경고 로그만 남기고 알림 처리를 성공으로 종료함
 - **관련 작업**: [채팅 알림 전달의 종단간 멱등성 보장](../30-reliability/notification-delivery-idempotency.md)
 
+> **2026-09-14 완료:** `notification.trigger`를 발행하는 `cowork-chat`·`cowork-project`·`cowork-team` 세 곳 모두에 안정적 `eventId`를 추가하고(채팅은 메시지 자체의 `_id`를 재사용), `cowork-notification`에 FCM 응답을 성공·invalid·retryable·미분류로 분류하는 `Sender.Send`, `(eventId, deviceTokenId)`를 canonical key로 쓰는 `tb_notification_delivery_retry` 원장과 `DeliveryRepository`, 지수 백오프·최대 시도 횟수·격리를 적용하는 재시도 worker를 추가했다. `eventId`가 없는 이전 방식 producer는 비영속 단일 시도로 자동 폴백한다.
+
 ## 문제
 
 `cowork-notification/internal/infra/fcm/sender.go`의 `Sender.Send`는 최대 500개 token씩 `SendEachForMulticast`를 호출한다. 호출 자체가 성공하면 각 `SendResponse`를 순회하지만, unregistered 오류만 invalid token 목록에 추가하고 그 밖의 개별 실패는 `fcm send failed` 경고만 기록한다. 이 경우 반환 오류는 `nil`이고 어떤 token이 성공했거나 재시도가 필요한지 호출자가 알 수 없다.
