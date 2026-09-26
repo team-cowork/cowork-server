@@ -7,6 +7,7 @@ import { IssueResultProducer } from '../src/github/kafka/issue-result.producer';
 import { PullRequestResultProducer } from '../src/github/pull-request/kafka/pull-request-result.producer';
 import { TeamGithubProducer } from '../src/github/installation/kafka/team-github.producer';
 import { RepoEventProducer } from '../src/github/installation/kafka/repo-event.producer';
+import { IssueWriteResultProducer } from '../src/github/issue-write/issue-write-result.producer';
 import { applyTestEnv, restoreTestEnv } from './support/test-env';
 
 describe('AppController (e2e)', () => {
@@ -26,6 +27,8 @@ describe('AppController (e2e)', () => {
       .overrideProvider(TeamGithubProducer)
       .useValue({ send: jest.fn() })
       .overrideProvider(RepoEventProducer)
+      .useValue({ send: jest.fn() })
+      .overrideProvider(IssueWriteResultProducer)
       .useValue({ send: jest.fn() })
       .compile();
 

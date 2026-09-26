@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { GithubClientError } from '../github.errors';
 import { PullRequestActionRequestDto } from './dto/pull-request-action-request.dto';
-import { InternalApiKeyGuard } from './guards/internal-api-key.guard';
+import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { PullRequestService } from './pull-request.service';
 
 @Controller('api/repos/:owner/:repo/pulls/:number')
