@@ -1,7 +1,6 @@
 package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubIssueLabelsReqDto
-import com.cowork.project.domain.github.presentation.data.response.GithubIssueResDto
 
 interface UpdateGithubIssueLabelsService {
     fun execute(
@@ -10,5 +9,5 @@ interface UpdateGithubIssueLabelsService {
         repoId: Long,
         issueNumber: Int,
         request: UpdateGithubIssueLabelsReqDto,
-    ): GithubIssueResDto
+    )
 }
