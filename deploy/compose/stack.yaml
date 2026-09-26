@@ -140,6 +140,9 @@ services:
         preference.github-repo.setting.state
         preference.github-repo.setting.result
         preference.github-repo.setting.result-dlt
+        project.chat-github-issue.command
+        project.chat-github-issue.command-dlt
+        project.chat-github-issue.result
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event
         user.presence.event
