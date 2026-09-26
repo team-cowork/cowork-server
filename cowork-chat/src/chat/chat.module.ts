@@ -14,8 +14,9 @@ import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
 import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
-import { GithubIssueProducer } from './kafka/github-issue.producer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
+import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.consumer';
 import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
@@ -159,8 +160,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         MessageSearchRebuilder,
         NotificationTriggerProducer,
         NotificationOutboxPoller,
-        GithubIssueProducer,
         GithubIssueResultConsumer,
+        ChatGithubIssueCommandProducer,
+        ChatGithubIssueResultConsumer,
         GithubRepoEventConsumer,
         ChannelEventConsumer,
         ProjectEventConsumer,
