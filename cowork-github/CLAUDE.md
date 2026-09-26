@@ -61,6 +61,8 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 | Method | Path                     | Auth                        | Description                                  |
 |--------|--------------------------|------------------------------|-----------------------------------------------|
 | GET    | `/api/orgs/:org/repos`   | `X-Internal-Api-Key`         | list repositories accessible to the installation |
+| GET    | `/api/repos/:owner/:repo/issues` | `X-Internal-Api-Key` | list issues (`?state=open\|closed\|all`, default `open`) |
+| GET    | `/api/repos/:owner/:repo/labels` | `X-Internal-Api-Key` | list repository labels (`{name, color}[]`) |
 | GET    | `/github/setup`          | none (GitHub Setup URL redirect) | GitHub App installation setup callback; emits `team.github.connected` |
 | POST   | `/github/webhooks`       | `X-Hub-Signature-256` (HMAC-SHA256) | GitHub webhook receiver; emits `team.github.disconnected` / `github.repo.event` |
 
