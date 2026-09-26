@@ -56,13 +56,66 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 | `action`    | `string` | ✓        | webhook action (or `pushed` for push events) |
 | `summary`   | `string` | ✓        | human-readable summary for chat notification |
 
+**Topic**: `github-app.issue-write.command` (produced by `cowork-project`, consumed here)
+
+Async label-replace / comment create·update·delete command. Envelope (common to all `commandType`s):
+
+| Field            | Type     | Required | Description                                         |
+|------------------|----------|----------|------------------------------------------------------|
+| `schemaVersion`  | `number` | ✓        | always `1`                                            |
+| `operationId`    | `string` | ✓        | UUID identifying this command/result pair             |
+| `idempotencyKey` | `string` | ✓        | caller-side idempotency key                           |
+| `commandType`    | `string` | ✓        | `REPLACE_LABELS` \| `CREATE_COMMENT` \| `UPDATE_COMMENT` \| `DELETE_COMMENT` |
+| `owner`          | `string` | ✓        | GitHub org or user                                    |
+| `repo`           | `string` | ✓        | repository name                                       |
+| `requestedBy`    | `number` | ✓        | requesting user id                                    |
+| `occurredAt`     | `string` | ✓        | ISO instant                                           |
+| `payload`        | `object` | ✓        | commandType-specific payload (see below)              |
+
+`payload` by `commandType`:
+
+| `commandType`    | Payload fields |
+|------------------|----------------|
+| `REPLACE_LABELS` | `{ issueNumber: number, labels: string[] }` (full replace, not additive) |
+| `CREATE_COMMENT` | `{ issueNumber: number, body: string, requesterGithubUsername: string }` |
+| `UPDATE_COMMENT` | `{ commentId: number, body: string }` |
+| `DELETE_COMMENT` | `{ commentId: number }` |
+
+**Topic**: `github-app.issue-write.result` (produced here, consumed by `cowork-project`)
+
+| Field           | Type     | Required | Description                                     |
+|-----------------|----------|----------|--------------------------------------------------|
+| `schemaVersion` | `number` | ✓        | always `1`                                        |
+| `operationId`   | `string` | ✓        | echoes the command's `operationId` (Kafka key)     |
+| `idempotencyKey`| `string` | ✓        | echoes the command's `idempotencyKey`              |
+| `commandType`   | `string` | ✓        | echoes the command's `commandType`                 |
+| `status`        | `string` | ✓        | `SUCCEEDED` \| `FAILED`                            |
+| `result`        | `object` |          | present on success only (omitted for `DELETE_COMMENT`) |
+| `error`         | `object` |          | `{ code, message }`, present on failure only       |
+| `occurredAt`    | `string` | ✓        | ISO instant                                        |
+
+`result` by `commandType` on success:
+
+| `commandType`    | Result shape |
+|------------------|--------------|
+| `REPLACE_LABELS` | `{ labels: { name: string, color: string }[] }` |
+| `CREATE_COMMENT` / `UPDATE_COMMENT` | `{ id, author, body, htmlUrl, createdAt, updatedAt }` (same shape as the HTTP comment routes) |
+| `DELETE_COMMENT` | omitted |
+
 ## HTTP Endpoints
 
 | Method | Path                     | Auth                        | Description                                  |
 |--------|--------------------------|------------------------------|-----------------------------------------------|
 | GET    | `/api/orgs/:org/repos`   | `X-Internal-Api-Key`         | list repositories accessible to the installation |
+| GET    | `/api/repos/:owner/:repo/issues` | `X-Internal-Api-Key` | list issues (`?state=open\|closed\|all`, default `open`) |
+| GET    | `/api/repos/:owner/:repo/issues/:number/comments` | `X-Internal-Api-Key` | list comments on an issue |
+| GET    | `/api/repos/:owner/:repo/issues/comments/:commentId` | `X-Internal-Api-Key` | get a single comment |
+| GET    | `/api/repos/:owner/:repo/labels` | `X-Internal-Api-Key` | list repository labels (`{name, color}[]`) |
 | GET    | `/github/setup`          | none (GitHub Setup URL redirect) | GitHub App installation setup callback; emits `team.github.connected` |
 | POST   | `/github/webhooks`       | `X-Hub-Signature-256` (HMAC-SHA256) | GitHub webhook receiver; emits `team.github.disconnected` / `github.repo.event` |
+
+> Comment create/update/delete and label replace are no longer synchronous HTTP endpoints — they moved to the
+> `github-app.issue-write.command` / `github-app.issue-write.result` Kafka contract above.
 
 ## Error Handling
 
