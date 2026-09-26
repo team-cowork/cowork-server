@@ -1,5 +1,5 @@
 // @title          cowork-notification API
-// @version        20260924.0
+// @version        20260926.0
 // @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
 // @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
@@ -24,7 +24,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
-	_ "github.com/cowork/cowork-notification/docs"
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"github.com/cowork/cowork-notification/internal/domain/projection"
@@ -37,6 +36,7 @@ import (
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/internal/monitoring"
 	"github.com/cowork/cowork-notification/pkg/eureka"
+	_ "github.com/cowork/cowork-notification/swagger"
 )
 
 func main() {
