@@ -1,17 +1,18 @@
 package com.cowork.project.domain.github.event
 
-import org.slf4j.LoggerFactory
-import org.springframework.kafka.core.KafkaTemplate
+import com.cowork.project.global.outbox.OutboxWriter
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 private const val TOPIC = "notification.trigger"
 private const val GITHUB_COMMENT_CREATED = "GITHUB_COMMENT_CREATED"
 
 @Component
-class GithubCommentNotificationPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
-    private val log = LoggerFactory.getLogger(GithubCommentNotificationPublisher::class.java)
+class GithubCommentNotificationPublisher(private val outboxWriter: OutboxWriter) {
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun publishCommentCreated(targetUserId: Long, data: Map<String, Any?>) {
         val event = NotificationTriggerEvent(
             eventId = UUID.randomUUID().toString(),
@@ -19,17 +20,6 @@ class GithubCommentNotificationPublisher(private val kafkaTemplate: KafkaTemplat
             targetUserIds = listOf(targetUserId),
             data = data,
         )
-        kafkaTemplate.send(TOPIC, targetUserId.toString(), event)
-            .whenComplete { result, ex ->
-                if (ex != null) {
-                    log.error("GitHub 댓글 알림 발행 실패 [targetUserId={}]", targetUserId, ex)
-                } else {
-                    log.info(
-                        "GitHub 댓글 알림 발행 성공 [targetUserId={}, offset={}]",
-                        targetUserId,
-                        result.recordMetadata.offset(),
-                    )
-                }
-            }
+        outboxWriter.enqueue(TOPIC, targetUserId.toString(), event)
     }
 }
