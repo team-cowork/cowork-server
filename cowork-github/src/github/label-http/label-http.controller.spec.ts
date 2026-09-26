@@ -42,9 +42,7 @@ describe('LabelHttpController', () => {
       new GithubClientError('저장소를 찾을 수 없습니다.', 404),
     );
 
-    await expect(
-      controller.list('my-org', 'my-repo'),
-    ).rejects.toMatchObject({
+    await expect(controller.list('my-org', 'my-repo')).rejects.toMatchObject({
       response: '저장소를 찾을 수 없습니다.',
       status: 404,
     });
