@@ -11,7 +11,6 @@ require_env COWORK_MONGO_PASSWORD
 add_env MONGODB_URI "mongodb://${MONGO_USER}:${COWORK_MONGO_PASSWORD}@${MONGO_HOST}:${MONGO_PORT}/cowork_voice?authSource=admin"
 require_env LIVEKIT_API_KEY LIVEKIT_API_SECRET
 add_env MONGODB_DB cowork_voice
-add_env REDIS_ADDR "${REDIS_HOST}:${REDIS_PORT}"
 add_env LIVEKIT_URL "$LIVEKIT_URL"
 add_env LIVEKIT_WS_URL "$LIVEKIT_WS_URL"
 add_env LIVEKIT_API_KEY "$LIVEKIT_API_KEY"

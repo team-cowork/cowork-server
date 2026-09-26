@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { ChannelMemberRepository } from '../repository/channel-member.repository';
@@ -19,6 +19,26 @@ const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
 const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
 
 /**
+ * `emitToReadableChannelUsers`(메시지 브로드캐스트 수신자 산정)에만 적용하는 판정 캐시의
+ * 유효 기간. 이 시간만큼 세대(generation)를 통째로 비우는 방식이라 개별 항목은 최대 이
+ * 시간만큼만 오래될 수 있다.
+ *
+ * 의도적으로 아래 경로에는 적용하지 않는다 — 이 캐시가 최대 {@link READABLE_USERS_CACHE_TTL_MS}만큼
+ * 오래돼도 괜찮은 이유("접속 중인 소켓"에게 몇 초 늦게 브로드캐스트되는 정도)가 성립하지 않기 때문이다.
+ * - `canReadChannel`/`requireCanRead`(멤버십·권한 단건 검증), `evictUnauthorizedSockets`(강제 퇴장):
+ *   방금 권한을 잃은 사용자가 즉시 차단되어야 한다.
+ * - `filterReadableUsersByChannel`을 통해 접근하는 `NotificationOutboxPoller`(푸시 알림 수신자 산정),
+ *   `ChatService.saveSystemMessage`(미읽음 카운터 증가 대상): 대상이 반드시 "지금 접속 중인 소켓"이
+ *   아니라서 `evictUnauthorizedSockets`의 즉시 차단 보장이 적용되지 않는다. 권한을 잃은 사용자의
+ *   `true` 판정이 캐시에 남아 있는 동안 푸시가 발송되면, 외부로 나간 푸시는 되돌릴 수 없다.
+ *   그래서 `filterReadableUsersByChannel` 자체는 캐시를 타지 않는 `evaluateMany`를 그대로 쓴다.
+ */
+const READABLE_USERS_CACHE_TTL_MS = 2_000;
+
+/** 캐시 키에 평가 모드를 포함해, 다른 모드(`CHANNEL_METADATA` 등)가 같은 캐시를 쓰게 되어도 충돌하지 않게 한다. */
+const broadcastCacheKey = (channelId: number, userId: number) => `MESSAGE_READ:${accessKey(channelId, userId)}`;
+
+/**
  * role×channel `message_read` 정책의 단일 평가 지점.
  *
  * custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
@@ -27,7 +47,11 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  * 채널 메타데이터는 공개 채널만 멤버십 없이 볼 수 있다.
  */
 @Injectable()
-export class ChannelMessageReadAccessService {
+export class ChannelMessageReadAccessService implements OnModuleDestroy {
+    /** `${channelId}:${userId}` → 최근 판정. {@link READABLE_USERS_CACHE_TTL_MS}마다 통째로 비운다. */
+    private readableUsersCache = new Map<string, boolean>();
+    private readonly cacheClearTimer: ReturnType<typeof setInterval>;
+
     constructor(
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly channelMemberRepository: ChannelMemberRepository,
@@ -35,7 +59,15 @@ export class ChannelMessageReadAccessService {
         private readonly teamRoleRepository: TeamRoleProjectionRepository,
         private readonly policyRepository: ChannelRolePolicyProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
-    ) {}
+    ) {
+        this.cacheClearTimer = setInterval(() => {
+            this.readableUsersCache = new Map();
+        }, READABLE_USERS_CACHE_TTL_MS);
+    }
+
+    onModuleDestroy(): void {
+        clearInterval(this.cacheClearTimer);
+    }
 
     async canReadChannel(channelId: number, userId: number): Promise<boolean> {
         const result = await this.evaluateMany([{ channelId, userId }]);
@@ -75,6 +107,11 @@ export class ChannelMessageReadAccessService {
         return this.filterReadableChannelIds(0, userId, channelIds);
     }
 
+    /**
+     * `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
+     * 카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
+     * 브로드캐스트 전용 캐시가 필요하면 `emitToReadableChannelUsers`를 사용한다.
+     */
     async filterReadableUsersByChannel(
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
@@ -85,6 +122,38 @@ export class ChannelMessageReadAccessService {
             channelId,
             [...new Set(userIds)].filter((userId) => result.get(accessKey(channelId, userId)) === true),
         ]));
+    }
+
+    /**
+     * {@link emitToReadableChannelUsers} 전용 (channelId, userId) 단위 캐시 조회.
+     * 캐시 히트 항목은 MongoDB를 왕복하지 않고, 미스만 모아 {@link evaluateMany} 한 번으로 채운다.
+     * `projectionReadiness`가 준비되지 않은 동안의 결과는 캐시에 쓰지 않는다 — 기동 직후·projection
+     * catch-up 중의 "전부 거부" 판정이 최대 TTL만큼 굳어 수신자 복구가 늦어지는 것을 막기 위함이다.
+     */
+    private async filterReadableUsersForBroadcast(channelId: number, userIds: number[]): Promise<Set<number>> {
+        const uniqueUserIds = [...new Set(userIds)];
+        const result = new Map<number, boolean>();
+        const missedUserIds: number[] = [];
+        for (const userId of uniqueUserIds) {
+            const cached = this.readableUsersCache.get(broadcastCacheKey(channelId, userId));
+            if (cached !== undefined) {
+                result.set(userId, cached);
+            } else {
+                missedUserIds.push(userId);
+            }
+        }
+        if (missedUserIds.length > 0) {
+            const fresh = await this.evaluateMany(missedUserIds.map((userId) => ({ channelId, userId })));
+            const isReady = this.projectionReadiness.isReady();
+            for (const userId of missedUserIds) {
+                const allowed = fresh.get(accessKey(channelId, userId)) === true;
+                result.set(userId, allowed);
+                if (isReady) {
+                    this.readableUsersCache.set(broadcastCacheKey(channelId, userId), allowed);
+                }
+            }
+        }
+        return new Set([...result].filter(([, allowed]) => allowed).map(([userId]) => userId));
     }
 
     /** 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다. */
@@ -115,6 +184,21 @@ export class ChannelMessageReadAccessService {
         }
     }
 
+    /**
+     * room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 있는 소켓 ID만 모아
+     * `io.to(targetSocketIds).emit()`을 한 번 호출한다. 개별 emit은 소켓 수만큼 payload를
+     * 매번 새로 직렬화하지만, 이 방식은 한 번만 직렬화한 패킷을 모든 대상 소켓에 그대로
+     * 전달한다(Socket.IO의 room 대상 브로드캐스트와 동일한 방식 — 대상을 room 이름 대신
+     * 소켓 ID 배열로 지정한 것뿐이다. 각 소켓은 자신의 id와 같은 이름의 room에 자동 가입돼
+     * 있어 `.to(socketId)`가 해당 소켓 하나만 정확히 가리킨다).
+     *
+     * room 이름을 대상으로 `except(...)`를 쓰는 deny-list 방식은 쓰지 않는다 — `fetchSockets()`
+     * 스냅샷 이후 `filterReadableUsersForBroadcast()`가 MongoDB를 왕복하는 동안 room에 새로 합류한
+     * 소켓은 스냅샷에도, 그래서 계산된 제외 목록에도 없다. 그런데 `io.to(room)`은 emit 시점의
+     * 실제 room 멤버십을 다시 읽으므로, 그 소켓은 이 메시지에 대해 전혀 평가되지 않았는데도
+     * 기본으로 수신하게 된다(deny-list라 "명시적으로 막지 않으면 통과"). 소켓 ID를 직접
+     * 대상으로 지정하면 스냅샷에 없던 소켓은 애초에 대상 목록에 들어가지 않아 이 문제가 없다.
+     */
     async emitToReadableChannelUsers(
         io: Server | undefined,
         channelId: number,
@@ -123,18 +207,21 @@ export class ChannelMessageReadAccessService {
         excludedSocketId?: string,
     ): Promise<void> {
         if (!io) return;
-        const sockets = await io.in(`chat:${channelId}`).fetchSockets();
+        const room = `chat:${channelId}`;
+        const sockets = await io.in(room).fetchSockets();
         const users = sockets
             .map((socket) => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
-        const readableUsers = new Set(
-            (await this.filterReadableUsersByChannel(new Map([[channelId, users]]))).get(channelId) ?? [],
-        );
-        for (const socket of sockets) {
-            if (socket.id === excludedSocketId) continue;
-            const userId = this.socketUserId(socket);
-            if (userId !== null && readableUsers.has(userId)) socket.emit(event, payload);
-        }
+        const readableUsers = await this.filterReadableUsersForBroadcast(channelId, users);
+        const targetSocketIds = sockets
+            .filter((socket) => socket.id !== excludedSocketId)
+            .filter((socket) => {
+                const userId = this.socketUserId(socket);
+                return userId !== null && readableUsers.has(userId);
+            })
+            .map((socket) => socket.id);
+        if (targetSocketIds.length === 0) return;
+        io.to(targetSocketIds).emit(event, payload);
     }
 
     async emitChannelEventToVisibleTeamUsers(

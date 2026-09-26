@@ -13,8 +13,8 @@ class NotificationHandler(
 ) {
 
     fun getNotification(ctx: RoutingContext) {
-        val accountId = ctx.pathParam("accountId").toLongOrNull()
-        val channelId = ctx.pathParam("channelId").toLongOrNull()
+        val accountId = ctx.pathParam("accountId")?.toLongOrNull()
+        val channelId = ctx.pathParam("channelId")?.toLongOrNull()
         if (accountId == null || channelId == null) {
             ctx.response().setStatusCode(400).end(errorBody("Invalid path parameters"))
             return
@@ -27,8 +27,8 @@ class NotificationHandler(
     }
 
     fun updateNotification(ctx: RoutingContext) {
-        val accountId = ctx.pathParam("accountId").toLongOrNull()
-        val channelId = ctx.pathParam("channelId").toLongOrNull()
+        val accountId = ctx.pathParam("accountId")?.toLongOrNull()
+        val channelId = ctx.pathParam("channelId")?.toLongOrNull()
         if (accountId == null || channelId == null) {
             ctx.response().setStatusCode(400).end(errorBody("Invalid path parameters"))
             return

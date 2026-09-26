@@ -46,8 +46,7 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOrigins:
-              - "${PUBLIC_WEB_ORIGIN}"
+            allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
             allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
             allowCredentials: true
@@ -385,8 +384,7 @@ spring:
 
 app:
   ws:
-    allowed-origins:
-      - "${PUBLIC_WEB_ORIGIN}"
+    allowed-origins: "${PUBLIC_WEB_ORIGINS}"
 
 resilience4j:
   circuitbreaker:

@@ -13,7 +13,7 @@ class ProjectRoleHandler(
 ) {
 
     fun getRoles(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -30,7 +30,7 @@ class ProjectRoleHandler(
     }
 
     fun createRole(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -57,7 +57,7 @@ class ProjectRoleHandler(
     }
 
     fun deleteRole(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -76,7 +76,7 @@ class ProjectRoleHandler(
     }
 
     fun getMemberRoles(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -93,7 +93,7 @@ class ProjectRoleHandler(
     }
 
     fun assignRole(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -120,7 +120,7 @@ class ProjectRoleHandler(
     }
 
     fun removeRole(ctx: RoutingContext) {
-        val projectId = ctx.pathParam("projectId").toLongOrNull() ?: run {
+        val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid projectId"))
             return
         }
@@ -128,7 +128,7 @@ class ProjectRoleHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid roleName"))
             return
         }
-        val accountId = ctx.pathParam("accountId").toLongOrNull() ?: run {
+        val accountId = ctx.pathParam("accountId")?.toLongOrNull() ?: run {
             ctx.response().setStatusCode(400).end(errorBody("Invalid accountId"))
             return
         }
