@@ -24,7 +24,7 @@ Use `gh`, Git, and Python 3.9 or newer. The helper uses only the Python standard
 
 3. Show the resolved login, exact public profile name, commit email, and their sources. Read [references/identity-and-attribution.md](references/identity-and-attribution.md) when a field is missing, an override is requested, or signing/PR attribution needs explanation.
 
-The public profile name is not a verified legal name. A private email cannot be retrieved through another person's `gh` session. The helper uses a public email when available; otherwise, for accounts created after the documented GitHub cutoff, it derives the account's ID-based GitHub noreply address and labels it as such. Missing names and ambiguous legacy noreply addresses require the person's supplied values. Never invent a personal email or silently substitute the login for the person's name.
+The public profile name is not a verified legal name. A private email cannot be retrieved through another person's `gh` session. The helper uses a public email when available; otherwise, for accounts created after the documented GitHub cutoff, it derives the account's ID-based GitHub noreply address and labels it as such. When the public profile name is missing, the helper uses the canonical login as the commit name. Ambiguous legacy noreply addresses require the person's supplied email. Never invent a personal email.
 
 Use `--name 'Person-supplied name'` and `--email 'Person-supplied account email'` only for values supplied by the person or already established in the conversation. Use `--noreply` when the user prefers the GitHub noreply address. These options apply to both `resolve` and `commit`; an explicit email and `--noreply` are mutually exclusive.
 
