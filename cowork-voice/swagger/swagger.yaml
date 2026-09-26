@@ -141,7 +141,7 @@ info:
     응답의 `room_name`이 LiveKit room 식별자이며, `session_id`로 서버 측 세션을 조회합니다.
     참가자 입퇴장은 LiveKit이 `POST /voice/webhook`으로 통보하고 서버가 세션 상태를 갱신합니다.
   title: Cowork Voice API
-  version: "20260820.0"
+  version: "20260926.0"
 paths:
   /live/channels/{channel_id}:
     get:

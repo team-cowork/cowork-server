@@ -1,5 +1,5 @@
 // @title           Cowork Voice API
-// @version         20260924.0
+// @version         20260926.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @description
 // @description     ## 미디어 연결 (LiveKit)
@@ -40,7 +40,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
@@ -55,6 +54,7 @@ import (
 	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
+	_ "github.com/cowork/cowork-voice/swagger"
 )
 
 func main() {

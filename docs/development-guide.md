@@ -165,7 +165,7 @@ team_id BIGINT NOT NULL COMMENT 'cowork-team의 tb_teams.id'
 
 ### MongoDB 서비스 (cowork-chat, cowork-voice)
 
-Flyway를 사용하지 않습니다. `cowork-chat`은 Mongoose schema와 `schema/message.schema.md`를 함께 관리합니다. `cowork-voice`의 컬렉션 구조는 Go 모델·repository가 현재 구현 기준이며, 구조 변경 시 별도 `schema/` 문서를 추가해 저장 형식을 명시합니다.
+Flyway를 사용하지 않습니다. 컬렉션 구조와 인덱스는 `cowork-chat`의 Mongoose schema(`src/chat/schema/`)와 `cowork-voice`의 Go 모델·repository가 기준이며, 별도 스키마 문서를 두지 않습니다.
 
 ### PostgreSQL 서비스 (cowork-preference)
 
@@ -202,12 +202,12 @@ UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니
 순서는 partition 안에서만 보장되므로 배포한 state 토픽의 partition 수와 key routing도 고정합니다.
 소비자가 실제로 DLT를 사용하는 경우에만 `<전체 원본 토픽>-dlt`로 만들고 delete retention을 적용합니다.
 
-| 상태 토픽 | Producer | Consumer | 데이터 key | 보존·snapshot |
-|---|---|---|---|---|
-| `channel.event.v2` | cowork-channel | cowork-project, cowork-chat | `<channelId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
-| `channel.member.event.v2` | cowork-channel | cowork-chat, cowork-voice | `<channelId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
-| `project.event.v2` | cowork-project | cowork-channel, cowork-chat | `<projectId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
-| `project.member.event.v2` | cowork-project | cowork-chat | `<projectId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| 상태 토픽                 | Producer       | Consumer                    | 데이터 key             | 보존·snapshot                                       |
+|---------------------------|----------------|-----------------------------|------------------------|-----------------------------------------------------|
+| `channel.event.v2`        | cowork-channel | cowork-project, cowork-chat | `<channelId>`          | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `channel.member.event.v2` | cowork-channel | cowork-chat, cowork-voice   | `<channelId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `project.event.v2`        | cowork-project | cowork-channel, cowork-chat | `<projectId>`          | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `project.member.event.v2` | cowork-project | cowork-chat                 | `<projectId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
 
 데이터 key는 양의 정수 ID를 선행 0 없는 UTF-8 십진 문자열로 인코딩합니다. 완료 marker는 데이터 key와 분리된
 예약 key를 사용합니다. 이벤트와 marker가 같은 토픽 상수를 참조하며, consumer group의 기존 `v2` 표시는
@@ -268,40 +268,40 @@ ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완�
 transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
 낮은 sequence 행을 볼 수 없습니다.
 
-| 토픽                                          | Producer                       | Consumer                                                                 | 용도                                                       |
-|-----------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
-| `user.data.sync`                              | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
-| `user.identity.command`                       | cowork-authorization           | cowork-user                                                              | 로그인 시 계정·프로필 생성 또는 동기화 command             |
-| `user.identity.command-result`                | cowork-user                    | cowork-authorization                                                     | identity command의 owner commit 결과                       |
-| `team.lifecycle`                              | cowork-team                    | cowork-channel, cowork-project, cowork-notification                      | team key별 최신 생명주기 상태·삭제와 연쇄 정리             |
-| `team.member.event`                           | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
-| `user.profile.event`                          | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
-| `user.presence.event`                         | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
-| `channel.event.v2`                               | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
-| `channel.member.event.v2`                        | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
-| `project.event.v2`                               | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
-| `project.member.event.v2`                        | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
-| `project.github-repo.event`                   | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
-| `preference.channel-notification.changed`     | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
-| `preference.team-role.command`                | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
-| `preference.team-role.changed`                | cowork-preference              | cowork-team, cowork-channel, cowork-chat                                 | 사용자 정의 팀 역할·할당 상태 projection                   |
-| `preference.channel-role-policy.command`       | cowork-channel                 | cowork-preference                                                        | 채널별 역할 권한 정책 비동기 변경 command                  |
-| `preference.channel-role-policy.changed`       | cowork-preference              | cowork-channel, cowork-chat                                               | 채널별 역할 권한 정책 compacted state projection           |
-| `preference.channel-role-policy.command-result` | cowork-preference             | cowork-channel                                                           | 채널별 역할 권한 정책 변경 결과                            |
-| `preference.channel-role-policy.command-result-dlt` | cowork-channel            | 운영 격리                                                               | 유효하지 않거나 처리할 수 없는 정책 변경 결과 원문         |
-| `preference.team-role.command-result`         | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
-| `preference.github-repo.setting.command`      | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
-| `preference.github-repo.setting.state`        | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |
-| `preference.github-repo.setting.result`       | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 command 처리 결과                       |
-| `project.chat-github-issue.command`           | cowork-chat                    | cowork-project                                                           | 채팅 슬래시 커맨드발 GitHub 이슈 생성 비동기 command       |
-| `project.chat-github-issue.result`            | cowork-project                 | cowork-chat                                                              | 채팅발 이슈 생성 command의 프로젝트 수정 권한 검증 결과(REJECTED만 렌더링) |
-| `chat.message`                                | cowork-chat                    | cowork-chat                                                              | 메시지 비동기 저장·브로드캐스트                            |
-| `notification.trigger`                        | cowork-team, cowork-chat       | cowork-notification                                                      | FCM·SSE 알림 발송                                          |
-| `github.issue.create` / `github.issue.result` | cowork-project / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat                                        | GitHub 이슈 생성(REST 직접 호출 및 채팅 슬래시 커맨드 경유 양쪽 모두 project가 발행) |
-| `github.repo.event`                           | 외부 GitHub App 연동           | cowork-chat                                                              | GitHub 저장소 action stream                                |
-| `voice.event`                                 | cowork-voice                   | 연동 서비스                                                              | 음성 세션 이벤트                                           |
-| `preference.status.changed`                   | cowork-preference              | 연동 서비스                                                              | 사용자 상태 변경                                           |
-| `preference.team.setting.changed`             | cowork-preference              | 연동 서비스                                                              | 팀 설정 변경                                               |
+| 토픽                                                | Producer                       | Consumer                                                                 | 용도                                                       |
+|-----------------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
+| `user.data.sync`                                    | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
+| `user.identity.command`                             | cowork-authorization           | cowork-user                                                              | 로그인 시 계정·프로필 생성 또는 동기화 command             |
+| `user.identity.command-result`                      | cowork-user                    | cowork-authorization                                                     | identity command의 owner commit 결과                       |
+| `team.lifecycle`                                    | cowork-team                    | cowork-channel, cowork-project, cowork-notification                      | team key별 최신 생명주기 상태·삭제와 연쇄 정리             |
+| `team.member.event`                                 | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
+| `user.profile.event`                                | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
+| `user.presence.event`                               | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
+| `channel.event.v2`                                  | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
+| `channel.member.event.v2`                           | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
+| `project.event.v2`                                  | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
+| `project.member.event.v2`                           | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
+| `project.github-repo.event`                         | cowork-project                 | cowork-chat                                                              | 프로젝트별 GitHub 저장소 연결·webhook 대상 상태 projection |
+| `preference.channel-notification.changed`           | cowork-preference              | cowork-notification                                                      | 채널 알림 설정 projection                                  |
+| `preference.team-role.command`                      | cowork-team                    | cowork-preference                                                        | 사용자 정의 팀 역할·할당 비동기 command                    |
+| `preference.team-role.changed`                      | cowork-preference              | cowork-team, cowork-channel, cowork-chat                                 | 사용자 정의 팀 역할·할당 상태 projection                   |
+| `preference.channel-role-policy.command`            | cowork-channel                 | cowork-preference                                                        | 채널별 역할 권한 정책 비동기 변경 command                  |
+| `preference.channel-role-policy.changed`            | cowork-preference              | cowork-channel, cowork-chat                                              | 채널별 역할 권한 정책 compacted state projection           |
+| `preference.channel-role-policy.command-result`     | cowork-preference              | cowork-channel                                                           | 채널별 역할 권한 정책 변경 결과                            |
+| `preference.channel-role-policy.command-result-dlt` | cowork-channel                 | 운영 격리                                                                | 유효하지 않거나 처리할 수 없는 정책 변경 결과 원문         |
+| `preference.team-role.command-result`               | cowork-preference              | cowork-team                                                              | 팀 역할 command 처리 결과                                  |
+| `preference.github-repo.setting.command`            | cowork-project                 | cowork-preference                                                        | GitHub 저장소 설정 비동기 command                          |
+| `preference.github-repo.setting.state`              | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 상태 projection                         |
+| `preference.github-repo.setting.result`             | cowork-preference              | cowork-project                                                           | GitHub 저장소 설정 command 처리 결과                       |
+| `project.chat-github-issue.command`                 | cowork-chat                    | cowork-project                                                           | 채팅 슬래시 커맨드발 GitHub 이슈 생성 비동기 command       |
+| `project.chat-github-issue.result`                  | cowork-project                 | cowork-chat                                                              | 채팅발 이슈 생성 command의 프로젝트 수정 권한 검증 결과(REJECTED만 렌더링) |
+| `chat.message`                                      | cowork-chat                    | cowork-chat                                                              | 메시지 비동기 저장·브로드캐스트                            |
+| `notification.trigger`                              | cowork-team, cowork-chat       | cowork-notification                                                      | FCM·SSE 알림 발송                                          |
+| `github.issue.create` / `github.issue.result`       | cowork-project / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat                                           | GitHub 이슈 생성(REST 직접 호출 및 채팅 슬래시 커맨드 경유 양쪽 모두 project가 발행) |
+| `github.repo.event`                                 | 외부 GitHub App 연동           | cowork-chat                                                              | GitHub 저장소 action stream                                |
+| `voice.event`                                       | cowork-voice                   | 연동 서비스                                                              | 음성 세션 이벤트                                           |
+| `preference.status.changed`                         | cowork-preference              | 연동 서비스                                                              | 사용자 상태 변경                                           |
+| `preference.team.setting.changed`                   | cowork-preference              | 연동 서비스                                                              | 팀 설정 변경                                               |
 
 토픽 이름은 `{도메인}.{이벤트}` 형식을 따릅니다.
 계정과 프로필 identity는 `cowork-user`가 소유합니다. authorization은 DataGSM 인증 정보로
