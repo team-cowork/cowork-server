@@ -9,11 +9,11 @@ import { GithubClientError } from '../../github.errors';
 
 describe('LabelHttpApiClient', () => {
   let client: LabelHttpApiClient;
-  let httpService: { get: jest.Mock };
+  let httpService: { get: jest.Mock; put: jest.Mock };
   let authService: { getInstallationToken: jest.Mock };
 
   beforeEach(async () => {
-    httpService = { get: jest.fn() };
+    httpService = { get: jest.fn(), put: jest.fn() };
     authService = {
       getInstallationToken: jest.fn().mockResolvedValue('my-token'),
     };
@@ -75,5 +75,44 @@ describe('LabelHttpApiClient', () => {
     await expect(client.listLabels('my-org', 'my-repo')).rejects.toBe(
       axiosError,
     );
+  });
+
+  describe('replaceLabels', () => {
+    it('PUT으로 라벨 전체를 교체하고 결과를 반환한다', async () => {
+      httpService.put.mockReturnValue(
+        of({ data: [{ name: 'bug', color: 'd73a4a' }] }),
+      );
+
+      const result = await client.replaceLabels('my-org', 'my-repo', 1, [
+        'bug',
+      ]);
+
+      expect(result).toEqual([{ name: 'bug', color: 'd73a4a' }]);
+      expect(httpService.put).toHaveBeenCalledWith(
+        'https://api.github.com/repos/my-org/my-repo/issues/1/labels',
+        { labels: ['bug'] },
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer my-token',
+          }) as unknown,
+        }),
+      );
+    });
+
+    it('4xx 응답은 GithubClientError로 변환한다', async () => {
+      const axiosError = new AxiosError('Not Found');
+      axiosError.response = {
+        data: { message: 'Not Found' },
+        status: 404,
+      } as unknown as AxiosResponse;
+      httpService.put.mockReturnValue(throwError(() => axiosError));
+
+      const error = await client
+        .replaceLabels('my-org', 'my-repo', 1, ['bug'])
+        .catch((e: unknown) => e as GithubClientError);
+
+      expect(error).toBeInstanceOf(GithubClientError);
+      expect(error.statusCode).toBe(404);
+    });
   });
 });

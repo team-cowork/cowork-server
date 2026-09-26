@@ -1,17 +1,13 @@
 import {
-  Body,
   Controller,
   Get,
-  HttpCode,
   HttpException,
   Param,
   ParseIntPipe,
-  Post,
   UseGuards,
 } from '@nestjs/common';
 import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
 import { GithubClientError } from '../github.errors';
-import { CreateCommentRequestDto } from './dto/create-comment-request.dto';
 import { IssueHttpService } from './issue-http.service';
 
 @Controller('api/repos/:owner/:repo/issues/:number/comments')
@@ -27,25 +23,6 @@ export class CommentListHttpController {
   ) {
     return this.handle(() =>
       this.issueHttpService.listComments(owner, repo, issueNumber),
-    );
-  }
-
-  @Post()
-  @HttpCode(201)
-  async create(
-    @Param('owner') owner: string,
-    @Param('repo') repo: string,
-    @Param('number', ParseIntPipe) issueNumber: number,
-    @Body() request: CreateCommentRequestDto,
-  ) {
-    return this.handle(() =>
-      this.issueHttpService.createComment(
-        owner,
-        repo,
-        issueNumber,
-        request.body,
-        request.requesterGithubUsername,
-      ),
     );
   }
 
