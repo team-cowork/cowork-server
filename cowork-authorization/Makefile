@@ -12,7 +12,7 @@ swagger-deps:
 	go get github.com/swaggo/files@v1.0.1
 
 swagger-gen:
-	$(SWAG) init -g cmd/main.go -o docs --parseDependency --parseInternal
+	$(SWAG) init -g cmd/main.go -o swagger --parseDependency --parseInternal
 
 tidy:
 	go mod tidy

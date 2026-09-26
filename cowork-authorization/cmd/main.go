@@ -1,5 +1,5 @@
 // @title           Cowork Authorization API
-// @version         20260924.0
+// @version         20260926.0
 // @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
 // @BasePath        /api/authorization
 // @securityDefinitions.apikey BearerAuth
@@ -17,7 +17,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/cowork/authorization/docs"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -27,6 +26,7 @@ import (
 	"github.com/cowork/authorization/internal/service"
 	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/cowork/authorization/pkg/logger"
+	_ "github.com/cowork/authorization/swagger"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
