@@ -14,7 +14,8 @@ import com.cowork.project.domain.github.service.GithubUsernameResolver
 import com.cowork.project.domain.user.service.UserProfileProjectionReader
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 
 @Service
 class CreateGithubCommentServiceImpl(
@@ -24,10 +25,11 @@ class CreateGithubCommentServiceImpl(
     private val githubAppClient: GithubAppClient,
     private val profileReader: UserProfileProjectionReader,
     private val notificationPublisher: GithubCommentNotificationPublisher,
+    transactionManager: PlatformTransactionManager,
 ) : CreateGithubCommentService {
     private val logger = LoggerFactory.getLogger(CreateGithubCommentServiceImpl::class.java)
+    private val transaction = TransactionTemplate(transactionManager)
 
-    @Transactional(readOnly = true)
     override fun execute(
         userId: Long,
         projectId: Long,
@@ -68,17 +70,19 @@ class CreateGithubCommentServiceImpl(
             if (parentAuthorGithubUsername == comment.author) return
 
             val targetUserId = profileReader.resolveUniqueUserId(parentAuthorGithubUsername)
-            notificationPublisher.publishCommentCreated(
-                targetUserId = targetUserId,
-                data = mapOf(
-                    "repo" to "${repo.owner}/${repo.repo}",
-                    "number" to number,
-                    "parentType" to parentType.name,
-                    "commentAuthor" to comment.author,
-                    "body" to comment.body,
-                    "htmlUrl" to comment.htmlUrl,
-                ),
-            )
+            transaction.executeWithoutResult {
+                notificationPublisher.publishCommentCreated(
+                    targetUserId = targetUserId,
+                    data = mapOf(
+                        "repo" to "${repo.owner}/${repo.repo}",
+                        "number" to number,
+                        "parentType" to parentType.name,
+                        "commentAuthor" to comment.author,
+                        "body" to comment.body,
+                        "htmlUrl" to comment.htmlUrl,
+                    ),
+                )
+            }
         }.onFailure { ex ->
             logger.warn("댓글 생성 알림 처리 실패 (댓글 생성 자체는 성공) [repo={}/{}, number={}]", repo.owner, repo.repo, number, ex)
         }

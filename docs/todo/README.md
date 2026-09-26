@@ -47,7 +47,7 @@
 - security: [채팅 GitHub 이슈 생성 command의 프로젝트 수정 권한 검증](./items/46-security/chat-github-issue-command-authorization.md)
 - api: [GitHub App 이슈·댓글·라벨 외부 계약 정립](./items/47-api/github-app-issue-comment-label-contract.md)
 - reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)
-- reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)
+- ~~reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)~~
 
 ## 점검 스냅샷
 
