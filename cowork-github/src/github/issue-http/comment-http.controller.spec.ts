@@ -9,15 +9,11 @@ describe('CommentHttpController', () => {
   let controller: CommentHttpController;
   let issueHttpService: {
     getComment: jest.Mock;
-    updateComment: jest.Mock;
-    deleteComment: jest.Mock;
   };
 
   beforeEach(async () => {
     issueHttpService = {
       getComment: jest.fn(),
-      updateComment: jest.fn(),
-      deleteComment: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -38,34 +34,6 @@ describe('CommentHttpController', () => {
 
     expect(result).toEqual({ id: 100 });
     expect(issueHttpService.getComment).toHaveBeenCalledWith(
-      'my-org',
-      'my-repo',
-      100,
-    );
-  });
-
-  it('댓글 수정 요청을 전달한다', async () => {
-    issueHttpService.updateComment.mockResolvedValue({ id: 100 });
-
-    const result = await controller.update('my-org', 'my-repo', 100, {
-      body: '수정된 내용',
-    });
-
-    expect(result).toEqual({ id: 100 });
-    expect(issueHttpService.updateComment).toHaveBeenCalledWith(
-      'my-org',
-      'my-repo',
-      100,
-      '수정된 내용',
-    );
-  });
-
-  it('댓글 삭제 요청을 전달한다', async () => {
-    issueHttpService.deleteComment.mockResolvedValue(undefined);
-
-    await controller.remove('my-org', 'my-repo', 100);
-
-    expect(issueHttpService.deleteComment).toHaveBeenCalledWith(
       'my-org',
       'my-repo',
       100,

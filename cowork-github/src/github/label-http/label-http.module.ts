@@ -16,5 +16,6 @@ import { LabelHttpService } from './label-http.service';
     InternalApiKeyGuard,
   ],
   controllers: [LabelHttpController],
+  exports: [LabelHttpService],
 })
 export class LabelHttpModule {}

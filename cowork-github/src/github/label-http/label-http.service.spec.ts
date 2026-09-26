@@ -4,10 +4,10 @@ import { LabelHttpService } from './label-http.service';
 
 describe('LabelHttpService', () => {
   let service: LabelHttpService;
-  let apiClient: { listLabels: jest.Mock };
+  let apiClient: { listLabels: jest.Mock; replaceLabels: jest.Mock };
 
   beforeEach(async () => {
-    apiClient = { listLabels: jest.fn() };
+    apiClient = { listLabels: jest.fn(), replaceLabels: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -40,5 +40,21 @@ describe('LabelHttpService', () => {
     const result = await service.listLabels('my-org', 'my-repo');
 
     expect(result).toEqual([]);
+  });
+
+  it('라벨 전체 교체 결과를 name/color 응답 DTO로 매핑한다', async () => {
+    apiClient.replaceLabels.mockResolvedValue([
+      { name: 'bug', color: 'd73a4a' },
+    ]);
+
+    const result = await service.replaceLabels('my-org', 'my-repo', 1, ['bug']);
+
+    expect(result).toEqual([{ name: 'bug', color: 'd73a4a' }]);
+    expect(apiClient.replaceLabels).toHaveBeenCalledWith(
+      'my-org',
+      'my-repo',
+      1,
+      ['bug'],
+    );
   });
 });

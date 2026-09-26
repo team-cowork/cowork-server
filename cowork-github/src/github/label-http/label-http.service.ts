@@ -17,4 +17,22 @@ export class LabelHttpService {
       color: label.color,
     }));
   }
+
+  async replaceLabels(
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    labels: string[],
+  ): Promise<LabelResponse[]> {
+    const result = await this.apiClient.replaceLabels(
+      owner,
+      repo,
+      issueNumber,
+      labels,
+    );
+    return result.map((label) => ({
+      name: label.name,
+      color: label.color,
+    }));
+  }
 }
