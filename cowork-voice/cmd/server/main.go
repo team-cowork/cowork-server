@@ -1,5 +1,5 @@
 // @title           Cowork Voice API
-// @version         20260912.0
+// @version         20260926.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @description
 // @description     ## 미디어 연결 (LiveKit)
@@ -36,11 +36,10 @@ import (
 	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	httpSwagger "github.com/swaggo/http-swagger"
+	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	_ "github.com/cowork/cowork-voice/docs"
 	"github.com/cowork/cowork-voice/internal/config"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
@@ -50,12 +49,12 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 	lkinfra "github.com/cowork/cowork-voice/internal/infra/livekit"
 	mongoinfra "github.com/cowork/cowork-voice/internal/infra/mongo"
-	redisinfra "github.com/cowork/cowork-voice/internal/infra/redis"
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
 	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
+	_ "github.com/cowork/cowork-voice/swagger"
 )
 
 func main() {
@@ -110,14 +109,6 @@ func main() {
 		cfg.LiveKitAPISecret,
 	)
 
-	redisClient := redisinfra.NewClient(cfg.RedisAddr, cfg.RedisPassword, cfg.RedisDB)
-	redisCtx, redisCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer redisCancel()
-	if err := redisinfra.Ping(redisCtx, redisClient); err != nil {
-		slog.Error("redis ping failed", "err", err)
-		os.Exit(1)
-	}
-
 	channelMemberships := channel.NewProjection(db)
 	projectionReadiness := health.NewReadiness()
 	channelMembershipConsumer, err := channel.NewConsumer(
@@ -135,8 +126,7 @@ func main() {
 	channelMemberships.SetCurrentHighChecker(channelMembershipConsumer)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
 	channelMembershipConsumer.Start(runtimeCtx)
-	mongoRepo := mongoinfra.NewMongoSessionRepository(db)
-	sessionRepo := redisinfra.NewCachedSessionRepository(mongoRepo, redisClient)
+	sessionRepo := mongoinfra.NewMongoSessionRepository(db)
 	outboxRepo := mongoinfra.NewOutboxRepository(db)
 	livekitRoom := lkinfra.NewLiveKitRoom(
 		livekitClient,
@@ -148,7 +138,7 @@ func main() {
 	roomHandler := roomdomain.NewHandler(roomSvc)
 	webhookSvc := webhookdomain.NewWebhookService(sessionRepo)
 
-	// live: 방송형(1:N) 라이브. 세션은 Mongo 직행(캐시 미적용), 이벤트는 동일 outbox 경유
+	// live: 방송형(1:N) 라이브. 세션과 이벤트는 MongoDB와 동일 outbox를 사용한다.
 	liveMongoRepo := mongoinfra.NewMongoLiveSessionRepository(db)
 	liveLKRoom := lkinfra.NewLiveKitLiveRoom(
 		livekitClient,
@@ -245,9 +235,6 @@ func main() {
 	}
 	if err := mongoClient.Disconnect(shutdownCtx); err != nil {
 		slog.Error("mongodb disconnect error", "err", err)
-	}
-	if err := redisClient.Close(); err != nil {
-		slog.Error("redis close error", "err", err)
 	}
 
 	slog.Info("shutdown complete")

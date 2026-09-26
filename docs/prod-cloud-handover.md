@@ -4,6 +4,8 @@
 코드베이스, Git 이력, GitHub PR·배포 기록·설정 이름을 점검했다. 실제 VM·Vault·DB·방화벽·DNS에 접속하거나
 운영 설정을 변경하지 않았다. 비밀번호, 토큰, SSH 개인키, Firebase JSON의 실제 값은 포함하지 않는다.
 
+이미지 버전 표는 2026-09-16의 저장소 의존성 갱신을 반영했다. 나머지 운영 현황은 위 작성 기준일의 점검 결과다.
+
 **기존 데이터의 유지·복구·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.**
 이 문서는 필요한 운영 구성과 설정을 정리하며, 데이터 처리 방식은 지정하지 않는다.
 
@@ -116,7 +118,7 @@ flowchart TB
 | `notification` | Go, 알림·SSE·FCM | 8086 → 8086 | `/health/ready` | MySQL, Kafka, Firebase |
 | `chat` | NestJS/Node.js, 채팅·검색·첨부 | 8087 → 8087 | `/health/ready` | MongoDB, Kafka, Redis, Elasticsearch, S3 |
 | `roadmap` | Java/Spring WebFlux, 로드맵 | 8088 → 8088 | `/actuator/health/readiness` | MySQL(R2DBC + JDBC Flyway), Kafka |
-| `voice` | Go, 음성 세션 | 8089 → 8089 | `/health/ready` | MongoDB, Kafka, Redis, LiveKit |
+| `voice` | Go, 음성 세션 | 8089 → 8089 | `/health/ready` | MongoDB, Kafka, LiveKit |
 | `preference` | Kotlin/Vert.x, 설정·권한 정책 | **9001 → 9001 고정** | `/health/ready` | PostgreSQL, Kafka, Redis |
 | `monitoring` | 별도 Compose | 아래 모니터링 표 참고 | Prometheus `/-/ready` 등 | 각 앱 및 인프라 exporter |
 | `vault` | 별도 Compose, KV v2 | 사설 8200 → 8200 | `/v1/sys/health` | 지정한 영속 볼륨, HTTPS 프록시 |
@@ -159,15 +161,15 @@ DB/Kafka/Redis/S3/Elasticsearch/LiveKit의 다중 VM 생성·업그레이드는 
 
 | 구성 요소 | 저장소 이미지 / 기본 포트 | 준비할 데이터·설정 |
 | --- | --- | --- |
-| MySQL | `mysql:9.7.1`, 3306 | 아래 7개 DB, 계정·권한, 영속 디스크, 백업 |
-| PostgreSQL | `postgres:18.4`, 5432 | `cowork_preference`, `preference` schema, `search_path=preference,public` |
-| MongoDB | `mongo:8.3`, 27017 | `cowork_chat`, `cowork_voice`; 현재 URI 생성은 `authSource=admin` |
-| Kafka | `apache/kafka:4.3.0`, 앱 listener 9092/9094 | 실제 advertised listener, 토픽·partition·RF·보존 정책, 영속 데이터 |
-| Redis | `redis:8.8.0-alpine`, 6379 | cache·rate limit·pub/sub; 데이터 보존과 장애 시 영향 범위 |
-| SeaweedFS | `chrislusf/seaweedfs:4.44`, S3 9000 | bucket, key pair, CORS, 공개/비공개 정책 |
-| Elasticsearch | `9.4.2` + `analysis-nori`, 9200 | MongoDB 기반 검색 색인, nori 플러그인, 디스크 |
-| LiveKit | `livekit/livekit-server:v1.13.3` | API/WSS·RTC·TURN, 실제 node IP, key pair |
-| Vault | `hashicorp/vault:2.0.3`, 8200 | file storage `/vault/data`, KV v2, 정책·토큰·unseal 자료 |
+| MySQL | `mysql:9.7.2`, 3306 | 아래 7개 DB, 계정·권한, 영속 디스크, 백업 |
+| PostgreSQL | `postgres:18.6`, 5432 | `cowork_preference`, `preference` schema, `search_path=preference,public` |
+| MongoDB | `mongo:8.3.11`, 27017 | `cowork_chat`, `cowork_voice`; 현재 URI 생성은 `authSource=admin` |
+| Kafka | `apache/kafka:4.3.1`, 앱 listener 9092/9094 | 실제 advertised listener, 토픽·partition·RF·보존 정책, 영속 데이터 |
+| Redis | `redis:8.10.1-alpine`, 6379 | cache·rate limit·pub/sub; 데이터 보존과 장애 시 영향 범위 |
+| SeaweedFS | `chrislusf/seaweedfs:4.47`, S3 9000 | bucket, key pair, CORS, 공개/비공개 정책 |
+| Elasticsearch | `9.5.4` + `analysis-nori`, 9200 | MongoDB 기반 검색 색인, nori 플러그인, 디스크 |
+| LiveKit | `livekit/livekit-server:v1.13.7` | API/WSS·RTC·TURN, 실제 node IP, key pair |
+| Vault | `hashicorp/vault:2.1.0`, 8200 | file storage `/vault/data`, KV v2, 정책·토큰·unseal 자료 |
 
 MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_project`, `cowork_channel`,
 `cowork_notification`, `cowork_roadmap`이다. 현재 bootstrap은 하나의 MySQL 계정에 7개 DB 권한을 부여한다.
@@ -176,7 +178,7 @@ MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_projec
 | 서비스 | 코드에 포함된 마지막 SQL migration | 적용 방식 |
 | --- | --- | --- |
 | authorization | V8 | Go 자체 migration runner |
-| user | V20 | 이미지 entrypoint의 Flyway |
+| user | V20 | 애플리케이션 내부 MyXQL runner, 기존 Flyway 이력 유지 |
 | team | V16 | Spring Flyway |
 | channel | V23 | Spring Flyway |
 | project | V18 | Spring Flyway |
@@ -223,20 +225,29 @@ DB용 `mysql`, 브로커용 `kafka`, `redis`, `cowork-config` 등의 Docker 이�
 
 ### 5.2 공개 URL의 의미
 
-| 설정 | 값의 형태 / 사용처 |
-| --- | --- |
-| `PUBLIC_WEB_ORIGIN` | 웹 origin. Gateway HTTP CORS·WS 허용 origin 및 OAuth 반환 대상 |
-| `PUBLIC_API_BASE_URL` | 클라이언트가 사용하는 API base URL. OAuth callback 생성 기준 |
-| `CONFIG_SERVER_URL` | 앱이 접근하는 Config Server base URL, `/eureka/`를 포함하지 않음 |
-| `EUREKA_SERVER_URL` | Eureka API URL, 예: `http://config.internal:8761/eureka/` |
-| `VAULT_ADDR` | GitHub Environment의 Vault HTTPS URL |
-| `VAULT_EXTERNAL_HOST` | Config/Vault 배포 runtime의 **호스트명만**, 스킴·경로 제외 |
-| `S3_INTERNAL_ENDPOINT` | 서버의 S3 접근 주소 |
-| `S3_PUBLIC_ENDPOINT` | 브라우저가 접근할 S3 endpoint. 내부 주소와 같다고 가정하지 않음 |
-| `S3_PUBLIC_BASE_URL` | 응답 URL 생성에 사용하는 공개 base. bucket 경로 포함 여부를 실제 계약과 대조 |
-| `LIVEKIT_URL` | voice가 호출하는 LiveKit 서버 API |
-| `LIVEKIT_WS_URL` | 사용자에게 반환하는 LiveKit WebSocket URL |
-| `GITHUB_APP_SERVICE_URL` | 이 저장소 밖 GitHub App 연동 서비스의 base URL |
+| 설정                     | 값의 형태 / 사용처                                                                                                          |
+|--------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `PUBLIC_WEB_ORIGINS`     | 필수 웹 Origin 목록. Gateway HTTP CORS·WS·채널 OAuth 복귀 검사에 함께 사용하며, `return_origin` 생략 시 첫 번째 주소로 복귀 |
+| `PUBLIC_API_BASE_URL`    | 클라이언트가 사용하는 API base URL. OAuth callback 생성 기준                                                                |
+| `CONFIG_SERVER_URL`      | 앱이 접근하는 Config Server base URL, `/eureka/`를 포함하지 않음                                                            |
+| `EUREKA_SERVER_URL`      | Eureka API URL, 예: `http://config.internal:8761/eureka/`                                                                   |
+| `VAULT_ADDR`             | GitHub Environment의 Vault HTTPS URL                                                                                        |
+| `VAULT_EXTERNAL_HOST`    | Config/Vault 배포 runtime의 **호스트명만**, 스킴·경로 제외                                                                  |
+| `S3_INTERNAL_ENDPOINT`   | 서버의 S3 접근 주소                                                                                                         |
+| `S3_PUBLIC_ENDPOINT`     | 브라우저가 접근할 S3 endpoint. 내부 주소와 같다고 가정하지 않음                                                             |
+| `S3_PUBLIC_BASE_URL`     | 응답 URL 생성에 사용하는 공개 base. bucket 경로 포함 여부를 실제 계약과 대조                                                |
+| `LIVEKIT_URL`            | voice가 호출하는 LiveKit 서버 API                                                                                           |
+| `LIVEKIT_WS_URL`         | 사용자에게 반환하는 LiveKit WebSocket URL                                                                                   |
+| `GITHUB_APP_SERVICE_URL` | 이 저장소 밖 GitHub App 연동 서비스의 base URL                                                                              |
+
+웹 Origin은 `secret/deploy/config`의 `runtime.PUBLIC_WEB_ORIGINS`에
+`https://app.example.com,https://admin.example.com`처럼 쉼표 구분 문자열로 전달한다.
+서비스는 항상 목록으로 바인딩하며 주소가 하나면 원소 하나인 목록이다. 빈 목록은 허용하지 않는다.
+각 값은 경로·쿼리·후행 `/` 없는 `scheme://host[:port]` 형식으로 작성한다.
+프런트는 채널 OAuth 시작 API에 `return_origin`을 전달해 허용 목록 중 복귀할 주소를 선택한다.
+서버는 이 값을 서명된 `state`에 보관하고 콜백에서 재검증한다.
+설정 변경 후 Config Server를 먼저 재배포하고 Gateway와 Channel을 재배포한다.
+프런트의 `return_origin` 사용은 Channel 배포 완료 후 시작한다.
 
 Gateway의 주요 공개 경로는 `/api/<service>/...`, Chat `/ws/chat/**`,
 알림 SSE `/api/notification/notifications/stream`, 문서 `/v3/api-docs/<service>`다.
@@ -378,12 +389,12 @@ mount가 바뀌면 정책, GitHub `VAULT_KV_MOUNT`, Config `VAULT_BACKEND`를 �
 | MySQL | `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `COWORK_MYSQL_PASSWORD` | port 기본 `3306`; 서비스별 DSN/DB env로 변환 |
 | PostgreSQL | `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `COWORK_POSTGRES_PASSWORD` | port 기본 `5432`; preference용 |
 | MongoDB | `MONGO_HOST`, `MONGO_PORT`, `MONGO_USER`, `COWORK_MONGO_PASSWORD` | port 기본 `27017`; chat/voice URI 생성 |
-| Redis | `REDIS_HOST`, `REDIS_PORT` | port 기본 `6379`; voice는 `REDIS_ADDR`로 변환 |
+| Redis | `REDIS_HOST`, `REDIS_PORT` | port 기본 `6379` |
 | 검색 | `ELASTICSEARCH_URL` | chat에서 접근 가능한 Elasticsearch URL |
 | S3 | `S3_INTERNAL_ENDPOINT`, `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | bucket 기본 `cowork-bucket`; key pair는 실제 서버 설정과 일치 |
 | LiveKit | `LIVEKIT_URL`, `LIVEKIT_WS_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` | 서버 API·클라이언트 WSS·서명 key pair |
 | GitHub App | `GITHUB_APP_SERVICE_URL`, `COWORK_GITHUB_APP_INTERNAL_API_KEY` | project는 후자를 `GITHUB_APP_INTERNAL_API_KEY`로 전달 |
-| 공개 앱 주소 | `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL` | config의 prod 필수, 공통 overrides로 배포 |
+| 공개 앱 주소 | `PUBLIC_WEB_ORIGINS`, `PUBLIC_API_BASE_URL` | config의 prod 필수, 공통 overrides로 배포. 웹 Origin은 쉼표 구분 목록 |
 | JWT | `JWT_SECRET`, `JWT_ACCESS_EXPIRE`, `JWT_REFRESH_EXPIRE` | chat 직접 검증용 secret; authorization 만료 기본 `30m`, `2160h` |
 | Vault 접속 | `VAULT_EXTERNAL_HOST`, `VAULT_PORT`, `VAULT_BACKEND`, `VAULT_TOKEN` | config용 HTTPS, port 기본 `443`, backend 기본 `secret` |
 | Vault 저장·복구 | `VAULT_BIND_IP`, `VAULT_DATA_VOLUME`, `VAULT_COMPOSE_PROJECT`, `VAULT_UNSEAL_KEY` | 사용할 외부 볼륨 이름 필수. project 기본 `vault`; sealed 상태에서 unseal key 필요 |
@@ -406,7 +417,7 @@ config 외 앱은 `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`, `KAFKA_BOOTSTRAP_SER
 
 | target | 공통값에 추가할 runtime / 참조 |
 | --- | --- |
-| config | `VAULT_EXTERNAL_HOST`, 전용 `VAULT_TOKEN`, `KAFKA_BOOTSTRAP_SERVERS`, S3 endpoint 3종, `LIVEKIT_URL`, `LIVEKIT_WS_URL`; prod에서 `PUBLIC_WEB_ORIGIN`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL` |
+| config | `VAULT_EXTERNAL_HOST`, 전용 `VAULT_TOKEN`, `KAFKA_BOOTSTRAP_SERVERS`, S3 endpoint 3종, `LIVEKIT_URL`, `LIVEKIT_WS_URL`; prod에서 `PUBLIC_WEB_ORIGINS`, `PUBLIC_API_BASE_URL`, `GITHUB_APP_SERVICE_URL` |
 | gateway | Redis 주소 |
 | authorization | MySQL 4종; 필요 시 JWT 만료값. JWT secret·DataGSM 값은 앱 Vault로 공급 |
 | user | MySQL 4종, Redis 주소, S3 endpoint 3종 및 bucket/credential 계약 |
@@ -417,7 +428,7 @@ config 외 앱은 `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL`, `KAFKA_BOOTSTRAP_SER
 | preference | PostgreSQL 4종, Redis 주소; `HOST_PORT=9001` |
 | notification | MySQL 4종; Firebase는 앱 프로파일 Vault로 공급 |
 | chat | MongoDB 4종, `JWT_SECRET`, Redis 주소, `ELASTICSEARCH_URL`, S3 endpoint 3종 및 bucket/credential 계약 |
-| voice | MongoDB 4종, Redis 주소, LiveKit URL 2종·key pair |
+| voice | MongoDB 4종, LiveKit URL 2종·key pair |
 | vault | `VAULT_EXTERNAL_HOST`, `VAULT_BIND_IP`, `VAULT_DATA_VOLUME`; 사용할 project 이름, 필요 시 `VAULT_UNSEAL_KEY` |
 | monitoring | Config/Eureka URL, `MYSQL_HOST`, `REDIS_HOST`, `MONITORING_BIND_IP`, `MONITORING_VOLUME_PREFIX`, Grafana 비밀번호·Discord URL, 모든 exporter 접속값 |
 | log-agent | `LOG_HOST`, `LOKI_PUSH_URL`; Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR` |
@@ -446,7 +457,7 @@ Config 응답 내 순서는 `server overrides > Vault 서비스 속성 > Vault �
 | Vert.x preference | `SPRING_PROFILES_ACTIVE`, `CONFIG_SERVER_URL` | 자체 컨테이너 env로 해석 |
 | Go authorization/notification/voice | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 정확한 flat key·리터럴 값 또는 구현된 env mapping 사용 |
 | NestJS chat | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 기존 비어 있지 않은 env를 보존 |
-| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. entrypoint가 DB/Flyway를, 앱이 일반 설정을 조회 |
+| Elixir user | `APP_PROFILE`, `APP_CONFIG_URL` | 해석하지 않음. 앱이 DB·일반 설정을 한 번 조회한 뒤 migration 실행 |
 
 prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 사용한다. Config Server가 내려갔을 때
 모든 서비스의 재시작·교체가 가능한 구조로 생각하지 않는다. 값 변경 후에는 영향받는 앱을 재배포한다.
@@ -466,7 +477,7 @@ prod 배포는 Config 연결 실패를 기동 실패로 처리하는 경로를 �
 | 같은 channel 경로 | `<PROVIDER>_ACCOUNT_SHARE_CLIENT_ID`, `<PROVIDER>_ACCOUNT_SHARE_CLIENT_SECRET` | 활성 제공자별 `GITHUB`, `NOTION`, `JIRA`, `GOOGLE`, `FACEBOOK`; 비활성 기능의 빈 기본값과 구분 |
 | `cowork-team[/prod]` | `team-github.state-secret` / `TEAM_GITHUB_STATE_SECRET`, `team-github.app-slug` / `GITHUB_APP_SLUG` | GitHub App 설치 callback의 state·app 식별자 |
 | `cowork-project[/prod]` | `github-app.internal-api-key` | 외부 GitHub App 서비스와 동일 key. 배포 참조는 `COWORK_GITHUB_APP_INTERNAL_API_KEY`로 연결 |
-| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. 현재 user entrypoint는 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
+| `cowork-user[/prod]` | `DB_USERNAME`, `DB_PASSWORD` | bootstrap MySQL 값과 일치. user 앱은 `SECRET_KEY_BASE`를 필수값으로 요구하지 않음 |
 | `cowork-chat[/prod]` | `MONGODB_URI`, 필요 기능의 `DISCORD_WEBHOOK_URL`, 공통 JWT/S3 key | chat 배포 runtime이 만드는 URI·직접 env와 정합성 |
 | `cowork-notification[/prod]` | **`db.dsn`** | `DB_DSN` env와의 매핑은 있으나 Vault native key는 dotted 소문자 |
 | `cowork-notification/prod` | **`fcm.credentials-json`** | Firebase `service_account` JSON 전체를 문자열로 저장, 앱 메모리에서 사용 |
@@ -524,7 +535,7 @@ key/IP가 실제로 교체됐다고 판단하지 않는다. 실제 LiveKit 운�
 - `cowork-promotion`은 `npm run build` → `public/`, Vercel 정적 배포다.
   `SITE_URL`은 canonical/OG URL용 선택 설정이며 필수 런타임 Secret은 없다.
   Root Directory가 `cowork-promotion`이면 상위 `docs/todo`를 읽도록 외부 source 포함 옵션이 필요하다.
-  제품 웹 앱의 `PUBLIC_WEB_ORIGIN`과 promotion domain이 같다고 추정하지 않는다.
+  제품 웹 앱의 `PUBLIC_WEB_ORIGINS` 목록에 promotion domain이 포함된다고 추정하지 않는다.
 
 근거: [OAuth URL 생성](../cowork-channel/src/main/kotlin/com/cowork/channel/global/config/OAuthProperties.kt),
 [promotion 안내](../cowork-promotion/README.md), [Vercel 설정](../cowork-promotion/vercel.json).
@@ -583,10 +594,10 @@ Snapshot 재발행 간격 300초는 완료 상한이 아니며, 기본 배포 �
 
 | 구성 | 저장소 이미지 | 게시 포트 / 보존 |
 | --- | --- | --- |
-| Prometheus | `prom/prometheus:v3.12.0` | 기본 `127.0.0.1:9090`, TSDB 15일 |
-| Grafana | `grafana/grafana:13.0.2` | 기본 `127.0.0.1:3001` → 3000, 지정한 Grafana DB 볼륨 |
-| Loki | `grafana/loki:3.7.2` | `MONITORING_BIND_IP:3100`, filesystem 저장, retention 240h(10일) |
-| Alertmanager | `prom/alertmanager:v0.33.0` | 기본 `127.0.0.1:9093`, Discord URL 파일 공급 |
+| Prometheus | `prom/prometheus:v3.14.0` | 기본 `127.0.0.1:9090`, TSDB 15일 |
+| Grafana | `grafana/grafana:13.2.2` | 기본 `127.0.0.1:3001` → 3000, 지정한 Grafana DB 볼륨 |
+| Loki | `grafana/loki:3.7.7` | `MONITORING_BIND_IP:3100`, filesystem 저장, retention 240h(10일) |
+| Alertmanager | `prom/alertmanager:v0.34.0` | 기본 `127.0.0.1:9093`, Discord URL 파일 공급 |
 | Blackbox | `prom/blackbox-exporter:v0.28.0` | Compose 내부 9115 |
 | Alloy | `grafana/alloy:v1.19.2` + digest 고정 | 앱 VM별 로그 디렉터리 read-only mount, positions 영속 볼륨 |
 | DB/인프라 exporter | MySQL, Redis, Kafka, PostgreSQL, MongoDB | monitoring Compose 내부 9104/9121/9308/9187/9216 |
@@ -697,6 +708,7 @@ migration, readiness를 확인하지 않는다. 성공 후 같은 명령에서 `
 | 최초 컨테이너 배포 실패 | 이전 컨테이너가 없으므로 자동 롤백 대상 없음 |
 | `*-candidate`, `*-previous` 잔존 | 다음 배포가 중단된다. Docker 상태·포트·이미지를 확인하고 복구 후 정리 |
 | DB migration 이후 앱 실패 | 자동 앱 롤백은 DB를 되돌리지 않는다. 이전 이미지와 schema 호환 여부 확인 |
+| `cowork-user` migration 실패 | 재시작을 멈추고 부분 적용된 스키마를 복구한 뒤 실패 이력을 정리한다. 실패 행만 삭제하거나 성공으로 바꾸어 기동을 강행하지 않는다 |
 | 이전 SHA로 수동 롤백 | `sha`, `configuration_version` 지정. 참조 Vault 문서·Config 앱 속성·외부 키는 별도 복원 필요 |
 | Vault sealed/중단 | `service=vault`, `target=vault`, `vault_recovery=true`; 외부 보관한 `VAULT_BOOTSTRAP_JSON` 사용 |
 | Vault 미초기화 | 운영자가 초기화와 unseal 자료 보관을 수행. 기존 데이터 존재 여부부터 확인 |

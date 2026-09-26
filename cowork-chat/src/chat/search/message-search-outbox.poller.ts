@@ -137,13 +137,13 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
     private async drainTombstones(): Promise<void> {
         const tombstones = await this.tombstoneRepository.claimPending(TOMBSTONE_BATCH_SIZE);
         if (tombstones.length === 0) return;
-        await Promise.all(tombstones.map((tombstone) => this.indexService.applyTombstone(tombstone)));
+        await this.indexService.applyTombstones(tombstones);
     }
 
     private async drainMessages(): Promise<void> {
         const messages = await this.indexRepository.claimPending(MESSAGE_BATCH_SIZE);
         if (messages.length === 0) return;
-        await Promise.all(messages.map((message) => this.indexService.applyMessage(message)));
+        await this.indexService.applyMessages(messages);
     }
 
     private async refreshMetricsIfDue(): Promise<void> {

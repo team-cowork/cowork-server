@@ -7,6 +7,7 @@ import {
     Logger,
     NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
 import { MessageDocument } from './schema/message.schema';
 import { EditMessageDto } from './dto/edit-message.dto';
@@ -14,7 +15,7 @@ import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
-import { GithubIssueProducer } from './kafka/github-issue.producer';
+import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
 import { ProjectClient } from './service/project.client';
 import { ChannelClient } from './service/channel.client';
 import { UserClient } from './service/user.client';
@@ -71,7 +72,7 @@ export class ChatService {
         private readonly elasticsearchService: ElasticsearchService,
         private readonly objectStorageService: ObjectStorageService,
         private readonly chatMessageProducer: ChatMessageProducer,
-        private readonly githubIssueProducer: GithubIssueProducer,
+        private readonly chatGithubIssueCommandProducer: ChatGithubIssueCommandProducer,
         private readonly projectClient: ProjectClient,
         private readonly channelClient: ChannelClient,
         private readonly userClient: UserClient,
@@ -386,33 +387,31 @@ export class ChatService {
     }
 
     /**
-     * GitHub 이슈 생성 커맨드를 Kafka `github.issue.create` 토픽으로 발행한다.
-     * 채널의 팀과 프로젝트의 팀이 일치하는지 검증한다.
+     * GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
+     *
+     * chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
+     * 또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
+     * project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
+     * 검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
+     * 거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
      *
      * @param ctx - 채널·사용자 컨텍스트
      * @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
-     * @throws BadRequestException 프로젝트에 GitHub 레포지토리 정보가 없는 경우
-     * @throws ForbiddenException 프로젝트가 채널 팀에 속하지 않는 경우
+     * @throws ForbiddenException 채널 멤버가 아닌 경우
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
         const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
-        const repoInfo = await this.projectClient.getGithubRepoInfo(dto.projectId);
-        if (!repoInfo) {
-            throw new BadRequestException('프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다');
-        }
-        if (channelTeamId !== repoInfo.teamId) {
-            throw new ForbiddenException('해당 프로젝트는 이 채널의 팀에 속하지 않습니다');
-        }
 
-        await this.githubIssueProducer.send({
-            channelId: ctx.channelId,
-            teamId: repoInfo.teamId,
+        await this.chatGithubIssueCommandProducer.send({
+            operationId: randomUUID(),
+            idempotencyKey: randomUUID(),
             projectId: dto.projectId,
-            owner: repoInfo.owner,
-            repo: repoInfo.repo,
-            title: dto.title,
-            body: dto.body,
+            channelId: ctx.channelId,
+            teamId: channelTeamId,
             requesterId: ctx.userId,
+            title: dto.title,
+            body: dto.body ?? null,
+            occurredAt: new Date().toISOString(),
         });
     }
 

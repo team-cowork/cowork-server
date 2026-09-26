@@ -78,6 +78,8 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
         GraphQLModule.forRoot<ApolloDriverConfig>({
             driver: ApolloDriver,
             autoSchemaFile: true,
+            playground: false,
+            graphiql: process.env.NODE_ENV !== 'production',
             context: ({ req }: { req: Request }) => ({ req }),
         }),
         ChatModule,

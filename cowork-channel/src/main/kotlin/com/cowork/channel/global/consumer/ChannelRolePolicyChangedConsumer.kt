@@ -56,7 +56,9 @@ class ChannelRolePolicyChangedConsumer(
             } else {
                 null
             }
+
             "DELETE" -> if (event.permissions != null) "DELETE에는 permissions가 없어야 합니다." else null
+
             else -> "지원하지 않는 eventType입니다."
         }
     }
