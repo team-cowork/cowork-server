@@ -8,6 +8,9 @@ cowork-project/mvnw text eol=lf
 
 *.jar binary
 
+# Preserve the original bytes of existing Flyway migration resources when moved.
+/cowork-user/priv/db/migration/*.sql -text
+
 *.kt   diff=kotlin
 *.kts  diff=kotlin
 *.java diff=java

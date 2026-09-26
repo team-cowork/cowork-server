@@ -23,3 +23,5 @@ S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS: 60000
 S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS: 20
 # chat.message poison record의 원문 보존 기간 (MongoDB TTL)
 CHAT_MESSAGE_QUARANTINE_RETENTION_DAYS: 30
+# chat.message Kafka consumer가 서로 다른 파티션(채널)을 동시에 처리하는 워커 수
+CHAT_MESSAGE_CONSUMER_CONCURRENCY: 3

@@ -36,6 +36,7 @@ class ChannelRolePolicyProjectionHandler(private val repository: ChannelRolePoli
                 messageRead = requireNotNull(requireNotNull(event.permissions)[MESSAGE_READ_KEY]),
                 occurredAt = event.occurredAt,
             )
+
             "DELETE" -> projection.markDeleted(event.occurredAt)
         }
         repository.save(projection)

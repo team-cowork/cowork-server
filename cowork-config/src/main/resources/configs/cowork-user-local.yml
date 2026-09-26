@@ -6,7 +6,6 @@ server_port: 8082
 DB_HOST: mysql
 DB_PORT: 3306
 DB_NAME: cowork_user
-DB_JDBC_URL: jdbc:mysql://mysql:3306/cowork_user?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
 
 eureka_app_name: cowork-user
 eureka_server_url: http://cowork-config:8761/eureka/

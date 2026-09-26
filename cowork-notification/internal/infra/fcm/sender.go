@@ -12,6 +12,28 @@ import (
 	"google.golang.org/api/option"
 )
 
+// Outcome classifies one token's FCM send result so callers can decide whether to
+// delete the token, retry it durably, or treat it as delivered.
+type Outcome string
+
+const (
+	// OutcomeSuccess: FCM accepted and delivered the message to the provider for this token.
+	OutcomeSuccess Outcome = "SUCCESS"
+	// OutcomeInvalid: the token itself is unusable (unregistered, sender mismatch, malformed) and must be removed.
+	OutcomeInvalid Outcome = "INVALID"
+	// OutcomeRetryable: a transient provider/infra error; the same token can be retried later.
+	OutcomeRetryable Outcome = "RETRYABLE"
+	// OutcomeUnclassified: an error the SDK does not map to a known permanent/transient category.
+	// Treated as retryable but with a much lower attempt ceiling, since it may in fact be permanent.
+	OutcomeUnclassified Outcome = "UNCLASSIFIED"
+)
+
+// TokenResult is one token's classified send outcome.
+type TokenResult struct {
+	Token   string
+	Outcome Outcome
+}
+
 type Sender struct {
 	client         messagingClient
 	isUnregistered func(error) bool
@@ -26,6 +48,29 @@ func (s *Sender) checkUnregistered(err error) bool {
 		return s.isUnregistered(err)
 	}
 	return messaging.IsUnregistered(err)
+}
+
+// classify maps an FCM SDK error to an Outcome. This mapping mirrors the official
+// Admin SDK error taxonomy (firebase.google.com/go/v4/messaging's Is* predicates) and
+// is verified by code review against that contract rather than by unit test, per
+// docs/todo/items/33-reliability/fcm-partial-failure-retry.md's test-scope note: the
+// SDK's own error classification is not this repository's business logic to freeze.
+func (s *Sender) classify(err error) Outcome {
+	switch {
+	case s.checkUnregistered(err), messaging.IsSenderIDMismatch(err):
+		return OutcomeInvalid
+	case messaging.IsInternal(err), messaging.IsUnavailable(err), messaging.IsQuotaExceeded(err):
+		return OutcomeRetryable
+	default:
+		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
+		// message-level problems (oversized payload, a malformed field) that are not
+		// specific to one token. Since a multicast batch sends the same message to
+		// every token in it, classifying it as OutcomeInvalid here would delete every
+		// recipient's token in the batch for what is actually a message construction
+		// bug. Routing it to OutcomeUnclassified instead only quarantines it (after
+		// MaxAttemptsUnclassified retries) without touching any token.
+		return OutcomeUnclassified
+	}
 }
 
 func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
@@ -60,15 +105,20 @@ func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
 
 const fcmBatchSize = 500
 
-func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]string, error) {
+// Send delivers to every token, batched at fcmBatchSize, and returns a classified
+// result for each token attempted. It only returns a non-nil error for context
+// cancellation — a per-token or per-batch FCM failure is reported through the
+// returned TokenResult.Outcome instead, so a caller can persist retryable failures
+// durably rather than treat the whole call as failed.
+func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]TokenResult, error) {
 	if len(tokens) == 0 {
 		return nil, nil
 	}
 
-	var invalid []string
+	results := make([]TokenResult, 0, len(tokens))
 	for i := 0; i < len(tokens); i += fcmBatchSize {
 		if err := ctx.Err(); err != nil {
-			return invalid, err
+			return results, err
 		}
 		end := i + fcmBatchSize
 		if end > len(tokens) {
@@ -83,17 +133,27 @@ func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, 
 		}
 		resp, err := s.client.SendEachForMulticast(ctx, msg)
 		if err != nil {
-			return invalid, err
+			// The whole batch failed before FCM assigned per-token responses; classify the
+			// batch-level error once and apply it to every token in the batch so none of them
+			// are silently dropped from the durable retry ledger.
+			outcome := s.classify(err)
+			slog.Warn("fcm multicast call failed", "err", err, "batch_size", len(batch), "outcome", outcome)
+			for _, t := range batch {
+				results = append(results, TokenResult{Token: t, Outcome: outcome})
+			}
+			continue
 		}
 		for j, r := range resp.Responses {
-			if !r.Success {
-				if s.checkUnregistered(r.Error) {
-					invalid = append(invalid, batch[j])
-				} else {
-					slog.Warn("fcm send failed", "err", r.Error, "batch_index", j)
-				}
+			if r.Success {
+				results = append(results, TokenResult{Token: batch[j], Outcome: OutcomeSuccess})
+				continue
 			}
+			outcome := s.classify(r.Error)
+			if outcome != OutcomeInvalid {
+				slog.Warn("fcm send failed", "err", r.Error, "batch_index", j, "outcome", outcome)
+			}
+			results = append(results, TokenResult{Token: batch[j], Outcome: outcome})
 		}
 	}
-	return invalid, nil
+	return results, nil
 }
