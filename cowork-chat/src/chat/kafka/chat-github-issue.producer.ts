@@ -2,20 +2,20 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
-import { GithubIssueCreateEvent } from './event/github-issue.event';
+import { ChatGithubIssueCreateCommand } from './event/chat-github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 
 /**
- * GitHub 이슈 생성 이벤트를 Kafka `github.issue.create` 토픽으로 발행하는 프로듀서.
+ * 채팅발 GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행하는 프로듀서.
  *
  * **지연 연결 패턴(Lazy Connect)**:
  * `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
  * 실제 이벤트 발행 시점에 {@link ensureConnected}를 호출하여 연결 상태를 보장한다.
  */
 @Injectable()
-export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(GithubIssueProducer.name);
+export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(ChatGithubIssueCommandProducer.name);
     private producer!: Producer;
     private isConnected = false;
     private connectPromise?: Promise<void>;
@@ -33,18 +33,18 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
      */
     onModuleInit() {
         const kafka = new Kafka({
-            clientId: 'cowork-chat-github',
+            clientId: 'cowork-chat-chat-github-issue-command',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer({ idempotent: true });
         void this.ensureConnected().catch((error: unknown) => {
-            this.logger.error(`GitHub issue producer bootstrap connect failed: ${this.formatError(error)}`);
+            this.logger.error(`Chat GitHub issue command producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
                 title: '🔴 Kafka Producer 연결 실패',
-                description: 'cowork-chat의 github.issue.create producer가 부트스트랩 연결에 실패했습니다.',
+                description: 'cowork-chat의 project.chat-github-issue.command producer가 부트스트랩 연결에 실패했습니다.',
                 color: 'danger',
                 fields: [
-                    { name: 'Topic', value: 'github.issue.create', inline: true },
+                    { name: 'Topic', value: 'project.chat-github-issue.command', inline: true },
                     ...buildErrorFields(error),
                 ],
             }).catch(() => {});
@@ -63,22 +63,22 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * GitHub 이슈 생성 이벤트를 Kafka `github.issue.create` 토픽으로 발행한다.
+     * GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
      *
      * 메시지 키는 `channelId`로 설정되어 같은 채널의 이슈 요청이 동일 파티션에 순서대로 전달된다.
      * 발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
      *
-     * @param event - 발행할 GitHub 이슈 생성 이벤트
+     * @param command - 발행할 GitHub 이슈 생성 커맨드
      * @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
-    async send(event: GithubIssueCreateEvent): Promise<void> {
+    async send(command: ChatGithubIssueCreateCommand): Promise<void> {
         await this.ensureConnected();
         await this.producer.send({
-            topic: 'github.issue.create',
+            topic: 'project.chat-github-issue.command',
             messages: [
                 {
-                    key: event.channelId.toString(),
-                    value: JSON.stringify(event),
+                    key: command.channelId.toString(),
+                    value: JSON.stringify(command),
                 },
             ],
         });
@@ -104,7 +104,7 @@ export class GithubIssueProducer implements OnModuleInit, OnModuleDestroy {
                 .connect()
                 .then(() => {
                     this.isConnected = true;
-                    this.logger.log('GitHub issue producer connected');
+                    this.logger.log('Chat GitHub issue command producer connected');
                 })
                 .catch((error: unknown) => {
                     this.connectPromise = undefined;
