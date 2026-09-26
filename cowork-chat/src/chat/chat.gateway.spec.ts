@@ -42,6 +42,10 @@ const mockGithubIssueResultConsumer = {
     setSocketServer: jest.fn(),
 };
 
+const mockChatGithubIssueResultConsumer = {
+    setSocketServer: jest.fn(),
+};
+
 const mockGithubRepoEventConsumer = {
     setSocketServer: jest.fn(),
 };
@@ -86,6 +90,7 @@ describe('ChatGateway', () => {
             mockChatService as never,
             mockConsumer as never,
             mockGithubIssueResultConsumer as never,
+            mockChatGithubIssueResultConsumer as never,
             mockGithubRepoEventConsumer as never,
             mockChannelEventConsumer as never,
             mockProjectEventConsumer as never,
