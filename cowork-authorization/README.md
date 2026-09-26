@@ -34,9 +34,3 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 - Vault: `DB_DSN`, `JWT_SECRET`, `DATAGSM_CLIENT_ID`, `DATAGSM_WEBHOOK_SECRET`.
 
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 가이드](../docs/configuration.md)를 참고합니다.
-
-## DataGSM 웹훅
-
-웹훅 배치의 접수 기록과 모든 발행 메시지를 같은 DB transaction으로 저장한다. `200 accepted`는 영속 접수 완료이며 Kafka 발행과 학생 정보 반영은 비동기로 진행한다. 같은 ID·같은 내용은 `200 duplicate`, 같은 ID·다른 내용은 `409`로 처리한다.
-
-처리 기록은 30일 보관하고 발생 후 30일 이상 지난 이벤트의 신규 접수를 거부한다. 미발행 outbox가 있는 기록은 발행 완료까지 보존한다. 응답 코드, 입력 정책, 지표와 복구 절차는 [웹훅 운영 문서](../docs/authorization-webhooks.md)를 참고한다.
