@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.mockk
 import java.time.Instant
@@ -24,13 +25,17 @@ class GithubIssueWriteResultHandlerTest :
             operationId: String = "11111111-1111-1111-1111-111111111111",
             idempotencyKey: String = "github-issue-write:REPLACE_LABELS:5:3:7:nonce",
             commandType: GithubIssueWriteCommandType = GithubIssueWriteCommandType.REPLACE_LABELS,
+            parentType: GithubCommentParentType? = null,
         ) = GithubIssueWriteOperation(
             operationId = operationId,
             idempotencyKey = idempotencyKey,
             commandType = commandType,
             repoId = 5L,
+            owner = "my-org",
+            repo = "my-repo",
             issueNumber = 3,
             commentId = null,
+            parentType = parentType,
             requestedBy = 7L,
         )
 
@@ -61,6 +66,63 @@ class GithubIssueWriteResultHandlerTest :
 
                         operation.status shouldBe GithubIssueWriteOperationStatus.SUCCEEDED
                         operation.resultSnapshot shouldBe """{"labels":[{"name":"bug","color":"d73a4a"}]}"""
+                    }
+                }
+
+                context("CREATE_COMMENT 작업이 처음 SUCCEEDED로 전이되면") {
+                    it("부모 작성자 알림에 필요한 정보를 반환한다") {
+                        val operation = pendingOperation(
+                            commandType = GithubIssueWriteCommandType.CREATE_COMMENT,
+                            parentType = GithubCommentParentType.PULL_REQUEST,
+                        )
+                        every { operationRepository.findByIdForUpdate(operation.operationId) } returns operation
+
+                        val pending = handler.apply(
+                            GithubIssueWriteResult(
+                                schemaVersion = 1,
+                                operationId = operation.operationId,
+                                idempotencyKey = operation.idempotencyKey,
+                                commandType = "CREATE_COMMENT",
+                                status = "SUCCEEDED",
+                                result = mapOf(
+                                    "id" to 1L,
+                                    "author" to "octocat",
+                                    "body" to "확인했습니다",
+                                    "htmlUrl" to "https://github.com/my-org/my-repo/issues/3#comment-1",
+                                    "createdAt" to "2026-09-26T00:00:00Z",
+                                    "updatedAt" to "2026-09-26T00:00:00Z",
+                                ),
+                                occurredAt = Instant.now(),
+                            ),
+                        )
+
+                        pending shouldNotBe null
+                        pending!!.owner shouldBe "my-org"
+                        pending.repo shouldBe "my-repo"
+                        pending.parentType shouldBe GithubCommentParentType.PULL_REQUEST
+                        pending.issueNumber shouldBe 3
+                        pending.commentAuthor shouldBe "octocat"
+                    }
+                }
+
+                context("REPLACE_LABELS 작업이 SUCCEEDED로 전이되면") {
+                    it("부모 작성자 알림 정보를 반환하지 않는다") {
+                        val operation = pendingOperation()
+                        every { operationRepository.findByIdForUpdate(operation.operationId) } returns operation
+
+                        val pending = handler.apply(
+                            GithubIssueWriteResult(
+                                schemaVersion = 1,
+                                operationId = operation.operationId,
+                                idempotencyKey = operation.idempotencyKey,
+                                commandType = "REPLACE_LABELS",
+                                status = "SUCCEEDED",
+                                result = mapOf("labels" to emptyList<Any>()),
+                                occurredAt = Instant.now(),
+                            ),
+                        )
+
+                        pending shouldBe null
                     }
                 }
 
