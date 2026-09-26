@@ -298,6 +298,8 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 | `chat.message`                                      | cowork-chat                    | cowork-chat                                                              | 메시지 비동기 저장·브로드캐스트                            |
 | `notification.trigger`                              | cowork-team, cowork-chat       | cowork-notification                                                      | FCM·SSE 알림 발송                                          |
 | `github.issue.create` / `github.issue.result`       | cowork-project / 외부 GitHub 연동 | 외부 GitHub 연동 / cowork-chat                                           | GitHub 이슈 생성(REST 직접 호출 및 채팅 슬래시 커맨드 경유 양쪽 모두 project가 발행) |
+| `github-app.issue-write.command`                    | cowork-project                 | 외부 GitHub 연동                                                         | 이슈 라벨 전체 교체·댓글 생성/수정/삭제 비동기 command      |
+| `github-app.issue-write.result`                     | 외부 GitHub 연동               | cowork-project                                                           | 라벨 교체·댓글 생성/수정/삭제 command 처리 결과             |
 | `github.repo.event`                                 | 외부 GitHub App 연동           | cowork-chat                                                              | GitHub 저장소 action stream                                |
 | `voice.event`                                       | cowork-voice                   | 연동 서비스                                                              | 음성 세션 이벤트                                           |
 | `preference.status.changed`                         | cowork-preference              | 연동 서비스                                                              | 사용자 상태 변경                                           |
