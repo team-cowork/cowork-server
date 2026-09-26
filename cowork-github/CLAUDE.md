@@ -35,6 +35,7 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 | `state`          | `string` | ✓        | opaque state passed through the setup URL |
 | `installationId` | `number` | ✓        | GitHub App installation ID                |
 | `orgLogin`       | `string` | ✓        | connected GitHub org login                |
+| `revision`       | `number` | ✓        | monotonic per-installation counter (Redis `INCR`) the consumer uses to reject out-of-order events |
 
 **Topic**: `team.github.disconnected`
 
@@ -43,6 +44,7 @@ A GitHub App backend service that listens to Kafka messages and automatically cr
 | Field            | Type     | Required | Description                 |
 |------------------|----------|----------|------------------------------|
 | `installationId` | `number` | ✓        | GitHub App installation ID  |
+| `revision`       | `number` | ✓        | monotonic per-installation counter (Redis `INCR`), shared with `team.github.connected`, that the consumer uses to reject out-of-order events |
 
 **Topic**: `github.repo.event`
 
