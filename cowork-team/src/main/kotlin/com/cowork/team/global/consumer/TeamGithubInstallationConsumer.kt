@@ -1,6 +1,8 @@
 package com.cowork.team.global.consumer
 
+import com.cowork.team.domain.team.entity.TeamGithubInstallationRevision
 import com.cowork.team.domain.team.event.TeamEventPublisher
+import com.cowork.team.domain.team.repository.TeamGithubInstallationRevisionRepository
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
 import org.slf4j.LoggerFactory
@@ -14,6 +16,7 @@ class TeamGithubInstallationConsumer(
     private val teamRepository: TeamRepository,
     private val teamGithubStateSupport: TeamGithubStateSupport,
     private val teamEventPublisher: TeamEventPublisher,
+    private val teamGithubInstallationRevisionRepository: TeamGithubInstallationRevisionRepository,
 ) {
     private val log = LoggerFactory.getLogger(TeamGithubInstallationConsumer::class.java)
 
@@ -24,6 +27,8 @@ class TeamGithubInstallationConsumer(
     )
     @Transactional
     fun consumeConnected(payload: TeamGithubConnectedPayload) {
+        if (!guardRevision(Topics.TEAM_GITHUB_CONNECTED, payload.installationId, payload.revision)) return
+
         val (teamId, actorUserId) = try {
             teamGithubStateSupport.verifyState(payload.state)
         } catch (e: ExpectedException) {
@@ -74,11 +79,36 @@ class TeamGithubInstallationConsumer(
     )
     @Transactional
     fun consumeDisconnected(payload: TeamGithubDisconnectedPayload) {
+        if (!guardRevision(Topics.TEAM_GITHUB_DISCONNECTED, payload.installationId, payload.revision)) return
+
         val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
         val team = teamRepository.findByIdForUpdate(existing.id) ?: return
         if (team.githubInstallationId != payload.installationId) return
         team.disconnectGithub()
         teamRepository.save(team)
         teamEventPublisher.publishUpdated(team, team.ownerId)
+    }
+
+    // installation별 revision 원장을 잠근 상태로 조회한다. 같은 installation의 connected/disconnected
+    // topic을 각각 소비하는 트랜잭션이 이 잠금으로 서로 순서를 기다리게 되어, 두 topic 사이의 도착 순서
+    // 역전을 막는다. revision이 낮거나 같으면 false를 반환해 호출자가 나머지 로직을 건너뛰게 한다.
+    private fun guardRevision(eventType: String, installationId: Long, revision: Long): Boolean {
+        val ledger = teamGithubInstallationRevisionRepository.findByInstallationIdForUpdate(installationId)
+            ?: teamGithubInstallationRevisionRepository.save(TeamGithubInstallationRevision.initial(installationId))
+
+        if (revision <= ledger.revision) {
+            log.warn(
+                "{}: installation {} 의 revision {} 이(가) 이미 반영된 {} 보다 낮거나 같아 무시합니다",
+                eventType,
+                installationId,
+                revision,
+                ledger.revision,
+            )
+            return false
+        }
+
+        ledger.advanceTo(revision)
+        teamGithubInstallationRevisionRepository.save(ledger)
+        return true
     }
 }
