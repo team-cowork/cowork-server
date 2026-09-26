@@ -21,6 +21,7 @@ import io.mockk.mockk
 import io.mockk.runs
 import io.mockk.verify
 import org.springframework.http.HttpStatus
+import org.springframework.transaction.PlatformTransactionManager
 import team.themoment.sdk.exception.ExpectedException
 
 class CreateGithubCommentServiceImplTest :
@@ -32,6 +33,7 @@ class CreateGithubCommentServiceImplTest :
         lateinit var githubAppClient: GithubAppClient
         lateinit var profileReader: UserProfileProjectionReader
         lateinit var notificationPublisher: GithubCommentNotificationPublisher
+        lateinit var transactionManager: PlatformTransactionManager
         lateinit var service: CreateGithubCommentServiceImpl
 
         val repo = GithubRepoRef("my-org", "my-repo")
@@ -44,6 +46,7 @@ class CreateGithubCommentServiceImplTest :
             githubAppClient = mockk()
             profileReader = mockk()
             notificationPublisher = mockk()
+            transactionManager = mockk(relaxed = true)
             service = CreateGithubCommentServiceImpl(
                 repoAccessResolver,
                 usernameResolver,
@@ -51,6 +54,7 @@ class CreateGithubCommentServiceImplTest :
                 githubAppClient,
                 profileReader,
                 notificationPublisher,
+                transactionManager,
             )
 
             every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns repo
@@ -64,7 +68,7 @@ class CreateGithubCommentServiceImplTest :
         describe("CreateGithubCommentServiceImpl 클래스의") {
             describe("execute 메서드는") {
                 context("이슈 작성자가 댓글 작성자와 다르고 cowork 사용자로 매핑되는 경우") {
-                    it("댓글을 생성하고 이슈 작성자에게 알림을 발행한다") {
+                    it("댓글을 생성하고 이슈 작성자 알림을 짧은 쓰기 트랜잭션에서 기록한다") {
                         val comment =
                             GithubCommentResDto(1L, "commenter", "확인했습니다", "https://github.com/x", "now", "now")
                         every {
@@ -83,6 +87,8 @@ class CreateGithubCommentServiceImplTest :
 
                         result shouldBe comment
                         verify { notificationPublisher.publishCommentCreated(42L, any()) }
+                        verify(exactly = 1) { transactionManager.getTransaction(any()) }
+                        verify(exactly = 1) { transactionManager.commit(any()) }
                     }
                 }
 
@@ -128,6 +134,7 @@ class CreateGithubCommentServiceImplTest :
 
                         result shouldBe comment
                         verify(exactly = 0) { notificationPublisher.publishCommentCreated(any(), any()) }
+                        verify(exactly = 0) { transactionManager.getTransaction(any()) }
                     }
                 }
 
