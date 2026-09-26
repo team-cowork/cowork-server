@@ -38,19 +38,19 @@ class TeamGithubInstallationConsumerTest :
 
         fun team(id: Long = 100L) = Team(id = id, name = "team", description = null, iconUrl = null, ownerId = 1L)
 
-        // ledger를 처음 만나는 installation처럼 스텁한다: 잠긴 조회는 없고, 새로 저장되는 원장을 그대로 반환한다.
+        // ledger를 처음 만나는 installation처럼 스텁한다: insertInitialIfAbsent로 최초 행을 만들고
+        // (이미 있어도 no-op), 잠긴 조회로 그 행을 그대로 돌려받는다.
         fun stubNoLedger(installationId: Long) {
-            every { revisionRepository.findByInstallationIdForUpdate(installationId) } returns null
-            every {
-                revisionRepository.save(match<TeamGithubInstallationRevision> { it.installationId == installationId })
-            } answers {
-                firstArg()
-            }
+            val ledger = TeamGithubInstallationRevision.initial(installationId)
+            every { revisionRepository.insertInitialIfAbsent(installationId) } returns 1
+            every { revisionRepository.findByInstallationIdForUpdate(installationId) } returns ledger
+            every { revisionRepository.save(ledger) } returns ledger
         }
 
         // 이미 revision이 기록된 installation처럼 스텁한다.
         fun stubLedger(installationId: Long, revision: Long): TeamGithubInstallationRevision {
             val ledger = TeamGithubInstallationRevision(installationId = installationId, revision = revision)
+            every { revisionRepository.insertInitialIfAbsent(installationId) } returns 0
             every { revisionRepository.findByInstallationIdForUpdate(installationId) } returns ledger
             every { revisionRepository.save(ledger) } returns ledger
             return ledger
@@ -63,6 +63,7 @@ class TeamGithubInstallationConsumerTest :
                     it("두 이벤트를 모두 반영하고 원장을 각각 갱신한다") {
                         val existing = team()
                         val ledger = TeamGithubInstallationRevision(installationId = 1L, revision = 0)
+                        every { revisionRepository.insertInitialIfAbsent(1L) } returns 0
                         every { revisionRepository.findByInstallationIdForUpdate(1L) } returns ledger
                         every { revisionRepository.save(ledger) } returns ledger
                         every { teamGithubStateSupport.verifyState("valid-state") } returns (100L to 10L)
@@ -137,6 +138,30 @@ class TeamGithubInstallationConsumerTest :
                         ledger.revision shouldBe 2L
                         verify(exactly = 0) { teamRepository.findByGithubInstallationId(any()) }
                         verify(exactly = 0) { teamRepository.save(any()) }
+                    }
+                }
+
+                context("revision 필드가 없던 구버전 이벤트(기본값 0)가 도착하면") {
+                    it("원장을 조회·생성하지 않고 그대로 처리한다") {
+                        val existing = team()
+                        every { teamGithubStateSupport.verifyState("valid-state") } returns (100L to 10L)
+                        every { teamRepository.findByGithubInstallationId(1L) } returns null
+                        every { teamRepository.findByIdForUpdate(100L) } returns existing
+                        every { teamRepository.save(existing) } returns existing
+
+                        consumer.consumeConnected(
+                            TeamGithubConnectedPayload(
+                                "valid-state",
+                                installationId = 1L,
+                                orgLogin = "my-org",
+                                revision = 0L,
+                            ),
+                        )
+
+                        existing.githubInstallationId shouldBe 1L
+                        verify(exactly = 0) { revisionRepository.insertInitialIfAbsent(any()) }
+                        verify(exactly = 0) { revisionRepository.findByInstallationIdForUpdate(any()) }
+                        verify(exactly = 0) { revisionRepository.save(any()) }
                     }
                 }
             }
