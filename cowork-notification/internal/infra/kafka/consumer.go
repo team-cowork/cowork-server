@@ -17,6 +17,13 @@ var errInvalidNotificationEvent = errors.New("invalid notification event")
 var errProjectionLeaseExpired = errors.New("projection readiness lease expired")
 
 type NotificationTriggerEvent struct {
+	// EventID is the stable identity of this logical notification, reused by the
+	// producer across its own retries (e.g. an outbox poller). It is the canonical
+	// delivery key for FCM's per-token selective retry; see
+	// docs/todo/items/33-reliability/fcm-partial-failure-retry.md. A producer that has
+	// not been updated to send one leaves this empty, and Notify falls back to a
+	// single non-durable attempt.
+	EventID       string         `json:"eventId"`
 	Type          string         `json:"type"`
 	TargetUserIDs []int64        `json:"targetUserIds"`
 	ForcedUserIDs []int64        `json:"forcedUserIds"`
@@ -24,7 +31,7 @@ type NotificationTriggerEvent struct {
 }
 
 type NotificationService interface {
-	Notify(ctx context.Context, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) ([]int64, error)
+	Notify(ctx context.Context, eventID string, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) ([]int64, error)
 }
 
 type TeamNameResolver interface {
@@ -230,6 +237,7 @@ func (c *Consumer) handle(
 	}
 	enabledUserIDs, err := c.svc.Notify(
 		attemptCtx,
+		event.EventID,
 		event.TargetUserIDs,
 		event.ForcedUserIDs,
 		title,

@@ -4,15 +4,15 @@ SWAG   := $(GOPATH)/bin/swag
 .PHONY: swagger-install swagger-deps swagger-gen tidy build setup lint-install fmt lint
 
 swagger-install:
-	go install github.com/swaggo/swag/cmd/swag@v1.16.4
+	go install github.com/swaggo/swag/cmd/swag@v1.16.6
 
 swagger-deps:
-	go get github.com/swaggo/swag@v1.16.4
-	go get github.com/swaggo/gin-swagger@v1.6.0
+	go get github.com/swaggo/swag@v1.16.6
+	go get github.com/swaggo/gin-swagger@v1.6.1
 	go get github.com/swaggo/files@v1.0.1
 
 swagger-gen:
-	$(SWAG) init -g cmd/main.go -o docs --parseDependency --parseInternal
+	$(SWAG) init -g cmd/main.go -o swagger --parseDependency --parseInternal
 
 tidy:
 	go mod tidy
@@ -21,7 +21,7 @@ build:
 	go build -o bin/authorization ./cmd/...
 
 lint-install:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
 
 fmt:
 	golangci-lint fmt ./...
