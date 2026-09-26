@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DicoshotService } from 'dicoshot-nest';
 import { Counter, Gauge, register } from 'prom-client';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
+import { errorMessageOf, IndexWriteResult } from '../../search/message-index.contract';
 import { MessageRepository } from '../repository/message.repository';
 import {
     ClaimedIndexMessage,
@@ -65,14 +66,35 @@ export class MessageSearchIndexService {
      * 단정(`!`)이 깨진 문서가 그대로 색인될 수 있다.
      */
     async applyMessage(message: ClaimedIndexMessage): Promise<void> {
-        const version = message.searchIndexVersion;
-        if (!isSearchIndexed(message)) {
-            await this.indexRepository.markSkipped(message._id, version);
-            return;
-        }
-        const result = await this.elasticsearchService.upsertMessage(buildMessageIndexDoc(message), version);
-        this.writes.inc({ operation: 'upsert', outcome: result.outcome });
+        await this.applyMessages([message]);
+    }
 
+    /**
+     * {@link applyMessage}의 배치 버전. Elasticsearch에 문서 수만큼 개별 요청을 보내는 대신
+     * `_bulk` API 한 번으로 묶어 보낸다. 메시지별 상태 전이(`markSynced`/`markRetry`/`markFailed`)는
+     * 배치 안에서도 서로 독립적이므로 결과를 순회하며 그대로 적용한다.
+     */
+    async applyMessages(messages: ClaimedIndexMessage[]): Promise<void> {
+        if (messages.length === 0) return;
+        const toSkip = messages.filter((message) => !isSearchIndexed(message));
+        const toIndex = messages.filter((message) => isSearchIndexed(message));
+
+        await Promise.all(toSkip.map((message) => this.indexRepository.markSkipped(message._id, message.searchIndexVersion)));
+        if (toIndex.length === 0) return;
+
+        const entries = toIndex.map((message) => ({ doc: buildMessageIndexDoc(message), version: message.searchIndexVersion }));
+        const results = await this.elasticsearchService.bulkUpsertForOutbox(entries);
+        const byMessageId = new Map(toIndex.map((message) => [message._id.toString(), message]));
+
+        await Promise.all(results.map(({ messageId, result }) => {
+            this.writes.inc({ operation: 'upsert', outcome: result.outcome });
+            const message = byMessageId.get(messageId);
+            return message ? this.finalizeUpsertResult(message, result) : undefined;
+        }));
+    }
+
+    private async finalizeUpsertResult(message: ClaimedIndexMessage, result: IndexWriteResult): Promise<void> {
+        const version = message.searchIndexVersion;
         if (result.outcome === 'APPLIED' || result.outcome === 'SUPERSEDED') {
             await this.indexRepository.markSynced(message._id, version);
             return;
@@ -99,10 +121,51 @@ export class MessageSearchIndexService {
      * 색인 문서를 제거한다. 두 단계 모두 멱등하다.
      */
     async applyTombstone(tombstone: TombstoneRecord): Promise<void> {
-        await this.messageRepository.deleteById(tombstone.messageId);
-        const result = await this.elasticsearchService.deleteMessage(tombstone.messageId, tombstone.version);
-        this.writes.inc({ operation: 'delete', outcome: result.outcome });
+        await this.applyTombstones([tombstone]);
+    }
 
+    /**
+     * {@link applyTombstone}의 배치 버전. 각 tombstone의 MongoDB 삭제를 전부 완결한 뒤에야
+     * Elasticsearch 삭제를 `_bulk`로 묶어 보내, "메시지 삭제 먼저" 순서를 tombstone별로 유지한다
+     * (서로 다른 tombstone 사이의 순서는 상관없다).
+     *
+     * MongoDB 삭제는 `Promise.allSettled`로 모아 한 tombstone의 실패가 나머지의 진행을 막지
+     * 않게 한다 — `Promise.all`이었다면 하나만 reject해도 배치 전체가 `PROCESSING`에 남아
+     * ES 삭제도 상태 전이도 못 했다. 실패한 항목은 RETRYABLE로 개별 처리하고, 성공한 항목만
+     * bulk 삭제 대상에 포함한다.
+     */
+    async applyTombstones(tombstones: TombstoneRecord[]): Promise<void> {
+        if (tombstones.length === 0) return;
+        const deletions = await Promise.allSettled(
+            tombstones.map((tombstone) => this.messageRepository.deleteById(tombstone.messageId)),
+        );
+        const succeeded: TombstoneRecord[] = [];
+        const failures: Array<{ tombstone: TombstoneRecord; error: unknown }> = [];
+        tombstones.forEach((tombstone, i) => {
+            const outcome = deletions[i];
+            if (outcome.status === 'fulfilled') succeeded.push(tombstone);
+            else failures.push({ tombstone, error: outcome.reason });
+        });
+
+        await Promise.all(failures.map(({ tombstone, error }) => {
+            this.writes.inc({ operation: 'delete', outcome: 'RETRYABLE' });
+            this.logger.warn(`MongoDB delete failed for search tombstone, will retry messageId=${tombstone.messageId}: ${errorMessageOf(error)}`);
+            return this.finalizeDeleteResult(tombstone, { outcome: 'RETRYABLE', error: errorMessageOf(error) });
+        }));
+        if (succeeded.length === 0) return;
+
+        const entries = succeeded.map((tombstone) => ({ messageId: tombstone.messageId, version: tombstone.version }));
+        const results = await this.elasticsearchService.bulkDeleteForOutbox(entries);
+        const byMessageId = new Map(succeeded.map((tombstone) => [tombstone.messageId, tombstone]));
+
+        await Promise.all(results.map(({ messageId, result }) => {
+            this.writes.inc({ operation: 'delete', outcome: result.outcome });
+            const tombstone = byMessageId.get(messageId);
+            return tombstone ? this.finalizeDeleteResult(tombstone, result) : undefined;
+        }));
+    }
+
+    private async finalizeDeleteResult(tombstone: TombstoneRecord, result: IndexWriteResult): Promise<void> {
         if (result.outcome === 'APPLIED' || result.outcome === 'SUPERSEDED') {
             await this.tombstoneRepository.markDeleted(tombstone._id);
             return;

@@ -8,19 +8,16 @@ import com.cowork.project.domain.github.presentation.data.response.GithubPullReq
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestSummaryResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubRepoSummaryResDto
 import org.springframework.cloud.openfeign.FeignClient
-import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
-import org.springframework.web.bind.annotation.PostMapping
-import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 
 /**
  * 이슈 생성 / PR 머지·승인은 Kafka(`GithubActionCommandPublisher`)로 전환되어 여기 없다.
- * 아래 이슈/라벨/댓글 관련 메서드는 cowork-github-app(2026-08 기준 `main`)에 대응하는 HTTP 라우트가
- * 아직 구현되어 있지 않다 — 호출 시 404가 날 수 있다. 실제 GitHub API 연동(Octokit) 코드 자체가
- * cowork-github-app에 없으므로, 단순 라우트 추가만으로는 못 고친다.
+ * 라벨 전체 교체·댓글 생성/수정/삭제도 Kafka(`GithubIssueWriteCommandPublisher`,
+ * `github-app.issue-write.command`/`.result`)로 전환되어 여기 없다.
+ * 아래 메서드들은 완전한 versioned event feed가 없는 GitHub 원본 조회이므로 request-scoped HTTP로
+ * 남아 있으며, cowork-github-app에 대응하는 HTTP 라우트가 구현되어 있다.
  */
 @FeignClient(
     name = "github-app",
@@ -74,14 +71,6 @@ interface GithubAppClient {
         @PathVariable number: Int,
     ): List<GithubCommentResDto>
 
-    @PostMapping("/api/repos/{owner}/{repo}/issues/{number}/comments")
-    fun createIssueComment(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable number: Int,
-        @RequestBody body: GithubAppCreateCommentReqDto,
-    ): GithubCommentResDto
-
     @GetMapping("/api/repos/{owner}/{repo}/issues/comments/{commentId}")
     fun getIssueComment(
         @PathVariable owner: String,
@@ -89,29 +78,6 @@ interface GithubAppClient {
         @PathVariable commentId: Long,
     ): GithubCommentResDto
 
-    @PatchMapping("/api/repos/{owner}/{repo}/issues/comments/{commentId}")
-    fun updateIssueComment(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable commentId: Long,
-        @RequestBody body: GithubAppUpdateCommentReqDto,
-    ): GithubCommentResDto
-
-    @DeleteMapping("/api/repos/{owner}/{repo}/issues/comments/{commentId}")
-    fun deleteIssueComment(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable commentId: Long,
-    )
-
     @GetMapping("/api/repos/{owner}/{repo}/labels")
     fun listLabels(@PathVariable owner: String, @PathVariable repo: String): List<GithubLabelResDto>
-
-    @PatchMapping("/api/repos/{owner}/{repo}/issues/{number}/labels")
-    fun updateIssueLabels(
-        @PathVariable owner: String,
-        @PathVariable repo: String,
-        @PathVariable number: Int,
-        @RequestBody body: GithubAppUpdateIssueLabelsReqDto,
-    ): GithubIssueResDto
 }

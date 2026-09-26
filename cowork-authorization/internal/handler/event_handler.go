@@ -6,62 +6,75 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/cowork/authorization/internal/domain"
+	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
-const maxWebhookBodyBytes = 1 << 20 // 1MB
+const maxWebhookBodyBytes = 1 << 20
 
-type EventHandler struct {
-	eventSvc *service.EventService
-}
+type EventHandler struct{ eventSvc *service.EventService }
 
 func NewEventHandler(eventSvc *service.EventService) *EventHandler {
 	return &EventHandler{eventSvc: eventSvc}
 }
 
 // DataGSMWebhook godoc
-// @Summary      DataGSM webhook 수신
-// @Description  DataGSM이 전송하는 student.updated 이벤트를 수신해 data.new[]의 학생 변경을 user.data.sync로 전달합니다. X-DataGSM-Signature(HMAC-SHA256) 검증 후 처리합니다.
+// @Summary      DataGSM webhook 영속 접수
+// @Description  서명을 검증한 student.updated 배치의 inbox와 전체 outbox를 같은 DB 트랜잭션으로 저장합니다. 200은 접수 완료이며 Kafka 발행 및 학생 정보 반영은 비동기입니다. 동일 ID·동일 내용은 duplicate, 내용 충돌은 409입니다. 발생 후 30일 이상 지난 이벤트와 5분 초과 미래 이벤트는 거부합니다. 기록은 30일 보관하며 미발행 작업이 남으면 보존합니다.
 // @Tags         events
 // @Accept       json
 // @Produce      json
 // @Param        X-DataGSM-Signature  header  string  true  "sha256=<HMAC-SHA256(secret, body)>"
-// @Success      200  {object}  map[string]string  "수신 완료"
-// @Failure      401  {object}  map[string]string  "서명 검증 실패"
-// @Failure      503  {object}  map[string]string  "webhook secret 미설정"
+// @Success      200  {object}  map[string]string  "accepted | duplicate | ignored"
+// @Failure      400  {object}  map[string]string  "invalid_payload | event_expired | invalid_event_timestamp"
+// @Failure      401  {object}  map[string]string  "invalid_signature"
+// @Failure      409  {object}  map[string]string  "event_id_conflict"
+// @Failure      413  {object}  map[string]string  "payload_too_large"
+// @Failure      503  {object}  map[string]string  "temporarily_unavailable | webhook_not_configured"
 // @Router       /events/datagsm [post]
 func (h *EventHandler) DataGSMWebhook(c *gin.Context) {
 	if !h.eventSvc.SecretConfigured() {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "webhook is not configured"})
+		webhookError(c, http.StatusServiceUnavailable, "webhook_not_configured", "unavailable")
 		return
 	}
-
-	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBodyBytes))
+	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBodyBytes+1))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		webhookError(c, http.StatusBadRequest, "invalid_payload", "invalid")
 		return
 	}
-
+	if len(body) > maxWebhookBodyBytes {
+		webhookError(c, http.StatusRequestEntityTooLarge, "payload_too_large", "invalid")
+		return
+	}
 	if !h.eventSvc.VerifySignature(body, c.GetHeader("X-DataGSM-Signature")) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid signature"})
+		webhookError(c, http.StatusUnauthorized, "invalid_signature", "invalid")
 		return
 	}
-
-	if err := h.eventSvc.ProcessEvent(c.Request.Context(), body); err != nil {
-		// Database constraint errors can contain identity values. Keep the public
-		// log free of provider payload/PII; request logs and failure metrics retain
-		// the operational signal without copying identity values.
-		log.Printf("failed to process webhook event")
-		// 페이로드/유효성 오류는 400으로 응답해 DataGSM의 불필요한 재시도를 막고,
-		// DB/Kafka 등 실제 내부 오류만 500으로 응답해 재시도를 유도한다.
-		if errors.Is(err, service.ErrInvalidPayload) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
-			return
+	result, err := h.eventSvc.ProcessEvent(c.Request.Context(), body)
+	if err != nil {
+		switch {
+		case errors.Is(err, domain.ErrInvalidWebhookPayload):
+			webhookError(c, http.StatusBadRequest, "invalid_payload", "invalid")
+		case errors.Is(err, domain.ErrWebhookExpired):
+			webhookError(c, http.StatusBadRequest, "event_expired", "expired")
+		case errors.Is(err, domain.ErrWebhookFuture):
+			webhookError(c, http.StatusBadRequest, "invalid_event_timestamp", "invalid")
+		case errors.Is(err, domain.ErrWebhookConflict):
+			webhookError(c, http.StatusConflict, "event_id_conflict", "conflict")
+		default:
+			// SQL errors may contain event identities or student data.
+			log.Println("Failed to persist webhook batch")
+			webhookError(c, http.StatusServiceUnavailable, "temporarily_unavailable", "unavailable")
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process event"})
 		return
 	}
+	monitoring.RecordWebhookResult(string(result))
+	c.JSON(http.StatusOK, gin.H{"status": result})
+}
 
-	c.JSON(http.StatusOK, gin.H{"status": "received"})
+func webhookError(c *gin.Context, status int, code, metricResult string) {
+	monitoring.RecordWebhookResult(metricResult)
+	c.JSON(status, gin.H{"error": code})
 }

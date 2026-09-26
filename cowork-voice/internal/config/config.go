@@ -16,9 +16,6 @@ type AppConfig struct {
 	Port                        string
 	MongoDBURI                  string
 	MongoDBDB                   string
-	RedisAddr                   string
-	RedisPassword               string
-	RedisDB                     int
 	LiveKitURL                  string
 	LiveKitWsURL                string
 	LiveKitAPIKey               string
@@ -52,11 +49,6 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	redisDB, err := strconv.Atoi(lookup(flatMap, "REDIS_DB", "0"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid REDIS_DB: %w", err)
-	}
-
 	liveKitURL, err := requireConfig(flatMap, "LIVEKIT_URL")
 	if err != nil {
 		return nil, err
@@ -105,9 +97,6 @@ func Load() (*AppConfig, error) {
 		Port:                        lookup(flatMap, "PORT", "8089"),
 		MongoDBURI:                  mongoURI,
 		MongoDBDB:                   mongoDB,
-		RedisAddr:                   lookup(flatMap, "REDIS_ADDR", "localhost:6379"),
-		RedisPassword:               lookup(flatMap, "REDIS_PASSWORD", ""),
-		RedisDB:                     redisDB,
 		LiveKitURL:                  liveKitURL,
 		LiveKitWsURL:                liveKitWsURL,
 		LiveKitAPIKey:               liveKitAPIKey,
@@ -187,17 +176,6 @@ func overrideFromEnv(cfg *AppConfig) {
 	}
 	if v := os.Getenv("MONGODB_DB"); v != "" {
 		cfg.MongoDBDB = v
-	}
-	if v := os.Getenv("REDIS_ADDR"); v != "" {
-		cfg.RedisAddr = v
-	}
-	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
-		cfg.RedisPassword = v
-	}
-	if v := os.Getenv("REDIS_DB"); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			cfg.RedisDB = parsed
-		}
 	}
 	if v := os.Getenv("LIVEKIT_URL"); v != "" {
 		cfg.LiveKitURL = v
