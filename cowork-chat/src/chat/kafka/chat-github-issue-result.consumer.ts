@@ -116,7 +116,6 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
             event.teamId,
             event.channelId,
             content,
-            event.projectId,
         );
 
         await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
