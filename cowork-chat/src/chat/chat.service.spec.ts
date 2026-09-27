@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { ChatGithubIssueCreateCommand } from './kafka/event/chat-github-issue.event';
@@ -58,6 +58,10 @@ const mockChannelMemberRepository = {
     findDmMemberships: jest.fn(),
     findOtherDmMembers: jest.fn(),
     setHidden: jest.fn(),
+};
+
+const mockChannelProjectionRepository = {
+    findById: jest.fn(),
 };
 
 const mockTeamMemberRepository = {
@@ -144,8 +148,12 @@ describe('ChatService', () => {
             mockChatGateway as never,
             mockUnreadCounterService as never,
             mockMessageSearchDeletion as never,
+            mockChannelProjectionRepository as never,
         );
         jest.clearAllMocks();
+        mockChannelProjectionRepository.findById.mockResolvedValue({
+            channelId: 1, teamId: 100, projectId: null, type: 'TEXT',
+        });
         mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
         mockMessageRepository.applyEdit.mockImplementation((_id: string, content: string) =>
             Promise.resolve({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
@@ -252,6 +260,56 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
+        it('프로젝트 채널은 클라이언트 projectId를 무시하고 채널 범위로 발행한다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockChannelProjectionRepository.findById.mockResolvedValue({
+                channelId: 1, teamId: 100, projectId: 200, type: 'TEXT',
+            });
+
+            await service.sendMessage(ctx, { teamId: 999, projectId: 999, content: 'hi' });
+
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
+                1, expect.objectContaining({ teamId: 100, projectId: 200 }), 42, 'USER',
+            );
+        });
+
+        it('멤버십과 채널 projection의 범위가 다르면 발행하지 않는다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 999, channelType: 'TEXT' });
+
+            await expect(service.sendMessage(ctx, { content: 'hi' })).rejects.toThrow(ServiceUnavailableException);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('활성 채널 projection이 없으면 발행하지 않는다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockChannelProjectionRepository.findById.mockResolvedValue(null);
+
+            await expect(service.sendMessage(ctx, { content: 'hi' })).rejects.toThrow(NotFoundException);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('같은 채널의 부모 메시지에는 답장할 수 있다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
+
+            await service.sendMessage(ctx, { content: 'hi', parentMessageId: mockMessageId });
+
+            expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, 1);
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
+        });
+
+        it('같은 채널에 없는 부모 메시지로는 답장을 발행하지 않는다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue(null);
+
+            await expect(service.sendMessage(ctx, {
+                content: 'hi',
+                parentMessageId: mockMessageId,
+            })).rejects.toThrow(NotFoundException);
+            expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, ctx.channelId);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
         it('첨부파일이 있으면 각 url의 소유권을 검증한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
             mockObjectStorageService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
@@ -280,6 +338,7 @@ describe('ChatService', () => {
 
         it('DM 채널에서 수신자가 발신자를 차단했으면 ForbiddenException을 던진다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
+            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: null, projectId: null, type: 'DM' });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(true);
 
@@ -290,6 +349,7 @@ describe('ChatService', () => {
 
         it('DM 채널 메시지는 teamId/projectId를 null로 강제하고 수신자 숨김을 해제한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
+            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: null, projectId: null, type: 'DM' });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(false);
 
@@ -779,6 +839,7 @@ describe('ChatService', () => {
 
     describe('saveSystemMessage', () => {
         it('message_read가 허용된 팀 멤버(SYSTEM_AUTHOR_ID 제외)의 안읽음 수를 증가시킨다', async () => {
+            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: 10, projectId: 100, type: 'TEXT' });
             mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([
                 { userId: 7 },
@@ -786,9 +847,19 @@ describe('ChatService', () => {
                 { userId: 0 },
             ]);
 
-            await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 100);
+            await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
 
             expect(mockUnreadCounterService.incrementIfPresent).toHaveBeenCalledWith(1, [7, 9]);
+        });
+
+        it('시스템 메시지의 프로젝트 범위도 수신 채널에서 결정한다', async () => {
+            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: 10, projectId: null, type: 'TEXT' });
+            mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
+            mockChannelMemberRepository.findByChannelId.mockResolvedValue([]);
+
+            await service.saveSystemMessage(10, 1, '프로젝트 이슈가 생성됐어요');
+
+            expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith(10, 1, '프로젝트 이슈가 생성됐어요', null, 0);
         });
     });
 });
