@@ -1,15 +1,12 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { DicoshotService } from 'dicoshot-nest';
-import { Message } from '../schema/message.schema';
-import { ChannelMember } from '../schema/channel-member.schema';
+import { Message, ChannelMember } from '../schema';
 import { NotificationTriggerProducer } from './notification-trigger.producer';
-import { MessageRepository, NotificationMessage } from '../repository/message.repository';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { UnreadCounterService } from '../service/unread-counter.service';
+import { MessageRepository, NotificationMessage, ChannelMemberRepository } from '../repository';
+import { UnreadCounterService, ChannelMessageReadAccessService } from '../service';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 
 const POLL_INTERVAL_MS = 5_000;

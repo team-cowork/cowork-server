@@ -2,7 +2,7 @@ import { Controller, Get, Param } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { UserId } from '../common/decorator/user.decorator';
-import { UnreadCountItemDto } from './dto/unread-count-response.dto';
+import { UnreadCountItemDto } from './dto';
 import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 @ApiTags('Chat')
