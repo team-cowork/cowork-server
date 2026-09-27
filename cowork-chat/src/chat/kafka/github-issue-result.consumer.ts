@@ -107,7 +107,6 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
             event.teamId,
             event.channelId,
             content,
-            event.projectId ?? null,
         );
 
         await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
