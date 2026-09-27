@@ -13,7 +13,8 @@
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts",
-    "ops:message-search-index": "ts-node src/ops/message-search-index.cli.ts"
+    "ops:message-search-index": "ts-node src/ops/message-search-index.cli.ts",
+    "ops:message-scope-audit": "ts-node src/ops/message-scope-audit.cli.ts"
   },
   "keywords": [],
   "author": "",
