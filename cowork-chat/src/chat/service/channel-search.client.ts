@@ -1,7 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
-import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
+import { ChannelMemberRepository, ChannelProjectionRepository, TeamMemberProjectionRepository } from '../repository';
 import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
 
 export interface ChannelSearchItem {
