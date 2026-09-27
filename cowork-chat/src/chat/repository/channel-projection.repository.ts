@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, mongo } from 'mongoose';
-import { ChannelProjection } from '../schema/channel-projection.schema';
+import { ChannelProjection } from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,

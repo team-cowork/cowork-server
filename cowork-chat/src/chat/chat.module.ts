@@ -10,60 +10,85 @@ import { DmController } from './dm.controller';
 import { ProjectMessageController } from './project-message.controller';
 import { TeamUnreadController } from './team-unread.controller';
 import { TeamSearchController } from './team-search.controller';
-import { ChatMessageProducer } from './kafka/chat-message.producer';
-import { ChatMessageConsumer } from './kafka/chat-message.consumer';
-import { NotificationTriggerProducer } from './kafka/notification-trigger.producer';
-import { NotificationOutboxPoller } from './kafka/notification-outbox.poller';
-import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
-import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
-import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.consumer';
-import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
-import { ChannelEventConsumer } from './kafka/channel-event.consumer';
-import { ProjectEventConsumer } from './kafka/project-event.consumer';
-import { ProjectMemberEventConsumer } from './kafka/project-member-event.consumer';
-import { ProjectGithubRepoEventConsumer } from './kafka/project-github-repo-event.consumer';
-import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
-import { UserProfileEventConsumer } from './kafka/user-profile-event.consumer';
-import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
-import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
-import { ProjectClient } from './service/project.client';
-import { UnreadCounterService } from './service/unread-counter.service';
-import { ChannelClient } from './service/channel.client';
-import { ChannelSearchClient } from './service/channel-search.client';
-import { UnifiedSearchResolver } from './unified-search.resolver';
-import { UserClient } from './service/user.client';
-import { Message, MessageSchema } from './schema/message.schema';
-import { ChannelMember, ChannelMemberSchema } from './schema/channel-member.schema';
-import { ChannelProjection, ChannelProjectionSchema } from './schema/channel-projection.schema';
-import { ProjectMemberProjection, ProjectMemberProjectionSchema } from './schema/project-member-projection.schema';
-import { ProjectProjection, ProjectProjectionSchema } from './schema/project-projection.schema';
 import {
+    ChatMessageProducer,
+    ChatMessageConsumer,
+    NotificationTriggerProducer,
+    NotificationOutboxPoller,
+    GithubIssueResultConsumer,
+    ChatGithubIssueCommandProducer,
+    ChatGithubIssueResultConsumer,
+    GithubRepoEventConsumer,
+    ChannelEventConsumer,
+    ProjectEventConsumer,
+    ProjectMemberEventConsumer,
+    ProjectGithubRepoEventConsumer,
+    TeamMemberEventConsumer,
+    UserProfileEventConsumer,
+    TeamRoleEventConsumer,
+    ChannelRolePolicyEventConsumer,
+    ChatMessageScopeValidator,
+    ChatMessageProcessor,
+    ChatMessageQuarantinePoller,
+} from './kafka';
+import {
+    ProjectClient,
+    UnreadCounterService,
+    ChannelClient,
+    ChannelSearchClient,
+    UserClient,
+    ChannelMessageReadAccessService,
+    ChatMessageQuarantineService,
+} from './service';
+import { UnifiedSearchResolver } from './unified-search.resolver';
+import {
+    Message,
+    MessageSchema,
+    ChannelMember,
+    ChannelMemberSchema,
+    ChannelProjection,
+    ChannelProjectionSchema,
+    ProjectMemberProjection,
+    ProjectMemberProjectionSchema,
+    ProjectProjection,
+    ProjectProjectionSchema,
     ProjectGithubRepoProjection,
     ProjectGithubRepoProjectionSchema,
-} from './schema/project-github-repo-projection.schema';
-import { TeamMemberProjection, TeamMemberProjectionSchema } from './schema/team-member-projection.schema';
-import { UserProfileProjection, UserProfileProjectionSchema } from './schema/user-profile-projection.schema';
-import { TeamRoleProjection, TeamRoleProjectionSchema } from './schema/team-role-projection.schema';
-import {
+    TeamMemberProjection,
+    TeamMemberProjectionSchema,
+    UserProfileProjection,
+    UserProfileProjectionSchema,
+    TeamRoleProjection,
+    TeamRoleProjectionSchema,
     TeamRoleAssignmentProjection,
     TeamRoleAssignmentProjectionSchema,
-} from './schema/team-role-assignment-projection.schema';
-import { TeamRoleMemberTombstone, TeamRoleMemberTombstoneSchema } from './schema/team-role-member-tombstone.schema';
-import {
+    TeamRoleMemberTombstone,
+    TeamRoleMemberTombstoneSchema,
     ChannelRolePolicyProjection,
     ChannelRolePolicyProjectionSchema,
-} from './schema/channel-role-policy-projection.schema';
-import { MessageRepository } from './repository/message.repository';
-import { ChannelMemberRepository } from './repository/channel-member.repository';
-import { ChannelProjectionRepository } from './repository/channel-projection.repository';
-import { ProjectMemberProjectionRepository } from './repository/project-member-projection.repository';
-import { ProjectProjectionRepository } from './repository/project-projection.repository';
-import { ProjectGithubRepoProjectionRepository } from './repository/project-github-repo-projection.repository';
-import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
-import { UserProfileProjectionRepository } from './repository/user-profile-projection.repository';
-import { TeamRoleProjectionRepository } from './repository/team-role-projection.repository';
-import { ChannelRolePolicyProjectionRepository } from './repository/channel-role-policy-projection.repository';
-import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
+    ChatMessageQuarantineRecord,
+    ChatMessageQuarantineRecordSchema,
+    MessageSearchTombstone,
+    MessageSearchTombstoneSchema,
+    MessageSearchIndexState,
+    MessageSearchIndexStateSchema,
+} from './schema';
+import {
+    MessageRepository,
+    ChannelMemberRepository,
+    ChannelProjectionRepository,
+    ProjectMemberProjectionRepository,
+    ProjectProjectionRepository,
+    ProjectGithubRepoProjectionRepository,
+    TeamMemberProjectionRepository,
+    UserProfileProjectionRepository,
+    TeamRoleProjectionRepository,
+    ChannelRolePolicyProjectionRepository,
+    ChatMessageQuarantineRepository,
+    MessageSearchIndexRepository,
+    MessageSearchTombstoneRepository,
+    MessageSearchIndexStateRepository,
+} from './repository';
 import { MembershipModule } from '../membership/membership.module';
 import { BlockModule } from '../block/block.module';
 import { ObjectStorageModule } from '../storage/object-storage.module';
@@ -72,26 +97,11 @@ import { getOptionalConfig, getRequiredConfig } from '../common/config/config.ut
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { ThrottleGuard } from '../common/guard/throttle.guard';
 import {
-    ChatMessageQuarantineRecord,
-    ChatMessageQuarantineRecordSchema,
-} from './schema/chat-message-quarantine.schema';
-import { ChatMessageQuarantineRepository } from './repository/chat-message-quarantine.repository';
-import { ChatMessageQuarantineService } from './service/chat-message-quarantine.service';
-import { ChatMessageScopeValidator } from './kafka/chat-message-scope-validator';
-import { ChatMessageProcessor } from './kafka/chat-message.processor';
-import { ChatMessageQuarantinePoller } from './kafka/chat-message-quarantine.poller';
-import { MessageSearchTombstone, MessageSearchTombstoneSchema } from './schema/message-search-tombstone.schema';
-import {
-    MessageSearchIndexState,
-    MessageSearchIndexStateSchema,
-} from './schema/message-search-index-state.schema';
-import { MessageSearchIndexRepository } from './repository/message-search-index.repository';
-import { MessageSearchTombstoneRepository } from './repository/message-search-tombstone.repository';
-import { MessageSearchIndexStateRepository } from './repository/message-search-index-state.repository';
-import { MessageSearchIndexService } from './search/message-search-index.service';
-import { MessageSearchDeletionService } from './search/message-search-deletion.service';
-import { MessageSearchOutboxPoller } from './search/message-search-outbox.poller';
-import { MessageSearchRebuilder } from './search/message-search-rebuilder';
+    MessageSearchIndexService,
+    MessageSearchDeletionService,
+    MessageSearchOutboxPoller,
+    MessageSearchRebuilder,
+} from './search';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
