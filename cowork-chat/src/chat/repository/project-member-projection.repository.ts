@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, mongo } from 'mongoose';
-import { ProjectMemberProjection } from '../schema/project-member-projection.schema';
+import { ProjectMemberProjection } from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,

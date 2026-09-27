@@ -9,9 +9,8 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
-import { ProjectProjectionRepository } from '../repository/project-projection.repository';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { ProjectMemberProjectionRepository, ProjectProjectionRepository } from '../repository';
+import { ChannelMessageReadAccessService } from '../service';
 
 interface ProjectEvent {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
