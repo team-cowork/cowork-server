@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ChannelMember } from '../schema/channel-member.schema';
+import { ChannelMember } from '../schema';
 
 /**
  * 채널 멤버십 도큐먼트에 대한 데이터 접근 객체.

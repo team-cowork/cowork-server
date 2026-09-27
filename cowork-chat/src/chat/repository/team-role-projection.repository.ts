@@ -1,9 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, mongo } from 'mongoose';
-import { TeamRoleProjection } from '../schema/team-role-projection.schema';
-import { TeamRoleAssignmentProjection } from '../schema/team-role-assignment-projection.schema';
-import { TeamRoleMemberTombstone } from '../schema/team-role-member-tombstone.schema';
+import { TeamRoleProjection, TeamRoleAssignmentProjection, TeamRoleMemberTombstone } from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
