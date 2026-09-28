@@ -13,17 +13,15 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket, DefaultEventsMap } from 'socket.io';
 import { ChatService } from './chat.service';
-import {
-    ChatMessageConsumer,
-    GithubIssueResultConsumer,
-    ChatGithubIssueResultConsumer,
-    GithubRepoEventConsumer,
-    ChannelEventConsumer,
-    ProjectEventConsumer,
-    TeamRoleEventConsumer,
-    ChannelRolePolicyEventConsumer,
-    TeamMemberEventConsumer,
-} from './kafka';
+import { ChatMessageConsumer } from './kafka/chat-message.consumer';
+import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
+import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.consumer';
+import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
+import { ChannelEventConsumer } from './kafka/channel-event.consumer';
+import { ProjectEventConsumer } from './kafka/project-event.consumer';
+import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
+import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
+import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
 import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto';
 import { UserRole } from '../common/enum/user-role.enum';

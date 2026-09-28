@@ -32,7 +32,8 @@ import {
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
-import { ChatMessageProducer, ChatGithubIssueCommandProducer } from './kafka';
+import { ChatMessageProducer } from './kafka/chat-message.producer';
+import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
 import {
     ProjectClient,
     ChannelClient,
