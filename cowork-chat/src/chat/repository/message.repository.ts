@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
 import { randomUUID } from 'crypto';
 import { Message, MessageDocument } from '../schema';
-import { isSearchIndexed } from '../search';
+import { isSearchIndexed } from '../search/message-index-scope';
 
 /** 한 번에 조회하는 최대 메시지 수 */
 const MESSAGE_FETCH_LIMIT = 100;
