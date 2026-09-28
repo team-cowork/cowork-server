@@ -2,7 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Message } from '../schema';
-import { isSearchIndexed, MessageIndexSource, SEARCH_INDEX_SCOPE_FILTER, SearchIndexStatus } from '../search';
+import {
+    isSearchIndexed,
+    MessageIndexSource,
+    SEARCH_INDEX_SCOPE_FILTER,
+    SearchIndexStatus,
+} from '../search/message-index-scope';
 
 /** 아웃박스 워커가 점유한 메시지. 색인 문서를 만들 수 있는 최소 필드만 담는다. */
 export type ClaimedIndexMessage = MessageIndexSource & {
