@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	"github.com/cowork/cowork-notification/internal/monitoring"
@@ -23,15 +24,47 @@ func NewService(repo Repository, fcmSender FCMSender, pref NotificationPreferenc
 }
 
 func (s *Service) RegisterToken(ctx context.Context, accountID int64, tkn, platform string) error {
-	return s.repo.Save(ctx, &DeviceToken{
+	parsedPlatform, err := parsePlatform(platform)
+	if err != nil {
+		return err
+	}
+
+	result, err := s.repo.Register(ctx, &DeviceToken{
 		AccountID: accountID,
 		Token:     tkn,
-		Platform:  Platform(platform),
+		Platform:  parsedPlatform,
 	})
+	if err != nil {
+		return err
+	}
+	if result.Reassigned {
+		slog.Info(
+			"Reassigned device token ownership",
+			"deviceTokenId", result.DeviceTokenID,
+			"previousAccountId", result.PreviousAccountID,
+			"accountId", accountID,
+		)
+	}
+	return nil
 }
 
 func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) error {
-	return s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn)
+	if err := s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn); err != nil {
+		return err
+	}
+	// Never log the raw FCM token. The authenticated account is sufficient to
+	// correlate an explicit logout/account-switch revocation.
+	slog.Info("Revoked device token", "accountId", accountID)
+	return nil
+}
+
+func parsePlatform(value string) (Platform, error) {
+	switch Platform(value) {
+	case PlatformAndroid, PlatformIOS, PlatformWeb:
+		return Platform(value), nil
+	default:
+		return "", apperr.BadRequest("platform must be ANDROID, IOS, or WEB")
+	}
 }
 
 func (s *Service) Notify(
@@ -128,11 +161,9 @@ func (s *Service) Notify(
 
 	// fcm.Send appends one TokenResult per attempted token in input order (see its
 	// doc comment), so results[i] always corresponds to toSend[i] — even when it
-	// returns early with a partial result set. Matching by token string instead would
-	// be wrong whenever the same physical device carries tokens for two accounts:
-	// tb_device_token's uniqueness is (account_id, token), so the same token string can
-	// legitimately appear twice with different DeviceTokenIDs, and a string-keyed map
-	// would collapse them onto one target.
+	// returns early with a partial result set. Finalization must retain the claimed
+	// DeviceTokenID instead of looking the token string up again because an ownership
+	// transfer replaces the row with a new ID while an older delivery is in flight.
 	//
 	// The Firebase Admin SDK's default HTTP client retries 503s and network errors up to
 	// 4 times, honoring Retry-After for as long as 2 minutes, so an unbounded ctx here
@@ -186,6 +217,8 @@ func (s *Service) Notify(
 	if len(invalidTokens) > 0 {
 		if delErr := s.repo.DeleteByTokens(finalizeCtx, invalidTokens); delErr != nil {
 			slog.Warn("failed to bulk delete invalid tokens", "count", len(invalidTokens), "err", delErr)
+		} else {
+			slog.Info("Deleted invalid device tokens", "count", len(invalidTokens))
 		}
 	}
 	if sendErr != nil {
