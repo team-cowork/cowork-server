@@ -10,6 +10,7 @@ CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
 GRADLE_FILES = {"build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", "gradlew.bat", ".editorconfig"}
 IMAGE_FILES = {".dockerignore", ".github/workflows/cowork-stage-ci.yml",
                ".github/workflows/cowork-prod-ci.yml", ".github/workflows/cowork-prod-cd.yml"}
+OUTBOX_SERVICES = {"channel", "team", "project"}
 
 
 def affected(service, paths):
@@ -17,6 +18,8 @@ def affected(service, paths):
         if path in IMAGE_FILES or path.startswith(("deploy/images/", ".github/actions/build-image/")):
             return True
         if path.startswith(f"cowork-{service}/"):
+            return True
+        if service in OUTBOX_SERVICES and path.startswith("shared/jvm-outbox/"):
             return True
         if CATALOG[service]["build"] == "gradle" and (
             path in GRADLE_FILES or path.startswith(("gradle/", "build-logic/"))
