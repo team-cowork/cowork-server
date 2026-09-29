@@ -20,6 +20,10 @@ scrape_configs:
     eureka_sd_configs:
       - server: http://cowork-config:8761/eureka
         refresh_interval: 30s
+        follow_redirects: false
+        basic_auth:
+          username_file: /run/secrets/config-monitoring-username
+          password_file: /run/secrets/config-monitoring-password
     relabel_configs:
       - source_labels: [__meta_eureka_app_instance_metadata_prometheus_scrape]
         regex: "true"
@@ -39,6 +43,10 @@ scrape_configs:
   # ── Eureka에 등록되지 않는 고정 대상 ──
   # 대상 파일: deploy/config/monitoring/prometheus/sd/external-services.json
   - job_name: cowork-external-services
+    follow_redirects: false
+    basic_auth:
+      username_file: /run/secrets/config-monitoring-username
+      password_file: /run/secrets/config-monitoring-password
     file_sd_configs:
       - files:
           - /etc/prometheus/sd/*.json
