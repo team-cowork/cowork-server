@@ -25,10 +25,22 @@ require_env() {
 
 add_env() { RUN_ARGS+=(-e "$1=$2"); }
 
+control_plane_environment() {
+  require_env CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_CLIENT_USERNAME CONFIG_CLIENT_PASSWORD
+  if [ "$APP_CONFIG_PROFILE" = prod ]; then
+    python3 "${PROD_DIR}/config-access.py"
+  fi
+  add_env CONFIG_CLIENT_USERNAME "$CONFIG_CLIENT_USERNAME"
+  add_env CONFIG_CLIENT_PASSWORD "$CONFIG_CLIENT_PASSWORD"
+}
+
 spring_environment() {
+  control_plane_environment
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL KAFKA_BOOTSTRAP_SERVERS
   add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
   add_env SPRING_CONFIG_IMPORT "configserver:${CONFIG_SERVER_URL}"
+  add_env CONFIG_SERVER_URL "$CONFIG_SERVER_URL"
+  add_env EUREKA_SERVER_URL "$EUREKA_SERVER_URL"
   add_env KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS"
   add_env EUREKA_CLIENT_SERVICEURL_DEFAULTZONE "$EUREKA_SERVER_URL"
   add_env EUREKA_INSTANCE_HOSTNAME "$ADVERTISE_IP"
@@ -38,6 +50,7 @@ spring_environment() {
 }
 
 custom_environment() {
+  control_plane_environment
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL
   add_env APP_PROFILE "$APP_CONFIG_PROFILE"
   add_env APP_CONFIG_URL "$CONFIG_SERVER_URL"

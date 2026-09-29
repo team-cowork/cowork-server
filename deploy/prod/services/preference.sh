@@ -7,6 +7,7 @@ HOST_PORT=${HOST_PORT:-9001}
 [ "$HOST_PORT" = "$CONTAINER_PORT" ] || fail 'preference requires HOST_PORT=9001'
 HEALTH_PATH=/health/ready
 require_env COWORK_POSTGRES_PASSWORD
+control_plane_environment
 add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
 add_env CONFIG_SERVER_URL "$CONFIG_SERVER_URL"
 add_env POSTGRES_HOST "$POSTGRES_HOST"
