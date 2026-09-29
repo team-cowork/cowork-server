@@ -183,7 +183,7 @@ MySQL DB는 `cowork_authorization`, `cowork_user`, `cowork_team`, `cowork_projec
 | channel | V24 | Spring Flyway |
 | project | V22 | Spring Flyway |
 | roadmap | V6 | 별도 JDBC 연결의 Flyway; 런타임 쿼리는 R2DBC |
-| notification | V6 | Go 자체 migration runner |
+| notification | V8 | Go 자체 migration runner |
 | preference | V21 | 애플리케이션 기동 시 Flyway |
 
 이 숫자는 저장소의 최대 버전이다. 운영 migration 이력과 checksum은 별도로 대조해야 한다.
