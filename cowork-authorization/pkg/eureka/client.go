@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/cowork/authorization/internal/controlplane"
 	"log"
 	"net/http"
 	"net/url"
@@ -14,6 +13,7 @@ import (
 
 	eureka "github.com/ArthurHlt/go-eureka-client/eureka"
 	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/controlplane"
 )
 
 type Client struct {
@@ -108,11 +108,11 @@ func (c *Client) request(method, path string, instance any) error {
 	req.Header.Set("Accept", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("Eureka transport failed: %w", err)
+		return fmt.Errorf("eureka transport failed: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Eureka returned HTTP %d", resp.StatusCode)
+		return fmt.Errorf("eureka returned HTTP %d", resp.StatusCode)
 	}
 	return nil
 }
