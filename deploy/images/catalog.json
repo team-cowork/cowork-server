@@ -9,6 +9,6 @@
   "notification": {"build": "go", "local": "cowork-notification", "prod": "cowork-notification"},
   "chat": {"build": "node", "local": "cowork-chat", "prod": "cowork-chat"},
   "voice": {"build": "go", "local": "cowork-voice", "prod": "cowork-voice"},
-  "project": {"build": "maven", "local": ".", "prod": "cowork-project"},
+  "project": {"build": "maven", "local": ".", "prod": "."},
   "roadmap": {"build": "gradle", "local": ".", "prod": "."}
 }
