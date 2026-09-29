@@ -62,6 +62,7 @@ const mockChannelMemberRepository = {
 
 const mockChannelProjectionRepository = {
     findById: jest.fn(),
+    findByIdIncludingDeleted: jest.fn(),
 };
 
 const mockTeamMemberRepository = {
@@ -153,6 +154,9 @@ describe('ChatService', () => {
         jest.clearAllMocks();
         mockChannelProjectionRepository.findById.mockResolvedValue({
             channelId: 1, teamId: 100, projectId: null, type: 'TEXT',
+        });
+        mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+            channelId: 1, teamId: 100, projectId: null, type: 'TEXT', deleted: false,
         });
         mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
         mockMessageRepository.applyEdit.mockImplementation((_id: string, content: string) =>
@@ -839,7 +843,9 @@ describe('ChatService', () => {
 
     describe('saveSystemMessage', () => {
         it('message_read가 허용된 팀 멤버(SYSTEM_AUTHOR_ID 제외)의 안읽음 수를 증가시킨다', async () => {
-            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: 10, projectId: 100, type: 'TEXT' });
+            mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+                channelId: 1, teamId: 10, projectId: 100, type: 'TEXT', deleted: false,
+            });
             mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([
                 { userId: 7 },
@@ -853,13 +859,45 @@ describe('ChatService', () => {
         });
 
         it('시스템 메시지의 프로젝트 범위도 수신 채널에서 결정한다', async () => {
-            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: 10, projectId: null, type: 'TEXT' });
+            mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+                channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
+            });
             mockMessageRepository.createSystemMessage.mockResolvedValue({ toObject: jest.fn() });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([]);
 
             await service.saveSystemMessage(10, 1, '프로젝트 이슈가 생성됐어요');
 
             expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith(10, 1, '프로젝트 이슈가 생성됐어요', null, 0);
+        });
+
+        it('삭제된 채널이면 시스템 메시지를 저장하지 않고 건너뛴다', async () => {
+            mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+                channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: true,
+            });
+
+            const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
+
+            expect(result).toBeNull();
+            expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
+        });
+
+        it('채널 범위가 이벤트 팀과 다르면 시스템 메시지를 저장하지 않고 건너뛴다', async () => {
+            mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+                channelId: 1, teamId: 20, projectId: null, type: 'TEXT', deleted: false,
+            });
+
+            const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
+
+            expect(result).toBeNull();
+            expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
+        });
+
+        it('채널 projection이 아직 없으면 재시도를 위해 실패한다', async () => {
+            mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue(null);
+
+            await expect(service.saveSystemMessage(10, 1, '이슈가 생성됐어요'))
+                .rejects.toThrow(ServiceUnavailableException);
+            expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
         });
     });
 });
