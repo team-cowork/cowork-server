@@ -788,18 +788,25 @@ export class ChatService {
      * @param teamId - 팀 ID
      * @param channelId - 채널 ID
      * @param content - 메시지 내용
-     * @returns 저장된 메시지 도큐먼트
+     * @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
      */
     async saveSystemMessage(
         teamId: number,
         channelId: number,
         content: string,
-    ) {
-        const channel = await this.channelProjectionRepository.findById(channelId);
-        if (!channel) throw new NotFoundException('채널을 찾을 수 없습니다');
+    ): Promise<MessageDocument | null> {
+        const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
+        if (!channel) throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+        if (channel.deleted) {
+            this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+            return null;
+        }
         const scope = resolveMessageScope(channel);
         if (!scope || scope.teamId === null || scope.teamId !== teamId) {
-            throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
+            this.logger.warn(
+                `Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
+            );
+            return null;
         }
         const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
         const members = await this.channelMemberRepository.findByChannelId(channelId);
