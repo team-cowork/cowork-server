@@ -51,6 +51,7 @@ class ProjectionSnapshotCompletionPublisher(
                         source = SOURCE,
                     ),
                     partition = partition,
+                    barrier = true,
                 )
             }
         }
