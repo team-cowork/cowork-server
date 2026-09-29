@@ -1,9 +1,7 @@
-package com.cowork.channel.global.outbox
+package com.cowork.project.global.outbox.flow
 
-import io.micrometer.core.instrument.Counter
-import io.micrometer.core.instrument.Gauge
+import com.cowork.project.global.outbox.telemetry.ProjectOutboxTelemetry
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.Timer
 import jakarta.annotation.PreDestroy
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -17,7 +15,6 @@ import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicLong
 import javax.sql.DataSource
 import kotlin.math.min
 
@@ -46,7 +43,7 @@ class KafkaOutboxRelay(
     private val dataSource: DataSource,
     private val kafkaTemplate: KafkaTemplate<String, Any>,
     private val objectMapper: ObjectMapper,
-    private val meterRegistry: MeterRegistry,
+    meterRegistry: MeterRegistry,
     @Value("\${kafka.outbox.batch-size:100}") batchSize: Int,
     @Value("\${kafka.outbox.claim-lease-ms:30000}") claimLeaseMs: Long,
     @Value("\${kafka.outbox.send-timeout-ms:10000}") sendTimeoutMs: Long,
@@ -54,7 +51,7 @@ class KafkaOutboxRelay(
     @Value("\${kafka.outbox.backoff-initial-ms:5000}") backoffInitialMs: Long,
     @Value("\${kafka.outbox.backoff-max-ms:600000}") backoffMaxMs: Long,
 ) {
-    private val serviceName = "cowork-channel"
+    private val serviceName = "cowork-project"
     private val settings = OutboxRelaySettings(
         batchSize = batchSize,
         claimLeaseMs = claimLeaseMs,
@@ -63,48 +60,11 @@ class KafkaOutboxRelay(
         backoffInitialMs = backoffInitialMs,
         backoffMaxMs = backoffMaxMs,
     )
+    private val telemetry = ProjectOutboxTelemetry(meterRegistry)
     private val logger = LoggerFactory.getLogger(javaClass)
     private val claimOwner = "$serviceName:${UUID.randomUUID()}"
     private val running = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
-    private val pendingGauge = AtomicLong()
-    private val oldestSecondsGauge = AtomicLong()
-    private val quarantinedGauge = AtomicLong()
-    private val observationSuccessGauge = AtomicLong()
-    private val publishTimer =
-        Timer
-            .builder("cowork.kafka.outbox.publish")
-            .description("Kafka outbox publish acknowledgement latency")
-            .register(meterRegistry)
-    private val publishedCounter =
-        Counter
-            .builder("cowork.kafka.outbox.published")
-            .description("Kafka outbox rows deleted after publication")
-            .register(meterRegistry)
-    private val quarantinedCounter =
-        Counter
-            .builder("cowork.kafka.outbox.quarantined")
-            .description("Kafka outbox rows newly quarantined")
-            .register(meterRegistry)
-
-    init {
-        Gauge
-            .builder("cowork.kafka.outbox.pending", pendingGauge) { it.get().toDouble() }
-            .description("Shared database Kafka outbox rows waiting for publication")
-            .register(meterRegistry)
-        Gauge
-            .builder("cowork.kafka.outbox.oldest.seconds", oldestSecondsGauge) { it.get().toDouble() }
-            .description("Age in seconds of the oldest pending Kafka outbox row")
-            .register(meterRegistry)
-        Gauge
-            .builder("cowork.kafka.outbox.quarantined.current", quarantinedGauge) { it.get().toDouble() }
-            .description("Shared database Kafka outbox rows currently quarantined")
-            .register(meterRegistry)
-        Gauge
-            .builder("cowork.kafka.outbox.observation.success", observationSuccessGauge) { it.get().toDouble() }
-            .description("Whether the latest Kafka outbox backlog observation succeeded")
-            .register(meterRegistry)
-    }
 
     @Scheduled(
         initialDelayString = "\${kafka.outbox.relay-initial-delay-ms:1000}",
@@ -120,16 +80,13 @@ class KafkaOutboxRelay(
         }
 
         try {
-            var processed = 0
-            while (processed < settings.batchSize) {
-                if (closed.get() || Thread.currentThread().isInterrupted) {
-                    break
-                }
-                val record = claimNext() ?: break
+            val pending = generateSequence {
+                if (closed.get() || Thread.currentThread().isInterrupted) null else claimNext()
+            }.take(settings.batchSize)
+            for (record in pending) {
                 if (!publish(record)) {
                     break
                 }
-                processed++
             }
         } catch (exception: Exception) {
             logger.warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
@@ -207,7 +164,7 @@ class KafkaOutboxRelay(
                 return true
             }
 
-        val sample = Timer.start(meterRegistry)
+        val sample = telemetry.startPublish()
         return try {
             val sendResult =
                 record.partition?.let { partition ->
@@ -224,7 +181,7 @@ class KafkaOutboxRelay(
             finalizeFailure(record, FailureType.KAFKA_PUBLISH, exception, retryable = true)
             true
         } finally {
-            sample.stop(publishTimer)
+            telemetry.stopPublish(sample)
         }
     }
 
@@ -241,7 +198,7 @@ class KafkaOutboxRelay(
                 statement.setLong(1, record.id)
                 statement.setString(2, claimOwner)
                 if (statement.executeUpdate() == 1) {
-                    publishedCounter.increment()
+                    telemetry.published()
                 } else {
                     logger.warn("Skipped stale Kafka outbox success for row {}", record.id)
                 }
@@ -278,13 +235,9 @@ class KafkaOutboxRelay(
             logger.warn("Skipped stale Kafka outbox failure for row {}", record.id)
             return
         }
-        meterRegistry.counter(
-            "cowork.kafka.outbox.failures",
-            "failure_type",
-            failureType.metricTag,
-        ).increment()
+        telemetry.failure(failureType.metricTag)
         if (quarantine) {
-            quarantinedCounter.increment()
+            telemetry.quarantined()
             logger.warn(
                 "Quarantined Kafka outbox row {} after {} attempt(s), failureType={}",
                 record.id,
@@ -292,11 +245,7 @@ class KafkaOutboxRelay(
                 failureType.databaseValue,
             )
         } else {
-            meterRegistry.counter(
-                "cowork.kafka.outbox.retries",
-                "failure_type",
-                failureType.metricTag,
-            ).increment()
+            telemetry.retry(failureType.metricTag)
             logger.warn(
                 "Scheduled Kafka outbox row {} retry after attempt {}, failureType={}",
                 record.id,
@@ -335,15 +284,16 @@ class KafkaOutboxRelay(
                 connection.prepareStatement(OBSERVE_SQL).use { statement ->
                     statement.executeQuery().use { resultSet ->
                         check(resultSet.next()) { "Kafka outbox observation returned no row." }
-                        pendingGauge.set(resultSet.getLong("pending_count"))
-                        oldestSecondsGauge.set(resultSet.getLong("oldest_seconds"))
-                        quarantinedGauge.set(resultSet.getLong("quarantined_count"))
-                        observationSuccessGauge.set(1)
+                        telemetry.observe(
+                            pending = resultSet.getLong("pending_count"),
+                            oldestSeconds = resultSet.getLong("oldest_seconds"),
+                            quarantined = resultSet.getLong("quarantined_count"),
+                        )
                     }
                 }
             }
         }.onFailure { exception ->
-            observationSuccessGauge.set(0)
+            telemetry.observationFailed()
             logger.warn("Failed to observe Kafka outbox backlog for {}", serviceName, exception)
         }
     }
