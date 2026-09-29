@@ -71,7 +71,7 @@ private fun loadConfig(): JsonObject {
     val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
     val profile = System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
 
-    log.info("Fetching config from {} profile={}", configServerUrl, profile)
+    log.info("Fetch configuration for profile={}", profile)
     val serverConfig = fetchFromConfigServer(configServerUrl, profile)
     return applyEnvironmentOverrides(resolveJsonObject(serverConfig))
 }
@@ -118,6 +118,7 @@ private fun fetchFromConfigServer(baseUrl: String, profile: String): JsonObject 
     val request = HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("Accept", "application/json")
+        .header("Authorization", ControlPlaneAuthentication.authorization(url))
         .timeout(Duration.ofSeconds(5))
         .build()
 
