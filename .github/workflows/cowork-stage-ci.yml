@@ -100,10 +100,11 @@ jobs:
       - name: Select local and production images
         id: images
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           args=()
-          if [ -n "$BASE_SHA" ]; then args+=(--base "$BASE_SHA"); fi
+          # A new branch or force push has no reachable previous commit; build every image then.
+          if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
           python3 deploy/images/build-matrix.py "${args[@]}"
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
@@ -325,7 +326,8 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      max-parallel: 4
+      # With the 8 coverage jobs, stays within the 20 concurrent jobs of the free plan.
+      max-parallel: 12
       matrix: ${{ fromJSON(needs.detect-changes.outputs.image-matrix) }}
     steps:
       - uses: actions/checkout@v7
