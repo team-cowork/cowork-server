@@ -1,9 +1,9 @@
-package com.cowork.shared.outbox
+package com.cowork.team.global.outbox.journal
 
 import org.springframework.jdbc.core.JdbcTemplate
 import tools.jackson.databind.ObjectMapper
 
-class JdbcKafkaOutboxWriter(private val jdbcTemplate: JdbcTemplate, private val objectMapper: ObjectMapper) {
+internal class TeamOutboxAppender(private val jdbcTemplate: JdbcTemplate, private val objectMapper: ObjectMapper) {
     fun enqueue(topic: String, eventKey: String, payload: Any, partition: Int? = null, barrier: Boolean = false) {
         require(partition == null || partition >= 0) { "Kafka partition must not be negative" }
 
