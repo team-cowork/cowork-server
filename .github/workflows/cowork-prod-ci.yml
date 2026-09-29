@@ -127,11 +127,10 @@ jobs:
       - name: Select local and production images
         id: images
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           args=()
-          # A new branch or force push has no reachable previous commit; build every image then.
-          if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
+          if [ -n "$BASE_SHA" ]; then args+=(--base "$BASE_SHA"); fi
           python3 deploy/images/build-matrix.py "${args[@]}"
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
