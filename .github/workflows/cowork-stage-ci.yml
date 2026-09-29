@@ -326,7 +326,6 @@ jobs:
     timeout-minutes: 45
     strategy:
       fail-fast: false
-      # With the 8 coverage jobs, stays within the 20 concurrent jobs of the free plan.
       max-parallel: 12
       matrix: ${{ fromJSON(needs.detect-changes.outputs.image-matrix) }}
     steps:
