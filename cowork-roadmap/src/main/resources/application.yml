@@ -2,10 +2,14 @@ server:
   port: 8088
 
 spring:
+  cloud:
+    config:
+      username: ${CONFIG_CLIENT_USERNAME}
+      password: ${CONFIG_CLIENT_PASSWORD}
   application:
     name: cowork-roadmap
   config:
-    import: "optional:configserver:http://localhost:8761"
+    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
   # Runtime queries go through R2DBC (reactive). With an R2DBC ConnectionFactory present, Spring Boot's
   # JDBC DataSourceAutoConfiguration backs off, so Flyway builds its own JDBC DataSource from spring.flyway.url.
   r2dbc:
@@ -26,6 +30,10 @@ spring:
 
 eureka:
   client:
+    jersey:
+      enabled: false
+    webclient:
+      enabled: false
     healthcheck:
       enabled: true
     service-url:
