@@ -204,7 +204,7 @@ UTC `occurredAt`, 삭제 tombstone, 주기 snapshot을 계약으로 사용합니
 
 | 상태 토픽                 | Producer       | Consumer                    | 데이터 key             | 보존·snapshot                                       |
 |---------------------------|----------------|-----------------------------|------------------------|-----------------------------------------------------|
-| `channel.event.v2`        | cowork-channel | cowork-project, cowork-chat | `<channelId>`          | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
+| `channel.event.v2`        | cowork-channel | cowork-project, cowork-chat, cowork-preference | `<channelId>`          | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
 | `channel.member.event.v2` | cowork-channel | cowork-chat, cowork-voice   | `<channelId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
 | `project.event.v2`        | cowork-project | cowork-channel, cowork-chat | `<projectId>`          | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
 | `project.member.event.v2` | cowork-project | cowork-chat                 | `<projectId>:<userId>` | `compact`, 현재 상태·삭제 상태·파티션별 완료 marker |
@@ -270,6 +270,20 @@ ready가 됩니다. 따라서 새로 생성된 빈 state topic을 snapshot 완�
 transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`만으로는 아직 commit되지 않은
 낮은 sequence 행을 볼 수 없습니다.
 
+서로의 state topic을 소비하는 서비스는 snapshot 완료 marker를 aggregate별 upstream에만 묶습니다.
+`cowork-channel`의 `channel.event.v2`·`channel.member.event.v2` snapshot은 채널 상태를 바꿀 수 있는
+`team.member.event`와 `team.lifecycle`만 기다립니다. `cowork-preference`의
+`preference.channel-role-policy.changed` snapshot은 `team.member.event`와 `channel.event.v2`를 모두
+기다리고, 나머지 preference state snapshot은 `team.member.event`만 기다립니다. 따라서 cold start에서
+두 서비스가 서로의 전체 readiness를 기다리는 순환이 생기지 않습니다.
+
+`cowork-preference`는 `channel.event.v2`로 채널별 삭제 상태와 source version을 영구 보존합니다.
+높은 version을 우선하고 같은 version에서는 `DELETED`를 우선하며, 삭제된 채널은 이후 active state로
+되살아나지 않습니다. `DELETED` 반영, 해당 팀·채널의 active 역할 정책 tombstone 전환, 정책 `DELETE`
+outbox, consumer checkpoint는 하나의 PostgreSQL transaction에 포함됩니다. 정책 command도 같은 채널
+projection row를 잠그므로, 삭제가 먼저 반영되면 대기하던 command는 `CHANNEL_DELETED` 실패 결과로
+종료되고 정책이 먼저 반영되면 뒤따른 삭제가 그 정책을 정리합니다.
+
 | 토픽                                                | Producer                       | Consumer                                                                 | 용도                                                       |
 |-----------------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
 | `user.data.sync`                                    | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
@@ -279,7 +293,7 @@ transaction-scoped advisory lock으로 직렬화합니다. Relay의 `FOR UPDATE`
 | `team.member.event`                                 | cowork-team                    | cowork-channel, cowork-project, cowork-user, cowork-roadmap, cowork-chat | 버전 기반 팀 멤버십 projection                             |
 | `user.profile.event`                                | cowork-user                    | cowork-project, cowork-chat, cowork-notification                         | 사용자 표시·GitHub identity 정보 projection                |
 | `user.presence.event`                               | cowork-authorization           | cowork-user                                                              | 사용자 접속 상태 projection                                |
-| `channel.event.v2`                                  | cowork-channel                 | cowork-project, cowork-chat                                              | 채널 메타데이터와 GitHub webhook 대상 정합성 projection    |
+| `channel.event.v2`                                  | cowork-channel                 | cowork-project, cowork-chat, cowork-preference                           | 채널 메타데이터, GitHub webhook 대상 정합성, 채널 삭제 시 역할 정책 정리 |
 | `channel.member.event.v2`                           | cowork-channel                 | cowork-chat, cowork-voice                                                | 채널 멤버십 projection                                     |
 | `project.event.v2`                                  | cowork-project                 | cowork-channel, cowork-chat                                              | 프로젝트 메타데이터 projection                             |
 | `project.member.event.v2`                           | cowork-project                 | cowork-chat                                                              | 프로젝트 멤버십 projection                                 |
