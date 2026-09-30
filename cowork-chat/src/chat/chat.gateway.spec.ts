@@ -160,15 +160,40 @@ describe('ChatGateway', () => {
             expect(client.emit).not.toHaveBeenCalledWith('error', expect.anything());
         });
 
-        it('채널 멤버가 아니면 error 이벤트를 emit하고 join하지 않는다', async () => {
+        it('채널 멤버가 아니면 room에서 제거하고 error 이벤트를 emit한다', async () => {
             mockChatService.isMember.mockResolvedValue(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(client.join).not.toHaveBeenCalled();
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
             expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
+        });
+
+        it('권한 확인 전에 room에 가입해 확인 도중 처리된 회수가 이 소켓을 놓치지 않게 한다', async () => {
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(client.join.mock.invocationCallOrder[0])
+                .toBeLessThan(mockChatService.isMember.mock.invocationCallOrder[0]);
+        });
+    });
+
+    describe('handleJoinTeam', () => {
+        it('팀 멤버가 아니면 room에서 제거하고 error 이벤트를 emit한다', async () => {
+            mockChatService.isTeamMember.mockResolvedValue(false);
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 });
+
+            expect(client.join.mock.invocationCallOrder[0])
+                .toBeLessThan(mockChatService.isTeamMember.mock.invocationCallOrder[0]);
+            expect(client.leave).toHaveBeenCalledWith('team:5');
+            expect(client.emit).toHaveBeenCalledWith('error', { message: '팀 접근 권한이 없습니다' });
         });
     });
 
