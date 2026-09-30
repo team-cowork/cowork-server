@@ -4,6 +4,8 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: 세 서비스의 relay가 가장 오래된 outbox row를 잠근 transaction 안에서 Kafka 전송을 기다리고 첫 실패 row를 매번 다시 선택함
 
+> **2026-09-28 진척:** `shared/jvm-outbox` 공통 relay와 writer를 추가하고 세 서비스가 이를 사용하게 했다. producer fence와 짧은 claim transaction, transaction 밖 Kafka publish, claim owner fencing finalize, `(topic, event_key)`별 순서, snapshot completion barrier, backoff·격리·종료 시 claim 반환을 구현했다. `cowork-channel` `V24`, `cowork-team` `V18`, `cowork-project` `V22` migration과 공통 설정·metric·운영 재처리 문서를 추가했다. Kotlin 포맷과 세 모듈의 Java 22 호환 컴파일은 통과했으나 로컬에 Java 26 toolchain이 없어 공식 target 컴파일은 실행하지 못했다. 실제 MySQL 데이터 사본 migration dry-run과 다중 replica 장애 복구 rehearsal은 아직 수행하지 않았으므로 완료 처리하지 않는다.
+
 ## 문제
 
 세 모듈의 `KafkaOutboxRelay`는 동일한 구조로 `tb_kafka_outbox`의 오래된 row 최대 100개를 `FOR UPDATE`로 조회한다. 같은 database transaction 안에서 각 row의 Kafka 전송 결과를 최대 10초 기다린 뒤 성공 row를 삭제한다. Kafka가 느리면 connection과 row lock을 한 batch 동안 길게 점유하며, 이론상 대기 시간이 batch 크기에 비례해 늘어난다.
