@@ -169,13 +169,10 @@ jobs:
               - 'cowork-preference/**'
             cowork-team:
               - 'cowork-team/**'
-              - 'shared/jvm-outbox/**'
             cowork-project:
               - 'cowork-project/**'
-              - 'shared/jvm-outbox/**'
             cowork-channel:
               - 'cowork-channel/**'
-              - 'shared/jvm-outbox/**'
             cowork-roadmap:
               - 'cowork-roadmap/**'
       - name: Build Service Matrix
