@@ -8,7 +8,7 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
+import { ProjectMemberProjectionRepository } from '../repository';
 
 interface ProjectMemberEvent {
     eventType: 'ADDED' | 'REMOVED';

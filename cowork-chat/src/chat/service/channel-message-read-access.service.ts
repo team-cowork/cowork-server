@@ -1,11 +1,14 @@
 import { ForbiddenException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelProjectionRepository, ChannelProjectionView } from '../repository/channel-projection.repository';
-import { ChannelRolePolicyProjectionRepository } from '../repository/channel-role-policy-projection.repository';
-import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
-import { TeamRoleProjectionRepository } from '../repository/team-role-projection.repository';
+import {
+    ChannelMemberRepository,
+    ChannelProjectionRepository,
+    ChannelProjectionView,
+    ChannelRolePolicyProjectionRepository,
+    TeamMemberProjectionRepository,
+    TeamRoleProjectionRepository,
+} from '../repository';
 
 export interface ChannelReadAccessRequest {
     channelId: number;
