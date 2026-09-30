@@ -48,8 +48,10 @@ Config Server를 3회 조회하지 못하면 종료합니다. Preference command
 | `preference.channel-role-policy.command` | `cowork-preference-channel-role-policy-command`  | 채널별 역할 정책 command                           |
 | `preference.github-repo.setting.command` | `cowork-preference-github-repo-setting-command`  | GitHub 저장소 설정 command                         |
 
-- `/health/ready`와 Eureka 등록은 `team.member.event`, `channel.event.v2` projection이 모두 현재 generation의
-  snapshot 완료 marker와 시작 시 high-watermark까지 따라잡은 뒤에만 열립니다.
+- `/health/ready`와 Eureka 등록은 `team.member.event` projection이 현재 generation의 snapshot 완료 marker와
+  시작 시 high-watermark까지 따라잡은 뒤에 열립니다. HTTP API는 채널 projection을 읽지 않으므로
+  `channel.event.v2` projection은 트래픽 readiness에 포함하지 않습니다.
+- 채널 역할 정책 command는 `team.member.event`, `channel.event.v2` projection이 모두 준비되어야 처리합니다.
 - 채널 역할 정책 command는 채널 projection row를 잠근 뒤 처리합니다. 채널 삭제가 먼저 반영됐으면 `UPSERT`와
   `DELETE` 모두 `CHANNEL_DELETED`, 채널이 요청 팀에 속하지 않으면 `CHANNEL_TEAM_MISMATCH` 실패 결과로
   종료합니다. 채널 projection이 아직 없으면 결과를 남기지 않고 재시도합니다.
