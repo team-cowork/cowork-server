@@ -6,6 +6,7 @@ import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.TeamRoleRepository
+import io.vertx.sqlclient.SqlConnection
 import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -18,47 +19,63 @@ class PreferenceSnapshotPublisher(
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
-    private val upstreamReadiness: ProjectionReadiness,
+    private val teamStateReadiness: ProjectionReadinessView,
+    private val channelRolePolicyReadiness: ProjectionReadinessView,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
-    suspend fun publishAllIfLeader(): Boolean {
+    /** team.member.event만 변경할 수 있는 aggregate이므로 채널 projection readiness를 기다리지 않는다. */
+    suspend fun publishTeamStateIfLeader(): Boolean = publishIfLeader(
+        aggregate = "team state",
+        topics = TEAM_STATE_TOPICS,
+        upstreamReadiness = teamStateReadiness,
+    ) { connection ->
+        val notificationCount = publishNotificationSettings(connection)
+        val roleCount = publishRoles(connection)
+        val assignmentCount = publishAssignments(connection)
+        val memberFenceCount = publishMemberFences(connection)
+        val githubRepoSettingCount = publishGithubRepoSettings(connection)
+        "notificationCount=$notificationCount roleCount=$roleCount assignmentCount=$assignmentCount " +
+            "memberFenceCount=$memberFenceCount githubRepoSettingCount=$githubRepoSettingCount"
+    }
+
+    /** 팀 삭제와 채널 삭제가 모두 정책을 정리하므로 두 upstream projection이 따라잡은 뒤에만 완료를 알린다. */
+    suspend fun publishChannelRolePoliciesIfLeader(): Boolean = publishIfLeader(
+        aggregate = "channel role policy",
+        topics = CHANNEL_ROLE_POLICY_TOPICS,
+        upstreamReadiness = channelRolePolicyReadiness,
+    ) { connection ->
+        "channelRolePolicyCount=${publishChannelRolePolicies(connection)}"
+    }
+
+    private suspend fun publishIfLeader(
+        aggregate: String,
+        topics: Set<String>,
+        upstreamReadiness: ProjectionReadinessView,
+        publishStates: suspend (SqlConnection) -> String,
+    ): Boolean {
         if (!upstreamReadiness.isReady) {
-            log.info("Preference projection snapshot deferred until team.member.event projection is ready")
+            log.info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
             return false
         }
         return runCatching {
             outboxRepository.withProjectionSnapshotLock { connection ->
-                val notificationCount = publishNotificationSettings(connection)
-                val roleCount = publishRoles(connection)
-                val assignmentCount = publishAssignments(connection)
-                val memberFenceCount = publishMemberFences(connection)
-                val githubRepoSettingCount = publishGithubRepoSettings(connection)
-                val channelRolePolicyCount = publishChannelRolePolicies(connection)
+                val counts = publishStates(connection)
                 check(upstreamReadiness.isReady) {
-                    "team.member.event projection became unavailable during preference snapshot"
+                    "upstream projection became unavailable during $aggregate snapshot"
                 }
-                publishCompletionMarkers(connection)
-                log.info(
-                    "Preference projection snapshot published notificationCount={} roleCount={} " +
-                        "assignmentCount={} memberFenceCount={} githubRepoSettingCount={} channelRolePolicyCount={}",
-                    notificationCount,
-                    roleCount,
-                    assignmentCount,
-                    memberFenceCount,
-                    githubRepoSettingCount,
-                    channelRolePolicyCount,
-                )
+                publishCompletionMarkers(connection, topics)
+                log.info("Published {} projection snapshot {}", aggregate, counts)
             }
         }.onFailure {
-            log.error("Preference projection snapshot failed; next scheduled run will retry", it)
+            log.error("Failed {} projection snapshot; next scheduled run will retry", aggregate, it)
         }.getOrDefault(false)
     }
 
-    private suspend fun publishCompletionMarkers(connection: io.vertx.sqlclient.SqlConnection) {
+    private suspend fun publishCompletionMarkers(connection: SqlConnection, topics: Set<String>) {
         val snapshotId = UUID.randomUUID().toString()
         val occurredAt = Instant.now().truncatedTo(ChronoUnit.MICROS)
-        val topicPartitions = SNAPSHOT_TOPICS.associateWith { topic ->
+        val topicPartitions = topics.associateWith { topic ->
             topicIdentity.topicState(topic).ranges.keys
         }
         val events = ProjectionSnapshotCompletionEvents.create(topicPartitions, snapshotId, occurredAt)
@@ -272,12 +289,12 @@ class PreferenceSnapshotPublisher(
 
     private companion object {
         const val PAGE_SIZE = 500
-        val SNAPSHOT_TOPICS = setOf(
+        val TEAM_STATE_TOPICS = setOf(
             PreferenceEvents.CHANNEL_NOTIFICATION_TOPIC,
             PreferenceEvents.TEAM_ROLE_TOPIC,
             PreferenceEvents.GITHUB_REPO_SETTING_STATE_TOPIC,
-            PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC,
         )
+        val CHANNEL_ROLE_POLICY_TOPICS = setOf(PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC)
     }
 }
 
