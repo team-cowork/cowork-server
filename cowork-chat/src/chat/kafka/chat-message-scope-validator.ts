@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ChatMessageEvent } from './event/chat-message.event';
-import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
-import { MessageRepository } from '../repository/message.repository';
-import { resolveMessageScope } from '../service/message-scope';
+import { ChannelProjectionRepository, MessageRepository } from '../repository';
+import { resolveMessageScope } from '../service';
 
 export class ChatMessageScopeError extends Error {
     constructor(
