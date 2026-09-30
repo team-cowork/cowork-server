@@ -2,9 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { Server } from 'socket.io';
 import { ChatMessageEvent } from './event/chat-message.event';
-import { MessageRepository, toMessageBroadcastPayload } from '../repository/message.repository';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { MessageRepository, toMessageBroadcastPayload, ChannelMemberRepository } from '../repository';
+import { ChannelMessageReadAccessService } from '../service';
 import { ChatMessageScopeValidator } from './chat-message-scope-validator';
 
 /**
