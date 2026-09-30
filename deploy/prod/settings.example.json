@@ -8,11 +8,12 @@
   },
   "runtime": {
     "APP_CONFIG_PROFILE": "prod",
+    "CONFIG_CLIENT_USERNAME": "cowork-voice",
     "ADVERTISE_IP": "10.0.1.12",
     "BIND_IP": "10.0.1.12",
     "HOST_PORT": "8089",
-    "CONFIG_SERVER_URL": "http://config.internal:8761",
-    "EUREKA_SERVER_URL": "http://config.internal:8761/eureka/",
+    "CONFIG_SERVER_URL": "https://config.example.com:8761",
+    "EUREKA_SERVER_URL": "https://config.example.com:8761/eureka/",
     "KAFKA_BOOTSTRAP_SERVERS": "kafka.internal:9094",
     "MYSQL_HOST": "mysql.internal",
     "MYSQL_USER": "cowork",
@@ -20,6 +21,7 @@
     "HEALTH_TIMEOUT_SECONDS": "420"
   },
   "runtime_refs": {
+    "CONFIG_CLIENT_PASSWORD": {"path": "control-plane/prod/voice", "key": "CONFIG_CLIENT_PASSWORD"},
     "COWORK_MYSQL_PASSWORD": {"path": "application", "key": "MYSQL_PASSWORD"},
     "COWORK_GITHUB_APP_INTERNAL_API_KEY": {"path": "cowork-project", "key": "github-app.internal-api-key"}
   },
