@@ -116,13 +116,16 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const memberCache = new Map<string, ChannelMember[]>();
         const parentCache = new Map<string, { authorId: number } | null>();
-        const parentIds = [...new Set(
-            msgs.filter((m) => m.parentMessageId != null).map((m) => m.parentMessageId!),
-        )];
-        if (parentIds.length > 0) {
-            const parentMap = await this.messageRepository.findParentAuthorsByIds(parentIds);
-            for (const id of parentIds) {
-                parentCache.set(id.toString(), parentMap.get(id.toString()) ?? null);
+        const parentRefs = new Map<string, { channelId: number; parentMessageId: Types.ObjectId }>();
+        for (const msg of msgs) {
+            if (!msg.parentMessageId) continue;
+            const key = `${msg.channelId}:${msg.parentMessageId.toString()}`;
+            parentRefs.set(key, { channelId: msg.channelId, parentMessageId: msg.parentMessageId });
+        }
+        if (parentRefs.size > 0) {
+            const parentMap = await this.messageRepository.findParentAuthorsByChannel([...parentRefs.values()]);
+            for (const key of parentRefs.keys()) {
+                parentCache.set(key, parentMap.get(key) ?? null);
             }
         }
 
@@ -212,7 +215,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
         if (msg.parentMessageId) {
-            const parent = parentCache.get(msg.parentMessageId.toString()) ?? null;
+            const parent = parentCache.get(`${msg.channelId}:${msg.parentMessageId.toString()}`) ?? null;
             if (parent && parent.authorId !== msg.authorId && memberIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }
