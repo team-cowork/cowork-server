@@ -41,19 +41,17 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
         return nodeLookupSupport.findNodeOrThrow(nodeId)
                 .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
                         .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(Mono.defer(
-                                        () -> nodeRepository.findByRoadmapIdOrderByPositionAsc(node.getRoadmapId())
-                                                .collectList()))
+                                .then(Mono.defer(() -> nodeRepository.findAllByRoadmapIdForUpdate(node.getRoadmapId())
+                                        .collectList()))
                                 .flatMap(all -> deleteSubtree(node.getRoadmapId(), collectSubtreeIds(nodeId, all)))));
     }
 
     /**
-     * 과제가 연결된 노드는 진행 기록을 보존하기 위해 삭제를 거부한다. 노드를 먼저 잠가 과제 생성의 노드 공유 잠금과 직렬화한 뒤, 잠금
-     * 읽기로 과제 수를 확인한다.
+     * 과제가 연결된 노드는 진행 기록을 보존하기 위해 삭제를 거부한다. 서브트리는 노드를 잠근 읽기 결과로 계산해 하위 노드·과제 생성의 노드
+     * 공유 잠금과 직렬화하고, 잠금 읽기로 과제 수를 확인한다.
      */
     private Mono<Void> deleteSubtree(Long roadmapId, Set<Long> subtreeIds) {
-        return nodeRepository.lockAllByIdIn(subtreeIds)
-                .then(Mono.defer(() -> assignmentRepository.countByRoadmapIdAndNodeIdInForShare(roadmapId, subtreeIds)))
+        return assignmentRepository.countByRoadmapIdAndNodeIdInForShare(roadmapId, subtreeIds)
                 .flatMap(assignmentCount -> assignmentCount > 0
                         ? Mono.error(new ExpectedException("연결된 과제 " + assignmentCount + "건을 먼저 삭제해야 노드를 삭제할 수 있습니다.",
                                 HttpStatus.CONFLICT))
