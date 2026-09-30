@@ -19,7 +19,7 @@
 Config Server 응답의 속성 우선순위는 다음과 같다.
 
 ```text
-Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native `configs/`
+Config Server overrides > Vault 서비스/프로파일 경로 > Vault 서비스 경로 > native `configs/`
 ```
 
 클라이언트는 이를 자체 기본값·환경변수와 병합한다. Go·Elixir·Vert.x는 코드에서 매핑한 환경변수만
@@ -37,7 +37,7 @@ Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native 
 | `prod`   | 외부 Vault + classpath `configs/*-prod.yml` |
 
 지원하는 배포 프로파일은 `local`과 `prod`다. Gateway와 모든 backend business service는 두 프로파일
-파일을 모두 가져야 한다. 공통 Vault 값과 Config Server overrides는 서비스별 파일과 별도로 공급되므로,
+파일을 모두 가져야 한다. 서비스 기본 Vault 값과 Config Server overrides는 프로파일 파일과 별도로 공급되므로,
 응답이 비어 있지 않다고 해당 프로파일이 정의되어 있다고 판단하면 안 된다. 시크릿은 배포 전 Vault에
 동일한 application 이름으로 등록한다.
 
@@ -45,16 +45,17 @@ Config Server overrides > Vault 서비스 경로 > Vault 공통 경로 > native 
 
 | 경로                          | 주요 값                                               |
 |-------------------------------|-------------------------------------------------------|
-| `secret/application`          | 공통 DB 계정, JWT, SeaweedFS credential               |
+| `secret/application`          | 기존 배포 참조용 원본만 유지하며 Config Server 응답에는 포함하지 않음 |
 | `secret/cowork-gateway`       | `jwt.secret`                                          |
 | `secret/cowork-authorization` | DB DSN, DataGSM ID/webhook key, JWT                   |
 | `secret/cowork-channel`       | credential 암호화 키, OAuth state/provider credential |
-| `secret/cowork-chat`          | MongoDB URI, Discord webhook URL                      |
+| `secret/cowork-chat`          | MongoDB URI, Discord webhook URL, JWT, S3 credential |
 | `secret/cowork-notification`  | DB DSN                                                |
 | `secret/cowork-preference`    | PostgreSQL username/password                          |
-| `secret/cowork-project`       | GitHub App internal key                               |
-| `secret/cowork-team`          | GitHub App callback state 서명 키·app slug            |
-| `secret/cowork-user`          | MySQL username/password                               |
+| `secret/cowork-project`       | MySQL 계정, GitHub App internal key                  |
+| `secret/cowork-team`          | MySQL 계정, S3 credential, GitHub App callback state 서명 키·app slug |
+| `secret/cowork-roadmap`       | MySQL 계정                                            |
+| `secret/cowork-user`          | MySQL username/password, S3 credential               |
 | `secret/cowork-voice`         | MongoDB URI, LiveKit key/secret                       |
 
 로컬에서는 `vault-init`이 `.env`의 인프라 계정·애플리케이션 시크릿을 위 경로에 기록한다. `.env`는 로컬 Vault와 Config Server를 준비하는 bootstrap 입력이며, 애플리케이션 컨테이너는 이 파일을 직접 설정 소스로 사용하지 않는다. 운영에서는 `vault-init`을 실행하지 않고 외부 Vault를 사전에 준비한다.
@@ -67,18 +68,22 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 
 | Compose bootstrap 입력                       | 외부 Vault 대상                                                                                                                                                        | 일치 계약                                                                              |
 |----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/application`의 동명 key, `secret/cowork-authorization`의 `DB_DSN`, `secret/cowork-notification`의 `db.dsn`, `secret/cowork-user`의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login과 각 서비스 DB 이름을 사용한다. 운영 DSN은 실제 사설 주소를 가리킨다. |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`         | `secret/application`의 동명 key, `secret/cowork-preference`의 `preference.db.username`·`preference.db.password`                                                        | 같은 PostgreSQL login을 사용한다.                                                      |
+| `MYSQL_USER`, `MYSQL_PASSWORD`               | `secret/cowork-{channel,project,team,roadmap}`의 동명 key, authorization의 `DB_DSN`, notification의 `db.dsn`, user의 `DB_USERNAME`·`DB_PASSWORD` | 같은 MySQL login과 각 서비스 DB 이름을 사용한다. 운영 DSN은 실제 사설 주소를 가리킨다. |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`         | `secret/cowork-preference`의 `preference.db.username`·`preference.db.password` | 같은 PostgreSQL login을 사용한다. |
 | `MONGO_ROOT_USERNAME`, `MONGO_ROOT_PASSWORD` | `secret/cowork-chat`·`secret/cowork-voice`의 `MONGODB_URI`                                                                                                             | 같은 root login을 URI에 넣고 서비스별 DB 이름과 `authSource=admin`을 사용한다.         |
-| `S3_ACCESS_KEY`, `S3_SECRET_KEY`             | `secret/application`의 동명 key                                                                                                                                        | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다.                |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY`             | `secret/cowork-{chat,team,user}`의 동명 key | SeaweedFS server·bucket init·chat/team/user가 같은 key pair를 사용한다. |
 | `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`      | `secret/cowork-voice`의 동명 key                                                                                                                                       | LiveKit server와 voice token 발급기가 같은 key pair를 사용한다.                        |
-| JWT signing secret                           | `secret/application`의 `JWT_SECRET`, `secret/cowork-gateway`의 `jwt.secret`, `secret/cowork-authorization`의 `JWT_SECRET`                                              | authorization 서명, Gateway HTTP 검증, chat WebSocket 검증에 동일한 secret을 사용한다. |
+| JWT signing secret                           | `secret/cowork-chat`·`secret/cowork-authorization`의 `JWT_SECRET`, `secret/cowork-gateway`의 `jwt.secret` | authorization 서명, Gateway HTTP 검증, chat WebSocket 검증에 동일한 secret을 사용한다. |
 
 ## 서비스별 부트스트랩
 
+모든 Config/Eureka Client는 환경변수 `CONFIG_CLIENT_USERNAME`, `CONFIG_CLIENT_PASSWORD`를
+사용한다. 운영 주소는 HTTPS여야 하며, 서비스별 설정·Eureka 등록 권한과 monitoring 조회 권한을
+분리한다. 발급·최초 전환·교체·복구 절차는 [Config Server 접근 보호 운영](config-server-access.md)을 따른다.
+
 | 런타임      | 방식                                                            | Config Server 실패 처리                                                      |
 |-------------|-----------------------------------------------------------------|------------------------------------------------------------------------------|
-| Spring Boot | Compose의 `SPRING_CONFIG_IMPORT=configserver:...`               | 기동 실패; 모듈 기본값의 `optional:configserver:...`만 쓰는 직접 실행은 다름 |
+| Spring Boot | `CONFIG_SERVER_URL` 또는 Compose의 `SPRING_CONFIG_IMPORT=configserver:...` | 기동 실패 |
 | Go          | `APP_CONFIG_URL`, `APP_PROFILE` custom client                   | URL 지정 시 기동 실패                                                        |
 | NestJS      | bootstrap 전 Config Server 조회                                 | 기동 실패                                                                    |
 | Vert.x      | 배포 전 Config Server 조회                                      | 3회 실패 후 종료                                                             |
@@ -111,7 +116,7 @@ Config Server나 Vault client가 아닌 MySQL, PostgreSQL, MongoDB, LiveKit, Gra
 - `VAULT_HOST`, `VAULT_TOKEN`은 Config Server 부트스트랩 값으로 배포 환경에서 주입한다.
 - native 설정 파일에는 시크릿 값을 커밋하지 않는다.
 - 운영 S3 서버의 `S3_ACCESS_KEY`, `S3_SECRET_KEY`는 외부 Vault의
-  `secret/application`에 저장한 동명 값과 정확히 같아야 한다. SeaweedFS, bucket init job,
+  `secret/cowork-chat`, `secret/cowork-team`, `secret/cowork-user`에 저장한 동명 값과 정확히 같아야 한다. SeaweedFS, bucket init job,
   chat·team·user가 이 한 자격 증명 계약을 공유한다.
 - `S3_PUBLIC_ENDPOINT`, `S3_PUBLIC_BASE_URL`은 클라이언트가 도달 가능한 주소로 배포 환경에서
   주입한다. 공개/인증 조회 정책, bucket 분리, public ingress의 SigV4 보존, signer 정합성, CORS와
