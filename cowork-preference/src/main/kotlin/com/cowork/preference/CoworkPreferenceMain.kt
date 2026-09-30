@@ -92,6 +92,8 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
             "KAFKA_GROUP_ID_TEAM_MEMBER_PROJECTION" to "preference.kafka.team-member-consumer-group-id",
             "KAFKA_TOPIC_TEAM_MEMBER_EVENT" to "preference.kafka.team-member-topic",
+            "KAFKA_GROUP_ID_CHANNEL_LIFECYCLE_PROJECTION" to "preference.kafka.channel-lifecycle-consumer-group-id",
+            "KAFKA_TOPIC_CHANNEL_EVENT" to "preference.kafka.channel-topic",
             "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
             "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
                 "preference.kafka.github-repo-setting-command-consumer-group-id",
