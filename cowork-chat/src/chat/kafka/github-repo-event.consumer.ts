@@ -126,7 +126,8 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
         const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
         for (const target of targets) {
-            const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary, target.projectId);
+            const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary);
+            if (!saved) continue;
             await this.notifyClient(target.channelId, toMessageBroadcastPayload(saved));
         }
     }
