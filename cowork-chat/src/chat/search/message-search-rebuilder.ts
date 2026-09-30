@@ -12,9 +12,9 @@ import {
 import {
     IndexScanCursor,
     MessageSearchIndexRepository,
-} from '../repository/message-search-index.repository';
-import { MessageSearchTombstoneRepository } from '../repository/message-search-tombstone.repository';
-import { MessageSearchIndexStateRepository } from '../repository/message-search-index-state.repository';
+    MessageSearchTombstoneRepository,
+    MessageSearchIndexStateRepository,
+} from '../repository';
 import { buildMessageIndexDoc } from './message-index-scope';
 
 const SCAN_BATCH_SIZE = 500;

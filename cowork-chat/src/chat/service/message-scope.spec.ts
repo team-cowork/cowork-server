@@ -1,5 +1,5 @@
 import { resolveMessageScope } from './message-scope';
-import { ChannelProjectionView } from '../repository/channel-projection.repository';
+import { ChannelProjectionView } from '../repository';
 
 function channel(overrides: Partial<ChannelProjectionView>): ChannelProjectionView {
     return {
