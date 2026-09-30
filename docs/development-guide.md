@@ -284,6 +284,9 @@ outbox, consumer checkpoint는 하나의 PostgreSQL transaction에 포함됩니�
 projection row를 잠그므로, 삭제가 먼저 반영되면 대기하던 command는 `CHANNEL_DELETED` 실패 결과로
 종료되고 정책이 먼저 반영되면 뒤따른 삭제가 그 정책을 정리합니다.
 
+기존 팀에 역할·채널 정책을 적용하는 운영 전환은
+[기존 역할·채널 정책 운영 전환](./channel-role-policy-transition.md)을 따릅니다.
+
 | 토픽                                                | Producer                       | Consumer                                                                 | 용도                                                       |
 |-----------------------------------------------------|--------------------------------|--------------------------------------------------------------------------|------------------------------------------------------------|
 | `user.data.sync`                                    | cowork-authorization           | cowork-user                                                              | DataGSM webhook의 계정·프로필 변경 요청                    |
