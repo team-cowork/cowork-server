@@ -14,9 +14,9 @@ snapshot completion marker가 발행되므로 projection readiness만으로 전�
 | `ADMIN`, `MEMBER`     | 암묵적 allow가 없다. 할당된 사용자 정의 역할의 정책으로만 읽을 수 있다                                                                                                |
 | 사용자 정의 역할 정책 | 채널에 정책이 있는 역할 중 가장 높은 `priority`의 정책을 따른다. 같은 `priority`에 allow와 deny가 함께 있으면 deny다. 정책 부재는 낮은 `priority`로 상속하고 끝까지 없으면 거부한다 |
 
-채널 멤버십 조건은 서비스마다 다르다. `cowork-channel`은 비공개 채널에만 채널 멤버십을 요구하고,
-`cowork-chat`의 메시지 읽기는 공개 채널에도 채널 멤버십을 요구한다. 전환 도구의 사전 점검은
-`cowork-channel` 기준으로 계산한다.
+채널 멤버십 조건은 읽는 대상에 따라 다르다. 공개 채널 메타데이터는 팀 멤버십과 정책을, 비공개 채널 메타데이터는
+채널 멤버십과 정책을 요구한다. 메시지 본문·검색·WebSocket·알림은 공개 여부와 관계없이 활성 채널 멤버십과 정책을
+모두 요구한다. 전환 도구의 사전 점검은 채널 메타데이터 기준으로 읽을 수 있는 채널을 계산한다.
 
 기존 `tb_team_role_definitions.permissions` 문자열 배열에서 `message_read`를 추론하지 않는다. 정책 부재를
 일괄 `false`로 바꾸지 않는다. 부재는 상속을, `false`는 명시적 거부를 뜻한다.
