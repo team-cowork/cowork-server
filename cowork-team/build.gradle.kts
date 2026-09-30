@@ -7,6 +7,10 @@ plugins {
 group = "com.cowork"
 version = "20260926.0"
 
+kotlin.sourceSets.named("main") {
+    kotlin.srcDir(rootProject.file("shared/jvm-outbox/src/main/kotlin"))
+}
+
 repositories {
     maven { url = uri("https://jitpack.io") }
 }
