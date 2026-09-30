@@ -5,7 +5,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
-import com.cowork.preference.messaging.ProjectionReadinessView
+import com.cowork.preference.messaging.ProjectionReadiness
 import io.vertx.core.Vertx
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
@@ -15,7 +15,7 @@ fun buildRouter(
     preferenceHandler: PreferenceHandler,
     notificationHandler: NotificationHandler,
     projectRoleHandler: ProjectRoleHandler,
-    projectionReadiness: ProjectionReadinessView,
+    projectionReadiness: ProjectionReadiness,
 ): Router {
     val router = Router.router(vertx)
     router.route().handler(BodyHandler.create())
