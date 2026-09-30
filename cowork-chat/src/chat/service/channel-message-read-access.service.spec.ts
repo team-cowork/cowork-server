@@ -1,9 +1,11 @@
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
-import { ChannelRolePolicyProjectionRepository } from '../repository/channel-role-policy-projection.repository';
-import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
-import { TeamRoleProjectionRepository } from '../repository/team-role-projection.repository';
+import {
+    ChannelMemberRepository,
+    ChannelProjectionRepository,
+    ChannelRolePolicyProjectionRepository,
+    TeamMemberProjectionRepository,
+    TeamRoleProjectionRepository,
+} from '../repository';
 import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
 
 describe('ChannelMessageReadAccessService', () => {

@@ -1,4 +1,4 @@
-import { ChannelProjectionView } from '../repository/channel-projection.repository';
+import { ChannelProjectionView } from '../repository';
 
 export interface MessageScope {
     teamId: number | null;
