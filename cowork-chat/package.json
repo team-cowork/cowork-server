@@ -14,7 +14,8 @@
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "lint:circular": "npx --yes madge --circular --extensions ts src",
     "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts",
-    "ops:message-search-index": "ts-node src/ops/message-search-index.cli.ts"
+    "ops:message-search-index": "ts-node src/ops/message-search-index.cli.ts",
+    "ops:message-scope-audit": "ts-node src/ops/message-scope-audit.cli.ts"
   },
   "keywords": [],
   "author": "",
