@@ -21,7 +21,7 @@ eureka:
     healthcheck:
       enabled: true
     service-url:
-      defaultZone: http://cowork-config:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
   instance:
     initial-status: STARTING
 

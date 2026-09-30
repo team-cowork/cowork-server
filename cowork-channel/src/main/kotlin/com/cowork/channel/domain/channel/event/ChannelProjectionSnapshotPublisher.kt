@@ -5,6 +5,7 @@ import com.cowork.channel.domain.channel.repository.ChannelMemberEventStateRepos
 import com.cowork.channel.global.projection.ProjectionReadinessState
 import com.cowork.channel.global.projection.ProjectionSnapshotCompletionPublisher
 import com.cowork.channel.global.projection.ProjectionSnapshotLock
+import com.cowork.channel.global.projection.ProjectionStreams
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.data.domain.PageRequest
@@ -20,6 +21,7 @@ class ChannelProjectionSnapshotPublisher(
     private val channelEventPublisher: ChannelEventPublisher,
     private val channelMemberEventPublisher: ChannelMemberEventPublisher,
     private val readinessState: ProjectionReadinessState,
+    private val streams: ProjectionStreams,
     private val completionPublisher: ProjectionSnapshotCompletionPublisher,
     private val snapshotLock: ProjectionSnapshotLock,
     transactionManager: PlatformTransactionManager,
@@ -37,10 +39,10 @@ class ChannelProjectionSnapshotPublisher(
     }
 
     private fun publishAllInTransactions() {
-        if (!readinessState.refresh()) return
+        if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
         publishChannelStates()
         publishChannelMemberStates()
-        if (!readinessState.refresh()) return
+        if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
         completionPublisher.publishCompleted(SNAPSHOT_TOPICS)
     }
 

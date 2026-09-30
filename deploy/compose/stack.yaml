@@ -419,14 +419,36 @@ services:
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
 
+  control-plane-monitoring-auth-init:
+    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+    restart: "no"
+    environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_MONITORING_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_MONITORING_PASSWORD:?Generate Config Server credentials}
+    volumes:
+      - config_monitoring_auth:/generated
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        umask 077
+        printf '%s' "$${CONFIG_CLIENT_USERNAME}" > /generated/config-monitoring-username
+        printf '%s' "$${CONFIG_CLIENT_PASSWORD}" > /generated/config-monitoring-password
+        chown 65534:65534 /generated/config-monitoring-username /generated/config-monitoring-password
+        chmod 0400 /generated/config-monitoring-username /generated/config-monitoring-password
+
   prometheus:
     image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: cowork-prometheus
     restart: unless-stopped
+    depends_on:
+      control-plane-monitoring-auth-init:
+        condition: service_completed_successfully
     ports:
       - "9090:9090"
     volumes:
       - ./deploy/config/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - config_monitoring_auth:/run/secrets:ro
       - ./deploy/config/monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - ./deploy/config/monitoring/prometheus/sd:/etc/prometheus/sd:ro
       - prometheus_data:/prometheus
@@ -592,6 +614,7 @@ services:
       vault-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_SERVER_ACCOUNTS_JSON: ${CONFIG_SERVER_ACCOUNTS_JSON:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
@@ -623,6 +646,8 @@ services:
       redis:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GATEWAY_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GATEWAY_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
     ports:
@@ -650,6 +675,8 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_AUTHORIZATION_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_AUTHORIZATION_PASSWORD:?Generate Config Server credentials}
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -679,6 +706,8 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PREFERENCE_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PREFERENCE_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
@@ -712,6 +741,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_USER_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_USER_PASSWORD:?Generate Config Server credentials}
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -741,6 +772,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_TEAM_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_TEAM_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
     ports:
@@ -768,6 +801,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHANNEL_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHANNEL_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
     ports:
@@ -795,6 +830,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PROJECT_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PROJECT_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
     ports:
@@ -824,6 +861,8 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_ROADMAP_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_ROADMAP_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
     ports:
@@ -853,6 +892,8 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_NOTIFICATION_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_NOTIFICATION_PASSWORD:?Generate Config Server credentials}
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -888,6 +929,8 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHAT_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHAT_PASSWORD:?Generate Config Server credentials}
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -919,6 +962,8 @@ services:
       cowork-config:
         condition: service_healthy
     environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_VOICE_USERNAME:?Generate Config Server credentials}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_VOICE_PASSWORD:?Generate Config Server credentials}
       APP_CONFIG_URL: http://cowork-config:8761
       APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
     ports:
@@ -933,6 +978,7 @@ services:
       start_period: 30s
 
 volumes:
+  config_monitoring_auth:
   mysql_data:
   postgres_data:
   mongo_data:
