@@ -4,8 +4,6 @@ import com.cowork.preference.repository.ProjectionCheckpoint
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.ProjectionPartitionRange
 import com.cowork.preference.repository.QuarantinedProjectionRecord
-import com.cowork.preference.repository.TeamMemberProjectionRepository
-import com.cowork.preference.service.TeamRoleService
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.kafka.client.common.TopicPartition
@@ -22,19 +20,24 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 
-class TeamMemberProjectionConsumer(
+fun interface ProjectionRecordHandler {
+    /** 유효한 record를 checkpoint와 같은 transaction에 반영하고, 계약 위반이면 격리 사유를 반환한다. */
+    suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String?
+}
+
+class ProjectionStateConsumer(
     private val vertx: Vertx,
     bootstrapServers: String,
     private val groupId: String,
     private val topic: String,
-    private val teamRoleService: TeamRoleService,
-    private val teamMemberProjectionRepository: TeamMemberProjectionRepository,
+    private val expectedSnapshotSource: String,
+    private val handler: ProjectionRecordHandler,
     private val checkpointRepository: ProjectionCheckpointRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
     private val readiness: ProjectionReadiness,
     private val scope: CoroutineScope,
 ) {
-    private val log = LoggerFactory.getLogger(TeamMemberProjectionConsumer::class.java)
+    private val log = LoggerFactory.getLogger(ProjectionStateConsumer::class.java)
     private val refreshInProgress = AtomicBoolean(false)
     private val assignmentBlocked = AtomicBoolean(true)
     private val applyBlocked = AtomicBoolean(false)
@@ -60,15 +63,15 @@ class TeamMemberProjectionConsumer(
 
     fun start() {
         consumer.exceptionHandler { error ->
-            readiness.markUnavailable("team.member.event consumer failure")
-            log.error("team.member.event consumer failure", error)
+            readiness.markUnavailable("$topic consumer failure")
+            log.error("Kafka projection consumer failed topic={}", topic, error)
         }
         consumer.partitionsRevokedHandler { partitions ->
             assignmentGeneration.incrementAndGet()
             assignmentBlocked.set(true)
             assignedTopicId = null
             readiness.markInitializing("Kafka partition rebalance in progress")
-            log.info("team.member.event partitions revoked partitions={}", partitions)
+            log.info("Kafka projection partitions revoked topic={} partitions={}", topic, partitions)
         }
         consumer.partitionsAssignedHandler(::initializeAssignedPartitions)
         consumer.batchHandler { records ->
@@ -99,10 +102,10 @@ class TeamMemberProjectionConsumer(
     }
 
     private suspend fun subscribeWithRetry() {
-        retry("subscribe team.member.event consumer") {
+        retry("subscribe $topic consumer") {
             consumer.subscribe(topic).coAwait()
         }
-        log.info("team.member.event consumer subscribed topic={} group={}", topic, groupId)
+        log.info("Kafka projection consumer subscribed topic={} group={}", topic, groupId)
     }
 
     private fun initializeAssignedPartitions(partitions: Set<TopicPartition>) {
@@ -119,7 +122,9 @@ class TeamMemberProjectionConsumer(
             refreshReadiness()
             if (generation == assignmentGeneration.get() && !closed && !checkpointRangeBlocked.get()) {
                 runCatching { consumer.resume(partitions).coAwait() }
-                    .onFailure { log.warn("Failed to resume initialized team.member.event partitions", it) }
+                    .onFailure {
+                        log.warn("Failed to resume initialized Kafka projection partitions topic={}", topic, it)
+                    }
             }
         }
     }
@@ -143,7 +148,8 @@ class TeamMemberProjectionConsumer(
             val seekOffset = requireNotNull(result.seekOffsets[partition.partition])
             consumer.seek(partition, seekOffset).coAwait()
             log.info(
-                "team.member.event partition initialized partition={} checkpoint={} topicId={}",
+                "Kafka projection partition initialized topic={} partition={} checkpoint={} topicId={}",
+                topic,
                 partition.partition,
                 seekOffset,
                 topicState.topicId,
@@ -189,9 +195,9 @@ class TeamMemberProjectionConsumer(
                 throw error
             } catch (error: Throwable) {
                 applyBlocked.set(true)
-                readiness.markUnavailable("team.member.event projection apply failed")
+                readiness.markUnavailable("$topic projection apply failed")
                 log.error(
-                    "Failed to apply team.member.event record; retrying topic={} partition={} offset={}",
+                    "Failed to apply Kafka projection record; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
                     record.offset(),
@@ -203,7 +209,7 @@ class TeamMemberProjectionConsumer(
                 delay(RETRY_DELAY_MS)
             }
         }
-        throw CancellationException("team.member.event assignment changed while applying a record")
+        throw CancellationException("$topic assignment changed while applying a record")
     }
 
     private suspend fun processRecord(checkpoint: ProjectionCheckpoint, record: KafkaConsumerRecord<String, String>) {
@@ -213,6 +219,7 @@ class TeamMemberProjectionConsumer(
                 record.value(),
                 record.topic(),
                 record.partition(),
+                expectedSnapshotSource,
             )
             if (violation == null) {
                 checkpointRepository.completeSnapshot(checkpoint, record.offset())
@@ -221,9 +228,8 @@ class TeamMemberProjectionConsumer(
             }
             return
         }
-        when (val decision = TeamMemberEventParser.parse(record.key(), record.value())) {
-            is TeamMemberRecordDecision.Apply -> applyEvent(checkpoint, decision.event)
-            is TeamMemberRecordDecision.Quarantine -> quarantine(checkpoint, record, decision.reason)
+        handler.apply(checkpoint, record.key(), record.value())?.let { reason ->
+            quarantine(checkpoint, record, reason)
         }
     }
 
@@ -243,26 +249,6 @@ class TeamMemberProjectionConsumer(
             record.offset(),
             reason,
         )
-    }
-
-    private suspend fun applyEvent(checkpoint: ProjectionCheckpoint, event: TeamMemberEvent) {
-        checkpointRepository.inTransaction(checkpoint) { connection ->
-            val applied = teamMemberProjectionRepository.apply(connection, event)
-            if (!applied || event.eventType != "DELETE") return@inTransaction
-            when (TeamMemberCleanupPolicy.scope(event)) {
-                TeamMemberCleanupScope.TEAM -> {
-                    teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
-                }
-                TeamMemberCleanupScope.MEMBER -> {
-                    teamRoleService.removeMemberRolesAtOrBefore(
-                        connection,
-                        event.userId,
-                        event.teamId,
-                        event.occurredAt,
-                    )
-                }
-            }
-        }
     }
 
     private fun refreshReadinessAsync() {
@@ -287,13 +273,13 @@ class TeamMemberProjectionConsumer(
                 if (assignments.isNotEmpty()) consumer.pause(assignments).coAwait()
             }
             if (assignmentBlocked.get() || applyBlocked.get() || checkpointRangeBlocked.get()) {
-                readiness.markUnavailable("team.member.event consumer is not ready to apply records")
+                readiness.markUnavailable("$topic consumer is not ready to apply records")
             } else {
                 readiness.evaluate(barriers, checkpoints, topicState)
             }
         }.onFailure { error ->
             readiness.markUnavailable("projection readiness verification failed")
-            log.warn("Unable to verify team.member.event projection readiness", error)
+            log.warn("Unable to verify Kafka projection readiness topic={}", topic, error)
         }
     }
 
@@ -328,7 +314,7 @@ class TeamMemberProjectionConsumer(
                 delay(RETRY_DELAY_MS)
             }
         }
-        throw CancellationException("team.member.event consumer stopped while attempting to $operation")
+        throw CancellationException("$topic consumer stopped while attempting to $operation")
     }
 
     private companion object {
