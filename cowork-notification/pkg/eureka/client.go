@@ -1,25 +1,33 @@
 package eureka
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	eurekaclient "github.com/ArthurHlt/go-eureka-client/eureka"
 
 	"github.com/cowork/cowork-notification/internal/config"
+	"github.com/cowork/cowork-notification/internal/controlplane"
 )
 
 type Client struct {
-	inner  *eurekaclient.Client
-	stopCh chan struct{}
+	client    *http.Client
+	serverURL string
+	stopCh    chan struct{}
 }
 
 func New(cfg *config.AppConfig) *Client {
 	return &Client{
-		inner:  eurekaclient.NewClient([]string{cfg.EurekaServerURL}),
-		stopCh: make(chan struct{}),
+		client:    controlplane.NewClient(),
+		serverURL: strings.TrimRight(cfg.EurekaServerURL, "/"),
+		stopCh:    make(chan struct{}),
 	}
 }
 
@@ -46,7 +54,7 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 			"prometheus.path":   "/metrics",
 		},
 	}
-	return c.inner.RegisterInstance(cfg.EurekaAppName, instance)
+	return c.request(http.MethodPost, "/apps/"+cfg.EurekaAppName, instance)
 }
 
 func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
@@ -58,7 +66,7 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 			case <-c.stopCh:
 				return
 			case <-ticker.C:
-				if err := c.inner.SendHeartbeat(cfg.EurekaAppName, cfg.EurekaInstanceID); err != nil {
+				if err := c.request(http.MethodPut, instancePath(cfg), nil); err != nil {
 					slog.Warn("eureka heartbeat failed", "err", err)
 					if registerErr := c.Register(cfg); registerErr != nil {
 						slog.Warn("eureka re-registration failed", "err", registerErr)
@@ -71,5 +79,36 @@ func (c *Client) StartHeartbeat(cfg *config.AppConfig) {
 
 func (c *Client) Deregister(cfg *config.AppConfig) error {
 	close(c.stopCh)
-	return c.inner.UnregisterInstance(cfg.EurekaAppName, cfg.EurekaInstanceID)
+	return c.request(http.MethodDelete, instancePath(cfg), nil)
+}
+
+// Keep Eureka's JSON model, but use a transport that verifies TLS and sends header credentials.
+func (c *Client) request(method, path string, instance any) error {
+	var body []byte
+	if instance != nil {
+		var err error
+		body, err = json.Marshal(map[string]any{"instance": instance})
+		if err != nil {
+			return fmt.Errorf("encode Eureka registration")
+		}
+	}
+	req, err := http.NewRequest(method, c.serverURL+path, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("invalid Eureka URL")
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("eureka transport failed: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("eureka returned HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func instancePath(cfg *config.AppConfig) string {
+	return "/apps/" + cfg.EurekaAppName + "/" + url.PathEscape(cfg.EurekaInstanceID)
 }
