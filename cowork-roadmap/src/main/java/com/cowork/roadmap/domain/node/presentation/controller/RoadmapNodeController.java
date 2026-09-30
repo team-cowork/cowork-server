@@ -91,7 +91,7 @@ public class RoadmapNodeController {
         return modifyRoadmapNodeService.execute(userId, userRole, nodeId, request);
     }
 
-    @Operation(summary = "노드 삭제 (하위 노드 포함)", description = "삭제할 노드나 하위 노드에 과제가 연결되어 있으면 409를 반환합니다.")
+    @Operation(summary = "노드 삭제 (하위 노드 포함)")
     @DeleteMapping("/nodes/{nodeId}")
     public Mono<ResponseEntity<Void>> deleteNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
