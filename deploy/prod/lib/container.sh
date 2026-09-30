@@ -23,6 +23,7 @@ deploy_container_safely() (
   if [ "${1:-}" = -- ]; then shift; fi
   local candidate="${container}-candidate" previous="${container}-previous"
   local old_exists=false swapping=false complete=false candidate_id old_id
+  local previous_health_base
   local health_host="$BIND_IP"
   [ "$health_host" != 0.0.0.0 ] || health_host=127.0.0.1
 
@@ -35,6 +36,8 @@ deploy_container_safely() (
   done
   if old_id=$(docker container inspect -f '{{.Id}}' "$container" 2>/dev/null); then
     old_exists=true
+    previous_health_base=$(docker container inspect -f '{{index .Config.Labels "cowork.health-base-url"}}' "$container")
+    [ -n "$previous_health_base" ] || previous_health_base="http://${health_host}:${host_port}"
   fi
 
   # Invoked by EXIT/INT/TERM traps below.
@@ -50,7 +53,7 @@ deploy_container_safely() (
         if docker container inspect "$previous" >/dev/null 2>&1; then
           docker rename "$previous" "$container" || true
         fi
-        if docker start "$old_id" >/dev/null && wait_for_health "http://${health_host}:${host_port}${health_path}"; then
+        if docker start "$old_id" >/dev/null && wait_for_health "${previous_health_base}${health_path}"; then
           echo "[deploy] Previous container restored" >&2
         else
           echo "[deploy] Previous container retained but restoration needs operator attention" >&2
@@ -66,6 +69,7 @@ deploy_container_safely() (
   # Creating a container does not start a second app, run migrations or register
   # a candidate in Eureka under the old instance's address.
   candidate_id=$(docker create --name "$candidate" --restart unless-stopped \
+    --label "cowork.health-base-url=${HEALTH_BASE_URL:-http://${health_host}:${host_port}}" \
     -p "${BIND_IP}:${host_port}:${container_port}" "$@" "$image")
   swapping=true
   if [ "$old_exists" = true ]; then
@@ -74,7 +78,7 @@ deploy_container_safely() (
   fi
   docker rename "$candidate_id" "$container"
   docker start "$candidate_id" >/dev/null
-  if ! wait_for_health "http://${health_host}:${host_port}${health_path}"; then
+  if ! wait_for_health "${HEALTH_BASE_URL:-http://${health_host}:${host_port}}${health_path}"; then
     echo "[deploy] ${container} failed readiness; restoring previous container" >&2
     exit 1
   fi
