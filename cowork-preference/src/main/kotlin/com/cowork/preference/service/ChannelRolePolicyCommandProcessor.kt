@@ -8,7 +8,8 @@ import com.cowork.preference.messaging.ChannelRolePolicyCommandQuarantineRecord
 import com.cowork.preference.messaging.ChannelRolePolicyCommandType
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
-import com.cowork.preference.messaging.ProjectionReadiness
+import com.cowork.preference.messaging.ProjectionReadinessView
+import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
@@ -26,9 +27,10 @@ class ChannelRolePolicyCommandProcessor(
     private val policyRepository: ChannelRolePolicyRepository,
     private val roleRepository: TeamRoleRepository,
     private val memberRepository: TeamMemberProjectionRepository,
+    private val channelRepository: ChannelLifecycleProjectionRepository,
     private val inboxRepository: ChannelRolePolicyCommandInboxRepository,
     private val outboxRepository: PreferenceOutboxRepository,
-    private val readiness: ProjectionReadiness,
+    private val readiness: ProjectionReadinessView,
 ) {
     suspend fun process(rawCommand: ChannelRolePolicyCommand) {
         val command = rawCommand.canonicalized()
@@ -61,7 +63,9 @@ class ChannelRolePolicyCommandProcessor(
                 return@inTransaction
             }
             if (!readiness.isReady) {
-                throw ChannelRolePolicyProjectionNotReadyException("team.member.event projection is not ready")
+                throw ChannelRolePolicyProjectionNotReadyException(
+                    "team.member.event or channel.event.v2 projection is not ready",
+                )
             }
 
             val outcome = try {
@@ -102,8 +106,9 @@ class ChannelRolePolicyCommandProcessor(
     }
 
     private suspend fun applyCommand(connection: SqlConnection, command: ChannelRolePolicyCommand): CommandOutcome {
-        // 채널 존재/관리 권한은 command producer인 cowork-channel이 검증한다. 이 서비스는 자신이 소유한
-        // 팀 멤버 projection과 사용자 정의 role/team 관계를 다시 검증한다.
+        // 채널 관리 권한은 command producer인 cowork-channel이 검증한다. 이 서비스는 채널 수명주기와
+        // 팀 멤버 projection, 사용자 정의 role/team 관계를 다시 검증한다.
+        requireActiveChannel(connection, command)
         if (roleRepository.isTeamDeleted(connection, command.teamId)) {
             reject("TEAM_DELETED", "삭제된 팀의 채널 역할 정책은 변경할 수 없습니다.")
         }
@@ -127,6 +132,21 @@ class ChannelRolePolicyCommandProcessor(
             )
         }
         return success(command, state)
+    }
+
+    /**
+     * 채널 삭제 consumer가 갱신하는 projection row를 잠가 정책 변경과 삭제 정리의 순서를 직렬화한다.
+     * 삭제가 먼저 반영됐으면 command를 종료하고, 정책이 먼저 반영됐으면 뒤따른 삭제가 그 정책을 정리한다.
+     */
+    private suspend fun requireActiveChannel(connection: SqlConnection, command: ChannelRolePolicyCommand) {
+        val channel = channelRepository.findForShare(connection, command.channelId)
+            ?: throw ChannelRolePolicyProjectionNotReadyException(
+                "channel projection is missing for ${command.channelId}",
+            )
+        if (channel.deleted) reject("CHANNEL_DELETED", "삭제된 채널의 역할 정책은 변경할 수 없습니다.")
+        if (channel.teamId != command.teamId) {
+            reject("CHANNEL_TEAM_MISMATCH", "요청한 팀에 속한 채널을 찾을 수 없습니다.")
+        }
     }
 
     private suspend fun requireActiveActor(connection: SqlConnection, command: ChannelRolePolicyCommand) {
