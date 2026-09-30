@@ -4,6 +4,12 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: `tb_device_token`이 `(account_id, token)`만 유일하게 보장해 같은 FCM token을 여러 계정이 동시에 소유할 수 있음
 
+> **2026-09-28 진척:** `V8__enforce_device_token_single_owner.sql`에 최신 `updated_at`·`id` 기준 중복 정리와
+> `token` 단독 unique 제약을 추가했다. 등록은 token 행을 잠근 transaction에서 처리하며, 같은 계정의 재등록은
+> 기존 ID를 유지하고 다른 계정으로 이전할 때는 새 `device_token_id`를 발급해 이전 계정의 대기 중인 FCM 재시도가
+> 취소되게 했다. platform 검증과 등록·이전·해제 서비스 단위 테스트, 변경 패키지 컴파일, `go vet`을 통과했다.
+> 실제 MySQL 데이터 사본의 migration dry-run은 아직 수행하지 않았으므로 운영 검증 전까지 완료 처리하지 않는다.
+
 ## 문제
 
 `cowork-notification`의 `tb_device_token`은 `uq_tb_device_token_account_token` 제약으로 계정과 token 조합만 중복을 막는다. `TokenRepository.Save`도 같은 두 컬럼을 conflict key로 사용하므로, 동일한 앱 설치 token을 다른 계정이 등록하면 새 행이 추가되고 이전 계정의 행은 유지된다.
