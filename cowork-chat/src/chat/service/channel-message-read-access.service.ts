@@ -167,14 +167,17 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         return new Set([...result].filter(([, allowed]) => allowed).map(([userId]) => userId));
     }
 
-    /** 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다. */
+    /**
+     * 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다.
+     * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인하고, 건너뛴 회수는 로컬 room 재검증이 정리한다.
+     */
     async evictUnauthorizedSockets(
         io: Server,
         channelIds: number[],
         userIds?: number[],
     ): Promise<void> {
         const uniqueChannelIds = [...new Set(channelIds)];
-        if (uniqueChannelIds.length === 0) return;
+        if (uniqueChannelIds.length === 0 || !this.projectionReadiness.isReady()) return;
         const rooms = uniqueChannelIds.map((channelId) => `chat:${channelId}`);
         const sockets = await io.in(rooms).fetchSockets();
         const affectedUsers = userIds ? new Set(userIds) : undefined;
@@ -188,6 +191,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         const access = await this.evaluateMany(
             socketsWithChannels.map(({ channelId, userId }) => ({ channelId, userId })),
         );
+        if (!this.projectionReadiness.isReady()) return;
         for (const { socket, channelId, userId } of socketsWithChannels) {
             if (access.get(accessKey(channelId, userId)) === true) continue;
             socket.leave(`chat:${channelId}`);
