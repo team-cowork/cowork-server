@@ -5,11 +5,15 @@ import java.time.Instant
 import java.util.UUID
 
 object ProjectionSnapshotCompletion {
-    private const val EXPECTED_SOURCE = "cowork-team"
-
     fun isReserved(key: String?): Boolean = key?.startsWith(PreferenceEvents.SNAPSHOT_COMPLETED_KEY_PREFIX) == true
 
-    fun violation(key: String?, payloadValue: String?, topic: String, partition: Int): String? {
+    fun violation(
+        key: String?,
+        payloadValue: String?,
+        topic: String,
+        partition: Int,
+        expectedSource: String,
+    ): String? {
         if (key != "${PreferenceEvents.SNAPSHOT_COMPLETED_KEY_PREFIX}$partition") {
             return "projection snapshot marker key does not match its partition"
         }
@@ -28,8 +32,8 @@ object ProjectionSnapshotCompletion {
         if (runCatching { Instant.parse(payload.getString("occurredAt")) }.isFailure) {
             return "projection snapshot marker occurredAt is invalid"
         }
-        if (payload.getString("source") != EXPECTED_SOURCE) {
-            return "projection snapshot marker source does not match the expected producer: $EXPECTED_SOURCE"
+        if (payload.getString("source") != expectedSource) {
+            return "projection snapshot marker source does not match the expected producer: $expectedSource"
         }
         return null
     }
