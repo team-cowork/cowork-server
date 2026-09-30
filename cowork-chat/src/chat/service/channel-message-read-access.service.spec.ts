@@ -172,6 +172,23 @@ describe('ChannelMessageReadAccessService', () => {
         expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
         expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
     });
+
+    it.each([
+        ['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.isReady.mockReturnValue(false)],
+        ['판정 도중 readiness가 닫히면', () => channelRepository.findByIds.mockImplementationOnce(() => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
+        })],
+    ])('%s 거부 판정으로 socket을 제거하지 않는다', async (_label, closeReadiness) => {
+        closeReadiness();
+        const socket = { data: { userId: 3 }, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn() };
+        const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([socket]) }) };
+
+        await service.evictUnauthorizedSockets(io as never, [10]);
+
+        expect(socket.leave).not.toHaveBeenCalled();
+        expect(socket.emit).not.toHaveBeenCalled();
+    });
     });
 
     describe('evictUnauthorizedRooms', () => {
