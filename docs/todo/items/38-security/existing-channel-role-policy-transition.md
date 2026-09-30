@@ -2,8 +2,14 @@
 
 - **서비스**: cowork-preference, cowork-team, cowork-channel, cowork-chat, 배포 운영
 - **우선순위**: 🔴 높음
-- **현재 상태**: `cowork-channel`과 `cowork-chat`의 읽기 경로는 정책 평가기를 호출하지만 기존 팀의 역할·채널 정책을 구성하는 전환 도구와 운영 절차는 정의되어 있지 않다
+- **현재 상태**: 전환 도구 `scripts/channel_role_policy_transition.py`와 운영 절차 `docs/channel-role-policy-transition.md`가 마련되어 있으며 실제 운영 환경 전환은 아직 수행하지 않았다
 - **파생 원본**: [역할 기반 채널·메시지 읽기 권한 적용](../36-security/role-based-channel-message-read-authorization.md)
+
+> **2026-09-30 진척:** 읽기 인가에 설정 토글이 없으므로 전환 시점은 maintenance window로 통제한다.
+> 도구는 소유 DB별 읽기 전용 export와 versioned manifest로 `plan`(dry-run), `apply`, `verify`,
+> `rollback-manifest`를 수행하고, 팀별 `OWNER`를 actor로 기존 `cowork-channel` 정책 API를 호출한다.
+> 평가 규칙, 사전 점검, operation 계산은 `scripts/test_channel_role_policy_transition.py`로 검증했다.
+> 실제 운영 데이터의 적용, projection 수렴, 표본 읽기 확인은 아직 검증하지 않았다.
 
 ## 문제
 
