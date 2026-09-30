@@ -4,17 +4,24 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.springframework.http.HttpStatus;
 
+import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
@@ -29,10 +36,12 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+import team.themoment.sdk.exception.ExpectedException;
 
 class DeleteRoadmapNodeServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
+    private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
     private final RoadmapNodeReferenceRepository referenceRepository = mock(RoadmapNodeReferenceRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
@@ -42,12 +51,59 @@ class DeleteRoadmapNodeServiceTest {
             referenceRepository);
     private final DeleteRoadmapNodeServiceImpl deleteRoadmapNodeService = new DeleteRoadmapNodeServiceImpl(
             nodeRepository,
+            assignmentRepository,
             accessGuard,
             roadmapLookupSupport,
             nodeLookupSupport);
 
     @Test
-    void deleteNode_removesTargetAndAllDescendants() {
+    void deleteNode_withoutAssignments_removesTargetAndAllDescendants() {
+        prepareTree();
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(0L));
+        when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<Long>> captor = ArgumentCaptor.forClass(Iterable.class);
+        verify(nodeRepository).deleteAllById(captor.capture());
+        assertThat(toSet(captor.getValue())).containsExactlyInAnyOrder(1L, 2L, 3L);
+    }
+
+    @Test
+    void deleteNode_locksAndCountsAssignmentsOnlyWithinSubtree() {
+        prepareTree();
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(0L));
+        when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
+
+        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<Long>> lockCaptor = ArgumentCaptor.forClass(Collection.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<Long>> countCaptor = ArgumentCaptor.forClass(Collection.class);
+        InOrder inOrder = inOrder(nodeRepository, assignmentRepository);
+        inOrder.verify(nodeRepository).lockAllByIdIn(lockCaptor.capture());
+        inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdInForShare(eq(10L), countCaptor.capture());
+        inOrder.verify(nodeRepository).deleteAllById(any());
+        assertThat(lockCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L);
+        assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L);
+    }
+
+    @Test
+    void deleteNode_withAssignmentInSubtree_failsWithConflictAndKeepsNodes() {
+        prepareTree();
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(2L));
+
+        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L))
+                .expectErrorMatches(error -> error instanceof ExpectedException expected
+                        && expected.getStatusCode() == HttpStatus.CONFLICT && expected.getMessage().contains("2건"))
+                .verify();
+
+        verify(nodeRepository, never()).deleteAllById(any());
+    }
+
+    private void prepareTree() {
         RoadmapNode root = node(1L, 10L, null);
         RoadmapNode child = node(2L, 10L, 1L);
         RoadmapNode grandChild = node(3L, 10L, 2L);
@@ -58,16 +114,13 @@ class DeleteRoadmapNodeServiceTest {
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
         when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L))
                 .thenReturn(Flux.fromIterable(List.of(root, child, grandChild, otherRoot)));
-        when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
+        when(nodeRepository.lockAllByIdIn(any())).thenReturn(Flux.just(1L, 2L, 3L));
+    }
 
-        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
-
-        @SuppressWarnings("unchecked")
-        ArgumentCaptor<Iterable<Long>> captor = ArgumentCaptor.forClass(Iterable.class);
-        verify(nodeRepository).deleteAllById(captor.capture());
-        Set<Long> deleted = new HashSet<>();
-        captor.getValue().forEach(deleted::add);
-        assertThat(deleted).containsExactlyInAnyOrder(1L, 2L, 3L);
+    private static Set<Long> toSet(Iterable<Long> ids) {
+        Set<Long> result = new HashSet<>();
+        ids.forEach(result::add);
+        return result;
     }
 
     private static Roadmap roadmap(Long id) {
