@@ -24,14 +24,7 @@ LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret}
 
 vault secrets enable -version=2 -path=secret kv >/dev/null 2>&1 || true
 
-vault kv put secret/application \
-  JWT_SECRET="${JWT_SECRET}" \
-  MYSQL_USER="${MYSQL_USER}" \
-  MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
-  POSTGRES_USER="${POSTGRES_USER}" \
-  POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
-  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
-  S3_SECRET_KEY="${S3_SECRET_KEY}" >/dev/null
+# Config Server does not inherit secret/application. Only recipients receive each secret.
 
 vault kv put secret/cowork-gateway \
   jwt.secret="${JWT_SECRET}" >/dev/null
@@ -51,13 +44,21 @@ vault kv put secret/cowork-preference \
 
 vault kv put secret/cowork-user \
   DB_USERNAME="${MYSQL_USER}" \
-  DB_PASSWORD="${MYSQL_PASSWORD}" >/dev/null
+  DB_PASSWORD="${MYSQL_PASSWORD}" \
+  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
+  S3_SECRET_KEY="${S3_SECRET_KEY}" >/dev/null
 
 vault kv put secret/cowork-team \
+  MYSQL_USER="${MYSQL_USER}" \
+  MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
+  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
+  S3_SECRET_KEY="${S3_SECRET_KEY}" \
   TEAM_GITHUB_STATE_SECRET="${TEAM_GITHUB_STATE_SECRET}" \
   GITHUB_APP_SLUG="${GITHUB_APP_SLUG}" >/dev/null
 
 vault kv put secret/cowork-project \
+  MYSQL_USER="${MYSQL_USER}" \
+  MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
   github-app.internal-api-key="${GITHUB_APP_INTERNAL_API_KEY:-}" >/dev/null
 
 vault kv put secret/cowork-voice \
@@ -66,10 +67,15 @@ vault kv put secret/cowork-voice \
   LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET}" >/dev/null
 
 vault kv put secret/cowork-chat \
+  JWT_SECRET="${JWT_SECRET}" \
+  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
+  S3_SECRET_KEY="${S3_SECRET_KEY}" \
   MONGODB_URI="mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin" \
   DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" >/dev/null
 
 vault kv put secret/cowork-channel \
+  MYSQL_USER="${MYSQL_USER}" \
+  MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
   ACCOUNT_CREDENTIAL_ENCRYPTION_KEY="${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}" \
   ACCOUNT_SHARE_OAUTH_STATE_SECRET="${ACCOUNT_SHARE_OAUTH_STATE_SECRET}" \
   GITHUB_ACCOUNT_SHARE_CLIENT_ID="${GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}" \
@@ -82,5 +88,9 @@ vault kv put secret/cowork-channel \
   GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET="${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:-}" \
   FACEBOOK_ACCOUNT_SHARE_CLIENT_ID="${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}" \
   FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET="${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}" >/dev/null
+
+vault kv put secret/cowork-roadmap \
+  MYSQL_USER="${MYSQL_USER}" \
+  MYSQL_PASSWORD="${MYSQL_PASSWORD}" >/dev/null
 
 echo "Vault secrets initialized."
