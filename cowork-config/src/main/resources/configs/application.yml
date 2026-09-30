@@ -3,8 +3,6 @@ spring:
   reactor:
     context-propagation: auto
   cloud:
-    config:
-      uri: http://localhost:8761
     bus:
       enabled: true
 
