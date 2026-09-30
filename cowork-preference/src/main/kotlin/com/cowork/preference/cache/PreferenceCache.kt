@@ -131,10 +131,14 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         }
     }
 
-    suspend fun acquireExpiryLock(): Boolean {
-        val result = redisApi.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
-        return result?.toString() == "OK"
-    }
+    /**
+     * Redis를 쓸 수 없으면 lock 없이 진행한다. 만료 대상 행은 DB `FOR UPDATE`로 잠기고 처리 시 만료 시각이 지워지므로,
+     * 여러 실행이 겹쳐도 같은 계정을 두 번 처리하지 않는다.
+     */
+    suspend fun acquireExpiryLock(): Boolean = attempt(CacheOperation.LOCK, EXPIRY_LOCK_KEY) {
+        redisApi.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
+            ?.toString() == "OK"
+    }.getOrDefault(true)
 
     private suspend fun writeSetting(key: String, settings: JsonObject) {
         redisApi.setex(key, TTL_SECONDS.toString(), settings.encode()).coAwait()
@@ -215,6 +219,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         SET_BULK("set_bulk"),
         INVALIDATE("invalidate"),
         REPAIR("repair"),
+        LOCK("lock"),
     }
 
     private enum class RepairOutcome(val tag: String) {
