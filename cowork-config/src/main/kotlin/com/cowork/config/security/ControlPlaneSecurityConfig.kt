@@ -10,7 +10,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.password.PasswordEncoder
-import org.springframework.security.crypto.password.Pbkdf2PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.access.intercept.AuthorizationFilter
 import org.springframework.security.web.authentication.www.BasicAuthenticationEntryPoint
@@ -28,7 +27,7 @@ class ControlPlaneSecurityConfig {
     fun userDetailsService(accounts: ControlPlaneAccounts) = accounts.userDetailsService()
 
     @Bean
-    fun passwordEncoder(): PasswordEncoder = Pbkdf2PasswordEncoder.defaultsForSpringSecurity_v5_8()
+    fun passwordEncoder(): PasswordEncoder = ControlPlanePasswordEncoder()
 
     @Bean
     fun controlPlaneSecurity(http: HttpSecurity, accounts: ControlPlaneAccounts): SecurityFilterChain {
