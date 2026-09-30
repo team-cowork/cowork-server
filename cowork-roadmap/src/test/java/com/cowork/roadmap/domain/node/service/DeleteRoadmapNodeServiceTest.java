@@ -71,23 +71,30 @@ class DeleteRoadmapNodeServiceTest {
     }
 
     @Test
-    void deleteNode_locksAndCountsAssignmentsOnlyWithinSubtree() {
+    void deleteNode_computesSubtreeFromLockedReadAndCountsAssignmentsOnlyWithinSubtree() {
         prepareTree();
+        RoadmapNode concurrentGrandChild = node(5L, 10L, 3L);
+        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(Flux.fromIterable(List.of(node(1L, 10L, null),
+                node(2L, 10L, 1L),
+                node(3L, 10L, 2L),
+                node(4L, 10L, null),
+                concurrentGrandChild)));
         when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(0L));
         when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
 
         StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
 
         @SuppressWarnings("unchecked")
-        ArgumentCaptor<Collection<Long>> lockCaptor = ArgumentCaptor.forClass(Collection.class);
-        @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<Long>> countCaptor = ArgumentCaptor.forClass(Collection.class);
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Iterable<Long>> deleteCaptor = ArgumentCaptor.forClass(Iterable.class);
         InOrder inOrder = inOrder(nodeRepository, assignmentRepository);
-        inOrder.verify(nodeRepository).lockAllByIdIn(lockCaptor.capture());
+        inOrder.verify(nodeRepository).findAllByRoadmapIdForUpdate(10L);
         inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdInForShare(eq(10L), countCaptor.capture());
-        inOrder.verify(nodeRepository).deleteAllById(any());
-        assertThat(lockCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L);
-        assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L);
+        inOrder.verify(nodeRepository).deleteAllById(deleteCaptor.capture());
+        assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
+        assertThat(toSet(deleteCaptor.getValue())).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
+        verify(nodeRepository, never()).findByRoadmapIdOrderByPositionAsc(anyLong());
     }
 
     @Test
@@ -112,9 +119,8 @@ class DeleteRoadmapNodeServiceTest {
         when(nodeRepository.findById(1L)).thenReturn(Mono.just(root));
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L))
+        when(nodeRepository.findAllByRoadmapIdForUpdate(10L))
                 .thenReturn(Flux.fromIterable(List.of(root, child, grandChild, otherRoot)));
-        when(nodeRepository.lockAllByIdIn(any())).thenReturn(Flux.just(1L, 2L, 3L));
     }
 
     private static Set<Long> toSet(Iterable<Long> ids) {
