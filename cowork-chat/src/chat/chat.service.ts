@@ -41,6 +41,7 @@ import {
     UserClient,
     UnreadCounterService,
     ChannelMessageReadAccessService,
+    RoomSocket,
     resolveMessageScope,
 } from './service';
 import { ChatGateway } from './chat.gateway';
@@ -119,6 +120,10 @@ export class ChatService {
 
     async isTeamMember(teamId: number, userId: number): Promise<boolean> {
         return this.teamMemberRepository.exists(teamId, userId);
+    }
+
+    async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
+        return this.channelMessageReadAccess.evictUnauthorizedRooms(sockets);
     }
 
     /**

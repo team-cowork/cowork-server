@@ -32,6 +32,7 @@ const mockChatService = {
     isMember: jest.fn(),
     isTeamMember: jest.fn(),
     emitToReadableChannelUsers: jest.fn(),
+    evictUnauthorizedRooms: jest.fn(),
 };
 
 const mockConsumer = {
@@ -85,6 +86,7 @@ describe('ChatGateway', () => {
         mockProjectionReadiness.isReady.mockReturnValue(true);
         mockChatService.isMember.mockResolvedValue(true);
         mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
+        mockChatService.evictUnauthorizedRooms.mockResolvedValue(0);
 
         gateway = new ChatGateway(
             mockChatService as never,
@@ -194,6 +196,17 @@ describe('ChatGateway', () => {
                 .toBeLessThan(mockChatService.isTeamMember.mock.invocationCallOrder[0]);
             expect(client.leave).toHaveBeenCalledWith('team:5');
             expect(client.emit).toHaveBeenCalledWith('error', { message: '팀 접근 권한이 없습니다' });
+        });
+    });
+
+    describe('connection state recovery', () => {
+        it('복원된 연결이면 복원된 room을 현재 권한으로 다시 검증한다', async () => {
+            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+
+            await gateway.handleConnection(client as unknown as ChatSocket);
+
+            expect(mockChatService.evictUnauthorizedRooms).toHaveBeenCalledWith([client]);
+            expect(client.disconnect).not.toHaveBeenCalled();
         });
     });
 
