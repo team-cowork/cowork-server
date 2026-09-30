@@ -15,7 +15,6 @@ import com.cowork.preference.messaging.PreferenceOutboxDispatcher
 import com.cowork.preference.messaging.PreferenceProducer
 import com.cowork.preference.messaging.PreferenceSnapshotPublisher
 import com.cowork.preference.messaging.ProjectionReadiness
-import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.messaging.ProjectionStateConsumer
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionHandler
@@ -120,8 +119,11 @@ class MainVerticle : AbstractVerticle() {
         val outboxRepository = PreferenceOutboxRepository(pool)
         val projectionReadiness = ProjectionReadiness()
         val channelProjectionReadiness = ProjectionReadiness()
-        // 채널 역할 정책은 팀 삭제와 채널 삭제가 모두 정리하므로 두 projection이 준비되어야 command와 트래픽을 연다.
-        val serviceReadiness = CombinedProjectionReadiness(listOf(projectionReadiness, channelProjectionReadiness))
+        // 채널 역할 정책은 팀 삭제와 채널 삭제가 모두 정리하므로 정책 command와 snapshot만 두 projection을 기다린다.
+        // HTTP API는 채널 projection을 읽지 않으므로 cowork-channel 장애가 트래픽 차단으로 번지지 않게 분리한다.
+        val channelRolePolicyReadiness = CombinedProjectionReadiness(
+            listOf(projectionReadiness, channelProjectionReadiness),
+        )
         projectionTopicIdentity = ProjectionTopicIdentityProvider(appConfig.kafka.bootstrapServers)
 
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
@@ -154,7 +156,7 @@ class MainVerticle : AbstractVerticle() {
             channelRepository = channelLifecycleProjectionRepo,
             inboxRepository = channelRolePolicyCommandInboxRepository,
             outboxRepository = outboxRepository,
-            readiness = serviceReadiness,
+            readiness = channelRolePolicyReadiness,
         )
 
         val prefHandler = PreferenceHandler(prefService, scope)
@@ -166,7 +168,7 @@ class MainVerticle : AbstractVerticle() {
             prefHandler,
             notifHandler,
             roleHandler,
-            serviceReadiness,
+            projectionReadiness,
         )
 
         scheduleStatusExpiryCheck(prefRepo, outboxRepository, preferenceCache)
@@ -178,7 +180,7 @@ class MainVerticle : AbstractVerticle() {
             outboxRepository = outboxRepository,
             topicIdentity = projectionTopicIdentity,
             teamStateReadiness = projectionReadiness,
-            channelRolePolicyReadiness = serviceReadiness,
+            channelRolePolicyReadiness = channelRolePolicyReadiness,
         )
         scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
@@ -255,12 +257,12 @@ class MainVerticle : AbstractVerticle() {
                 if (result.succeeded()) {
                     log.info("cowork-preference listening on port {}", appConfig.serverPort)
                     eurekaRegistration = EurekaRegistration(appConfig)
-                    syncEurekaRegistration(serviceReadiness)
+                    syncEurekaRegistration(projectionReadiness)
                     eurekaReadinessTimerId = vertx.setPeriodic(EUREKA_READINESS_INTERVAL_MS) {
-                        syncEurekaRegistration(serviceReadiness)
+                        syncEurekaRegistration(projectionReadiness)
                     }
                     eurekaHeartbeatTimerId = vertx.setPeriodic(HEARTBEAT_INTERVAL_MS) {
-                        registerHeartbeat(serviceReadiness)
+                        registerHeartbeat(projectionReadiness)
                     }
                     startPromise.complete()
                 } else {
@@ -269,7 +271,7 @@ class MainVerticle : AbstractVerticle() {
             }
     }
 
-    private fun syncEurekaRegistration(readiness: ProjectionReadinessView) {
+    private fun syncEurekaRegistration(readiness: ProjectionReadiness) {
         if (readiness.isReady && !eurekaRegistered) {
             runCatching { eurekaRegistration.register() }
                 .onSuccess { eurekaRegistered = true }
@@ -283,7 +285,7 @@ class MainVerticle : AbstractVerticle() {
         }
     }
 
-    private fun registerHeartbeat(readiness: ProjectionReadinessView) {
+    private fun registerHeartbeat(readiness: ProjectionReadiness) {
         if (!readiness.isReady || !eurekaRegistered) return
         runCatching { eurekaRegistration.heartbeat() }
             .onFailure { log.warn("eureka heartbeat failed", it) }
