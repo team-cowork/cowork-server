@@ -174,6 +174,39 @@ describe('ChannelMessageReadAccessService', () => {
     });
     });
 
+    describe('evictUnauthorizedRooms', () => {
+    const makeSocket = (userId: number, rooms: string[]) => ({
+        data: { userId },
+        rooms: new Set(rooms),
+        leave: jest.fn(),
+        emit: jest.fn(),
+    });
+
+    it('현재 권한이 없는 채널·팀 room에서만 socket을 제거한다', async () => {
+        const allowed = makeSocket(2, ['socket-a', 'user:2', 'chat:10', 'team:1']);
+        const denied = makeSocket(3, ['socket-b', 'user:3', 'chat:10', 'team:2']);
+
+        await expect(service.evictUnauthorizedRooms([allowed, denied])).resolves.toBe(2);
+
+        expect(allowed.leave).not.toHaveBeenCalled();
+        expect(denied.leave.mock.calls).toEqual([['chat:10'], ['team:2']]);
+        expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
+        expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', { teamId: 2 });
+    });
+
+    it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
+        channelRepository.findByIds.mockImplementationOnce(() => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
+        });
+        const denied = makeSocket(3, ['chat:10']);
+
+        await expect(service.evictUnauthorizedRooms([denied])).resolves.toBe(0);
+
+        expect(denied.leave).not.toHaveBeenCalled();
+    });
+    });
+
     describe('emitToReadableChannelUsers', () => {
     it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
         const sender = { id: 'sender', data: { userId: 2 } };
