@@ -2,12 +2,12 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
-import { SendMessageDto } from '../dto/send-message.dto';
+import { SendMessageDto } from '../dto';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
-import { MessageScope } from '../service/message-scope';
+import { MessageScope } from '../service';
 
 export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'attachments' | 'parentMessageId' | 'clientMessageId'>
     & MessageScope;

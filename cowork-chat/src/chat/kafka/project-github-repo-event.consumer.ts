@@ -8,7 +8,7 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { parseEventTime } from '../../common/util/event-time.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectGithubRepoProjectionRepository } from '../repository/project-github-repo-projection.repository';
+import { ProjectGithubRepoProjectionRepository } from '../repository';
 
 interface ProjectGithubRepoEvent {
     schemaVersion: 1;

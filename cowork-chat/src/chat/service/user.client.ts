@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { UserProfileProjectionRepository } from '../repository/user-profile-projection.repository';
+import { UserProfileProjectionRepository } from '../repository';
 
 /** Kafka로 동기화된 로컬 사용자 프로필 projection 조회기. */
 @Injectable()
