@@ -19,6 +19,8 @@ data class KafkaConfig(
     val bootstrapServers: String,
     val teamMemberConsumerGroupId: String,
     val teamMemberTopic: String,
+    val channelLifecycleConsumerGroupId: String,
+    val channelTopic: String,
     val teamRoleCommandConsumerGroupId: String,
     val githubRepoSettingCommandConsumerGroupId: String,
     val channelRolePolicyCommandConsumerGroupId: String,
@@ -85,6 +87,11 @@ data class AppConfig(
                         "cowork-preference-team-member-projection",
                     ),
                     teamMemberTopic = kafka.getString("team-member-topic", "team.member.event"),
+                    channelLifecycleConsumerGroupId = kafka.getString(
+                        "channel-lifecycle-consumer-group-id",
+                        "cowork-preference-channel-lifecycle-projection",
+                    ),
+                    channelTopic = kafka.getString("channel-topic", "channel.event.v2"),
                     teamRoleCommandConsumerGroupId = kafka.getString(
                         "team-role-command-consumer-group-id",
                         "cowork-preference-team-role-command",
