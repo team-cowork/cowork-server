@@ -53,8 +53,8 @@ class ControlPlaneAccounts(environment: Environment) {
     companion object {
         private val USERNAME = Regex("[a-z][a-z0-9-]{2,63}")
 
-        // Spring Security PBKDF2 v5.8: 16-byte salt + 32-byte SHA-256 digest, hex encoded.
-        private val HASH = Regex("[a-f0-9]{96}")
+        // SHA-256 digest of the password, hex encoded.
+        private val HASH = Regex("[a-f0-9]{64}")
         private val APPLICATIONS = setOf(
             "cowork-gateway", "cowork-authorization", "cowork-user", "cowork-team", "cowork-channel",
             "cowork-project", "cowork-roadmap", "cowork-notification", "cowork-preference", "cowork-chat",
