@@ -149,6 +149,23 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
         return rows.map { it.toPolicyState() }
     }
 
+    internal suspend fun findPoliciesByChannel(
+        client: SqlClient,
+        teamId: Long,
+        channelId: Long,
+    ): List<ChannelRolePolicyState> {
+        val rows = client.preparedQuery(
+            """
+            SELECT team_id, channel_id, role_id, permissions, state_occurred_at
+            FROM tb_channel_role_policies
+            WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2
+            ORDER BY role_id
+            FOR UPDATE
+            """.trimIndent(),
+        ).execute(Tuple.of(teamId, channelId)).coAwait()
+        return rows.map { it.toPolicyState() }
+    }
+
     internal suspend fun findPolicyPage(
         client: SqlClient,
         afterTeamId: Long,
