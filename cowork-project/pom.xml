@@ -197,7 +197,6 @@
                         <configuration>
                             <sourceDirs>
                                 <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
-                                <sourceDir>${project.basedir}/../shared/jvm-outbox/src/main/kotlin</sourceDir>
                             </sourceDirs>
                         </configuration>
                     </execution>
