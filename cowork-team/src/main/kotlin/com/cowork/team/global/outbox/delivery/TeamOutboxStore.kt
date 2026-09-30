@@ -1,63 +1,29 @@
-package com.cowork.shared.outbox
+package com.cowork.team.global.outbox.delivery
 
+import com.cowork.team.global.outbox.OutboxRelaySettings
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
-import io.micrometer.core.instrument.Timer
 import org.slf4j.LoggerFactory
-import org.springframework.kafka.core.KafkaTemplate
-import tools.jackson.databind.ObjectMapper
 import java.sql.Connection
 import java.sql.ResultSet
-import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
-import java.util.concurrent.TimeUnit
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import javax.sql.DataSource
 import kotlin.math.min
 
-data class OutboxRelaySettings(
-    val batchSize: Int,
-    val claimLeaseMs: Long,
-    val sendTimeoutMs: Long,
-    val maxAttempts: Int,
-    val backoffInitialMs: Long,
-    val backoffMaxMs: Long,
-) {
-    init {
-        require(batchSize > 0) { "Kafka outbox batch size must be positive." }
-        require(sendTimeoutMs > 0) { "Kafka outbox send timeout must be positive." }
-        require(claimLeaseMs > sendTimeoutMs) { "Kafka outbox claim lease must exceed the send timeout." }
-        require(maxAttempts > 0) { "Kafka outbox max attempts must be positive." }
-        require(backoffInitialMs > 0) { "Kafka outbox initial backoff must be positive." }
-        require(backoffMaxMs >= backoffInitialMs) {
-            "Kafka outbox maximum backoff must not be shorter than the initial backoff."
-        }
-    }
-}
-
-class JdbcKafkaOutboxRelay(
-    private val serviceName: String,
+internal class TeamOutboxStore(
     private val dataSource: DataSource,
-    private val kafkaTemplate: KafkaTemplate<String, Any>,
-    private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
     private val settings: OutboxRelaySettings,
-) : AutoCloseable {
+    private val claimOwner: String,
+) {
+    private val serviceName = "cowork-team"
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val claimOwner = "$serviceName:${UUID.randomUUID()}"
-    private val running = AtomicBoolean(false)
-    private val closed = AtomicBoolean(false)
     private val pendingGauge = AtomicLong()
     private val oldestSecondsGauge = AtomicLong()
     private val quarantinedGauge = AtomicLong()
     private val observationSuccessGauge = AtomicLong()
-    private val publishTimer =
-        Timer
-            .builder("cowork.kafka.outbox.publish")
-            .description("Kafka outbox publish acknowledgement latency")
-            .register(meterRegistry)
     private val publishedCounter =
         Counter
             .builder("cowork.kafka.outbox.published")
@@ -88,46 +54,7 @@ class JdbcKafkaOutboxRelay(
             .register(meterRegistry)
     }
 
-    fun relayPendingEvents() {
-        if (closed.get() || !running.compareAndSet(false, true)) {
-            return
-        }
-        if (closed.get()) {
-            running.set(false)
-            return
-        }
-
-        try {
-            var processed = 0
-            while (processed < settings.batchSize) {
-                if (closed.get() || Thread.currentThread().isInterrupted) {
-                    break
-                }
-                val record = claimNext() ?: break
-                if (!publish(record)) {
-                    break
-                }
-                processed++
-            }
-        } catch (exception: Exception) {
-            logger.warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
-        } finally {
-            if (closed.get()) {
-                releaseOwnedClaims()
-            }
-            refreshMetrics()
-            running.set(false)
-        }
-    }
-
-    override fun close() {
-        closed.set(true)
-        if (!running.get()) {
-            releaseOwnedClaims()
-        }
-    }
-
-    private fun claimNext(): OutboxRecord? = dataSource.connection.use { connection ->
+    fun claimNext(): OutboxRecord? = dataSource.connection.use { connection ->
         connection.autoCommit = false
         try {
             lockProducerFence(connection)
@@ -175,44 +102,7 @@ class JdbcKafkaOutboxRelay(
         }
     }
 
-    private fun publish(record: OutboxRecord): Boolean {
-        val payload =
-            try {
-                deserializePayload(record.payload)
-            } catch (exception: Exception) {
-                finalizeFailure(record, FailureType.PAYLOAD, exception, retryable = false)
-                return true
-            }
-
-        val sample = Timer.start(meterRegistry)
-        return try {
-            val sendResult =
-                record.partition?.let { partition ->
-                    kafkaTemplate.send(record.topic, partition, record.eventKey, payload)
-                } ?: kafkaTemplate.send(record.topic, record.eventKey, payload)
-            sendResult.get(settings.sendTimeoutMs, TimeUnit.MILLISECONDS)
-            finalizeSuccess(record)
-            true
-        } catch (exception: InterruptedException) {
-            Thread.currentThread().interrupt()
-            releaseClaim(record.id)
-            false
-        } catch (exception: Exception) {
-            finalizeFailure(record, FailureType.KAFKA_PUBLISH, exception, retryable = true)
-            true
-        } finally {
-            sample.stop(publishTimer)
-        }
-    }
-
-    private fun deserializePayload(payload: String): Map<String, Any?> {
-        val decoded: Any? = objectMapper.readValue(payload, Any::class.java)
-        require(decoded is Map<*, *>) { "Kafka outbox payload must be a JSON object." }
-        @Suppress("UNCHECKED_CAST")
-        return decoded as Map<String, Any?>
-    }
-
-    private fun finalizeSuccess(record: OutboxRecord) {
+    fun finalizeSuccess(record: OutboxRecord) {
         dataSource.connection.use { connection ->
             connection.prepareStatement(DELETE_PUBLISHED_SQL).use { statement ->
                 statement.setLong(1, record.id)
@@ -226,12 +116,7 @@ class JdbcKafkaOutboxRelay(
         }
     }
 
-    private fun finalizeFailure(
-        record: OutboxRecord,
-        failureType: FailureType,
-        exception: Exception,
-        retryable: Boolean,
-    ) {
+    fun finalizeFailure(record: OutboxRecord, failureType: FailureType, exception: Exception, retryable: Boolean) {
         val attempts = record.attempts + 1
         val quarantine = !retryable || attempts >= settings.maxAttempts
         val updated =
@@ -283,7 +168,7 @@ class JdbcKafkaOutboxRelay(
         }
     }
 
-    private fun releaseClaim(id: Long) {
+    fun releaseClaim(id: Long) {
         dataSource.connection.use { connection ->
             connection.prepareStatement(RELEASE_CLAIM_SQL).use { statement ->
                 statement.setLong(1, id)
@@ -293,7 +178,7 @@ class JdbcKafkaOutboxRelay(
         }
     }
 
-    private fun releaseOwnedClaims() {
+    fun releaseOwnedClaims() {
         runCatching {
             dataSource.connection.use { connection ->
                 connection.prepareStatement(RELEASE_OWNED_CLAIMS_SQL).use { statement ->
@@ -306,7 +191,7 @@ class JdbcKafkaOutboxRelay(
         }
     }
 
-    private fun refreshMetrics() {
+    fun refreshMetrics() {
         runCatching {
             dataSource.connection.use { connection ->
                 connection.prepareStatement(OBSERVE_SQL).use { statement ->
@@ -359,20 +244,6 @@ class JdbcKafkaOutboxRelay(
         payload = getString("payload"),
         attempts = getInt("attempts"),
     )
-
-    private data class OutboxRecord(
-        val id: Long,
-        val topic: String,
-        val partition: Int?,
-        val eventKey: String,
-        val payload: String,
-        val attempts: Int,
-    )
-
-    private enum class FailureType(val databaseValue: String, val metricTag: String) {
-        PAYLOAD("PAYLOAD", "payload"),
-        KAFKA_PUBLISH("KAFKA_PUBLISH", "kafka_publish"),
-    }
 
     private companion object {
         const val FENCE_ID = 1L
@@ -452,4 +323,18 @@ class JdbcKafkaOutboxRelay(
             FROM tb_kafka_outbox
             """
     }
+}
+
+internal data class OutboxRecord(
+    val id: Long,
+    val topic: String,
+    val partition: Int?,
+    val eventKey: String,
+    val payload: String,
+    val attempts: Int,
+)
+
+internal enum class FailureType(val databaseValue: String, val metricTag: String) {
+    PAYLOAD("PAYLOAD", "payload"),
+    KAFKA_PUBLISH("KAFKA_PUBLISH", "kafka_publish"),
 }
