@@ -5,13 +5,12 @@ import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
-import { ProjectClient } from '../service/project.client';
+import { ProjectClient, ChannelMessageReadAccessService } from '../service';
 import { GithubRepoEvent } from './event/github-repo.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
-import { toMessageBroadcastPayload } from '../repository/message.repository';
+import { toMessageBroadcastPayload } from '../repository';
 
 /** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
 const MESSAGE_CONTENT_MAX_LENGTH = 25000;

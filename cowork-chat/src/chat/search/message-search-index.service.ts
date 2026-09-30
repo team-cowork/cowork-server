@@ -3,16 +3,14 @@ import { DicoshotService } from 'dicoshot-nest';
 import { Counter, Gauge, register } from 'prom-client';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import { errorMessageOf, IndexWriteResult } from '../../search/message-index.contract';
-import { MessageRepository } from '../repository/message.repository';
 import {
+    MessageRepository,
     ClaimedIndexMessage,
     MessageSearchIndexRepository,
-} from '../repository/message-search-index.repository';
-import {
     MessageSearchTombstoneRepository,
     TombstoneRecord,
-} from '../repository/message-search-tombstone.repository';
-import { MessageSearchIndexStateRepository } from '../repository/message-search-index-state.repository';
+    MessageSearchIndexStateRepository,
+} from '../repository';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildMessageIndexDoc, isSearchIndexed } from './message-index-scope';
 
