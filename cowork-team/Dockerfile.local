@@ -12,7 +12,6 @@ COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
 COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
 COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
 COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
-COPY shared/jvm-outbox/src shared/jvm-outbox/src
 COPY cowork-team/src cowork-team/src
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     chmod +x gradlew \
