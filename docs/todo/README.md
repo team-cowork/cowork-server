@@ -44,9 +44,11 @@
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+- correctness: [projection 미준비 중 권한 보유 소켓의 room 오회수 차단](./items/51-correctness/revocation-readiness-guard.md)
 
 ## 점검 스냅샷
 
+- [20260930](./20260930_TODO.md) — WebSocket 구독 회수 경로 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
