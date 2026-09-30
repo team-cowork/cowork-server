@@ -10,6 +10,10 @@
 > `CHANNEL_TEAM_MISMATCH` fence, aggregate별 snapshot readiness gate를 구현했다. 정책 정리와 command fence는
 > 단위 테스트로 검증했다. 실제 Kafka·PostgreSQL 환경의 cold start, out-of-order replay, snapshot 재발행은
 > 아직 검증하지 않았다.
+>
+> **범위 조정:** HTTP API는 채널 projection을 읽지 않으므로 `/health/ready`와 Eureka 등록은 `team.member.event`
+> projection readiness만 사용한다. `channel.event.v2` readiness는 정책 command와 정책 snapshot에만 적용해
+> `cowork-channel` 장애가 preference API 차단으로 번지지 않게 했다.
 
 ## 문제
 
