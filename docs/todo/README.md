@@ -48,9 +48,11 @@
 - api: [GitHub App 이슈·댓글·라벨 외부 계약 정립](./items/47-api/github-app-issue-comment-label-contract.md)
 - ~~reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)~~
 - ~~reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)~~
+- reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)
 
 ## 점검 스냅샷
 
+- [20260930](./20260930_TODO.md) — Preference Redis 장애 격리 후속 점검
 - [20260926](./20260926_TODO.md) — GitHub App 연동 갭 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
