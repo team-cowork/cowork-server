@@ -6,8 +6,8 @@ import { validate } from 'class-validator';
 import { RequestContextUtil } from '../common/util/request-context.util';
 import { UnifiedSearchResult } from '../search/unified-search.types';
 import { ChatService } from './chat.service';
-import { SearchTeamMessagesDto } from './dto/search-team-messages.dto';
-import { ChannelSearchClient } from './service/channel-search.client';
+import { SearchTeamMessagesDto } from './dto';
+import { ChannelSearchClient } from './service';
 
 @Resolver()
 export class UnifiedSearchResolver {

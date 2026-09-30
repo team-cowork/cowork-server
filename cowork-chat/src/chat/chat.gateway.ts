@@ -19,11 +19,11 @@ import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.
 import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
-import { MembershipConsumer } from '../membership/membership.consumer';
 import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
 import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
 import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
-import { JoinChannelDto } from './dto/join-channel.dto';
+import { MembershipConsumer } from '../membership/membership.consumer';
+import { JoinChannelDto } from './dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
