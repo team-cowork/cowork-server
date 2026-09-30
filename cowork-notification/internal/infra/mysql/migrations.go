@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS tb_device_token (
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
-    UNIQUE KEY uq_tb_device_token_account_token (account_id, token),
+    UNIQUE KEY uq_tb_device_token_token (token),
     INDEX idx_tb_device_token_account_id (account_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `).Error
