@@ -2,7 +2,7 @@
 
 `cowork-config`는 Config API와 Eureka를 같은 포트 `8761`에서 제공한다. 서비스마다 별도의 HTTP Basic
 계정을 발급하고 `CONFIG_CLIENT_USERNAME`, `CONFIG_CLIENT_PASSWORD`를 Config 조회 전에 환경변수로
-주입한다. 서버에는 원문 비밀번호 대신 PBKDF2 SHA-256 해시를 넣은 `CONFIG_SERVER_ACCOUNTS_JSON`을
+주입한다. 서버에는 원문 비밀번호 대신 SHA-256 해시를 넣은 `CONFIG_SERVER_ACCOUNTS_JSON`을
 주입한다. 계정이 없거나 다른 배포 프로파일의 계정이 포함되면 서버 기동이 실패한다.
 
 ## 허용 범위
