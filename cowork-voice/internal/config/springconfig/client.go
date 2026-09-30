@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/cowork/cowork-voice/internal/controlplane"
 )
 
 type propertySource struct {
@@ -30,7 +32,7 @@ func NewClient(baseURL, appName, profile string) *Client {
 		baseURL:    baseURL,
 		appName:    appName,
 		profile:    profile,
-		httpClient: &http.Client{},
+		httpClient: controlplane.NewClient(),
 	}
 }
 
