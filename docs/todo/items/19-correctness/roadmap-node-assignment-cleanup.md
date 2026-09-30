@@ -2,12 +2,13 @@
 
 - **서비스**: cowork-roadmap
 - **우선순위**: 🔴 높음
-- **현재 상태**: 과제가 연결된 서브트리의 삭제 거부와 기존 고아 과제 삭제 migration을 반영했으며, 운영 데이터 migration dry-run은 아직 수행하지 않음
+- **현재 상태**: 과제가 연결된 서브트리의 삭제 거부와 기존 고아 과제 삭제 migration을 반영했으며, 운영 데이터 migration dry-run과 GLOBAL 로드맵 정책이 남아 있음
+- **결론**: GLOBAL 로드맵의 삭제 정책 확정과 운영 데이터 migration dry-run이 남아 있다.
 
 > **2026-09-30 진척:** 정책을 "assignment가 있으면 삭제 거부"로 확정했다. `DeleteRoadmapNodeServiceImpl`은 같은
-> transaction에서 서브트리 노드를 `FOR UPDATE`로 잠근 뒤 `FOR SHARE` 잠금 읽기로 서브트리 과제 수를 세고, 1건 이상이면
-> `409`와 건수를 반환한다. `CreateRoadmapAssignmentServiceImpl`은 대상 노드를 `FOR SHARE`로 조회해 노드 삭제와
-> 직렬화한다. `node_id`는 STORED 생성 컬럼 `node_key`의 기반 컬럼이라 `CASCADE`·`SET NULL` FK를 둘 수 없고,
+> transaction에서 로드맵 노드를 `FOR UPDATE` 잠금 읽기로 가져와 서브트리를 계산한 뒤 `FOR SHARE` 잠금 읽기로 서브트리 과제
+> 수를 세고, 1건 이상이면 `409`와 건수를 반환한다. `CreateRoadmapAssignmentServiceImpl`의 대상 노드와
+> `CreateRoadmapNodeServiceImpl`의 상위 노드는 `FOR SHARE`로 조회해 노드 삭제와 직렬화한다. `node_id`는 STORED 생성 컬럼 `node_key`의 기반 컬럼이라 `CASCADE`·`SET NULL` FK를 둘 수 없고,
 > `RESTRICT` FK는 로드맵 삭제의 cascade 순서와 충돌할 수 있어 추가하지 않았다. `V7__delete_orphan_node_assignments.sql`이
 > 기존 고아 과제를 삭제한다. 서비스 단위 테스트는 통과했으나 운영 데이터 사본의 migration dry-run과 잠금 동작 확인은 아직
 > 검증하지 않았다.
@@ -28,6 +29,12 @@
 | assignment cascade 삭제       | 데이터 구조가 단순하고 고아가 남지 않음 | 진행 기록이 함께 사라짐                  |
 | 로드맵 전체 assignment로 전환 | 과제 자체를 보존함                      | 의미가 바뀌며 중복 unique 충돌 처리 필요 |
 
+## GLOBAL 로드맵
+
+GLOBAL 로드맵의 노드 수정·삭제는 `RoadmapAccessGuard.requireMutable`에 따라 글로벌 ADMIN만 가능하다. 반면 `CreateRoadmapAssignmentServiceImpl`은 GLOBAL이면 통과하는 `requireReadable`과 요청 팀의 관리자 확인만 수행하므로, 어느 팀의 OWNER·ADMIN이든 GLOBAL 노드에 과제를 만들 수 있다.
+
+현재 삭제 거부 정책에서는 한 팀이라도 과제를 걸면 공용 노드를 삭제할 수 없고, ADMIN이 다른 팀들의 과제를 직접 삭제해야 한다. 이는 진행 기록 보존이라는 정책 목적과 반대이므로 GLOBAL 로드맵에는 로드맵 전체 과제로 전환하거나 노드를 soft delete하는 등 별도 정책이 필요하다.
+
 ## 할 일
 
 ### 정책과 migration
@@ -36,6 +43,7 @@
 - 기존 고아 assignment를 조회해 삭제·전환·격리하는 데이터 정리 migration을 추가한다.
 - cascade 정책이면 같은 서비스 내부의 `node_id` foreign key와 `ON DELETE` 동작을 후속 migration으로 정의한다.
 - 거부·전환 정책이면 assignment repository 작업을 노드 삭제와 같은 reactive transaction에 포함한다.
+- GLOBAL 로드맵 노드 삭제 시 다른 팀 과제의 처리 정책을 확정하고 적용한다.
 
 ### API 동작
 
