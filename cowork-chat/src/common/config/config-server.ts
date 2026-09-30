@@ -1,3 +1,5 @@
+import { controlPlaneAuthorization } from './control-plane-auth';
+
 type PropertySource = {
     name: string;
     source: Record<string, unknown>;
@@ -19,12 +21,13 @@ export async function loadConfigServerEnv(): Promise<void> {
     const url = `${baseUrl.replace(/\/$/, '')}/${APP_NAME}/${profile}`;
 
     const response = await fetch(url, {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', Authorization: controlPlaneAuthorization(url) },
+        redirect: 'error',
         signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
-        throw new Error(`Config server returned ${response.status} for ${url}`);
+        throw new Error(`Config server returned HTTP ${response.status}`);
     }
 
     const body = await response.json() as ConfigServerResponse;

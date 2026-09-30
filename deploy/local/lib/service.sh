@@ -14,6 +14,8 @@ load_env() {
 
   set -a
   source "$PROJECT_ROOT/.env"
+  local credentials="$PROJECT_ROOT/deploy/local/secrets/config-access/${SERVICE_NAME#cowork-}.env"
+  [ ! -f "$credentials" ] || source "$credentials"
   set +a
 
   # Some endpoints must be reachable from external clients (mobile app/emulator).
