@@ -172,10 +172,12 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 const applied = projectionUpdateApplied(result);
                 // replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
                 // 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
-                if (this.isLive()
+                // 다른 stream이 닫혀도 판정은 전부 거부이므로 전체 readiness를 판정 전후로 확인한다.
+                if (this.projectionReadiness.isReady()
                     && this.io
                     && this.readAccessEvaluator
-                    && !(await this.readAccessEvaluator(channelId, userId))) {
+                    && !(await this.readAccessEvaluator(channelId, userId))
+                    && this.projectionReadiness.isReady()) {
                     this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
                     if (event.snapshot !== true) {
                         this.io.to(`user:${userId}`).emit('channel:access:revoked', { channelId });
