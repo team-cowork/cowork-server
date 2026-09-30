@@ -3,6 +3,7 @@ package mysql
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/token"
@@ -18,13 +19,62 @@ func NewTokenRepository(db *gorm.DB) *TokenRepository {
 	return &TokenRepository{db: db}
 }
 
-func (r *TokenRepository) Save(ctx context.Context, t *token.DeviceToken) error {
-	return r.db.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "account_id"}, {Name: "token"}},
-			DoUpdates: clause.AssignmentColumns([]string{"platform", "updated_at"}),
-		}).
-		Create(t).Error
+func (r *TokenRepository) Register(ctx context.Context, requested *token.DeviceToken) (token.RegistrationResult, error) {
+	var registration token.RegistrationResult
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// The token-only unique key serializes registrations for one physical app
+		// installation. The no-op duplicate update acquires the row lock even when
+		// this account is taking ownership from another account.
+		if err := tx.Exec(
+			`INSERT INTO tb_device_token (account_id, token, platform)
+			 VALUES (?, ?, ?)
+			 ON DUPLICATE KEY UPDATE id = id`,
+			requested.AccountID, requested.Token, requested.Platform,
+		).Error; err != nil {
+			return err
+		}
+
+		var existing token.DeviceToken
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("token = ?", requested.Token).
+			Take(&existing).Error; err != nil {
+			return err
+		}
+
+		if existing.AccountID == requested.AccountID {
+			if err := tx.Model(&token.DeviceToken{}).
+				Where("id = ?", existing.ID).
+				Updates(map[string]any{
+					"platform":   requested.Platform,
+					"updated_at": time.Now(),
+				}).Error; err != nil {
+				return err
+			}
+			registration.DeviceTokenID = existing.ID
+			requested.ID = existing.ID
+			return nil
+		}
+
+		// Recreate the row instead of updating account_id in place. Delivery retry
+		// rows use device_token_id as their ownership generation; a new ID makes
+		// retries for the previous account fail CurrentToken and become CANCELLED.
+		if err := tx.Delete(&token.DeviceToken{}, existing.ID).Error; err != nil {
+			return err
+		}
+		requested.ID = 0
+		requested.CreatedAt = time.Time{}
+		requested.UpdatedAt = time.Time{}
+		if err := tx.Create(requested).Error; err != nil {
+			return err
+		}
+		registration = token.RegistrationResult{
+			DeviceTokenID:     requested.ID,
+			PreviousAccountID: existing.AccountID,
+			Reassigned:        true,
+		}
+		return nil
+	})
+	return registration, err
 }
 
 func (r *TokenRepository) FindByID(ctx context.Context, id int64) (*token.DeviceToken, error) {
