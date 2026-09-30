@@ -259,6 +259,8 @@ checkpoint를 함께 재구축한 뒤에만 트래픽을 다시 엽니다.
 삭제 상태를 되살릴 수 있습니다. DB 기반 상태 변경과 Kafka 상태 이벤트는 같은 transaction에
 outbox로 적재하고, relay는 Kafka ack 이후에만 outbox 행을 제거합니다. relay 재시작에 따른 중복은
 consumer의 version/LWW 규칙으로 흡수하며 실패한 tombstone은 최대 재시도 횟수로 폐기하지 않습니다.
+JVM 서비스의 claim, key별 순서, backoff, 격리와 수동 재처리는
+[`docs/jvm-kafka-outbox-relay.md`](./jvm-kafka-outbox-relay.md)를 따릅니다.
 
 full snapshot의 마지막에는 각 partition으로 `PROJECTION_SNAPSHOT_COMPLETED` marker를 명시적으로
 보냅니다. Consumer는 시작 시 캡처한 high-watermark뿐 아니라 모든 partition의 marker를 확인해야
