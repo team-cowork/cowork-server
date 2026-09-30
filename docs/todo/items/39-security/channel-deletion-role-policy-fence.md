@@ -2,8 +2,14 @@
 
 - **서비스**: cowork-channel, cowork-preference, cowork-config, Kafka
 - **우선순위**: 🟠 중간
-- **현재 상태**: `cowork-channel`은 `channel.event.v2`에 durable `DELETED` full state를 발행하지만 `cowork-preference`에는 authoritative 정책 정리와 queued command 차단이 구현되어 있지 않다
+- **현재 상태**: `cowork-preference`가 `channel.event.v2`로 채널 삭제 fence를 보존하고 삭제 채널의 역할 정책 정리와 queued command 차단을 적용한다
 - **파생 원본**: [역할 기반 채널·메시지 읽기 권한 적용](../36-security/role-based-channel-message-read-authorization.md)
+
+> **진척:** `V22__add_channel_lifecycle_projection.sql`, `ProjectionStateConsumer` 기반 `channel.event.v2`
+> consumer, `ChannelLifecycleService`의 삭제 정리, `ChannelRolePolicyCommandProcessor`의 `CHANNEL_DELETED`·
+> `CHANNEL_TEAM_MISMATCH` fence, aggregate별 snapshot readiness gate를 구현했다. 정책 정리와 command fence는
+> 단위 테스트로 검증했다. 실제 Kafka·PostgreSQL 환경의 cold start, out-of-order replay, snapshot 재발행은
+> 아직 검증하지 않았다.
 
 ## 문제
 
