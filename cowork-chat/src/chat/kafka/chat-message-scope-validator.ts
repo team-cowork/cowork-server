@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
 import { MessageRepository } from '../repository/message.repository';
+import { resolveMessageScope } from '../service/message-scope';
 
 export class ChatMessageScopeError extends Error {
     constructor(
@@ -26,7 +27,8 @@ export class ChatMessageScopeValidator {
         if (!channel) {
             throw new ChatMessageScopeError('CHANNEL_NOT_FOUND', 'channel projection was not found');
         }
-        if (channel.teamId !== event.teamId || channel.projectId !== (event.projectId ?? null)) {
+        const scope = resolveMessageScope(channel);
+        if (!scope || scope.teamId !== event.teamId || scope.projectId !== (event.projectId ?? null)) {
             throw new ChatMessageScopeError('CHANNEL_SCOPE_MISMATCH', 'event teamId or projectId does not match channel');
         }
         if (event.parentMessageId) {
