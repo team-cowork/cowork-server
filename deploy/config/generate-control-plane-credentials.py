@@ -29,9 +29,7 @@ def main():
     for service in SERVICES:
         username = f"cowork-{service}{args.suffix}"
         password = secrets.token_urlsafe(32)
-        salt = secrets.token_bytes(16)
-        digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 310000, dklen=32)
-        accounts.append({"username": username, "passwordHash": (salt + digest).hex(),
+        accounts.append({"username": username, "passwordHash": hashlib.sha256(password.encode()).hexdigest(),
                          "application": "monitoring" if service == "monitoring" else f"cowork-{service}",
                          "profile": args.profile})
         values = {"CONFIG_CLIENT_USERNAME": username, "CONFIG_CLIENT_PASSWORD": password}
