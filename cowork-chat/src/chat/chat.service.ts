@@ -10,45 +10,49 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { MessageDocument } from './schema/message.schema';
-import { EditMessageDto } from './dto/edit-message.dto';
+import { MessageDocument } from './schema';
+import {
+    EditMessageDto,
+    SendMessageDto,
+    ConfirmFileUploadRequestDto,
+    CreateFileUploadUrlRequestDto,
+    CreateFileUploadUrlResponseDto,
+    CreateGithubIssueDto,
+    SlashCommand,
+    SlashCommandDto,
+    SearchMessagesDto,
+    SearchTeamMessagesDto,
+    SearchMessagesResponseDto,
+    FileListQueryDto,
+    FileListResponseDto,
+    ChannelUserContext,
+    ChannelUserRoleContext,
+    MessageUserRoleContext,
+    UserContext,
+} from './dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
-import { ProjectClient } from './service/project.client';
-import { ChannelClient } from './service/channel.client';
-import { UserClient } from './service/user.client';
+import {
+    ProjectClient,
+    ChannelClient,
+    UserClient,
+    UnreadCounterService,
+    ChannelMessageReadAccessService,
+    resolveMessageScope,
+} from './service';
 import { ChatGateway } from './chat.gateway';
-import { SendMessageDto } from './dto/send-message.dto';
 import {
-    ConfirmFileUploadRequestDto,
-    CreateFileUploadUrlRequestDto,
-    CreateFileUploadUrlResponseDto,
-} from './dto/create-file-upload-url.dto';
-import { CreateGithubIssueDto } from './dto/create-github-issue.dto';
-import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
-import { SearchMessagesDto } from './dto/search-messages.dto';
-import { SearchTeamMessagesDto } from './dto/search-team-messages.dto';
-import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
-import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
-import { MessageRepository, MessageRow } from './repository/message.repository';
-import { ChannelMemberRepository } from './repository/channel-member.repository';
-import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
+    MessageRepository,
+    MessageRow,
+    ChannelMemberRepository,
+    TeamMemberProjectionRepository,
+    ChannelProjectionRepository,
+} from './repository';
 import { BlockService } from '../block/block.service';
-import {
-    ChannelUserContext,
-    ChannelUserRoleContext,
-    MessageUserRoleContext,
-    UserContext,
-} from './dto/context';
-import { UnreadCounterService } from './service/unread-counter.service';
-import { MessageSearchDeletionService } from './search/message-search-deletion.service';
-import { isSearchIndexed } from './search/message-index-scope';
-import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
-import { ChannelProjectionRepository } from './repository/channel-projection.repository';
-import { resolveMessageScope } from './service/message-scope';
+import { MessageSearchDeletionService, isSearchIndexed } from './search';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
