@@ -1,9 +1,10 @@
 FROM eclipse-temurin:26.0.2_10-jdk-alpine-3.24@sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c AS builder
-WORKDIR /workspace
+WORKDIR /workspace/cowork-project
 
 COPY cowork-project/.mvn .mvn
 COPY cowork-project/mvnw cowork-project/pom.xml ./
 RUN chmod +x mvnw
+COPY shared/jvm-outbox/src /workspace/shared/jvm-outbox/src
 COPY cowork-project/src src
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
     ./mvnw -B -DskipTests clean package \
