@@ -44,11 +44,9 @@
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
-- reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)
 
 ## 점검 스냅샷
 
-- [20260930](./20260930_TODO.md) — Preference Redis 장애 격리 후속 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
