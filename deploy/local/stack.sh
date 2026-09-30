@@ -39,6 +39,7 @@ load_env() {
 
   set -a
   source "$PROJECT_ROOT/.env"
+  [ ! -f "$PROJECT_ROOT/deploy/local/secrets/config-access/compose.env" ] || source "$PROJECT_ROOT/deploy/local/secrets/config-access/compose.env"
   set +a
 
   local ip
@@ -119,7 +120,7 @@ start_stack() {
   cd "$PROJECT_ROOT"
 
   echo ">>> Starting Docker Compose local stack..."
-  docker compose up -d
+  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env up -d
 
   for container in "${CONTAINERS[@]}"; do
     wait_healthy "$container"
@@ -130,17 +131,17 @@ start_stack() {
 
 stop_stack() {
   cd "$PROJECT_ROOT"
-  docker compose down
+  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env down
 }
 
 status_stack() {
   cd "$PROJECT_ROOT"
-  docker compose ps
+  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env ps
 }
 
 logs_stack() {
   cd "$PROJECT_ROOT"
-  docker compose logs -f
+  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env logs -f
 }
 
 monitor_stack() {

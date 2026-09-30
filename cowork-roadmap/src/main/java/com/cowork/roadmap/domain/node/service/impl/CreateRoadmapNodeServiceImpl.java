@@ -53,7 +53,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         if (parentId == null) {
             return Mono.empty();
         }
-        return nodeRepository.findById(parentId)
+        return nodeRepository.findByIdForShare(parentId)
                 .switchIfEmpty(Mono.error(new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)))
                 .flatMap(parent -> roadmapId.equals(parent.getRoadmapId())
                         ? Mono.empty()

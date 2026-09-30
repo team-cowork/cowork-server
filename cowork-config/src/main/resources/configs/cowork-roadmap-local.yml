@@ -16,7 +16,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://cowork-config:8761/eureka/
+      defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
 
 KAFKA_TOPIC_TEAM_MEMBER: team.member.event
 KAFKA_GROUP_ID_TEAM_MEMBER: cowork-roadmap.team-member
