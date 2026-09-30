@@ -9,7 +9,7 @@
 
 | 범위 | 구현 및 남은 확인 |
 |------|------------------|
-| Config API | 서비스별 PBKDF2 계정, application/profile 허용 목록, 기본 거부 정책 구현 |
+| Config API | 서비스별 SHA-256 해시 계정, application/profile 허용 목록, 기본 거부 정책 구현 |
 | Eureka | 모든 런타임의 Basic 헤더 인증, 자기 application 변경만 허용, 등록 JSON app·VIP 검사 구현 |
 | Actuator | 상세 없는 health만 익명 허용, metrics는 monitoring 계정 전용, 나머지 비공개 |
 | Vault | 공통 application 상속 제거, 서비스별 seed, 최소 권한 정책 생성기·배포 토큰 TTL 검사 구현 |
