@@ -6,6 +6,7 @@ import {
     Injectable,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
@@ -40,9 +41,16 @@ import {
     UserClient,
     UnreadCounterService,
     ChannelMessageReadAccessService,
+    resolveMessageScope,
 } from './service';
 import { ChatGateway } from './chat.gateway';
-import { MessageRepository, MessageRow, ChannelMemberRepository, TeamMemberProjectionRepository } from './repository';
+import {
+    MessageRepository,
+    MessageRow,
+    ChannelMemberRepository,
+    TeamMemberProjectionRepository,
+    ChannelProjectionRepository,
+} from './repository';
 import { BlockService } from '../block/block.service';
 import { MessageSearchDeletionService, isSearchIndexed } from './search';
 
@@ -80,6 +88,7 @@ export class ChatService {
         private readonly chatGateway: ChatGateway,
         private readonly unreadCounterService: UnreadCounterService,
         private readonly messageSearchDeletion: MessageSearchDeletionService,
+        private readonly channelProjectionRepository: ChannelProjectionRepository,
     ) {}
 
     /**
@@ -280,20 +289,36 @@ export class ChatService {
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
         if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
 
+        const channel = await this.channelProjectionRepository.findById(ctx.channelId);
+        if (!channel) throw new NotFoundException('채널을 찾을 수 없습니다');
+        const scope = resolveMessageScope(channel);
+        if (!scope || membership.teamId !== scope.teamId || membership.channelType !== channel.type) {
+            throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
+        }
+
+        if (dto.parentMessageId) {
+            const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
+            if (!parent) throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+        }
+
         if (dto.attachments?.length) {
             for (const attachment of dto.attachments) {
                 this.objectStorageService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
             }
         }
 
-        if (membership.channelType === DM_CHANNEL_TYPE) {
+        if (channel.type === DM_CHANNEL_TYPE) {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
-            dto = { ...dto, teamId: null, projectId: null };
-        } else {
-            dto = { ...dto, teamId: membership.teamId };
         }
 
-        await this.chatMessageProducer.sendMessage(ctx.channelId, dto, ctx.userId, ctx.userRole);
+        await this.chatMessageProducer.sendMessage(ctx.channelId, {
+            ...scope,
+            content: dto.content,
+            type: dto.type,
+            attachments: dto.attachments,
+            parentMessageId: dto.parentMessageId,
+            clientMessageId: dto.clientMessageId,
+        }, ctx.userId, ctx.userRole);
     }
 
     /**
@@ -767,16 +792,27 @@ export class ChatService {
      * @param teamId - 팀 ID
      * @param channelId - 채널 ID
      * @param content - 메시지 내용
-     * @param projectId - 프로젝트 ID (팀 채널이면 null)
-     * @returns 저장된 메시지 도큐먼트
+     * @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
      */
     async saveSystemMessage(
         teamId: number,
         channelId: number,
         content: string,
-        projectId: number | null = null,
-    ) {
-        const saved = await this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
+    ): Promise<MessageDocument | null> {
+        const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
+        if (!channel) throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+        if (channel.deleted) {
+            this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+            return null;
+        }
+        const scope = resolveMessageScope(channel);
+        if (!scope || scope.teamId === null || scope.teamId !== teamId) {
+            this.logger.warn(
+                `Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
+            );
+            return null;
+        }
+        const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
         const members = await this.channelMemberRepository.findByChannelId(channelId);
         const candidateUserIds = members.map((member) => member.userId).filter((id) => id !== SYSTEM_AUTHOR_ID);
         const readableUsers = await this.channelMessageReadAccess.filterReadableUsersByChannel(
