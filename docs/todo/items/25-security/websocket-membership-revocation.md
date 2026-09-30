@@ -5,6 +5,8 @@
 - **현재 상태**: 채널·팀 멤버십 회수와 채널 삭제의 room 해제, 타이핑 재인가가 구현되어 있으며 다중 replica 전달·Redis 장애·재연결 경합 검증이 남아 있음
 - **관련 작업**: [Socket.IO Redis adapter 준비 상태와 복구 보장](../29-reliability/socketio-redis-adapter-readiness.md)
 
+> **2026-09-30 진척:** 회수 이벤트의 room 해제가 누락되는 경로 두 가지를 코드로 확인했다. KafkaJS 2.2.4는 handler 예외가 나면 readiness가 열린 채로 같은 메시지를 재시도하지만, 재시도가 소진되면 `CRASH` → `revokeAssignments`로 readiness를 닫는다. 이후 재시작해 같은 메시지를 `isStreamLive()`가 false인 상태로 다시 적용하므로 회수를 건너뛴다. 또 `RedisAdapter.delSockets`는 로컬 소켓도 Redis 요청 채널을 거쳐 제거하고 `publish` 결과를 기다리지 않아, Redis 발행 실패가 handler에 전달되지 않는다. 그래서 `ChatGateway`가 30초마다 `server.local.fetchSockets()`로 이 인스턴스의 소켓을 조회하고 `ChannelMessageReadAccessService.evictUnauthorizedRooms`로 채널·팀 room을 현재 권한으로 재검증하게 했다. 권한이 없는 room은 제거하고 `channel:access:revoked`·`team:access:revoked`를 보낸다. 판정 전후로 readiness를 확인해 닫혀 있으면 제거하지 않고, 제거가 발생하면 경고 로그를 남긴다. `RedisAdapter`는 기본 `Adapter`의 no-op `persistSession`·`restoreSession`을 그대로 써서 Redis adapter 사용 중에는 connection state recovery가 동작하지 않는다. 반면 in-memory 폴백의 `SessionAwareAdapter`는 끊기기 전 room을 복원하므로, `handleConnection`이 복원된 소켓(`client.recovered`)도 같은 재검증을 거치게 했다. `handleJoin`·`handleJoinTeam`은 권한 확인보다 먼저 room에 가입하고 거부 시 제거하도록 바꿔, 확인 도중 처리된 회수 이벤트의 room 해제가 해당 소켓을 놓치지 않게 했다. 다중 replica rehearsal, adapter readiness 연동, 대규모 접속 시 30초 재검증 비용은 아직 검증하지 않았다.
+
 ## 진행 상태 (2026-09-03)
 
 | 경로                      | 코드에서 확인한 상태                                                                                                         |
