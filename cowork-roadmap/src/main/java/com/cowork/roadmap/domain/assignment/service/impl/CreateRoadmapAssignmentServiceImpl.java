@@ -62,7 +62,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         if (nodeId == null) {
             return Mono.empty();
         }
-        return nodeRepository.findByIdForShare(nodeId)
+        return nodeRepository.findById(nodeId)
                 .switchIfEmpty(Mono.error(new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)))
                 .flatMap(node -> roadmapId.equals(node.getRoadmapId())
                         ? Mono.empty()
