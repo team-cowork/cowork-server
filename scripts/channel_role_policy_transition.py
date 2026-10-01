@@ -273,7 +273,7 @@ def apply(args):
                 body = {"permissions": {"message_read": op["messageRead"]}}
                 response = request(args.base_url, "PUT", path, op["actorId"], key, body)
             state["operations"][key] = {"op": op, "operationId": response["operationId"], "status": response["status"]}
-        except (urllib.error.URLError, KeyError, ValueError) as error:
+        except (OSError, KeyError, ValueError) as error:
             state["operations"][key] = {"op": op, "operationId": None, "status": "SUBMIT_ERROR", "error": describe(error)}
         save()
 
@@ -289,7 +289,7 @@ def apply(args):
                 response = request(args.base_url, "GET", path, op["actorId"])
                 record["status"] = response["status"]
                 record["error"] = response.get("errorCode") and f"{response['errorCode']}: {response.get('errorMessage')}"
-            except (urllib.error.URLError, KeyError, ValueError) as error:
+            except (OSError, KeyError, ValueError) as error:
                 record["error"] = describe(error)
         save()
         time.sleep(args.interval)
