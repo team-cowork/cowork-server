@@ -88,10 +88,14 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         }
     }
 
-    suspend fun acquireExpiryLock(): Boolean {
-        val result = redisApi.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
-        return result?.toString() == "OK"
-    }
+    /**
+     * lock은 replica 간 중복 조회를 줄이는 최적화이므로 Redis를 쓸 수 없으면 lock 없이 진행하도록 true를 반환한다.
+     * 겹친 만료 실행은 outbox advisory lock과 `FOR UPDATE` 조회가 직렬화한다.
+     */
+    suspend fun acquireExpiryLock(): Boolean = attempt(CacheOperation.EXPIRY_LOCK, EXPIRY_LOCK_KEY) {
+        redisApi.set(listOf(EXPIRY_LOCK_KEY, "1", "NX", "EX", LOCK_TTL_SECONDS.toString())).coAwait()
+            ?.toString() == "OK"
+    }.getOrDefault(true)
 
     private suspend fun writeSetting(key: String, settings: JsonObject) {
         redisApi.setex(key, TTL_SECONDS.toString(), settings.encode()).coAwait()
@@ -129,5 +133,6 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         SET_BULK("set_bulk"),
         INVALIDATE("invalidate"),
         REPAIR("repair"),
+        EXPIRY_LOCK("expiry_lock"),
     }
 }
