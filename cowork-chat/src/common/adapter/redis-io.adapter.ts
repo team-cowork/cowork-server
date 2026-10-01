@@ -119,16 +119,17 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             return undefined;
         }
 
+        // pub client는 기본 재시도 한도를 유지한다. `fetchSockets()`는 pub client의 `PUBSUB NUMSUB`을 기다린 뒤에야
+        // `requestsTimeout`을 걸기 때문에, 한도가 없으면 Redis 장애 동안 HTTP 요청과 Kafka consumer가 무기한 멈춘다.
+        const pubClient = new Redis({ host: this.host, port: this.port });
         // 구독은 응답을 받은 뒤에만 재구독 대상으로 기록되므로, 연결 전 대기열의 SUBSCRIBE가 재시도 한도로 버려지면
-        // 영구히 복구되지 않는다. adapter의 publish도 rejection을 처리하지 않아 버려지면 unhandled rejection이 된다.
-        // 그래서 두 client 모두 재시도 한도 없이 연결될 때까지 명령을 보관한다.
-        // ponytail: 장애 동안 publish가 메모리에 무한히 쌓임, 장기 장애가 문제되면 DEGRADED 시 로컬 소켓을 끊어 발행량을 줄임
-        const pubClient = new Redis({ host: this.host, port: this.port, maxRetriesPerRequest: null });
-        const subClient = pubClient.duplicate();
+        // 영구히 복구되지 않는다. sub client만 연결될 때까지 명령을 보관한다.
+        const subClient = pubClient.duplicate({ maxRetriesPerRequest: null });
         this.pubClient = pubClient;
         this.subClient = subClient;
         this.watch('pub', pubClient);
         this.watch('sub', subClient);
+        this.handlePublishRejection(pubClient);
 
         const adapter = createAdapter(pubClient, subClient);
         this.installed = true;
@@ -168,16 +169,31 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
         client.on('ready', () => this.updateState());
         client.on('close', () => this.updateState());
         client.on('reconnecting', () => this.reconnects.inc({ client: name }));
-        client.on('error', (err: unknown) => {
-            this.errors.inc({ client: name });
-            this.lastError = `${name}: ${err instanceof Error ? err.message : String(err)}`;
-            // 재연결마다 error가 발생하므로 경고는 간격을 두고 남긴다.
-            const now = Date.now();
-            if (now - this.lastErrorWarnAt >= ERROR_WARN_INTERVAL_MS) {
-                this.lastErrorWarnAt = now;
-                this.logger.warn(`Socket.IO Redis ${this.lastError} (state=${this.state})`);
-            }
+        client.on('error', (err: unknown) => this.recordError(name, err));
+    }
+
+    /**
+     * adapter는 브로드캐스트·room 해제의 publish 결과를 버린다. 장애가 재시도 한도를 넘겨 publish가 거부되면
+     * unhandled rejection으로 프로세스가 종료되므로, 거부를 오류로 기록하고 해당 발행은 유실된 것으로 본다.
+     */
+    private handlePublishRejection(pubClient: Redis): void {
+        const publish = pubClient.publish.bind(pubClient) as (...args: unknown[]) => Promise<number>;
+        pubClient.publish = ((...args: unknown[]) => {
+            const result = publish(...args);
+            result.catch((err: unknown) => this.recordError('pub', err));
+            return result;
         });
+    }
+
+    private recordError(name: RedisClientName, err: unknown): void {
+        this.errors.inc({ client: name });
+        this.lastError = `${name}: ${err instanceof Error ? err.message : String(err)}`;
+        // 재연결마다 error가 발생하므로 경고는 간격을 두고 남긴다.
+        const now = Date.now();
+        if (now - this.lastErrorWarnAt >= ERROR_WARN_INTERVAL_MS) {
+            this.lastErrorWarnAt = now;
+            this.logger.warn(`Socket.IO Redis ${this.lastError} (state=${this.state})`);
+        }
     }
 
     private updateState(): void {
