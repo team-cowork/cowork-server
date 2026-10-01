@@ -182,6 +182,15 @@ describe('ChatGateway', () => {
             expect(client.join.mock.invocationCallOrder[0])
                 .toBeLessThan(mockChatService.isMember.mock.invocationCallOrder[0]);
         });
+
+        it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
+            mockChatService.isMember.mockRejectedValueOnce(new Error('mongo down'));
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await expect(gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 })).rejects.toThrow('mongo down');
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
+        });
     });
 
     describe('handleJoinTeam', () => {
@@ -196,6 +205,15 @@ describe('ChatGateway', () => {
                 .toBeLessThan(mockChatService.isTeamMember.mock.invocationCallOrder[0]);
             expect(client.leave).toHaveBeenCalledWith('team:5');
             expect(client.emit).toHaveBeenCalledWith('error', { message: '팀 접근 권한이 없습니다' });
+        });
+
+        it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
+            mockChatService.isTeamMember.mockRejectedValueOnce(new Error('mongo down'));
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await expect(gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 })).rejects.toThrow('mongo down');
+            expect(client.leave).toHaveBeenCalledWith('team:5');
         });
     });
 

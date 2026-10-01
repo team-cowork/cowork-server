@@ -262,7 +262,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         // 권한 확인보다 먼저 가입해야 확인 도중 처리된 회수 이벤트의 room 해제가 이 소켓에도 적용된다.
         // room 전달은 emitToReadableChannelUsers가 전송 시점에 다시 인가하므로 잠깐의 선가입으로 이벤트가 새지 않는다.
         this.joinRoom(client, room);
-        const isMember = await this.chatService.isMember(payload.channelId, userId);
+        const isMember = await this.chatService.isMember(payload.channelId, userId).catch((err: unknown) => {
+            this.leaveRoom(client, room);
+            throw err;
+        });
         if (!isMember) {
             this.leaveRoom(client, room);
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
@@ -342,7 +345,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         const room = `team:${payload.teamId}`;
         // handleJoin과 같은 이유로 권한 확인보다 먼저 가입한다. 팀 room 전달도 전송 시점에 다시 인가한다.
         this.joinRoom(client, room);
-        const isMember = await this.chatService.isTeamMember(payload.teamId, userId);
+        const isMember = await this.chatService.isTeamMember(payload.teamId, userId).catch((err: unknown) => {
+            this.leaveRoom(client, room);
+            throw err;
+        });
         if (!isMember) {
             this.leaveRoom(client, room);
             client.emit('error', { message: '팀 접근 권한이 없습니다' });
