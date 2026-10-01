@@ -1,4 +1,4 @@
-package com.cowork.config.security
+package com.cowork.config.security.policy
 
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
