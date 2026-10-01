@@ -95,6 +95,7 @@ import { ObjectStorageModule } from '../storage/object-storage.module';
 import { SearchModule } from '../search/search.module';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
 import { ThrottleGuard } from '../common/guard/throttle.guard';
 import {
     MessageSearchIndexService,
@@ -198,8 +199,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelMessageReadAccessService,
         UnifiedSearchResolver,
         RedisRateLimiter,
+        SocketIoRedisConnection,
         ThrottleGuard,
     ],
-    exports: [RedisRateLimiter, ChatMessageProducer],
+    exports: [RedisRateLimiter, SocketIoRedisConnection, ChatMessageProducer],
 })
 export class ChatModule {}
