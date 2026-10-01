@@ -1,4 +1,4 @@
-package com.cowork.config.security
+package com.cowork.config.security.policy
 
 /** The Config environment endpoint and Eureka operations used by our clients are allowlisted. */
 class ControlPlaneAccessPolicy {
