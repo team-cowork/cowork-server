@@ -44,7 +44,7 @@
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
-- reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)
+- ~~reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)~~
 - security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md)
 
 ## 점검 스냅샷
