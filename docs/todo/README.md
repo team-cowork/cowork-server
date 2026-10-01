@@ -23,7 +23,7 @@
 - performance: [Gateway JSON 응답 전체 버퍼링 제거](./items/20-performance/gateway-response-buffering.md)
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md)
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md)
-- reliability: [Preference Redis cache 실패 격리](./items/23-reliability/preference-cache-failure-isolation.md)
+- ~~reliability: [Preference Redis cache 실패 격리](./items/23-reliability/preference-cache-failure-isolation.md)~~
 - ~~security: [통합 검색의 비공개 채널 노출 차단](./items/24-security/private-channel-search-visibility.md)~~
 - security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md)
@@ -44,11 +44,12 @@
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+- reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)
 - security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md)
 
 ## 점검 스냅샷
 
-- [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 전환 도구 후속 점검
+- [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 전환 도구와 Preference Redis 장애 격리 후속 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
