@@ -55,7 +55,7 @@ class PreferenceHandler(private val service: PreferenceService, private val scop
             return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            service.updateSettings(resourceType, resourceId, body)
+            runCatching { service.updateSettings(resourceType, resourceId, body).getOrThrow() }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
