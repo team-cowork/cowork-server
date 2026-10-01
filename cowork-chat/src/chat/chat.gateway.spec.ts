@@ -208,6 +208,16 @@ describe('ChatGateway', () => {
             expect(mockChatService.evictUnauthorizedRooms).toHaveBeenCalledWith([client]);
             expect(client.disconnect).not.toHaveBeenCalled();
         });
+
+        it('복원 room 재검증이 실패해도 인증 실패로 연결을 끊지 않는다', async () => {
+            mockChatService.evictUnauthorizedRooms.mockRejectedValueOnce(new Error('mongo down'));
+            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+
+            await gateway.handleConnection(client as unknown as ChatSocket);
+
+            expect(client.disconnect).not.toHaveBeenCalled();
+            expect(client.emit).not.toHaveBeenCalledWith('exception', expect.anything());
+        });
     });
 
     describe('typing rate limit', () => {

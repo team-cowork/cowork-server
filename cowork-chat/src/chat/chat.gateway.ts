@@ -190,7 +190,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.data.userRole = userRole;
             this.joinRoom(client, `user:${userId}`);
             // connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
-            if (client.recovered) await this.chatService.evictUnauthorizedRooms([client]);
+            // 재검증 실패는 인증 실패가 아니므로 연결을 유지하고, 남은 room은 주기 sweep이 정리한다.
+            if (client.recovered) {
+                await this.chatService.evictUnauthorizedRooms([client])
+                    .catch((err: unknown) => this.logger.error(`Recovered room re-check failed: ${client.id}`, err));
+            }
             this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
