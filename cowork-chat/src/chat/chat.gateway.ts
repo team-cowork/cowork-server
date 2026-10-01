@@ -29,12 +29,14 @@ import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
 import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
 import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 
 const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
 const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
 const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 const PROJECTION_NOT_READY_MESSAGE = 'Kafka projections are synchronizing';
+const SOCKET_ADAPTER_NOT_READY_MESSAGE = 'Socket.IO Redis adapter is not ready';
 
 export interface ChatSocketData {
     userId: number;
@@ -95,6 +97,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
         private readonly projectionReadiness: ProjectionReadinessService,
+        private readonly socketIoRedis: SocketIoRedisConnection,
     ) {
         this.typingRateLimitWindowMs = Number(
             getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
@@ -112,13 +115,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     afterInit(server: Server) {
         server.use((_socket, next) => {
-            if (!this.projectionReadiness.isReady()) {
-                next(new Error(PROJECTION_NOT_READY_MESSAGE));
+            const notReady = this.realtimeNotReadyReason();
+            if (notReady) {
+                next(new Error(notReady));
                 return;
             }
             _socket.use((_packet, packetNext) => {
-                if (!this.projectionReadiness.isReady()) {
-                    packetNext(new Error(PROJECTION_NOT_READY_MESSAGE));
+                const packetNotReady = this.realtimeNotReadyReason();
+                if (packetNotReady) {
+                    packetNext(new Error(packetNotReady));
                     return;
                 }
                 packetNext();
@@ -139,6 +144,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.teamRoleEventConsumer.setSocketServer(server);
         this.channelRolePolicyEventConsumer.setSocketServer(server);
         this.teamMemberEventConsumer.setSocketServer(server);
+    }
+
+    /**
+     * projection 동기화가 끝나지 않았거나 Socket.IO Redis adapter가 준비되지 않았으면 그 이유를 반환한다.
+     * adapter가 준비되지 않은 동안 받은 가입은 다른 replica의 브로드캐스트·room 해제를 받지 못하므로 막는다.
+     */
+    private realtimeNotReadyReason(): string | undefined {
+        if (!this.projectionReadiness.isReady()) return PROJECTION_NOT_READY_MESSAGE;
+        if (!this.socketIoRedis.isReady()) return SOCKET_ADAPTER_NOT_READY_MESSAGE;
+        return undefined;
     }
 
     /**
