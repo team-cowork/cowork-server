@@ -6,7 +6,9 @@
 
 > **2026-10-01 진척:** 동적 전환과 서버 생성 보류 대신 Redis adapter를 서버 생성 시점에 항상 설치하도록 정했다. ioredis가 연결 전 명령을
 > 보관하고 재연결 때 구독을 다시 등록하므로, Redis가 늦게 뜨거나 끊겨도 프로세스 재시작 없이 같은 adapter가 복구된다. 대기 중인
-> 구독이 재시도 한도로 버려지지 않도록 pub/sub 모두 `maxRetriesPerRequest: null`을 쓴다. `SocketIoRedisConnection`이 두 client를
+> 구독이 재시도 한도로 버려지지 않도록 sub client만 `maxRetriesPerRequest: null`을 쓴다. pub client는 `fetchSockets()`의
+> `PUBSUB NUMSUB`이 장애 동안 무기한 대기하지 않도록 기본 한도를 유지하고, 한도를 넘겨 거부된 publish는 오류로 기록해
+> unhandled rejection으로 프로세스가 종료되지 않게 한다. `SocketIoRedisConnection`이 두 client를
 > 소유하고 `CONNECTING`·`READY`·`DEGRADED`·`IN_MEMORY`·`STOPPED` 상태와 마지막 오류를 추적한다. `/health/ready`의
 > `socketIoAdapter` 필드, Eureka 최초 등록 조건, WebSocket 연결·packet middleware가 이 상태를 사용한다. 상태·degraded 시간·재연결·
 > 오류 지표와 간격 제한 경고를 추가했고, 종료 시 두 client를 닫는다. `CHAT_SOCKET_IO_ADAPTER=in-memory`는 prod profile에서 기동을
