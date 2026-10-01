@@ -104,6 +104,7 @@ describe('ChatGateway', () => {
             mockJwtService as never,
             mockRateLimiter as never,
             mockProjectionReadiness as never,
+            { isReady: () => true } as never,
         );
     });
 
