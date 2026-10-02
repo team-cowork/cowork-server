@@ -2,56 +2,33 @@
 
 - **서비스**: cowork-channel, cowork-team, cowork-project
 - **우선순위**: 🔴 높음
-- **현재 상태**: 세 서비스의 relay가 가장 오래된 outbox row를 잠근 transaction 안에서 Kafka 전송을 기다리고 첫 실패 row를 매번 다시 선택함
-
-> **2026-09-28 진척:** `shared/jvm-outbox` 공통 relay와 writer를 추가하고 세 서비스가 이를 사용하게 했다. producer fence와 짧은 claim transaction, transaction 밖 Kafka publish, claim owner fencing finalize, `(topic, event_key)`별 순서, snapshot completion barrier, backoff·격리·종료 시 claim 반환을 구현했다. `cowork-channel` `V24`, `cowork-team` `V18`, `cowork-project` `V22` migration과 공통 설정·metric·운영 재처리 문서를 추가했다. Kotlin 포맷과 세 모듈의 Java 22 호환 컴파일은 통과했으나 로컬에 Java 26 toolchain이 없어 공식 target 컴파일은 실행하지 못했다. 실제 MySQL 데이터 사본 migration dry-run과 다중 replica 장애 복구 rehearsal은 아직 수행하지 않았으므로 완료 처리하지 않는다.
+- **현재 상태**: 짧은 claim·transaction 밖 발행·key별 순서·barrier·backoff·격리는 구현되어 있으며 공식 toolchain 빌드와 운영 확인이 남아 있다.
 
 ## 문제
 
-세 모듈의 `KafkaOutboxRelay`는 동일한 구조로 `tb_kafka_outbox`의 오래된 row 최대 100개를 `FOR UPDATE`로 조회한다. 같은 database transaction 안에서 각 row의 Kafka 전송 결과를 최대 10초 기다린 뒤 성공 row를 삭제한다. Kafka가 느리면 connection과 row lock을 한 batch 동안 길게 점유하며, 이론상 대기 시간이 batch 크기에 비례해 늘어난다.
+세 서비스의 relay와 migration은 반영되어 있다. 기존의 장기 transaction 문제를 다시 구현 과제로
+다루지 않는다. 공식 Java toolchain 빌드, 실제 데이터 migration과 여러 replica의 장애 복구는
+아직 확인 결과가 없다.
 
-전송이나 JSON 역직렬화가 실패하면 `attempts`와 `last_error`만 갱신하고 loop를 중단한다. 다음 실행도 `ORDER BY id ASC`로 같은 row를 다시 선택하며 재시도 상한, backoff, `next_attempt_at`, 격리 상태가 없다. 영구적으로 잘못된 선두 row 하나가 뒤의 정상 이벤트 전체를 무기한 막을 수 있다.
-
-세 구현은 package와 lock 이름을 제외하면 거의 같아 정책 수정이 모듈별로 어긋날 위험도 있다. 공통 동작을 재사용 가능한 relay 구성요소로 추출하되, 서비스별 topic과 순서 보장 범위는 명시적으로 주입한다.
-
-## 전달 정책
-
-| 항목      | 결정할 내용                                                                  |
-|-----------|------------------------------------------------------------------------------|
-| 순서 보장 | 전체 전역 순서가 필요한지, 동일 aggregate·event key 안에서만 필요한지 결정함 |
-| claim     | 짧은 transaction에서 owner와 lease 만료 시각을 기록함                        |
-| publish   | database lock 밖에서 Kafka 전송을 수행함                                     |
-| finalize  | 성공 삭제·완료 표시와 실패 backoff를 짧은 transaction으로 반영함             |
-| 영구 실패 | 최대 시도 뒤 별도 격리 테이블 또는 상태로 이동하고 운영 재처리 경로를 제공함 |
-| 중복      | claim 후 crash로 생길 수 있는 재발행을 event ID와 소비자 멱등성으로 흡수함   |
+구버전 writer는 producer fence를 사용하지 않는다. 혼합 배포는 허용하지 않으며
+[운영 절차](../../../jvm-kafka-outbox-relay.md)에 따라 전환한다.
 
 ## 할 일
 
-### relay 구조
-
-- claim, Kafka publish, finalize 단계를 분리해 네트워크 대기 중 database transaction을 열어 두지 않는다.
-- `attempts`, `next_attempt_at`, claim owner·만료 시각, 격리 상태를 후속 migration으로 추가한다.
-- poison row가 같은 key의 순서를 지켜야 하는 범위와 무관한 key의 진행을 막지 않게 선택 쿼리를 설계한다.
-- interrupt와 shutdown 시 claim을 안전하게 반환하거나 lease 만료로 복구되게 한다.
-- 세 서비스가 공유하는 relay 핵심과 서비스별 설정 경계를 분리한다.
-
-### 운영과 복구
-
-- 대기 row 수, 최고 지연 시간, 재시도 횟수, 격리 건수, publish 지연을 metric으로 노출한다.
-- 격리 row의 payload를 안전하게 조회·수정·재처리하는 절차를 문서화한다.
-- payload 역직렬화 오류와 Kafka 일시 장애를 서로 다른 실패 유형으로 기록한다.
+- 저장소에 지정한 Java toolchain으로 세 모듈을 빌드한다.
+- 운영 데이터 사본에서 channel `V24`, team `V18`, project `V22`의 schema·barrier backfill을 확인한다.
+- 모든 구버전 replica를 중지한 뒤 동일 버전으로 시작하는 배포 순서를 준비한다.
+- 발행 지연·영구 오류·worker 중단·lease 만료·격리 재처리의 결과를 수동 운영 점검한다.
+- 실제 Prometheus에서 backlog·격리·관측 실패를 확인하고 알림 기준을 정한다.
 
 ## 검증
 
-- 영구 실패 row와 다른 event key의 선택 조건, 동일 key 순서 조건을 쿼리와 상태 전이 정적 검토로 확인한다.
-- claim과 finalize의 transaction 경계에 Kafka 전송 대기가 포함되지 않는지 호출 그래프와 transaction 선언을 점검한다.
-- row lock·connection 점유 시간, lease 만료, 재시작 뒤 중복·유실 가능성은 metric과 장애 복구 rehearsal로 확인한다.
-- schema와 migration은 배포 전 dry-run 및 데이터 점검 절차로 검증한다.
-- outbox 전달, 순서, 멱등성, lease, 재시도, 격리, 복구를 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
+- schema·fence row·미표시 completion marker를 운영 절차의 쿼리로 확인한다.
+- 한 key의 실패가 다른 key를 막지 않고 completion barrier가 미완료 행을 추월하지 않는지 확인한다.
+- 여러 replica의 claim 회수와 재처리 뒤 backlog·격리가 수렴하는지 관측한다.
 
 ## 완료 조건
 
-- poison outbox row 하나가 무관한 후속 이벤트 발행을 무기한 차단하지 않는다.
-- Kafka 네트워크 대기 동안 database transaction과 row lock이 유지되지 않는다.
-- 재시도·backoff·격리·수동 재처리 정책이 세 서비스에서 일관되게 동작한다.
-- relay의 지연과 실패 상태를 metric으로 확인하고 복구 절차를 runbook으로 실행할 수 있다.
+- 공식 toolchain 빌드와 실제 데이터 migration 확인 결과가 기록되어 있다.
+- 구·신 writer가 같은 DB에서 동시에 실행되지 않는다.
+- 장애·격리·재처리의 순서와 복구 결과를 운영에서 확인할 수 있다.
