@@ -12,16 +12,25 @@ notification의 FCM 선택적 재시도도 event·device 식별자를 사용한�
 
 그러나 Kafka record key는 없고 전체 수신자·SSE fan-out을 식별하는 inbox가 없다.
 발행 뒤 상태 저장 전이나 전송 뒤 offset commit 전에 종료하면 재전달될 수 있다.
-unread 증가는 발행 전 수행하므로 crash 구간에서 같은 메시지로 다시 증가할 수 있다.
+unread는 최상위 메시지의 첫 시도에서 발행 전에 증가한다. 실패가 정상 처리되어 retry count가
+저장된 경우에는 재증가를 피하지만, count 저장 전 프로세스가 종료되면 같은 메시지로 다시 증가한다.
+SSE payload에는 `eventId`가 없고 FCM 호출의 data도 `nil`이어서 수신 측의 이벤트 중복 제거에
+현재 envelope의 안정적 ID가 전달되지 않는다.
 
 ## 남은 경계
 
 | 경계 | 목표 |
 |---|---|
-| Kafka 재발행 | 같은 논리 이벤트의 key·계약을 유지한다. |
+| Kafka 재발행 | 같은 논리 이벤트의 key·계약을 유지한다. key만으로 재발행 중복이 제거되지는 않는다. |
 | 전체 fan-out | event inbox와 수신자별 상태로 완료한 논리 작업을 재생성하지 않는다. |
 | unread | event로 중복 방지하거나 멱등한 cache 무효화를 사용한다. |
 | 외부 FCM·SSE | 재전달 가능성을 명시하고 수신 측 중복 제거 식별자를 제공한다. |
+
+## 코드 근거
+
+- [Chat 알림 발행](../../../../cowork-chat/src/chat/kafka/notification-outbox.poller.ts#L205): unread 증가 → 발행 → SENT 저장 순서다. 최초 시도 중 crash하면 retry count가 없어 재증가할 수 있다.
+- [Kafka record](../../../../cowork-chat/src/chat/kafka/notification-trigger.producer.ts#L100): payload eventId와 producer idempotence는 있으나 record key는 없다.
+- [SSE fan-out](../../../../cowork-notification/internal/infra/kafka/consumer.go#L253): 이벤트 inbox 없이 broadcast하며 SSE payload에는 eventId가 없다. FCM 원장과 전체 fan-out 멱등성은 별개다.
 
 ## 할 일
 

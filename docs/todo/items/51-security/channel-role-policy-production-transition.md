@@ -2,7 +2,7 @@
 
 - **서비스**: cowork-preference, cowork-team, cowork-channel, cowork-chat, 배포 운영
 - **우선순위**: 🔴 높음
-- **현재 상태**: 전환 도구·절차는 마련되어 있으나 운영 manifest 작성·적용·검증은 수행하지 않았다.
+- **현재 상태**: 정책 평가와 전환 도구·절차는 구현되어 있으며 실제 운영 manifest·적용·검증 결과는 저장소에서 확인할 수 없다.
 
 ## 문제
 
@@ -12,6 +12,12 @@
 
 도구와 문서가 준비된 사실만으로 기존 팀의 전환이 끝나지 않는다.
 승인 manifest·적용·projection 수렴과 표본 읽기의 운영 결과를 남긴다.
+
+## 코드 근거
+
+- [Channel 정책 평가](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channelRolePolicy/service/ChannelMessageReadPolicyEvaluator.kt#L24): OWNER 예외와 역할별 우선순위·deny 평가를 항상 수행한다.
+- [Chat 정책 평가](../../../../cowork-chat/src/chat/service/channel-message-read-access.service.ts#L338): 메시지·metadata의 읽기 범위와 역할 정책을 적용한다.
+- [운영 전환 도구](../../../../scripts/channel_role_policy_transition.py#L243): plan·apply·verify·rollback-manifest 경로는 있다. 실제 운영 export·승인·적용 성공 기록은 코드로 입증할 수 없다.
 
 ## 할 일
 
