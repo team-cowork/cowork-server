@@ -13,6 +13,11 @@
 대용량 chunked 응답·취소·downstream 오류에서의 실제 heap·direct memory와 buffer 해제 결과는
 아직 관측하지 않았다. 상한 초과 판단에는 입력 chunk가 포함되므로 chunk 크기도 함께 확인한다.
 
+## 코드 근거
+
+- [응답 집계 경계](../../../../cowork-gateway/src/main/kotlin/com/cowork/gateway/response/body/BoundedResponseBodyTransformer.kt#L20): 상한 초과 뒤 원본 buffer를 relay하며 discard·종료 경로에서 보관 buffer를 해제한다.
+- [streaming 전달](../../../../cowork-gateway/src/main/kotlin/com/cowork/gateway/response/filter/ApiResponseWrapperFilter.kt#L102): writeAndFlushWith는 재집계하지 않는다. 실제 chunk 크기·동시성·메모리 결과는 관측이 필요하다.
+
 ## 할 일
 
 - 검증 환경에서 작은 JSON·길이 미상·상한 초과·SSE·파일 응답의 전달과 wrapping 지표를 확인한다.

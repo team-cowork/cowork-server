@@ -15,6 +15,11 @@ Redis 발행 실패나 consumer 재시작 때 즉시 해제가 누락될 수 있
 대규모 접속의 재인가 비용은 확인하지 않았다. 코드 존재만으로 모든 replica의 회수 완료를
 판정할 수 없다.
 
+## 코드 근거
+
+- [로컬 구독 재검증](../../../../cowork-chat/src/chat/chat.gateway.ts#L162): 로컬 소켓 sweep과 recovered 연결의 재인가가 구현되어 있다.
+- [권한 회수](../../../../cowork-chat/src/chat/service/channel-message-read-access.service.ts#L207): 현재 권한 없는 채널·팀 room만 해제하고 판정 전후 readiness가 닫히면 회수를 건너뛴다.
+
 ## 할 일
 
 - 같은 사용자의 여러 브라우저·replica에서 채널·팀 탈퇴와 채널 삭제 뒤 회수를 확인한다.

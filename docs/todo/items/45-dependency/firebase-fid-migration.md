@@ -20,6 +20,12 @@ FID 전용 계약으로 일괄 전환한다. token API 하위 호환·병행 전
 기존 등록과 연결된 전송 상태의 보존·이관은 요구하지 않으며 클라이언트가 실제 FID를 새로 등록한다.
 신규 설치에도 단일 계정 소유권과 선택적 재시도 정책을 적용한다.
 
+## 코드 근거
+
+- [Firebase SDK](../../../../cowork-notification/go.mod#L6): v4.20.0 고정과 FID 전환 전제 주석이 남아 있다.
+- [전송 식별자](../../../../cowork-notification/internal/infra/fcm/sender.go#L132): MulticastMessage.Tokens를 사용하며 Fids 전송 경로는 없다.
+- [등록 모델](../../../../cowork-notification/internal/domain/token/model.go): 현재 저장 모델은 registration token이며 FID 설치 모델이 아니다.
+
 ## 할 일
 
 - iOS·Android·Web의 FID 획득·전송 전제 조건과 필요한 클라이언트 버전을 확인한다.

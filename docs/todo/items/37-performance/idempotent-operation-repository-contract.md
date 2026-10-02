@@ -12,6 +12,12 @@
 MySQL/JDBC affected-row 값만으로 신규와 duplicate no-op을 구분하면 driver 설정에 따라
 패배한 요청을 신규로 오판할 수 있다. 조회 최적화는 이 의미를 캡슐화한 repository 계약이 필요하다.
 
+## 코드 근거
+
+- [Channel 접수](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channelRolePolicy/operation/ChannelRolePolicyCommandSubmission.kt#L36): insert-or-no-op 뒤 항상 canonical 잠금 조회를 수행한다. 신규 삽입도 조회를 생략하지 않는다.
+- [Team 접수](../../../../cowork-team/src/main/kotlin/com/cowork/team/domain/teamRole/operation/TeamRoleCommandSubmission.kt#L35): 같은 insert 후 canonical 조회 계약을 사용한다.
+- [Project 접수](../../../../cowork-project/src/main/kotlin/com/cowork/project/domain/github/service/impl/UpdateGithubLabelPolicyServiceImpl.kt#L36): 동일하게 후속 잠금 조회를 수행하며 명시적 신규·기존 반환 타입은 없다.
+
 ## 할 일
 
 - 신규와 기존 canonical operation을 구분하는 명시적 결과 타입·repository 구현을 정한다.

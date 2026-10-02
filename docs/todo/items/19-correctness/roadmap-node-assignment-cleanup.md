@@ -6,8 +6,9 @@
 
 ## 문제
 
-현재 노드 삭제는 서브트리에 과제가 있으면 거부한다. 그러나 어느 팀의 관리자든 읽을 수 있는
-GLOBAL 노드에 과제를 만들 수 있어, 한 팀의 과제가 공용 노드 삭제를 막을 수 있다.
+현재 노드 삭제는 서브트리에 과제가 있으면 거부한다. `GLOBAL` 과제 scope 자체는 거부하지만,
+팀 관리자는 `GLOBAL` 로드맵의 노드에 `TEAM`·`PROJECT` 과제를 만들 수 있다.
+따라서 한 팀의 과제가 공용 노드 삭제를 막는 정책 문제는 남아 있다.
 
 다른 팀의 진행 기록을 지우지 않고 공용 로드맵을 관리할 정책이 필요하다.
 기존 고아 과제를 삭제하는 `V7__delete_orphan_node_assignments.sql`의 실제 데이터 적용과
@@ -20,6 +21,11 @@ GLOBAL 노드에 과제를 만들 수 있어, 한 팀의 과제가 공용 노드
 | 사용 중 삭제 거부 유지 | 팀별 과제 해제 책임과 공용 노드 관리 권한 |
 | 로드맵 전체 과제로 전환 | 과제 의미·중복 제약·응답 변경 |
 | 노드 soft delete | 기존 진행 기록·조회와 신규 과제 생성 제한 |
+
+## 코드 근거
+
+- [노드 삭제](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/node/service/impl/DeleteRoadmapNodeServiceImpl.java#L53): 노드 배타 잠금과 과제 잠금 조회 뒤 연결 과제가 있으면 409로 거부한다.
+- [과제 생성](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/assignment/service/impl/CreateRoadmapAssignmentServiceImpl.java#L34): GLOBAL 과제 scope는 거부하지만 읽을 수 있는 GLOBAL 로드맵에 팀·프로젝트 과제를 만들 수 있다.
 
 ## 할 일
 
