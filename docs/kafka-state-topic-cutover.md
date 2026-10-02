@@ -1,26 +1,26 @@
-# 상태 토픽 v2 운영 전환
+# 상태 토픽 계약과 운영 전환
 
 저장소의 v2 코드·설정 반영과 실제 운영 전환을 구분한다.
 **기존 데이터의 유지·복구·이관 여부는 운영 담당자 재량이며 배포의 필수 조건이 아니다.**
 이 문서는 기존 데이터 유지를 선택했을 때의 참고 절차다. 저장소 검증만으로 운영 토픽 생성·재구축·폐기가 완료된 것은 아니다.
 
-## 확정 계약
+복구 안전 조건은 [Kafka Projection Rules](../.claude/rules/kafka-projections.md)를 따른다.
+아래 명령은 운영 관리 환경에서 실행하며 실제 적용 결과는 별도 운영 기록에 남긴다.
 
-| 은퇴할 토픽            | 새 토픽                   | 데이터 key             | Producer       | Consumer                    |
-|------------------------|---------------------------|------------------------|----------------|-----------------------------|
-| `channel.event`        | `channel.event.v2`        | `<channelId>`          | cowork-channel | cowork-project, cowork-chat |
-| `channel.member.event` | `channel.member.event.v2` | `<channelId>:<userId>` | cowork-channel | cowork-chat, cowork-voice   |
-| `project.event`        | `project.event.v2`        | `<projectId>`          | cowork-project | cowork-channel, cowork-chat |
-| `project.member.event` | `project.member.event.v2` | `<projectId>:<userId>` | cowork-project | cowork-chat                 |
+## 상태 토픽 계약
 
-네 토픽 모두 `cleanup.policy=compact`이며 현재 상태와 삭제 이력을 전량 발행한다. Kafka null-value
-tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`는 별도 예약 key로 각 partition에
-발행한다. 키 의미가 바뀐 구 토픽의 원문을 새 토픽으로 복사하지 않는다.
+아래 네 토픽은 기존 이름을 유지한 compacted state 계약이다. 새 스트림은 소유자·소비자·직렬화 key·
+보존 정책·snapshot 지원을 이 절에 등록한다. 전체 provisioning은
+[`deploy/compose/stack.yaml`](../deploy/compose/stack.yaml)을 기준으로 한다.
 
-`cowork-chat`의 기존 group ID는 유지한다. 이름에 들어 있는 `v2-projection`은 토픽 버전이 아니다.
-`cowork-channel.project-event`와 `cowork-project.channel-state`도 유지하며, checkpoint는 topic별로
-분리된다. Voice는 `cowork-voice.channel-member.v2`로 전환한다. Group 변경만으로 projection 행이
-초기화되지는 않는다.
+| 토픽                      | 소유자  | 소비자                    | 데이터 key             | 보존·복구                          |
+|---------------------------|---------|---------------------------|------------------------|------------------------------------|
+| `channel.event.v2`        | channel | project, chat, preference | `<channelId>`          | `compact`, 현재·삭제 상태 snapshot |
+| `channel.member.event.v2` | channel | chat, voice               | `<channelId>:<userId>` | `compact`, 현재·삭제 상태 snapshot |
+| `project.event.v2`        | project | channel, chat             | `<projectId>`          | `compact`, 현재·삭제 상태 snapshot |
+| `project.member.event.v2` | project | chat                      | `<projectId>:<userId>` | `compact`, 현재·삭제 상태 snapshot |
+
+ID는 선행 0 없는 양의 정수 UTF-8 십진 문자열이다. 완료 marker는 예약 key로 각 partition에 발행한다.
 
 ## 1. 점검과 쓰기 중단
 
@@ -47,8 +47,8 @@ tombstone을 사용하는 계약이 아니다. `PROJECTION_SNAPSHOT_COMPLETED`�
    ```
 
    이미 저장된 행의 topic/key/payload는 그 당시 계약이다. 원문을 v2로 재지정하거나 삭제하지 않는다.
-   구 토픽은 남겨 두어 새 버전의 relay도 기존 목적지로 잔여 행을 발행할 수 있게 한다. FIFO 앞부분의
-   실패 행은 뒤의 snapshot/marker도 막으므로 `attempts`, `last_error`를 확인하고 원인을 해결한다.
+   구 토픽은 남겨 두어 새 버전의 relay도 기존 목적지로 잔여 행을 발행할 수 있게 한다. 격리되거나 미발행인
+   행은 해당 key와 snapshot/marker를 막을 수 있으므로 `attempts`, `last_error`를 확인하고 원인을 해결한다.
    v2는 소유자 DB의 현재 상태와 삭제 이력에서 새로 채운다.
 
 ## 2. 새 토픽 생성
@@ -200,7 +200,7 @@ JS
 - 각 새 토픽을 earliest부터 확인해 데이터 key가 위 표와 일치하고 모든 partition에 유효한 완료 marker가
   있는지 확인한다. 새 계약 위반 격리가 없어야 한다. Marker key는 데이터 key 검사에서 구분한다.
 - 실제 채널·프로젝트·멤버십 조회를 확인한 뒤 트래픽을 연다. 재시작만으로 초기화가 되었다고 판단하지
-  않는다. Chat rebuild 결과와 서비스 readiness를 PR에 기록한다.
+  않는다. Chat rebuild 결과와 서비스 readiness를 운영 기록에 남긴다.
 - 구 버전 replica·consumer가 남아 있지 않고, 두 소유자 DB의 구 topic outbox가 0건이며 이후에도
   증가하지 않는지 확인한다. 그 뒤에만 다음 명령으로 네 구 토픽을 폐기한다. 같은 이름은 재사용하지 않는다.
 
