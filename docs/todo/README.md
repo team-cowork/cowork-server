@@ -46,10 +46,11 @@
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
 - ~~reliability: [Preference status 만료 작업의 Redis lock 의존 제거](./items/50-reliability/preference-status-expiry-lock-fallback.md)~~
 - security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md)
+- ~~correctness: [projection 미준비 중 권한 보유 소켓의 room 오회수 차단](./items/52-correctness/revocation-readiness-guard.md)~~
 
 ## 점검 스냅샷
 
-- [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 전환 도구와 Preference Redis 장애 격리 후속 점검
+- [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 전환 도구, Preference Redis 장애 격리, WebSocket 구독 회수 경로 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
 - [20260830](./20260830_TODO.md) — 역할 기반 채널·메시지 권한 점검
