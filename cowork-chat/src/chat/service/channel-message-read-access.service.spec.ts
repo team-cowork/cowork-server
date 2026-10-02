@@ -172,6 +172,56 @@ describe('ChannelMessageReadAccessService', () => {
         expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
         expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
     });
+
+    it.each([
+        ['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.isReady.mockReturnValue(false)],
+        ['판정 도중 readiness가 닫히면', () => channelRepository.findByIds.mockImplementationOnce(() => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
+        })],
+    ])('%s 거부 판정으로 socket을 제거하지 않는다', async (_label, closeReadiness) => {
+        closeReadiness();
+        const socket = { data: { userId: 3 }, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn() };
+        const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([socket]) }) };
+
+        await service.evictUnauthorizedSockets(io as never, [10]);
+
+        expect(socket.leave).not.toHaveBeenCalled();
+        expect(socket.emit).not.toHaveBeenCalled();
+    });
+    });
+
+    describe('evictUnauthorizedRooms', () => {
+    const makeSocket = (userId: number, rooms: string[]) => ({
+        data: { userId },
+        rooms: new Set(rooms),
+        leave: jest.fn(),
+        emit: jest.fn(),
+    });
+
+    it('현재 권한이 없는 채널·팀 room에서만 socket을 제거한다', async () => {
+        const allowed = makeSocket(2, ['socket-a', 'user:2', 'chat:10', 'team:1']);
+        const denied = makeSocket(3, ['socket-b', 'user:3', 'chat:10', 'team:2']);
+
+        await expect(service.evictUnauthorizedRooms([allowed, denied])).resolves.toBe(2);
+
+        expect(allowed.leave).not.toHaveBeenCalled();
+        expect(denied.leave.mock.calls).toEqual([['chat:10'], ['team:2']]);
+        expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
+        expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', { teamId: 2 });
+    });
+
+    it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
+        channelRepository.findByIds.mockImplementationOnce(() => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
+        });
+        const denied = makeSocket(3, ['chat:10']);
+
+        await expect(service.evictUnauthorizedRooms([denied])).resolves.toBe(0);
+
+        expect(denied.leave).not.toHaveBeenCalled();
+    });
     });
 
     describe('emitToReadableChannelUsers', () => {
