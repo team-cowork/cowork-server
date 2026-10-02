@@ -22,6 +22,11 @@
 | webhook·변경 API | 실제 업무 이벤트 대신 provider 검증 기능이나 비파괴 probe를 선택한다. |
 | CORS·구 경로 | API 도달성과 별도 신호로 감시한다. |
 
+## 코드 근거
+
+- [local probe 목록](../../../../deploy/config/monitoring/prometheus/prometheus.yml#L56): 서비스별 직접 health 주소만 검사하며 Gateway canonical API manifest는 없다.
+- [prod probe 생성](../../../../deploy/prod/monitoring/render-prometheus.py#L49): Eureka healthCheckUrl을 probe 대상으로 사용한다. 실제 API method·인증·CORS 계약을 검사하지 않는다.
+
 ## 할 일
 
 - 외부 HTTP API 모듈별 읽기 전용 경로 또는 동등한 비파괴 probe를 정한다.
