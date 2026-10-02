@@ -49,7 +49,6 @@ import io.vertx.kotlin.coroutines.dispatcher
 import io.vertx.pgclient.PgBuilder
 import io.vertx.pgclient.PgConnectOptions
 import io.vertx.redis.client.Redis
-import io.vertx.redis.client.RedisAPI
 import io.vertx.redis.client.RedisOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
@@ -69,6 +68,7 @@ class MainVerticle : AbstractVerticle() {
         private const val EUREKA_READINESS_INTERVAL_MS = 1_000L
         private const val INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS = 1_000L
         private const val PROJECTION_SNAPSHOT_INTERVAL_MS = 300_000L
+        private const val CACHE_REPAIR_INTERVAL_MS = 1_000L
         private const val TEAM_SNAPSHOT_SOURCE = "cowork-team"
         private const val CHANNEL_SNAPSHOT_SOURCE = "cowork-channel"
     }
@@ -100,8 +100,7 @@ class MainVerticle : AbstractVerticle() {
 
         pool = buildPgPool(appConfig)
         redis = buildRedis(appConfig)
-        val redisApi = RedisAPI.api(redis)
-        preferenceCache = PreferenceCache(redisApi)
+        preferenceCache = PreferenceCache(redis, MetricsRegistry.registry)
 
         producer = buildKafkaProducer(appConfig)
         val preferenceProducer = PreferenceProducer(producer)
@@ -174,6 +173,7 @@ class MainVerticle : AbstractVerticle() {
         )
 
         scheduleStatusExpiryCheck(prefRepo, outboxRepository, preferenceCache)
+        scheduleCacheRepair(preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             notificationRepository = notifRepo,
             preferenceRepository = prefRepo,
@@ -301,6 +301,20 @@ class MainVerticle : AbstractVerticle() {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
                 checkExpiredStatuses(prefRepo, outboxRepository, cache)
+            }
+        }
+    }
+
+    private fun scheduleCacheRepair(cache: PreferenceCache) {
+        val repairInProgress = AtomicBoolean(false)
+        vertx.setPeriodic(CACHE_REPAIR_INTERVAL_MS) {
+            if (!repairInProgress.compareAndSet(false, true)) return@setPeriodic
+            scope.launch(vertx.dispatcher()) {
+                try {
+                    cache.repairPending()
+                } finally {
+                    repairInProgress.set(false)
+                }
             }
         }
     }
