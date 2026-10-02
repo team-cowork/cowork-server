@@ -25,6 +25,12 @@
 
 세부 역할과 전역 `ADMIN` 예외는 각 소유 서비스의 계약에 맞춰 확정한다.
 
+## 코드 근거
+
+- [공개 라우터](../../../../cowork-preference/src/main/kotlin/com/cowork/preference/router/PreferenceRouter.kt#L57): 본문 parser 뒤 공개 리소스 handler를 직접 연결하며 요청자 인가 middleware가 없다.
+- [설정 handler](../../../../cowork-preference/src/main/kotlin/com/cowork/preference/handler/PreferenceHandler.kt#L58): resource ID·body만 service에 전달하고 호출자 신원을 전달하지 않는다.
+- [프로젝트 역할 handler](../../../../cowork-preference/src/main/kotlin/com/cowork/preference/handler/ProjectRoleHandler.kt#L113): 역할 생성·할당도 경로·본문 ID만 사용하므로 Gateway 인증으로 리소스 권한이 보완되지 않는다.
+
 ## 할 일
 
 - `X-User-Id`·`X-User-Role`을 검증한 요청자 컨텍스트를 handler와 service에 전달한다.

@@ -10,14 +10,23 @@
 retained offset 범위로 재개를 판단한다. 같은 이름·세대·겹치는 offset의 broker topic 교체를
 이 값만으로 탐지할 수는 없다.
 
+collection 손상 검사는 활성화 당시 문서가 있던 collection이 완전히 비었는지를 확인한다.
+문서 일부만 유실된 경우는 dataset 세대·offset 범위가 그대로일 수 있으므로 이 검사로 탐지하지 못한다.
+
 운영 source 세대는 broker UUID와 동등한 증거가 아니다. 이 제약은
 [Kafka 공통 규칙](../../../../.claude/rules/kafka-projections.md)에 명시되어 있다.
 checkpoint·readiness·rebuild 구현 설명을 반복하지 않고 연속성 증거와 실제 복구 경계를 확인한다.
+
+## 코드 근거
+
+- [재개 판정](../../../../cowork-chat/src/common/kafka/projection-readiness.service.ts#L620): topic·group·운영 세대·Mongo dataset·offset 범위를 확인하지만 broker UUID는 비교하지 않는다.
+- [재구축 reset](../../../../cowork-chat/src/common/kafka/projection-dataset.repository.ts#L217): channelMember는 삭제 표시와 source 상태만 초기화하여 채팅 소유 필드를 보존한다.
 
 ## 할 일
 
 - broker topic UUID를 확보·저장·검증할 client 경계를 마련한다.
 - 확보 전 source 교체·손상·연속성 불명은 fail closed와 명시적 dataset 재구축으로 처리한다.
+- 부분 collection 유실의 발견·운영 재구축 기준과 source 교체 정보의 공급 경계를 정한다.
 - 여러 replica의 pause·lease fencing·reset·replay와 중단 후 재개를 수동 확인한다.
 - `channelMember` 재구축이 채팅 소유 필드를 보존하는지 실제 데이터로 대조한다.
 - 재시작·retention gap·MongoDB 초기화·topic 교체별 복구 절차와 증분 성능을 기록한다.

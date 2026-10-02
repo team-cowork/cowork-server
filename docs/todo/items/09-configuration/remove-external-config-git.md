@@ -12,6 +12,11 @@
 전환 구현을 다시 수행하는 대신 외부 원본과 현재 응답을 비교해 누락을 확인한다. 공급 경로와
 변경·복구 절차는 [배포 문서](../../../deployment.md)를 따른다.
 
+## 코드 근거
+
+- [Config backend 설정](../../../../cowork-config/src/main/resources/application.yml#L65): local·prod 모두 Vault와 classpath native를 사용하며 Git backend 선언은 없다.
+- [Vault 설정 공급](../../../../deploy/prod/vault-settings.py): 서비스·프로파일별 속성을 갱신하는 경로가 있다. 외부 Config Git 원본의 누락·폐기 여부는 이 코드로 확인할 수 없다.
+
 ## 할 일
 
 - 과거 배포 기록의 Config Git 저장소·label·commit과 운영 override의 key 목록을 값 없이 확보한다.

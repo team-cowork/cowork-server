@@ -24,6 +24,12 @@ team·user는 공개 endpoint로 업로드 URL을 서명하지만 chat은 내부
 | CORS | 환경별 origin·method·header와 업로드 `Content-Type`·응답 header |
 | 기존 데이터 | 절대 URL 유지·정정·폐기 또는 object key 기반 응답 전환 |
 
+## 코드 근거
+
+- [Chat S3 client](../../../../cowork-chat/src/storage/object-storage.module.ts#L23): 업로드 서명에 사용하는 client는 endpoint·port 설정으로 만든다. 반환용 public base URL과 서명 endpoint는 별개다.
+- [Team 공개 signer](../../../../cowork-team/src/main/kotlin/com/cowork/team/global/config/S3PresignerConfig.kt#L24): public endpoint 전용 presigner를 사용한다.
+- [User 공개 signer](../../../../cowork-user/lib/cowork_user/storage/object_storage.ex#L31): PUT·GET 서명은 public, HEAD·DELETE는 internal endpoint를 사용한다.
+
 ## 할 일
 
 - 객체별 공개·비공개 정책과 bucket·prefix 경계를 정한다.
