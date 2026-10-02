@@ -1,5 +1,9 @@
-package com.cowork.config.security
+package com.cowork.config.security.config
 
+import com.cowork.config.security.account.ControlPlaneAccounts
+import com.cowork.config.security.filter.EurekaRegistrationGuard
+import com.cowork.config.security.password.ControlPlanePasswordEncoder
+import com.cowork.config.security.policy.ControlPlaneAccessPolicy
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
