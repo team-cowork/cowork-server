@@ -34,6 +34,6 @@
 - Config Server: 포트, MySQL URL, Kafka, Eureka, OAuth callback·redirect와 provider endpoint·scope.
 - Vault: MySQL 계정, credential 암호화 키, OAuth state key, provider client ID·secret.
 
-Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 가이드](../docs/configuration.md)를 참고합니다.
+Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
 
 OAuth provider는 GitHub, Notion, Jira, Google, Facebook이며 사용하지 않는 provider의 client 값은 비워둘 수 있습니다.
