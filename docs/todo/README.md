@@ -48,9 +48,17 @@
 - api: [GitHub App 이슈·댓글·라벨 외부 계약 정립](./items/47-api/github-app-issue-comment-label-contract.md)
 - ~~reliability: [GitHub App 설치·해제 이벤트 순서 보장](./items/48-reliability/github-installation-event-ordering.md)~~
 - ~~reliability: [GitHub 댓글 부가 알림의 outbox 전환](./items/49-reliability/github-comment-notification-outbox.md)~~
+- deployment: [운영 서비스의 CD 배포 일원화](./items/52-deployment/prod-cd-unification.md)
+- deployment: [CD health 대기와 SSH 명령 제한 분리](./items/53-deployment/cd-health-wait-ssh-timeout.md)
+- deployment: [VM 재부팅 후 Vault unseal 복구 절차](./items/54-deployment/vault-reboot-recovery.md)
+- configuration: [notification FCM 자격 증명 Vault 등록](./items/55-configuration/notification-fcm-credentials.md)
+- performance: [user projection 재생 처리량 개선](./items/56-performance/user-projection-replay-throughput.md)
+- monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md)
+- deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md)
 
 ## 점검 스냅샷
 
+- [20261002](./20261002_TODO.md) — 운영 장애 복구와 CD 배포 실패 점검
 - [20260926](./20260926_TODO.md) — GitHub App 연동 갭 점검
 - [20260916](./20260916_TODO.md) — 서버 의존성 갱신 후속 작업 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 후속 자동화와 유지보수 점검
