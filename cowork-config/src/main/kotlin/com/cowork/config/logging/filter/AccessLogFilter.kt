@@ -1,4 +1,4 @@
-package com.cowork.config.filter
+package com.cowork.config.logging.filter
 
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
