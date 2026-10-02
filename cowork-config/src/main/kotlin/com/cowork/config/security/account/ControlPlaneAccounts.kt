@@ -1,12 +1,10 @@
-package com.cowork.config.security
+package com.cowork.config.security.account
 
 import org.springframework.core.env.Environment
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.provisioning.InMemoryUserDetailsManager
 import tools.jackson.core.StreamReadFeature
 import tools.jackson.databind.json.JsonMapper
-
-class ControlPlaneAccount(val username: String, val passwordHash: String, val application: String, val profile: String)
 
 class ControlPlaneAccounts(environment: Environment) {
     val accounts: Map<String, ControlPlaneAccount>

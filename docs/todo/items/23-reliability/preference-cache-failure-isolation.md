@@ -4,6 +4,8 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: authoritative DB·outbox 작업이 성공한 뒤 Redis 쓰기 실패가 요청·consumer 실패로 전파됨
 
+> **2026-09-30 진척:** `PreferenceCache`의 조회·기록·무효화를 500ms timeout을 둔 best-effort 호출로 바꿔 Redis 오류를 호출자에게 전파하지 않는다. 실패는 `preference.cache.failures{operation}` counter와 key만 담은 경고 로그로 남긴다. 연속 5회 실패하면 circuit을 5초 동안 열어 Redis 호출을 건너뛰므로 Redis가 응답하지 않아도 요청마다 timeout을 기다리지 않는다. 열림 상태는 `preference.cache.circuit.open`으로 노출한다. commit 뒤 기록·무효화에 실패한 key는 최대 10,000개의 메모리 repair 대기열에 넣고 1초부터 30초까지 backoff하며 삭제를 재시도한다. 대기 중인 key는 cache 조회를 건너뛰고 DB에서 읽는다. 마지막 실패 뒤 TTL 300초가 지나면 만료로 정리한다. `preference.cache.repair.pending`, `preference.cache.repairs{outcome}`, `preference.cache.repair.convergence`로 적체와 수렴 시간을 노출한다. bulk 조회는 Redis `batch` pipeline 한 번으로 채운다. `PreferenceHandler.updateSettings`는 예상하지 못한 service 예외도 500으로 응답한다. `GithubRepoSettingCommandProcessor`는 commit 뒤 cache 오류로 예외를 던지지 않으므로 consumer 재시도와 replay가 result outbox를 다시 적재하지 않는다. 별도 unique key는 추가하지 않았다. repair 대기열은 process 메모리에 있어 재시작하면 사라지며, 이 경우 TTL로만 수렴한다. status 만료 작업의 Redis lock(`acquireExpiryLock`) 실패 처리는 이 항목 범위 밖이라 [후속 작업](../50-reliability/preference-status-expiry-lock-fallback.md)으로 분리했다. Redis 장애 중 outbox 증가율과 수렴 시간은 운영 환경에서 아직 검증하지 않았다.
+
 ## 문제
 
 `PreferenceService.getSettings`는 cache miss 시 PostgreSQL에서 설정을 읽은 뒤 `PreferenceCache.setSettings`가 성공해야 응답한다. `updateSettings`는 설정과 outbox event를 database transaction으로 commit한 다음 Redis 쓰기를 기다리고, 실패하면 성공 결과를 반환하지 못한다. 따라서 선택적 가속 계층인 Redis 장애가 Preference 읽기·쓰기 전체 장애로 확대된다.
