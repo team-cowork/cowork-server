@@ -13,6 +13,12 @@
 구버전 writer는 producer fence를 사용하지 않는다. 혼합 배포는 허용하지 않으며
 [운영 절차](../../../jvm-kafka-outbox-relay.md)에 따라 전환한다.
 
+## 코드 근거
+
+- [Channel relay](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/global/outbox/KafkaOutboxRelay.kt#L201): claim transaction과 발행·결과 기록을 분리하고 retry·격리를 처리한다.
+- [Team claim 저장소](../../../../cowork-team/src/main/kotlin/com/cowork/team/global/outbox/delivery/TeamOutboxStore.kt#L57): 짧은 claim transaction을 commit한 뒤 별도 sender가 발행한다.
+- [Project relay](../../../../cowork-project/src/main/kotlin/com/cowork/project/global/outbox/flow/KafkaOutboxRelay.kt#L110): claim commit 뒤 Kafka 발행을 수행한다. Java 26 빌드·migration·운영 장애 결과는 이번 정적 대조로 판정하지 않는다.
+
 ## 할 일
 
 - 저장소에 지정한 Java toolchain으로 세 모듈을 빌드한다.
