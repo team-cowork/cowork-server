@@ -40,7 +40,7 @@ class TeamMembershipGuard(
         if (!readiness.isReady) {
             throw TeamMembershipProjectionNotReadyException("team member projection is not ready")
         }
-        val member = memberRepository.find(pool, teamId, accountId)
+        val member = memberRepository.findForRead(pool, teamId, accountId)
         if (member == null || member.deleted) {
             throw TeamMembershipDeniedException("팀 멤버만 접근할 수 있습니다.")
         }
