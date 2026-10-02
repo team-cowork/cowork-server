@@ -84,15 +84,12 @@ class PreferenceHandler(
             return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            val result = runCatching {
+            runCatching {
                 if (resourceType == ResourceType.TEAM) {
                     teamMembershipGuard.requireSettingsManager(resourceId, requireNotNull(requester))
                 }
-            }.fold(
-                onSuccess = { service.updateSettings(resourceType, resourceId, body) },
-                onFailure = { Result.failure(it) },
-            )
-            result
+                service.updateSettings(resourceType, resourceId, body).getOrThrow()
+            }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
