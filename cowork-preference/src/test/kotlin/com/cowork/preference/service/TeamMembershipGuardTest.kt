@@ -32,7 +32,7 @@ class TeamMembershipGuardTest {
         fun `전역 ADMIN이면 팀 멤버십 조회 없이 통과한다`() = runBlocking {
             fixture.guard.requireMember(teamId, globalAdmin)
 
-            coVerify(exactly = 0) { fixture.memberRepository.find(any(), any(), any()) }
+            coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
         }
 
         @Test
@@ -71,7 +71,7 @@ class TeamMembershipGuardTest {
                 runBlocking { fixture.guard.requireMember(teamId, member) }
             }
 
-            coVerify(exactly = 0) { fixture.memberRepository.find(any(), any(), any()) }
+            coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
         }
     }
 
@@ -82,7 +82,7 @@ class TeamMembershipGuardTest {
         fun `전역 ADMIN이면 역할과 무관하게 설정 관리 권한을 허용한다`() = runBlocking {
             fixture.guard.requireSettingsManager(teamId, globalAdmin)
 
-            coVerify(exactly = 0) { fixture.memberRepository.find(any(), any(), any()) }
+            coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
         }
 
         @Test
@@ -129,7 +129,7 @@ class TeamMembershipGuardTest {
                 runBlocking { fixture.guard.requireSettingsManager(teamId, member) }
             }
 
-            coVerify(exactly = 0) { fixture.memberRepository.find(any(), any(), any()) }
+            coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
         }
     }
 
@@ -144,7 +144,7 @@ class TeamMembershipGuardTest {
         }
 
         fun stubMember(role: String = "MEMBER", deleted: Boolean = false, found: Boolean = true) {
-            coEvery { memberRepository.find(pool, teamId, member.userId) } returns
+            coEvery { memberRepository.findForRead(pool, teamId, member.userId) } returns
                 if (!found) {
                     null
                 } else {
