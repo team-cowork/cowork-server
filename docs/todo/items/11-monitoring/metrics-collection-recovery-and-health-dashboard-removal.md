@@ -13,6 +13,12 @@
 Gateway의 임시 `/health` 화면은 남아 있다. Eureka 등록 집계만으로 메트릭 수집과 알림 경로의
 정상을 판단할 수 없으므로, 실제 수집 복구를 확인한 뒤 화면을 제거한다.
 
+## 코드 근거
+
+- [운영 scrape 생성](../../../../deploy/prod/monitoring/render-prometheus.py#L28): Eureka discovery와 Config의 인증된 metrics 조회 설정은 있다. target 상태·sample·알림 복구는 실제 환경 확인이 필요하다.
+- [임시 화면 controller](../../../../cowork-gateway/src/main/kotlin/com/cowork/gateway/health/controller/HealthDashboardController.kt#L15): HTML·CSS·JS 제공이 그대로 남아 있다.
+- [화면 공개 matcher](../../../../cowork-gateway/src/main/kotlin/com/cowork/gateway/security/config/SecurityConfig.kt#L88): 임시 `/health` 공개 허용도 남아 있어 파일 삭제와 함께 제거해야 한다.
+
 ## 할 일
 
 - 영향 환경·서비스·시간을 정하고 Prometheus target의 last error·sample 갱신을 확인한다.

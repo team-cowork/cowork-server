@@ -4,28 +4,40 @@
 
 ## 진행 중
 
-- security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
-- configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
-- monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
+2026-10-02의 `5b236511` 코드를 대조한 판정이다. 구현 완료는 남은 운영·배포 확인까지 완료됐다는 뜻이 아니다.
+실제 운영 자료·외부 클라이언트·과거 Config Git 원본은 이 저장소만으로 확인할 수 없다.
+이번 점검은 소스·migration·설정·배포 스크립트를 확인했으며 빌드·테스트·운영 변경은 수행하지 않았다.
+
+### 주요 변경 미구현 (6)
+
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
-- storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
+- performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
+- deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md)
+- deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
+- dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+
+### 부분 구현·정책 결정 필요 (11)
+
+- monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
+- storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md)
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md)
-- reliability: [JVM Kafka outbox relay 정체와 장기 transaction 제거](./items/18-reliability/jvm-kafka-outbox-relay.md)
 - correctness: [로드맵 노드 삭제 시 assignment 무결성 보장](./items/19-correctness/roadmap-node-assignment-cleanup.md)
-- performance: [Gateway JSON 응답 전체 버퍼링 제거](./items/20-performance/gateway-response-buffering.md)
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md)
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md)
-- security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md)
 - reliability: [Socket.IO Redis adapter 준비 상태와 복구 보장](./items/29-reliability/socketio-redis-adapter-readiness.md)
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md)
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
-- performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md)
-- deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md)
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
-- deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
-- dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+
+### 코드 반영 완료·빌드 또는 운영 검증 대기 (6)
+
+- security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
+- configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
+- reliability: [JVM Kafka outbox relay 정체와 장기 transaction 제거](./items/18-reliability/jvm-kafka-outbox-relay.md)
+- performance: [Gateway JSON 응답 전체 버퍼링 제거](./items/20-performance/gateway-response-buffering.md)
+- security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md)
 
 ## 점검 스냅샷

@@ -13,6 +13,12 @@ Config와 Eureka는 같은 포트를 사용한다. 전환 중 정상 클라이�
 서비스의 설정과 비허용 네트워크 접근이 차단되는지 확인한다. 절차는
 [Config Server 접근 보호 운영](../../../config-server-access.md)을 따른다.
 
+## 코드 근거
+
+- [Config 보안 설정](../../../../cowork-config/src/main/kotlin/com/cowork/config/security/config/ControlPlaneSecurityConfig.kt#L59): HTTP Basic과 허용 endpoint 제한이 구현되어 있다.
+- [서비스별 허용 정책](../../../../cowork-config/src/main/kotlin/com/cowork/config/security/policy/ControlPlaneAccessPolicy.kt#L5): 자기 application·profile과 Eureka 등록 범위를 제한한다.
+- [운영 방화벽 적용](../../../../deploy/prod/lib/config-firewall.sh#L10): 허용 CIDR을 Docker 방화벽에 적용하는 경로가 있다. 실제 계정·인증서·네트워크 적용 여부는 운영 자료가 필요하다.
+
 ## 할 일
 
 - 운영 서비스별 계정·인증서·전용 Vault 토큰을 준비하고 배포 문서의 bootstrap 참조를 갱신한다.
