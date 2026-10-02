@@ -39,6 +39,7 @@ class TeamMemberProjectionRepository {
         return rows.rowCount() == 1
     }
 
+    /** command processor의 트랜잭션 안에서만 사용한다. 동시 projection 갱신과의 순서를 보장하기 위해 행을 잠근다. */
     suspend fun find(client: SqlClient, teamId: Long, accountId: Long): TeamMemberProjection? {
         val rows = client.preparedQuery(
             """
@@ -46,6 +47,18 @@ class TeamMemberProjectionRepository {
             FROM tb_team_member_projections
             WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
             FOR SHARE
+            """.trimIndent(),
+        ).execute(Tuple.of(teamId, accountId)).coAwait()
+        return rows.firstOrNull()?.toProjection()
+    }
+
+    /** 트랜잭션 밖의 단순 조회(authorization guard 등)에 사용한다. 잠금이 없어 projection consumer의 갱신 트랜잭션을 기다리지 않는다. */
+    suspend fun findForRead(client: SqlClient, teamId: Long, accountId: Long): TeamMemberProjection? {
+        val rows = client.preparedQuery(
+            """
+            SELECT team_id, account_id, built_in_role, deleted, source_occurred_at
+            FROM tb_team_member_projections
+            WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId)).coAwait()
         return rows.firstOrNull()?.toProjection()
