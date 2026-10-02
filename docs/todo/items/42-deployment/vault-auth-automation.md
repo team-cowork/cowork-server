@@ -12,6 +12,11 @@
 수동 등록·복구는 [배포 절차](../../../deployment.md)를 유지한다.
 인증 자동화는 최초 배포의 선행 조건이 아니다.
 
+## 코드 근거
+
+- [배포 인증](../../../../.github/workflows/cowork-prod-cd.yml#L325): Environment Secret의 읽기·쓰기 token을 공급한다. Vault OIDC 로그인·토큰 만료 알림·교체 job은 없다.
+- [Vault 읽기](../../../../.github/actions/deploy-target/action.yml#L62): 입력 token을 VAULT_TOKEN으로 전달한다. bootstrap 복구는 별도 입력으로 유지한다.
+
 ## 할 일
 
 - GitHub Actions OIDC 기반 Vault 단기 인증의 적용 가능성을 확인한다.
