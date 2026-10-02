@@ -2,8 +2,15 @@
 
 - **서비스**: cowork-preference, cowork-team, cowork-channel, cowork-chat, 배포 운영
 - **우선순위**: 🔴 높음
-- **현재 상태**: `cowork-channel`과 `cowork-chat`의 읽기 경로는 정책 평가기를 호출하지만 기존 팀의 역할·채널 정책을 구성하는 전환 도구와 운영 절차는 정의되어 있지 않다
+- **현재 상태**: 완료 — 전환 도구 `scripts/channel_role_policy_transition.py`와 운영 절차 `docs/channel-role-policy-transition.md`가 마련되어 있고 운영 환경 전환은 별도 TODO로 분리되어 있다
 - **파생 원본**: [역할 기반 채널·메시지 읽기 권한 적용](../36-security/role-based-channel-message-read-authorization.md)
+- **결론**: 운영 환경의 manifest 작성·적용·검증과 운영 기록은 [기존 역할·채널 정책 운영 환경 전환 수행](../51-security/channel-role-policy-production-transition.md)으로 분리되어 있다
+
+> **2026-09-30 완료:** 읽기 인가에 설정 토글이 없으므로 전환 시점은 maintenance window로 통제한다.
+> 도구는 소유 DB별 읽기 전용 export와 versioned manifest로 `plan`(dry-run), `apply`, `verify`,
+> `rollback-manifest`를 수행하고, 팀별 `OWNER`를 actor로 기존 `cowork-channel` 정책 API를 호출한다.
+> 평가 규칙, 사전 점검, operation 계산은 `scripts/test_channel_role_policy_transition.py`로 검증했다.
+> 실제 서비스 대상 리허설, 운영 데이터 적용, projection 수렴, 표본 읽기 확인은 아직 검증하지 않았으며 후속 TODO로 분리했다.
 
 ## 문제
 
@@ -36,21 +43,22 @@ PostgreSQL migration만으로는 `cowork-channel`의 MySQL이 소유한 채널 �
 
 ### 전환 입력과 사전 점검
 
-- built-in `OWNER`, `ADMIN`, `MEMBER`의 기본 동작과 멤버십 우회 범위를 운영 문서에 고정한다.
-- 기존 팀별 채널과 사용자 정의 역할 조합을 `allow`, `deny`, 정책 부재 유지로 구분하는 versioned manifest를 정의한다.
-- 기존 `tb_team_role_definitions.permissions` 값에서 `message_read`를 추론하지 않는다.
-- 팀 멤버십, 사용자 정의 역할·할당, 팀 채널, 기존 정책을 각 소유 서비스에서 수집한다.
-- 사용자별 effective policy를 계산해 읽을 수 있는 채널이 0개가 되는 non-`OWNER`, 존재하지 않는 참조, 동일 priority 충돌을 보고한다.
-- 운영자가 검토하지 않은 팀을 전환 누락과 명시적인 기본 거부 승인으로 구분한다.
+- ~~built-in `OWNER`, `ADMIN`, `MEMBER`의 기본 동작과 멤버십 우회 범위를 운영 문서에 고정한다.~~
+- ~~기존 팀별 채널과 사용자 정의 역할 조합을 `allow`, `deny`, 정책 부재 유지로 구분하는 versioned manifest를 정의한다.~~
+- ~~기존 `tb_team_role_definitions.permissions` 값에서 `message_read`를 추론하지 않는다.~~
+- ~~팀 멤버십, 사용자 정의 역할·할당, 팀 채널, 기존 정책을 각 소유 서비스에서 수집한다.~~
+- ~~사용자별 effective policy를 계산해 읽을 수 있는 채널이 0개가 되는 non-`OWNER`, 존재하지 않는 참조, 동일 priority 충돌을 보고한다.~~
+- ~~운영자가 검토하지 않은 팀을 전환 누락과 명시적인 기본 거부 승인으로 구분한다.~~
 
 ### 적용과 운영 전환
 
-- 상태를 변경하지 않는 dry-run과 실제 적용이 같은 manifest를 사용하도록 전환 도구를 구현한다.
-- 정책 변경을 `cowork-preference`의 authoritative command 경계를 통해 적용한다.
-- 전환 버전, `teamId`, `channelId`, `roleId`, canonical permissions로 결정적인 `Idempotency-Key`를 생성한다.
-- 모든 operation이 최종 상태가 되고 두 소비 서비스 projection이 수렴할 때까지 적용 진행 상태를 추적한다.
-- 부분 실패 뒤의 재개, 멱등 재실행, rollback, maintenance 또는 cutover 순서를 운영 runbook에 기록한다.
-- 팀별 적용 결과와 기본 거부 유지 승인을 운영 기록으로 남긴다.
+- ~~상태를 변경하지 않는 dry-run과 실제 적용이 같은 manifest를 사용하도록 전환 도구를 구현한다.~~
+- ~~정책 변경을 `cowork-preference`의 authoritative command 경계를 통해 적용한다.~~
+- ~~전환 버전, `teamId`, `channelId`, `roleId`, canonical permissions로 결정적인 `Idempotency-Key`를 생성한다.~~
+- ~~모든 operation이 최종 상태가 되고 두 소비 서비스 projection이 수렴할 때까지 적용 진행 상태를 추적한다.~~
+- ~~부분 실패 뒤의 재개, 멱등 재실행, rollback, maintenance 또는 cutover 순서를 운영 runbook에 기록한다.~~
+- ~~팀별 적용 결과와 기본 거부 유지 승인을 운영 기록으로 남긴다.~~
+  — 구현 완료가 아니라 [기존 역할·채널 정책 운영 환경 전환 수행](../51-security/channel-role-policy-production-transition.md)으로 범위 이관이 완료되어 있다.
 
 ## 검증
 

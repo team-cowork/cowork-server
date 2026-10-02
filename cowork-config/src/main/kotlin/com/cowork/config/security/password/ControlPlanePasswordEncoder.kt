@@ -1,4 +1,4 @@
-package com.cowork.config.security
+package com.cowork.config.security.password
 
 import org.springframework.security.crypto.password.AbstractValidatingPasswordEncoder
 import java.security.MessageDigest
