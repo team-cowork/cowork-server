@@ -4,6 +4,17 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: Redis pub/sub이 5초 안에 준비되지 않으면 Socket.IO가 in-memory adapter로 고정되고 readiness는 별도 Redis 연결만 확인함
 
+> **2026-10-01 진척:** 동적 전환과 서버 생성 보류 대신 Redis adapter를 서버 생성 시점에 항상 설치하도록 정했다. ioredis가 연결 전 명령을
+> 보관하고 재연결 때 구독을 다시 등록하므로, Redis가 늦게 뜨거나 끊겨도 프로세스 재시작 없이 같은 adapter가 복구된다. 대기 중인
+> 구독이 재시도 한도로 버려지지 않도록 sub client만 `maxRetriesPerRequest: null`을 쓴다. pub client는 `fetchSockets()`의
+> `PUBSUB NUMSUB`이 장애 동안 무기한 대기하지 않도록 기본 한도를 유지하고, 한도를 넘겨 거부된 publish는 오류로 기록해
+> unhandled rejection으로 프로세스가 종료되지 않게 한다. `SocketIoRedisConnection`이 두 client를
+> 소유하고 `CONNECTING`·`READY`·`DEGRADED`·`IN_MEMORY`·`STOPPED` 상태와 마지막 오류를 추적한다. `/health/ready`의
+> `socketIoAdapter` 필드, Eureka 최초 등록 조건, WebSocket 연결·packet middleware가 이 상태를 사용한다. 상태·degraded 시간·재연결·
+> 오류 지표와 간격 제한 경고를 추가했고, 종료 시 두 client를 닫는다. `CHAT_SOCKET_IO_ADAPTER=in-memory`는 prod profile에서 기동을
+> 거부한다. 상태 판정 단위 테스트는 통과했으나, Redis 지연 기동·client 단절·두 replica 간 전달 검증은 아직 수행하지 않았다.
+> Eureka는 등록 뒤 상태를 갱신하지 않으므로 등록 후 `DEGRADED`는 `/health/ready`를 확인하는 쪽에서만 반영된다.
+
 ## 문제
 
 `cowork-chat/src/common/adapter/redis-io.adapter.ts`의 `RedisIoAdapter.connectToRedis`는 Redis pub/sub client 두 개의 `ready`를 최대 5초 동안 기다린다. 첫 오류나 timeout이 발생하면 예외를 밖으로 전달하지 않고 `adapterConstructor`를 비운 채 반환하며, 이후 `createIOServer`는 기본 in-memory adapter를 사용한다. 늦게 Redis가 복구되어도 초기 `Promise.race` 성공 경로가 다시 실행되지 않아 해당 프로세스에는 Redis adapter가 설치되지 않는다.
