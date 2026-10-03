@@ -8,3 +8,4 @@ HEALTH_PATH=/actuator/health/readiness
 spring_environment
 mysql_environment
 add_env SPRING_R2DBC_URL "r2dbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/cowork_roadmap?serverZoneId=Asia/Seoul"
+add_env SPRING_FLYWAY_URL "jdbc:mysql://${MYSQL_HOST}:${MYSQL_PORT}/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul"
