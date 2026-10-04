@@ -1,50 +1,13 @@
 # JVM Kafka outbox relay 운영 절차
 
-`cowork-channel`, `cowork-team`, `cowork-project`는 `shared/jvm-outbox`의 공통 relay를 사용한다. producer transaction은 `tb_kafka_outbox_fence`의 singleton row를 잠근 뒤 outbox를 추가하고, relay는 같은 fence를 잠근 짧은 transaction에서 한 행만 claim한다. Kafka 발행과 acknowledgement 대기는 claim transaction이 끝난 뒤 수행한다.
+`cowork-channel`, `cowork-team`, `cowork-project`의 relay 전환·격리 복구 절차다.
+설정 기본값은 [`configs/application.yml`](../cowork-config/src/main/resources/configs/application.yml),
+상태·claim·barrier 구현은 각 모듈의 `KafkaOutboxRelay`를 기준으로 한다.
+전환·장애 복구의 남은 확인은 [TODO](./todo/items/18-reliability/jvm-kafka-outbox-relay.md)에 기록한다.
 
-relay의 전달 보장은 at-least-once다. Kafka 발행 성공 후 outbox 삭제 전에 프로세스가 종료되면 같은 event가 다시 발행될 수 있으므로 consumer의 멱등 처리는 계속 유지한다.
-
-## 상태와 순서
-
-| 상태·유형 | 동작 |
-| --- | --- |
-| `PENDING` | `next_attempt_at`이 지난 행을 claim하여 발행한다. |
-| `QUARANTINED` | 자동 발행에서 제외되며 운영자가 원인을 수정하고 재처리할 때까지 보존한다. |
-| `PAYLOAD` | JSON object로 역직렬화할 수 없는 영구 오류이며 첫 실패에 격리한다. |
-| `KAFKA_PUBLISH` | Kafka 발행 실패이며 지수 backoff와 jitter를 적용하고 최대 시도 뒤 격리한다. |
-
-일반 event는 `(topic, event_key)`별 가장 오래된 행만 선택한다. 한 key의 실패는 같은 key의 후속 event만 막고 다른 key는 계속 처리한다. `is_barrier = TRUE`인 `PROJECTION_SNAPSHOT_COMPLETED` 행은 자신보다 오래된 모든 outbox가 끝난 뒤 발행된다. 대기 중인 barrier보다 새로운 일반 event는 무관한 key라면 계속 처리하지만, 이후 completion barrier는 앞선 barrier를 추월할 수 없다.
-
-`claim_owner`와 `claim_until`은 stale worker의 finalize를 차단한다. 정상 종료 시 현재 process의 claim을 반환하고, 비정상 종료 시에는 lease가 만료된 뒤 다른 replica가 회수한다.
-
-## 설정
-
-공통 기본값은 `cowork-config/src/main/resources/configs/application.yml`에 있다.
-
-| 설정 | 기본값 | 의미 |
-| --- | ---: | --- |
-| `kafka.outbox.batch-size` | `100` | 한 scheduling cycle의 최대 처리 건수 |
-| `kafka.outbox.claim-lease-ms` | `30000` | claim 소유권 유효 시간 |
-| `kafka.outbox.send-timeout-ms` | `10000` | Kafka acknowledgement 대기 상한 |
-| `kafka.outbox.max-attempts` | `8` | Kafka 발행 실패 격리 기준 |
-| `kafka.outbox.backoff-initial-ms` | `5000` | 최초 재시도 기준 지연 |
-| `kafka.outbox.backoff-max-ms` | `600000` | 재시도 지연 상한 |
-
-`kafka.outbox.claim-lease-ms`는 항상 `kafka.outbox.send-timeout-ms`보다 커야 한다. 잘못된 값은 애플리케이션 시작 시 거부된다.
-
-## 지표
-
-| Prometheus 지표 | 확인 내용 |
-| --- | --- |
-| `cowork_kafka_outbox_pending` | 발행 대기 행 수 |
-| `cowork_kafka_outbox_oldest_seconds` | 가장 오래된 대기 행의 지연 |
-| `cowork_kafka_outbox_retries_total` | `failure_type`별 재시도 횟수 |
-| `cowork_kafka_outbox_quarantined_current` | 현재 격리 행 수 |
-| `cowork_kafka_outbox_quarantined_total` | 새로 격리된 누적 행 수 |
-| `cowork_kafka_outbox_publish_seconds` | Kafka acknowledgement 지연 |
-| `cowork_kafka_outbox_observation_success` | 최근 DB backlog 관측 성공 여부 |
-
-공유 DB gauge는 replica별 값을 합산하지 않고 `max`로 집계한다. `pending`, `oldest_seconds`, `quarantined_current` 증가와 `observation_success = 0`을 함께 확인한다.
+공유 DB backlog gauge는 replica별로 합산하지 않고 `max`로 확인한다. backlog·최장 대기·격리 증가와
+`cowork_kafka_outbox_observation_success`를 함께 확인한다. 한 key의 격리가 후속 event와 snapshot 완료를
+막을 수 있으므로 단순 총량뿐 아니라 막힌 key도 확인한다.
 
 ## 배포와 migration 검증
 
@@ -82,7 +45,7 @@ WHERE LEFT(event_key, 40) = '__cowork_projection_snapshot_complete__:'
   AND is_barrier = FALSE;
 ```
 
-`fence_count`는 `1`, `unmarked_completion_count`는 `0`이어야 한다. migration과 장애 복구 rehearsal 결과를 배포 기록에 남긴다.
+`fence_count`는 `1`, `unmarked_completion_count`는 `0`이어야 한다. migration과 수동 장애 복구 점검 결과를 배포 기록에 남긴다.
 
 ## 격리 조회와 재처리
 
