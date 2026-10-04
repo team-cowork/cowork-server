@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka, KafkaMessage } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
@@ -6,10 +11,10 @@ import { Server } from 'socket.io';
 import { getOptionalConfig, getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
+import { ChatMessageQuarantineService } from '../service';
 import { ChatMessageContractError, validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
 import { ChatMessageProcessor } from './chat-message.processor';
-import { ChatMessageQuarantineService } from '../service';
 
 const CHAT_MESSAGE_TOPIC = 'chat.message';
 /**
@@ -46,9 +51,15 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
      */
     private resolveConcurrency(): number {
         const raw = getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY');
-        if (raw === undefined) return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+        if (raw === undefined) {
+            return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+        }
+
         const parsed = Number(raw);
-        if (isSafePositiveInteger(parsed)) return parsed;
+        if (isSafePositiveInteger(parsed)) {
+            return parsed;
+        }
+
         this.logger.warn(
             `Invalid CHAT_MESSAGE_CONSUMER_CONCURRENCY value (${raw}), falling back to default (${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})`,
         );
@@ -66,15 +77,15 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         const partitionsConsumedConcurrently = this.resolveConcurrency();
         void this.consumer.run({
             partitionsConsumedConcurrently,
-            eachMessage: ({ topic, partition, message }) => this.processKafkaMessage(topic, partition, message),
-        }).catch(async (error) => {
+            eachMessage: async ({ topic, partition, message }) => this.processKafkaMessage(topic, partition, message),
+        }).catch(async (error: unknown) => {
             this.logger.error('chat.message Kafka consumer failed', error);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
                 description: 'cowork-chat의 chat.message consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
                 fields: [{ name: 'Topic', value: CHAT_MESSAGE_TOPIC, inline: true }, ...buildErrorFields(error)],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log(`Kafka consumer started: ${CHAT_MESSAGE_TOPIC}`);
@@ -100,11 +111,15 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
                 });
                 return;
             }
+
             const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
             await this.processor.process(event);
         } catch (error) {
             const classification = classifyPoisonError(error);
-            if (!classification) throw error;
+            if (!classification) {
+                throw error;
+            }
+
             await this.quarantineService.quarantine({
                 topic, partition, messageOffset: message.offset, eventKey, payload,
                 contractVersion: 1, ...classification,
@@ -116,12 +131,13 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 function classifyPoisonError(error: unknown): {
     errorType: 'JSON_ERROR' | 'CONTRACT_ERROR' | 'SCOPE_ERROR'; reasonCode: string; reason: string;
 } | null {
-    if (error instanceof SyntaxError) return { errorType: 'JSON_ERROR', reasonCode: 'INVALID_JSON', reason: 'invalid JSON payload' };
+    if (error instanceof SyntaxError) {
+        return { errorType: 'JSON_ERROR', reasonCode: 'INVALID_JSON', reason: 'invalid JSON payload' };
+    }
+
     if (error instanceof ChatMessageContractError) {
         return { errorType: 'CONTRACT_ERROR', reasonCode: error.reasonCode, reason: error.message };
     }
-    if (error instanceof ChatMessageScopeError) {
-        return { errorType: 'SCOPE_ERROR', reasonCode: error.reasonCode, reason: error.message };
-    }
-    return null;
+
+    return error instanceof ChatMessageScopeError ? { errorType: 'SCOPE_ERROR', reasonCode: error.reasonCode, reason: error.message } : null;
 }

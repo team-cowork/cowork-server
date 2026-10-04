@@ -11,17 +11,17 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface TeamMemberProjectionView {
+export type TeamMemberProjectionView = {
     teamId: number;
     userId: number;
     role: string;
     teamName: string;
-}
+};
 
-export interface VersionedTeamMemberProjectionView extends TeamMemberProjectionView {
+export type VersionedTeamMemberProjectionView = {
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+} & TeamMemberProjectionView;
 
 @Injectable()
 export class TeamMemberProjectionRepository {
@@ -35,10 +35,15 @@ export class TeamMemberProjectionRepository {
         teamIds: number[],
         userIds: number[],
     ): Promise<TeamMemberProjectionView[]> {
-        if (teamIds.length === 0 || userIds.length === 0) return [];
+        if (teamIds.length === 0 || userIds.length === 0) {
+            return [];
+        }
+
         return this.model.find(
             { teamId: { $in: teamIds }, userId: { $in: userIds }, deleted: { $ne: true } },
-            { _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1 },
+            {
+                _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1,
+            },
         ).lean<TeamMemberProjectionView[]>();
     }
 
