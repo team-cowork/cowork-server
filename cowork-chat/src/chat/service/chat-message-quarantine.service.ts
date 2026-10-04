@@ -5,7 +5,7 @@ import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { ChatMessageQuarantineErrorType } from '../schema';
 import { ChatMessageQuarantineRepository } from '../repository';
 
-const ALERT_COOLDOWN_MS = 5 * 60 * 1_000;
+const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 
 export type ChatMessageQuarantineRequest = {
     topic: string;
@@ -49,7 +49,7 @@ export class ChatMessageQuarantineService {
                     { name: 'Offset', value: request.messageOffset, inline: true },
                     { name: 'Reason code', value: request.reasonCode, inline: true },
                 ],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
         }
     }
 
