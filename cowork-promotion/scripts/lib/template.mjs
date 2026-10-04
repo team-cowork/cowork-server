@@ -1,11 +1,11 @@
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 
-const includePattern = /^\s*<!--\s*@include\s+([^\s]+)\s*-->\s*$/gm;
+const includePattern = /^[\t ]*<!--[\t ]*@include[\t ]+(\S+?)[\t ]*-->[\t ]*$/gmu;
 
 function ensureInsideRoot(fileUrl, rootUrl) {
     const filePath = fileURLToPath(fileUrl);
-    const rootPath = fileURLToPath(rootUrl).replace(/\/$/, "");
+    const rootPath = fileURLToPath(rootUrl).replace(/\/$/u, '');
 
     if (filePath !== rootPath && !filePath.startsWith(`${rootPath}/`)) {
         throw new Error(`Template include escapes its root: ${filePath}`);
@@ -16,21 +16,24 @@ export async function composeTemplate(fileUrl, rootUrl, stack = []) {
     ensureInsideRoot(fileUrl, rootUrl);
     const filePath = fileURLToPath(fileUrl);
     if (stack.includes(filePath)) {
-        throw new Error(`Circular template include: ${[...stack, filePath].join(" -> ")}`);
+        throw new Error(`Circular template include: ${[...stack, filePath].join(' -> ')}`);
     }
 
-    const template = await readFile(fileUrl, "utf8");
-    const matches = [...template.matchAll(includePattern)];
-    if (matches.length === 0) return template;
+    const template = await readFile(fileUrl, 'utf8');
+    const matches = template.matchAll(includePattern).toArray();
+    if (matches.length === 0) {
+        return template;
+    }
 
     let cursor = 0;
-    let output = "";
+    let output = '';
     for (const match of matches) {
         const includeUrl = new URL(match[1], fileUrl);
         output += template.slice(cursor, match.index);
         output += await composeTemplate(includeUrl, rootUrl, [...stack, filePath]);
         cursor = match.index + match[0].length;
     }
+
     return output + template.slice(cursor);
 }
 
@@ -40,7 +43,7 @@ export function replaceGeneratedRegion(html, name, content) {
     const start = html.indexOf(startMarker);
     const end = html.indexOf(endMarker);
 
-    if (start < 0 || end < 0 || end <= start) {
+    if (start === -1 || end === -1 || end <= start) {
         throw new Error(`Missing or invalid ${name} build markers.`);
     }
 
