@@ -2,55 +2,40 @@
 
 - **서비스**: cowork-preference, cowork-team, cowork-channel, cowork-chat, 배포 운영
 - **우선순위**: 🔴 높음
-- **현재 상태**: 전환 도구와 운영 절차는 마련되어 있으나 운영 환경의 manifest 작성·적용·검증은 수행하지 않았다
-- **파생 원본**: [기존 역할·채널 정책의 운영 전환](../38-security/existing-channel-role-policy-transition.md)
+- **현재 상태**: 정책 평가와 전환 도구·절차는 구현되어 있으며 실제 운영 manifest·적용·검증 결과는 저장소에서 확인할 수 없다.
 
 ## 문제
 
-`cowork-channel`의 `ChannelMessageReadPolicyEvaluator`와 `cowork-chat`의 `ChannelMessageReadAccessService`는 설정
-토글 없이 항상 채널 역할 정책을 평가한다. 이 평가를 추가한 커밋 `225161a01`은 `main`에 포함되어 있지만 운영 환경에
-배포되었는지는 아직 확인하지 않았다. 배포되어 있다면 정책이 없는 팀의 `ADMIN`·`MEMBER`는 지금도 채널 메시지를 읽지
-못한다.
+현재 읽기 인가는 항상 채널 역할 정책을 평가한다. 정책이 없는 팀의 non-`OWNER` 기본 거부를
+유지할지 적용할 정책을 만들지 운영 결정이 필요하다. 실제 배포 버전과 영향을 받는 팀·사용자는
+아직 확인하지 않았다.
 
-전환 도구 `scripts/channel_role_policy_transition.py`와 절차 `docs/channel-role-policy-transition.md`는 준비되어 있다.
-도구의 평가 규칙, 사전 점검, operation 계산은 단위 테스트로, `plan`·`apply`·`verify`·`rollback-manifest` 흐름은 가짜
-HTTP 서버로만 확인했다. 실제 MySQL·PostgreSQL·MongoDB export 형식과 `cowork-channel` 정책 API의 응답 형식을
-상대로는 실행하지 않았다.
+도구와 문서가 준비된 사실만으로 기존 팀의 전환이 끝나지 않는다.
+승인 manifest·적용·projection 수렴과 표본 읽기의 운영 결과를 남긴다.
 
-manifest 승인, 팀별 기본 거부 유지 승인, 적용 결과는 운영 데이터이므로 저장소에서 완료할 수 없다. 운영 환경에서
-절차를 수행하고 결과를 기록해야 기존 팀의 전환이 끝난다.
+## 코드 근거
+
+- [Channel 정책 평가](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channelRolePolicy/service/ChannelMessageReadPolicyEvaluator.kt#L24): OWNER 예외와 역할별 우선순위·deny 평가를 항상 수행한다.
+- [Chat 정책 평가](../../../../cowork-chat/src/chat/service/channel-message-read-access.service.ts#L338): 메시지·metadata의 읽기 범위와 역할 정책을 적용한다.
+- [운영 전환 도구](../../../../scripts/channel_role_policy_transition.py#L243): plan·apply·verify·rollback-manifest 경로는 있다. 실제 운영 export·승인·적용 성공 기록은 코드로 입증할 수 없다.
 
 ## 할 일
 
-### 사전 확인
-
-- 운영 환경에 `225161a01`을 포함한 버전이 배포되어 있는지 확인한다. 배포되어 있다면 export로 정책이 없는 팀과
-  non-`OWNER` 사용자 수를 파악하고 maintenance window를 우선 잡는다.
-- 로컬 환경의 실제 서비스를 대상으로 export, `plan`, `apply`, `verify`, `rollback-manifest`를 리허설한다.
-- 리허설에서 export CSV 형식과 `CommonApiResponse` 응답의 `data` 해석이 도구와 맞는지 확인하고, 다르면 도구를 고친다.
-
-### 운영 전환
-
-- 운영 export로 팀별 manifest를 작성하고 `plan`의 `WARN`을 팀별로 검토해 승인한다.
-- `docs/channel-role-policy-transition.md`의 순서대로 maintenance window에서 `apply`와 `verify`를 수행한다.
-- 공개·비공개 채널에서 `OWNER`, 정책 없는 `ADMIN`·`MEMBER`, allow 역할, deny 역할의 실제 읽기를 표본으로
-  확인한 뒤 트래픽을 연다.
-
-### 수렴과 기록
-
-- consumer 재시작과 다음 full snapshot 재발행 뒤 projection을 다시 export해 `verify`를 재실행한다.
-- manifest와 SHA-256, `plan` 출력, 기본 거부 유지 승인, `apply` state, `verify` 결과를 환경별 운영 기록에 남긴다.
+- 실제 배포 버전과 정책 없는 팀·사용자를 확인하고 maintenance window를 정한다.
+- 실제 export 형식과 정책 API 응답을 수동 확인하고 도구 입력·응답 해석을 맞춘다.
+- [운영 절차](../../../channel-role-policy-transition.md)에 따라 팀별 manifest·기본 거부 유지 승인을 준비한다.
+- `plan` 결과를 검토한 뒤 `apply`·`verify`와 공개·비공개 표본 읽기를 확인한다.
+- 재시작·다음 full snapshot 뒤에도 정책·projection 수렴을 확인한다.
+- manifest hash·승인·operation state·검증 결과를 저장소 밖 운영 기록에 남긴다.
 
 ## 검증
 
-- 리허설에서 `plan` 전후의 정책, outbox, operation 행 수가 같은지 확인한다.
-- 리허설에서 같은 manifest로 `apply`를 반복해도 authoritative 정책과 outbox 결과가 한 번 적용한 상태와 같은지 확인한다.
-- 운영 적용의 모든 operation이 `SUCCEEDED`이거나 승인 사유가 기록된 `FAILED`인지 확인한다.
-- snapshot replay와 consumer 재시작 뒤에도 `verify`가 통과하는지 확인한다.
+- `plan`이 읽기 전용이고 같은 manifest 재실행이 기존 operation을 사용하는지 수동 확인한다.
+- operation 성공과 실패 사유를 대조한다. 승인한 실패가 필요한 정책 미적용을 숨기지 않는지 확인한다.
+- 소유자 정책과 channel·chat projection 전체의 키·값, 역할별 실제 읽기를 확인한다.
 
 ## 완료 조건
 
-- 운영 환경의 기존 각 팀은 승인된 manifest가 적용되어 있거나 기본 거부 유지가 승인되어 있다.
-- `cowork-preference` 정책과 `cowork-channel`·`cowork-chat` projection의 키와 값이 일치한다.
-- 전환 뒤 의도하지 않은 non-`OWNER` 전체 차단이나 우회 허용이 남아 있지 않다.
-- 전환 결과와 승인 내역이 환경별 운영 기록에 남아 있다.
+- 기존 팀마다 승인 정책이 적용되거나 기본 거부 유지가 승인되어 있다.
+- 소유자 정책과 두 projection이 일치하며 의도하지 않은 전체 차단·우회 허용이 없다.
+- 적용·수렴·승인 결과가 환경별 운영 기록에 남아 있다.
