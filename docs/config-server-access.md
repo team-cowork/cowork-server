@@ -1,28 +1,9 @@
 # Config Server 접근 보호 운영
 
-`cowork-config`는 Config API와 Eureka를 같은 포트 `8761`에서 제공한다. 서비스마다 별도의 HTTP Basic
-계정을 발급하고 `CONFIG_CLIENT_USERNAME`, `CONFIG_CLIENT_PASSWORD`를 Config 조회 전에 환경변수로
-주입한다. 서버에는 원문 비밀번호 대신 SHA-256 해시를 넣은 `CONFIG_SERVER_ACCOUNTS_JSON`을
-주입한다. 계정이 없거나 다른 배포 프로파일의 계정이 포함되면 서버 기동이 실패한다.
-
-## 허용 범위
-
-| 계정 | 허용 요청 |
-|------|-----------|
-| 서비스 | `GET /{자기 application}/{local 또는 prod}`, `GET /{자기 application}/default` |
-| 서비스 | Eureka registry 조회, 자기 application의 등록·heartbeat·상태 변경·해제 |
-| monitoring | Eureka registry 조회와 `GET /actuator/prometheus` |
-| 익명 | 상세 정보 없는 `GET /actuator/health` |
-
-`default` 조회는 Spring Config Client의 초기 설정 로딩에 필요하다. 다른 서비스, 다른 프로파일,
-쉼표로 묶은 application/profile, label·파일·YAML 형식의 설정 조회, `/encrypt`, `/decrypt`, Eureka
-peer replication과 관리 화면은 허용하지 않는다. Eureka 등록 JSON의 `app`, `vipAddress`,
-`secureVipAddress`도 계정의 application과 일치해야 한다. XML 등록은 지원하지 않는다.
-서비스 계정의 권한은 replica 전체에 적용되므로 같은 서비스의 replica 간 변경은 허용된다.
-
-운영에서는 HTTPS 인증서의 체인과 호스트 이름을 검증한다. 모든 런타임이 신뢰하는 CA에서 발급받은
-인증서를 사용하고 사설 DNS에서 해당 도메인을 Config VM의 사설 IP로 해석한다. URL에 비밀번호를
-넣거나 인증서 검증을 끄지 않는다. 로컬 HTTP는 격리된 개발 네트워크에서 사용한다.
+서비스별 bootstrap 계정·운영 HTTPS·허용 peer 네트워크를 준비하고 교체하는 절차다.
+허용 endpoint의 기준은 [`ControlPlaneAccessPolicy`](../cowork-config/src/main/kotlin/com/cowork/config/security/policy/ControlPlaneAccessPolicy.kt)다.
+운영 인증서는 모든 런타임이 신뢰하는 CA에서 발급하고, 사설 DNS는 인증서 도메인을 Config VM의
+사설 IP로 해석한다. 로컬 HTTP는 격리된 개발 네트워크에서 사용한다.
 
 ## 로컬 준비
 
@@ -33,9 +14,8 @@ python3 deploy/config/generate-control-plane-credentials.py --profile local --ou
 docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env up -d
 ```
 
-생성기는 각 서비스에 32바이트 난수 비밀번호를 발급하고 결과 디렉터리가 이미 있으면 덮어쓰지 않는다.
-파일 내용은 로그에 출력하지 않는다. POSIX 환경에서는 디렉터리 `0700`, 파일 `0600`으로 생성하며,
-Windows에서는 해당 디렉터리의 NTFS ACL을 현재 사용자로 제한한다. 생성 경로는 Git에서 제외된다.
+생성기는 기존 출력 디렉터리를 덮어쓰지 않는다. 생성 자료는 제한된 권한으로 보관하고 내용을 로그에
+출력하지 않는다. Windows에서는 출력 디렉터리의 NTFS ACL을 현재 사용자로 제한한다.
 
 `deploy/local/stack.sh`는 생성한 `compose.env`를 사용한다. 개별 `deploy/local/services/*.sh`는
 해당 서비스의 `.env` 파일만 읽는다. IDE에서 직접 실행할 때도 `config.env` 또는 `{서비스}.env`의
@@ -52,16 +32,16 @@ bootstrap 값을 환경변수로 주입한다. Prometheus는 전용 초기화 �
 
 Config 배포 문서에 다음 `runtime` 또는 `runtime_refs`를 준비한다.
 
-| 키 | 값 |
-|----|----|
-| `CONFIG_SERVER_ACCOUNTS_JSON` | 생성한 계정 배열 JSON 문자열; 모든 레코드의 `profile`은 `prod` |
-| `CONFIG_TLS_CERTIFICATE` | 서버 인증서와 중간 인증서 PEM 전체 |
-| `CONFIG_TLS_PRIVATE_KEY` | 대응하는 PKCS#8 PEM 개인키 |
-| `CONFIG_SERVER_URL` | `https://config.example.com:8761` 형태의 실제 인증서 도메인 |
-| `EUREKA_SERVER_URL` | 같은 서버의 `https://config.example.com:8761/eureka/` |
-| `CONFIG_ALLOWED_CIDRS` | 배포 VM과 monitoring VM의 사설 IPv4 CIDR을 쉼표로 연결; 가능하면 `/32` |
-| `BIND_IP`, `HOST_PORT` | Config VM의 사설 IPv4와 공개 포트; 기본 포트 `8761` |
-| `VAULT_TOKEN` | 아래 전용 정책만 가진 유효기간 24시간 이하 토큰 |
+| 키                            | 값                                                                     |
+|-------------------------------|------------------------------------------------------------------------|
+| `CONFIG_SERVER_ACCOUNTS_JSON` | 생성한 계정 배열 JSON 문자열; 모든 레코드의 `profile`은 `prod`         |
+| `CONFIG_TLS_CERTIFICATE`      | 서버 인증서와 중간 인증서 PEM 전체                                     |
+| `CONFIG_TLS_PRIVATE_KEY`      | 대응하는 PKCS#8 PEM 개인키                                             |
+| `CONFIG_SERVER_URL`           | `https://config.example.com:8761` 형태의 실제 인증서 도메인            |
+| `EUREKA_SERVER_URL`           | 같은 서버의 `https://config.example.com:8761/eureka/`                  |
+| `CONFIG_ALLOWED_CIDRS`        | 배포 VM과 monitoring VM의 사설 IPv4 CIDR을 쉼표로 연결; 가능하면 `/32` |
+| `BIND_IP`, `HOST_PORT`        | Config VM의 사설 IPv4와 공개 포트; 기본 포트 `8761`                    |
+| `VAULT_TOKEN`                 | 아래 전용 정책만 가진 유효기간 24시간 이하 토큰                        |
 
 모든 앱과 monitoring 배포 문서에도 HTTPS URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
 `application` overrides나 일반 Config 속성으로 배포하지 않는다. 서버 TLS 재료와 bootstrap 계정은
@@ -104,10 +84,8 @@ KV mount가 `secret`이 아니면 생성기에 `--backend`를 함께 지정한�
 ## 네트워크와 배포 순서
 
 Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 필요한 `sudo -n iptables`와
-`iptables-restore` 권한을 제공한다. `config-firewall.sh`는 `DOCKER-USER`에서 해당 사설 IP·공개 포트의
-원래 목적지를 검사하고 `CONFIG_ALLOWED_CIDRS`만 통과시킨다. 다른 포트의 규칙은 변경하지 않는다.
-지원하지 않는 firewall backend나 권한 부족은 컨테이너 교체 전에 실패한다. `check_only`는 규칙
-문법과 입력을 생성·검증하며 실제 방화벽을 변경하지 않는다. 클라우드 보안 그룹도 같은 peer 목록으로
+`iptables-restore` 권한을 제공한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다. `check_only`는 정적 검증이므로
+실제 네트워크 차단을 별도로 확인한다. 클라우드 보안 그룹도 같은 peer 목록으로
 제한하고 Docker 재시작 시 규칙이 재적용되도록 호스트 운영 설정을 유지한다.
 
 최초 HTTPS 전환은 서버 포트가 한 개이므로 점검 시간에 진행한다.

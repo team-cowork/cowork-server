@@ -6,20 +6,9 @@ snapshot completion marker가 발행되므로 projection readiness만으로 전�
 이 문서는 기존 팀에 운영자가 승인한 정책을 적용하는 maintenance window 절차다.
 도구는 `scripts/channel_role_policy_transition.py`이며 Python 3 표준 라이브러리만 사용한다.
 
-## 인가 계약
-
-| 대상                  | 동작                                                                                                                                                                  |
-|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `OWNER`               | 역할 정책만 우회한다. 팀 멤버십과 각 서비스의 채널 멤버십 조건은 그대로 적용된다                                                                                      |
-| `ADMIN`, `MEMBER`     | 암묵적 allow가 없다. 할당된 사용자 정의 역할의 정책으로만 읽을 수 있다                                                                                                |
-| 사용자 정의 역할 정책 | 채널에 정책이 있는 역할 중 가장 높은 `priority`의 정책을 따른다. 같은 `priority`에 allow와 deny가 함께 있으면 deny다. 정책 부재는 낮은 `priority`로 상속하고 끝까지 없으면 거부한다 |
-
-채널 멤버십 조건은 읽는 대상에 따라 다르다. 공개 채널 메타데이터는 팀 멤버십과 정책을, 비공개 채널 메타데이터는
-채널 멤버십과 정책을 요구한다. 메시지 본문·검색·WebSocket·알림은 공개 여부와 관계없이 활성 채널 멤버십과 정책을
-모두 요구한다. 전환 도구의 사전 점검은 채널 메타데이터 기준으로 읽을 수 있는 채널을 계산한다.
-
-기존 `tb_team_role_definitions.permissions` 문자열 배열에서 `message_read`를 추론하지 않는다. 정책 부재를
-일괄 `false`로 바꾸지 않는다. 부재는 상속을, `false`는 명시적 거부를 뜻한다.
+기존 역할의 `permissions` 문자열에서 `message_read`를 추론하지 않는다. 정책이 없는 non-`OWNER`의
+기본 거부를 유지할 팀도 운영 승인이 필요하다. 정책 부재·상속과 명시적 `false`는 다르므로 manifest에서
+구분한다. 도구의 읽기 사전 점검은 채널 메타데이터 기준이며, 실제 메시지·검색·WebSocket은 별도로 확인한다.
 
 ## 입력
 
@@ -28,14 +17,14 @@ snapshot completion marker가 발행되므로 projection readiness만으로 전�
 각 소유 DB에서 읽기 전용으로 아래 결과를 CSV(쉼표 또는 탭 구분, 첫 줄 header)로 저장한다. 파일 이름은
 표와 같아야 하며 한 디렉터리에 모은다. 서비스 간 DB join은 사용하지 않고 도구가 식별자로만 연결한다.
 
-| 파일                   | DB                          | 쿼리                                                                                                           |
-|------------------------|-----------------------------|----------------------------------------------------------------------------------------------------------------|
-| `team-members.csv`     | cowork-team MySQL           | `SELECT team_id, user_id, role FROM tb_team_members`                                                           |
-| `roles.csv`            | cowork-preference PostgreSQL | `SELECT id, team_id, priority FROM tb_team_role_definitions`                                                   |
-| `role-assignments.csv` | cowork-preference PostgreSQL | `SELECT team_id, account_id, role_id FROM tb_account_team_roles`                                               |
+| 파일                   | DB                           | 쿼리                                                                                                              |
+|------------------------|------------------------------|-------------------------------------------------------------------------------------------------------------------|
+| `team-members.csv`     | cowork-team MySQL            | `SELECT team_id, user_id, role FROM tb_team_members`                                                              |
+| `roles.csv`            | cowork-preference PostgreSQL | `SELECT id, team_id, priority FROM tb_team_role_definitions`                                                      |
+| `role-assignments.csv` | cowork-preference PostgreSQL | `SELECT team_id, account_id, role_id FROM tb_account_team_roles`                                                  |
 | `policies.csv`         | cowork-preference PostgreSQL | `SELECT team_id, channel_id, role_id, permissions->>'message_read' AS message_read FROM tb_channel_role_policies` |
-| `channels.csv`         | cowork-channel MySQL        | `SELECT id, team_id, is_private + 0 AS is_private FROM tb_channels WHERE team_id IS NOT NULL`                  |
-| `channel-members.csv`  | cowork-channel MySQL        | `SELECT channel_id, user_id FROM tb_channel_members`                                                           |
+| `channels.csv`         | cowork-channel MySQL         | `SELECT id, team_id, is_private + 0 AS is_private FROM tb_channels WHERE team_id IS NOT NULL`                     |
+| `channel-members.csv`  | cowork-channel MySQL         | `SELECT channel_id, user_id FROM tb_channel_members`                                                              |
 
 ```bash
 mysql --batch -e "SELECT team_id, user_id, role FROM tb_team_members" cowork_team > export/team-members.csv
@@ -87,11 +76,11 @@ DB 이름과 접속 정보는 환경에 맞게 바꾼다. 세 DB를 같은 시�
      --manifest prod-20261001-1.manifest.json --export-dir export
    ```
 
-   | 출력    | 의미                                                                                                                         |
-   |---------|------------------------------------------------------------------------------------------------------------------------------|
+   | 출력    | 의미                                                                                                                   |
+   |---------|------------------------------------------------------------------------------------------------------------------------|
    | `ERROR` | 전환 누락 팀, 존재하지 않거나 다른 팀의 채널·역할, `OWNER`가 아닌 actor, 중복 항목. 하나라도 있으면 `apply`가 거부한다 |
-   | `WARN`  | 전환 뒤 읽을 수 있는 채널이 0개인 non-`OWNER`, 같은 `priority`의 allow/deny 충돌                                         |
-   | `OP`    | 현재 정책과 달라서 제출할 변경. 이미 같은 값인 항목은 제출하지 않는다                                                    |
+   | `WARN`  | 전환 뒤 읽을 수 있는 채널이 0개인 non-`OWNER`, 같은 `priority`의 allow/deny 충돌                                       |
+   | `OP`    | 현재 정책과 달라서 제출할 변경. 이미 같은 값인 항목은 제출하지 않는다                                                  |
 
 3. 모든 `WARN`을 팀별로 검토한다. 의도한 결과가 아니면 manifest를 고치고 `version`을 올린다. 승인한
    manifest, `plan` 출력, 기본 거부 유지 승인을 운영 기록에 남긴다.
@@ -113,8 +102,7 @@ DB 이름과 접속 정보는 환경에 맞게 바꾼다. 세 DB를 같은 시�
      --base-url http://<cowork-channel 사설 주소>:8083
    ```
 
-   - 각 operation의 `Idempotency-Key`는 전환 버전, `teamId`, `channelId`, `roleId`, canonical permissions의
-     SHA-256으로 결정적으로 만든다. 같은 manifest를 다시 실행해도 서버는 기존 operation을 돌려준다.
+   - 같은 manifest를 재실행하면 기존 operation을 재사용한다. 내용을 바꾸면 새 `version`으로 적용한다.
    - 진행 상태는 `<version>.state.json`에 기록한다. 모든 operation이 `SUCCEEDED` 또는 `FAILED`가 될 때까지
      조회하며, 모두 `SUCCEEDED`일 때만 종료 코드 0을 반환한다.
    - 같은 `version`의 state가 다른 manifest로 만들어졌으면 적용을 거부한다.
