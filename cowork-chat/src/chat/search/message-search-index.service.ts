@@ -15,10 +15,10 @@ import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildMessageIndexDoc, isSearchIndexed } from './message-index-scope';
 
 /** 재시도 백오프의 기준 간격. 시도마다 2배로 늘어난다. */
-const RETRY_BASE_DELAY_MS = 5_000;
+const RETRY_BASE_DELAY_MS = 5000;
 /** 재시도 백오프 상한. Elasticsearch가 장기간 중단돼도 이 간격으로 계속 재시도한다. */
-const RETRY_MAX_DELAY_MS = 5 * 60 * 1_000;
-const PERMANENT_FAILURE_ALERT_COOLDOWN_MS = 5 * 60 * 1_000;
+const RETRY_MAX_DELAY_MS = 5 * 60 * 1000;
+const PERMANENT_FAILURE_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 
 export type SearchIndexOperation = 'upsert' | 'delete';
 
@@ -35,9 +35,9 @@ export class MessageSearchIndexService {
     private readonly writes: Counter<'operation' | 'outcome'>;
     private readonly backlog: Gauge<'status'>;
     private readonly tombstoneBacklog: Gauge<'status'>;
-    private readonly oldestPendingSeconds: Gauge<string>;
-    private readonly lastRebuildSuccess: Gauge<string>;
-    private readonly indexReady: Gauge<string>;
+    private readonly oldestPendingSeconds: Gauge;
+    private readonly lastRebuildSuccess: Gauge;
+    private readonly indexReady: Gauge;
 
     constructor(
         private readonly elasticsearchService: ElasticsearchService,
@@ -73,21 +73,28 @@ export class MessageSearchIndexService {
      * 배치 안에서도 서로 독립적이므로 결과를 순회하며 그대로 적용한다.
      */
     async applyMessages(messages: ClaimedIndexMessage[]): Promise<void> {
-        if (messages.length === 0) return;
-        const toSkip = messages.filter((message) => !isSearchIndexed(message));
-        const toIndex = messages.filter((message) => isSearchIndexed(message));
+        if (messages.length === 0) {
+            return;
+        }
 
-        await Promise.all(toSkip.map((message) => this.indexRepository.markSkipped(message._id, message.searchIndexVersion)));
-        if (toIndex.length === 0) return;
+        const toSkip = messages.filter(message => !isSearchIndexed(message));
+        const toIndex = messages.filter(message => isSearchIndexed(message));
 
-        const entries = toIndex.map((message) => ({ doc: buildMessageIndexDoc(message), version: message.searchIndexVersion }));
+        await Promise.all(toSkip.map(async message => this.indexRepository.markSkipped(message._id, message.searchIndexVersion)));
+        if (toIndex.length === 0) {
+            return;
+        }
+
+        const entries = toIndex.map(message => ({ doc: buildMessageIndexDoc(message), version: message.searchIndexVersion }));
         const results = await this.elasticsearchService.bulkUpsertForOutbox(entries);
-        const byMessageId = new Map(toIndex.map((message) => [message._id.toString(), message]));
+        const byMessageId = new Map(toIndex.map(message => [message._id.toString(), message]));
 
         await Promise.all(results.map(async ({ messageId, result }) => {
             this.writes.inc({ operation: 'upsert', outcome: result.outcome });
             const message = byMessageId.get(messageId);
-            if (message) await this.finalizeUpsertResult(message, result);
+            if (message) {
+                await this.finalizeUpsertResult(message, result);
+            }
         }));
     }
 
@@ -97,11 +104,13 @@ export class MessageSearchIndexService {
             await this.indexRepository.markSynced(message._id, version);
             return;
         }
+
         if (result.outcome === 'PERMANENT') {
             await this.indexRepository.markFailed(message._id, version, result.error ?? 'permanent index error');
             this.alertPermanentFailure('upsert', message._id.toString(), result.error);
             return;
         }
+
         const retryCount = (message.searchIndexRetryCount ?? 0) + 1;
         await this.indexRepository.markRetry(
             message._id,
@@ -133,33 +142,43 @@ export class MessageSearchIndexService {
      * bulk 삭제 대상에 포함한다.
      */
     async applyTombstones(tombstones: TombstoneRecord[]): Promise<void> {
-        if (tombstones.length === 0) return;
+        if (tombstones.length === 0) {
+            return;
+        }
+
         const deletions = await Promise.allSettled(
-            tombstones.map((tombstone) => this.messageRepository.deleteById(tombstone.messageId)),
+            tombstones.map(tombstone => this.messageRepository.deleteById(tombstone.messageId)),
         );
         const succeeded: TombstoneRecord[] = [];
         const failures: Array<{ tombstone: TombstoneRecord; error: unknown }> = [];
-        tombstones.forEach((tombstone, i) => {
+        for (const [i, tombstone] of tombstones.entries()) {
             const outcome = deletions[i];
-            if (outcome.status === 'fulfilled') succeeded.push(tombstone);
-            else failures.push({ tombstone, error: outcome.reason });
-        });
+            if (outcome.status === 'fulfilled') {
+                succeeded.push(tombstone);
+            } else {
+                failures.push({ tombstone, error: outcome.reason });
+            }
+        }
 
-        await Promise.all(failures.map(({ tombstone, error }) => {
+        await Promise.all(failures.map(async ({ tombstone, error }) => {
             this.writes.inc({ operation: 'delete', outcome: 'RETRYABLE' });
             this.logger.warn(`MongoDB delete failed for search tombstone, will retry messageId=${tombstone.messageId}: ${errorMessageOf(error)}`);
             return this.finalizeDeleteResult(tombstone, { outcome: 'RETRYABLE', error: errorMessageOf(error) });
         }));
-        if (succeeded.length === 0) return;
+        if (succeeded.length === 0) {
+            return;
+        }
 
-        const entries = succeeded.map((tombstone) => ({ messageId: tombstone.messageId, version: tombstone.version }));
+        const entries = succeeded.map(tombstone => ({ messageId: tombstone.messageId, version: tombstone.version }));
         const results = await this.elasticsearchService.bulkDeleteForOutbox(entries);
-        const byMessageId = new Map(succeeded.map((tombstone) => [tombstone.messageId, tombstone]));
+        const byMessageId = new Map(succeeded.map(tombstone => [tombstone.messageId, tombstone]));
 
         await Promise.all(results.map(async ({ messageId, result }) => {
             this.writes.inc({ operation: 'delete', outcome: result.outcome });
             const tombstone = byMessageId.get(messageId);
-            if (tombstone) await this.finalizeDeleteResult(tombstone, result);
+            if (tombstone) {
+                await this.finalizeDeleteResult(tombstone, result);
+            }
         }));
     }
 
@@ -168,11 +187,13 @@ export class MessageSearchIndexService {
             await this.tombstoneRepository.markDeleted(tombstone._id);
             return;
         }
+
         if (result.outcome === 'PERMANENT') {
             await this.tombstoneRepository.markFailed(tombstone._id, result.error ?? 'permanent delete error');
             this.alertPermanentFailure('delete', tombstone.messageId, result.error);
             return;
         }
+
         const retryCount = tombstone.retryCount + 1;
         await this.tombstoneRepository.markRetry(
             tombstone._id,
@@ -184,13 +205,16 @@ export class MessageSearchIndexService {
 
     /** 시도 횟수에 따른 지수 백오프 시각. 상한이 있어 재시도를 포기하지 않는다. */
     private nextAttemptAt(retryCount: number): Date {
-        const delay = Math.min(RETRY_BASE_DELAY_MS * 2 ** Math.min(retryCount, 10), RETRY_MAX_DELAY_MS);
+        const delay = Math.min(RETRY_BASE_DELAY_MS * (2 ** Math.min(retryCount, 10)), RETRY_MAX_DELAY_MS);
         return new Date(Date.now() + delay);
     }
 
     private alertPermanentFailure(operation: SearchIndexOperation, messageId: string, error?: string): void {
         this.logger.error(`Search index ${operation} permanently failed messageId=${messageId}: ${error}`);
-        if (!AlertThrottleUtil.shouldAlert('search-index-permanent-failure', PERMANENT_FAILURE_ALERT_COOLDOWN_MS)) return;
+        if (!AlertThrottleUtil.shouldAlert('search-index-permanent-failure', PERMANENT_FAILURE_ALERT_COOLDOWN_MS)) {
+            return;
+        }
+
         void this.dicoshot.sendCustom({
             title: '🔴 검색 색인 영구 실패',
             description: '메시지 색인 명령이 재시도로 해결되지 않는 오류로 실패했습니다. 원인 해소 후 재시도 또는 전체 재구축이 필요합니다.',
@@ -200,10 +224,10 @@ export class MessageSearchIndexService {
                 { name: 'messageId', value: messageId, inline: true },
                 { name: 'Error', value: (error ?? 'unknown').slice(0, 256) },
             ],
-        }).catch(() => {});
+        }).catch(() => {/* Alert delivery is best-effort. */});
     }
 
-    /** backlog·지연·마지막 재구축 성공 시각을 지표로 노출한다. */
+    /** Backlog·지연·마지막 재구축 성공 시각을 지표로 노출한다. */
     async refreshMetrics(): Promise<void> {
         const [backlog, tombstones, state] = await Promise.all([
             this.indexRepository.backlog(),
@@ -214,13 +238,15 @@ export class MessageSearchIndexService {
         for (const [status, count] of Object.entries(backlog.counts)) {
             this.backlog.set({ status }, count);
         }
+
         for (const [status, count] of Object.entries(tombstones)) {
             this.tombstoneBacklog.set({ status }, count);
         }
+
         this.oldestPendingSeconds.set(
-            backlog.oldestPendingAt ? Math.max(0, (Date.now() - backlog.oldestPendingAt.getTime()) / 1_000) : 0,
+            backlog.oldestPendingAt ? Math.max(0, (Date.now() - backlog.oldestPendingAt.getTime()) / 1000) : 0,
         );
-        this.lastRebuildSuccess.set(state?.lastRebuildSucceededAt ? state.lastRebuildSucceededAt.getTime() / 1_000 : 0);
+        this.lastRebuildSuccess.set(state?.lastRebuildSucceededAt ? state.lastRebuildSucceededAt.getTime() / 1000 : 0);
         this.indexReady.set(this.elasticsearchService.isReady() ? 1 : 0);
     }
 }

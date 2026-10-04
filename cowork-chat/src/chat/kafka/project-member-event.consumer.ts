@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
@@ -10,13 +15,13 @@ import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kaf
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ProjectMemberProjectionRepository } from '../repository';
 
-interface ProjectMemberEvent {
+type ProjectMemberEvent = {
     eventType: 'ADDED' | 'REMOVED';
     projectId: number;
     userId: number;
     occurredAt: string;
     snapshot?: boolean;
-}
+};
 
 @Injectable()
 export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -43,24 +48,22 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
 
         void this.consumer.run({
             eachMessage: async ({ partition, message }): Promise<void> => {
-                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                    return applyProjectionMessage(
-                        stream,
-                        partition,
-                        message,
-                        this.projectionReadiness,
-                        (payload, key) => this.handleEvent(payload, key),
-                    );
-                });
+                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                    stream,
+                    partition,
+                    message,
+                    this.projectionReadiness,
+                    async (payload, key) => this.handleEvent(payload, key),
+                ));
             },
-        }).catch(async (err) => {
-            this.logger.error(`${stream.topic} Kafka consumer failed`, err);
+        }).catch(async (error: unknown) => {
+            this.logger.error(`${stream.topic} Kafka consumer failed`, error);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
                 description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(err)],
-            }).catch(() => {});
+                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
@@ -74,14 +77,19 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
         if (!this.isProjectMemberEvent(payload)) {
             throw new ProjectionContractError('invalid project member event payload');
         }
+
         if (messageKey !== `${payload.projectId}:${payload.userId}`) {
             throw new ProjectionContractError(
                 `project member event key mismatch [key=${messageKey ?? '<missing>'}, `
                 + `expected=${payload.projectId}:${payload.userId}]`,
             );
         }
+
         const eventTime = parseEventTime(payload.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('project member event occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('project member event occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
         if (payload.eventType === 'ADDED') {
             await this.memberRepository.add(payload.projectId, payload.userId, occurredAt, sourceVersion);
@@ -91,7 +99,10 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
     }
 
     private isProjectMemberEvent(payload: unknown): payload is ProjectMemberEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<ProjectMemberEvent>;
         return (event.eventType === 'ADDED' || event.eventType === 'REMOVED')
             && isSafePositiveInteger(event.projectId)
