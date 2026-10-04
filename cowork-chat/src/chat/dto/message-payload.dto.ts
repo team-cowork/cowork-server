@@ -1,4 +1,10 @@
-import { IsInt, IsOptional, IsPositive, IsString, Max } from 'class-validator';
+import {
+    IsInt,
+    IsOptional,
+    IsPositive,
+    IsString,
+    Max,
+} from 'class-validator';
 
 /**
  * 채팅 메시지 전송 WebSocket 이벤트 페이로드 DTO.

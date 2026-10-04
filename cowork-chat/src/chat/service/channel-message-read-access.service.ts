@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
+import {
+    ForbiddenException,
+    Injectable,
+    OnModuleDestroy,
+    ServiceUnavailableException,
+} from '@nestjs/common';
 import { Server } from 'socket.io';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import {
@@ -10,20 +15,20 @@ import {
     TeamRoleProjectionRepository,
 } from '../repository';
 
-export interface ChannelReadAccessRequest {
+export type ChannelReadAccessRequest = {
     channelId: number;
     userId: number;
-}
+};
 
 type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA';
 
 /** 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면. */
-export interface RoomSocket {
+export type RoomSocket = {
     data: unknown;
     rooms: Set<string>;
     leave(room: string): unknown;
     emit(event: string, payload: unknown): unknown;
-}
+};
 
 const accessKey = (channelId: number, userId: number) => `${channelId}:${userId}`;
 const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
@@ -44,13 +49,13 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  *   `true` 판정이 캐시에 남아 있는 동안 푸시가 발송되면, 외부로 나간 푸시는 되돌릴 수 없다.
  *   그래서 `filterReadableUsersByChannel` 자체는 캐시를 타지 않는 `evaluateMany`를 그대로 쓴다.
  */
-const READABLE_USERS_CACHE_TTL_MS = 2_000;
+const READABLE_USERS_CACHE_TTL_MS = 2000;
 
 /** 캐시 키에 평가 모드를 포함해, 다른 모드(`CHANNEL_METADATA` 등)가 같은 캐시를 쓰게 되어도 충돌하지 않게 한다. */
 const broadcastCacheKey = (channelId: number, userId: number) => `MESSAGE_READ:${accessKey(channelId, userId)}`;
 
 /**
- * role×channel `message_read` 정책의 단일 평가 지점.
+ * Role×channel `message_read` 정책의 단일 평가 지점.
  *
  * custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
  * 어떤 role에도 명시값이 없으면 deny한다. built-in OWNER는 role policy만 우회한다.
@@ -89,6 +94,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         if (!this.projectionReadiness.isReady()) {
             throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
         }
+
         if (!(await this.canReadChannel(channelId, userId))) {
             throw new ForbiddenException('채널 메시지 읽기 권한이 없습니다');
         }
@@ -96,16 +102,16 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
 
     async filterReadableChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
         const uniqueChannelIds = [...new Set(channelIds)];
-        const result = await this.evaluateMany(uniqueChannelIds.map((channelId) => ({ channelId, userId })));
-        return uniqueChannelIds.filter((channelId) => result.get(accessKey(channelId, userId)) === true);
+        const result = await this.evaluateMany(uniqueChannelIds.map(channelId => ({ channelId, userId })));
+        return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
     }
 
     async filterVisibleChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
         const uniqueChannelIds = [...new Set(channelIds)];
         const result = await this.evaluateVisibilityMany(
-            uniqueChannelIds.map((channelId) => ({ channelId, userId })),
+            uniqueChannelIds.map(channelId => ({ channelId, userId })),
         );
-        return uniqueChannelIds.filter((channelId) => result.get(accessKey(channelId, userId)) === true);
+        return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
     }
 
     async findReadableTeamChannelIds(teamId: number, userId: number): Promise<number[]> {
@@ -127,11 +133,11 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
         const requests = [...usersByChannel].flatMap(([channelId, userIds]) =>
-            [...new Set(userIds)].map((userId) => ({ channelId, userId })));
+            [...new Set(userIds)].map(userId => ({ channelId, userId })));
         const result = await this.evaluateMany(requests);
         return new Map([...usersByChannel].map(([channelId, userIds]) => [
             channelId,
-            [...new Set(userIds)].filter((userId) => result.get(accessKey(channelId, userId)) === true),
+            [...new Set(userIds)].filter(userId => result.get(accessKey(channelId, userId)) === true),
         ]));
     }
 
@@ -147,14 +153,15 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         const missedUserIds: number[] = [];
         for (const userId of uniqueUserIds) {
             const cached = this.readableUsersCache.get(broadcastCacheKey(channelId, userId));
-            if (cached !== undefined) {
-                result.set(userId, cached);
-            } else {
+            if (cached === undefined) {
                 missedUserIds.push(userId);
+            } else {
+                result.set(userId, cached);
             }
         }
+
         if (missedUserIds.length > 0) {
-            const fresh = await this.evaluateMany(missedUserIds.map((userId) => ({ channelId, userId })));
+            const fresh = await this.evaluateMany(missedUserIds.map(userId => ({ channelId, userId })));
             const isReady = this.projectionReadiness.isReady();
             for (const userId of missedUserIds) {
                 const allowed = fresh.get(accessKey(channelId, userId)) === true;
@@ -164,6 +171,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
                 }
             }
         }
+
         return new Set([...result].filter(([, allowed]) => allowed).map(([userId]) => userId));
     }
 
@@ -177,35 +185,50 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         userIds?: number[],
     ): Promise<void> {
         const uniqueChannelIds = [...new Set(channelIds)];
-        if (uniqueChannelIds.length === 0 || !this.projectionReadiness.isReady()) return;
-        const rooms = uniqueChannelIds.map((channelId) => `chat:${channelId}`);
+        if (uniqueChannelIds.length === 0 || !this.projectionReadiness.isReady()) {
+            return;
+        }
+
+        const rooms = uniqueChannelIds.map(channelId => `chat:${channelId}`);
         const sockets = await io.in(rooms).fetchSockets();
         const affectedUsers = userIds ? new Set(userIds) : undefined;
-        const socketsWithChannels = sockets.flatMap((socket) => {
+        const socketsWithChannels = sockets.flatMap(socket => {
             const userId = this.socketUserId(socket);
-            if (userId === null || (affectedUsers && !affectedUsers.has(userId))) return [];
+            if (userId === null || (affectedUsers && !affectedUsers.has(userId))) {
+                return [];
+            }
+
             return uniqueChannelIds
-                .filter((channelId) => socket.rooms.has(`chat:${channelId}`))
-                .map((channelId) => ({ socket, channelId, userId }));
+                .filter(channelId => socket.rooms.has(`chat:${channelId}`))
+                .map(channelId => ({ socket, channelId, userId }));
         });
         const access = await this.evaluateMany(
             socketsWithChannels.map(({ channelId, userId }) => ({ channelId, userId })),
         );
-        if (!this.projectionReadiness.isReady()) return;
+        if (!this.projectionReadiness.isReady()) {
+            return;
+        }
+
         for (const { socket, channelId, userId } of socketsWithChannels) {
-            if (access.get(accessKey(channelId, userId)) === true) continue;
+            if (access.get(accessKey(channelId, userId)) === true) {
+                continue;
+            }
+
             socket.leave(`chat:${channelId}`);
             socket.emit('channel:access:revoked', { channelId });
         }
     }
 
     /**
-     * socket이 가입한 채널·팀 room을 현재 권한으로 다시 검증해 권한이 없는 room에서 제거하고, 제거한 room 수를 반환한다.
+     * Socket이 가입한 채널·팀 room을 현재 권한으로 다시 검증해 권한이 없는 room에서 제거하고, 제거한 room 수를 반환한다.
      * connection state recovery로 복원된 room과 회수 이벤트의 room 해제가 누락된 room을 정리한다.
      * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인해, 닫혀 있으면 아무것도 제거하지 않는다.
      */
     async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
-        if (!this.projectionReadiness.isReady()) return 0;
+        if (!this.projectionReadiness.isReady()) {
+            return 0;
+        }
+
         const channelRooms = this.joinedRooms(sockets, 'chat:');
         const teamRooms = this.joinedRooms(sockets, 'team:');
         const [access, teamMembers] = await Promise.all([
@@ -215,34 +238,41 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
                 [...new Set(teamRooms.map(({ userId }) => userId))],
             ),
         ]);
-        if (!this.projectionReadiness.isReady()) return 0;
+        if (!this.projectionReadiness.isReady()) {
+            return 0;
+        }
 
-        const activeTeamUsers = new Set(teamMembers.map((member) => teamUserKey(member.teamId, member.userId)));
+        const activeTeamUsers = new Set(teamMembers.map(member => teamUserKey(member.teamId, member.userId)));
         const deniedChannelRooms = channelRooms.filter(({ id, userId }) => access.get(accessKey(id, userId)) !== true);
         const deniedTeamRooms = teamRooms.filter(({ id, userId }) => !activeTeamUsers.has(teamUserKey(id, userId)));
         for (const { socket, id } of deniedChannelRooms) {
             socket.leave(`chat:${id}`);
             socket.emit('channel:access:revoked', { channelId: id });
         }
+
         for (const { socket, id } of deniedTeamRooms) {
             socket.leave(`team:${id}`);
             socket.emit('team:access:revoked', { teamId: id });
         }
+
         return deniedChannelRooms.length + deniedTeamRooms.length;
     }
 
     private joinedRooms(sockets: RoomSocket[], prefix: 'chat:' | 'team:') {
-        return sockets.flatMap((socket) => {
+        return sockets.flatMap(socket => {
             const userId = this.socketUserId(socket);
-            if (userId === null) return [];
+            if (userId === null) {
+                return [];
+            }
+
             return [...socket.rooms]
-                .filter((room) => room.startsWith(prefix))
-                .map((room) => ({ socket, id: Number(room.slice(prefix.length)), userId }));
+                .filter(room => room.startsWith(prefix))
+                .map(room => ({ socket, id: Number(room.slice(prefix.length)), userId }));
         });
     }
 
     /**
-     * room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 있는 소켓 ID만 모아
+     * Room의 소켓마다 개별 `socket.emit()`을 호출하는 대신, 읽기 권한이 있는 소켓 ID만 모아
      * `io.to(targetSocketIds).emit()`을 한 번 호출한다. 개별 emit은 소켓 수만큼 payload를
      * 매번 새로 직렬화하지만, 이 방식은 한 번만 직렬화한 패킷을 모든 대상 소켓에 그대로
      * 전달한다(Socket.IO의 room 대상 브로드캐스트와 동일한 방식 — 대상을 room 이름 대신
@@ -263,21 +293,27 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         payload: unknown,
         excludedSocketId?: string,
     ): Promise<void> {
-        if (!io) return;
+        if (!io) {
+            return;
+        }
+
         const room = `chat:${channelId}`;
         const sockets = await io.in(room).fetchSockets();
         const users = sockets
-            .map((socket) => this.socketUserId(socket))
+            .map(socket => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
         const readableUsers = await this.filterReadableUsersForBroadcast(channelId, users);
         const targetSocketIds = sockets
-            .filter((socket) => socket.id !== excludedSocketId)
-            .filter((socket) => {
+            .filter(socket => socket.id !== excludedSocketId)
+            .filter(socket => {
                 const userId = this.socketUserId(socket);
                 return userId !== null && readableUsers.has(userId);
             })
-            .map((socket) => socket.id);
-        if (targetSocketIds.length === 0) return;
+            .map(socket => socket.id);
+        if (targetSocketIds.length === 0) {
+            return;
+        }
+
         io.to(targetSocketIds).emit(event, payload);
     }
 
@@ -289,28 +325,35 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         payload: unknown,
     ): Promise<void> {
         const socketIds = await this.captureVisibleTeamSocketIds(io, teamId, channelId);
-        for (const socketId of socketIds) io.to(socketId).emit(event, payload);
+        for (const socketId of socketIds) {
+            io.to(socketId).emit(event, payload);
+        }
     }
 
-    /** stale team room 구독자를 제외하고 현재 active 팀 멤버에게만 팀 범위 metadata를 전송한다. */
+    /** Stale team room 구독자를 제외하고 현재 active 팀 멤버에게만 팀 범위 metadata를 전송한다. */
     async emitToActiveTeamUsers(
         io: Server,
         teamId: number,
         event: string,
         payload: unknown,
     ): Promise<void> {
-        if (!this.projectionReadiness.isReady()) return;
+        if (!this.projectionReadiness.isReady()) {
+            return;
+        }
+
         const sockets = await io.in(`team:${teamId}`).fetchSockets();
         const userIds = [...new Set(sockets
-            .map((socket) => this.socketUserId(socket))
+            .map(socket => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null))];
         const members = await this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], userIds);
         const activeUserIds = new Set(members
-            .filter((member) => member.teamId === teamId)
-            .map((member) => member.userId));
+            .filter(member => member.teamId === teamId)
+            .map(member => member.userId));
         for (const socket of sockets) {
             const userId = this.socketUserId(socket);
-            if (userId !== null && activeUserIds.has(userId)) socket.emit(event, payload);
+            if (userId !== null && activeUserIds.has(userId)) {
+                socket.emit(event, payload);
+            }
         }
     }
 
@@ -322,17 +365,17 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
     ): Promise<string[]> {
         const sockets = await io.in(`team:${teamId}`).fetchSockets();
         const users = sockets
-            .map((socket) => this.socketUserId(socket))
+            .map(socket => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
         const access = await this.evaluateVisibilityMany(
-            [...new Set(users)].map((userId) => ({ channelId, userId })),
+            [...new Set(users)].map(userId => ({ channelId, userId })),
         );
         return sockets
-            .filter((socket) => {
+            .filter(socket => {
                 const userId = this.socketUserId(socket);
                 return userId !== null && access.get(accessKey(channelId, userId)) === true;
             })
-            .map((socket) => socket.id);
+            .map(socket => socket.id);
     }
 
     async evaluateMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
@@ -348,10 +391,12 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         mode: AccessMode,
     ): Promise<Map<string, boolean>> {
         const uniqueRequests = [...new Map(
-            requests.map((request) => [accessKey(request.channelId, request.userId), request]),
+            requests.map(request => [accessKey(request.channelId, request.userId), request]),
         ).values()];
-        const result = new Map(uniqueRequests.map((request) => [accessKey(request.channelId, request.userId), false]));
-        if (uniqueRequests.length === 0 || !this.projectionReadiness.isReady()) return result;
+        const result = new Map(uniqueRequests.map(request => [accessKey(request.channelId, request.userId), false]));
+        if (uniqueRequests.length === 0 || !this.projectionReadiness.isReady()) {
+            return result;
+        }
 
         const channelIds = [...new Set(uniqueRequests.map(({ channelId }) => channelId))];
         const userIds = [...new Set(uniqueRequests.map(({ userId }) => userId))];
@@ -359,7 +404,7 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
             this.channelRepository.findByIds(channelIds),
             this.channelMemberRepository.findByChannelIdsAndUserIds(channelIds, userIds),
         ]);
-        const channelById = new Map(channels.map((channel) => [channel.channelId, channel]));
+        const channelById = new Map(channels.map(channel => [channel.channelId, channel]));
         const memberKeys = new Set<string>();
         for (const [channelId, members] of membersByChannel) {
             for (const member of members) {
@@ -368,35 +413,48 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
             }
         }
 
-        const teamRequests = uniqueRequests.flatMap((request) => {
+        const teamRequests = uniqueRequests.flatMap(request => {
             const channel = channelById.get(request.channelId);
-            if (!channel) return [];
+            if (!channel) {
+                return [];
+            }
+
             if (this.isDm(channel)) {
                 result.set(accessKey(request.channelId, request.userId), memberKeys.has(accessKey(request.channelId, request.userId)));
                 return [];
             }
-            if (channel.teamId === null || channel.type === 'DM') return [];
-            return [{ request, channel, teamId: channel.teamId }];
+
+            return channel.teamId === null || channel.type === 'DM' ? [] : [{ request, channel, teamId: channel.teamId }];
         });
-        if (teamRequests.length === 0) return result;
+        if (teamRequests.length === 0) {
+            return result;
+        }
 
         const teamIds = [...new Set(teamRequests.map(({ teamId }) => teamId))];
         const teamMembers = await this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, userIds);
-        const teamMemberByKey = new Map(teamMembers.map((member) => [teamUserKey(member.teamId, member.userId), member]));
+        const teamMemberByKey = new Map(teamMembers.map(member => [teamUserKey(member.teamId, member.userId), member]));
 
         const policyCandidates = teamRequests.filter(({ request, channel, teamId }) => {
             const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
-            if (!member) return false;
+            if (!member) {
+                return false;
+            }
+
             const hasChannelMembership = memberKeys.has(accessKey(request.channelId, request.userId));
-            if (mode === 'MESSAGE_READ' && !hasChannelMembership) return false;
-            if (channel.isPrivate !== false && !hasChannelMembership) return false;
+            if ((mode === 'MESSAGE_READ' && !hasChannelMembership) || (channel.isPrivate && !hasChannelMembership)) {
+                return false;
+            }
+
             if (member.role === 'OWNER') {
                 result.set(accessKey(request.channelId, request.userId), true);
                 return false;
             }
+
             return true;
         });
-        if (policyCandidates.length === 0) return result;
+        if (policyCandidates.length === 0) {
+            return result;
+        }
 
         const accountIds = [...new Set(policyCandidates.map(({ request }) => request.userId))];
         const assignments = await this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds(teamIds, accountIds);
@@ -406,14 +464,17 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
             this.teamRoleRepository.findRolesByIds(roleIds),
             this.policyRepository.findByChannelIdsAndRoleIds(candidateChannelIds, roleIds),
         ]);
-        const roleById = new Map(roles.map((role) => [role.roleId, role]));
-        const policyByKey = new Map(policies.map((policy) => [policyKey(policy.channelId, policy.roleId), policy]));
+        const roleById = new Map(roles.map(role => [role.roleId, role]));
+        const policyByKey = new Map(policies.map(policy => [policyKey(policy.channelId, policy.roleId), policy]));
         const assignmentsByTeamUser = new Map<string, number[]>();
         for (const assignment of assignments) {
             const key = teamUserKey(assignment.teamId, assignment.accountId);
             const existing = assignmentsByTeamUser.get(key);
-            if (existing) existing.push(assignment.roleId);
-            else assignmentsByTeamUser.set(key, [assignment.roleId]);
+            if (existing) {
+                existing.push(assignment.roleId);
+            } else {
+                assignmentsByTeamUser.set(key, [assignment.roleId]);
+            }
         }
 
         for (const { request, teamId } of policyCandidates) {
@@ -423,16 +484,21 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
             for (const roleId of assignedRoleIds) {
                 const role = roleById.get(roleId);
                 const policy = policyByKey.get(policyKey(request.channelId, roleId));
-                if (!role || role.teamId !== teamId || !policy || policy.teamId !== teamId) continue;
+                if (role?.teamId !== teamId || policy?.teamId !== teamId) {
+                    continue;
+                }
+
                 if (selectedPriority === undefined || role.priority > selectedPriority) {
                     selectedPriority = role.priority;
                     selected = policy.messageRead;
-                } else if (role.priority === selectedPriority && policy.messageRead === false) {
+                } else if (role.priority === selectedPriority && !policy.messageRead) {
                     selected = false;
                 }
             }
+
             result.set(accessKey(request.channelId, request.userId), selectedPriority !== undefined && selected);
         }
+
         return result;
     }
 
@@ -441,11 +507,14 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
     }
 
     private socketUserId(socket: { data: unknown }): number | null {
-        if (typeof socket.data !== 'object' || socket.data === null) return null;
+        if (typeof socket.data !== 'object' || socket.data === null) {
+            return null;
+        }
+
         const rawUserId = (socket.data as Record<string, unknown>).userId;
         const userId = typeof rawUserId === 'number' || typeof rawUserId === 'string'
             ? Number(rawUserId)
-            : Number.NaN;
+            : NaN;
         return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
     }
 }
