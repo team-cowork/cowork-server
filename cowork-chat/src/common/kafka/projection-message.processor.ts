@@ -1,26 +1,26 @@
-import { KafkaMessage } from 'kafkajs';
-import { ProjectionReadinessService, ProjectionStream } from './projection-readiness.service';
+import { type KafkaMessage } from 'kafkajs';
+import { type ProjectionReadinessService, type ProjectionStream } from './projection-readiness.service';
 
 export const SNAPSHOT_BARRIER_KEY_PREFIX = '__cowork_projection_snapshot_complete__:';
 export const SNAPSHOT_BARRIER_EVENT_TYPE = 'PROJECTION_SNAPSHOT_COMPLETED';
 
-export interface ProjectionMessageResult {
+export type ProjectionMessageResult = {
     snapshotBarrier?: {
         offset: string;
         snapshotId: string;
         source: string;
         occurredAt: Date;
     };
-}
+};
 
-interface SnapshotBarrierPayload {
+type SnapshotBarrierPayload = {
     eventType: typeof SNAPSHOT_BARRIER_EVENT_TYPE;
     topic: string;
     partition: number;
     snapshotId: string;
     occurredAt: string;
     source: string;
-}
+};
 
 export class ProjectionContractError extends Error {
     constructor(message: string) {
@@ -54,7 +54,7 @@ export async function applyProjectionMessage(
 
     try {
         const payload = JSON.parse(rawPayload) as unknown;
-        if (eventKey?.startsWith(SNAPSHOT_BARRIER_KEY_PREFIX)
+        if (eventKey?.startsWith(SNAPSHOT_BARRIER_KEY_PREFIX) === true
             || isSnapshotBarrierEvent(payload)) {
             const barrier = validateSnapshotBarrier(stream, partition, eventKey, payload);
             return {
@@ -66,10 +66,14 @@ export async function applyProjectionMessage(
                 },
             };
         }
+
         await apply(payload, eventKey ?? undefined);
         return {};
     } catch (error) {
-        if (!(error instanceof SyntaxError) && !(error instanceof ProjectionContractError)) throw error;
+        if (!(error instanceof SyntaxError) && !(error instanceof ProjectionContractError)) {
+            throw error;
+        }
+
         await readiness.quarantine(
             stream,
             partition,
@@ -101,18 +105,20 @@ function validateSnapshotBarrier(
             `invalid projection snapshot marker [key=${eventKey ?? '<missing>'}, expected=${expectedKey}]`,
         );
     }
+
     const event = payload as Partial<SnapshotBarrierPayload>;
     const occurredAt = typeof event.occurredAt === 'string' ? new Date(event.occurredAt) : null;
     if (event.eventType !== SNAPSHOT_BARRIER_EVENT_TYPE
         || event.topic !== stream.topic
         || event.partition !== partition
         || typeof event.snapshotId !== 'string'
-        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(event.snapshotId)
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(event.snapshotId)
         || !occurredAt
         || Number.isNaN(occurredAt.getTime())
         || typeof event.source !== 'string'
         || event.source !== stream.expectedSource) {
         throw new ProjectionContractError('invalid projection snapshot marker payload');
     }
+
     return event as SnapshotBarrierPayload;
 }
