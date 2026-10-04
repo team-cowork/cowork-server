@@ -1,5 +1,5 @@
-import { hostname } from 'os';
-import { DiscordField } from 'dicoshot-nest';
+import { hostname } from 'node:os';
+import { type DiscordField } from 'dicoshot-nest';
 
 /** Discord embed field value의 실제 한도(1024자)보다 여유를 둔 안전 길이 */
 const MAX_FIELD_LENGTH = 1000;

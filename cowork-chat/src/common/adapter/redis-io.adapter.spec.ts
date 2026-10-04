@@ -1,6 +1,8 @@
 import { nextRedisAdapterState, resolveAdapterMode } from './redis-io.adapter';
 
-const base = { stopping: false, installed: true, pubReady: true, subReady: true, wasReady: false };
+const base = {
+    stopping: false, installed: true, pubReady: true, subReady: true, wasReady: false,
+};
 
 describe('nextRedisAdapterState', () => {
     it('adapter가 설치되고 pub/sub이 모두 준비되면 READY다', () => {
@@ -38,6 +40,6 @@ describe('resolveAdapterMode', () => {
     });
 
     it('알 수 없는 모드는 거부한다', () => {
-        expect(() => resolveAdapterMode('memory', 'local')).toThrow("must be 'redis' or 'in-memory'");
+        expect(() => resolveAdapterMode('memory', 'local')).toThrow('must be \'redis\' or \'in-memory\'');
     });
 });

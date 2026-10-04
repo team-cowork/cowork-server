@@ -9,10 +9,10 @@ export type ProjectionDatasetStatus =
     | 'REBUILDING'
     | 'REBUILD_REQUIRED';
 
-export interface ProjectionDatasetPartitionOffset {
+export type ProjectionDatasetPartitionOffset = {
     partition: number;
     offset: string;
-}
+};
 
 /** Kafka checkpoint와 실제 Mongo projection collection을 묶는 durable dataset identity. */
 @Schema({ timestamps: true, versionKey: false, collection: 'projection_datasets' })
@@ -29,9 +29,10 @@ export class ProjectionDataset {
     @Prop({ type: Date, default: null }) activatedAt!: Date | null;
     @Prop({ type: Number, default: 0 }) activationDocumentCount!: number;
     @Prop({ type: [{ partition: Number, offset: String }], default: [] })
-        baseOffsets!: ProjectionDatasetPartitionOffset[];
+    baseOffsets!: ProjectionDatasetPartitionOffset[];
+
     @Prop({ type: [{ partition: Number, offset: String }], default: [] })
-        targetOffsets!: ProjectionDatasetPartitionOffset[];
+    targetOffsets!: ProjectionDatasetPartitionOffset[];
 }
 
 export const ProjectionDatasetSchema = SchemaFactory.createForClass(ProjectionDataset);

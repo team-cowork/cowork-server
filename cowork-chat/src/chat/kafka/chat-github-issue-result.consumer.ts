@@ -1,14 +1,19 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
-import { ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ChannelMessageReadAccessService } from '../service';
 import { toMessageBroadcastPayload } from '../repository';
+import { ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
 
 /**
  * Kafka `project.chat-github-issue.result` 토픽을 구독하여
@@ -62,27 +67,32 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
         void this.consumer
             .run({
                 eachMessage: async ({ message }) => {
-                    if (!message.value) return;
+                    if (!message.value) {
+                        return;
+                    }
+
                     try {
                         const event = JSON.parse(message.value.toString()) as ChatGithubIssueCreateResult;
                         await this.handleResultEvent(event);
-                    } catch (err) {
-                        this.logger.error('Failed to process chat GitHub issue command result event', err);
-                        if (!(err instanceof SyntaxError)) throw err;
+                    } catch (error) {
+                        this.logger.error('Failed to process chat GitHub issue command result event', error);
+                        if (!(error instanceof SyntaxError)) {
+                            throw error;
+                        }
                     }
                 },
             })
-            .catch(async (err) => {
-                this.logger.error('project.chat-github-issue.result Kafka consumer failed', err);
+            .catch(async (error: unknown) => {
+                this.logger.error('project.chat-github-issue.result Kafka consumer failed', error);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: 'cowork-chat의 project.chat-github-issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                     color: 'danger',
                     fields: [
                         { name: 'Topic', value: 'project.chat-github-issue.result', inline: true },
-                        ...buildErrorFields(err),
+                        ...buildErrorFields(error),
                     ],
-                }).catch(() => {});
+                }).catch(() => {/* Alert delivery is best-effort. */});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: project.chat-github-issue.result');
@@ -117,7 +127,9 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
             event.channelId,
             content,
         );
-        if (!saved) return;
+        if (!saved) {
+            return;
+        }
 
         await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
     }
@@ -147,6 +159,7 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
             this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
             return;
         }
+
         await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, 'message', message);
     }
 }

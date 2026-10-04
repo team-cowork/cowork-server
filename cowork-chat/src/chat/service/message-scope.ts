@@ -1,9 +1,9 @@
-import { ChannelProjectionView } from '../repository';
+import { type ChannelProjectionView } from '../repository';
 
-export interface MessageScope {
+export type MessageScope = {
     teamId: number | null;
     projectId: number | null;
-}
+};
 
 /** A message belongs to the active channel projection, never to a caller-supplied scope. */
 export function resolveMessageScope(channel: ChannelProjectionView): MessageScope | null {
@@ -14,6 +14,6 @@ export function resolveMessageScope(channel: ChannelProjectionView): MessageScop
             ? { teamId: null, projectId: null }
             : null;
     }
-    if (teamId === null) return null;
-    return { teamId, projectId };
+
+    return teamId === null ? null : { teamId, projectId };
 }
