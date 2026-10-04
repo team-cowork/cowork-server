@@ -140,6 +140,7 @@ jobs:
               - 'cowork-preference/**'
             cowork-promotion:
               - 'cowork-promotion/**'
+              - '.github/workflows/cowork-stage-ci.yml'
               - 'docs/todo/**'
             cowork-channel:
               - 'cowork-channel/**'
@@ -299,7 +300,7 @@ jobs:
         working-directory: ${{ matrix.working-directory }}
         run: npm ci
       - name: Lint (Node)
-        if: matrix.service == 'cowork-chat'
+        if: matrix.build == 'node'
         working-directory: ${{ matrix.working-directory }}
         run: npm run lint -- --max-warnings=0
       - name: Build & Test (Node)
