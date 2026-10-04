@@ -84,10 +84,10 @@ export class MessageSearchIndexService {
         const results = await this.elasticsearchService.bulkUpsertForOutbox(entries);
         const byMessageId = new Map(toIndex.map((message) => [message._id.toString(), message]));
 
-        await Promise.all(results.map(({ messageId, result }) => {
+        await Promise.all(results.map(async ({ messageId, result }) => {
             this.writes.inc({ operation: 'upsert', outcome: result.outcome });
             const message = byMessageId.get(messageId);
-            return message ? this.finalizeUpsertResult(message, result) : undefined;
+            if (message) await this.finalizeUpsertResult(message, result);
         }));
     }
 
@@ -156,10 +156,10 @@ export class MessageSearchIndexService {
         const results = await this.elasticsearchService.bulkDeleteForOutbox(entries);
         const byMessageId = new Map(succeeded.map((tombstone) => [tombstone.messageId, tombstone]));
 
-        await Promise.all(results.map(({ messageId, result }) => {
+        await Promise.all(results.map(async ({ messageId, result }) => {
             this.writes.inc({ operation: 'delete', outcome: result.outcome });
             const tombstone = byMessageId.get(messageId);
-            return tombstone ? this.finalizeDeleteResult(tombstone, result) : undefined;
+            if (tombstone) await this.finalizeDeleteResult(tombstone, result);
         }));
     }
 
