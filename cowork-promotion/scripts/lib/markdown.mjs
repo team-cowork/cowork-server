@@ -9,446 +9,433 @@ import { visit } from 'unist-util-visit';
 import { toString } from 'mdast-util-to-string';
 
 const PRIORITIES = {
-  high: { label: '높음', rank: 1 },
-  medium: { label: '중간', rank: 2 },
-  low: { label: '낮음', rank: 3 },
-  unknown: { label: '미지정', rank: 4 },
+    high: { label: '높음', rank: 1 },
+    medium: { label: '중간', rank: 2 },
+    low: { label: '낮음', rank: 3 },
+    unknown: { label: '미지정', rank: 4 },
 };
 
 const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 const EXTERNAL_PROTOCOLS = new Set(['http:', 'https:']);
 const PRIORITY_MARKERS = new Map([
-  ['🔴', '높음'],
-  ['🟠', '중간'],
-  ['🟢', '낮음'],
+    ['🔴', '높음'],
+    ['🟠', '중간'],
+    ['🟢', '낮음'],
 ]);
 const PRIORITY_CLASSES = new Map([
-  ['높음', 'high'],
-  ['중간', 'medium'],
-  ['낮음', 'low'],
-  ['미지정', 'unknown'],
+    ['높음', 'high'],
+    ['중간', 'medium'],
+    ['낮음', 'low'],
+    ['미지정', 'unknown'],
 ]);
 
 const appendUnique = (values = [], additions = []) => {
-  const result = [...values];
+    const result = [...values];
 
-  for (const addition of additions) {
-    if (!result.some((value) => String(value) === String(addition))) {
-      result.push(addition);
+    for (const addition of additions) {
+        if (result.every(value => String(value) !== String(addition))) {
+            result.push(addition);
+        }
     }
-  }
 
-  return result;
+    return result;
 };
 
 const sanitizeSchema = {
-  ...defaultSchema,
-  clobberPrefix: 'todo-',
-  tagNames: appendUnique(defaultSchema.tagNames, ['input']),
-  attributes: {
-    ...defaultSchema.attributes,
-    '*': appendUnique(defaultSchema.attributes?.['*'], ['id']),
-    code: appendUnique(defaultSchema.attributes?.code, [
-      ['className', /^language-[A-Za-z0-9_-]+$/],
-    ]),
-    input: appendUnique(defaultSchema.attributes?.input, [
-      ['type', 'checkbox'],
-      'checked',
-      'disabled',
-    ]),
-    li: appendUnique(defaultSchema.attributes?.li, [
-      ['className', 'task-list-item'],
-    ]),
-    ul: appendUnique(defaultSchema.attributes?.ul, [
-      ['className', 'contains-task-list'],
-    ]),
-  },
-  protocols: {
-    ...defaultSchema.protocols,
-    href: appendUnique(defaultSchema.protocols?.href, ['http', 'https', 'mailto']),
-  },
+    ...defaultSchema,
+    clobberPrefix: 'todo-',
+    tagNames: appendUnique(defaultSchema.tagNames, ['input']),
+    attributes: {
+        ...defaultSchema.attributes,
+        '*': appendUnique(defaultSchema.attributes?.['*'], ['id']),
+        code: appendUnique(defaultSchema.attributes?.code, [
+            ['className', /^language-[\w-]+$/u],
+        ]),
+        input: appendUnique(defaultSchema.attributes?.input, [
+            ['type', 'checkbox'],
+            'checked',
+            'disabled',
+        ]),
+        li: appendUnique(defaultSchema.attributes?.li, [
+            ['className', 'task-list-item'],
+        ]),
+        ul: appendUnique(defaultSchema.attributes?.ul, [
+            ['className', 'contains-task-list'],
+        ]),
+    },
+    protocols: {
+        ...defaultSchema.protocols,
+        href: appendUnique(defaultSchema.protocols?.href, ['http', 'https', 'mailto']),
+    },
 };
 
-export const parseMarkdown = (source) => unified()
-  .use(remarkParse)
-  .use(remarkGfm)
-  .parse(source);
+export const parseMarkdown = source => unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .parse(source);
 
-const safeDecodeURIComponent = (value) => {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
+const safeDecodeURIComponent = value => {
+    try {
+        return decodeURIComponent(value);
+    } catch {
+        return value;
+    }
 };
 
-const prefixFragment = (fragment) => {
-  const decoded = safeDecodeURIComponent(fragment.replace(/^#/, ''));
+const prefixFragment = fragment => {
+    const decoded = safeDecodeURIComponent(fragment.replace(/^#/u, ''));
 
-  if (!decoded) {
-    return '';
-  }
-
-  return `#${decoded.startsWith('todo-') ? decoded : `todo-${decoded}`}`;
+    return decoded ? `#${decoded.startsWith('todo-') ? decoded : `todo-${decoded}`}` : '';
 };
 
-const splitUrl = (url) => {
-  const hashIndex = url.indexOf('#');
-  const beforeHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
-  const fragment = hashIndex === -1 ? '' : url.slice(hashIndex + 1);
-  const queryIndex = beforeHash.indexOf('?');
+const splitUrl = url => {
+    const hashIndex = url.indexOf('#');
+    const beforeHash = hashIndex === -1 ? url : url.slice(0, hashIndex);
+    const fragment = hashIndex === -1 ? '' : url.slice(hashIndex + 1);
+    const queryIndex = beforeHash.indexOf('?');
 
-  return {
-    pathname: queryIndex === -1 ? beforeHash : beforeHash.slice(0, queryIndex),
-    query: queryIndex === -1 ? '' : beforeHash.slice(queryIndex),
-    fragment,
-  };
+    return {
+        pathname: queryIndex === -1 ? beforeHash : beforeHash.slice(0, queryIndex),
+        query: queryIndex === -1 ? '' : beforeHash.slice(queryIndex),
+        fragment,
+    };
 };
 
 const rewriteUrl = ({ url, sourcePath, resolveLink }) => {
-  const trimmed = url.trim();
+    const trimmed = url.trim();
 
-  if (!trimmed) {
-    return trimmed;
-  }
-
-  if (trimmed.startsWith('//')) {
-    throw new Error(`${sourcePath}: protocol-relative links are not supported: ${url}`);
-  }
-
-  const protocolMatch = /^([A-Za-z][A-Za-z\d+.-]*:)/.exec(trimmed);
-
-  if (protocolMatch) {
-    const protocol = protocolMatch[1].toLowerCase();
-
-    if (!ALLOWED_EXTERNAL_PROTOCOLS.has(protocol)) {
-      throw new Error(`${sourcePath}: unsafe link protocol: ${protocol}`);
+    if (!trimmed) {
+        return trimmed;
     }
 
-    return trimmed;
-  }
+    if (trimmed.startsWith('//')) {
+        throw new Error(`${sourcePath}: protocol-relative links are not supported: ${url}`);
+    }
 
-  const { pathname, query, fragment } = splitUrl(trimmed);
-  const rewrittenFragment = fragment ? prefixFragment(fragment) : '';
+    const protocolMatch = /^([a-z][\d+\-.a-z]*:)/iu.exec(trimmed);
 
-  if (!pathname) {
-    return `${query}${rewrittenFragment}`;
-  }
+    if (protocolMatch) {
+        const protocol = protocolMatch[1].toLowerCase();
 
-  if (pathname.startsWith('/')) {
-    return `${pathname}${query}${rewrittenFragment}`;
-  }
+        if (!ALLOWED_EXTERNAL_PROTOCOLS.has(protocol)) {
+            throw new Error(`${sourcePath}: unsafe link protocol: ${protocol}`);
+        }
 
-  if (typeof resolveLink !== 'function') {
-    throw new Error(`${sourcePath}: cannot resolve relative link without a resolver: ${url}`);
-  }
+        return trimmed;
+    }
 
-  const route = resolveLink({ sourcePath, pathname: safeDecodeURIComponent(pathname), url });
-  const resolvedFragment = /^https?:\/\//i.test(route)
-    ? (fragment ? `#${fragment}` : '')
-    : rewrittenFragment;
-  return `${route}${query}${resolvedFragment}`;
+    const { pathname, query, fragment } = splitUrl(trimmed);
+    const rewrittenFragment = fragment ? prefixFragment(fragment) : '';
+
+    if (!pathname) {
+        return `${query}${rewrittenFragment}`;
+    }
+
+    if (pathname.startsWith('/')) {
+        return `${pathname}${query}${rewrittenFragment}`;
+    }
+
+    if (typeof resolveLink !== 'function') {
+        throw new TypeError(`${sourcePath}: cannot resolve relative link without a resolver: ${url}`);
+    }
+
+    const route = resolveLink({ sourcePath, pathname: safeDecodeURIComponent(pathname), url });
+    const resolvedFragment = /^https?:\/\//iu.test(route)
+        ? (fragment ? `#${fragment}` : '')
+        : rewrittenFragment;
+    return `${route}${query}${resolvedFragment}`;
 };
 
 export const rewriteMarkdownLinks = (tree, { sourcePath, resolveLink }) => {
-  visit(tree, (node) => {
-    if (node.type === 'image' || node.type === 'imageReference') {
-      throw new Error(`${sourcePath}: images are not supported in TODO documents`);
-    }
+    visit(tree, node => {
+        if (node.type === 'image' || node.type === 'imageReference') {
+            throw new Error(`${sourcePath}: images are not supported in TODO documents`);
+        }
 
-    if (node.type === 'link' || node.type === 'definition') {
-      node.url = rewriteUrl({ url: node.url, sourcePath, resolveLink });
-    }
-  });
+        if (node.type === 'link' || node.type === 'definition') {
+            node.url = rewriteUrl({ url: node.url, sourcePath, resolveLink });
+        }
+    });
 
-  return tree;
+    return tree;
 };
 
-export const normalizePriorityMarkers = (tree) => {
-  visit(tree, 'text', (node) => {
-    let value = node.value;
+export const normalizePriorityMarkers = tree => {
+    visit(tree, 'text', node => {
+        let { value } = node;
 
-    for (const [marker, label] of PRIORITY_MARKERS) {
-      value = value.replaceAll(marker, label);
-    }
+        for (const [marker, label] of PRIORITY_MARKERS) {
+            value = value.replaceAll(marker, () => label);
+        }
 
-    node.value = value
-      .replace(/높음\s+높음/g, '높음')
-      .replace(/중간\s+중간/g, '중간')
-      .replace(/낮음\s+낮음/g, '낮음');
-  });
+        node.value = value
+            .replaceAll(/높음\s+높음/gu, '높음')
+            .replaceAll(/중간\s+중간/gu, '중간')
+            .replaceAll(/낮음\s+낮음/gu, '낮음');
+    });
 
-  return tree;
+    return tree;
 };
 
-const cloneNodes = (nodes) => structuredClone(nodes);
+const cloneNodes = nodes => structuredClone(nodes);
 
 const metadataValueNodes = (paragraph, strongIndex) => {
-  const nodes = cloneNodes(paragraph.children.slice(strongIndex + 1));
+    const nodes = cloneNodes(paragraph.children.slice(strongIndex + 1));
 
-  for (const node of nodes) {
-    if (node.type !== 'text') {
-      if (toString(node).trim()) {
+    for (const node of nodes) {
+        if (node.type !== 'text') {
+            if (toString(node).trim()) {
+                break;
+            }
+
+            continue;
+        }
+
+        node.value = node.value.replace(/^\s*[:：]\s*/u, '');
         break;
-      }
-      continue;
     }
 
-    node.value = node.value.replace(/^\s*[:：]\s*/, '');
-    break;
-  }
-
-  return nodes;
+    return nodes;
 };
 
-const parseMetadataItem = (listItem) => {
-  const paragraph = listItem.children.find((node) => node.type === 'paragraph');
+const parseMetadataItem = listItem => {
+    const paragraph = listItem.children.find(node => node.type === 'paragraph');
 
-  if (!paragraph) {
-    return null;
-  }
+    if (!paragraph) {
+        return null;
+    }
 
-  const strongIndex = paragraph.children.findIndex((node) => node.type === 'strong');
+    const strongIndex = paragraph.children.findIndex(node => node.type === 'strong');
 
-  if (strongIndex === -1) {
-    return null;
-  }
+    if (strongIndex === -1) {
+        return null;
+    }
 
-  const leadingText = toString({
-    type: 'root',
-    children: paragraph.children.slice(0, strongIndex),
-  }).trim();
+    const leadingText = toString({
+        type: 'root',
+        children: paragraph.children.slice(0, strongIndex),
+    }).trim();
 
-  if (leadingText) {
-    return null;
-  }
+    if (leadingText) {
+        return null;
+    }
 
-  const label = toString(paragraph.children[strongIndex]).trim();
-  const valueNodes = metadataValueNodes(paragraph, strongIndex);
+    const label = toString(paragraph.children[strongIndex]).trim();
+    const valueNodes = metadataValueNodes(paragraph, strongIndex);
 
-  if (!label) {
-    return null;
-  }
+    if (!label) {
+        return null;
+    }
 
-  return {
-    label,
-    text: toString({ type: 'root', children: valueNodes }).trim(),
-    valueNodes,
-  };
+    return {
+        label,
+        text: toString({ type: 'root', children: valueNodes }).trim(),
+        valueNodes,
+    };
 };
 
 const extractDocumentParts = (tree, sourcePath) => {
-  const h1Index = tree.children.findIndex(
-    (node) => node.type === 'heading' && node.depth === 1,
-  );
+    const h1Index = tree.children.findIndex(
+        node => node.type === 'heading' && node.depth === 1,
+    );
 
-  if (h1Index === -1) {
-    throw new Error(`${sourcePath}: TODO document must contain an H1 title`);
-  }
-
-  const title = toString(tree.children[h1Index]).trim();
-
-  if (!title) {
-    throw new Error(`${sourcePath}: TODO document H1 title must not be empty`);
-  }
-
-  const firstH2Index = tree.children.findIndex(
-    (node, index) => index > h1Index && node.type === 'heading' && node.depth === 2,
-  );
-  const metadataLimit = firstH2Index === -1 ? tree.children.length : firstH2Index;
-  let metadataIndex = -1;
-  let parsedMetadata = [];
-
-  for (let index = h1Index + 1; index < metadataLimit; index += 1) {
-    const node = tree.children[index];
-
-    if (node.type !== 'list' || node.ordered) {
-      continue;
+    if (h1Index === -1) {
+        throw new Error(`${sourcePath}: TODO document must contain an H1 title`);
     }
 
-    const entries = node.children.map(parseMetadataItem);
+    const title = toString(tree.children[h1Index]).trim();
 
-    if (entries.length > 0 && entries.every(Boolean)) {
-      metadataIndex = index;
-      parsedMetadata = entries;
-      break;
-    }
-  }
-
-  const bodyNodes = tree.children.filter(
-    (_node, index) => index !== h1Index && index !== metadataIndex,
-  );
-
-  return { title, parsedMetadata, bodyNodes };
-};
-
-const hastText = (node) => {
-  if (node.type === 'text') {
-    return node.value;
-  }
-
-  if (!Array.isArray(node.children)) {
-    return '';
-  }
-
-  return node.children.map(hastText).join('');
-};
-
-const isExternalHref = (href) => {
-  const protocolMatch = /^([A-Za-z][A-Za-z\d+.-]*:)/.exec(href);
-  return protocolMatch && EXTERNAL_PROTOCOLS.has(protocolMatch[1].toLowerCase());
-};
-
-const postSanitizeTransform = (toc) => () => (tree) => {
-  const walk = (parent) => {
-    if (!Array.isArray(parent.children)) {
-      return;
+    if (!title) {
+        throw new Error(`${sourcePath}: TODO document H1 title must not be empty`);
     }
 
-    const children = [];
+    const firstH2Index = tree.children.findIndex(
+        (node, index) => index > h1Index && node.type === 'heading' && node.depth === 2,
+    );
+    const metadataLimit = firstH2Index === -1 ? tree.children.length : firstH2Index;
+    let metadataIndex = -1;
+    let parsedMetadata = [];
 
-    for (const child of parent.children) {
-      if (child.type === 'element') {
-        walk(child);
+    for (let index = h1Index + 1; index < metadataLimit; index += 1) {
+        const node = tree.children[index];
 
-        if (child.tagName === 'a') {
-          const href = String(child.properties?.href ?? '');
-
-          if (href.startsWith('#')) {
-            child.properties.href = prefixFragment(href);
-          } else if (isExternalHref(href)) {
-            child.properties.target = '_blank';
-            child.properties.rel = ['noopener', 'noreferrer'];
-          }
+        if (node.type !== 'list' || node.ordered) {
+            continue;
         }
 
-        if ((child.tagName === 'h2' || child.tagName === 'h3') && child.properties?.id) {
-          toc.push({
-            id: String(child.properties.id),
-            depth: Number(child.tagName.slice(1)),
-            text: hastText(child).trim(),
-          });
+        const entries = node.children.map(element => parseMetadataItem(element));
+
+        if (entries.length > 0 && entries.every(Boolean)) {
+            metadataIndex = index;
+            parsedMetadata = entries;
+            break;
         }
-
-        if (child.tagName === 'td') {
-          const priority = PRIORITY_CLASSES.get(hastText(child).trim());
-
-          if (priority) {
-            child.children.unshift(
-              {
-                type: 'element',
-                tagName: 'span',
-                properties: {
-                  className: [
-                    'todo-priority-marker',
-                    `todo-priority-marker--${priority}`,
-                  ],
-                  ariaHidden: 'true',
-                },
-                children: [],
-              },
-              { type: 'text', value: ' ' },
-            );
-          }
-        }
-
-        if (child.tagName === 'table') {
-          children.push({
-            type: 'element',
-            tagName: 'div',
-            properties: { className: ['todo-document__table-scroll'] },
-            children: [child],
-          });
-          continue;
-        }
-      }
-
-      children.push(child);
     }
 
-    parent.children = children;
-  };
+    const bodyNodes = tree.children.filter(
+        (_node, index) => index !== h1Index && index !== metadataIndex,
+    );
 
-  walk(tree);
+    return { title, parsedMetadata, bodyNodes };
 };
 
-const renderMdast = async (root) => {
-  const toc = [];
-  const processor = unified()
-    .use(remarkRehype)
-    .use(rehypeSlug)
-    .use(rehypeSanitize, sanitizeSchema)
-    .use(postSanitizeTransform(toc))
-    .use(rehypeStringify);
-  const hast = await processor.run(root);
+const hastText = node => {
+    if (node.type === 'text') {
+        return node.value;
+    }
 
-  return {
-    html: processor.stringify(hast),
-    toc,
-  };
+    return Array.isArray(node.children) ? node.children.map(element => hastText(element)).join('') : '';
 };
 
-const renderInline = async (nodes) => {
-  const { html } = await renderMdast({
-    type: 'root',
-    children: [{ type: 'paragraph', children: cloneNodes(nodes) }],
-  });
-
-  return html.startsWith('<p>') && html.endsWith('</p>')
-    ? html.slice(3, -4)
-    : html;
+const isExternalHref = href => {
+    const protocolMatch = /^([a-z][\d+\-.a-z]*:)/iu.exec(href);
+    return protocolMatch && EXTERNAL_PROTOCOLS.has(protocolMatch[1].toLowerCase());
 };
 
-export const parsePriority = (value) => {
-  const text = String(value ?? '');
+const postSanitizeTransform = toc => () => tree => {
+    const walk = parent => {
+        if (!Array.isArray(parent.children)) {
+            return;
+        }
 
-  if (text.includes('높음')) {
-    return 'high';
-  }
+        const children = [];
 
-  if (text.includes('중간')) {
-    return 'medium';
-  }
+        for (const child of parent.children) {
+            if (child.type === 'element') {
+                walk(child);
 
-  if (text.includes('낮음')) {
-    return 'low';
-  }
+                if (child.tagName === 'a') {
+                    const href = String(child.properties?.href ?? '');
 
-  return 'unknown';
+                    if (href.startsWith('#')) {
+                        child.properties.href = prefixFragment(href);
+                    } else if (isExternalHref(href)) {
+                        child.properties.target = '_blank';
+                        child.properties.rel = ['noopener', 'noreferrer'];
+                    }
+                }
+
+                if ((child.tagName === 'h2' || child.tagName === 'h3') && child.properties?.id) {
+                    toc.push({
+                        id: String(child.properties.id),
+                        depth: Number(child.tagName.slice(1)),
+                        text: hastText(child).trim(),
+                    });
+                }
+
+                if (child.tagName === 'td') {
+                    const priority = PRIORITY_CLASSES.get(hastText(child).trim());
+
+                    if (priority) {
+                        child.children.unshift(
+                            {
+                                type: 'element',
+                                tagName: 'span',
+                                properties: {
+                                    className: [
+                                        'todo-priority-marker',
+                                        `todo-priority-marker--${priority}`,
+                                    ],
+                                    ariaHidden: 'true',
+                                },
+                                children: [],
+                            },
+                            { type: 'text', value: ' ' },
+                        );
+                    }
+                } else if (child.tagName === 'table') {
+                    children.push({
+                        type: 'element',
+                        tagName: 'div',
+                        properties: { className: ['todo-document__table-scroll'] },
+                        children: [child],
+                    });
+                    continue;
+                }
+            }
+
+            children.push(child);
+        }
+
+        parent.children = children;
+    };
+
+    walk(tree);
 };
 
-export const priorityDetails = (priority) => PRIORITIES[priority] ?? PRIORITIES.unknown;
+const renderMdast = async root => {
+    const toc = [];
+    const processor = unified()
+        .use(remarkRehype)
+        .use(rehypeSlug)
+        .use(rehypeSanitize, sanitizeSchema)
+        .use(postSanitizeTransform(toc))
+        .use(rehypeStringify);
+    const hast = await processor.run(root);
+
+    return {
+        html: processor.stringify(hast),
+        toc,
+    };
+};
+
+const renderInline = async nodes => {
+    const { html } = await renderMdast({
+        type: 'root',
+        children: [{ type: 'paragraph', children: cloneNodes(nodes) }],
+    });
+
+    return html.startsWith('<p>') && html.endsWith('</p>')
+        ? html.slice(3, -4)
+        : html;
+};
+
+export const parsePriority = value => {
+    const text = String(value ?? '');
+
+    if (text.includes('높음')) {
+        return 'high';
+    }
+
+    if (text.includes('중간')) {
+        return 'medium';
+    }
+
+    return text.includes('낮음') ? 'low' : 'unknown';
+};
+
+export const priorityDetails = priority => PRIORITIES[priority] ?? PRIORITIES.unknown;
 
 export const renderTodoMarkdown = async ({
-  source,
-  sourcePath,
-  resolveLink,
+    source,
+    sourcePath,
+    resolveLink,
 }) => {
-  const tree = parseMarkdown(source);
-  normalizePriorityMarkers(tree);
-  rewriteMarkdownLinks(tree, { sourcePath, resolveLink });
+    const tree = parseMarkdown(source);
+    normalizePriorityMarkers(tree);
+    rewriteMarkdownLinks(tree, { sourcePath, resolveLink });
 
-  const { title, parsedMetadata, bodyNodes } = extractDocumentParts(tree, sourcePath);
-  const metadata = await Promise.all(parsedMetadata.map(async ({ label, text, valueNodes }) => ({
-    label,
-    text,
-    html: await renderInline(valueNodes),
-  })));
-  const priorityMetadata = metadata.find(({ label }) => label === '우선순위');
-  const priority = parsePriority(priorityMetadata?.text);
-  const { html: bodyHtml, toc } = await renderMdast({
-    type: 'root',
-    children: cloneNodes(bodyNodes),
-  });
+    const { title, parsedMetadata, bodyNodes } = extractDocumentParts(tree, sourcePath);
+    const metadata = await Promise.all(parsedMetadata.map(async ({ label, text, valueNodes }) => ({
+        label,
+        text,
+        html: await renderInline(valueNodes),
+    })));
+    const priorityMetadata = metadata.find(({ label }) => label === '우선순위');
+    const priority = parsePriority(priorityMetadata?.text);
+    const { html: bodyHtml, toc } = await renderMdast({
+        type: 'root',
+        children: cloneNodes(bodyNodes),
+    });
 
-  return {
-    title,
-    summary: toString(bodyNodes.find((node) => node.type === 'paragraph') ?? { type: 'root', children: [] })
-      .replace(/\s+/g, ' ').trim().slice(0, 160) || title,
-    metadata,
-    priority,
-    priorityLabel: priorityDetails(priority).label,
-    bodyHtml,
-    toc,
-  };
+    return {
+        title,
+        summary: toString(bodyNodes.find(node => node.type === 'paragraph') ?? { type: 'root', children: [] })
+            .replaceAll(/\s+/gu, ' ').trim().slice(0, 160) || title,
+        metadata,
+        priority,
+        priorityLabel: priorityDetails(priority).label,
+        bodyHtml,
+        toc,
+    };
 };
