@@ -1,14 +1,22 @@
 package com.cowork.preference.handler
 
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.security.RequesterContext
 import com.cowork.preference.service.PreferenceService
+import com.cowork.preference.service.TeamMembershipDeniedException
+import com.cowork.preference.service.TeamMembershipGuard
+import com.cowork.preference.service.TeamMembershipProjectionNotReadyException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-class PreferenceHandler(private val service: PreferenceService, private val scope: CoroutineScope) {
+class PreferenceHandler(
+    private val service: PreferenceService,
+    private val scope: CoroutineScope,
+    private val teamMembershipGuard: TeamMembershipGuard,
+) {
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val resourceId = ctx.pathParam("id")?.toLongOrNull()
@@ -16,12 +24,25 @@ class PreferenceHandler(private val service: PreferenceService, private val scop
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
+        val requester = if (resourceType == ResourceType.TEAM) {
+            RequesterContext.from(ctx) ?: run {
+                ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+                return@handler
+            }
+        } else {
+            null
+        }
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.getSettings(resourceType, resourceId) }
+            runCatching {
+                if (resourceType == ResourceType.TEAM) {
+                    teamMembershipGuard.requireMember(resourceId, requireNotNull(requester))
+                }
+                service.getSettings(resourceType, resourceId)
+            }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { e -> ctx.response().setStatusCode(authorizationAwareStatus(e)).end(errorBody(e.message)) }
         }
     }
 
@@ -49,21 +70,40 @@ class PreferenceHandler(private val service: PreferenceService, private val scop
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
+        val requester = if (resourceType == ResourceType.TEAM) {
+            RequesterContext.from(ctx) ?: run {
+                ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+                return@handler
+            }
+        } else {
+            null
+        }
         val body = runCatching { ctx.body().asJsonObject() }.getOrNull()
         if (body == null) {
             ctx.response().setStatusCode(400).end(errorBody("Invalid JSON body"))
             return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.updateSettings(resourceType, resourceId, body).getOrThrow() }
+            runCatching {
+                if (resourceType == ResourceType.TEAM) {
+                    teamMembershipGuard.requireSettingsManager(resourceId, requireNotNull(requester))
+                }
+                service.updateSettings(resourceType, resourceId, body).getOrThrow()
+            }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
                 .onFailure { e ->
-                    val status = if (e is IllegalArgumentException) 400 else 500
+                    val status = if (e is IllegalArgumentException) 400 else authorizationAwareStatus(e)
                     ctx.response().setStatusCode(status).end(errorBody(e.message))
                 }
         }
+    }
+
+    private fun authorizationAwareStatus(e: Throwable): Int = when (e) {
+        is TeamMembershipDeniedException -> 403
+        is TeamMembershipProjectionNotReadyException -> 503
+        else -> 500
     }
 
     private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()

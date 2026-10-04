@@ -4,6 +4,15 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: Gateway 인증 뒤 공개되는 Preference API가 요청자 헤더를 읽지 않고 경로의 리소스 ID만으로 조회·수정을 수행함
 
+> **진척:** `RequesterContext`(X-User-Id/X-User-Role 파싱)와 기존 `tb_team_member_projections`를 재사용하는
+> `TeamMembershipGuard`를 추가해 `/preferences/team/{id}` GET·PUT에 팀 멤버십·설정 관리 권한 검증을 적용했다.
+> 전역 `ADMIN`은 우회하고, projection 미준비는 `503`, 비멤버·권한 부족은 `403`으로 응답한다.
+>
+> **결론:** account/project/channel(voice-channel, text-channel, notification, project-role) 범위는 아직
+> 처리하지 않았다 — `cowork-preference`가 `project.member.event.v2`/`channel.member.event.v2`를 소비하지
+> 않아 이 두 projection을 team-member projection과 동일한 패턴(신규 Kafka consumer, 신규 마이그레이션)으로
+> 새로 만들어야 하며, 이는 별도 후속 작업으로 남겨둔다.
+
 ## 문제
 
 `cowork-gateway`는 `/api/preference/preferences/**` 요청을 인증한 뒤 `X-User-Id`와 `X-User-Role`을 설정해 `cowork-preference`로 전달한다. 그러나 `PreferenceHandler`, `NotificationHandler`, `ProjectRoleHandler`는 두 헤더를 읽지 않으며, 요청 경로와 본문의 `accountId`, `teamId`, `projectId`, 채널 ID만 서비스에 전달한다.
