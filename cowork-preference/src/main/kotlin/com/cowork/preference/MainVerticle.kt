@@ -38,6 +38,7 @@ import com.cowork.preference.service.GithubRepoSettingCommandProcessor
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectRoleService
+import com.cowork.preference.service.TeamMembershipGuard
 import com.cowork.preference.service.TeamRoleCommandProcessor
 import com.cowork.preference.service.TeamRoleService
 import io.vertx.core.AbstractVerticle
@@ -158,7 +159,8 @@ class MainVerticle : AbstractVerticle() {
             readiness = channelRolePolicyReadiness,
         )
 
-        val prefHandler = PreferenceHandler(prefService, scope)
+        val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness)
+        val prefHandler = PreferenceHandler(prefService, scope, teamMembershipGuard)
         val notifHandler = NotificationHandler(notifService, scope)
         val roleHandler = ProjectRoleHandler(roleService, scope)
 
