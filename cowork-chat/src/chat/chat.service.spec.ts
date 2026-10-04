@@ -1,14 +1,16 @@
-import { BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import {
+    BadRequestException,
+    ForbiddenException,
+    NotFoundException,
+    ServiceUnavailableException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
-import { ChatGithubIssueCreateCommand } from './kafka/event/chat-github-issue.event';
+import { type ChatGithubIssueCreateCommand } from './kafka/event/chat-github-issue.event';
 
 const mockMessageId = new Types.ObjectId().toString();
 const mockEmit = jest.fn();
-const mockTo = jest.fn((room: string) => {
-    void room;
-    return { emit: mockEmit };
-});
+const mockTo = jest.fn((_room: string) => ({ emit: mockEmit }));
 
 const makeMockMessage = (overrides = {}) => ({
     _id: new Types.ObjectId(mockMessageId),
@@ -19,7 +21,7 @@ const makeMockMessage = (overrides = {}) => ({
     content: '안녕하세요',
     type: 'TEXT',
     isEdited: false,
-    editHistory: [] as { content: string; editedAt: Date }[],
+    editHistory: [] as Array<{ content: string; editedAt: Date }>,
     updatedAt: new Date('2026-05-12T00:00:00.000Z'),
     ...overrides,
 });
@@ -45,7 +47,6 @@ const mockMessageRepository = {
 const mockMessageSearchDeletion = {
     deleteMessage: jest.fn().mockResolvedValue('DELETED'),
 };
-
 
 const mockChannelMemberRepository = {
     exists: jest.fn(),
@@ -159,25 +160,24 @@ describe('ChatService', () => {
             channelId: 1, teamId: 100, projectId: null, type: 'TEXT', deleted: false,
         });
         mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
-        mockMessageRepository.applyEdit.mockImplementation((_id: string, content: string) =>
-            Promise.resolve({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
-        mockMessageRepository.setPinned.mockImplementation((_id: string, isPinned: boolean) =>
-            Promise.resolve({ isPinned }));
+        mockMessageRepository.applyEdit.mockImplementation(async (_id: string, content: string) =>
+            ({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
+        mockMessageRepository.setPinned.mockImplementation(async (_id: string, isPinned: boolean) =>
+            ({ isPinned }));
         mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
         mockChannelMessageReadAccess.requireCanRead.mockResolvedValue(undefined);
         mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
         mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([]);
         mockChannelMessageReadAccess.filterReadableChannelIds.mockImplementation(
-            (_teamId: number, _userId: number, channelIds: number[]) => Promise.resolve(channelIds),
+            async (_teamId: number, _userId: number, channelIds: number[]) => channelIds,
         );
         mockChannelMessageReadAccess.filterReadableUsersByChannel.mockImplementation(
-            (usersByChannel: Map<number, number[]>) => Promise.resolve(usersByChannel),
+            async (usersByChannel: Map<number, number[]>) => usersByChannel,
         );
         mockChannelMessageReadAccess.emitToReadableChannelUsers.mockImplementation(
-            (_io: typeof mockChatGateway.server, channelId: number, event: string, payload: unknown) => {
+            async (_io: typeof mockChatGateway.server, channelId: number, event: string, payload: unknown) => {
                 mockTo(`chat:${channelId}`);
                 mockEmit(event, payload);
-                return Promise.resolve();
             },
         );
     });
@@ -318,7 +318,9 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
             mockObjectStorageService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
             const attachments = [
-                { name: 'a.png', url: 'http://object-storage/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png' },
+                {
+                    name: 'a.png', url: 'http://object-storage/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png',
+                },
             ];
 
             await service.sendMessage(ctx, { content: 'hi', attachments });
@@ -333,7 +335,9 @@ describe('ChatService', () => {
                 throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
             });
             const attachments = [
-                { name: 'a.png', url: 'http://object-storage/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png' },
+                {
+                    name: 'a.png', url: 'http://object-storage/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png',
+                },
             ];
 
             await expect(service.sendMessage(ctx, { content: 'hi', attachments })).rejects.toThrow(BadRequestException);
@@ -342,7 +346,9 @@ describe('ChatService', () => {
 
         it('DM 채널에서 수신자가 발신자를 차단했으면 ForbiddenException을 던진다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
-            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: null, projectId: null, type: 'DM' });
+            mockChannelProjectionRepository.findById.mockResolvedValue({
+                channelId: 1, teamId: null, projectId: null, type: 'DM',
+            });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(true);
 
@@ -353,7 +359,9 @@ describe('ChatService', () => {
 
         it('DM 채널 메시지는 teamId/projectId를 null로 강제하고 수신자 숨김을 해제한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
-            mockChannelProjectionRepository.findById.mockResolvedValue({ channelId: 1, teamId: null, projectId: null, type: 'DM' });
+            mockChannelProjectionRepository.findById.mockResolvedValue({
+                channelId: 1, teamId: null, projectId: null, type: 'DM',
+            });
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(false);
 
@@ -377,14 +385,18 @@ describe('ChatService', () => {
             ]);
             mockChannelMemberRepository.findOtherDmMembers.mockResolvedValue(new Map([[1, 7], [2, 9]]));
             mockMessageRepository.findLastMessages.mockResolvedValue(new Map([
-                [1, { messageId: 'a', authorId: 7, content: '예전', type: 'TEXT', createdAt: new Date('2026-01-01') }],
-                [2, { messageId: 'b', authorId: 9, content: '최신', type: 'TEXT', createdAt: new Date('2026-06-01') }],
+                [1, {
+                    messageId: 'a', authorId: 7, content: '예전', type: 'TEXT', createdAt: new Date('2026-01-01'),
+                }],
+                [2, {
+                    messageId: 'b', authorId: 9, content: '최신', type: 'TEXT', createdAt: new Date('2026-06-01'),
+                }],
             ]));
             mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[1, 3]]));
 
             const result = await service.getMyDms(42);
 
-            expect(result.map((dm) => dm.channelId)).toEqual([2, 1]);
+            expect(result.map(dm => dm.channelId)).toEqual([2, 1]);
             expect(result[1].unreadCount).toBe(3);
             expect(result[0].otherUserId).toBe(9);
         });
@@ -393,7 +405,6 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findDmMemberships.mockResolvedValue([]);
             await expect(service.getMyDms(42)).resolves.toEqual([]);
         });
-
     });
 
     describe('hideDm', () => {
@@ -518,7 +529,6 @@ describe('ChatService', () => {
             await expect(service.getFileList({ channelId: 1, userId: 42 }, {})).rejects.toThrow('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
             expect(mockMessageRepository.findFileAttachments).not.toHaveBeenCalled();
         });
-
     });
 
     describe('deleteFile', () => {
@@ -589,12 +599,14 @@ describe('ChatService', () => {
     });
 
     describe('editMessage', () => {
-        const ctx = (overrides = {}) => ({ channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides });
+        const ctx = (overrides = {}) => ({
+            channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides,
+        });
 
         it('본인 메시지를 수정하면 색인 대상 여부와 함께 원자적 수정을 요청한다', async () => {
-            const msg = makeMockMessage();
+            const message = makeMockMessage();
             mockChannelMemberRepository.exists.mockResolvedValue(true);
-            mockMessageRepository.findById.mockResolvedValue(msg);
+            mockMessageRepository.findById.mockResolvedValue(message);
 
             await service.editMessage(ctx(), { content: '수정됨' });
 
@@ -627,9 +639,9 @@ describe('ChatService', () => {
         });
 
         it('ADMIN은 다른 사람의 메시지도 수정할 수 있다', async () => {
-            const msg = makeMockMessage({ authorId: 100 });
+            const message = makeMockMessage({ authorId: 100 });
             mockChannelMemberRepository.exists.mockResolvedValue(true);
-            mockMessageRepository.findById.mockResolvedValue(msg);
+            mockMessageRepository.findById.mockResolvedValue(message);
 
             await service.editMessage(ctx({ userRole: 'ADMIN' }), { content: '관리자 수정' });
 
@@ -646,21 +658,22 @@ describe('ChatService', () => {
         });
 
         it('내용이 동일하면 저장과 이벤트 발행을 생략한다', async () => {
-            const msg = makeMockMessage();
+            const message = makeMockMessage();
             mockChannelMemberRepository.exists.mockResolvedValue(true);
-            mockMessageRepository.findById.mockResolvedValue(msg);
+            mockMessageRepository.findById.mockResolvedValue(message);
 
             const result = await service.editMessage(ctx(), { content: '안녕하세요' });
 
             expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
             expect(mockTo).not.toHaveBeenCalled();
-            expect(result).toBe(msg);
+            expect(result).toBe(message);
         });
-
     });
 
     describe('deleteMessage', () => {
-        const ctx = (overrides = {}) => ({ channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides });
+        const ctx = (overrides = {}) => ({
+            channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides,
+        });
 
         it('본인 메시지를 삭제한다', async () => {
             mockChannelMemberRepository.exists.mockResolvedValue(true);
@@ -707,7 +720,6 @@ describe('ChatService', () => {
             expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
             expect(result.messageId).toBe(mockMessageId);
         });
-
     });
 
     describe('pinMessage', () => {
@@ -765,13 +777,13 @@ describe('ChatService', () => {
     });
 
     describe('readChannel', () => {
-        const msgId = new Types.ObjectId();
+        const messageId = new Types.ObjectId();
 
         it('멤버가 아니면 ForbiddenException을 던진다', async () => {
             mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
 
             await expect(
-                service.readChannel({ channelId: 1, userId: 42 }, msgId.toString()),
+                service.readChannel({ channelId: 1, userId: 42 }, messageId.toString()),
             ).rejects.toThrow(ForbiddenException);
         });
 
@@ -780,7 +792,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.updateLastRead.mockResolvedValue(undefined);
             mockMessageRepository.countUnread.mockResolvedValue(3);
 
-            await service.readChannel({ channelId: 1, userId: 42 }, msgId.toString());
+            await service.readChannel({ channelId: 1, userId: 42 }, messageId.toString());
 
             expect(mockChannelMemberRepository.updateLastRead).toHaveBeenCalledWith(
                 1,
@@ -790,7 +802,6 @@ describe('ChatService', () => {
             expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, expect.any(Types.ObjectId));
             expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, 3);
         });
-
     });
 
     describe('getTeamUnread', () => {
@@ -838,7 +849,6 @@ describe('ChatService', () => {
             ]);
             expect(result).toEqual([{ channelId: 3, unreadCount: 10 }]);
         });
-
     });
 
     describe('saveSystemMessage', () => {

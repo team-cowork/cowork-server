@@ -36,7 +36,7 @@ export class ChatMessageQuarantineRepository {
                     eventKey: input.eventKey, payload: raw.value, payloadTruncated: raw.truncated, payloadBytes: raw.bytes,
                     contractVersion: input.contractVersion, errorType: input.errorType, reasonCode: input.reasonCode,
                     reason: input.reason, status: 'QUARANTINED', firstObservedAt: now,
-                    expiresAt: new Date(now.getTime() + input.retentionDays * 24 * 60 * 60 * 1_000),
+                    expiresAt: new Date(now.getTime() + (input.retentionDays * 24 * 60 * 60 * 1000)),
                 },
                 $set: { lastObservedAt: now },
             },
@@ -44,13 +44,15 @@ export class ChatMessageQuarantineRepository {
         );
     }
 
-    findById(id: string): Promise<ChatMessageQuarantineRecord | null> {
+    async findById(id: string): Promise<ChatMessageQuarantineRecord | null> {
         return this.model.findById(id).lean<ChatMessageQuarantineRecord>();
     }
 
     async requestReprocess(id: string): Promise<boolean> {
         const result = await this.model.updateOne(
-            { _id: id, status: 'QUARANTINED', payloadTruncated: false, payload: { $type: 'string' } },
+            {
+                _id: id, status: 'QUARANTINED', payloadTruncated: false, payload: { $type: 'string' },
+            },
             { $set: { status: 'REPROCESS_REQUESTED', reprocessRequestedAt: new Date(), lastReprocessError: null } },
         );
         return result.modifiedCount === 1;
@@ -64,7 +66,7 @@ export class ChatMessageQuarantineRepository {
         return result.modifiedCount === 1;
     }
 
-    claimReprocess(): Promise<ChatMessageQuarantineRecord | null> {
+    async claimReprocess(): Promise<ChatMessageQuarantineRecord | null> {
         return this.model.findOneAndUpdate(
             { status: 'REPROCESS_REQUESTED', payloadTruncated: false, payload: { $type: 'string' } },
             { $set: { status: 'PROCESSING', processingStartedAt: new Date() } },
@@ -97,16 +99,30 @@ export class ChatMessageQuarantineRepository {
     async summary(): Promise<Array<{ status: ChatMessageQuarantineStatus; errorType: ChatMessageQuarantineErrorType; reasonCode: string; count: number }>> {
         return this.model.aggregate([
             { $group: { _id: { status: '$status', errorType: '$errorType', reasonCode: '$reasonCode' }, count: { $sum: 1 } } },
-            { $project: { _id: 0, status: '$_id.status', errorType: '$_id.errorType', reasonCode: '$_id.reasonCode', count: 1 } },
+            {
+                $project: {
+                    _id: 0, status: '$_id.status', errorType: '$_id.errorType', reasonCode: '$_id.reasonCode', count: 1,
+                },
+            },
         ]);
     }
 }
 
 export function truncateUtf8(payload: string | null, maximumBytes: number): { value: string | null; bytes: number; truncated: boolean } {
-    if (payload === null) return { value: null, bytes: 0, truncated: false };
+    if (payload === null) {
+        return { value: null, bytes: 0, truncated: false };
+    }
+
     const bytes = Buffer.byteLength(payload, 'utf8');
-    if (bytes <= maximumBytes) return { value: payload, bytes, truncated: false };
+    if (bytes <= maximumBytes) {
+        return { value: payload, bytes, truncated: false };
+    }
+
     let end = maximumBytes;
-    while (end > 0 && (Buffer.from(payload, 'utf8')[end] & 0b1100_0000) === 0b1000_0000) end -= 1;
+    // eslint-disable-next-line no-bitwise -- UTF-8 continuation bytes are identified by their leading two bits.
+    while (end > 0 && (Buffer.from(payload, 'utf8')[end] & 0b1100_0000) === 0b1000_0000) {
+        end -= 1;
+    }
+
     return { value: Buffer.from(payload, 'utf8').subarray(0, end).toString('utf8'), bytes, truncated: true };
 }

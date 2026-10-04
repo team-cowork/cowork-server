@@ -17,6 +17,21 @@
 - MongoDB (Mongoose) / Elasticsearch / Redis / KafkaJS
 - SeaweedFS (S3 호환) / AWS SDK
 
+## 린트
+
+모듈 디렉터리에서 실행합니다. `XO` 버전은 잠금 파일과 함께 고정하며, 에디터의 ESLint 확장은 `eslint.config.mjs`를 통해 같은 `xo.config.mjs` 설정을 사용합니다.
+
+```sh
+npm ci
+npm run lint -- --max-warnings=0
+npm run lint:fix
+npm run build
+```
+
+JS/TS 소스와 린터 설정을 검사하며, HTML·CSS·Markdown·JSON은 대상에서 제외합니다. 들여쓰기는 `.editorconfig`와 같은 공백 4칸입니다. NestJS의 CommonJS 빌드, 데코레이터와 MongoDB의 `null` 계약을 유지합니다. 타입 기반 검사는 `tsconfig.json`을 사용합니다.
+
+프로젝트별 예외와 이유는 `xo.config.mjs`에 기록합니다. 자동 수정 후에는 diff와 빌드를 확인해야 합니다. Stage/Prod CI의 Node 작업은 빌드 전에 린트를 실행하며 경고도 실패로 처리합니다.
+
 ## 포트
 
 | 용도             | 컨테이너 포트 | Compose 기본 호스트 포트 |
