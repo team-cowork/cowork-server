@@ -1,10 +1,10 @@
-import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import { type ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import {
-    ChannelMemberRepository,
-    ChannelProjectionRepository,
-    ChannelRolePolicyProjectionRepository,
-    TeamMemberProjectionRepository,
-    TeamRoleProjectionRepository,
+    type ChannelMemberRepository,
+    type ChannelProjectionRepository,
+    type ChannelRolePolicyProjectionRepository,
+    type TeamMemberProjectionRepository,
+    type TeamRoleProjectionRepository,
 } from '../repository';
 import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
 
@@ -34,26 +34,46 @@ describe('ChannelMessageReadAccessService', () => {
         );
         projectionReadiness.isReady.mockReturnValue(true);
         channelRepository.findByIds.mockResolvedValue([
-            { channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false },
-            { channelId: 20, teamId: 1, type: 'TEXT', isPrivate: true },
+            {
+                channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
+            },
+            {
+                channelId: 20, teamId: 1, type: 'TEXT', isPrivate: true,
+            },
         ]);
         channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
-            [10, [1, 2, 3, 4, 5, 6].map((userId) => ({
+            [10, [1, 2, 3, 4, 5, 6].map(userId => ({
                 channelId: 10,
                 userId,
                 teamId: 1,
                 channelType: 'TEXT',
             }))],
-            [20, [{ channelId: 20, userId: 5, teamId: 1, channelType: 'TEXT' }]],
+            [20, [{
+                channelId: 20, userId: 5, teamId: 1, channelType: 'TEXT',
+            }]],
         ]));
         teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([
-            { teamId: 1, userId: 1, role: 'OWNER', teamName: 'team' },
-            { teamId: 1, userId: 2, role: 'MEMBER', teamName: 'team' },
-            { teamId: 1, userId: 3, role: 'MEMBER', teamName: 'team' },
-            { teamId: 1, userId: 4, role: 'MEMBER', teamName: 'team' },
-            { teamId: 1, userId: 5, role: 'MEMBER', teamName: 'team' },
-            { teamId: 1, userId: 6, role: 'MEMBER', teamName: 'team' },
-            { teamId: 1, userId: 7, role: 'OWNER', teamName: 'team' },
+            {
+                teamId: 1, userId: 1, role: 'OWNER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 2, role: 'MEMBER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 3, role: 'MEMBER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 4, role: 'MEMBER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 5, role: 'MEMBER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 6, role: 'MEMBER', teamName: 'team',
+            },
+            {
+                teamId: 1, userId: 7, role: 'OWNER', teamName: 'team',
+            },
         ]);
         teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([
             { teamId: 1, accountId: 2, roleId: 101 },
@@ -73,12 +93,24 @@ describe('ChannelMessageReadAccessService', () => {
             { teamId: 1, roleId: 302, priority: 10 },
         ]);
         policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
-            { teamId: 1, channelId: 10, roleId: 101, messageRead: true },
-            { teamId: 1, channelId: 10, roleId: 102, messageRead: false },
-            { teamId: 1, channelId: 10, roleId: 201, messageRead: true },
-            { teamId: 1, channelId: 10, roleId: 202, messageRead: false },
-            { teamId: 1, channelId: 20, roleId: 101, messageRead: true },
-            { teamId: 1, channelId: 10, roleId: 302, messageRead: true },
+            {
+                teamId: 1, channelId: 10, roleId: 101, messageRead: true,
+            },
+            {
+                teamId: 1, channelId: 10, roleId: 102, messageRead: false,
+            },
+            {
+                teamId: 1, channelId: 10, roleId: 201, messageRead: true,
+            },
+            {
+                teamId: 1, channelId: 10, roleId: 202, messageRead: false,
+            },
+            {
+                teamId: 1, channelId: 20, roleId: 101, messageRead: true,
+            },
+            {
+                teamId: 1, channelId: 10, roleId: 302, messageRead: true,
+            },
         ]);
     });
 
@@ -87,253 +119,269 @@ describe('ChannelMessageReadAccessService', () => {
     });
 
     describe('canReadChannel', () => {
-    it('가장 높은 priority의 명시값을 적용하고 낮은 priority deny는 무시한다', async () => {
-        await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
-    });
+        it('가장 높은 priority의 명시값을 적용하고 낮은 priority deny는 무시한다', async () => {
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
+        });
 
-    it('같은 priority에서 allow와 deny가 충돌하면 deny를 적용한다', async () => {
-        await expect(service.canReadChannel(10, 3)).resolves.toBe(false);
-    });
+        it('같은 priority에서 allow와 deny가 충돌하면 deny를 적용한다', async () => {
+            await expect(service.canReadChannel(10, 3)).resolves.toBe(false);
+        });
 
-    it('어떤 role에도 message_read가 명시되지 않으면 기본 거부한다', async () => {
-        await expect(service.canReadChannel(10, 4)).resolves.toBe(false);
-    });
+        it('어떤 role에도 message_read가 명시되지 않으면 기본 거부한다', async () => {
+            await expect(service.canReadChannel(10, 4)).resolves.toBe(false);
+        });
 
-    it('상위 priority role이 미지정이면 하위 priority의 명시 allow를 상속한다', async () => {
-        await expect(service.canReadChannel(10, 6)).resolves.toBe(true);
-    });
+        it('상위 priority role이 미지정이면 하위 priority의 명시 allow를 상속한다', async () => {
+            await expect(service.canReadChannel(10, 6)).resolves.toBe(true);
+        });
 
-    it('built-in OWNER는 role policy 없이 공개 채널을 읽을 수 있다', async () => {
-        await expect(service.canReadChannel(10, 1)).resolves.toBe(true);
-    });
+        it('built-in OWNER는 role policy 없이 공개 채널을 읽을 수 있다', async () => {
+            await expect(service.canReadChannel(10, 1)).resolves.toBe(true);
+        });
 
-    it('공개 채널 메타데이터는 볼 수 있어도 미가입자는 메시지를 읽을 수 없다', async () => {
-        await expect(service.canReadChannel(10, 7)).resolves.toBe(false);
-        await expect(service.filterVisibleChannelIds(1, 7, [10])).resolves.toEqual([10]);
-    });
+        it('공개 채널 메타데이터는 볼 수 있어도 미가입자는 메시지를 읽을 수 없다', async () => {
+            await expect(service.canReadChannel(10, 7)).resolves.toBe(false);
+            await expect(service.filterVisibleChannelIds(1, 7, [10])).resolves.toEqual([10]);
+        });
 
-    it('비공개 채널은 OWNER도 active 채널 멤버십을 우회하지 못한다', async () => {
-        await expect(service.canReadChannel(20, 1)).resolves.toBe(false);
-        await expect(service.canReadChannel(20, 5)).resolves.toBe(true);
-    });
+        it('비공개 채널은 OWNER도 active 채널 멤버십을 우회하지 못한다', async () => {
+            await expect(service.canReadChannel(20, 1)).resolves.toBe(false);
+            await expect(service.canReadChannel(20, 5)).resolves.toBe(true);
+        });
 
-    it('채널 원본 정보가 없으면 DM 멤버십이 남아 있어도 거부한다', async () => {
-        channelRepository.findByIds.mockResolvedValue([]);
-        channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
-            [99, [{ channelId: 99, userId: 5, teamId: null, channelType: 'DM' }]],
-        ]));
+        it('채널 원본 정보가 없으면 DM 멤버십이 남아 있어도 거부한다', async () => {
+            channelRepository.findByIds.mockResolvedValue([]);
+            channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
+                [99, [{
+                    channelId: 99, userId: 5, teamId: null, channelType: 'DM',
+                }]],
+            ]));
 
-        await expect(service.canReadChannel(99, 5)).resolves.toBe(false);
-    });
+            await expect(service.canReadChannel(99, 5)).resolves.toBe(false);
+        });
     });
 
     describe('evaluateMany', () => {
-    it('teamId/type 조합이 정확한 DM만 멤버십으로 읽을 수 있다', async () => {
-        channelRepository.findByIds.mockResolvedValue([
-            { channelId: 30, teamId: null, type: 'TEXT', isPrivate: false },
-            { channelId: 31, teamId: 1, type: 'DM', isPrivate: false },
-            { channelId: 32, teamId: null, type: 'DM', isPrivate: false },
-        ]);
-        channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
-            [30, [{ channelId: 30, userId: 5 }]],
-            [31, [{ channelId: 31, userId: 5 }]],
-            [32, [{ channelId: 32, userId: 5 }]],
-        ]));
+        it('teamId/type 조합이 정확한 DM만 멤버십으로 읽을 수 있다', async () => {
+            channelRepository.findByIds.mockResolvedValue([
+                {
+                    channelId: 30, teamId: null, type: 'TEXT', isPrivate: false,
+                },
+                {
+                    channelId: 31, teamId: 1, type: 'DM', isPrivate: false,
+                },
+                {
+                    channelId: 32, teamId: null, type: 'DM', isPrivate: false,
+                },
+            ]);
+            channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
+                [30, [{ channelId: 30, userId: 5 }]],
+                [31, [{ channelId: 31, userId: 5 }]],
+                [32, [{ channelId: 32, userId: 5 }]],
+            ]));
 
-        const access = await service.evaluateMany([30, 31, 32].map((channelId) => ({ channelId, userId: 5 })));
+            const access = await service.evaluateMany([30, 31, 32].map(channelId => ({ channelId, userId: 5 })));
 
-        expect(access.get('30:5')).toBe(false);
-        expect(access.get('31:5')).toBe(false);
-        expect(access.get('32:5')).toBe(true);
-    });
+            expect(access.get('30:5')).toBe(false);
+            expect(access.get('31:5')).toBe(false);
+            expect(access.get('32:5')).toBe(true);
+        });
     });
 
     describe('evictUnauthorizedSockets', () => {
-    it('권한 회수 시 거부된 socket만 채널 room에서 강제 퇴장시킨다', async () => {
-        const allowedSocket = {
-            data: { userId: 2 },
-            rooms: new Set(['chat:10']),
-            leave: jest.fn().mockResolvedValue(undefined),
-            emit: jest.fn(),
-        };
-        const deniedSocket = {
-            data: { userId: 3 },
-            rooms: new Set(['chat:10']),
-            leave: jest.fn().mockResolvedValue(undefined),
-            emit: jest.fn(),
-        };
-        const io = {
-            in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([allowedSocket, deniedSocket]) }),
-        };
+        it('권한 회수 시 거부된 socket만 채널 room에서 강제 퇴장시킨다', async () => {
+            const allowedSocket = {
+                data: { userId: 2 },
+                rooms: new Set(['chat:10']),
+                leave: jest.fn().mockResolvedValue(undefined),
+                emit: jest.fn(),
+            };
+            const deniedSocket = {
+                data: { userId: 3 },
+                rooms: new Set(['chat:10']),
+                leave: jest.fn().mockResolvedValue(undefined),
+                emit: jest.fn(),
+            };
+            const io = {
+                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([allowedSocket, deniedSocket]) }),
+            };
 
-        await service.evictUnauthorizedSockets(io as never, [10]);
+            await service.evictUnauthorizedSockets(io as never, [10]);
 
-        expect(allowedSocket.leave).not.toHaveBeenCalled();
-        expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
-        expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
-    });
+            expect(allowedSocket.leave).not.toHaveBeenCalled();
+            expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
+            expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
+        });
 
-    it.each([
-        ['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.isReady.mockReturnValue(false)],
-        ['판정 도중 readiness가 닫히면', () => channelRepository.findByIds.mockImplementationOnce(() => {
-            projectionReadiness.isReady.mockReturnValue(false);
-            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
-        })],
-    ])('%s 거부 판정으로 socket을 제거하지 않는다', async (_label, closeReadiness) => {
-        closeReadiness();
-        const socket = { data: { userId: 3 }, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn() };
-        const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([socket]) }) };
+        it.each([
+            ['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.isReady.mockReturnValue(false)],
+            ['판정 도중 readiness가 닫히면', () => channelRepository.findByIds.mockImplementationOnce(async () => {
+                projectionReadiness.isReady.mockReturnValue(false);
+                return [{
+                    channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
+                }];
+            })],
+        ])('%s 거부 판정으로 socket을 제거하지 않는다', async (_label, closeReadiness) => {
+            closeReadiness();
+            const socket = {
+                data: { userId: 3 }, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn(),
+            };
+            const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([socket]) }) };
 
-        await service.evictUnauthorizedSockets(io as never, [10]);
+            await service.evictUnauthorizedSockets(io as never, [10]);
 
-        expect(socket.leave).not.toHaveBeenCalled();
-        expect(socket.emit).not.toHaveBeenCalled();
-    });
+            expect(socket.leave).not.toHaveBeenCalled();
+            expect(socket.emit).not.toHaveBeenCalled();
+        });
     });
 
     describe('evictUnauthorizedRooms', () => {
-    const makeSocket = (userId: number, rooms: string[]) => ({
-        data: { userId },
-        rooms: new Set(rooms),
-        leave: jest.fn(),
-        emit: jest.fn(),
-    });
-
-    it('현재 권한이 없는 채널·팀 room에서만 socket을 제거한다', async () => {
-        const allowed = makeSocket(2, ['socket-a', 'user:2', 'chat:10', 'team:1']);
-        const denied = makeSocket(3, ['socket-b', 'user:3', 'chat:10', 'team:2']);
-
-        await expect(service.evictUnauthorizedRooms([allowed, denied])).resolves.toBe(2);
-
-        expect(allowed.leave).not.toHaveBeenCalled();
-        expect(denied.leave.mock.calls).toEqual([['chat:10'], ['team:2']]);
-        expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
-        expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', { teamId: 2 });
-    });
-
-    it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
-        channelRepository.findByIds.mockImplementationOnce(() => {
-            projectionReadiness.isReady.mockReturnValue(false);
-            return Promise.resolve([{ channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false }]);
+        const makeSocket = (userId: number, rooms: string[]) => ({
+            data: { userId },
+            rooms: new Set(rooms),
+            leave: jest.fn(),
+            emit: jest.fn(),
         });
-        const denied = makeSocket(3, ['chat:10']);
 
-        await expect(service.evictUnauthorizedRooms([denied])).resolves.toBe(0);
+        it('현재 권한이 없는 채널·팀 room에서만 socket을 제거한다', async () => {
+            const allowed = makeSocket(2, ['socket-a', 'user:2', 'chat:10', 'team:1']);
+            const denied = makeSocket(3, ['socket-b', 'user:3', 'chat:10', 'team:2']);
 
-        expect(denied.leave).not.toHaveBeenCalled();
-    });
+            await expect(service.evictUnauthorizedRooms([allowed, denied])).resolves.toBe(2);
+
+            expect(allowed.leave).not.toHaveBeenCalled();
+            expect(denied.leave.mock.calls).toEqual([['chat:10'], ['team:2']]);
+            expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
+            expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', { teamId: 2 });
+        });
+
+        it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
+            channelRepository.findByIds.mockImplementationOnce(async () => {
+                projectionReadiness.isReady.mockReturnValue(false);
+                return [{
+                    channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
+                }];
+            });
+            const denied = makeSocket(3, ['chat:10']);
+
+            await expect(service.evictUnauthorizedRooms([denied])).resolves.toBe(0);
+
+            expect(denied.leave).not.toHaveBeenCalled();
+        });
     });
 
     describe('emitToReadableChannelUsers', () => {
-    it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
-        const sender = { id: 'sender', data: { userId: 2 } };
-        const otherAllowed = { id: 'allowed', data: { userId: 2 } };
-        const denied = { id: 'denied', data: { userId: 3 } };
-        const toEmit = jest.fn();
-        const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
-        const io = {
-            in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([sender, otherAllowed, denied]) }),
-            to,
-        };
+        it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
+            const sender = { id: 'sender', data: { userId: 2 } };
+            const otherAllowed = { id: 'allowed', data: { userId: 2 } };
+            const denied = { id: 'denied', data: { userId: 3 } };
+            const toEmit = jest.fn();
+            const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
+            const io = {
+                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([sender, otherAllowed, denied]) }),
+                to,
+            };
 
-        await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
+            await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
 
-        // room 이름이 아니라 스냅샷에서 얻은 소켓 ID를 직접 대상으로 지정한다(allow-list).
-        // fetchSockets() 스냅샷 이후 emit 전에 room에 새로 합류하는 소켓이 있어도, 그 소켓은
-        // 이 배열에 없으므로 이번 emit의 대상이 되지 않는다 — room 이름을 대상으로 except(...)를
-        // 쓰는 deny-list 방식이었다면, emit 시점에 room 멤버십을 다시 읽어 그 소켓도 받았을 것이다.
-        expect(to).toHaveBeenCalledTimes(1);
-        expect(to.mock.calls[0][0]).toEqual(['allowed']);
-        expect(toEmit).toHaveBeenCalledWith('typing', { value: true });
-    });
+            // Room 이름이 아니라 스냅샷에서 얻은 소켓 ID를 직접 대상으로 지정한다(allow-list).
+            // fetchSockets() 스냅샷 이후 emit 전에 room에 새로 합류하는 소켓이 있어도, 그 소켓은
+            // 이 배열에 없으므로 이번 emit의 대상이 되지 않는다 — room 이름을 대상으로 except(...)를
+            // 쓰는 deny-list 방식이었다면, emit 시점에 room 멤버십을 다시 읽어 그 소켓도 받았을 것이다.
+            expect(to).toHaveBeenCalledTimes(1);
+            expect(to.mock.calls[0][0]).toEqual(['allowed']);
+            expect(toEmit).toHaveBeenCalledWith('typing', { value: true });
+        });
     });
 
     describe('emitToActiveTeamUsers', () => {
-    it('팀 범위 이벤트는 탈퇴한 구독자를 제외하고 활성 팀 멤버에게만 보낸다', async () => {
-        const active = { id: 'active', data: { userId: 2 }, emit: jest.fn() };
-        const stale = { id: 'stale', data: { userId: 99 }, emit: jest.fn() };
-        const io = {
-            in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([active, stale]) }),
-        };
-        teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValueOnce([
-            { teamId: 1, userId: 2, role: 'MEMBER', teamName: 'team' },
-        ]);
+        it('팀 범위 이벤트는 탈퇴한 구독자를 제외하고 활성 팀 멤버에게만 보낸다', async () => {
+            const active = { id: 'active', data: { userId: 2 }, emit: jest.fn() };
+            const stale = { id: 'stale', data: { userId: 99 }, emit: jest.fn() };
+            const io = {
+                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([active, stale]) }),
+            };
+            teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValueOnce([
+                {
+                    teamId: 1, userId: 2, role: 'MEMBER', teamName: 'team',
+                },
+            ]);
 
-        await service.emitToActiveTeamUsers(io as never, 1, 'project:updated', { projectId: 5 });
+            await service.emitToActiveTeamUsers(io as never, 1, 'project:updated', { projectId: 5 });
 
-        expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
-        expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
-        expect(stale.emit).not.toHaveBeenCalled();
-    });
+            expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
+            expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
+            expect(stale.emit).not.toHaveBeenCalled();
+        });
     });
 
     describe('emitToReadableChannelUsers 캐싱', () => {
-    const makeIo = (sockets: Array<{ id: string; data: { userId: number } }>) => {
-        const toEmit = jest.fn();
-        const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
-        const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue(sockets) }), to };
-        return { io, to, toEmit };
-    };
+        const makeIo = (sockets: Array<{ id: string; data: { userId: number } }>) => {
+            const toEmit = jest.fn();
+            const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
+            const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue(sockets) }), to };
+            return { io, to, toEmit };
+        };
 
-    it('TTL 내 같은 채널·같은 접속자 조합은 저장소를 다시 조회하지 않는다', async () => {
-        const sockets = [{ id: 's2', data: { userId: 2 } }, { id: 's3', data: { userId: 3 } }];
-        const { io, to } = makeIo(sockets);
+        it('TTL 내 같은 채널·같은 접속자 조합은 저장소를 다시 조회하지 않는다', async () => {
+            const sockets = [{ id: 's2', data: { userId: 2 } }, { id: 's3', data: { userId: 3 } }];
+            const { io, to } = makeIo(sockets);
 
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 1 });
-        expect(to).toHaveBeenCalledWith(['s2']);
-        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 1 });
+            expect(to).toHaveBeenCalledWith(['s2']);
+            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
 
-        to.mockClear();
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 2 });
+            to.mockClear();
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 2 });
 
-        expect(to).toHaveBeenCalledWith(['s2']);
-        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-    });
+            expect(to).toHaveBeenCalledWith(['s2']);
+            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+        });
 
-    it('접속자 구성이 바뀌면 캐시에 없는 사용자만 저장소에서 다시 조회한다(부분 캐시 히트)', async () => {
-        const first = makeIo([{ id: 's2', data: { userId: 2 } }]);
-        await service.emitToReadableChannelUsers(first.io as never, 10, 'message', {});
-        channelMemberRepository.findByChannelIdsAndUserIds.mockClear();
+        it('접속자 구성이 바뀌면 캐시에 없는 사용자만 저장소에서 다시 조회한다(부분 캐시 히트)', async () => {
+            const first = makeIo([{ id: 's2', data: { userId: 2 } }]);
+            await service.emitToReadableChannelUsers(first.io as never, 10, 'message', {});
+            channelMemberRepository.findByChannelIdsAndUserIds.mockClear();
 
-        const second = makeIo([{ id: 's2', data: { userId: 2 } }, { id: 's4', data: { userId: 4 } }]);
-        await service.emitToReadableChannelUsers(second.io as never, 10, 'message', {});
+            const second = makeIo([{ id: 's2', data: { userId: 2 } }, { id: 's4', data: { userId: 4 } }]);
+            await service.emitToReadableChannelUsers(second.io as never, 10, 'message', {});
 
-        expect(second.to).toHaveBeenCalledWith(['s2']);
-        expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([10], [4]);
-    });
+            expect(second.to).toHaveBeenCalledWith(['s2']);
+            expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([10], [4]);
+        });
 
-    it('단건 권한 검증(canReadChannel)은 브로드캐스트 캐시를 사용하지 않고 항상 새로 조회한다', async () => {
-        const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-        channelRepository.findByIds.mockClear();
+        it('단건 권한 검증(canReadChannel)은 브로드캐스트 캐시를 사용하지 않고 항상 새로 조회한다', async () => {
+            const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+            channelRepository.findByIds.mockClear();
 
-        await service.canReadChannel(10, 2);
+            await service.canReadChannel(10, 2);
 
-        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-    });
+            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+        });
 
-    it('알림·시스템 메시지 경로(filterReadableUsersByChannel)는 브로드캐스트 캐시를 사용하지 않는다', async () => {
-        const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-        channelRepository.findByIds.mockClear();
+        it('알림·시스템 메시지 경로(filterReadableUsersByChannel)는 브로드캐스트 캐시를 사용하지 않는다', async () => {
+            const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+            channelRepository.findByIds.mockClear();
 
-        const result = await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
+            const result = await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
 
-        expect(result.get(10)).toEqual([2]);
-        expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-    });
+            expect(result.get(10)).toEqual([2]);
+            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
+        });
 
-    it('projectionReadiness가 준비되지 않은 동안의 판정은 캐시에 쓰지 않는다', async () => {
-        projectionReadiness.isReady.mockReturnValue(false);
-        const { io, to } = makeIo([{ id: 's2', data: { userId: 2 } }]);
+        it('projectionReadiness가 준비되지 않은 동안의 판정은 캐시에 쓰지 않는다', async () => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            const { io, to } = makeIo([{ id: 's2', data: { userId: 2 } }]);
 
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-        expect(to).not.toHaveBeenCalled();
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+            expect(to).not.toHaveBeenCalled();
 
-        projectionReadiness.isReady.mockReturnValue(true);
-        await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
+            projectionReadiness.isReady.mockReturnValue(true);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
 
-        expect(to).toHaveBeenCalledWith(['s2']);
-    });
+            expect(to).toHaveBeenCalledWith(['s2']);
+        });
     });
 });

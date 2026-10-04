@@ -10,7 +10,7 @@ export class MessageSearchIndexStateRepository {
         @InjectModel(MessageSearchIndexState.name) private readonly model: Model<MessageSearchIndexState>,
     ) {}
 
-    get(): Promise<MessageSearchIndexState | null> {
+    async get(): Promise<MessageSearchIndexState | null> {
         return this.model.findById(MESSAGE_SEARCH_INDEX_STATE_ID).lean<MessageSearchIndexState>();
     }
 
@@ -18,7 +18,7 @@ export class MessageSearchIndexStateRepository {
         await this.model.updateOne({ _id: MESSAGE_SEARCH_INDEX_STATE_ID }, { $set: fields }, { upsert: true });
     }
 
-    markRebuildStarted(index: string, startedAt: Date, scanCursor: string | null): Promise<void> {
+    async markRebuildStarted(index: string, startedAt: Date, scanCursor: string | null): Promise<void> {
         return this.patch({
             lastRebuildStartedAt: startedAt,
             lastRebuildIndex: index,
@@ -27,12 +27,12 @@ export class MessageSearchIndexStateRepository {
         });
     }
 
-    /** snapshot scan 진행 위치를 남겨 중단된 재구축을 이어서 재개할 수 있게 한다. */
-    saveRebuildScanCursor(scanCursor: string | null): Promise<void> {
+    /** Snapshot scan 진행 위치를 남겨 중단된 재구축을 이어서 재개할 수 있게 한다. */
+    async saveRebuildScanCursor(scanCursor: string | null): Promise<void> {
         return this.patch({ lastRebuildScanCursor: scanCursor });
     }
 
-    markRebuildSucceeded(index: string, documentCount: number): Promise<void> {
+    async markRebuildSucceeded(index: string, documentCount: number): Promise<void> {
         return this.patch({
             lastRebuildSucceededAt: new Date(),
             lastRebuildIndex: index,
@@ -42,11 +42,11 @@ export class MessageSearchIndexStateRepository {
         });
     }
 
-    markRebuildFailed(error: string): Promise<void> {
+    async markRebuildFailed(error: string): Promise<void> {
         return this.patch({ lastRebuildFailedAt: new Date(), lastRebuildError: error });
     }
 
-    markLegacyBackfillCompleted(): Promise<void> {
+    async markLegacyBackfillCompleted(): Promise<void> {
         return this.patch({ legacyBackfillCompletedAt: new Date() });
     }
 
