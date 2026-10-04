@@ -1,7 +1,5 @@
 function embeddedStates(url) {
-    const element = Array.from(
-        document.querySelectorAll('script[type="application/json"][data-state-url]'),
-    ).find((candidate) => candidate.dataset.stateUrl === url);
+    const element = [...document.querySelectorAll('script[type="application/json"][data-state-url]')].find(candidate => candidate.dataset.stateUrl === url);
 
     return element ? JSON.parse(element.textContent) : null;
 }
@@ -13,6 +11,7 @@ export async function loadStates(url) {
         if (!response.ok) {
             throw new Error(`${url} 로드 실패: ${response.status}`);
         }
+
         states = await response.json();
     }
 
