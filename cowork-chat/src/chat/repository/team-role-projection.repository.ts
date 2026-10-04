@@ -11,32 +11,32 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface TeamRoleProjectionView {
+export type TeamRoleProjectionView = {
     teamId: number;
     roleId: number;
     priority: number;
-}
+};
 
-export interface TeamRoleAssignmentProjectionView {
+export type TeamRoleAssignmentProjectionView = {
     teamId: number;
     accountId: number;
     roleId: number;
-}
+};
 
-interface VersionedAssignmentProjectionView extends TeamRoleAssignmentProjectionView {
+type VersionedAssignmentProjectionView = {
     sourceVersion: bigint | mongo.Long;
-}
+} & TeamRoleAssignmentProjectionView;
 
-interface MemberTombstoneProjectionView {
+type MemberTombstoneProjectionView = {
     teamId: number;
     accountId: number;
     sourceVersion: bigint | mongo.Long;
-}
+};
 
-interface ProjectionVersion {
+type ProjectionVersion = {
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+};
 
 @Injectable()
 export class TeamRoleProjectionRepository {
@@ -119,7 +119,9 @@ export class TeamRoleProjectionRepository {
             accountId: input.accountId,
             sourceVersion: { $gte: input.sourceVersion.toBigInt() },
         });
-        if (tombstone) return false;
+        if (tombstone) {
+            return false;
+        }
 
         const shouldApply = activeProjectionCondition(input.sourceVersion);
         const result = await this.assignmentModel.updateOne(
@@ -181,7 +183,9 @@ export class TeamRoleProjectionRepository {
             accountId,
             sourceVersion: { $gt: sourceVersion.toBigInt() },
         });
-        if (newerTombstone) return false;
+        if (newerTombstone) {
+            return false;
+        }
 
         const result = await this.memberTombstoneModel.updateOne(
             { teamId, accountId },
@@ -238,23 +242,30 @@ export class TeamRoleProjectionRepository {
         teamIds: number[],
         accountIds: number[],
     ): Promise<TeamRoleAssignmentProjectionView[]> {
-        if (teamIds.length === 0 || accountIds.length === 0) return [];
+        if (teamIds.length === 0 || accountIds.length === 0) {
+            return [];
+        }
+
         const [assignments, tombstones] = await Promise.all([
             this.assignmentModel.find(
                 { teamId: { $in: teamIds }, accountId: { $in: accountIds }, deleted: { $ne: true } },
-                { _id: 0, teamId: 1, accountId: 1, roleId: 1, sourceVersion: 1 },
+                {
+                    _id: 0, teamId: 1, accountId: 1, roleId: 1, sourceVersion: 1,
+                },
             ).lean<VersionedAssignmentProjectionView[]>(),
             this.memberTombstoneModel.find(
                 { teamId: { $in: teamIds }, accountId: { $in: accountIds } },
-                { _id: 0, teamId: 1, accountId: 1, sourceVersion: 1 },
+                {
+                    _id: 0, teamId: 1, accountId: 1, sourceVersion: 1,
+                },
             ).lean<MemberTombstoneProjectionView[]>(),
         ]);
-        const tombstoneVersionByMember = new Map(tombstones.map((tombstone) => [
+        const tombstoneVersionByMember = new Map(tombstones.map(tombstone => [
             `${tombstone.teamId}:${tombstone.accountId}`,
             this.toBigInt(tombstone.sourceVersion),
         ]));
         return assignments
-            .filter((assignment) => {
+            .filter(assignment => {
                 const tombstoneVersion = tombstoneVersionByMember.get(`${assignment.teamId}:${assignment.accountId}`);
                 return tombstoneVersion === undefined || this.toBigInt(assignment.sourceVersion) > tombstoneVersion;
             })
@@ -262,10 +273,15 @@ export class TeamRoleProjectionRepository {
     }
 
     async findRolesByIds(roleIds: number[]): Promise<TeamRoleProjectionView[]> {
-        if (roleIds.length === 0) return [];
+        if (roleIds.length === 0) {
+            return [];
+        }
+
         return this.roleModel.find(
             { roleId: { $in: roleIds }, deleted: { $ne: true } },
-            { _id: 0, teamId: 1, roleId: 1, priority: 1 },
+            {
+                _id: 0, teamId: 1, roleId: 1, priority: 1,
+            },
         ).lean<TeamRoleProjectionView[]>();
     }
 
