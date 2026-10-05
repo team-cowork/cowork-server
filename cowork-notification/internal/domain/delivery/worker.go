@@ -163,7 +163,7 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 		// claimed delivery was for) — the row is stale relative to current state.
 		finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
 		defer cancel()
-		if err := w.repo.FinalizeCancelled(finalizeCtx, rec.ID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeCancelled(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize cancelled failed", "id", rec.ID, "err", err)
 		}
 		return
