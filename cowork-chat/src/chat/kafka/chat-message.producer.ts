@@ -2,11 +2,15 @@ import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/commo
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
-import { SendMessageDto } from '../dto/send-message.dto';
+import { SendMessageDto } from '../dto';
 import { ChatMessageEvent } from './event/chat-message.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
+import { MessageScope } from '../service';
+
+export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'attachments' | 'parentMessageId' | 'clientMessageId'>
+    & MessageScope;
 
 /**
  * 채팅 메시지 이벤트를 Kafka `chat.message` 토픽으로 발행하는 프로듀서.
@@ -81,7 +85,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
      * @param authorRole - 메시지 작성자의 역할
      * @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
-    async sendMessage(channelId: number, dto: SendMessageDto, authorId: number, authorRole: string): Promise<void> {
+    async sendMessage(channelId: number, dto: MessageSendInput, authorId: number, authorRole: string): Promise<void> {
         await this.ensureConnected();
         const event: ChatMessageEvent = {
             contractVersion: CHAT_MESSAGE_CONTRACT_VERSION,

@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-    MessageSearchTombstone,
-    MessageSearchTombstoneStatus,
-} from '../schema/message-search-tombstone.schema';
+import { MessageSearchTombstone, MessageSearchTombstoneStatus } from '../schema';
 import { IndexScanCursor } from './message-search-index.repository';
 
 export type TombstoneRecord = MessageSearchTombstone & { _id: Types.ObjectId };
