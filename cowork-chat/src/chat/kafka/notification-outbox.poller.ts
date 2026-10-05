@@ -1,15 +1,12 @@
 import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { DicoshotService } from 'dicoshot-nest';
-import { Message } from '../schema/message.schema';
-import { ChannelMember } from '../schema/channel-member.schema';
+import { Message, ChannelMember } from '../schema';
 import { NotificationTriggerProducer } from './notification-trigger.producer';
-import { MessageRepository, NotificationMessage } from '../repository/message.repository';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { UnreadCounterService } from '../service/unread-counter.service';
+import { MessageRepository, NotificationMessage, ChannelMemberRepository } from '../repository';
+import { UnreadCounterService, ChannelMessageReadAccessService } from '../service';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 
 const POLL_INTERVAL_MS = 5_000;
@@ -116,13 +113,16 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const memberCache = new Map<string, ChannelMember[]>();
         const parentCache = new Map<string, { authorId: number } | null>();
-        const parentIds = [...new Set(
-            msgs.filter((m) => m.parentMessageId != null).map((m) => m.parentMessageId!),
-        )];
-        if (parentIds.length > 0) {
-            const parentMap = await this.messageRepository.findParentAuthorsByIds(parentIds);
-            for (const id of parentIds) {
-                parentCache.set(id.toString(), parentMap.get(id.toString()) ?? null);
+        const parentRefs = new Map<string, { channelId: number; parentMessageId: Types.ObjectId }>();
+        for (const msg of msgs) {
+            if (!msg.parentMessageId) continue;
+            const key = `${msg.channelId}:${msg.parentMessageId.toString()}`;
+            parentRefs.set(key, { channelId: msg.channelId, parentMessageId: msg.parentMessageId });
+        }
+        if (parentRefs.size > 0) {
+            const parentMap = await this.messageRepository.findParentAuthorsByChannel([...parentRefs.values()]);
+            for (const key of parentRefs.keys()) {
+                parentCache.set(key, parentMap.get(key) ?? null);
             }
         }
 
@@ -212,7 +212,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
             }
         }
         if (msg.parentMessageId) {
-            const parent = parentCache.get(msg.parentMessageId.toString()) ?? null;
+            const parent = parentCache.get(`${msg.channelId}:${msg.parentMessageId.toString()}`) ?? null;
             if (parent && parent.authorId !== msg.authorId && memberIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }

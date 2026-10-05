@@ -67,7 +67,7 @@ class CreateRoadmapAssignmentServiceTest {
         void missingNode_failsWithNotFound() {
             CreateAssignmentReqDto request = request(RoadmapScope.TEAM, null, 99L);
             prepareAuthorizedRoadmap();
-            when(nodeRepository.findById(99L)).thenReturn(Mono.empty());
+            when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.empty());
 
             StepVerifier.create(createRoadmapAssignmentService.execute(1L, "MEMBER", request))
                     .expectErrorMatches(error -> error instanceof ExpectedException expected
@@ -79,7 +79,7 @@ class CreateRoadmapAssignmentServiceTest {
         void nodeFromDifferentRoadmap_failsWithBadRequest() {
             CreateAssignmentReqDto request = request(RoadmapScope.TEAM, null, 99L);
             prepareAuthorizedRoadmap();
-            when(nodeRepository.findById(99L)).thenReturn(Mono.just(node(99L, 2L)));
+            when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.just(node(99L, 2L)));
 
             StepVerifier.create(createRoadmapAssignmentService.execute(1L, "MEMBER", request))
                     .expectErrorMatches(error -> error instanceof ExpectedException expected
@@ -91,7 +91,7 @@ class CreateRoadmapAssignmentServiceTest {
         void authorizedProjectAssignment_storesInitialBusinessState() {
             CreateAssignmentReqDto request = request(RoadmapScope.PROJECT, 9L, 99L);
             prepareAuthorizedRoadmap();
-            when(nodeRepository.findById(99L)).thenReturn(Mono.just(node(99L, 1L)));
+            when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.just(node(99L, 1L)));
             when(assignmentRepository.save(any(RoadmapAssignment.class)))
                     .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
