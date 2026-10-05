@@ -1,4 +1,4 @@
-import { ChatGateway, ChatSocket } from './chat.gateway';
+import { ChatGateway, type ChatSocket } from './chat.gateway';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),

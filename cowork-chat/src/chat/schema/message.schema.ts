@@ -93,7 +93,7 @@ export class Message {
      * 메시지 본문. 최대 25,000자까지 허용됩니다.
      * `FILE` 타입 메시지의 경우 파일 설명 텍스트가 저장됩니다.
      */
-    @Prop({ required: true, maxlength: 25000 }) content!: string;
+    @Prop({ required: true, maxlength: 25_000 }) content!: string;
 
     /**
      * 메시지 유형.

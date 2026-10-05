@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
-import { MembershipConsumer } from './membership.consumer';
 import { ChannelMember, ChannelMemberSchema } from '../chat/schema/channel-member.schema';
+import { MembershipConsumer } from './membership.consumer';
 
 @Module({
     imports: [
