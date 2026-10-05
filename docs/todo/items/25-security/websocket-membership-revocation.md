@@ -2,65 +2,40 @@
 
 - **서비스**: cowork-chat
 - **우선순위**: 🔴 높음
-- **현재 상태**: 채널·팀 멤버십 회수와 채널 삭제의 room 해제, 타이핑 재인가가 구현되어 있으며 다중 replica 전달·Redis 장애·재연결 경합 검증이 남아 있음
+- **현재 상태**: 이벤트 회수·주기 로컬 재인가·readiness 보호는 구현되어 있으며 여러 replica·Redis 장애·재연결 경합의 운영 확인이 남아 있다.
 - **관련 작업**: [Socket.IO Redis adapter 준비 상태와 복구 보장](../29-reliability/socketio-redis-adapter-readiness.md)
-
-## 진행 상태 (2026-09-03)
-
-| 경로                      | 코드에서 확인한 상태                                                                                                         |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------|
-| `MembershipConsumer`      | `LEAVE` projection 뒤 현재 읽기 권한이 없으면 `user:{userId}` 소켓의 `chat:{channelId}` room을 제거함                        |
-| `TeamMemberEventConsumer` | 팀 채널의 읽기 권한을 다시 평가해 소켓을 제거하고, 유효한 팀 삭제 상태이면 팀 room도 제거함                                  |
-| `ChannelEventConsumer`    | 삭제 이벤트와 삭제 snapshot 적용 뒤 채널 room을 비움                                                                         |
-| `ChatGateway.relayTyping` | room 가입 여부와 현재 읽기 권한을 다시 확인하고 거부된 소켓을 room에서 제거함                                                |
-| 남은 범위                 | 실제 여러 replica의 remote room 해제, adapter 장애 중 회수 보장, reconnect·동시 발행 경합을 이번 문서 점검에서 검증하지 않음 |
 
 ## 문제
 
-최초 점검 당시 `ChatGateway.handleJoin`과 `ChatGateway.handleJoinTeam`에서 검사한 가입 상태만 실시간 이벤트 수신에 사용하고, 탈퇴 projection 반영 뒤 기존 room을 회수하지 않는 문제가 있었다. 이후 역할 기반 읽기 권한 작업에서 회수와 브로드캐스트 재인가 경로가 추가되었으므로 이 문제가 모든 경로에 그대로 남아 있다고 표현하지 않는다.
+채널·팀 탈퇴와 채널 삭제 뒤 room 해제, join·typing 재인가가 구현되어 있다.
+Redis 발행 실패나 consumer 재시작 때 즉시 해제가 누락될 수 있어 주기 로컬 재인가도 사용한다.
+이 경로는 projection이 준비되지 않았다는 이유로 권한 보유 소켓을 제거하지 않는다.
 
-현재 `MembershipConsumer`는 채널 탈퇴 후 `socketsLeave`를 호출하고, `TeamMemberEventConsumer`는 `ChannelMessageReadAccessService.evictUnauthorizedSockets`로 팀 채널의 접근을 다시 평가한다. `ChannelEventConsumer`는 삭제된 채널 room을 비우고, `ChatGateway.relayTyping`도 현재 인가를 재확인한다. 사용자에게는 `channel:access:revoked` 또는 `team:access:revoked` 이벤트를 보낸다.
+현재 Redis adapter 준비 상태가 readiness에 연결되어 있으나 실제 remote room 회수와
+대규모 접속의 재인가 비용은 확인하지 않았다. 코드 존재만으로 모든 replica의 회수 완료를
+판정할 수 없다.
 
-다만 `RedisIoAdapter`의 초기 실패 시 in-memory fallback과 adapter 준비 상태를 반영하지 않는 readiness 문제는 남아 있다. room 회수 코드가 존재한다는 사실만으로 다른 replica의 소켓까지 회수가 완료되었다고 판정할 수 없다. 이 항목은 해당 장애 경계와 재연결·동시 발행 시나리오까지 검증한 뒤 완료한다.
+## 코드 근거
 
-## 회수 이벤트별 처리 범위
-
-| 원본 이벤트                           | projection 반영 후 강제 조치                                        | 후속 알림                                                  |
-|---------------------------------------|---------------------------------------------------------------------|------------------------------------------------------------|
-| `channel.member.event.v2`의 `LEAVE`   | 해당 사용자의 모든 소켓을 `chat:{channelId}`에서 제거함             | 남은 채널 멤버에게 `member:left`를 전송함                  |
-| `team.member.event`의 `DELETE`        | 해당 사용자의 소켓을 `team:{teamId}`와 팀 소속 채널 room에서 제거함 | 회수 대상에게 직접 권한 변경 이벤트를 전송할지 계약을 정함 |
-| `channel.event.v2`의 `DELETED`        | 모든 소켓을 `chat:{channelId}`에서 제거함                           | 팀 room에 `channel:deleted`를 전송함                       |
-| `project.member.event.v2`의 `REMOVED` | 프로젝트 채널 멤버십 회수 이벤트와의 순서·책임을 확정함             | 중복 해제는 멱등하게 처리함                                |
-
-projection 저장 성공 후 room 해제를 수행하고, 해제가 완료된 뒤 보호 이벤트가 더 전달되지 않도록 처리 순서를 고정한다. 동일 이벤트 재처리와 이미 연결이 끊긴 소켓에 대한 해제는 오류 없이 멱등하게 끝나야 한다.
+- [로컬 구독 재검증](../../../../cowork-chat/src/chat/chat.gateway.ts#L162): 로컬 소켓 sweep과 recovered 연결의 재인가가 구현되어 있다.
+- [권한 회수](../../../../cowork-chat/src/chat/service/channel-message-read-access.service.ts#L207): 현재 권한 없는 채널·팀 room만 해제하고 판정 전후 readiness가 닫히면 회수를 건너뛴다.
 
 ## 할 일
 
-### 구현된 회수 경로의 검증과 보완
-
-- `user:{userId}` room 기반 선택이 동일 사용자의 여러 소켓과 remote replica까지 포함하는지 Socket.IO adapter 계약과 운영 상태로 확인한다.
-- `MembershipConsumer`, `TeamMemberEventConsumer`, `ChannelEventConsumer`의 duplicate·stale event·snapshot 처리는 호출 흐름과 상태 전이로 점검한다.
-- 팀 채널의 일괄 권한 평가와 소켓 조회가 대규모 팀에서도 허용 가능한 비용인지 확인한다.
-- room 해제 실패를 로그만 남기고 끝내지 않고 재시도 또는 연결 종료로 수렴시키는 정책을 적용한다.
-- 이미 구현된 `channel:access:revoked`·`team:access:revoked`의 payload와 클라이언트 재가입 동작을 계약으로 고정한다.
-
-### 다중 replica 보장
-
-- Redis adapter를 통해 다른 `cowork-chat` replica에 연결된 동일 사용자의 소켓에도 room 해제가 전달되게 한다.
-- Redis adapter가 준비되지 않은 다중 replica 상태에서는 회수 완료로 오판하지 않도록 readiness와 연동한다.
-- 이벤트 재처리, Socket.IO reconnect, connection state recovery가 회수된 room 가입을 복원하지 않는지 확인한다.
+- 같은 사용자의 여러 브라우저·replica에서 채널·팀 탈퇴와 채널 삭제 뒤 회수를 확인한다.
+- Redis 장애와 consumer 재시작 때 누락된 즉시 회수가 로컬 재인가로 수렴하는지 확인한다.
+- reconnect·join 중 권한 회수 경합에서 보호 이벤트를 더 받지 않는지 확인한다.
+- 대규모 팀·소켓의 재인가 비용과 허용 회수 지연을 정하고 관측한다.
+- 클라이언트의 `channel:access:revoked`·`team:access:revoked` 처리와 재가입 정책을 확인한다.
 
 ## 검증
 
-- 멤버십이 없는 사용자의 join·typing·재가입을 거부하는 핵심 권한 판단을 gateway와 access service 단위 테스트로 검증한다.
-- 팀 멤버십 회수 뒤 팀·채널 접근을 거부하는 정책을 단위 테스트로 검증한다.
-- 여러 브라우저·replica의 room 해제, 중복·stale event, reconnect, 동시 메시지 발행 결과는 metric과 staging 운영 rehearsal로 확인한다.
-- Socket.IO adapter, Redis, Kafka projection, room 전달 경합을 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
+- 멤버십 없는 join·typing·재가입 거부와 미준비 상태의 권한 오회수 방지는 핵심 인가 단위 테스트로 확인한다.
+- remote 회수·장애·재연결·동시 메시지는 수동 운영 점검과 지표로 확인한다.
+- 주기 재인가의 수렴 시간·비용과 Redis 복구 결과를 기록한다.
 
 ## 완료 조건
 
-- 채널 멤버십이 회수된 사용자의 기존 모든 소켓은 해당 채널 room에 남아 있지 않는다.
-- 팀 멤버십이 회수된 사용자는 기존 연결로 팀 및 팀 소속 채널의 보호 이벤트를 받지 않는다.
-- 삭제된 채널의 room에는 기존 소켓이 남아 있지 않는다.
-- 다중 replica와 reconnect 환경에서도 구독 회수가 동일하게 적용되어 있다.
-- 멤버십 회수 후 타이핑을 포함한 클라이언트 발신 이벤트가 해당 채널에 전달되지 않는다.
+- 회수·삭제된 범위의 기존 소켓이 모든 replica에서 보호 이벤트를 더 받지 않는다.
+- 재연결과 Redis 장애 뒤에도 구독 회수가 수렴하며 허용 지연을 확인할 수 있다.
+- projection 미준비만으로 권한 보유 소켓을 room에서 제거하지 않는다.

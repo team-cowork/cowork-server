@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
 import { randomUUID } from 'crypto';
-import { Message, MessageDocument } from '../schema/message.schema';
+import { Message, MessageDocument } from '../schema';
 import { isSearchIndexed } from '../search/message-index-scope';
 
 /** 한 번에 조회하는 최대 메시지 수 */
@@ -207,6 +207,7 @@ export class MessageRepository {
                         foreignField: '_id',
                         as: 'mentionedMessage',
                         pipeline: [
+                            { $match: { channelId } },
                             {
                                 $project: {
                                     _id: 1,
@@ -584,6 +585,7 @@ export class MessageRepository {
                     foreignField: '_id',
                     as: 'mentionedMessage',
                     pipeline: [
+                        { $match: { channelId } },
                         {
                             $project: {
                                 _id: 1,
@@ -606,20 +608,25 @@ export class MessageRepository {
     }
 
     /**
-     * 여러 부모 메시지 ID로 작성자 정보를 일괄 조회하여 Map으로 반환합니다.
+     * 채널과 부모 메시지 ID 쌍으로 작성자 정보를 일괄 조회하여 Map으로 반환합니다.
      *
      * 스레드 알림 발송 시 부모 메시지 작성자를 효율적으로 조회하기 위해 사용합니다.
      *
-     * @param parentIds - 조회할 부모 메시지의 ObjectId 배열
-     * @returns ObjectId 문자열을 키, `{ authorId }` 객체를 값으로 하는 Map
+     * @param parents - 조회할 채널과 부모 메시지 ID 쌍
+     * @returns `channelId:parentMessageId`를 키, `{ authorId }` 객체를 값으로 하는 Map
      */
-    async findParentAuthorsByIds(parentIds: Types.ObjectId[]): Promise<Map<string, { authorId: number }>> {
-        const parents = await this.messageModel
-            .find({ _id: { $in: parentIds } })
-            .select('authorId')
-            .lean() as { _id: Types.ObjectId; authorId: number }[];
+    async findParentAuthorsByChannel(
+        parents: Array<{ channelId: number; parentMessageId: Types.ObjectId }>,
+    ): Promise<Map<string, { authorId: number }>> {
+        if (parents.length === 0) return new Map();
+        const foundParents = await this.messageModel
+            .find({ $or: parents.map(({ channelId, parentMessageId }) => ({ _id: parentMessageId, channelId })) })
+            .select('channelId authorId')
+            .lean() as { _id: Types.ObjectId; channelId: number; authorId: number }[];
 
-        return new Map(parents.map((parent) => [parent._id.toString(), { authorId: parent.authorId }]));
+        return new Map(foundParents.map((parent) => [
+            `${parent.channelId}:${parent._id.toString()}`, { authorId: parent.authorId },
+        ]));
     }
 
     /**

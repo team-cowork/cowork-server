@@ -198,6 +198,8 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 		}
 		if err := w.invalid.DeleteInvalidToken(finalizeCtx, rec.Token); err != nil {
 			slog.Warn("fcm retry worker: delete invalid token failed", "err", err)
+		} else {
+			slog.Info("fcm retry worker: deleted invalid device token", "deviceTokenId", rec.DeviceTokenID)
 		}
 	case fcm.OutcomeUnclassified:
 		w.finalizeFailure(finalizeCtx, rec, ErrorClassUnclassified)

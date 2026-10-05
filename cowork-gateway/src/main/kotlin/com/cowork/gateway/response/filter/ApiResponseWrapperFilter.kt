@@ -7,7 +7,6 @@ import com.cowork.gateway.response.metrics.ApiResponseWrappingOutcome
 import com.cowork.gateway.response.model.CommonApiResponse
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingDecision
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingPolicy
-import com.cowork.gateway.response.wrapping.PreparedResponse
 import org.reactivestreams.Publisher
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
@@ -158,4 +157,10 @@ class ApiResponseWrapperFilter(
         ApiResponseWrappingDecision.BYPASS_STREAMING -> ApiResponseWrappingOutcome.BYPASS_STREAMING
         ApiResponseWrappingDecision.WRAP_BOUNDED -> error("wrapping decision must not be recorded as a bypass")
     }
+
+    private data class PreparedResponse(
+        val bytes: ByteArray,
+        val outcome: ApiResponseWrappingOutcome,
+        val wasTransformed: Boolean,
+    )
 }

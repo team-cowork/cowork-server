@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, mongo } from 'mongoose';
-import { ChannelProjection } from '../schema/channel-projection.schema';
+import { ChannelProjection } from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
@@ -23,6 +23,10 @@ export interface ChannelProjectionView {
     position: number;
 }
 
+export interface ChannelProjectionState extends ChannelProjectionView {
+    deleted: boolean;
+}
+
 export interface ChannelProjectionEvent extends ChannelProjectionView {
     eventType: 'CREATED' | 'UPDATED';
     occurredAt: Date;
@@ -35,6 +39,10 @@ export class ChannelProjectionRepository {
 
     async findById(channelId: number): Promise<ChannelProjectionView | null> {
         return this.model.findOne({ channelId, deleted: { $ne: true } }).lean<ChannelProjectionView>();
+    }
+
+    async findByIdIncludingDeleted(channelId: number): Promise<ChannelProjectionState | null> {
+        return this.model.findOne({ channelId }).lean<ChannelProjectionState>();
     }
 
     async findByIds(channelIds: number[]): Promise<ChannelProjectionView[]> {

@@ -2,8 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DicoshotService } from 'dicoshot-nest';
 import { Counter, register } from 'prom-client';
 import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
-import { ChatMessageQuarantineErrorType } from '../schema/chat-message-quarantine.schema';
-import { ChatMessageQuarantineRepository } from '../repository/chat-message-quarantine.repository';
+import { ChatMessageQuarantineErrorType } from '../schema';
+import { ChatMessageQuarantineRepository } from '../repository';
 
 const ALERT_COOLDOWN_MS = 5 * 60 * 1_000;
 

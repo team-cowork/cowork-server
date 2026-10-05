@@ -28,6 +28,8 @@ dependencies:
 test-dependencies:
   - io.vertx:vertx-junit5:5.1.8
   - io.mockk:mockk:1.14.11
+  - io.kotest:kotest-runner-junit5-jvm:6.2.5
+  - io.kotest:kotest-assertions-core-jvm:6.2.5
 
 settings:
   jvm:

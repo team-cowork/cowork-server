@@ -9,7 +9,7 @@ import (
 )
 
 type Repository interface {
-	Save(ctx context.Context, t *DeviceToken) error
+	Register(ctx context.Context, t *DeviceToken) (RegistrationResult, error)
 	FindByID(ctx context.Context, id int64) (*DeviceToken, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]DeviceToken, error)
 	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64][]DeviceToken, error)
