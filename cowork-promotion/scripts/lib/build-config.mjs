@@ -1,20 +1,21 @@
-import { execFileSync } from "node:child_process";
-import { resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { execFileSync } from 'node:child_process';
+import { resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const defaultOutputDirectory = new URL("../../public/", import.meta.url);
+const defaultOutputDirectory = new URL('../../public/', import.meta.url);
 const defaultTodoDirectory = fileURLToPath(
-    new URL("../../../docs/todo/", import.meta.url),
+    new URL('../../../docs/todo/', import.meta.url),
 );
 const defaultRepositoryDirectory = fileURLToPath(
-    new URL("../../../", import.meta.url),
+    new URL('../../../', import.meta.url),
 );
 
 function directoryUrl(value, fallback) {
-    if (!value) return fallback;
-    if (value instanceof URL) return value;
+    if (!value) {
+        return fallback;
+    }
 
-    return pathToFileURL(`${resolve(String(value))}/`);
+    return value instanceof URL ? value : pathToFileURL(`${resolve(String(value))}/`);
 }
 
 function resolveRepositorySourceUrl(repositoryDirectory, environment) {
@@ -22,14 +23,14 @@ function resolveRepositorySourceUrl(repositoryDirectory, environment) {
 
     if (!revision) {
         try {
-            revision = execFileSync("git", ["rev-parse", "HEAD"], {
+            revision = execFileSync('git', ['rev-parse', 'HEAD'], {
                 cwd: repositoryDirectory,
-                encoding: "utf8",
-                stdio: ["ignore", "pipe", "ignore"],
+                encoding: 'utf8',
+                stdio: ['ignore', 'pipe', 'ignore'],
             }).trim();
         } catch (error) {
             throw new Error(
-                "Cannot determine the repository revision; provide repositorySourceUrl when building without Git metadata.",
+                'Cannot determine the repository revision; provide repositorySourceUrl when building without Git metadata.',
                 { cause: error },
             );
         }
@@ -39,25 +40,25 @@ function resolveRepositorySourceUrl(repositoryDirectory, environment) {
 }
 
 function resolveSiteUrl(options, environment) {
-    const deploymentHost =
-        environment.VERCEL_PROJECT_PRODUCTION_URL || environment.VERCEL_URL;
-    const configuredSiteUrl =
-        options.siteUrl ||
-        environment.SITE_URL ||
-        (deploymentHost ? `https://${deploymentHost}` : null);
+    const deploymentHost
+        = environment.VERCEL_PROJECT_PRODUCTION_URL || environment.VERCEL_URL;
+    const configuredSiteUrl
+        = options.siteUrl
+            || environment.SITE_URL
+            || (deploymentHost ? `https://${deploymentHost}` : null);
     const siteUrl = configuredSiteUrl ? new URL(configuredSiteUrl) : null;
 
     if (
-        siteUrl &&
-        (!["http:", "https:"].includes(siteUrl.protocol) ||
-            siteUrl.username ||
-            siteUrl.password ||
-            siteUrl.pathname !== "/" ||
-            siteUrl.search ||
-            siteUrl.hash)
+        siteUrl
+        && (!['http:', 'https:'].includes(siteUrl.protocol)
+            || siteUrl.username
+            || siteUrl.password
+            || siteUrl.pathname !== '/'
+            || siteUrl.search
+            || siteUrl.hash)
     ) {
         throw new Error(
-            "SITE_URL must be an HTTP(S) origin without a path, credentials, query or fragment.",
+            'SITE_URL must be an HTTP(S) origin without a path, credentials, query or fragment.',
         );
     }
 
@@ -79,8 +80,8 @@ export function resolveBuildConfig(options = {}, environment = process.env) {
             : defaultTodoDirectory,
         repositoryDirectory,
         repositorySourceUrl:
-            options.repositorySourceUrl ??
-            resolveRepositorySourceUrl(repositoryDirectory, environment),
+            options.repositorySourceUrl
+            ?? resolveRepositorySourceUrl(repositoryDirectory, environment),
         siteUrl: resolveSiteUrl(options, environment),
     };
 }

@@ -11,12 +11,12 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface ChannelRolePolicyProjectionView {
+export type ChannelRolePolicyProjectionView = {
     teamId: number;
     channelId: number;
     roleId: number;
     messageRead: boolean;
-}
+};
 
 @Injectable()
 export class ChannelRolePolicyProjectionRepository {
@@ -90,7 +90,10 @@ export class ChannelRolePolicyProjectionRepository {
         channelIds: number[],
         roleIds: number[],
     ): Promise<ChannelRolePolicyProjectionView[]> {
-        if (channelIds.length === 0 || roleIds.length === 0) return [];
+        if (channelIds.length === 0 || roleIds.length === 0) {
+            return [];
+        }
+
         return this.model.find(
             {
                 channelId: { $in: channelIds },
@@ -98,7 +101,9 @@ export class ChannelRolePolicyProjectionRepository {
                 messageRead: { $type: 'bool' },
                 deleted: { $ne: true },
             },
-            { _id: 0, teamId: 1, channelId: 1, roleId: 1, messageRead: 1 },
+            {
+                _id: 0, teamId: 1, channelId: 1, roleId: 1, messageRead: 1,
+            },
         ).lean<ChannelRolePolicyProjectionView[]>();
     }
 
