@@ -154,6 +154,14 @@ func (s *Service) Notify(
 		slog.Warn("notification event missing eventId; falling back to non-durable single-attempt delivery")
 	}
 
+	toSend, err = s.excludeStaleTargets(ctx, eventID, enabledIDs, toSend)
+	if err != nil {
+		return nil, err
+	}
+	if len(toSend) == 0 {
+		return enabledIDs, nil
+	}
+
 	tokensToSend := make([]string, len(toSend))
 	for i, t := range toSend {
 		tokensToSend[i] = t.Token
@@ -225,6 +233,49 @@ func (s *Service) Notify(
 		return nil, sendErr
 	}
 	return enabledIDs, nil
+}
+
+// excludeStaleTargets re-reads the recipients' device tokens right before the FCM call
+// and drops any target whose DeviceTokenID generation was deleted or transferred to
+// another account after the first lookup (including while ResumeOrCreate waited on row
+// locks), mirroring the retry worker's CurrentToken check. device_token_id is never
+// reused, so a target is current only if the same ID still carries the same token.
+// Dropped durable claims are finalized CANCELLED so they do not sit IN_PROGRESS until
+// ReclaimStale. A lookup failure leaves the claims IN_PROGRESS for ReclaimStale and the
+// retry worker, as the worker does on its own lookup failure.
+func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accountIDs []int64, targets []delivery.TargetToken) ([]delivery.TargetToken, error) {
+	tokenMap, err := s.repo.FindByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, fmt.Errorf("re-verify device token ownership: %w", err)
+	}
+	type generation struct {
+		id    int64
+		token string
+	}
+	current := make(map[generation]bool)
+	for _, tokens := range tokenMap {
+		for _, t := range tokens {
+			current[generation{t.ID, t.Token}] = true
+		}
+	}
+
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+
+	live := make([]delivery.TargetToken, 0, len(targets))
+	for _, t := range targets {
+		if current[generation{t.DeviceTokenID, t.Token}] {
+			live = append(live, t)
+			continue
+		}
+		if eventID == "" {
+			continue
+		}
+		if err := s.delivery.FinalizeCancelled(finalizeCtx, eventID, t.DeviceTokenID, t.ClaimToken); err != nil {
+			slog.Warn("failed to finalize cancelled delivery", "deviceTokenId", t.DeviceTokenID, "err", err)
+		}
+	}
+	return live, nil
 }
 
 func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.TargetToken, errClass delivery.ErrorClass) {
