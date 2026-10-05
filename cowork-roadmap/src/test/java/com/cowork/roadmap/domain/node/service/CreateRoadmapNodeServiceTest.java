@@ -62,7 +62,7 @@ class CreateRoadmapNodeServiceTest {
         RoadmapNode parent = node(50L, 10L);
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findById(50L)).thenReturn(Mono.just(parent));
+        when(nodeRepository.findByIdForShare(50L)).thenReturn(Mono.just(parent));
         when(nodeRepository.countByRoadmapIdAndParentId(10L, 50L)).thenReturn(Mono.just(1L));
         when(nodeRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
@@ -81,7 +81,7 @@ class CreateRoadmapNodeServiceTest {
     void createNode_parentNotFound_failsWithNotFound() {
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findById(99L)).thenReturn(Mono.empty());
+        when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.empty());
         // validateParent 에러 뒤 nextPosition 인자가 eager 평가되므로 count stub 필요(NPE 방지).
         when(nodeRepository.countByRoadmapIdAndParentId(10L, 99L)).thenReturn(Mono.just(0L));
 
@@ -98,7 +98,7 @@ class CreateRoadmapNodeServiceTest {
         RoadmapNode parent = node(50L, 999L);
         when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findById(50L)).thenReturn(Mono.just(parent));
+        when(nodeRepository.findByIdForShare(50L)).thenReturn(Mono.just(parent));
         // validateParent 에러 뒤 nextPosition 인자가 eager 평가되므로 count stub 필요(NPE 방지).
         when(nodeRepository.countByRoadmapIdAndParentId(10L, 50L)).thenReturn(Mono.just(0L));
 

@@ -1,6 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { MessageRepository } from '../repository/message.repository';
-import { MessageSearchTombstoneRepository } from '../repository/message-search-tombstone.repository';
+import { MessageRepository, MessageSearchTombstoneRepository } from '../repository';
 import { MESSAGE_INDEX_GC_DELETES_DAYS } from '../../search/message-index.contract';
 import { isSearchIndexed } from './message-index-scope';
 

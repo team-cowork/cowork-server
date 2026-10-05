@@ -1,6 +1,5 @@
 package com.cowork.gateway.health.controller
 
-import com.cowork.gateway.health.model.ServiceStatus
 import com.cowork.gateway.response.model.CommonApiResponse
 import com.netflix.appinfo.InstanceInfo
 import io.swagger.v3.oas.annotations.Operation
@@ -104,5 +103,11 @@ class HealthCheckController(
             return metaStatus.equals("UP", ignoreCase = true)
         }
         return false
+    }
+
+    enum class ServiceStatus {
+        UP,
+        DEGRADED,
+        DOWN,
     }
 }

@@ -117,10 +117,10 @@ defmodule CoworkUser.Eureka.Registrar do
         _ -> [method: method, url: url, json: body]
       end
 
-    case Req.request(options) do
+    case Req.request(Keyword.merge(options, CoworkUser.ControlPlane.options(url))) do
       {:ok, %{status: status}} when status in 200..299 -> :ok
       {:ok, %{status: status}} -> {:error, {:status, status}}
-      {:error, reason} -> {:error, reason}
+      {:error, _reason} -> {:error, :transport_failure}
     end
   end
 

@@ -1,6 +1,7 @@
 import os from 'os';
 import { Logger } from '@nestjs/common';
 import { requireEnv } from '../common/config/config.util';
+import { controlPlaneAuthorization } from '../common/config/control-plane-auth';
 
 type EurekaConfig = {
     enabled: boolean;
@@ -124,11 +125,13 @@ export class EurekaClient {
     private async request(path: string, init: RequestInit): Promise<void> {
         const response = await fetch(`${this.config.serverUrl}${path}`, {
             ...init,
+            redirect: 'error',
             signal: init.signal ?? AbortSignal.timeout(5_000),
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
                 ...(init.headers ?? {}),
+                Authorization: controlPlaneAuthorization(this.config.serverUrl),
             },
         });
 

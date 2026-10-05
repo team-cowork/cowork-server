@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/token"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	"github.com/stretchr/testify/assert"
@@ -12,12 +13,55 @@ import (
 )
 
 type mockRepo struct {
-	tokens map[int64][]token.DeviceToken
-	err    error
+	tokens        map[int64][]token.DeviceToken
+	err           error
+	nextID        int64
+	registerCalls int
 }
 
-func (m *mockRepo) Save(_ context.Context, _ *token.DeviceToken) error {
-	return m.err
+func (m *mockRepo) Register(_ context.Context, requested *token.DeviceToken) (token.RegistrationResult, error) {
+	m.registerCalls++
+	if m.err != nil {
+		return token.RegistrationResult{}, m.err
+	}
+	if m.tokens == nil {
+		m.tokens = make(map[int64][]token.DeviceToken)
+	}
+
+	var previousAccountID int64
+	for accountID, tokens := range m.tokens {
+		for i, existing := range tokens {
+			if existing.Token != requested.Token {
+				continue
+			}
+			if accountID == requested.AccountID {
+				existing.Platform = requested.Platform
+				m.tokens[accountID][i] = existing
+				requested.ID = existing.ID
+				return token.RegistrationResult{DeviceTokenID: existing.ID}, nil
+			}
+
+			previousAccountID = accountID
+			m.tokens[accountID] = append(tokens[:i], tokens[i+1:]...)
+			break
+		}
+	}
+
+	for _, tokens := range m.tokens {
+		for _, existing := range tokens {
+			if existing.ID > m.nextID {
+				m.nextID = existing.ID
+			}
+		}
+	}
+	m.nextID++
+	requested.ID = m.nextID
+	m.tokens[requested.AccountID] = append(m.tokens[requested.AccountID], *requested)
+	return token.RegistrationResult{
+		DeviceTokenID:     requested.ID,
+		PreviousAccountID: previousAccountID,
+		Reassigned:        previousAccountID != 0,
+	}, nil
 }
 func (m *mockRepo) FindByID(_ context.Context, _ int64) (*token.DeviceToken, error) {
 	return nil, m.err
@@ -37,8 +81,17 @@ func (m *mockRepo) FindByAccountIDs(_ context.Context, ids []int64) (map[int64][
 func (m *mockRepo) DeleteByTokens(_ context.Context, _ []string) error {
 	return m.err
 }
-func (m *mockRepo) DeleteByAccountIDAndToken(_ context.Context, _ int64, _ string) error {
-	return m.err
+func (m *mockRepo) DeleteByAccountIDAndToken(_ context.Context, accountID int64, value string) error {
+	if m.err != nil {
+		return m.err
+	}
+	for i, existing := range m.tokens[accountID] {
+		if existing.Token == value {
+			m.tokens[accountID] = append(m.tokens[accountID][:i], m.tokens[accountID][i+1:]...)
+			return nil
+		}
+	}
+	return apperr.NotFound("token not found")
 }
 
 type mockFCM struct {
@@ -65,6 +118,56 @@ func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64
 		result[id] = m.enabled
 	}
 	return result, nil
+}
+
+func TestServiceRegisterTokenOwnership(t *testing.T) {
+	t.Run("rejects an unsupported platform before persistence", func(t *testing.T) {
+		repo := &mockRepo{}
+		svc := token.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+
+		err := svc.RegisterToken(context.Background(), 1, "device-token", "DESKTOP")
+
+		var appErr *apperr.AppError
+		require.ErrorAs(t, err, &appErr)
+		assert.Equal(t, 400, appErr.Code)
+		assert.Zero(t, repo.registerCalls)
+	})
+
+	t.Run("refreshes the same owner without changing the token generation", func(t *testing.T) {
+		repo := &mockRepo{tokens: map[int64][]token.DeviceToken{
+			1: {{ID: 10, AccountID: 1, Token: "device-token", Platform: token.PlatformWeb}},
+		}}
+		svc := token.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+
+		err := svc.RegisterToken(context.Background(), 1, "device-token", "ANDROID")
+
+		require.NoError(t, err)
+		require.Len(t, repo.tokens[1], 1)
+		assert.Equal(t, int64(10), repo.tokens[1][0].ID)
+		assert.Equal(t, token.PlatformAndroid, repo.tokens[1][0].Platform)
+	})
+
+	t.Run("moves ownership to a new account and excludes the previous account", func(t *testing.T) {
+		repo := &mockRepo{tokens: map[int64][]token.DeviceToken{
+			1: {{ID: 10, AccountID: 1, Token: "device-token", Platform: token.PlatformIOS}},
+		}}
+		fcm := &mockFCM{}
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+
+		err := svc.RegisterToken(context.Background(), 2, "device-token", "IOS")
+		require.NoError(t, err)
+		assert.Empty(t, repo.tokens[1])
+		require.Len(t, repo.tokens[2], 1)
+		assert.NotEqual(t, int64(10), repo.tokens[2][0].ID)
+
+		_, err = svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"device-token"}, fcm.calledTokens)
+
+		require.Error(t, svc.DeleteToken(context.Background(), 1, "device-token"))
+		require.NoError(t, svc.DeleteToken(context.Background(), 2, "device-token"))
+		assert.Empty(t, repo.tokens[2])
+	})
 }
 
 func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {

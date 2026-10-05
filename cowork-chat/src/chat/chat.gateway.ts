@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Logger, UseFilters } from '@nestjs/common';
+import { forwardRef, Inject, Logger, OnModuleDestroy, UseFilters } from '@nestjs/common';
 import {
     WebSocketGateway,
     WebSocketServer,
@@ -19,22 +19,25 @@ import { ChatGithubIssueResultConsumer } from './kafka/chat-github-issue-result.
 import { GithubRepoEventConsumer } from './kafka/github-repo-event.consumer';
 import { ChannelEventConsumer } from './kafka/channel-event.consumer';
 import { ProjectEventConsumer } from './kafka/project-event.consumer';
-import { MembershipConsumer } from '../membership/membership.consumer';
 import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
 import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
 import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
-import { JoinChannelDto } from './dto/join-channel.dto';
+import { MembershipConsumer } from '../membership/membership.consumer';
+import { JoinChannelDto } from './dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { getOptionalConfig } from '../common/config/config.util';
 import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
 import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
 import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
 import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 
 const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
 const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
 const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 const PROJECTION_NOT_READY_MESSAGE = 'Kafka projections are synchronizing';
+const SOCKET_ADAPTER_NOT_READY_MESSAGE = 'Socket.IO Redis adapter is not ready';
+const LOCAL_ROOM_SWEEP_INTERVAL_MS = 30_000;
 
 export interface ChatSocketData {
     userId: number;
@@ -70,13 +73,15 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
         credentials: true,
     },
 })
-export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect, OnModuleDestroy {
     private readonly logger = new Logger(ChatGateway.name);
 
     @WebSocketServer() server!: Server;
 
     private readonly typingRateLimitWindowMs: number;
     private readonly typingRateLimitMaxRequests: number;
+    private roomSweepTimer?: ReturnType<typeof setInterval>;
+    private roomSweepRunning = false;
 
     constructor(
         @Inject(forwardRef(() => ChatService))
@@ -95,6 +100,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
         private readonly projectionReadiness: ProjectionReadinessService,
+        private readonly socketIoRedis: SocketIoRedisConnection,
     ) {
         this.typingRateLimitWindowMs = Number(
             getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
@@ -112,13 +118,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     afterInit(server: Server) {
         server.use((_socket, next) => {
-            if (!this.projectionReadiness.isReady()) {
-                next(new Error(PROJECTION_NOT_READY_MESSAGE));
+            const notReady = this.realtimeNotReadyReason();
+            if (notReady) {
+                next(new Error(notReady));
                 return;
             }
             _socket.use((_packet, packetNext) => {
-                if (!this.projectionReadiness.isReady()) {
-                    packetNext(new Error(PROJECTION_NOT_READY_MESSAGE));
+                const packetNotReady = this.realtimeNotReadyReason();
+                if (packetNotReady) {
+                    packetNext(new Error(packetNotReady));
                     return;
                 }
                 packetNext();
@@ -139,6 +147,40 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.teamRoleEventConsumer.setSocketServer(server);
         this.channelRolePolicyEventConsumer.setSocketServer(server);
         this.teamMemberEventConsumer.setSocketServer(server);
+        this.roomSweepTimer = setInterval(() => { void this.sweepLocalRooms(server); }, LOCAL_ROOM_SWEEP_INTERVAL_MS);
+    }
+
+    onModuleDestroy(): void {
+        clearInterval(this.roomSweepTimer);
+    }
+
+    /**
+     * 회수 이벤트의 room 해제는 누락될 수 있다. `socketsLeave`는 Redis adapter로 요청만 발행하고 결과를 기다리지 않으며,
+     * 재시도가 소진된 회수 이벤트는 readiness가 닫힌 재처리에서 회수를 건너뛴다. 그래서 이 인스턴스에 연결된 소켓의
+     * room을 주기적으로 현재 권한으로 다시 검증해 수렴시킨다. `local` 조회라 Redis 장애와 무관하게 동작한다.
+     */
+    private async sweepLocalRooms(server: Server): Promise<void> {
+        if (this.roomSweepRunning) return;
+        this.roomSweepRunning = true;
+        try {
+            // ponytail: 로컬 소켓 전체를 한 번에 평가함, 접속자가 많아 조회가 무거워지면 소켓 묶음 단위로 나눠 평가
+            const evicted = await this.chatService.evictUnauthorizedRooms(await server.local.fetchSockets());
+            if (evicted > 0) this.logger.warn(`Local room sweep evicted ${evicted} unauthorized room subscriptions`);
+        } catch (err) {
+            this.logger.error('Local room sweep failed', err);
+        } finally {
+            this.roomSweepRunning = false;
+        }
+    }
+
+    /**
+     * projection 동기화가 끝나지 않았거나 Socket.IO Redis adapter가 준비되지 않았으면 그 이유를 반환한다.
+     * adapter가 준비되지 않은 동안 받은 가입은 다른 replica의 브로드캐스트·room 해제를 받지 못하므로 막는다.
+     */
+    private realtimeNotReadyReason(): string | undefined {
+        if (!this.projectionReadiness.isReady()) return PROJECTION_NOT_READY_MESSAGE;
+        if (!this.socketIoRedis.isReady()) return SOCKET_ADAPTER_NOT_READY_MESSAGE;
+        return undefined;
     }
 
     /**
@@ -162,6 +204,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.data.userId = userId;
             client.data.userRole = userRole;
             this.joinRoom(client, `user:${userId}`);
+            // connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
+            // 재검증 실패는 인증 실패가 아니므로 연결을 유지하고, 남은 room은 주기 sweep이 정리한다.
+            if (client.recovered) {
+                await this.chatService.evictUnauthorizedRooms([client])
+                    .catch((err: unknown) => this.logger.error(`Recovered room re-check failed: ${client.id}`, err));
+            }
             this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (err) {
             const message = err instanceof Error ? err.message : '인증 실패';
@@ -225,13 +273,20 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             return;
         }
         const { userId } = client.data;
-        const isMember = await this.chatService.isMember(payload.channelId, userId);
+        const room = `chat:${payload.channelId}`;
+        // 권한 확인보다 먼저 가입해야 확인 도중 처리된 회수 이벤트의 room 해제가 이 소켓에도 적용된다.
+        // room 전달은 emitToReadableChannelUsers가 전송 시점에 다시 인가하므로 잠깐의 선가입으로 이벤트가 새지 않는다.
+        this.joinRoom(client, room);
+        const isMember = await this.chatService.isMember(payload.channelId, userId).catch((err: unknown) => {
+            this.leaveRoom(client, room);
+            throw err;
+        });
         if (!isMember) {
+            this.leaveRoom(client, room);
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
             return;
         }
-        this.joinRoom(client, `chat:${payload.channelId}`);
-        this.logger.log(`userId=${userId} joined chat:${payload.channelId}`);
+        this.logger.log(`userId=${userId} joined ${room}`);
     }
 
     /**
@@ -302,12 +357,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             return;
         }
         const { userId } = client.data;
-        const isMember = await this.chatService.isTeamMember(payload.teamId, userId);
+        const room = `team:${payload.teamId}`;
+        // handleJoin과 같은 이유로 권한 확인보다 먼저 가입한다. 팀 room 전달도 전송 시점에 다시 인가한다.
+        this.joinRoom(client, room);
+        const isMember = await this.chatService.isTeamMember(payload.teamId, userId).catch((err: unknown) => {
+            this.leaveRoom(client, room);
+            throw err;
+        });
         if (!isMember) {
+            this.leaveRoom(client, room);
             client.emit('error', { message: '팀 접근 권한이 없습니다' });
-            return;
         }
-        this.joinRoom(client, `team:${payload.teamId}`);
     }
 
     /**

@@ -52,6 +52,7 @@ class EurekaRegistration(private val config: AppConfig) {
 
         val request = HttpRequest.newBuilder()
             .uri(URI.create("$serverUrl/apps/${config.eurekaAppName}"))
+            .header("Authorization", ControlPlaneAuthentication.authorization(serverUrl))
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .timeout(Duration.ofSeconds(5))
@@ -70,6 +71,7 @@ class EurekaRegistration(private val config: AppConfig) {
 
         val request = HttpRequest.newBuilder()
             .uri(URI.create(instanceUrl()))
+            .header("Authorization", ControlPlaneAuthentication.authorization(serverUrl))
             .timeout(Duration.ofSeconds(5))
             .PUT(HttpRequest.BodyPublishers.noBody())
             .build()
@@ -88,6 +90,7 @@ class EurekaRegistration(private val config: AppConfig) {
 
         val request = HttpRequest.newBuilder()
             .uri(URI.create(instanceUrl()))
+            .header("Authorization", ControlPlaneAuthentication.authorization(serverUrl))
             .timeout(Duration.ofSeconds(5))
             .DELETE()
             .build()

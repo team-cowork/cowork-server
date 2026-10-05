@@ -1,4 +1,4 @@
-import { AttachmentDto } from '../../dto/send-message.dto';
+import { AttachmentDto } from '../../dto';
 
 /**
  * 채팅 메시지 발행 시 Kafka로 전송되는 이벤트 페이로드.

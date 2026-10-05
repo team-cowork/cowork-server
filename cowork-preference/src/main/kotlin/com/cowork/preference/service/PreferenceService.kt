@@ -18,7 +18,7 @@ class PreferenceService(
     suspend fun getSettings(resourceType: ResourceType, resourceId: Long): JsonObject {
         cache.getSettings(resourceType, resourceId)?.let { return normalizeSettings(resourceType, it) }
         val settings = normalizeSettings(resourceType, repository.findSettings(resourceId, resourceType))
-        cache.setSettings(resourceType, resourceId, settings)
+        cache.populateSettings(resourceType, resourceId, settings)
         return settings
     }
 
@@ -26,7 +26,7 @@ class PreferenceService(
         if (resourceIds.isEmpty()) return emptyMap()
         val found = repository.findSettingsForResources(resourceIds, resourceType)
         val normalized = resourceIds.associateWith { normalizeSettings(resourceType, found[it]) }
-        normalized.forEach { (id, settings) -> cache.setSettings(resourceType, id, settings) }
+        cache.populateSettingsBulk(resourceType, normalized)
         return normalized
     }
 

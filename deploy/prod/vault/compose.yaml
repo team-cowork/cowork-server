@@ -4,7 +4,7 @@ services:
     image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
     container_name: cowork-vault-prod
     restart: unless-stopped
-    command: [server, -config=/vault/config/server.hcl]
+    command: [server]
     cap_add: [IPC_LOCK]
     environment:
       VAULT_ADDR: http://127.0.0.1:8200

@@ -66,6 +66,14 @@ class ProjectionReadinessState(
 
     fun isReady(): Boolean = ready
 
+    /** 서비스 전체 readiness와 별개로 특정 aggregate가 기다리는 stream만 따라잡았는지 확인한다. */
+    fun isCaughtUp(requiredStreams: Set<ProjectionStream>): Boolean {
+        if (initializingStreams.any { it in requiredStreams }) return false
+        return runCatching { checkpointStore.isCaughtUp(requiredStreams) }
+            .onFailure { log.warn("Failed to verify Kafka projection readiness for {}", requiredStreams, it) }
+            .getOrDefault(false)
+    }
+
     fun assignedCount(): Int = assignedStreams.size
 
     fun requiredCount(): Int = streams.required.size

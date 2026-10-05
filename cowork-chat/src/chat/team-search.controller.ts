@@ -1,8 +1,7 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { SearchTeamMessagesDto } from './dto/search-team-messages.dto';
-import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
+import { SearchTeamMessagesDto, SearchMessagesResponseDto } from './dto';
 import { UserId } from '../common/decorator/user.decorator';
 
 @ApiTags('Search')
