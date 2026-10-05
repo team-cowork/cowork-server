@@ -1,4 +1,4 @@
-import { ChatMessageScopeError, ChatMessageScopeValidator } from './chat-message-scope-validator';
+import { type ChatMessageScopeError, ChatMessageScopeValidator } from './chat-message-scope-validator';
 
 const event = {
     contractVersion: 1 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,

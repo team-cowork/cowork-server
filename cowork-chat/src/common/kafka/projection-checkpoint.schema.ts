@@ -6,9 +6,9 @@ export class ProjectionCheckpoint {
     @Prop({ required: true }) groupId!: string;
     @Prop({ required: true }) topic!: string;
     @Prop({ required: true }) partition!: number;
-    /** checkpoint가 가리키는 Mongo projection dataset identity. */
+    /** Checkpoint가 가리키는 Mongo projection dataset identity. */
     @Prop({ required: true }) datasetGeneration!: string;
-    /** topic 재생성/producer 세대 교체 시 운영자가 변경하는 source identity. */
+    /** Topic 재생성/producer 세대 교체 시 운영자가 변경하는 source identity. */
     @Prop({ required: true }) sourceGeneration!: string;
     /** 현재 partition assignment owner만 checkpoint를 전진시킬 수 있는 fencing token. */
     @Prop({ type: String, default: null }) assignmentEpoch!: string | null;
@@ -27,10 +27,10 @@ export class ProjectionCheckpoint {
     @Prop({ type: Date, default: null }) snapshotOccurredAt!: Date | null;
     /** 격리하고 건너뛴 마지막 snapshot-backed state record offset. */
     @Prop({ type: BigInt, default: null }) invalidRecordOffset!: bigint | null;
-    /** assignment reset과 무관하게 마지막으로 관측한 marker를 기억해 반복 marker를 배제한다. */
+    /** Assignment reset과 무관하게 마지막으로 관측한 marker를 기억해 반복 marker를 배제한다. */
     @Prop({ type: BigInt, default: null }) lastSnapshotCompletedOffset!: bigint | null;
     @Prop({ type: String, default: null }) lastSnapshotId!: string | null;
-    /** invalid record 뒤 처음 관측한 새로운 full snapshot ID. */
+    /** Invalid record 뒤 처음 관측한 새로운 full snapshot ID. */
     @Prop({ type: String, default: null }) recoverySnapshotId!: string | null;
 }
 

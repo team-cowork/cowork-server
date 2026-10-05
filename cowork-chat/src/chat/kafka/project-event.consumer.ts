@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
@@ -12,7 +17,7 @@ import { applyProjectionMessage, ProjectionContractError } from '../../common/ka
 import { ProjectMemberProjectionRepository, ProjectProjectionRepository } from '../repository';
 import { ChannelMessageReadAccessService } from '../service';
 
-interface ProjectEvent {
+type ProjectEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
     projectId: number;
     teamId: number;
@@ -23,7 +28,7 @@ interface ProjectEvent {
     occurredAt: string;
     /** 주기/startup state replay이면 변경 알림 부수효과를 억제한다. */
     snapshot?: boolean;
-}
+};
 
 @Injectable()
 export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -58,28 +63,26 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         void this.consumer
             .run({
                 eachMessage: async ({ partition, message }): Promise<void> => {
-                    await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                        return applyProjectionMessage(
-                            stream,
-                            partition,
-                            message,
-                            this.projectionReadiness,
-                            (payload, key) => this.handleEvent(payload, key),
-                        );
-                    });
+                    await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                        stream,
+                        partition,
+                        message,
+                        this.projectionReadiness,
+                        async (payload, key) => this.handleEvent(payload, key),
+                    ));
                 },
             })
-            .catch(async (err) => {
-                this.logger.error(`${stream.topic} Kafka consumer failed`, err);
+            .catch(async (error: unknown) => {
+                this.logger.error(`${stream.topic} Kafka consumer failed`, error);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                     color: 'danger',
                     fields: [
                         { name: 'Topic', value: stream.topic, inline: true },
-                        ...buildErrorFields(err),
+                        ...buildErrorFields(error),
                     ],
-                }).catch(() => {});
+                }).catch(() => {/* Alert delivery is best-effort. */});
                 process.exit(1);
             });
         this.logger.log(`Kafka consumer started: ${stream.topic}`);
@@ -93,14 +96,19 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (!this.isProjectEvent(payload)) {
             throw new ProjectionContractError('invalid project event payload');
         }
+
         const event = payload;
         if (messageKey !== `${event.projectId}`) {
             throw new ProjectionContractError(
                 `project event key does not match projectId [key=${messageKey ?? '<missing>'}, projectId=${event.projectId}]`,
             );
         }
+
         const eventTime = parseEventTime(event.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('project event occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('project event occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
 
         const applied = event.eventType === 'DELETED'
@@ -115,36 +123,55 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                 occurredAt,
                 sourceVersion,
             });
-        if (!applied) return;
+        if (!applied) {
+            return;
+        }
 
         if (event.eventType === 'DELETED') {
             await this.projectMemberRepository.removeByProjectId(event.projectId, occurredAt, sourceVersion);
         }
-        if (event.snapshot === true) return;
 
-        if (!this.io) return;
+        if ((event.snapshot === true) || !this.io) {
+            return;
+        }
+
         const { eventType, snapshot, ...projectionPayload } = event;
-        void snapshot;
-        if (eventType === 'CREATED') {
-            await this.channelMessageReadAccess.emitToActiveTeamUsers(
-                this.io, event.teamId, 'project:created', projectionPayload,
-            );
-        } else if (eventType === 'UPDATED') {
-            await this.channelMessageReadAccess.emitToActiveTeamUsers(
-                this.io, event.teamId, 'project:updated', projectionPayload,
-            );
-        } else if (eventType === 'DELETED') {
-            await this.channelMessageReadAccess.emitToActiveTeamUsers(
-                this.io,
-                event.teamId,
-                'project:deleted',
-                { projectId: event.projectId, teamId: event.teamId },
-            );
+        switch (eventType) {
+            case 'CREATED': {
+                await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                    this.io, event.teamId, 'project:created', projectionPayload,
+                );
+
+                break;
+            }
+
+            case 'UPDATED': {
+                await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                    this.io, event.teamId, 'project:updated', projectionPayload,
+                );
+
+                break;
+            }
+
+            case 'DELETED': {
+                await this.channelMessageReadAccess.emitToActiveTeamUsers(
+                    this.io,
+                    event.teamId,
+                    'project:deleted',
+                    { projectId: event.projectId, teamId: event.teamId },
+                );
+
+                break;
+            }
+        // No default
         }
     }
 
     private isProjectEvent(payload: unknown): payload is ProjectEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<ProjectEvent>;
         if ((event.eventType !== 'CREATED' && event.eventType !== 'UPDATED' && event.eventType !== 'DELETED')
             || !isSafePositiveInteger(event.projectId)
@@ -153,7 +180,11 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             || parseEventTime(event.occurredAt) === null) {
             return false;
         }
-        if (event.eventType === 'DELETED') return true;
+
+        if (event.eventType === 'DELETED') {
+            return true;
+        }
+
         return typeof event.name === 'string'
             && (event.description === null || typeof event.description === 'string')
             && typeof event.status === 'string'

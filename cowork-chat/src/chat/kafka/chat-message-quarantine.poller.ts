@@ -1,11 +1,16 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ChatMessageQuarantineRepository } from '../repository';
 import { ChatMessageQuarantineService } from '../service';
 import { validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageProcessor } from './chat-message.processor';
 
-const POLL_INTERVAL_MS = 5_000;
-const STALE_PROCESSING_THRESHOLD_MS = 2 * 60 * 1_000;
+const POLL_INTERVAL_MS = 5000;
+const STALE_PROCESSING_THRESHOLD_MS = 2 * 60 * 1000;
 
 /** 운영자가 요청한 quarantine 재처리를 프로세스 내부의 정상 처리 경로로 수행한다. */
 @Injectable()
@@ -21,7 +26,9 @@ export class ChatMessageQuarantinePoller implements OnModuleInit, OnModuleDestro
     ) {}
 
     onModuleInit(): void {
-        this.timer = setInterval(() => { void this.runCycle(); }, POLL_INTERVAL_MS);
+        this.timer = setInterval(() => {
+            void this.runCycle();
+        }, POLL_INTERVAL_MS);
     }
 
     onModuleDestroy(): void {
@@ -29,12 +36,18 @@ export class ChatMessageQuarantinePoller implements OnModuleInit, OnModuleDestro
     }
 
     private async runCycle(): Promise<void> {
-        if (this.running) return;
+        if (this.running) {
+            return;
+        }
+
         this.running = true;
         try {
             await this.repository.reclaimStaleProcessing(STALE_PROCESSING_THRESHOLD_MS);
             const record = await this.repository.claimReprocess();
-            if (!record || !record.payload || record.payloadTruncated) return;
+            if (!record?.payload || record.payloadTruncated) {
+                return;
+            }
+
             const recordId = String((record as unknown as { _id: unknown })._id);
             try {
                 const event = validateChatMessageEvent(JSON.parse(record.payload), record.eventKey);
