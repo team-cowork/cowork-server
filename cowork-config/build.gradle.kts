@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260926.0"
+version = "20261005.0"
 
 dependencyManagement {
     imports {
@@ -14,6 +14,7 @@ dependencyManagement {
 }
 
 dependencies {
+    implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.cloud.config.server)
     implementation(libs.spring.cloud.starter.netflix.eureka.server)
     implementation(libs.spring.cloud.starter.bus.kafka)
@@ -24,6 +25,8 @@ dependencies {
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
 }
 
 tasks.named("jar") {

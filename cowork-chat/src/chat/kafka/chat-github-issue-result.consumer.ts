@@ -7,8 +7,8 @@ import { ChatService } from '../chat.service';
 import { ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
-import { toMessageBroadcastPayload } from '../repository/message.repository';
+import { ChannelMessageReadAccessService } from '../service';
+import { toMessageBroadcastPayload } from '../repository';
 
 /**
  * Kafka `project.chat-github-issue.result` 토픽을 구독하여
@@ -116,8 +116,8 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
             event.teamId,
             event.channelId,
             content,
-            event.projectId,
         );
+        if (!saved) return;
 
         await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
     }

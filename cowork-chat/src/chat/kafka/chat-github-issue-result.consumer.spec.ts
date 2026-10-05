@@ -54,7 +54,6 @@ describe('ChatGithubIssueResultConsumer', () => {
                 10,
                 3,
                 '❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.',
-                5,
             );
             expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).toHaveBeenCalledTimes(1);
         });
@@ -70,7 +69,6 @@ describe('ChatGithubIssueResultConsumer', () => {
                 10,
                 3,
                 '❌ 이슈 생성 실패: 알 수 없는 오류',
-                5,
             );
         });
     });
