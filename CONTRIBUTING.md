@@ -257,11 +257,15 @@ val count = teams.size
 
 Run commands from the repository root:
 
-| Scope                                                          | Check                                     | Format                                    |
-|----------------------------------------------------------------|-------------------------------------------|-------------------------------------------|
-| Gradle Kotlin modules (`gateway`, `config`, `channel`, `team`) | `./gradlew ktlintCheck`                   | `./gradlew ktlintFormat`                  |
-| One Gradle Kotlin module                                       | `./gradlew :cowork-team:ktlintCheck`      | `./gradlew :cowork-team:ktlintFormat`     |
-| Java roadmap                                                   | `./gradlew :cowork-roadmap:spotlessCheck` | `./gradlew :cowork-roadmap:spotlessApply` |
+| Scope                                                            | Check                                                        | Format                                       |
+| ---------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
+| Gradle Kotlin modules (`gateway`, `config`, `channel`, `team`)   | `./gradlew ktlintCheck`                                      | `./gradlew ktlintFormat`                     |
+| One Gradle Kotlin module                                         | `./gradlew :cowork-team:ktlintCheck`                         | `./gradlew :cowork-team:ktlintFormat`        |
+| Node chat                                                        | `npm --prefix cowork-chat run lint -- --max-warnings=0`      | `npm --prefix cowork-chat run lint:fix`      |
+| Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
+| Java roadmap                                                     | `./gradlew :cowork-roadmap:spotlessCheck`                    | `./gradlew :cowork-roadmap:spotlessApply`    |
+
+Node modules use XO with four-space indentation and module-specific settings in `xo.config.mjs`. The ESLint adapter reads that same configuration for editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 
