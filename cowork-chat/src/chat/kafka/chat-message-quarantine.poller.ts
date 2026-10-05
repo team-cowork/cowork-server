@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { ChatMessageQuarantineRepository } from '../repository/chat-message-quarantine.repository';
-import { ChatMessageQuarantineService } from '../service/chat-message-quarantine.service';
+import { ChatMessageQuarantineRepository } from '../repository';
+import { ChatMessageQuarantineService } from '../service';
 import { validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageProcessor } from './chat-message.processor';
 
