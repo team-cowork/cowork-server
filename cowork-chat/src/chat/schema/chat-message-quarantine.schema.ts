@@ -7,7 +7,7 @@ export type ChatMessageQuarantineStatus = typeof CHAT_MESSAGE_QUARANTINE_STATUSE
 export const CHAT_MESSAGE_QUARANTINE_ERROR_TYPES = ['JSON_ERROR', 'CONTRACT_ERROR', 'SCOPE_ERROR'] as const;
 export type ChatMessageQuarantineErrorType = typeof CHAT_MESSAGE_QUARANTINE_ERROR_TYPES[number];
 
-/** chat.message consumer가 durable하게 보존한 재처리 불가 Kafka record. */
+/** Chat.message consumer가 durable하게 보존한 재처리 불가 Kafka record. */
 @Schema({ timestamps: true, versionKey: false, collection: 'chat_message_quarantine_records' })
 export class ChatMessageQuarantineRecord {
     @Prop({ required: true }) groupId!: string;
@@ -35,7 +35,9 @@ export class ChatMessageQuarantineRecord {
 
 export const ChatMessageQuarantineRecordSchema = SchemaFactory.createForClass(ChatMessageQuarantineRecord);
 ChatMessageQuarantineRecordSchema.index(
-    { groupId: 1, topic: 1, partition: 1, messageOffset: 1 },
+    {
+        groupId: 1, topic: 1, partition: 1, messageOffset: 1,
+    },
     { unique: true },
 );
 ChatMessageQuarantineRecordSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

@@ -1,4 +1,4 @@
-import { estypes } from '@elastic/elasticsearch';
+import { type estypes } from '@elastic/elasticsearch';
 
 /** 검색 읽기·쓰기가 사용하는 alias. 전체 재구축은 이 alias만 원자적으로 교체한다. */
 export const MESSAGE_SEARCH_ALIAS = 'chat_messages';
@@ -21,7 +21,7 @@ export const MESSAGE_INDEX_GC_DELETES_DAYS = 7;
 export const MESSAGE_INDEX_GC_DELETES = `${MESSAGE_INDEX_GC_DELETES_DAYS}d`;
 
 /** Elasticsearch에 저장하는 메시지 색인 문서. MongoDB 메시지에서 파생된다. */
-export interface MessageIndexDoc {
+export type MessageIndexDoc = {
     messageId: string;
     teamId: number;
     projectId: number;
@@ -32,7 +32,7 @@ export interface MessageIndexDoc {
     hasAttachments: boolean;
     isPinned: boolean;
     createdAt: string;
-}
+};
 
 /** 색인 문서에 반드시 존재해야 하는 필드. 재구축 검증이 표본 문서에서 확인한다. */
 export const MESSAGE_INDEX_REQUIRED_FIELDS: Array<keyof MessageIndexDoc> = [
@@ -49,10 +49,10 @@ export const MESSAGE_INDEX_REQUIRED_FIELDS: Array<keyof MessageIndexDoc> = [
  */
 export type IndexWriteOutcome = 'APPLIED' | 'SUPERSEDED' | 'RETRYABLE' | 'PERMANENT';
 
-export interface IndexWriteResult {
+export type IndexWriteResult = {
     outcome: IndexWriteOutcome;
     error?: string;
-}
+};
 
 export const MESSAGE_INDEX_SETTINGS: estypes.IndicesIndexSettings = {
     'index.gc_deletes': MESSAGE_INDEX_GC_DELETES,
@@ -69,16 +69,16 @@ export const MESSAGE_INDEX_SETTINGS: estypes.IndicesIndexSettings = {
 
 export const MESSAGE_INDEX_MAPPINGS: estypes.MappingTypeMapping = {
     properties: {
-        messageId:      { type: 'keyword' },
-        teamId:         { type: 'long' },
-        projectId:      { type: 'long' },
-        channelId:      { type: 'long' },
-        authorId:       { type: 'long' },
-        content:        { type: 'text', analyzer: 'nori_analyzer' },
-        type:           { type: 'keyword' },
+        messageId: { type: 'keyword' },
+        teamId: { type: 'long' },
+        projectId: { type: 'long' },
+        channelId: { type: 'long' },
+        authorId: { type: 'long' },
+        content: { type: 'text', analyzer: 'nori_analyzer' },
+        type: { type: 'keyword' },
         hasAttachments: { type: 'boolean' },
-        isPinned:       { type: 'boolean' },
-        createdAt:      { type: 'date' },
+        isPinned: { type: 'boolean' },
+        createdAt: { type: 'date' },
     },
 };
 
@@ -89,7 +89,7 @@ export const MESSAGE_INDEX_MAPPINGS: estypes.MappingTypeMapping = {
  * 이름이 충돌하지 않게 하기 위해서다.
  */
 export function buildMessageIndexName(now: Date): string {
-    return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replace(/[-:T.Z]/g, '').slice(0, 17)}`;
+    return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replaceAll(/[-.:TZ]/gu, '').slice(0, 17)}`;
 }
 
 /**
@@ -99,7 +99,7 @@ export function buildMessageIndexName(now: Date): string {
  * 자릿수는 고정이다. 모듈 상수로 한 번만 컴파일해 `dropReplacedIndices`가 매 index마다
  * 새로 만들지 않게 한다.
  */
-const MANAGED_MESSAGE_INDEX_PATTERN = new RegExp(`^${MESSAGE_SEARCH_INDEX_PREFIX}\\d{17}$`);
+const MANAGED_MESSAGE_INDEX_PATTERN = new RegExp(String.raw`^${MESSAGE_SEARCH_INDEX_PREFIX}\d{17}$`, 'u');
 
 /** 재구축이 만든 물리 index인지 판별한다. 운영자가 만든 다른 index를 정리 대상으로 삼지 않는다. */
 export function isManagedMessageIndex(name: string): boolean {
@@ -107,9 +107,15 @@ export function isManagedMessageIndex(name: string): boolean {
 }
 
 function statusCodeOf(error: unknown): number | undefined {
-    if (typeof error !== 'object' || error === null) return undefined;
+    if (typeof error !== 'object' || error === null) {
+        return undefined;
+    }
+
     const direct = (error as { statusCode?: unknown }).statusCode;
-    if (typeof direct === 'number') return direct;
+    if (typeof direct === 'number') {
+        return direct;
+    }
+
     const meta = (error as { meta?: { statusCode?: unknown } }).meta?.statusCode;
     return typeof meta === 'number' ? meta : undefined;
 }
@@ -124,15 +130,21 @@ export function isElasticsearchBadRequest(error: unknown): boolean {
     return statusCodeOf(error) === 400;
 }
 
-/** index 자체가 없어서 실패했는지 판별한다. 문서만 없는 `404`와 구분해야 한다. */
+/** Index 자체가 없어서 실패했는지 판별한다. 문서만 없는 `404`와 구분해야 한다. */
 export function isIndexNotFound(error: unknown): boolean {
-    if (!isElasticsearchNotFound(error)) return false;
-    const body = (error as { body?: { error?: { type?: unknown } } }).body;
+    if (!isElasticsearchNotFound(error)) {
+        return false;
+    }
+
+    const { body } = (error as { body?: { error?: { type?: unknown } } });
     return body?.error?.type === 'index_not_found_exception';
 }
 
 export function errorMessageOf(error: unknown): string {
-    if (error instanceof Error) return error.message;
+    if (error instanceof Error) {
+        return error.message;
+    }
+
     return typeof error === 'string' ? error : 'unknown elasticsearch error';
 }
 
@@ -145,9 +157,7 @@ export function errorMessageOf(error: unknown): string {
  */
 export function classifyElasticsearchError(error: unknown): IndexWriteResult {
     const statusCode = statusCodeOf(error);
-    if (statusCode === 409) return { outcome: 'SUPERSEDED' };
-    if (statusCode === 400) return { outcome: 'PERMANENT', error: errorMessageOf(error) };
-    return { outcome: 'RETRYABLE', error: errorMessageOf(error) };
+    return statusCode === 409 ? { outcome: 'SUPERSEDED' } : { outcome: statusCode === 400 ? 'PERMANENT' : 'RETRYABLE', error: errorMessageOf(error) };
 }
 
 /**
@@ -170,7 +180,10 @@ export function classifyBulkItemResult(
     if (action === 'delete' && status === 404 && error?.type !== 'index_not_found_exception') {
         return { outcome: 'APPLIED' };
     }
-    if (status === 409) return { outcome: 'SUPERSEDED' };
-    if (status === 400) return { outcome: 'PERMANENT', error: error?.reason ?? error?.type ?? 'bad request' };
-    return { outcome: 'RETRYABLE', error: error?.reason ?? error?.type ?? `bulk ${action} failed with status ${status ?? 'unknown'}` };
+
+    if (status === 409) {
+        return { outcome: 'SUPERSEDED' };
+    }
+
+    return status === 400 ? { outcome: 'PERMANENT', error: error?.reason ?? error?.type ?? 'bad request' } : { outcome: 'RETRYABLE', error: error?.reason ?? error?.type ?? `bulk ${action} failed with status ${status ?? 'unknown'}` };
 }
