@@ -3,13 +3,16 @@ export function createApp(components) {
     let mounted = false;
 
     async function mount() {
-        if (mounted) return;
+        if (mounted) {
+            return;
+        }
 
         try {
             for (const component of components) {
                 await component.mount();
                 mountedComponents.push(component);
             }
+
             mounted = true;
         } catch (error) {
             unmount();
@@ -21,6 +24,7 @@ export function createApp(components) {
         while (mountedComponents.length > 0) {
             mountedComponents.pop().unmount();
         }
+
         mounted = false;
     }
 

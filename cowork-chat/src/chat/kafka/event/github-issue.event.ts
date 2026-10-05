@@ -4,7 +4,7 @@
  * github-integration 서비스가 발행하고 chat 서비스가 소비한다.
  * `success`가 false인 경우 `error` 필드에 실패 사유가 담긴다.
  */
-export interface GithubIssueResultEvent {
+export type GithubIssueResultEvent = {
     channelId: number;
     teamId: number;
     projectId?: number;
@@ -16,4 +16,4 @@ export interface GithubIssueResultEvent {
     issueNumber?: number;
     /** 실패 사유; `success`가 false일 때만 존재 */
     error?: string;
-}
+};

@@ -35,7 +35,7 @@ export class BlockService {
      * @param senderId - 발신자 ID
      * @returns 차단된 경우 `true`
      */
-    isBlocked(receiverId: number, senderId: number): Promise<boolean> {
+    async isBlocked(receiverId: number, senderId: number): Promise<boolean> {
         return this.blockRedis.isBlocked(receiverId, senderId);
     }
 
