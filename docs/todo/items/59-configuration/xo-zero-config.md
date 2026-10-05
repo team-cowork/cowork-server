@@ -2,8 +2,8 @@
 
 - **서비스**: cowork-chat, cowork-promotion, Node CI
 - **우선순위**: 🟡 낮음
-- **현재 상태**: 스택 #440의 XO 도입 코드에는 모듈별 커스텀 설정과 인라인 규칙 예외가 남아 있으며, 기본 설정만으로의 전면 적용은 수행하지 않았다.
-- **선행 작업**: 스택 #440의 [기존 린트 정리 #437](https://github.com/team-cowork/cowork-server/pull/437), [CI 린트 필수화 #438](https://github.com/team-cowork/cowork-server/pull/438), [XO 도입 #439](https://github.com/team-cowork/cowork-server/pull/439)
+- **현재 상태**: 스택 #442의 XO 도입 코드에는 모듈별 커스텀 설정과 인라인 규칙 예외가 남아 있으며, 기본 설정만으로의 전면 적용은 수행하지 않았다.
+- **선행 작업**: 스택 #442의 [기존 린트 정리 #437](https://github.com/team-cowork/cowork-server/pull/437), [CI 린트 필수화 #438](https://github.com/team-cowork/cowork-server/pull/438), [XO 도입 #439](https://github.com/team-cowork/cowork-server/pull/439)
 
 ## 문제
 
