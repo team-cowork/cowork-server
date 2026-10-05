@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import { type ConfigService } from '@nestjs/config';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
 
 const DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS = 600;
@@ -6,7 +6,7 @@ const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
 const DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS = 20;
 
-export interface ObjectStorageConfig {
+export type ObjectStorageConfig = {
     endPoint: string;
     port?: number;
     useSSL: boolean;
@@ -19,7 +19,7 @@ export interface ObjectStorageConfig {
     allowedContentTypes: string[];
     uploadRateLimitWindowMs: number;
     uploadRateLimitMaxRequests: number;
-}
+};
 
 export function buildObjectStorageConfig(configService: ConfigService): ObjectStorageConfig {
     const internalEndpoint = getRequiredConfig(configService, [
@@ -42,7 +42,7 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
         publicBaseUrl: (
             getOptionalConfig(configService, ['object-storage.publicBaseUrl', 'S3_PUBLIC_BASE_URL'])
             ?? `${getOptionalConfig(configService, ['object-storage.publicEndpoint', 'S3_PUBLIC_ENDPOINT']) ?? internalEndpoint}/${bucket}`
-        ).replace(/\/$/, ''),
+        ).replace(/\/$/u, ''),
         presignedPutExpirySeconds: Number(getOptionalConfig(
             configService,
             ['object-storage.presignedPutExpirySeconds', 'S3_PRESIGNED_PUT_EXPIRY_SECONDS'],
@@ -70,7 +70,7 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
             ].join(',')
         )
             .split(',')
-            .map((contentType) => contentType.trim())
+            .map(contentType => contentType.trim())
             .filter(Boolean),
         uploadRateLimitWindowMs: Number(getOptionalConfig(
             configService,

@@ -11,7 +11,7 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface ChannelProjectionView {
+export type ChannelProjectionView = {
     channelId: number;
     teamId: number | null;
     projectId: number | null;
@@ -21,17 +21,17 @@ export interface ChannelProjectionView {
     description: string | null;
     isPrivate: boolean;
     position: number;
-}
+};
 
-export interface ChannelProjectionState extends ChannelProjectionView {
+export type ChannelProjectionState = {
     deleted: boolean;
-}
+} & ChannelProjectionView;
 
-export interface ChannelProjectionEvent extends ChannelProjectionView {
+export type ChannelProjectionEvent = {
     eventType: 'CREATED' | 'UPDATED';
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+} & ChannelProjectionView;
 
 @Injectable()
 export class ChannelProjectionRepository {
@@ -46,7 +46,10 @@ export class ChannelProjectionRepository {
     }
 
     async findByIds(channelIds: number[]): Promise<ChannelProjectionView[]> {
-        if (channelIds.length === 0) return [];
+        if (channelIds.length === 0) {
+            return [];
+        }
+
         return this.model.find(
             { channelId: { $in: channelIds }, deleted: { $ne: true } },
         ).lean<ChannelProjectionView[]>();
@@ -65,7 +68,7 @@ export class ChannelProjectionRepository {
         query: string,
         memberChannelIds: number[],
     ): Promise<ChannelProjectionView[]> {
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escapedQuery = query.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
         return this.model
             .find({
                 teamId,

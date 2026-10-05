@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
 import {
     MessageSearchIndexRepository,
@@ -7,14 +12,14 @@ import {
 } from '../repository';
 import { MessageSearchIndexService } from './message-search-index.service';
 
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 3000;
 const MESSAGE_BATCH_SIZE = 50;
 const TOMBSTONE_BATCH_SIZE = 50;
 const LEGACY_BACKFILL_BATCH_SIZE = 500;
 /** 점유 후 이 시간 이상 진행이 없으면 다른 replica가 회수한다. */
-const CLAIM_STALE_THRESHOLD_MS = 2 * 60 * 1_000;
-/** tombstone 기록 전에 중단된 삭제 예약을 되돌리기까지 기다리는 시간. */
-const DELETING_STALE_THRESHOLD_MS = 5 * 60 * 1_000;
+const CLAIM_STALE_THRESHOLD_MS = 2 * 60 * 1000;
+/** Tombstone 기록 전에 중단된 삭제 예약을 되돌리기까지 기다리는 시간. */
+const DELETING_STALE_THRESHOLD_MS = 5 * 60 * 1000;
 const RECLAIM_INTERVAL_MS = 60_000;
 const METRICS_INTERVAL_MS = 30_000;
 
@@ -45,7 +50,9 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
     ) {}
 
     onModuleInit(): void {
-        this.timer = setInterval(() => { void this.runCycle(); }, POLL_INTERVAL_MS);
+        this.timer = setInterval(() => {
+            void this.runCycle();
+        }, POLL_INTERVAL_MS);
         this.logger.log('Message search index outbox poller started');
     }
 
@@ -54,12 +61,18 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
     }
 
     private async runCycle(): Promise<void> {
-        if (this.running) return;
+        if (this.running) {
+            return;
+        }
+
         this.running = true;
         try {
             await this.reclaimIfDue();
             await this.refreshMetricsIfDue();
-            if (!await this.elasticsearchService.ensureIndexReady()) return;
+            if (!await this.elasticsearchService.ensureIndexReady()) {
+                return;
+            }
+
             await this.backfillLegacyState();
             await this.drainTombstones();
             await this.drainMessages();
@@ -72,7 +85,10 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 
     /** 중단된 replica가 남긴 점유와 커밋되지 않은 삭제 예약을 회수한다. */
     private async reclaimIfDue(): Promise<void> {
-        if (Date.now() - this.lastReclaimAt < RECLAIM_INTERVAL_MS) return;
+        if (Date.now() - this.lastReclaimAt < RECLAIM_INTERVAL_MS) {
+            return;
+        }
+
         this.lastReclaimAt = Date.now();
 
         const [messages, tombstones] = await Promise.all([
@@ -82,6 +98,7 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
         if (messages > 0 || tombstones > 0) {
             this.logger.warn(`Reclaimed stale search index claims messages=${messages} tombstones=${tombstones}`);
         }
+
         await this.releaseUncommittedDeletions();
     }
 
@@ -93,13 +110,15 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
      */
     private async releaseUncommittedDeletions(): Promise<void> {
         const staleDeleting = await this.indexRepository.findStaleDeleting(DELETING_STALE_THRESHOLD_MS, MESSAGE_BATCH_SIZE);
-        if (staleDeleting.length === 0) return;
+        if (staleDeleting.length === 0) {
+            return;
+        }
 
         const withTombstone = await this.tombstoneRepository.findExistingMessageIds(
-            staleDeleting.map((message) => message._id.toString()),
+            staleDeleting.map(message => message._id.toString()),
         );
         const released = await this.indexRepository.releaseDeleting(
-            staleDeleting.filter((message) => !withTombstone.has(message._id.toString())),
+            staleDeleting.filter(message => !withTombstone.has(message._id.toString())),
         );
         if (released > 0) {
             this.logger.warn(`Released ${released} uncommitted message deletion(s) back to search indexing`);
@@ -117,7 +136,10 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
      * `find({ searchIndexStatus: null })` 스캔을 다시 돌리지 않고 건너뛴다.
      */
     private async backfillLegacyState(): Promise<void> {
-        if (this.legacyBackfillDone) return;
+        if (this.legacyBackfillDone) {
+            return;
+        }
+
         if (!this.legacyBackfillStateChecked) {
             this.legacyBackfillStateChecked = true;
             const state = await this.stateRepository.get();
@@ -126,11 +148,13 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
                 return;
             }
         }
+
         const filled = await this.indexRepository.backfillLegacyState(LEGACY_BACKFILL_BATCH_SIZE);
         if (filled > 0) {
             this.logger.log(`Backfilled search index state for ${filled} legacy message(s)`);
             return;
         }
+
         this.legacyBackfillDone = true;
         await this.stateRepository.markLegacyBackfillCompleted();
         this.logger.log('Legacy search index state backfill completed');
@@ -138,18 +162,27 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 
     private async drainTombstones(): Promise<void> {
         const tombstones = await this.tombstoneRepository.claimPending(TOMBSTONE_BATCH_SIZE);
-        if (tombstones.length === 0) return;
+        if (tombstones.length === 0) {
+            return;
+        }
+
         await this.indexService.applyTombstones(tombstones);
     }
 
     private async drainMessages(): Promise<void> {
         const messages = await this.indexRepository.claimPending(MESSAGE_BATCH_SIZE);
-        if (messages.length === 0) return;
+        if (messages.length === 0) {
+            return;
+        }
+
         await this.indexService.applyMessages(messages);
     }
 
     private async refreshMetricsIfDue(): Promise<void> {
-        if (Date.now() - this.lastMetricsAt < METRICS_INTERVAL_MS) return;
+        if (Date.now() - this.lastMetricsAt < METRICS_INTERVAL_MS) {
+            return;
+        }
+
         this.lastMetricsAt = Date.now();
         await this.indexService.refreshMetrics();
     }
