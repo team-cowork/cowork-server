@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { ProjectGithubRepoProjectionRepository } from '../repository/project-github-repo-projection.repository';
-import { ProjectMemberProjectionRepository } from '../repository/project-member-projection.repository';
+import { ProjectGithubRepoProjectionRepository, ProjectMemberProjectionRepository } from '../repository';
 
 /** GitHub 저장소 이벤트를 게시할 대상(팀/프로젝트/알림 채널) 정보. */
 export interface GithubWebhookTarget {

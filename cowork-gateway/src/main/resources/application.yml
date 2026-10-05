@@ -6,9 +6,11 @@ spring:
     name: cowork-gateway
   # Config 서버에서 설정을 가져옴 (라우팅, jwt, resilience4j 등)
   config:
-    import: "optional:configserver:http://localhost:8761"
+    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
   cloud:
     config:
+      username: ${CONFIG_CLIENT_USERNAME}
+      password: ${CONFIG_CLIENT_PASSWORD}
       retry:
         max-attempts: 10
         initial-interval: 2000
@@ -27,6 +29,10 @@ spring:
 
 eureka:
   client:
+    jersey:
+      enabled: false
+    webclient:
+      enabled: false
     service-url:
       defaultZone: http://localhost:8761/eureka/
   instance:

@@ -1,8 +1,10 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
-import { MessageSearchIndexRepository } from '../repository/message-search-index.repository';
-import { MessageSearchTombstoneRepository } from '../repository/message-search-tombstone.repository';
-import { MessageSearchIndexStateRepository } from '../repository/message-search-index-state.repository';
+import {
+    MessageSearchIndexRepository,
+    MessageSearchTombstoneRepository,
+    MessageSearchIndexStateRepository,
+} from '../repository';
 import { MessageSearchIndexService } from './message-search-index.service';
 
 const POLL_INTERVAL_MS = 3_000;

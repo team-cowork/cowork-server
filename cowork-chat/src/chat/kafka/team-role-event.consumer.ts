@@ -9,9 +9,8 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { TeamRoleProjectionRepository } from '../repository/team-role-projection.repository';
-import { ChannelRolePolicyProjectionRepository } from '../repository/channel-role-policy-projection.repository';
-import { ChannelMessageReadAccessService } from '../service/channel-message-read-access.service';
+import { TeamRoleProjectionRepository, ChannelRolePolicyProjectionRepository } from '../repository';
+import { ChannelMessageReadAccessService } from '../service';
 
 interface TeamRoleEvent {
     eventType: 'ROLE_UPSERTED' | 'ROLE_DELETED' | 'ASSIGNMENT_UPSERTED' | 'ASSIGNMENT_DELETED' | 'MEMBER_ASSIGNMENTS_DELETED';

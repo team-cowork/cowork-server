@@ -1,3 +1,5 @@
+import { controlPlaneAuthorization } from './control-plane-auth';
+
 type PropertySource = {
     name: string;
     source: Record<string, unknown>;
@@ -13,18 +15,23 @@ const DEFAULT_CONFIG_SERVER_URL = 'http://localhost:8761';
 const DEFAULT_PROFILE = 'local';
 const APP_NAME = 'cowork-chat';
 
+export function activeProfile(): string {
+    return process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? DEFAULT_PROFILE;
+}
+
 export async function loadConfigServerEnv(): Promise<void> {
     const baseUrl = process.env.APP_CONFIG_URL ?? DEFAULT_CONFIG_SERVER_URL;
-    const profile = process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? DEFAULT_PROFILE;
+    const profile = activeProfile();
     const url = `${baseUrl.replace(/\/$/, '')}/${APP_NAME}/${profile}`;
 
     const response = await fetch(url, {
-        headers: { Accept: 'application/json' },
+        headers: { Accept: 'application/json', Authorization: controlPlaneAuthorization(url) },
+        redirect: 'error',
         signal: AbortSignal.timeout(5000),
     });
 
     if (!response.ok) {
-        throw new Error(`Config server returned ${response.status} for ${url}`);
+        throw new Error(`Config server returned HTTP ${response.status}`);
     }
 
     const body = await response.json() as ConfigServerResponse;
