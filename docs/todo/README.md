@@ -8,7 +8,7 @@
 실제 운영 자료·외부 클라이언트·과거 Config Git 원본은 이 저장소만으로 확인할 수 없다.
 이번 점검은 소스·migration·설정·배포 스크립트를 확인했으며 빌드·테스트·운영 변경은 수행하지 않았다.
 
-### 주요 변경 미구현 (6)
+### 주요 변경 미구현 (13)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
@@ -16,6 +16,13 @@
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md)
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md)
 - dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md)
+- deployment: [운영 서비스의 CD 배포 일원화](./items/52-deployment/prod-cd-unification.md)
+- deployment: [CD health 대기와 SSH 명령 제한 분리](./items/53-deployment/cd-health-wait-ssh-timeout.md)
+- deployment: [VM 재부팅 후 Vault unseal 복구 절차](./items/54-deployment/vault-reboot-recovery.md)
+- configuration: [notification FCM 자격 증명 Vault 등록](./items/55-configuration/notification-fcm-credentials.md)
+- performance: [user projection 재생 처리량 개선](./items/56-performance/user-projection-replay-throughput.md)
+- monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md)
+- deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md)
 
 ### 부분 구현·정책 결정 필요 (11)
 
@@ -42,7 +49,7 @@
 
 ## 점검 스냅샷
 
-- [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결 점검
+- [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
 - [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 운영 전환
 - [20260916](./20260916_TODO.md) — FCM 식별자·SDK 전환
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
