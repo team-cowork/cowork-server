@@ -45,4 +45,5 @@ type DeliveryRepository interface {
 	FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 	FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 	FinalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, claimToken string, errClass delivery.ErrorClass, now time.Time) (delivery.Status, error)
+	FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 }

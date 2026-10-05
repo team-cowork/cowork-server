@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/cowork/cowork-notification/internal/apperr"
+	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"github.com/cowork/cowork-notification/internal/domain/token"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	"github.com/stretchr/testify/assert"
@@ -118,6 +120,90 @@ func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64
 		result[id] = m.enabled
 	}
 	return result, nil
+}
+
+// snapshotRepo returns one token snapshot per FindByAccountIDs call so a test can
+// change ownership between Notify's first lookup and its pre-send re-verification.
+type snapshotRepo struct {
+	mockRepo
+	snapshots []map[int64][]token.DeviceToken
+}
+
+func (m *snapshotRepo) FindByAccountIDs(_ context.Context, _ []int64) (map[int64][]token.DeviceToken, error) {
+	snapshot := m.snapshots[0]
+	if len(m.snapshots) > 1 {
+		m.snapshots = m.snapshots[1:]
+	}
+	return snapshot, nil
+}
+
+type mockDelivery struct {
+	cancelled []string
+}
+
+func (m *mockDelivery) ResumeOrCreate(_ context.Context, _ string, targets []delivery.TargetToken, _, _ string, _ map[string]string) ([]delivery.TargetToken, error) {
+	claimed := make([]delivery.TargetToken, len(targets))
+	for i, t := range targets {
+		t.ClaimToken = "claim-" + t.Token
+		claimed[i] = t
+	}
+	return claimed, nil
+}
+func (m *mockDelivery) FinalizeSuccess(context.Context, string, int64, string) error { return nil }
+func (m *mockDelivery) FinalizeInvalid(context.Context, string, int64, string) error { return nil }
+func (m *mockDelivery) FinalizeFailure(context.Context, string, int64, string, delivery.ErrorClass, time.Time) (delivery.Status, error) {
+	return delivery.StatusPendingRetry, nil
+}
+func (m *mockDelivery) FinalizeCancelled(_ context.Context, _ string, _ int64, claimToken string) error {
+	m.cancelled = append(m.cancelled, claimToken)
+	return nil
+}
+
+func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
+	before := map[int64][]token.DeviceToken{
+		1: {{ID: 10, AccountID: 1, Token: "moved"}, {ID: 11, AccountID: 1, Token: "deleted"}, {ID: 12, AccountID: 1, Token: "kept"}},
+	}
+	// "moved" now belongs to account 2 under a new generation; "deleted" is gone.
+	after := map[int64][]token.DeviceToken{
+		1: {{ID: 12, AccountID: 1, Token: "kept"}},
+	}
+
+	t.Run("durable delivery sends only current generations and cancels the stale claims", func(t *testing.T) {
+		repo := &snapshotRepo{snapshots: []map[int64][]token.DeviceToken{before, after}}
+		fcm := &mockFCM{}
+		ledger := &mockDelivery{}
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"kept"}, fcm.calledTokens)
+		assert.ElementsMatch(t, []string{"claim-moved", "claim-deleted"}, ledger.cancelled)
+	})
+
+	t.Run("non-durable delivery skips stale generations", func(t *testing.T) {
+		repo := &snapshotRepo{snapshots: []map[int64][]token.DeviceToken{before, after}}
+		fcm := &mockFCM{}
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+
+		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 0)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"kept"}, fcm.calledTokens)
+	})
+
+	t.Run("nothing is sent when every generation went stale", func(t *testing.T) {
+		repo := &snapshotRepo{snapshots: []map[int64][]token.DeviceToken{before, {}}}
+		fcm := &mockFCM{}
+		ledger := &mockDelivery{}
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+
+		require.NoError(t, err)
+		assert.Nil(t, fcm.calledTokens)
+		assert.Len(t, ledger.cancelled, 3)
+	})
 }
 
 func TestServiceRegisterTokenOwnership(t *testing.T) {
