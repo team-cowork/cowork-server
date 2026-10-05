@@ -2,50 +2,45 @@
 
 - **서비스**: cowork-roadmap
 - **우선순위**: 🔴 높음
-- **현재 상태**: 노드 서브트리 삭제가 `tb_roadmap_assignments.node_id`를 정리하지 않아 삭제된 노드를 가리키는 assignment를 남김
+- **현재 상태**: 과제가 연결된 서브트리 삭제 거부와 고아 과제 정리 migration은 반영되어 있으며 GLOBAL 정책과 운영 확인이 남아 있다.
 
 ## 문제
 
-`DeleteRoadmapNodeServiceImpl`은 로드맵의 전체 노드를 읽어 삭제 대상 서브트리 ID를 계산한 뒤 `RoadmapNodeRepository.deleteAllById`만 호출한다. 노드 reference에는 `ON DELETE CASCADE` foreign key가 있지만, `tb_roadmap_assignments.node_id`에는 노드 foreign key가 없고 로드맵 foreign key만 있다.
+현재 노드 삭제는 서브트리에 과제가 있으면 거부한다. `GLOBAL` 과제 scope 자체는 거부하지만,
+팀 관리자는 `GLOBAL` 로드맵의 노드에 `TEAM`·`PROJECT` 과제를 만들 수 있다.
+따라서 한 팀의 과제가 공용 노드 삭제를 막는 정책 문제는 남아 있다.
 
-특정 노드에 연결된 assignment는 노드 삭제 뒤에도 조회되고 상태 변경·삭제 API의 대상이 된다. 응답에는 더 이상 존재하지 않는 `nodeId`가 남아 UI가 과제의 대상 노드를 해석할 수 없고, 같은 노드가 없으므로 정상적인 정합성 복구도 어렵다. 현재 삭제 서비스 테스트는 삭제할 노드 ID 집합만 확인하며 assignment 동작을 검증하지 않는다.
+다른 팀의 진행 기록을 지우지 않고 공용 로드맵을 관리할 정책이 필요하다.
+기존 고아 과제를 삭제하는 `V7__delete_orphan_node_assignments.sql`의 실제 데이터 적용과
+노드·과제 생성의 잠금 경계도 아직 운영에서 확인하지 않았다.
 
-노드가 과제로 사용 중일 때 삭제를 거부할지, assignment도 함께 삭제할지, 로드맵 전체 assignment로 전환할지 제품 정책을 먼저 확정한다.
+## GLOBAL 정책 선택
 
-## 삭제 정책 선택지
+| 선택지 | 확인할 영향 |
+|---|---|
+| 사용 중 삭제 거부 유지 | 팀별 과제 해제 책임과 공용 노드 관리 권한 |
+| 로드맵 전체 과제로 전환 | 과제 의미·중복 제약·응답 변경 |
+| 노드 soft delete | 기존 진행 기록·조회와 신규 과제 생성 제한 |
 
-| 선택지                        | 장점                                    | 주의점                                   |
-|-------------------------------|-----------------------------------------|------------------------------------------|
-| assignment가 있으면 삭제 거부 | 과제 기록을 보존함                      | 사용자가 assignment를 먼저 정리해야 함   |
-| assignment cascade 삭제       | 데이터 구조가 단순하고 고아가 남지 않음 | 진행 기록이 함께 사라짐                  |
-| 로드맵 전체 assignment로 전환 | 과제 자체를 보존함                      | 의미가 바뀌며 중복 unique 충돌 처리 필요 |
+## 코드 근거
+
+- [노드 삭제](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/node/service/impl/DeleteRoadmapNodeServiceImpl.java#L53): 노드 배타 잠금과 과제 잠금 조회 뒤 연결 과제가 있으면 409로 거부한다.
+- [과제 생성](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/assignment/service/impl/CreateRoadmapAssignmentServiceImpl.java#L34): GLOBAL 과제 scope는 거부하지만 읽을 수 있는 GLOBAL 로드맵에 팀·프로젝트 과제를 만들 수 있다.
 
 ## 할 일
 
-### 정책과 migration
-
-- 노드·서브트리 삭제 시 assignment의 목표 동작을 확정한다.
-- 기존 고아 assignment를 조회해 삭제·전환·격리하는 데이터 정리 migration을 추가한다.
-- cascade 정책이면 같은 서비스 내부의 `node_id` foreign key와 `ON DELETE` 동작을 후속 migration으로 정의한다.
-- 거부·전환 정책이면 assignment repository 작업을 노드 삭제와 같은 reactive transaction에 포함한다.
-
-### API 동작
-
-- 삭제가 거부될 때 충돌 이유와 대상 assignment 수를 `409` 응답으로 제공한다.
-- assignment가 삭제 또는 전환되면 관련 클라이언트가 목록을 갱신할 수 있는 계약을 정한다.
-- 삭제 도중 일부 작업만 반영되지 않도록 하나의 transaction 경계를 적용한다.
+- GLOBAL 정책을 확정하고 노드 삭제·과제 생성·조회에 적용한다.
+- 운영 데이터 사본에서 고아 과제 수와 `V7` 삭제 대상을 확인하고 수동 dry-run한다.
+- 노드 삭제와 자식·과제 생성의 잠금 직렬화 결과를 수동 확인한다.
 
 ## 검증
 
-- assignment가 연결된 루트·자식·손자 노드에 확정된 삭제 정책이 적용되는지 repository mock 기반 서비스 단위 테스트로 검증한다.
-- 서브트리 밖의 assignment를 변경 대상으로 선택하지 않는 핵심 범위 규칙을 단위 테스트로 확인한다.
-- 노드 삭제와 assignment 작업이 같은 reactive transaction 경계에 있는지 정적으로 점검한다.
-- 기존 고아 데이터 정리 결과와 foreign key는 migration dry-run 및 데이터 검사로 확인한다.
-- database rollback과 migration을 고정하는 자동화 통합·회귀 테스트는 추가하지 않는다.
+- GLOBAL·팀 로드맵의 확정된 삭제·과제 보존 규칙을 서비스 단위 테스트로 확인한다.
+- migration 전후의 고아 과제와 다른 팀 진행 기록을 대조한다.
+- transaction·잠금 쿼리는 정적으로 확인하고 실제 적용 결과를 기록한다.
 
 ## 완료 조건
 
-- 삭제된 노드를 참조하는 roadmap assignment가 남지 않는다.
-- 노드 삭제와 assignment 처리가 하나의 명시된 정책과 transaction으로 동작한다.
-- 기존 고아 데이터가 정리되어 있다.
-- 서브트리 삭제의 assignment 정책이 서비스 단위 테스트에 포함되어 있다.
+- GLOBAL 관리가 다른 팀의 진행 기록을 임의로 삭제하지 않는 정책으로 동작한다.
+- 삭제된 노드를 참조하는 과제가 남아 있지 않는다.
+- 정책 단위 테스트와 실제 데이터·잠금 확인 결과가 기록되어 있다.

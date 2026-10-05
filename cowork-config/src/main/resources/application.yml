@@ -11,6 +11,10 @@ spring:
       prod: composite
 
   cloud:
+    config:
+      server:
+        health:
+          enabled: false
     bus:
       enabled: true
 
@@ -33,10 +37,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh, monitor, prometheus
+        include: health, prometheus
   endpoint:
     health:
-      show-details: always
+      show-details: never
+      show-components: never
     prometheus:
       enabled: true
   metrics:
@@ -67,15 +72,28 @@ spring:
             kv-version: 2
             backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
-            default-context: application
+            default-key: ""
           - type: native
             search-locations: classpath:/configs/
 
 ---
+server:
+  ssl:
+    enabled: true
+    bundle: control-plane
+    enabled-protocols: TLSv1.2,TLSv1.3
+
 spring:
   config:
     activate:
       on-profile: prod
+  ssl:
+    bundle:
+      pem:
+        control-plane:
+          keystore:
+            certificate: ${CONFIG_TLS_CERTIFICATE}
+            private-key: ${CONFIG_TLS_PRIVATE_KEY}
   cloud:
     config:
       server:
@@ -98,6 +116,6 @@ spring:
             kv-version: 2
             backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
-            default-context: application
+            default-key: ""
           - type: native
             search-locations: classpath:/configs/

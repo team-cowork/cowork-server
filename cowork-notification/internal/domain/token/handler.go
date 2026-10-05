@@ -25,7 +25,7 @@ type registerTokenRequest struct {
 // RegisterToken godoc
 //
 //	@Summary		FCM 토큰 등록
-//	@Description	사용자의 디바이스 FCM 토큰을 등록합니다
+//	@Description	FCM 토큰을 현재 계정에 등록합니다. 다른 계정이 소유한 토큰이면 현재 계정으로 원자적으로 이전합니다
 //	@Tags			tokens
 //	@Accept			json
 //	@Param			X-User-Id	header	int64					true	"사용자 ID (Gateway 주입)"
@@ -51,14 +51,11 @@ func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "token and platform are required", http.StatusBadRequest)
 		return
 	}
-	switch req.Platform {
-	case "ANDROID", "IOS", "WEB":
-		// valid
-	default:
-		http.Error(w, "platform must be ANDROID, IOS, or WEB", http.StatusBadRequest)
-		return
-	}
 	if err := h.svc.RegisterToken(r.Context(), accountID, req.Token, req.Platform); err != nil {
+		if appErr, ok := err.(*apperr.AppError); ok {
+			http.Error(w, appErr.Message, appErr.Code)
+			return
+		}
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -68,7 +65,7 @@ func (h *Handler) RegisterToken(w http.ResponseWriter, r *http.Request) {
 // DeleteToken godoc
 //
 //	@Summary		FCM 토큰 삭제
-//	@Description	사용자의 디바이스 FCM 토큰을 삭제합니다
+//	@Description	로그아웃 또는 계정 전환 시 현재 계정과 FCM 토큰의 연결을 해제합니다
 //	@Tags			tokens
 //	@Param			X-User-Id	header	int64	true	"사용자 ID (Gateway 주입)"
 //	@Param			token		path	string	true	"FCM 토큰"

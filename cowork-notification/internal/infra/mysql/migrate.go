@@ -332,6 +332,41 @@ func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool,
 	return count > 0, err
 }
 
+func indexExists(ctx context.Context, db *gorm.DB, table, index string) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM information_schema.statistics
+		 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
+		table, index,
+	).Scan(&count).Error
+	return count > 0, err
+}
+
+func uniqueSingleColumnIndexExists(ctx context.Context, db *gorm.DB, table, index, column string) (bool, error) {
+	var count int64
+	err := db.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM information_schema.statistics
+		 WHERE table_schema = DATABASE()
+		   AND table_name = ?
+		   AND index_name = ?
+		   AND non_unique = 0
+		   AND column_name = ?
+		   AND seq_in_index = 1`,
+		table, index, column,
+	).Scan(&count).Error
+	if err != nil || count != 1 {
+		return false, err
+	}
+
+	var totalColumns int64
+	err = db.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM information_schema.statistics
+		 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?`,
+		table, index,
+	).Scan(&totalColumns).Error
+	return totalColumns == 1, err
+}
+
 type tableExpectation struct {
 	name    string
 	columns []string
@@ -436,6 +471,15 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				},
 			},
 		}, true
+	case 8:
+		return []tableExpectation{
+			{
+				name: "tb_device_token",
+				columns: []string{
+					"id", "account_id", "token", "platform", "created_at", "updated_at",
+				},
+			},
+		}, true
 	default:
 		return nil, false
 	}
@@ -445,6 +489,19 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 	complete, known, err := migrationDDLComplete(ctx, db, version)
 	if err != nil || !known || !complete {
 		return complete, known, err
+	}
+	if version == 8 {
+		tokenUnique, err := uniqueSingleColumnIndexExists(
+			ctx, db, "tb_device_token", "uq_tb_device_token_token", "token",
+		)
+		if err != nil || !tokenUnique {
+			return false, true, err
+		}
+		oldComposite, err := indexExists(ctx, db, "tb_device_token", "uq_tb_device_token_account_token")
+		if err != nil {
+			return false, true, err
+		}
+		return !oldComposite, true, nil
 	}
 	if version != 6 {
 		return true, true, nil
