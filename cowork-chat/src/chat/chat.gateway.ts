@@ -1,4 +1,10 @@
-import { forwardRef, Inject, Logger, OnModuleDestroy, UseFilters } from '@nestjs/common';
+import {
+    forwardRef,
+    Inject,
+    Logger,
+    OnModuleDestroy,
+    UseFilters,
+} from '@nestjs/common';
 import {
     WebSocketGateway,
     WebSocketServer,
@@ -12,6 +18,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { Server, Socket, DefaultEventsMap } from 'socket.io';
+import { MembershipConsumer } from '../membership/membership.consumer';
+import { UserRole } from '../common/enum/user-role.enum';
+import { getOptionalConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
+import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
+import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
+import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 import { ChatService } from './chat.service';
 import { ChatMessageConsumer } from './kafka/chat-message.consumer';
 import { GithubIssueResultConsumer } from './kafka/github-issue-result.consumer';
@@ -22,27 +36,19 @@ import { ProjectEventConsumer } from './kafka/project-event.consumer';
 import { TeamRoleEventConsumer } from './kafka/team-role-event.consumer';
 import { ChannelRolePolicyEventConsumer } from './kafka/channel-role-policy-event.consumer';
 import { TeamMemberEventConsumer } from './kafka/team-member-event.consumer';
-import { MembershipConsumer } from '../membership/membership.consumer';
 import { JoinChannelDto } from './dto';
-import { UserRole } from '../common/enum/user-role.enum';
-import { getOptionalConfig } from '../common/config/config.util';
-import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
-import { GlobalExceptionFilter } from '../common/filter/global-exception.filter';
-import { ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
-import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
-import { isSafePositiveInteger } from '../common/util/safe-integer.util';
 
 const TYPING_RATE_LIMIT_KEY_PREFIX = 'chat:typingrate:';
-const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5_000;
+const DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS = 5000;
 const DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS = 20;
 const PROJECTION_NOT_READY_MESSAGE = 'Kafka projections are synchronizing';
 const SOCKET_ADAPTER_NOT_READY_MESSAGE = 'Socket.IO Redis adapter is not ready';
 const LOCAL_ROOM_SWEEP_INTERVAL_MS = 30_000;
 
-export interface ChatSocketData {
+export type ChatSocketData = {
     userId: number;
     userRole: string;
-}
+};
 
 export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, ChatSocketData>;
 
@@ -96,7 +102,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly teamRoleEventConsumer: TeamRoleEventConsumer,
         private readonly channelRolePolicyEventConsumer: ChannelRolePolicyEventConsumer,
         private readonly teamMemberEventConsumer: TeamMemberEventConsumer,
-        private readonly configService: ConfigService,
+        configService: ConfigService,
         private readonly jwtService: JwtService,
         private readonly rateLimiter: RedisRateLimiter,
         private readonly projectionReadiness: ProjectionReadinessService,
@@ -123,12 +129,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
                 next(new Error(notReady));
                 return;
             }
+
             _socket.use((_packet, packetNext) => {
                 const packetNotReady = this.realtimeNotReadyReason();
                 if (packetNotReady) {
                     packetNext(new Error(packetNotReady));
                     return;
                 }
+
                 packetNext();
             });
             next();
@@ -140,14 +148,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.channelEventConsumer.setSocketServer(server);
         this.projectEventConsumer.setSocketServer(server);
         this.membershipConsumer.setSocketServer(server);
-        this.membershipConsumer.setReadAccessEvaluator((channelId, userId) =>
+        this.membershipConsumer.setReadAccessEvaluator(async (channelId, userId) =>
             this.chatService.isMember(channelId, userId));
-        this.membershipConsumer.setReadableEmitter((channelId, event, payload) =>
+        this.membershipConsumer.setReadableEmitter(async (channelId, event, payload) =>
             this.chatService.emitToReadableChannelUsers(channelId, event, payload));
         this.teamRoleEventConsumer.setSocketServer(server);
         this.channelRolePolicyEventConsumer.setSocketServer(server);
         this.teamMemberEventConsumer.setSocketServer(server);
-        this.roomSweepTimer = setInterval(() => { void this.sweepLocalRooms(server); }, LOCAL_ROOM_SWEEP_INTERVAL_MS);
+        this.roomSweepTimer = setInterval(() => {
+            void this.sweepLocalRooms(server);
+        }, LOCAL_ROOM_SWEEP_INTERVAL_MS);
     }
 
     onModuleDestroy(): void {
@@ -160,27 +170,34 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      * room을 주기적으로 현재 권한으로 다시 검증해 수렴시킨다. `local` 조회라 Redis 장애와 무관하게 동작한다.
      */
     private async sweepLocalRooms(server: Server): Promise<void> {
-        if (this.roomSweepRunning) return;
+        if (this.roomSweepRunning) {
+            return;
+        }
+
         this.roomSweepRunning = true;
         try {
-            // ponytail: 로컬 소켓 전체를 한 번에 평가함, 접속자가 많아 조회가 무거워지면 소켓 묶음 단위로 나눠 평가
+            // Ponytail: 로컬 소켓 전체를 한 번에 평가함, 접속자가 많아 조회가 무거워지면 소켓 묶음 단위로 나눠 평가
             const evicted = await this.chatService.evictUnauthorizedRooms(await server.local.fetchSockets());
-            if (evicted > 0) this.logger.warn(`Local room sweep evicted ${evicted} unauthorized room subscriptions`);
-        } catch (err) {
-            this.logger.error('Local room sweep failed', err);
+            if (evicted > 0) {
+                this.logger.warn(`Local room sweep evicted ${evicted} unauthorized room subscriptions`);
+            }
+        } catch (error) {
+            this.logger.error('Local room sweep failed', error);
         } finally {
             this.roomSweepRunning = false;
         }
     }
 
     /**
-     * projection 동기화가 끝나지 않았거나 Socket.IO Redis adapter가 준비되지 않았으면 그 이유를 반환한다.
+     * Projection 동기화가 끝나지 않았거나 Socket.IO Redis adapter가 준비되지 않았으면 그 이유를 반환한다.
      * adapter가 준비되지 않은 동안 받은 가입은 다른 replica의 브로드캐스트·room 해제를 받지 못하므로 막는다.
      */
     private realtimeNotReadyReason(): string | undefined {
-        if (!this.projectionReadiness.isReady()) return PROJECTION_NOT_READY_MESSAGE;
-        if (!this.socketIoRedis.isReady()) return SOCKET_ADAPTER_NOT_READY_MESSAGE;
-        return undefined;
+        if (!this.projectionReadiness.isReady()) {
+            return PROJECTION_NOT_READY_MESSAGE;
+        }
+
+        return this.socketIoRedis.isReady() ? undefined : SOCKET_ADAPTER_NOT_READY_MESSAGE;
     }
 
     /**
@@ -198,21 +215,25 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             client.disconnect();
             return;
         }
+
         try {
             const { userId, userRole } = await this.resolveIdentity(client);
 
             client.data.userId = userId;
             client.data.userRole = userRole;
             this.joinRoom(client, `user:${userId}`);
-            // connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
+            // Connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
             // 재검증 실패는 인증 실패가 아니므로 연결을 유지하고, 남은 room은 주기 sweep이 정리한다.
             if (client.recovered) {
                 await this.chatService.evictUnauthorizedRooms([client])
-                    .catch((err: unknown) => this.logger.error(`Recovered room re-check failed: ${client.id}`, err));
+                    .catch((error: unknown) => {
+                        this.logger.error(`Recovered room re-check failed: ${client.id}`, error);
+                    });
             }
+
             this.logger.log(`Connected: ${client.id} (userId=${userId})`);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : '인증 실패';
+        } catch (error) {
+            const message = error instanceof Error ? error.message : '인증 실패';
             this.logger.warn(`Auth failed, rejecting connection: ${client.id} - ${message}`);
             client.emit('exception', { message: '인증 실패: ' + message });
             client.disconnect();
@@ -231,6 +252,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             if (!isSafePositiveInteger(userId)) {
                 throw new Error('X-User-Id 헤더가 유효하지 않습니다');
             }
+
             const rawUserRole = client.handshake.headers['x-user-role'];
             const headerUserRole = Array.isArray(rawUserRole) ? rawUserRole[0] : rawUserRole;
             const userRole = typeof headerUserRole === 'string' && headerUserRole ? headerUserRole : UserRole.USER;
@@ -247,6 +269,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         if (!isSafePositiveInteger(userId)) {
             throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
         }
+
         return { userId, userRole: payload.role ?? UserRole.USER };
     }
 
@@ -268,24 +291,26 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('join')
     async handleJoin(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        if (!payload || !isSafePositiveInteger(payload.channelId)) {
+        if (payload == null || !isSafePositiveInteger(payload.channelId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
+
         const { userId } = client.data;
         const room = `chat:${payload.channelId}`;
         // 권한 확인보다 먼저 가입해야 확인 도중 처리된 회수 이벤트의 room 해제가 이 소켓에도 적용된다.
         // room 전달은 emitToReadableChannelUsers가 전송 시점에 다시 인가하므로 잠깐의 선가입으로 이벤트가 새지 않는다.
         this.joinRoom(client, room);
-        const isMember = await this.chatService.isMember(payload.channelId, userId).catch((err: unknown) => {
+        const isMember = await this.chatService.isMember(payload.channelId, userId).catch((error: unknown) => {
             this.leaveRoom(client, room);
-            throw err;
+            throw error;
         });
         if (!isMember) {
             this.leaveRoom(client, room);
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
             return;
         }
+
         this.logger.log(`userId=${userId} joined ${room}`);
     }
 
@@ -297,10 +322,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave')
     handleLeave(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: JoinChannelDto) {
-        if (!payload || !isSafePositiveInteger(payload.channelId)) {
+        if (payload == null || !isSafePositiveInteger(payload.channelId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
+
         this.leaveRoom(client, `chat:${payload.channelId}`);
     }
 
@@ -320,20 +346,30 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     private async relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
-        if (!payload || !isSafePositiveInteger(payload.channelId)) return;
+        if (payload == null || !isSafePositiveInteger(payload.channelId)) {
+            return;
+        }
+
         const room = `chat:${payload.channelId}`;
-        if (!client.rooms.has(room)) return;
+        if (!client.rooms.has(room)) {
+            return;
+        }
+
         if (!(await this.chatService.isMember(payload.channelId, client.data.userId))) {
             await client.leave(room);
             client.emit('channel:access:revoked', { channelId: payload.channelId });
             return;
         }
+
         const allowed = await this.rateLimiter.tryAcquire(
             `${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
             this.typingRateLimitWindowMs,
             this.typingRateLimitMaxRequests,
         );
-        if (!allowed) return;
+        if (!allowed) {
+            return;
+        }
+
         await this.chatService.emitToReadableChannelUsers(
             payload.channelId,
             'typing',
@@ -352,22 +388,25 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('join:team')
     async handleJoinTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
-        if (!payload || !isSafePositiveInteger(payload.teamId)) {
+        if (payload == null || !isSafePositiveInteger(payload.teamId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
+
         const { userId } = client.data;
         const room = `team:${payload.teamId}`;
-        // handleJoin과 같은 이유로 권한 확인보다 먼저 가입한다. 팀 room 전달도 전송 시점에 다시 인가한다.
+        // HandleJoin과 같은 이유로 권한 확인보다 먼저 가입한다. 팀 room 전달도 전송 시점에 다시 인가한다.
         this.joinRoom(client, room);
-        const isMember = await this.chatService.isTeamMember(payload.teamId, userId).catch((err: unknown) => {
+        const isMember = await this.chatService.isTeamMember(payload.teamId, userId).catch((error: unknown) => {
             this.leaveRoom(client, room);
-            throw err;
+            throw error;
         });
-        if (!isMember) {
-            this.leaveRoom(client, room);
-            client.emit('error', { message: '팀 접근 권한이 없습니다' });
+        if (isMember) {
+            return;
         }
+
+        this.leaveRoom(client, room);
+        client.emit('error', { message: '팀 접근 권한이 없습니다' });
     }
 
     /**
@@ -375,18 +414,23 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
     @SubscribeMessage('leave:team')
     handleLeaveTeam(@ConnectedSocket() client: ChatSocket, @MessageBody() payload: { teamId: number }) {
-        if (!payload || !isSafePositiveInteger(payload.teamId)) {
+        if (payload == null || !isSafePositiveInteger(payload.teamId)) {
             client.emit('error', { message: '올바르지 않은 요청 형식입니다' });
             return;
         }
+
         this.leaveRoom(client, `team:${payload.teamId}`);
     }
 
     private joinRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.join(room)).catch((err: unknown) => this.logger.error(`Failed to join room (room=${room}): ${String(err)}`));
+        Promise.resolve(client.join(room)).catch((error: unknown) => {
+            this.logger.error(`Failed to join room (room=${room}): ${String(error)}`);
+        });
     }
 
     private leaveRoom(client: ChatSocket, room: string): void {
-        Promise.resolve(client.leave(room)).catch((err: unknown) => this.logger.error(`Failed to leave room (room=${room}): ${String(err)}`));
+        Promise.resolve(client.leave(room)).catch((error: unknown) => {
+            this.logger.error(`Failed to leave room (room=${room}): ${String(error)}`);
+        });
     }
 }
