@@ -32,6 +32,7 @@ const mockChatService = {
     isMember: jest.fn(),
     isTeamMember: jest.fn(),
     emitToReadableChannelUsers: jest.fn(),
+    evictUnauthorizedRooms: jest.fn(),
 };
 
 const mockConsumer = {
@@ -85,6 +86,7 @@ describe('ChatGateway', () => {
         mockProjectionReadiness.isReady.mockReturnValue(true);
         mockChatService.isMember.mockResolvedValue(true);
         mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
+        mockChatService.evictUnauthorizedRooms.mockResolvedValue(0);
 
         gateway = new ChatGateway(
             mockChatService as never,
@@ -102,6 +104,7 @@ describe('ChatGateway', () => {
             mockJwtService as never,
             mockRateLimiter as never,
             mockProjectionReadiness as never,
+            { isReady: () => true } as never,
         );
     });
 
@@ -160,15 +163,79 @@ describe('ChatGateway', () => {
             expect(client.emit).not.toHaveBeenCalledWith('error', expect.anything());
         });
 
-        it('채널 멤버가 아니면 error 이벤트를 emit하고 join하지 않는다', async () => {
+        it('채널 멤버가 아니면 room에서 제거하고 error 이벤트를 emit한다', async () => {
             mockChatService.isMember.mockResolvedValue(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(client.join).not.toHaveBeenCalled();
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
             expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
+        });
+
+        it('권한 확인 전에 room에 가입해 확인 도중 처리된 회수가 이 소켓을 놓치지 않게 한다', async () => {
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(client.join.mock.invocationCallOrder[0])
+                .toBeLessThan(mockChatService.isMember.mock.invocationCallOrder[0]);
+        });
+
+        it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
+            mockChatService.isMember.mockRejectedValueOnce(new Error('mongo down'));
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await expect(gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 })).rejects.toThrow('mongo down');
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
+        });
+    });
+
+    describe('handleJoinTeam', () => {
+        it('팀 멤버가 아니면 room에서 제거하고 error 이벤트를 emit한다', async () => {
+            mockChatService.isTeamMember.mockResolvedValue(false);
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 });
+
+            expect(client.join.mock.invocationCallOrder[0])
+                .toBeLessThan(mockChatService.isTeamMember.mock.invocationCallOrder[0]);
+            expect(client.leave).toHaveBeenCalledWith('team:5');
+            expect(client.emit).toHaveBeenCalledWith('error', { message: '팀 접근 권한이 없습니다' });
+        });
+
+        it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
+            mockChatService.isTeamMember.mockRejectedValueOnce(new Error('mongo down'));
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await expect(gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 })).rejects.toThrow('mongo down');
+            expect(client.leave).toHaveBeenCalledWith('team:5');
+        });
+    });
+
+    describe('connection state recovery', () => {
+        it('복원된 연결이면 복원된 room을 현재 권한으로 다시 검증한다', async () => {
+            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+
+            await gateway.handleConnection(client as unknown as ChatSocket);
+
+            expect(mockChatService.evictUnauthorizedRooms).toHaveBeenCalledWith([client]);
+            expect(client.disconnect).not.toHaveBeenCalled();
+        });
+
+        it('복원 room 재검증이 실패해도 인증 실패로 연결을 끊지 않는다', async () => {
+            mockChatService.evictUnauthorizedRooms.mockRejectedValueOnce(new Error('mongo down'));
+            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+
+            await gateway.handleConnection(client as unknown as ChatSocket);
+
+            expect(client.disconnect).not.toHaveBeenCalled();
+            expect(client.emit).not.toHaveBeenCalledWith('exception', expect.anything());
         });
     });
 

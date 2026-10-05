@@ -3,8 +3,6 @@ spring:
   reactor:
     context-propagation: auto
   cloud:
-    config:
-      uri: http://localhost:8761
     bus:
       enabled: true
 
@@ -32,6 +30,17 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+kafka:
+  outbox:
+    relay-initial-delay-ms: 1000
+    relay-delay-ms: 1000
+    batch-size: 100
+    claim-lease-ms: 30000
+    send-timeout-ms: 10000
+    max-attempts: 8
+    backoff-initial-ms: 5000
+    backoff-max-ms: 600000
 
 sdk:
   logging:

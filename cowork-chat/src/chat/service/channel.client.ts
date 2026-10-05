@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { ChannelProjectionRepository } from '../repository/channel-projection.repository';
+import { ChannelProjectionRepository } from '../repository';
 
 export interface ChannelInfo {
     id: number;

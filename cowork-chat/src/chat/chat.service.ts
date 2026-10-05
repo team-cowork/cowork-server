@@ -6,46 +6,54 @@ import {
     Injectable,
     Logger,
     NotFoundException,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
-import { MessageDocument } from './schema/message.schema';
-import { EditMessageDto } from './dto/edit-message.dto';
+import { MessageDocument } from './schema';
+import {
+    EditMessageDto,
+    SendMessageDto,
+    ConfirmFileUploadRequestDto,
+    CreateFileUploadUrlRequestDto,
+    CreateFileUploadUrlResponseDto,
+    CreateGithubIssueDto,
+    SlashCommand,
+    SlashCommandDto,
+    SearchMessagesDto,
+    SearchTeamMessagesDto,
+    SearchMessagesResponseDto,
+    FileListQueryDto,
+    FileListResponseDto,
+    ChannelUserContext,
+    ChannelUserRoleContext,
+    MessageUserRoleContext,
+    UserContext,
+} from './dto';
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
-import { ProjectClient } from './service/project.client';
-import { ChannelClient } from './service/channel.client';
-import { UserClient } from './service/user.client';
+import {
+    ProjectClient,
+    ChannelClient,
+    UserClient,
+    UnreadCounterService,
+    ChannelMessageReadAccessService,
+    RoomSocket,
+    resolveMessageScope,
+} from './service';
 import { ChatGateway } from './chat.gateway';
-import { SendMessageDto } from './dto/send-message.dto';
 import {
-    ConfirmFileUploadRequestDto,
-    CreateFileUploadUrlRequestDto,
-    CreateFileUploadUrlResponseDto,
-} from './dto/create-file-upload-url.dto';
-import { CreateGithubIssueDto } from './dto/create-github-issue.dto';
-import { SlashCommand, SlashCommandDto } from './dto/slash-command.dto';
-import { SearchMessagesDto } from './dto/search-messages.dto';
-import { SearchTeamMessagesDto } from './dto/search-team-messages.dto';
-import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
-import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
-import { MessageRepository, MessageRow } from './repository/message.repository';
-import { ChannelMemberRepository } from './repository/channel-member.repository';
-import { TeamMemberProjectionRepository } from './repository/team-member-projection.repository';
+    MessageRepository,
+    MessageRow,
+    ChannelMemberRepository,
+    TeamMemberProjectionRepository,
+    ChannelProjectionRepository,
+} from './repository';
 import { BlockService } from '../block/block.service';
-import {
-    ChannelUserContext,
-    ChannelUserRoleContext,
-    MessageUserRoleContext,
-    UserContext,
-} from './dto/context';
-import { UnreadCounterService } from './service/unread-counter.service';
-import { MessageSearchDeletionService } from './search/message-search-deletion.service';
-import { isSearchIndexed } from './search/message-index-scope';
-import { ChannelMessageReadAccessService } from './service/channel-message-read-access.service';
+import { MessageSearchDeletionService, isSearchIndexed } from './search';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
@@ -81,6 +89,7 @@ export class ChatService {
         private readonly chatGateway: ChatGateway,
         private readonly unreadCounterService: UnreadCounterService,
         private readonly messageSearchDeletion: MessageSearchDeletionService,
+        private readonly channelProjectionRepository: ChannelProjectionRepository,
     ) {}
 
     /**
@@ -111,6 +120,10 @@ export class ChatService {
 
     async isTeamMember(teamId: number, userId: number): Promise<boolean> {
         return this.teamMemberRepository.exists(teamId, userId);
+    }
+
+    async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
+        return this.channelMessageReadAccess.evictUnauthorizedRooms(sockets);
     }
 
     /**
@@ -281,20 +294,36 @@ export class ChatService {
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
         if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
 
+        const channel = await this.channelProjectionRepository.findById(ctx.channelId);
+        if (!channel) throw new NotFoundException('채널을 찾을 수 없습니다');
+        const scope = resolveMessageScope(channel);
+        if (!scope || membership.teamId !== scope.teamId || membership.channelType !== channel.type) {
+            throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
+        }
+
+        if (dto.parentMessageId) {
+            const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
+            if (!parent) throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+        }
+
         if (dto.attachments?.length) {
             for (const attachment of dto.attachments) {
                 this.objectStorageService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
             }
         }
 
-        if (membership.channelType === DM_CHANNEL_TYPE) {
+        if (channel.type === DM_CHANNEL_TYPE) {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
-            dto = { ...dto, teamId: null, projectId: null };
-        } else {
-            dto = { ...dto, teamId: membership.teamId };
         }
 
-        await this.chatMessageProducer.sendMessage(ctx.channelId, dto, ctx.userId, ctx.userRole);
+        await this.chatMessageProducer.sendMessage(ctx.channelId, {
+            ...scope,
+            content: dto.content,
+            type: dto.type,
+            attachments: dto.attachments,
+            parentMessageId: dto.parentMessageId,
+            clientMessageId: dto.clientMessageId,
+        }, ctx.userId, ctx.userRole);
     }
 
     /**
@@ -768,16 +797,27 @@ export class ChatService {
      * @param teamId - 팀 ID
      * @param channelId - 채널 ID
      * @param content - 메시지 내용
-     * @param projectId - 프로젝트 ID (팀 채널이면 null)
-     * @returns 저장된 메시지 도큐먼트
+     * @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
      */
     async saveSystemMessage(
         teamId: number,
         channelId: number,
         content: string,
-        projectId: number | null = null,
-    ) {
-        const saved = await this.messageRepository.createSystemMessage(teamId, channelId, content, projectId, SYSTEM_AUTHOR_ID);
+    ): Promise<MessageDocument | null> {
+        const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
+        if (!channel) throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+        if (channel.deleted) {
+            this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+            return null;
+        }
+        const scope = resolveMessageScope(channel);
+        if (!scope || scope.teamId === null || scope.teamId !== teamId) {
+            this.logger.warn(
+                `Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
+            );
+            return null;
+        }
+        const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
         const members = await this.channelMemberRepository.findByChannelId(channelId);
         const candidateUserIds = members.map((member) => member.userId).filter((id) => id !== SYSTEM_AUTHOR_ID);
         const readableUsers = await this.channelMessageReadAccess.filterReadableUsersByChannel(

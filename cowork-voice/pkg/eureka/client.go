@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/config"
+	"github.com/cowork/cowork-voice/internal/controlplane"
 )
 
 const (
@@ -33,7 +34,7 @@ type Client struct {
 
 func New(cfg *config.AppConfig) *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+		httpClient: controlplane.NewClient(),
 		serverURL:  strings.TrimRight(cfg.EurekaServerURL, "/"),
 		appName:    cfg.EurekaAppName,
 		instanceID: cfg.EurekaInstanceID,

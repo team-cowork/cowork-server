@@ -1,11 +1,14 @@
 import { ForbiddenException, Injectable, OnModuleDestroy, ServiceUnavailableException } from '@nestjs/common';
 import { Server } from 'socket.io';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { ChannelMemberRepository } from '../repository/channel-member.repository';
-import { ChannelProjectionRepository, ChannelProjectionView } from '../repository/channel-projection.repository';
-import { ChannelRolePolicyProjectionRepository } from '../repository/channel-role-policy-projection.repository';
-import { TeamMemberProjectionRepository } from '../repository/team-member-projection.repository';
-import { TeamRoleProjectionRepository } from '../repository/team-role-projection.repository';
+import {
+    ChannelMemberRepository,
+    ChannelProjectionRepository,
+    ChannelProjectionView,
+    ChannelRolePolicyProjectionRepository,
+    TeamMemberProjectionRepository,
+    TeamRoleProjectionRepository,
+} from '../repository';
 
 export interface ChannelReadAccessRequest {
     channelId: number;
@@ -13,6 +16,14 @@ export interface ChannelReadAccessRequest {
 }
 
 type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA';
+
+/** 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면. */
+export interface RoomSocket {
+    data: unknown;
+    rooms: Set<string>;
+    leave(room: string): unknown;
+    emit(event: string, payload: unknown): unknown;
+}
 
 const accessKey = (channelId: number, userId: number) => `${channelId}:${userId}`;
 const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
@@ -156,14 +167,17 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         return new Set([...result].filter(([, allowed]) => allowed).map(([userId]) => userId));
     }
 
-    /** 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다. */
+    /**
+     * 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다.
+     * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인하고, 건너뛴 회수는 로컬 room 재검증이 정리한다.
+     */
     async evictUnauthorizedSockets(
         io: Server,
         channelIds: number[],
         userIds?: number[],
     ): Promise<void> {
         const uniqueChannelIds = [...new Set(channelIds)];
-        if (uniqueChannelIds.length === 0) return;
+        if (uniqueChannelIds.length === 0 || !this.projectionReadiness.isReady()) return;
         const rooms = uniqueChannelIds.map((channelId) => `chat:${channelId}`);
         const sockets = await io.in(rooms).fetchSockets();
         const affectedUsers = userIds ? new Set(userIds) : undefined;
@@ -177,11 +191,54 @@ export class ChannelMessageReadAccessService implements OnModuleDestroy {
         const access = await this.evaluateMany(
             socketsWithChannels.map(({ channelId, userId }) => ({ channelId, userId })),
         );
+        if (!this.projectionReadiness.isReady()) return;
         for (const { socket, channelId, userId } of socketsWithChannels) {
             if (access.get(accessKey(channelId, userId)) === true) continue;
             socket.leave(`chat:${channelId}`);
             socket.emit('channel:access:revoked', { channelId });
         }
+    }
+
+    /**
+     * socket이 가입한 채널·팀 room을 현재 권한으로 다시 검증해 권한이 없는 room에서 제거하고, 제거한 room 수를 반환한다.
+     * connection state recovery로 복원된 room과 회수 이벤트의 room 해제가 누락된 room을 정리한다.
+     * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인해, 닫혀 있으면 아무것도 제거하지 않는다.
+     */
+    async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
+        if (!this.projectionReadiness.isReady()) return 0;
+        const channelRooms = this.joinedRooms(sockets, 'chat:');
+        const teamRooms = this.joinedRooms(sockets, 'team:');
+        const [access, teamMembers] = await Promise.all([
+            this.evaluateMany(channelRooms.map(({ id, userId }) => ({ channelId: id, userId }))),
+            this.teamMemberRepository.findByTeamIdsAndUserIds(
+                [...new Set(teamRooms.map(({ id }) => id))],
+                [...new Set(teamRooms.map(({ userId }) => userId))],
+            ),
+        ]);
+        if (!this.projectionReadiness.isReady()) return 0;
+
+        const activeTeamUsers = new Set(teamMembers.map((member) => teamUserKey(member.teamId, member.userId)));
+        const deniedChannelRooms = channelRooms.filter(({ id, userId }) => access.get(accessKey(id, userId)) !== true);
+        const deniedTeamRooms = teamRooms.filter(({ id, userId }) => !activeTeamUsers.has(teamUserKey(id, userId)));
+        for (const { socket, id } of deniedChannelRooms) {
+            socket.leave(`chat:${id}`);
+            socket.emit('channel:access:revoked', { channelId: id });
+        }
+        for (const { socket, id } of deniedTeamRooms) {
+            socket.leave(`team:${id}`);
+            socket.emit('team:access:revoked', { teamId: id });
+        }
+        return deniedChannelRooms.length + deniedTeamRooms.length;
+    }
+
+    private joinedRooms(sockets: RoomSocket[], prefix: 'chat:' | 'team:') {
+        return sockets.flatMap((socket) => {
+            const userId = this.socketUserId(socket);
+            if (userId === null) return [];
+            return [...socket.rooms]
+                .filter((room) => room.startsWith(prefix))
+                .map((room) => ({ socket, id: Number(room.slice(prefix.length)), userId }));
+        });
     }
 
     /**
