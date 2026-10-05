@@ -1,13 +1,10 @@
 import {
     IsArray,
     IsEnum,
-    IsInt,
     IsMongoId,
     IsNumber,
     IsOptional,
-    IsPositive,
     IsString,
-    Max,
     MaxLength,
     ValidateNested,
 } from 'class-validator';
@@ -29,12 +26,6 @@ export class AttachmentDto {
 }
 
 export class SendMessageDto {
-    @ApiPropertyOptional({ description: '폐기 예정: 입력값은 무시하며 서버가 채널에서 결정', nullable: true, deprecated: true })
-    @IsInt() @IsPositive() @Max(Number.MAX_SAFE_INTEGER) @IsOptional() teamId?: number | null;
-
-    @ApiPropertyOptional({ description: '폐기 예정: 입력값은 무시하며 서버가 채널에서 결정', nullable: true, deprecated: true })
-    @IsInt() @IsPositive() @Max(Number.MAX_SAFE_INTEGER) @IsOptional() projectId?: number | null;
-
     @ApiProperty({ description: '메시지 내용 (최대 25000자). 멘션은 `<@userId>` 형식으로 포함 가능 (예: `<@123>`)', maxLength: 25000, minLength: 1 })
     @IsString() @MaxLength(25000) content!: string;
 
