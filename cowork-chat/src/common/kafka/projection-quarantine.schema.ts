@@ -14,6 +14,8 @@ export class ProjectionQuarantineRecord {
 
 export const ProjectionQuarantineRecordSchema = SchemaFactory.createForClass(ProjectionQuarantineRecord);
 ProjectionQuarantineRecordSchema.index(
-    { groupId: 1, topic: 1, partition: 1, messageOffset: 1 },
+    {
+        groupId: 1, topic: 1, partition: 1, messageOffset: 1,
+    },
     { unique: true },
 );

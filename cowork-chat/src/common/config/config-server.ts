@@ -22,7 +22,7 @@ export function activeProfile(): string {
 export async function loadConfigServerEnv(): Promise<void> {
     const baseUrl = process.env.APP_CONFIG_URL ?? DEFAULT_CONFIG_SERVER_URL;
     const profile = activeProfile();
-    const url = `${baseUrl.replace(/\/$/, '')}/${APP_NAME}/${profile}`;
+    const url = `${baseUrl.replace(/\/$/u, '')}/${APP_NAME}/${profile}`;
 
     const response = await fetch(url, {
         headers: { Accept: 'application/json', Authorization: controlPlaneAuthorization(url) },
@@ -58,7 +58,9 @@ function flattenPropertySources(propertySources: PropertySource[]): Record<strin
 }
 
 function stringifyPropertyValue(value: unknown): string {
-    if (typeof value === 'string') return value;
-    if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return value.toString();
-    return JSON.stringify(value) ?? '';
+    if (typeof value === 'string') {
+        return value;
+    }
+
+    return typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint' ? value.toString() : JSON.stringify(value) ?? '';
 }
