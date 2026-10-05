@@ -1,6 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+    IsInt,
+    IsOptional,
+    IsString,
+    Max,
+    Min,
+} from 'class-validator';
 
 export class FileListQueryDto {
     @ApiPropertyOptional({ description: '커서: 이전 응답의 nextCursor 값' })
