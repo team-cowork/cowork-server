@@ -206,7 +206,9 @@ defmodule CoworkUser.AppConfig do
       url when is_binary(url) and url != "" ->
         profile = System.get_env("APP_PROFILE", "local")
 
-        case Req.get(url: "#{String.trim_trailing(url, "/")}/cowork-user/#{profile}") do
+        options = CoworkUser.ControlPlane.options("#{String.trim_trailing(url, "/")}/cowork-user/#{profile}")
+
+        case Req.get(options) do
           {:ok, %{status: 200, body: body}} ->
             case merge_property_sources(body) do
               {:ok, merged} -> merged
@@ -216,8 +218,8 @@ defmodule CoworkUser.AppConfig do
           {:ok, %{status: status}} ->
             raise "Config Server returned HTTP #{status} for cowork-user/#{profile}"
 
-          {:error, reason} ->
-            raise "Config Server unavailable for cowork-user/#{profile}: #{inspect(reason)}"
+          {:error, _reason} ->
+            raise "Config Server unavailable for cowork-user/#{profile}"
         end
 
       _ ->

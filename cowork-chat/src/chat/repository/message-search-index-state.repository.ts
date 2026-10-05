@@ -1,10 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import {
-    MESSAGE_SEARCH_INDEX_STATE_ID,
-    MessageSearchIndexState,
-} from '../schema/message-search-index-state.schema';
+import { MESSAGE_SEARCH_INDEX_STATE_ID, MessageSearchIndexState } from '../schema';
 
 /** 재구축 결과와 백필 진행 상태를 replica 간에 공유하는 단일 도큐먼트 저장소. */
 @Injectable()

@@ -13,28 +13,29 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { SendMessageDto } from './dto/send-message.dto';
-import { EditMessageDto } from './dto/edit-message.dto';
-import { GetMessagesDto } from './dto/get-messages.dto';
 import {
+    SendMessageDto,
+    EditMessageDto,
+    GetMessagesDto,
     ConfirmFileUploadRequestDto,
     ConfirmFileUploadResponseDto,
     CreateFileUploadUrlRequestDto,
     CreateFileUploadUrlResponseDto,
-} from './dto/create-file-upload-url.dto';
-import {
     DeleteMessageResponseDto,
     MessageResponseDto,
     SendMessageResponseDto,
-} from './dto/message-response.dto';
-import { CreateGithubIssueDto, CreateGithubIssueResponseDto } from './dto/create-github-issue.dto';
-import { SlashCommandDto, SlashCommandResponseDto } from './dto/slash-command.dto';
-import { FileListQueryDto, FileListResponseDto } from './dto/file-list.dto';
+    CreateGithubIssueDto,
+    CreateGithubIssueResponseDto,
+    SlashCommandDto,
+    SlashCommandResponseDto,
+    FileListQueryDto,
+    FileListResponseDto,
+    AddReactionDto,
+    ReadChannelDto,
+} from './dto';
 import { UserId, UserRole } from '../common/decorator/user.decorator';
 import { Throttle } from '../common/decorator/throttle.decorator';
-import { AddReactionDto } from './dto/add-reaction.dto';
-import { ReadChannelDto } from './dto/read-channel.dto';
-import { EMOJI_REGEX } from './util/emoji';
+import { EMOJI_REGEX } from './util';
 import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 /**

@@ -69,7 +69,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "사용자의 디바이스 FCM 토큰을 등록합니다",
+                "description": "FCM 토큰을 현재 계정에 등록합니다. 다른 계정이 소유한 토큰이면 현재 계정으로 원자적으로 이전합니다",
                 "consumes": [
                     "application/json"
                 ],
@@ -128,7 +128,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "사용자의 디바이스 FCM 토큰을 삭제합니다",
+                "description": "로그아웃 또는 계정 전환 시 현재 계정과 FCM 토큰의 연결을 해제합니다",
                 "tags": [
                     "tokens"
                 ],

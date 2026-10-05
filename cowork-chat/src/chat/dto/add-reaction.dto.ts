@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, Matches } from 'class-validator';
-import { EMOJI_REGEX } from '../util/emoji';
+import { EMOJI_REGEX } from '../util';
 
 export class AddReactionDto {
     @ApiProperty({ example: '👍' })
