@@ -9,7 +9,7 @@ import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { ChatMessageContractError, validateChatMessageEvent } from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
 import { ChatMessageProcessor } from './chat-message.processor';
-import { ChatMessageQuarantineService } from '../service/chat-message-quarantine.service';
+import { ChatMessageQuarantineService } from '../service';
 
 const CHAT_MESSAGE_TOPIC = 'chat.message';
 /**

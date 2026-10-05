@@ -10,13 +10,14 @@ from urllib.parse import urlsplit
 def http_url(name):
     value = os.environ[name]
     url = urlsplit(value)
-    if url.scheme not in {"http", "https"} or not url.hostname:
-        raise ValueError(f"{name} must be an absolute HTTP(S) URL")
+    if url.scheme != "https" or not url.hostname or url.username is not None or url.query or url.fragment:
+        raise ValueError(f"{name} must be an HTTPS URL without credentials")
     return value
 
 
 eureka = http_url("EUREKA_SERVER_URL")
 config_server = urlsplit(http_url("CONFIG_SERVER_URL"))
+basic_auth = {"username": os.environ["CONFIG_CLIENT_USERNAME"], "password": os.environ["CONFIG_CLIENT_PASSWORD"]}
 service_labels = [
     {"source_labels": ["__meta_eureka_app_name"], "target_label": "service", "regex": "COWORK-(.*)", "replacement": "${1}"},
     {"source_labels": ["service"], "target_label": "service", "action": "lowercase"},
@@ -24,7 +25,7 @@ service_labels = [
 scrape_configs = [
     {
         "job_name": "cowork-services",
-        "eureka_sd_configs": [{"server": eureka, "refresh_interval": "30s"}],
+        "eureka_sd_configs": [{"server": eureka, "refresh_interval": "30s", "basic_auth": basic_auth, "follow_redirects": False}],
         "relabel_configs": [
             {"source_labels": ["__meta_eureka_app_instance_metadata_prometheus_scrape"], "regex": "true", "action": "keep"},
             {"source_labels": ["__meta_eureka_app_instance_metadata_prometheus_path"], "target_label": "__metrics_path__", "regex": "(.+)"},
@@ -34,6 +35,8 @@ scrape_configs = [
     {
         "job_name": "cowork-external-services",
         "scheme": config_server.scheme,
+        "basic_auth": basic_auth,
+        "follow_redirects": False,
         "metrics_path": "/actuator/prometheus",
         "static_configs": [{"targets": [config_server.netloc], "labels": {"service": "config"}}],
     },
@@ -41,7 +44,7 @@ scrape_configs = [
         "job_name": "blackbox",
         "metrics_path": "/probe",
         "params": {"module": ["http_2xx"]},
-        "eureka_sd_configs": [{"server": eureka, "refresh_interval": "30s"}],
+        "eureka_sd_configs": [{"server": eureka, "refresh_interval": "30s", "basic_auth": basic_auth, "follow_redirects": False}],
         "relabel_configs": [
             {"source_labels": ["__meta_eureka_app_instance_healthcheck_url"], "regex": "https?://.+", "action": "keep"},
             {"source_labels": ["__meta_eureka_app_instance_healthcheck_url"], "target_label": "__param_target"},

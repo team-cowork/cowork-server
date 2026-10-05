@@ -2,10 +2,14 @@ server:
   port: 8085
 
 spring:
+  cloud:
+    config:
+      username: ${CONFIG_CLIENT_USERNAME}
+      password: ${CONFIG_CLIENT_PASSWORD}
   application:
     name: cowork-team
   config:
-    import: "optional:configserver:http://localhost:8761"
+    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -37,6 +41,10 @@ team-github:
 
 eureka:
   client:
+    jersey:
+      enabled: false
+    webclient:
+      enabled: false
     healthcheck:
       enabled: true
     service-url:

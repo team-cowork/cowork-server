@@ -6,8 +6,7 @@ import {
 } from '@nestjs/common';
 import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
-import { SearchMessagesDto } from './dto/search-messages.dto';
-import { SearchMessagesResponseDto } from './dto/search-message-response.dto';
+import { SearchMessagesDto, SearchMessagesResponseDto } from './dto';
 import { UserId } from '../common/decorator/user.decorator';
 import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 

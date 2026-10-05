@@ -58,7 +58,28 @@ object ProjectionReadinessEvaluator {
 }
 data class ProjectionReadinessSnapshot(val ready: Boolean, val reason: String, val initialized: Boolean)
 
-class ProjectionReadiness {
+interface ProjectionReadinessView {
+    val isReady: Boolean
+
+    fun snapshot(): ProjectionReadinessSnapshot
+}
+
+/** 여러 projection이 모두 준비되어야 여는 readiness이며, 닫혀 있으면 첫 미준비 projection의 사유를 노출한다. */
+class CombinedProjectionReadiness(private val projections: List<ProjectionReadinessView>) : ProjectionReadinessView {
+    init {
+        require(projections.isNotEmpty()) { "combined readiness requires at least one projection" }
+    }
+
+    override val isReady: Boolean
+        get() = projections.all { it.isReady }
+
+    override fun snapshot(): ProjectionReadinessSnapshot {
+        val snapshots = projections.map(ProjectionReadinessView::snapshot)
+        return snapshots.firstOrNull { !it.ready } ?: snapshots.first()
+    }
+}
+
+class ProjectionReadiness : ProjectionReadinessView {
     @Volatile
     private var snapshot = ProjectionReadinessSnapshot(
         ready = false,
@@ -66,10 +87,10 @@ class ProjectionReadiness {
         initialized = false,
     )
 
-    val isReady: Boolean
+    override val isReady: Boolean
         get() = snapshot.ready
 
-    fun snapshot(): ProjectionReadinessSnapshot = snapshot
+    override fun snapshot(): ProjectionReadinessSnapshot = snapshot
 
     fun markInitializing(reason: String) {
         snapshot = ProjectionReadinessSnapshot(false, reason, false)
