@@ -17,15 +17,15 @@ export type ClaimedIndexMessage = MessageIndexSource & {
 };
 
 /** 재구축 스캔이 사용하는 커서. `(updatedAt, _id)` 복합 순서로 페이지를 이어 받는다. */
-export interface IndexScanCursor {
+export type IndexScanCursor = {
     updatedAt: Date;
     id: Types.ObjectId;
-}
+};
 
-export interface SearchIndexBacklog {
+export type SearchIndexBacklog = {
     counts: Record<SearchIndexStatus, number>;
     oldestPendingAt: Date | null;
-}
+};
 
 const INDEX_SOURCE_PROJECTION = {
     teamId: 1, projectId: 1, channelId: 1, authorId: 1, content: 1, type: 1,
@@ -62,9 +62,11 @@ export class MessageSearchIndexRepository {
             .limit(batchSize)
             .select('_id')
             .lean();
-        if (candidates.length === 0) return [];
+        if (candidates.length === 0) {
+            return [];
+        }
 
-        const ids = candidates.map((candidate) => candidate._id);
+        const ids = candidates.map(candidate => candidate._id);
         await this.messageModel.updateMany(
             { _id: { $in: ids }, searchIndexStatus: 'PENDING' },
             { $set: { searchIndexStatus: 'PROCESSING', searchIndexProcessingStartedAt: now, searchIndexClaimId: claimId } },
@@ -183,7 +185,7 @@ export class MessageSearchIndexRepository {
     }
 
     /**
-     * tombstone을 남기기 전에 중단되어 `DELETING`에 머문 메시지를 조회한다.
+     * Tombstone을 남기기 전에 중단되어 `DELETING`에 머문 메시지를 조회한다.
      *
      * 메시지가 아직 MongoDB에 있으면 삭제는 커밋되지 않은 것이므로, tombstone이 없는 항목만
      * {@link releaseDeleting}으로 되돌려 다시 색인 대상이 되게 한다. `reserveDeletion`은 색인
@@ -213,9 +215,12 @@ export class MessageSearchIndexRepository {
     async releaseDeleting(
         messages: Array<{ _id: Types.ObjectId; teamId: number | null; projectId: number | null; type: string }>,
     ): Promise<number> {
-        if (messages.length === 0) return 0;
-        const indexedIds = messages.filter((message) => isSearchIndexed(message)).map((message) => message._id);
-        const skippedIds = messages.filter((message) => !isSearchIndexed(message)).map((message) => message._id);
+        if (messages.length === 0) {
+            return 0;
+        }
+
+        const indexedIds = messages.filter(message => isSearchIndexed(message)).map(message => message._id);
+        const skippedIds = messages.filter(message => !isSearchIndexed(message)).map(message => message._id);
 
         let modifiedCount = 0;
         if (indexedIds.length > 0) {
@@ -233,6 +238,7 @@ export class MessageSearchIndexRepository {
             );
             modifiedCount += result.modifiedCount;
         }
+
         if (skippedIds.length > 0) {
             const result = await this.messageModel.updateMany(
                 { _id: { $in: skippedIds }, searchIndexStatus: 'DELETING' },
@@ -249,6 +255,7 @@ export class MessageSearchIndexRepository {
             );
             modifiedCount += result.modifiedCount;
         }
+
         return modifiedCount;
     }
 
@@ -266,10 +273,12 @@ export class MessageSearchIndexRepository {
             .limit(batchSize)
             .select({ teamId: 1, projectId: 1, type: 1 })
             .lean();
-        if (legacy.length === 0) return 0;
+        if (legacy.length === 0) {
+            return 0;
+        }
 
-        const indexedIds = legacy.filter((message) => isSearchIndexed(message)).map((message) => message._id);
-        const skippedIds = legacy.filter((message) => !isSearchIndexed(message)).map((message) => message._id);
+        const indexedIds = legacy.filter(message => isSearchIndexed(message)).map(message => message._id);
+        const skippedIds = legacy.filter(message => !isSearchIndexed(message)).map(message => message._id);
 
         if (indexedIds.length > 0) {
             await this.messageModel.updateMany(
@@ -289,6 +298,7 @@ export class MessageSearchIndexRepository {
                 OUTBOX_UPDATE_OPTIONS,
             );
         }
+
         if (skippedIds.length > 0) {
             await this.messageModel.updateMany(
                 { _id: { $in: skippedIds }, searchIndexStatus: null },
@@ -296,6 +306,7 @@ export class MessageSearchIndexRepository {
                 OUTBOX_UPDATE_OPTIONS,
             );
         }
+
         return legacy.length;
     }
 
@@ -330,22 +341,30 @@ export class MessageSearchIndexRepository {
             { $match: { searchIndexStatus: { $in: ['PENDING', 'PROCESSING', 'FAILED', 'DELETING'] } } },
             { $group: { _id: '$searchIndexStatus', count: { $sum: 1 }, oldest: { $min: '$searchIndexNextAttemptAt' } } },
         ]);
-        const counts = { PENDING: 0, PROCESSING: 0, SYNCED: 0, FAILED: 0, DELETING: 0, SKIPPED: 0 } as Record<SearchIndexStatus, number>;
+        const counts: Record<SearchIndexStatus, number> = {
+            PENDING: 0, PROCESSING: 0, SYNCED: 0, FAILED: 0, DELETING: 0, SKIPPED: 0,
+        };
         let oldestPendingAt: Date | null = null;
         for (const row of rows) {
-            if (row._id === null) continue;
+            if (row._id === null) {
+                continue;
+            }
+
             counts[row._id] = row.count;
-            if (row._id === 'PENDING') oldestPendingAt = row.oldest;
+            if (row._id === 'PENDING') {
+                oldestPendingAt = row.oldest;
+            }
         }
+
         return { counts, oldestPendingAt };
     }
 
-    countIndexScope(): Promise<number> {
+    async countIndexScope(): Promise<number> {
         return this.messageModel.countDocuments(SEARCH_INDEX_SCOPE_FILTER);
     }
 
     /** 색인 대상 전체를 `_id` 오름차순 커서로 순회한다. 전체 재구축의 snapshot scan이다. */
-    scanIndexScope(afterId: Types.ObjectId | null, batchSize: number): Promise<ClaimedIndexMessage[]> {
+    async scanIndexScope(afterId: Types.ObjectId | null, batchSize: number): Promise<ClaimedIndexMessage[]> {
         return this.messageModel
             .find(afterId ? { ...SEARCH_INDEX_SCOPE_FILTER, _id: { $gt: afterId } } : SEARCH_INDEX_SCOPE_FILTER)
             .sort({ _id: 1 })
@@ -355,11 +374,11 @@ export class MessageSearchIndexRepository {
     }
 
     /**
-     * snapshot 기준점 이후에 변경된 색인 대상 메시지를 순회한다.
+     * Snapshot 기준점 이후에 변경된 색인 대상 메시지를 순회한다.
      *
      * 전체 재구축이 스캔을 마친 뒤 실시간 변경을 따라잡는 catch-up 단계에서 사용한다.
      */
-    scanUpdatedSince(since: Date, cursor: IndexScanCursor | null, batchSize: number): Promise<Array<ClaimedIndexMessage & { updatedAt: Date }>> {
+    async scanUpdatedSince(since: Date, cursor: IndexScanCursor | null, batchSize: number): Promise<Array<ClaimedIndexMessage & { updatedAt: Date }>> {
         const filter = cursor
             ? {
                 ...SEARCH_INDEX_SCOPE_FILTER,
