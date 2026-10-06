@@ -11,7 +11,7 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface ProjectGithubRepoProjectionView {
+export type ProjectGithubRepoProjectionView = {
     repoId: number;
     projectId: number;
     teamId: number;
@@ -19,12 +19,12 @@ export interface ProjectGithubRepoProjectionView {
     owner: string;
     repo: string;
     webhookChannelId: number | null;
-}
+};
 
-export interface VersionedProjectGithubRepoProjectionView extends ProjectGithubRepoProjectionView {
+export type VersionedProjectGithubRepoProjectionView = {
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+} & ProjectGithubRepoProjectionView;
 
 @Injectable()
 export class ProjectGithubRepoProjectionRepository {

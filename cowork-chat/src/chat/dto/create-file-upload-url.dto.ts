@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, MaxLength, Min } from 'class-validator';
+import {
+    IsNotEmpty,
+    IsNumber,
+    IsString,
+    MaxLength,
+    Min,
+} from 'class-validator';
 
 export class CreateFileUploadUrlRequestDto {
     @ApiProperty({ description: '원본 파일명', example: 'screenshot.png' })
@@ -14,7 +20,7 @@ export class CreateFileUploadUrlRequestDto {
     @MaxLength(100)
     contentType!: string;
 
-    @ApiProperty({ description: '파일 크기(bytes)', example: 102400 })
+    @ApiProperty({ description: '파일 크기(bytes)', example: 102_400 })
     @IsNumber()
     @Min(1)
     size!: number;
