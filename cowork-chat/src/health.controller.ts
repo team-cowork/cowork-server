@@ -1,4 +1,9 @@
-import { Controller, Get, HttpException, HttpStatus } from '@nestjs/common';
+import {
+    Controller,
+    Get,
+    HttpException,
+    HttpStatus,
+} from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
 import { Connection, ConnectionStates } from 'mongoose';
 import { Public } from './common/guard/public.decorator';
@@ -54,10 +59,15 @@ export class HealthController {
         const isReady = Object.values(dependencies).every(Boolean);
         if (!isReady) {
             throw new HttpException(
-                { status: 'DOWN', dependencies, projectionDetails, socketIoAdapterDetails, searchIndex },
+                {
+                    status: 'DOWN', dependencies, projectionDetails, socketIoAdapterDetails, searchIndex,
+                },
                 HttpStatus.SERVICE_UNAVAILABLE,
             );
         }
-        return { status: 'UP', dependencies, projectionDetails, socketIoAdapterDetails, searchIndex };
+
+        return {
+            status: 'UP', dependencies, projectionDetails, socketIoAdapterDetails, searchIndex,
+        };
     }
 }

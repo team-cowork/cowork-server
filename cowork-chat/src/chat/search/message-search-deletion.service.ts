@@ -66,6 +66,7 @@ export class MessageSearchDeletionService implements OnModuleInit {
                 this.logger.warn(`Message deletion already in progress messageId=${messageId}`);
                 return 'ALREADY_IN_PROGRESS';
             }
+
             this.logger.warn(`Message already deleted messageId=${messageId}`);
             return 'NOT_FOUND';
         }
@@ -80,6 +81,7 @@ export class MessageSearchDeletionService implements OnModuleInit {
                 retentionDays: this.retentionDays(),
             });
         }
+
         await this.messageRepository.deleteById(messageId);
         return 'DELETED';
     }

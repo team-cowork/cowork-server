@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
     BadRequestException,
     ForbiddenException,
@@ -8,8 +9,11 @@ import {
     NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
-import { randomUUID } from 'crypto';
 import { Types } from 'mongoose';
+import { UserRole } from '../common/enum/user-role.enum';
+import { ElasticsearchService } from '../search/elasticsearch.service';
+import { ObjectStorageService } from '../storage/object-storage.service';
+import { BlockService } from '../block/block.service';
 import { MessageDocument } from './schema';
 import {
     EditMessageDto,
@@ -30,9 +34,6 @@ import {
     MessageUserRoleContext,
     UserContext,
 } from './dto';
-import { UserRole } from '../common/enum/user-role.enum';
-import { ElasticsearchService } from '../search/elasticsearch.service';
-import { ObjectStorageService } from '../storage/object-storage.service';
 import { ChatMessageProducer } from './kafka/chat-message.producer';
 import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
 import {
@@ -52,7 +53,6 @@ import {
     TeamMemberProjectionRepository,
     ChannelProjectionRepository,
 } from './repository';
-import { BlockService } from '../block/block.service';
 import { MessageSearchDeletionService, isSearchIndexed } from './search';
 
 const SYSTEM_AUTHOR_ID = 0;
@@ -149,7 +149,10 @@ export class ChatService {
     async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
         await this.channelMessageReadAccess.requireCanRead(channelId, userId);
         const teamId = await this.channelMemberRepository.findTeamIdByChannelAndUser(channelId, userId);
-        if (teamId === null) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        if (teamId === null) {
+            throw new ForbiddenException('채널 접근 권한이 없습니다');
+        }
+
         return teamId;
     }
 
@@ -217,7 +220,7 @@ export class ChatService {
         const uploaderNames = await this.loadUploaderNames(items);
 
         return {
-            files: items.map((item) => ({
+            files: items.map(item => ({
                 fileId: item.fileId,
                 messageId: item.messageId,
                 fileName: item.fileName,
@@ -250,19 +253,23 @@ export class ChatService {
         await this.checkMembership(ctx.channelId, ctx.userId);
 
         const message = await this.messageRepository.findByIdAndChannelId(messageId, ctx.channelId);
-        if (!message) throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
+        if (!message) {
+            throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
+        }
+
         if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) {
             throw new ForbiddenException('본인이 업로드한 파일만 삭제할 수 있습니다');
         }
 
         await Promise.all(
-            message.attachments.map(async (attachment) => {
+            message.attachments.map(async attachment => {
                 try {
                     const objectKey = this.objectStorageService.extractObjectKey(attachment.url);
                     if (!objectKey.startsWith(`chat-files/${ctx.channelId}/`)) {
                         this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
                         return;
                     }
+
                     await this.objectStorageService.removeObject(objectKey);
                 } catch (error) {
                     this.logger.warn(`Failed to delete object storage file [url=${attachment.url}]`, error);
@@ -292,18 +299,25 @@ export class ChatService {
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
-        if (!membership) throw new ForbiddenException('채널 접근 권한이 없습니다');
+        if (!membership) {
+            throw new ForbiddenException('채널 접근 권한이 없습니다');
+        }
 
         const channel = await this.channelProjectionRepository.findById(ctx.channelId);
-        if (!channel) throw new NotFoundException('채널을 찾을 수 없습니다');
+        if (!channel) {
+            throw new NotFoundException('채널을 찾을 수 없습니다');
+        }
+
         const scope = resolveMessageScope(channel);
-        if (!scope || membership.teamId !== scope.teamId || membership.channelType !== channel.type) {
+        if (membership.teamId !== scope?.teamId || membership.channelType !== channel.type) {
             throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
         }
 
         if (dto.parentMessageId) {
             const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
-            if (!parent) throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+            if (!parent) {
+                throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+            }
         }
 
         if (dto.attachments?.length) {
@@ -337,12 +351,15 @@ export class ChatService {
      */
     private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
         const members = await this.channelMemberRepository.findByChannelId(channelId);
-        const receiver = members.find((member) => member.userId !== senderId);
-        if (!receiver) return;
+        const receiver = members.find(member => member.userId !== senderId);
+        if (!receiver) {
+            return;
+        }
 
         if (await this.blockService.isBlocked(receiver.userId, senderId)) {
             throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
         }
+
         await Promise.all([
             this.channelMemberRepository.setHidden(channelId, senderId, false),
             this.channelMemberRepository.setHidden(channelId, receiver.userId, false),
@@ -358,7 +375,9 @@ export class ChatService {
      */
     async getMyDms(userId: number) {
         const memberships = await this.channelMemberRepository.findDmMemberships(userId);
-        if (memberships.length === 0) return [];
+        if (memberships.length === 0) {
+            return [];
+        }
 
         const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
             0,
@@ -366,8 +385,11 @@ export class ChatService {
             memberships.map(({ channelId }) => channelId),
         ));
         const readableMemberships = memberships.filter(({ channelId }) => readableChannelIds.has(channelId));
-        if (readableMemberships.length === 0) return [];
-        const channelIds = readableMemberships.map((m) => m.channelId);
+        if (readableMemberships.length === 0) {
+            return [];
+        }
+
+        const channelIds = readableMemberships.map(m => m.channelId);
         const [others, lastMessages, unreadCounts] = await Promise.all([
             this.channelMemberRepository.findOtherDmMembers(channelIds, userId),
             this.messageRepository.findLastMessages(channelIds),
@@ -381,7 +403,7 @@ export class ChatService {
                 unreadCount: unreadCounts.get(channelId) ?? 0,
                 lastMessage: lastMessages.get(channelId) ?? null,
             }))
-            .sort((a, b) => (b.lastMessage?.createdAt?.getTime() ?? 0) - (a.lastMessage?.createdAt?.getTime() ?? 0));
+            .toSorted((a, b) => (b.lastMessage?.createdAt?.getTime() ?? 0) - (a.lastMessage?.createdAt?.getTime() ?? 0));
     }
 
     /**
@@ -394,9 +416,10 @@ export class ChatService {
      */
     async hideDm(channelId: number, userId: number): Promise<void> {
         const membership = await this.channelMemberRepository.findMembership(channelId, userId);
-        if (!membership || membership.channelType !== DM_CHANNEL_TYPE) {
+        if (membership?.channelType !== DM_CHANNEL_TYPE) {
             throw new ForbiddenException('DM 채널 접근 권한이 없습니다');
         }
+
         await this.channelMemberRepository.setHidden(channelId, userId, true);
     }
 
@@ -412,6 +435,7 @@ export class ChatService {
         if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
             throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
         }
+
         await this.publishGithubIssueCreateCommand(ctx, dto.payload);
     }
 
@@ -489,6 +513,7 @@ export class ChatService {
             if (!accessibleChannelIds.includes(dto.channelId)) {
                 throw new ForbiddenException('채널 접근 권한이 없습니다');
             }
+
             filteredChannelIds = [dto.channelId];
         }
 
@@ -516,7 +541,9 @@ export class ChatService {
         ctx: UserContext,
     ): Promise<SearchMessagesResponseDto> {
         const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
-        if (!isMember) throw new ForbiddenException('팀 접근 권한이 없습니다');
+        if (!isMember) {
+            throw new ForbiddenException('팀 접근 권한이 없습니다');
+        }
 
         let accessibleChannelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, ctx.userId);
 
@@ -524,6 +551,7 @@ export class ChatService {
             if (!accessibleChannelIds.includes(dto.channelId)) {
                 throw new ForbiddenException('채널 접근 권한이 없습니다');
             }
+
             accessibleChannelIds = [dto.channelId];
         }
 
@@ -564,7 +592,9 @@ export class ChatService {
         }
 
         const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
-        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (!updated) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -617,10 +647,14 @@ export class ChatService {
      */
     async pinMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정할 수 있습니다');
-        if (message.isPinned) throw new BadRequestException('이미 고정된 메시지입니다');
+        if (message.isPinned) {
+            throw new BadRequestException('이미 고정된 메시지입니다');
+        }
 
         const updated = await this.messageRepository.setPinned(ctx.messageId, true, isSearchIndexed(message));
-        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (!updated) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -643,10 +677,14 @@ export class ChatService {
      */
     async unpinMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정 해제할 수 있습니다');
-        if (!message.isPinned) throw new BadRequestException('고정되지 않은 메시지입니다');
+        if (!message.isPinned) {
+            throw new BadRequestException('고정되지 않은 메시지입니다');
+        }
 
         const updated = await this.messageRepository.setPinned(ctx.messageId, false, isSearchIndexed(message));
-        if (!updated) throw new NotFoundException('메시지를 찾을 수 없습니다');
+        if (!updated) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -669,8 +707,13 @@ export class ChatService {
     async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
-        if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
-        if (count === -1) return; // 이미 반응한 경우 무시
+        if (count === null) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
+
+        if (count === -1) {
+            return;
+        } // 이미 반응한 경우 무시
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -699,8 +742,13 @@ export class ChatService {
     async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
-        if (count === null) throw new NotFoundException('메시지를 찾을 수 없습니다');
-        if (count === -1) return; // 반응이 없었던 경우 무시
+        if (count === null) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
+
+        if (count === -1) {
+            return;
+        } // 반응이 없었던 경우 무시
 
         await this.channelMessageReadAccess.emitToReadableChannelUsers(
             this.chatGateway.server,
@@ -744,6 +792,7 @@ export class ChatService {
         if (memberships.length === 0) {
             return [];
         }
+
         const unreadCounts = await this.getUnreadCounts(userId, memberships);
         return memberships.map(({ channelId }) => ({
             channelId,
@@ -764,7 +813,7 @@ export class ChatService {
         userId: number,
         memberships: Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>,
     ): Promise<Map<number, number>> {
-        const channelIds = memberships.map((m) => m.channelId);
+        const channelIds = memberships.map(m => m.channelId);
         const cached = await this.unreadCounterService.getMany(userId, channelIds);
         const missedIds = cached ? cached.misses : channelIds;
         if (missedIds.length === 0) {
@@ -772,15 +821,16 @@ export class ChatService {
         }
 
         const missedSet = new Set(missedIds);
-        const missedMemberships = memberships.filter((m) => missedSet.has(m.channelId));
+        const missedMemberships = memberships.filter(m => missedSet.has(m.channelId));
         const recomputed = await this.messageRepository.countUnreadForChannels(missedMemberships);
-        const filled = new Map(missedIds.map((id) => [id, recomputed.get(id) ?? 0]));
+        const filled = new Map(missedIds.map(id => [id, recomputed.get(id) ?? 0]));
         void this.unreadCounterService.setMany(userId, filled);
 
-        const result = new Map(cached?.hits ?? []);
+        const result = new Map(cached?.hits);
         for (const [channelId, count] of filled) {
             result.set(channelId, count);
         }
+
         return result;
     }
 
@@ -805,21 +855,26 @@ export class ChatService {
         content: string,
     ): Promise<MessageDocument | null> {
         const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
-        if (!channel) throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+        if (!channel) {
+            throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+        }
+
         if (channel.deleted) {
             this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
             return null;
         }
+
         const scope = resolveMessageScope(channel);
-        if (!scope || scope.teamId === null || scope.teamId !== teamId) {
+        if (scope?.teamId == null || scope.teamId !== teamId) {
             this.logger.warn(
                 `Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
             );
             return null;
         }
+
         const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
         const members = await this.channelMemberRepository.findByChannelId(channelId);
-        const candidateUserIds = members.map((member) => member.userId).filter((id) => id !== SYSTEM_AUTHOR_ID);
+        const candidateUserIds = members.map(member => member.userId).filter(id => id !== SYSTEM_AUTHOR_ID);
         const readableUsers = await this.channelMessageReadAccess.filterReadableUsersByChannel(
             new Map([[channelId, candidateUserIds]]),
         );
@@ -848,6 +903,8 @@ export class ChatService {
     }
 
     /**
+     * 관리자 역할인지 확인한다.
+     *
      * @param role - 사용자 역할 문자열
      * @returns ADMIN 역할이면 `true`
      */
@@ -856,7 +913,7 @@ export class ChatService {
     }
 
     /**
-     * base64 인코딩된 fileId에서 messageId를 추출한다.
+     * Base64 인코딩된 fileId에서 messageId를 추출한다.
      * fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
      *
      * @param fileId - base64 인코딩된 파일 식별자
@@ -871,6 +928,7 @@ export class ChatService {
             if (typeof parsed.messageId !== 'string' || !Types.ObjectId.isValid(parsed.messageId)) {
                 throw new BadRequestException('유효하지 않은 fileId입니다');
             }
+
             return parsed.messageId;
         } catch {
             throw new BadRequestException('유효하지 않은 fileId입니다');
@@ -893,9 +951,18 @@ export class ChatService {
     ): Promise<MessageDocument> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         const message = await this.messageRepository.findById(ctx.messageId);
-        if (!message) throw new NotFoundException('메시지를 찾을 수 없습니다');
-        if (message.channelId !== ctx.channelId) throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
-        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) throw new ForbiddenException(forbiddenMessage);
+        if (!message) {
+            throw new NotFoundException('메시지를 찾을 수 없습니다');
+        }
+
+        if (message.channelId !== ctx.channelId) {
+            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
+        }
+
+        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) {
+            throw new ForbiddenException(forbiddenMessage);
+        }
+
         return message;
     }
 
@@ -907,9 +974,9 @@ export class ChatService {
      * @returns uploaderId → 표시 이름 매핑
      */
     private async loadUploaderNames(items: Array<{ uploaderId: number }>): Promise<Map<number, string>> {
-        const uniqueUploaderIds = [...new Set(items.map((item) => item.uploaderId))];
-        const systemIds = uniqueUploaderIds.filter((id) => id <= SYSTEM_AUTHOR_ID);
-        const realIds = uniqueUploaderIds.filter((id) => id > SYSTEM_AUTHOR_ID);
+        const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
+        const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
+        const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);
 
         const names = await this.userClient.getDisplayNames(realIds);
         for (const systemId of systemIds) {

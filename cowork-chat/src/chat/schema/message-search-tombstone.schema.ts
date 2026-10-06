@@ -27,7 +27,9 @@ export class MessageSearchTombstone {
     /** 삭제 시점에 메시지에서 예약한 색인 버전 */
     @Prop({ required: true }) version!: number;
 
-    @Prop({ type: String, required: true, enum: MESSAGE_SEARCH_TOMBSTONE_STATUSES, default: 'PENDING' })
+    @Prop({
+        type: String, required: true, enum: MESSAGE_SEARCH_TOMBSTONE_STATUSES, default: 'PENDING',
+    })
     status!: MessageSearchTombstoneStatus;
 
     @Prop({ default: 0 }) retryCount!: number;
