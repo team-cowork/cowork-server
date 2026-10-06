@@ -1,8 +1,22 @@
-import { Controller, Delete, Get, HttpCode, HttpStatus, Param } from '@nestjs/common';
-import { ApiHeader, ApiNoContentResponse, ApiOkResponse, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { ChatService } from './chat.service';
+import {
+    Controller,
+    Delete,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+} from '@nestjs/common';
+import {
+    ApiHeader,
+    ApiNoContentResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiParam,
+    ApiTags,
+} from '@nestjs/swagger';
 import { UserId } from '../common/decorator/user.decorator';
 import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
+import { ChatService } from './chat.service';
 
 @ApiTags('DM')
 @ApiHeader({ name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false })

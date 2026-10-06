@@ -160,8 +160,10 @@ jobs:
               - 'cowork-voice/**'
             cowork-chat:
               - 'cowork-chat/**'
+              - '.github/workflows/cowork-prod-ci.yml'
             cowork-promotion:
               - 'cowork-promotion/**'
+              - '.github/workflows/cowork-prod-ci.yml'
               - 'docs/todo/**'
             cowork-notification:
               - 'cowork-notification/**'
@@ -323,11 +325,18 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
           cache-dependency-path: ${{ matrix.working-directory }}/package-lock.json
+      - name: Install Node Dependencies
+        if: matrix.build == 'node'
+        working-directory: ${{ matrix.working-directory }}
+        run: npm ci
+      - name: Lint (Node)
+        if: matrix.build == 'node'
+        working-directory: ${{ matrix.working-directory }}
+        run: npm run lint -- --max-warnings=0
       - name: Build & Test (Node)
         if: matrix.build == 'node'
         working-directory: ${{ matrix.working-directory }}
         run: |
-          npm ci
           npm test --if-present
           npm run build
       - name: Build & Test (Elixir)

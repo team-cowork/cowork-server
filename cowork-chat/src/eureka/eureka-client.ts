@@ -1,4 +1,4 @@
-import os from 'os';
+import os from 'node:os';
 import { Logger } from '@nestjs/common';
 import { requireEnv } from '../common/config/config.util';
 import { controlPlaneAuthorization } from '../common/config/control-plane-auth';
@@ -32,7 +32,7 @@ export class EurekaClient {
 
         return new EurekaClient({
             enabled: process.env.EUREKA_ENABLED !== 'false',
-            serverUrl: requireEnv('EUREKA_SERVER_URL').replace(/\/$/, ''),
+            serverUrl: requireEnv('EUREKA_SERVER_URL').replace(/\/$/u, ''),
             appName,
             host,
             port,
@@ -57,8 +57,8 @@ export class EurekaClient {
                     vipAddress: this.config.appName,
                     secureVipAddress: this.config.appName,
                     status: 'UP',
-                    port: { '$': this.config.port, '@enabled': 'true' },
-                    securePort: { '$': 443, '@enabled': 'false' },
+                    port: { $: this.config.port, '@enabled': 'true' },
+                    securePort: { $: 443, '@enabled': 'false' },
                     healthCheckUrl: `http://${this.config.host}:${this.config.port}/health/ready`,
                     statusPageUrl: `http://${this.config.host}:${this.config.port}/health`,
                     homePageUrl: `http://${this.config.host}:${this.config.port}/`,
@@ -97,17 +97,20 @@ export class EurekaClient {
     }
 
     private async sendHeartbeat(): Promise<void> {
-        if (this.isPolling) return;
+        if (this.isPolling) {
+            return;
+        }
+
         this.isPolling = true;
         try {
             await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
                 method: 'PUT',
             });
-        } catch (err: unknown) {
-            this.logger.warn(`eureka heartbeat failed: ${String(err)}`);
-            if (err instanceof Error && err.message.includes('404')) {
-                await this.register().catch((regErr: unknown) => {
-                    this.logger.error(`eureka re-registration failed: ${String(regErr)}`);
+        } catch (error: unknown) {
+            this.logger.warn(`eureka heartbeat failed: ${String(error)}`);
+            if (error instanceof Error && error.message.includes('404')) {
+                await this.register().catch((registrationError: unknown) => {
+                    this.logger.error(`eureka re-registration failed: ${String(registrationError)}`);
                 });
             }
         } finally {
@@ -116,21 +119,23 @@ export class EurekaClient {
     }
 
     private stopHeartbeat(): void {
-        if (this.heartbeatTimer) {
-            clearInterval(this.heartbeatTimer);
-            this.heartbeatTimer = undefined;
+        if (!this.heartbeatTimer) {
+            return;
         }
+
+        clearInterval(this.heartbeatTimer);
+        this.heartbeatTimer = undefined;
     }
 
     private async request(path: string, init: RequestInit): Promise<void> {
         const response = await fetch(`${this.config.serverUrl}${path}`, {
             ...init,
             redirect: 'error',
-            signal: init.signal ?? AbortSignal.timeout(5_000),
+            signal: init.signal ?? AbortSignal.timeout(5000),
             headers: {
                 Accept: 'application/json',
                 'Content-Type': 'application/json',
-                ...(init.headers ?? {}),
+                ...init.headers,
                 Authorization: controlPlaneAuthorization(this.config.serverUrl),
             },
         });
@@ -150,5 +155,6 @@ function resolveIpAddress(): string {
             }
         }
     }
+
     throw new Error('No non-loopback IPv4 address is available for Eureka registration');
 }
