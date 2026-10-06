@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import mongoose from 'mongoose';
@@ -6,14 +11,14 @@ import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
 import { ProjectClient, ChannelMessageReadAccessService } from '../service';
-import { GithubRepoEvent } from './event/github-repo.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
 import { toMessageBroadcastPayload } from '../repository';
+import { GithubRepoEvent } from './event/github-repo.event';
 
 /** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
-const MESSAGE_CONTENT_MAX_LENGTH = 25000;
+const MESSAGE_CONTENT_MAX_LENGTH = 25_000;
 const PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS = 5000;
 
 /**
@@ -67,30 +72,35 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer
             .run({
-                eachMessage: async (payload) => {
+                eachMessage: async payload => {
                     const { message } = payload;
-                    if (!message.value) return;
+                    if (!message.value) {
+                        return;
+                    }
+
                     try {
                         const event = JSON.parse(message.value.toString()) as GithubRepoEvent;
-                        await this.handleRepoEvent(event, () => payload.heartbeat());
-                    } catch (err) {
-                        this.logger.error('Failed to process repo event', err);
+                        await this.handleRepoEvent(event, async () => payload.heartbeat());
+                    } catch (error) {
+                        this.logger.error('Failed to process repo event', error);
                         // 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
-                        if (!(err instanceof SyntaxError) && !(err instanceof mongoose.Error.ValidationError)) throw err;
+                        if (!(error instanceof SyntaxError) && !(error instanceof mongoose.Error.ValidationError)) {
+                            throw error;
+                        }
                     }
                 },
             })
-            .catch(async (err) => {
-                this.logger.error('github.repo.event Kafka consumer failed', err);
+            .catch(async (error: unknown) => {
+                this.logger.error('github.repo.event Kafka consumer failed', error);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: 'cowork-chat의 github.repo.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                     color: 'danger',
                     fields: [
                         { name: 'Topic', value: 'github.repo.event', inline: true },
-                        ...buildErrorFields(err),
+                        ...buildErrorFields(error),
                     ],
-                }).catch(() => {});
+                }).catch(() => {/* Alert delivery is best-effort. */});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: github.repo.event');
@@ -111,7 +121,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      *
      * @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
      */
-    private async handleRepoEvent(event: GithubRepoEvent, heartbeat: () => Promise<void> = async () => {}): Promise<void> {
+    private async handleRepoEvent(event: GithubRepoEvent, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
         const summary = this.sanitizeSummary(event.summary);
         if (summary === null) {
             this.logger.warn(`Skipping repo event with empty summary owner=${event.owner} repo=${event.repo}`);
@@ -122,11 +132,15 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (!this.projectionReadiness.isReady()) {
             throw new Error('Kafka projections became unavailable while processing github.repo.event');
         }
+
         const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
         for (const target of targets) {
             const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary);
-            if (!saved) continue;
+            if (!saved) {
+                continue;
+            }
+
             await this.notifyClient(target.channelId, toMessageBroadcastPayload(saved));
         }
     }
@@ -146,15 +160,22 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
         while (true) {
             let timer: ReturnType<typeof setTimeout> | undefined;
             const completed = operation.then(() => true);
-            const heartbeatInterval = new Promise<boolean>((resolve) => {
-                timer = setTimeout(() => resolve(false), PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS);
+            const heartbeatInterval = new Promise<boolean>(resolve => {
+                timer = setTimeout(() => {
+                    resolve(false);
+                }, PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS);
             });
 
             try {
-                if (await Promise.race([completed, heartbeatInterval])) return;
+                if (await Promise.race([completed, heartbeatInterval])) {
+                    return;
+                }
             } finally {
-                if (timer) clearTimeout(timer);
+                if (timer) {
+                    clearTimeout(timer);
+                }
             }
+
             await heartbeat();
         }
     }
@@ -165,7 +186,10 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      */
     private sanitizeSummary(summary: string): string | null {
         const trimmed = summary?.trim();
-        if (!trimmed) return null;
+        if (!trimmed) {
+            return null;
+        }
+
         return trimmed.length > MESSAGE_CONTENT_MAX_LENGTH ? trimmed.slice(0, MESSAGE_CONTENT_MAX_LENGTH) : trimmed;
     }
 
@@ -182,6 +206,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
             this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
             return;
         }
+
         await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, 'message', message);
     }
 }
