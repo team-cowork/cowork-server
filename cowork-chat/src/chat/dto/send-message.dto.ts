@@ -26,8 +26,8 @@ export class AttachmentDto {
 }
 
 export class SendMessageDto {
-    @ApiProperty({ description: '메시지 내용 (최대 25000자). 멘션은 `<@userId>` 형식으로 포함 가능 (예: `<@123>`)', maxLength: 25000, minLength: 1 })
-    @IsString() @MaxLength(25000) content!: string;
+    @ApiProperty({ description: '메시지 내용 (최대 25000자). 멘션은 `<@userId>` 형식으로 포함 가능 (예: `<@123>`)', maxLength: 25_000, minLength: 1 })
+    @IsString() @MaxLength(25_000) content!: string;
 
     @ApiPropertyOptional({ enum: ['TEXT', 'FILE'], default: 'TEXT' })
     @IsEnum(['TEXT', 'FILE']) @IsOptional() type?: string;
