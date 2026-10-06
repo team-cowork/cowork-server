@@ -94,7 +94,10 @@ export class EurekaClient {
      */
     setStatus(status: EurekaInstanceStatus): void {
         this.desiredStatus = status;
-        if (!this.config.enabled) return;
+        if (!this.config.enabled) {
+            return;
+        }
+
         void this.syncStatus();
     }
 
@@ -110,7 +113,7 @@ export class EurekaClient {
         });
     }
 
-    private syncStatus(): Promise<void> {
+    private async syncStatus(): Promise<void> {
         this.statusSync ??= this.applyStatus().finally(() => {
             this.statusSync = undefined;
         });
@@ -125,11 +128,14 @@ export class EurekaClient {
                 await this.request(`/apps/${this.config.appName}/${this.config.instanceId}/status?value=${status}`, {
                     method: status === 'UP' ? 'DELETE' : 'PUT',
                 });
-                if (this.appliedStatus !== undefined) this.appliedStatus = status;
+                if (this.appliedStatus !== undefined) {
+                    this.appliedStatus = status;
+                }
+
                 this.logger.log(`eureka status → ${status}`);
             }
-        } catch (err: unknown) {
-            this.logger.warn(`eureka status update failed; retrying on next heartbeat: ${String(err)}`);
+        } catch (error: unknown) {
+            this.logger.warn(`eureka status update failed; retrying on next heartbeat: ${String(error)}`);
         }
     }
 
