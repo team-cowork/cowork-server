@@ -1,9 +1,9 @@
-import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
+import { type ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
+import { type Reflector } from '@nestjs/core';
+import { type ConfigService } from '@nestjs/config';
+import { type RedisRateLimiter } from '../util/redis-rate-limiter';
+import { type ThrottleOptions } from '../decorator/throttle.decorator';
 import { ThrottleGuard } from './throttle.guard';
-import { RedisRateLimiter } from '../util/redis-rate-limiter';
-import { ThrottleOptions } from '../decorator/throttle.decorator';
 
 const mockRateLimiter = {
     tryAcquire: jest.fn(),

@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka } from 'kafkajs';
 import { Server } from 'socket.io';
@@ -12,7 +17,7 @@ import { applyProjectionMessage, ProjectionContractError } from '../../common/ka
 import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository';
 import { ChannelMessageReadAccessService } from '../service';
 
-interface ChannelEvent {
+type ChannelEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
     channelId: number;
     teamId: number | null;
@@ -28,7 +33,7 @@ interface ChannelEvent {
     snapshot?: boolean;
     /** 이전 producer 이벤트와의 호환을 위해 선택값이며, 누락 시 0으로 저장한다. */
     position?: number;
-}
+};
 
 @Injectable()
 export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -61,24 +66,22 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer.run({
             eachMessage: async ({ partition, message }): Promise<void> => {
-                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                    return applyProjectionMessage(
-                        stream,
-                        partition,
-                        message,
-                        this.projectionReadiness,
-                        (payload, key) => this.handleEvent(payload, key),
-                    );
-                });
+                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                    stream,
+                    partition,
+                    message,
+                    this.projectionReadiness,
+                    async (payload, key) => this.handleEvent(payload, key),
+                ));
             },
-        }).catch(async (err) => {
-            this.logger.error(`${stream.topic} Kafka consumer failed`, err);
+        }).catch(async (error: unknown) => {
+            this.logger.error(`${stream.topic} Kafka consumer failed`, error);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
                 description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(err)],
-            }).catch(() => {});
+                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
@@ -92,6 +95,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (!this.isChannelEvent(payload)) {
             throw new ProjectionContractError('invalid channel event payload');
         }
+
         const event = payload;
         if (messageKey !== `${event.channelId}`) {
             throw new ProjectionContractError(
@@ -100,7 +104,10 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         const eventTime = parseEventTime(event.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('channel event occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('channel event occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
         const deletionRecipientSocketIds = event.eventType === 'DELETED'
             && event.snapshot !== true
@@ -132,31 +139,48 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             };
             applied = await this.channelRepository.upsert(projectionEvent);
         }
-        // replay로 다시 적용되는 과거 레코드는 소켓 이벤트나 접근 취소를 만들지 않는다.
-        if (!this.io || !this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channel.name)) return;
+
+        // Replay로 다시 적용되는 과거 레코드는 소켓 이벤트나 접근 취소를 만들지 않는다.
+        if (!this.io || !this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channel.name)) {
+            return;
+        }
+
         if (event.eventType === 'UPDATED') {
             await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, [event.channelId]);
         }
+
         if (event.snapshot === true) {
             if (event.eventType === 'DELETED'
-                && (applied !== false || await this.channelRepository.findById(event.channelId) === null)) {
+                && (applied || await this.channelRepository.findById(event.channelId) === null)) {
                 this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
             }
+
             return;
         }
 
         const { eventType, snapshot, ...projectionPayload } = event;
-        void snapshot;
         if (eventType === 'DELETED') {
-            if (!applied && await this.channelRepository.findById(event.channelId) !== null) return;
+            if (!applied && await this.channelRepository.findById(event.channelId) !== null) {
+                return;
+            }
+
             for (const socketId of deletionRecipientSocketIds) {
                 this.io.to(socketId).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
             }
+
             this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
-        } else if (event.teamId === null) {
             return;
-        } else if (eventType === 'CREATED') {
-            if (!applied) return;
+        }
+
+        if (event.teamId === null) {
+            return;
+        }
+
+        if (eventType === 'CREATED') {
+            if (!applied) {
+                return;
+            }
+
             await this.channelMessageReadAccess.emitChannelEventToVisibleTeamUsers(
                 this.io,
                 event.teamId,
@@ -165,7 +189,10 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 projectionPayload,
             );
         } else if (eventType === 'UPDATED') {
-            if (applied === false) return;
+            if (!applied) {
+                return;
+            }
+
             await this.channelMessageReadAccess.emitChannelEventToVisibleTeamUsers(
                 this.io,
                 event.teamId,
@@ -177,17 +204,24 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private isChannelEvent(payload: unknown): payload is ChannelEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
-        const event = payload as Partial<ChannelEvent>;
-        if (!['CREATED', 'UPDATED', 'DELETED'].includes(event.eventType ?? '')) return false;
-        if (!isSafePositiveInteger(event.channelId)) return false;
-        if (event.teamId !== null && !isSafePositiveInteger(event.teamId)) return false;
-        if (event.projectId !== undefined && event.projectId !== null && !isSafePositiveInteger(event.projectId)) {
+        if (typeof payload !== 'object' || payload === null) {
             return false;
         }
-        if (parseEventTime(event.occurredAt) === null) return false;
-        if (event.snapshot !== undefined && typeof event.snapshot !== 'boolean') return false;
-        if (event.eventType === 'DELETED') return true;
+
+        const event = payload as Partial<ChannelEvent>;
+        if (!['CREATED', 'UPDATED', 'DELETED'].includes(event.eventType ?? '')
+            || !isSafePositiveInteger(event.channelId)
+            || (event.teamId !== null && !isSafePositiveInteger(event.teamId))
+            || (event.projectId !== undefined && event.projectId !== null && !isSafePositiveInteger(event.projectId))
+            || (parseEventTime(event.occurredAt) === null)
+            || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')) {
+            return false;
+        }
+
+        if (event.eventType === 'DELETED') {
+            return true;
+        }
+
         return typeof event.name === 'string'
             && typeof event.type === 'string'
             && typeof event.viewType === 'string'

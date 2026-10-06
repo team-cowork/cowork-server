@@ -19,8 +19,6 @@ import { ElasticsearchService } from '../search/elasticsearch.service';
 const COMMANDS = ['status', 'retry-failed', 'rebuild', 'resume-rebuild'] as const;
 type Command = typeof COMMANDS[number];
 
-/* eslint-disable no-console -- 이 CLI의 목적은 운영자에게 색인 상태와 명령 결과를 출력하는 것이다. */
-
 function model<T>(name: string, schema: mongoose.Schema): mongoose.Model<T> {
     return (mongoose.models[name] ?? mongoose.model(name, schema)) as mongoose.Model<T>;
 }
@@ -37,8 +35,14 @@ async function main(): Promise<void> {
     const uri = process.env.MONGODB_URI;
     const node = process.env.ELASTICSEARCH_URL;
 
-    if (!uri) throw new Error('MONGODB_URI is required');
-    if (!node) throw new Error('ELASTICSEARCH_URL is required');
+    if (!uri) {
+        throw new Error('MONGODB_URI is required');
+    }
+
+    if (!node) {
+        throw new Error('ELASTICSEARCH_URL is required');
+    }
+
     if (!command || !COMMANDS.includes(command)) {
         throw new Error(`usage: message-search-index <${COMMANDS.join('|')}>`);
     }
@@ -59,6 +63,7 @@ async function main(): Promise<void> {
         await printStatus(indexRepository, tombstoneRepository, stateRepository, elasticsearchService);
         return;
     }
+
     if (command === 'retry-failed') {
         const [messages, tombstones] = await Promise.all([
             indexRepository.retryFailed(),
@@ -107,4 +112,6 @@ void main()
         console.error(error instanceof Error ? error.message : error);
         process.exitCode = 1;
     })
-    .finally(() => Promise.all([mongoose.disconnect(), esClient?.close()]));
+    .finally(async () => {
+        await Promise.all([mongoose.disconnect(), esClient?.close()]);
+    });
