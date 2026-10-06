@@ -8,16 +8,22 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+RFC1918 = [ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")]
+
+
 def private_ipv4(host):
+    # is_private는 링크 로컬과 문서용 대역도 포함하므로 RFC1918 사설 대역만 허용한다.
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
         return False
-    return address.version == 4 and address.is_private and not address.is_loopback and not address.is_unspecified
+    return address.version == 4 and any(address in network for network in RFC1918)
 
 
 def http_url(name):
     value = os.environ[name]
+    if "," in value or any(char.isspace() for char in value):
+        raise ValueError(f"{name} must contain exactly one URL")
     url = urlsplit(value)
     if not url.hostname or url.username is not None or url.query or url.fragment:
         raise ValueError(f"{name} must be a URL without credentials")
