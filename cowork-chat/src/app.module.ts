@@ -1,3 +1,4 @@
+import { createWriteStream, mkdirSync } from 'node:fs';
 import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -7,7 +8,6 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Request } from 'express';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
-import { createWriteStream, mkdirSync } from 'fs';
 import { ChatModule } from './chat/chat.module';
 import { HealthController } from './health.controller';
 import { AuthGuard } from './common/guard/auth.guard';
@@ -36,7 +36,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
         ProjectionReadinessModule,
         LoggerModule.forRootAsync({
             inject: [ConfigService],
-            useFactory: (configService: ConfigService) => {
+            useFactory(configService: ConfigService) {
                 const loggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
                 if (!loggerEnabled) {
                     return { pinoHttp: { level: 'silent' } };
@@ -56,8 +56,8 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                         level: nodeEnv === 'production' ? 'info' : 'debug',
                         stream: createLogStream(),
                         autoLogging: {
-                            ignore: (req) => {
-                                const path = req.url?.split('?')[0]?.replace(/\/$/, '');
+                            ignore(request) {
+                                const path = request.url?.split('?', 1)[0]?.replace(/\/$/u, '');
                                 return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
                             },
                         },

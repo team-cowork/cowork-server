@@ -11,25 +11,24 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface UserProfileProjectionView {
+export type UserProfileProjectionView = {
     userId: number;
     name: string;
     nickname: string | null;
     githubId: string | null;
-}
+};
 
-export interface VersionedUserProfileProjectionView extends UserProfileProjectionView {
+export type VersionedUserProfileProjectionView = {
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+} & UserProfileProjectionView;
 
 @Injectable()
 export class UserProfileProjectionRepository {
     constructor(@InjectModel(UserProfileProjection.name) private readonly model: Model<UserProfileProjection>) {}
 
     async findByUserIds(userIds: number[]): Promise<UserProfileProjectionView[]> {
-        if (userIds.length === 0) return [];
-        return this.model.find({ userId: { $in: userIds }, deleted: { $ne: true } }).lean<UserProfileProjectionView[]>();
+        return userIds.length === 0 ? [] : this.model.find({ userId: { $in: userIds }, deleted: { $ne: true } }).lean<UserProfileProjectionView[]>();
     }
 
     async upsert(profile: VersionedUserProfileProjectionView): Promise<boolean> {
