@@ -16,7 +16,7 @@ Vault `secret/deploy/{target}`에 저장한다. 운영 VM의 환경 파일을 �
    앱 배포 inventory가 수행하지 않는다. Kafka는 bootstrap 주소뿐 아니라 모든 advertised listener에
    앱이 도달할 수 있어야 하며, producer 기동 전에 토픽을 준비한다.
 4. Vault KV v2·TLS·초기화·unseal 자료와 아래 Environment를 준비한다. Config Server 연결·계정·
-   인증서·방화벽은 [별도 전환 절차](./config-server-access.md)를 따른다.
+   방화벽은 [별도 전환 절차](./config-server-access.md)를 따른다.
 5. 공개 프록시의 HTTP·WebSocket upgrade·SSE를 확인한다. SSE buffering·idle timeout과 LiveKit의
    signaling·RTC·TURN 경로를 별도로 확인한다. `livekit-cloud.yaml`은 고정 참고 파일이므로 Compose
    환경변수만으로 key·IP가 교체됐다고 판단하지 않는다.
@@ -107,7 +107,7 @@ notification의 Vault DSN 키는 `db.dsn`, preference의 DB 계정 키는
 
 JWT는 authorization·Gateway·Chat, S3 key pair는 S3 서버·chat·team·user,
 LiveKit key pair는 LiveKit 서버·voice에서 교체 시점과 재배포 순서를 맞춘다.
-Config/Eureka 계정·TLS는 [접근 보호 절차](./config-server-access.md)를 따른다.
+Config/Eureka 계정·방화벽은 [접근 보호 절차](./config-server-access.md)를 따른다.
 
 Firebase는 notification 프로파일의 `fcm.credentials-json`에 `service_account` JSON 전체를
 문자열로 저장한다. `private_key` 줄바꿈을 JSON 직렬화로 보존하고 파일 경로나 중첩 객체로 전달하지 않는다.

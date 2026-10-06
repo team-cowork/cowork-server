@@ -7,46 +7,37 @@ import org.springframework.mock.env.MockEnvironment
 
 class ControlPlaneAccountsTest :
     DescribeSpec({
-        fun accountsJson(passwordHash: String) =
+        fun accountsJson(passwordHash: String, profile: String = "prod") =
             "[{\"username\":\"chat-prod\",\"passwordHash\":\"$passwordHash\"," +
-                "\"application\":\"cowork-chat\",\"profile\":\"prod\"}]"
+                "\"application\":\"cowork-chat\",\"profile\":\"$profile\"}]"
 
-        val validJson = accountsJson("a".repeat(64))
+        fun environment(vararg profiles: String, json: String = accountsJson("a".repeat(64))) =
+            MockEnvironment().apply {
+                setActiveProfiles(*profiles)
+                setProperty("CONFIG_SERVER_ACCOUNTS_JSON", json)
+            }
 
-        fun environment(
-            vararg profiles: String,
-            sslEnabled: Boolean? = null,
-            json: String = validJson,
-        ) = MockEnvironment().apply {
-            setActiveProfiles(*profiles)
-            setProperty("CONFIG_SERVER_ACCOUNTS_JSON", json)
-            if (sslEnabled != null) setProperty("server.ssl.enabled", sslEnabled.toString())
-        }
-
-        describe("운영 Config Server의 TLS 요구") {
-            it("TLS가 켜져 있으면 계정을 로드한다") {
-                val accounts = ControlPlaneAccounts(environment("prod", sslEnabled = true))
+        describe("Config Server 서비스 계정 로드") {
+            it("운영 프로파일에서 TLS 설정 없이도 계정을 로드한다") {
+                val accounts = ControlPlaneAccounts(environment("prod"))
                 accounts.accounts.keys shouldBe setOf("chat-prod")
             }
-            it("TLS도 private-http 프로파일도 없으면 기동을 거부한다") {
-                val withoutSslProperty = environment("prod")
-                val sslDisabled = environment("prod", sslEnabled = false)
-                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(withoutSslProperty) }
-                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(sslDisabled) }
-            }
-            it("private-http 프로파일이면 TLS 없이도 계정 인증은 유지한 채 기동한다") {
-                val accounts = ControlPlaneAccounts(environment("prod", "private-http"))
-                accounts.accounts.keys shouldBe setOf("chat-prod")
-            }
-            it("private-http여도 계정 문서가 잘못되면 거부한다") {
-                val invalid = environment("prod", "private-http", json = accountsJson("zz"))
+            it("계정의 비밀번호 해시 형식이 잘못되면 거부한다") {
+                val invalid = environment("prod", json = accountsJson("zz"))
                 shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(invalid) }
+            }
+            it("배포 프로파일과 다른 profile의 계정이 있으면 거부한다") {
+                val mismatched = environment("prod", json = accountsJson("a".repeat(64), profile = "local"))
+                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(mismatched) }
             }
         }
         describe("배포 프로파일 선택") {
             it("local과 prod를 함께 선택하면 거부한다") {
-                val both = environment("local", "prod", sslEnabled = true)
+                val both = environment("local", "prod")
                 shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(both) }
+            }
+            it("배포 프로파일이 없으면 거부한다") {
+                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(environment()) }
             }
         }
     })
