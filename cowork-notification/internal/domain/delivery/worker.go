@@ -41,9 +41,9 @@ const (
 // TokenVerifier answers whether a device token row is still current, so the retry
 // worker can cancel a queued retry when the token was deleted or reassigned.
 type TokenVerifier interface {
-	// CurrentToken returns the live token string for deviceTokenID and true, or
-	// ("", false) if the device token row no longer exists.
-	CurrentToken(ctx context.Context, deviceTokenID int64) (token string, ok bool, err error)
+	// CurrentToken returns the live token string and owning account for deviceTokenID
+	// and true, or ("", 0, false) if the device token row no longer exists.
+	CurrentToken(ctx context.Context, deviceTokenID int64) (token string, accountID int64, ok bool, err error)
 }
 
 // InvalidTokenHandler deletes a token FCM reports as permanently unusable.
@@ -52,7 +52,7 @@ type InvalidTokenHandler interface {
 }
 
 type fcmSender interface {
-	Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]fcm.TokenResult, error)
+	Send(ctx context.Context, messages []fcm.Message, title, body string) ([]fcm.TokenResult, error)
 }
 
 // Worker periodically resends PENDING_RETRY rows whose backoff has elapsed. Run must
@@ -152,7 +152,7 @@ func (w *Worker) purgeIfDue(ctx context.Context) {
 }
 
 func (w *Worker) attempt(ctx context.Context, rec Record) {
-	currentToken, ok, err := w.tokens.CurrentToken(ctx, rec.DeviceTokenID)
+	currentToken, accountID, ok, err := w.tokens.CurrentToken(ctx, rec.DeviceTokenID)
 	if err != nil {
 		slog.Error("fcm retry worker: token lookup failed", "deviceTokenId", rec.DeviceTokenID, "err", err)
 		return
@@ -170,7 +170,8 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, fcmSendTimeout)
-	results, err := w.fcm.Send(sendCtx, []string{rec.Token}, rec.Title, rec.Body, rec.Data)
+	msg := fcm.Message{Token: rec.Token, Data: fcm.WithAccountID(rec.Data, accountID)}
+	results, err := w.fcm.Send(sendCtx, []fcm.Message{msg}, rec.Title, rec.Body)
 	cancel()
 	if err != nil || len(results) == 0 {
 		// ctx cancellation (shutdown), the fcmSendTimeout bound, or an empty result for a
