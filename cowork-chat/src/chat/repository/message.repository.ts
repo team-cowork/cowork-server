@@ -750,7 +750,7 @@ export class MessageRepository {
     }
 
     async countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
-        const filter: Record<string, unknown> = { channelId, parentMessageId: null };
+        const filter: Record<string, unknown> = { channelId };
         if (afterId) {
             filter._id = { $gt: afterId };
         }
@@ -797,7 +797,7 @@ export class MessageRepository {
         }
 
         const orConditions = memberships.map(({ channelId, lastReadMessageId }) => {
-            const cond: Record<string, unknown> = { channelId, parentMessageId: null };
+            const cond: Record<string, unknown> = { channelId };
             if (lastReadMessageId) {
                 cond._id = { $gt: lastReadMessageId };
             }
