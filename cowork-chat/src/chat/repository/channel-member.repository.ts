@@ -65,7 +65,7 @@ export class ChannelMemberRepository {
         const memberships = await this.memberModel
             .find({ userId, deleted: { $ne: true } }, { channelId: 1 })
             .lean();
-        return memberships.map((membership) => membership.channelId);
+        return memberships.map(membership => membership.channelId);
     }
 
     /**
@@ -77,7 +77,7 @@ export class ChannelMemberRepository {
      * @param channelId - 멤버 목록을 조회할 채널의 식별자
      * @returns 채널에 속한 {@link ChannelMember} 객체 배열
      */
-    findByChannelId(channelId: number): Promise<ChannelMember[]> {
+    async findByChannelId(channelId: number): Promise<ChannelMember[]> {
         return this.memberModel.find({ channelId, deleted: { $ne: true } }).lean();
     }
 
@@ -88,7 +88,10 @@ export class ChannelMemberRepository {
      * @returns channelId → 해당 채널 멤버 배열 매핑
      */
     async findByChannelIds(channelIds: number[]): Promise<Map<number, ChannelMember[]>> {
-        if (channelIds.length === 0) return new Map();
+        if (channelIds.length === 0) {
+            return new Map();
+        }
+
         const members = await this.memberModel
             .find({ channelId: { $in: channelIds }, deleted: { $ne: true } })
             .lean();
@@ -101,6 +104,7 @@ export class ChannelMemberRepository {
                 result.set(member.channelId, [member]);
             }
         }
+
         return result;
     }
 
@@ -112,7 +116,10 @@ export class ChannelMemberRepository {
         channelIds: number[],
         userIds: number[],
     ): Promise<Map<number, ChannelMember[]>> {
-        if (channelIds.length === 0 || userIds.length === 0) return new Map();
+        if (channelIds.length === 0 || userIds.length === 0) {
+            return new Map();
+        }
+
         const members = await this.memberModel
             .find({
                 channelId: { $in: channelIds },
@@ -123,9 +130,13 @@ export class ChannelMemberRepository {
         const result = new Map<number, ChannelMember[]>();
         for (const member of members) {
             const list = result.get(member.channelId);
-            if (list) list.push(member);
-            else result.set(member.channelId, [member]);
+            if (list) {
+                list.push(member);
+            } else {
+                result.set(member.channelId, [member]);
+            }
         }
+
         return result;
     }
 
@@ -146,7 +157,7 @@ export class ChannelMemberRepository {
                 { channelId: 1, lastReadMessageId: 1 },
             )
             .lean();
-        return memberships.map((m) => ({
+        return memberships.map(m => ({
             channelId: m.channelId,
             lastReadMessageId: (m.lastReadMessageId as Types.ObjectId | null | undefined) ?? null,
         }));
@@ -168,7 +179,10 @@ export class ChannelMemberRepository {
                 { teamId: 1, channelType: 1 },
             )
             .lean();
-        if (!member) return null;
+        if (!member) {
+            return null;
+        }
+
         return {
             teamId: member.teamId ?? null,
             channelType: member.channelType ?? 'TEXT',
@@ -184,11 +198,13 @@ export class ChannelMemberRepository {
     ): Promise<Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>> {
         const memberships = await this.memberModel
             .find(
-                { userId, channelType: 'DM', isHidden: { $ne: true }, deleted: { $ne: true } },
+                {
+                    userId, channelType: 'DM', isHidden: { $ne: true }, deleted: { $ne: true },
+                },
                 { channelId: 1, lastReadMessageId: 1 },
             )
             .lean();
-        return memberships.map((m) => ({
+        return memberships.map(m => ({
             channelId: m.channelId,
             lastReadMessageId: (m.lastReadMessageId as Types.ObjectId | null | undefined) ?? null,
         }));
@@ -200,14 +216,17 @@ export class ChannelMemberRepository {
      * @returns channelId → 상대 userId 매핑
      */
     async findOtherDmMembers(channelIds: number[], userId: number): Promise<Map<number, number>> {
-        if (channelIds.length === 0) return new Map();
+        if (channelIds.length === 0) {
+            return new Map();
+        }
+
         const others = await this.memberModel
             .find(
                 { channelId: { $in: channelIds }, userId: { $ne: userId }, deleted: { $ne: true } },
                 { channelId: 1, userId: 1 },
             )
             .lean();
-        return new Map(others.map((m) => [m.channelId, m.userId]));
+        return new Map(others.map(m => [m.channelId, m.userId]));
     }
 
     /**

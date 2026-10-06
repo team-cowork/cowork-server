@@ -1,24 +1,24 @@
-import { renderRepositoryCard } from "../../src/design-system/index.mjs";
+import { renderRepositoryCard } from '../../src/design-system/index.mjs';
 import {
     homePageDescription,
     todoPageMetadata,
-} from "../../src/js/core/page-metadata.js";
-import { inlineJson, replaceBundleMarker } from "./bundle.mjs";
-import { renderTeamMembers, renderTechStacks } from "./render.mjs";
-import { renderShowcase } from "./showcase-render.mjs";
-import { replaceGeneratedRegion } from "./template.mjs";
+} from '../../src/js/core/page-metadata.js';
+import { inlineJson, replaceBundleMarker } from './bundle.mjs';
+import { renderTeamMembers, renderTechStacks } from './render.mjs';
+import { renderShowcase } from './showcase-render.mjs';
+import { replaceGeneratedRegion } from './template.mjs';
 import {
     renderTodoDocument,
     renderTodoHistory,
     renderTodoItems,
     renderTodoToc,
-} from "./todo-render.mjs";
-import { escapeHtml } from "./validation.mjs";
+} from './todo-render.mjs';
+import { escapeHtml } from './validation.mjs';
 
 export function concatenateStyles(paths, sources) {
     return sources
         .map((source, index) => `/* ${paths[index]} */\n${source}`)
-        .join("\n");
+        .join('\n');
 }
 
 function bundlePage({ html, styles, stateData, script, logoUrl }) {
@@ -26,23 +26,23 @@ function bundlePage({ html, styles, stateData, script, logoUrl }) {
         replaceBundleMarker(
             replaceBundleMarker(
                 html,
-                "styles",
+                'styles',
                 styles
-                    .map((url) => `<link rel="stylesheet" href="${url}" />`)
-                    .join("\n"),
+                    .map(url => `<link rel="stylesheet" href="${url}" />`)
+                    .join('\n'),
             ),
-            "state-data",
+            'state-data',
             stateData,
         ),
-        "script",
+        'script',
         `<script type="module" src="${script}"></script>`,
-    ).replace('href="/logo.svg"', `href="${logoUrl}"`);
+    ).replace('href="/logo.svg"', () => `href="${logoUrl}"`);
 }
 
 function renderPageMetadata(html, metadata, siteUrl) {
     const url = siteUrl ? new URL(metadata.route, siteUrl).href : metadata.route;
 
-    return replaceBundleMarker(html, "metadata", `
+    return replaceBundleMarker(html, 'metadata', `
     <title>${escapeHtml(metadata.title)}</title>
     <meta name="description" content="${escapeHtml(metadata.description)}" />
     <meta property="og:title" content="${escapeHtml(metadata.title)}" />
@@ -68,62 +68,66 @@ export function renderHomePage({
         replaceGeneratedRegion(
             replaceGeneratedRegion(
                 template,
-                "repositories",
-                repositories.map(renderRepositoryCard).join("\n"),
+                'repositories',
+                repositories.map(repository => renderRepositoryCard(repository)).join('\n'),
             ),
-            "tech-stacks",
+            'tech-stacks',
             renderTechStacks(techStacks.categories),
         ),
-        "team-members",
+        'team-members',
         renderTeamMembers(team),
     );
 
-    html = renderShowcase(html, "features", featureStates, {
-        label: "기능",
-        backgroundClass: "feature-index",
-        dotClass: "showcase-dot",
-        activeDotWidth: "var(--indicator-feature-active)",
-        inactiveDotColor: "var(--color-indicator-inverse)",
+    html = renderShowcase(html, 'features', featureStates, {
+        label: '기능',
+        backgroundClass: 'feature-index',
+        dotClass: 'showcase-dot',
+        activeDotWidth: 'var(--indicator-feature-active)',
+        inactiveDotColor: 'var(--color-indicator-inverse)',
     });
-    html = renderShowcase(html, "positions", positionStates, {
-        label: "포지션",
-        backgroundClass: "position-index",
-        dotClass: "showcase-dot",
-        activeDotWidth: "var(--indicator-active)",
-        inactiveDotColor: "var(--color-indicator)",
+    html = renderShowcase(html, 'positions', positionStates, {
+        label: '포지션',
+        backgroundClass: 'position-index',
+        dotClass: 'showcase-dot',
+        activeDotWidth: 'var(--indicator-active)',
+        inactiveDotColor: 'var(--color-indicator)',
     });
 
     const stateData = [
-        ["/data/feature-states.json", featureStates],
-        ["/data/position-states.json", positionStates],
+        ['/data/feature-states.json', featureStates],
+        ['/data/position-states.json', positionStates],
     ]
         .map(
             ([url, states]) =>
                 `<script type="application/json" data-state-url="${url}">${inlineJson(states)}</script>`,
         )
-        .join("\n    ");
+        .join('\n    ');
 
     return renderPageMetadata(
-        bundlePage({ html, styles, stateData, script, logoUrl }),
+        bundlePage({
+            html, styles, stateData, script, logoUrl,
+        }),
         {
-            title: "cowork",
+            title: 'cowork',
             description: homePageDescription,
-            route: "/",
-            type: "website",
+            route: '/',
+            type: 'website',
         },
         siteUrl,
     );
 }
 
 function todoListTitle(document) {
-    if (document.kind !== "snapshot") return undefined;
-    if (!document.description) return document.displayDate || document.title;
-    return `${document.displayDate} — ${document.description}`;
+    if (document.kind !== 'snapshot') {
+        return undefined;
+    }
+
+    return document.description ? `${document.displayDate} — ${document.description}` : document.displayDate || document.title;
 }
 
 export function createTodoRegistry(content, assets) {
     return {
-        documents: content.documents.map((document) => {
+        documents: content.documents.map(document => {
             const {
                 id,
                 route,
@@ -137,8 +141,8 @@ export function createTodoRegistry(content, assets) {
                 summary,
             } = document;
             const contentUrl = assets.add(
-                "todo-document",
-                "json",
+                'todo-document',
+                'json',
                 JSON.stringify({
                     id,
                     route,
@@ -182,21 +186,21 @@ export function renderTodoPage({
     let html = replaceGeneratedRegion(
         replaceGeneratedRegion(
             template,
-            "todo-items",
-            initialDocument ? "" : renderTodoItems(activeItems),
+            'todo-items',
+            initialDocument ? '' : renderTodoItems(activeItems),
         ),
-        "todo-history",
-        initialDocument ? "" : renderTodoHistory(snapshots),
+        'todo-history',
+        initialDocument ? '' : renderTodoHistory(snapshots),
     );
 
     html = replaceGeneratedRegion(
         replaceGeneratedRegion(
             html,
-            "todo-document",
-            initialDocument ? renderTodoDocument(initialDocument) : "",
+            'todo-document',
+            initialDocument ? renderTodoDocument(initialDocument) : '',
         ),
-        "todo-toc",
-        initialDocument ? renderTodoToc(initialDocument.toc) : "",
+        'todo-toc',
+        initialDocument ? renderTodoToc(initialDocument.toc) : '',
     );
 
     if (initialDocument) {
@@ -205,27 +209,29 @@ export function renderTodoPage({
             .replace('class="todo-page"', 'class="todo-page todo-modal-open"')
             .replace(
                 'data-initial-document-id=""',
-                `data-initial-document-id="${escapeHtml(initialDocument.id)}"`,
+                () => `data-initial-document-id="${escapeHtml(initialDocument.id)}"`,
             )
             .replace(
-                "  data-todo-dashboard\n  tabindex",
-                "  data-todo-dashboard\n  hidden\n  tabindex",
+                '  data-todo-dashboard\n  tabindex',
+                '  data-todo-dashboard\n  hidden\n  tabindex',
             )
             .replace(
-                "  data-todo-dialog\n  aria",
-                "  data-todo-dialog\n  open\n  aria",
+                '  data-todo-dialog\n  aria',
+                '  data-todo-dialog\n  open\n  aria',
             );
 
         if (initialDocument.toc.length > 0) {
             html = html.replace(
-                "data-todo-toc-rail hidden",
-                "data-todo-toc-rail",
+                'data-todo-toc-rail hidden',
+                'data-todo-toc-rail',
             );
         }
     }
 
     return renderPageMetadata(
-        bundlePage({ html, styles, stateData, script, logoUrl }),
+        bundlePage({
+            html, styles, stateData, script, logoUrl,
+        }),
         todoPageMetadata(initialDocument),
         siteUrl,
     );
