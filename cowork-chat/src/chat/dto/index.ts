@@ -6,7 +6,6 @@ export * from './edit-message.dto';
 export * from './file-list.dto';
 export * from './get-messages.dto';
 export * from './join-channel.dto';
-export * from './message-payload.dto';
 export * from './message-response.dto';
 export * from './read-channel.dto';
 export * from './search-message-response.dto';
