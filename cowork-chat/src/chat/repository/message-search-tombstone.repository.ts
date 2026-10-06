@@ -6,14 +6,14 @@ import { IndexScanCursor } from './message-search-index.repository';
 
 export type TombstoneRecord = MessageSearchTombstone & { _id: Types.ObjectId };
 
-export interface CreateTombstoneInput {
+export type CreateTombstoneInput = {
     messageId: string;
     teamId: number;
     projectId: number;
     channelId: number;
     version: number;
     retentionDays: number;
-}
+};
 
 const OUTBOX_UPDATE_OPTIONS = { timestamps: false } as const;
 
@@ -51,7 +51,7 @@ export class MessageSearchTombstoneRepository {
                         processingStartedAt: null,
                         lastError: null,
                         deletedAt: null,
-                        expiresAt: new Date(now.getTime() + input.retentionDays * 24 * 60 * 60 * 1_000),
+                        expiresAt: new Date(now.getTime() + (input.retentionDays * 24 * 60 * 60 * 1000)),
                         createdAt: { $ifNull: ['$createdAt', now] },
                         updatedAt: now,
                     },
@@ -76,9 +76,11 @@ export class MessageSearchTombstoneRepository {
             .limit(batchSize)
             .select('_id')
             .lean();
-        if (candidates.length === 0) return [];
+        if (candidates.length === 0) {
+            return [];
+        }
 
-        const ids = candidates.map((candidate) => candidate._id);
+        const ids = candidates.map(candidate => candidate._id);
         await this.model.updateMany(
             { _id: { $in: ids }, status: 'PENDING' },
             { $set: { status: 'PROCESSING', processingStartedAt: now, claimId } },
@@ -93,7 +95,11 @@ export class MessageSearchTombstoneRepository {
     async markDeleted(id: Types.ObjectId): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'DELETED', deletedAt: new Date(), lastError: null, processingStartedAt: null, claimId: null } },
+            {
+                $set: {
+                    status: 'DELETED', deletedAt: new Date(), lastError: null, processingStartedAt: null, claimId: null,
+                },
+            },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -101,7 +107,11 @@ export class MessageSearchTombstoneRepository {
     async markRetry(id: Types.ObjectId, retryCount: number, nextAttemptAt: Date, error: string): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'PENDING', retryCount, nextAttemptAt, processingStartedAt: null, claimId: null, lastError: error } },
+            {
+                $set: {
+                    status: 'PENDING', retryCount, nextAttemptAt, processingStartedAt: null, claimId: null, lastError: error,
+                },
+            },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -109,7 +119,11 @@ export class MessageSearchTombstoneRepository {
     async markFailed(id: Types.ObjectId, error: string): Promise<void> {
         await this.model.updateOne(
             { _id: id, status: 'PROCESSING' },
-            { $set: { status: 'FAILED', nextAttemptAt: null, processingStartedAt: null, claimId: null, lastError: error } },
+            {
+                $set: {
+                    status: 'FAILED', nextAttemptAt: null, processingStartedAt: null, claimId: null, lastError: error,
+                },
+            },
             OUTBOX_UPDATE_OPTIONS,
         );
     }
@@ -134,7 +148,11 @@ export class MessageSearchTombstoneRepository {
     async retryFailed(): Promise<number> {
         const result = await this.model.updateMany(
             { status: 'FAILED' },
-            { $set: { status: 'PENDING', retryCount: 0, nextAttemptAt: new Date(), processingStartedAt: null, claimId: null } },
+            {
+                $set: {
+                    status: 'PENDING', retryCount: 0, nextAttemptAt: new Date(), processingStartedAt: null, claimId: null,
+                },
+            },
             OUTBOX_UPDATE_OPTIONS,
         );
         return result.modifiedCount;
@@ -142,17 +160,25 @@ export class MessageSearchTombstoneRepository {
 
     /** 주어진 메시지 중 tombstone이 존재하는 ID 집합. 중단된 삭제를 판별할 때 사용한다. */
     async findExistingMessageIds(messageIds: string[]): Promise<Set<string>> {
-        if (messageIds.length === 0) return new Set();
+        if (messageIds.length === 0) {
+            return new Set();
+        }
+
         const rows = await this.model.find({ messageId: { $in: messageIds } }).select('messageId').lean();
-        return new Set(rows.map((row) => row.messageId));
+        return new Set(rows.map(row => row.messageId));
     }
 
     async countByStatus(): Promise<Record<MessageSearchTombstoneStatus, number>> {
         const rows = await this.model.aggregate<{ _id: MessageSearchTombstoneStatus; count: number }>([
             { $group: { _id: '$status', count: { $sum: 1 } } },
         ]);
-        const counts = { PENDING: 0, PROCESSING: 0, DELETED: 0, FAILED: 0 } as Record<MessageSearchTombstoneStatus, number>;
-        for (const row of rows) counts[row._id] = row.count;
+        const counts: Record<MessageSearchTombstoneStatus, number> = {
+            PENDING: 0, PROCESSING: 0, DELETED: 0, FAILED: 0,
+        };
+        for (const row of rows) {
+            counts[row._id] = row.count;
+        }
+
         return counts;
     }
 
@@ -160,7 +186,7 @@ export class MessageSearchTombstoneRepository {
      * 재구축 catch-up이 기준점 이후에 기록된 삭제만 재생하기 위해 `(updatedAt, _id)` 복합 커서로
      * 순회한다. 필터와 정렬 기준을 맞춰 `{ updatedAt: 1, _id: 1 }` 인덱스를 그대로 탄다.
      */
-    scanUpdatedSince(since: Date, cursor: IndexScanCursor | null, batchSize: number): Promise<TombstoneRecord[]> {
+    async scanUpdatedSince(since: Date, cursor: IndexScanCursor | null, batchSize: number): Promise<TombstoneRecord[]> {
         const filter = cursor
             ? {
                 $or: [

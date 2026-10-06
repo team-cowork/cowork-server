@@ -22,11 +22,16 @@ type AuditChannel = {
 };
 type AuditParent = { _id: Types.ObjectId; channelId: number };
 
-/* eslint-disable no-console -- This read-only operator command emits identifiers and counts, never message content. */
 async function main(): Promise<void> {
     const uri = process.env.MONGODB_URI;
-    if (!uri) throw new Error('MONGODB_URI is required');
-    if (process.argv.length !== 2) throw new Error('usage: message-scope-audit');
+    if (!uri) {
+        throw new Error('MONGODB_URI is required');
+    }
+
+    if (process.argv.length !== 2) {
+        throw new Error('usage: message-scope-audit');
+    }
+
     await mongoose.connect(uri, { autoCreate: false, autoIndex: false });
     const messages = (mongoose.models[Message.name]
         ?? mongoose.model(Message.name, MessageSchema)) as mongoose.Model<Message>;
@@ -41,25 +46,33 @@ async function main(): Promise<void> {
             .sort({ _id: 1 }).limit(BATCH_SIZE)
             .select('_id channelId teamId projectId parentMessageId')
             .lean<AuditMessage[]>();
-        if (batch.length === 0) break;
-        cursor = batch[batch.length - 1]._id;
+        if (batch.length === 0) {
+            break;
+        }
+
+        cursor = batch.at(-1)!._id;
         scanned += batch.length;
 
-        const channelRows = await channels.find({ channelId: { $in: [...new Set(batch.map((m) => m.channelId))] } })
+        const channelRows = await channels.find({ channelId: { $in: [...new Set(batch.map(m => m.channelId))] } })
             .select('channelId teamId projectId type deleted').lean<AuditChannel[]>();
-        const channelMap = new Map(channelRows.map((channel) => [channel.channelId, channel]));
-        const parentIds = batch.filter((m) => m.parentMessageId && Types.ObjectId.isValid(m.parentMessageId))
-            .map((m) => new Types.ObjectId(m.parentMessageId!));
-        const parentRows = parentIds.length === 0 ? [] : await messages.find({ _id: { $in: parentIds } })
-            .select('_id channelId').lean<AuditParent[]>();
-        const parentMap = new Map(parentRows.map((parent) => [parent._id.toString(), parent]));
+        const channelMap = new Map(channelRows.map(channel => [channel.channelId, channel]));
+        const parentIds = batch.filter(m => m.parentMessageId != null && m.parentMessageId !== '' && Types.ObjectId.isValid(m.parentMessageId))
+            .map(m => new Types.ObjectId(m.parentMessageId!));
+        const parentRows = parentIds.length === 0
+            ? []
+            : await messages.find({ _id: { $in: parentIds } })
+                .select('_id channelId').lean<AuditParent[]>();
+        const parentMap = new Map(parentRows.map(parent => [parent._id.toString(), parent]));
 
         for (const message of batch) {
             const id = message._id.toString();
             const report = (category: Category, extra: Record<string, unknown> = {}) => {
                 counts.set(category, (counts.get(category) ?? 0) + 1);
-                console.log(JSON.stringify({ category, messageId: id, channelId: message.channelId, ...extra }));
+                console.log(JSON.stringify({
+                    category, messageId: id, channelId: message.channelId, ...extra,
+                }));
             };
+
             const channel = channelMap.get(message.channelId);
             if (!channel || channel.deleted) {
                 report('CHANNEL_MISSING_OR_DELETED');
@@ -74,18 +87,24 @@ async function main(): Promise<void> {
                 });
             }
 
-            if (!message.parentMessageId) continue;
+            if (message.parentMessageId == null || message.parentMessageId === '') {
+                continue;
+            }
+
             if (!Types.ObjectId.isValid(message.parentMessageId)) {
                 report('PARENT_INVALID_ID');
                 continue;
             }
+
             const parent = parentMap.get(message.parentMessageId.toString());
-            if (!parent) report('PARENT_MISSING');
-            else if (parent.channelId !== message.channelId) {
+            if (!parent) {
+                report('PARENT_MISSING');
+            } else if (parent.channelId !== message.channelId) {
                 report('PARENT_CROSS_CHANNEL', { parentMessageId: parent._id.toString() });
             }
         }
     }
+
     console.log(JSON.stringify({ summary: true, scanned, counts: Object.fromEntries(counts) }));
 }
 
@@ -94,4 +113,6 @@ void main()
         console.error(error instanceof Error ? error.message : error);
         process.exitCode = 1;
     })
-    .finally(() => mongoose.disconnect());
+    .finally(async () => {
+        await mongoose.disconnect();
+    });

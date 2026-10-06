@@ -1,13 +1,18 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis, { ChainableCommander, ClientContext, Result } from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
 
-// this.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
+// This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
 // 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
-interface WithIncrementIfPresentScript<Context extends ClientContext = { type: 'default' }> {
+type WithIncrementIfPresentScript<Context extends ClientContext = { type: 'default' }> = {
     incrementIfPresentScript(field: string, ...keys: string[]): Result<number, Context>;
-}
+};
 type UnreadCounterRedis = Redis & WithIncrementIfPresentScript;
 type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{ type: 'pipeline' }>;
 
@@ -30,10 +35,10 @@ const KEY_PREFIX = 'unread:';
 const TTL_SECONDS = 86_400;
 const INCREMENT_CHUNK_SIZE = 100;
 
-export interface UnreadCacheResult {
+export type UnreadCacheResult = {
     hits: Map<number, number>;
     misses: number[];
-}
+};
 
 /**
  * 채널별 안읽음 메시지 수를 캐싱하는 Redis 기반 cache-aside 카운터.
@@ -65,11 +70,11 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             maxRetriesPerRequest: 0,
         }) as UnreadCounterRedis;
         this.client.defineCommand('incrementIfPresentScript', { numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT });
-        this.client.on('error', (err: unknown) => {
-            this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
+        this.client.on('error', (error: unknown) => {
+            this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
         });
-        void this.client.connect().catch((err: unknown) => {
-            this.logger.warn(`Redis initial connection failed: ${err instanceof Error ? err.message : String(err)}`);
+        void this.client.connect().catch((error: unknown) => {
+            this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
         });
     }
 
@@ -85,25 +90,29 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      * 여러 채널의 캐시된 안읽음 수를 조회한다.
      *
      * @returns 캐시에 값이 있는 채널은 `hits`, 없는(또는 Redis 오류로 판단 불가한) 채널은 `misses`.
-     *          Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
+     * Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
      */
     async getMany(userId: number, channelIds: number[]): Promise<UnreadCacheResult | null> {
-        if (channelIds.length === 0) return { hits: new Map(), misses: [] };
+        if (channelIds.length === 0) {
+            return { hits: new Map(), misses: [] };
+        }
+
         try {
             const values = await this.client.hmget(this.key(userId), ...channelIds.map(String));
             const hits = new Map<number, number>();
             const misses: number[] = [];
-            channelIds.forEach((channelId, i) => {
+            for (const [i, channelId] of channelIds.entries()) {
                 const raw = values[i];
                 if (raw === null || raw === undefined) {
                     misses.push(channelId);
                 } else {
                     hits.set(channelId, Number(raw));
                 }
-            });
+            }
+
             return { hits, misses };
-        } catch (err) {
-            this.logger.warn(`Redis getMany failed, treating as full cache miss [userId=${userId}]`, err);
+        } catch (error) {
+            this.logger.warn(`Redis getMany failed, treating as full cache miss [userId=${userId}]`, error);
             return null;
         }
     }
@@ -112,16 +121,20 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      * 여러 채널의 안읽음 수를 캐시에 채운다 (캐시미스 폴백 계산 결과를 기록할 때 사용).
      */
     async setMany(userId: number, values: Map<number, number>): Promise<void> {
-        if (values.size === 0) return;
+        if (values.size === 0) {
+            return;
+        }
+
         try {
             const args: string[] = [];
             for (const [channelId, count] of values) {
                 args.push(String(channelId), String(count));
             }
+
             const key = this.key(userId);
             await this.client.pipeline().hset(key, ...args).expire(key, TTL_SECONDS).exec();
-        } catch (err) {
-            this.logger.warn(`Redis setMany failed [userId=${userId}]`, err);
+        } catch (error) {
+            this.logger.warn(`Redis setMany failed [userId=${userId}]`, error);
         }
     }
 
@@ -132,8 +145,8 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
         try {
             const key = this.key(userId);
             await this.client.pipeline().hset(key, String(channelId), String(count)).expire(key, TTL_SECONDS).exec();
-        } catch (err) {
-            this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, err);
+        } catch (error) {
+            this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, error);
         }
     }
 
@@ -145,17 +158,21 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      * 한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      */
     async incrementIfPresent(channelId: number, userIds: number[]): Promise<void> {
-        if (userIds.length === 0) return;
+        if (userIds.length === 0) {
+            return;
+        }
+
         try {
             const field = String(channelId);
-            const keys = userIds.map((userId) => this.key(userId));
+            const keys = userIds.map(userId => this.key(userId));
             const pipeline = this.client.pipeline() as UnreadCounterPipeline;
             for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
                 pipeline.incrementIfPresentScript(field, ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
             }
+
             await pipeline.exec();
-        } catch (err) {
-            this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, err);
+        } catch (error) {
+            this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, error);
         }
     }
 }
