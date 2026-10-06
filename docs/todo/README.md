@@ -8,7 +8,7 @@
 실제 운영 자료·외부 클라이언트·과거 Config Git 원본은 이 저장소만으로 확인할 수 없다.
 이번 점검은 소스·migration·설정·배포 스크립트를 확인했으며 빌드·테스트·운영 변경은 수행하지 않았다.
 
-### 주요 변경 미구현 (14)
+### 주요 변경 미구현 (15)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md)
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md)
@@ -24,6 +24,7 @@
 - monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md)
 - deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md)
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 2026-10-05 추가, 🟡 낮음
+- configuration: [CI 워크플로 변경 시 서비스 검사 조건 통일](./items/60-configuration/ci-workflow-change-detection.md) — 2026-10-06 추가, 🟡 낮음
 
 ### 부분 구현·정책 결정 필요 (11)
 
@@ -50,6 +51,7 @@
 
 ## 점검 스냅샷
 
+- [20261006](./20261006_TODO.md) — CI 워크플로 변경 감지 조건 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
 - [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 운영 전환
