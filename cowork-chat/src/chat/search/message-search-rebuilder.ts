@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { ElasticsearchService } from '../../search/elasticsearch.service';
@@ -18,34 +18,34 @@ import {
 import { buildMessageIndexDoc } from './message-index-scope';
 
 const SCAN_BATCH_SIZE = 500;
-/** alias 전환 전에 실시간 변경을 따라잡는 최대 반복 횟수. */
+/** Alias 전환 전에 실시간 변경을 따라잡는 최대 반복 횟수. */
 const CATCH_UP_ROUNDS = 5;
 /** 이 건수 이하로 줄어들면 따라잡기가 수렴한 것으로 본다. */
 const CATCH_UP_CONVERGED_THRESHOLD = 10;
 /** MongoDB와 색인 사이의 시계 오차를 흡수하는 catch-up 기준점 여유. */
 const CATCH_UP_SKEW_MS = 10_000;
-/** catch-up 한 회차가 반영에 쓸 수 있는 최대 시간. 쓰기가 스캔보다 빨라 한 회차가 끝나지 않는 경우를 대비한다. */
+/** Catch-up 한 회차가 반영에 쓸 수 있는 최대 시간. 쓰기가 스캔보다 빨라 한 회차가 끝나지 않는 경우를 대비한다. */
 const CATCH_UP_ROUND_BUDGET_MS = 60_000;
 const VERIFY_SAMPLE_SIZE = 20;
 /** 실시간 생성·삭제로 생기는 문서 수 차이 허용치. */
 const VERIFY_MISSING_TOLERANCE_RATIO = 0.001;
 const VERIFY_MISSING_TOLERANCE_MINIMUM = 10;
 /** 재구축 락이 이 시간보다 오래됐으면 락을 쥔 프로세스가 죽은 것으로 보고 다시 점유할 수 있다. */
-const REBUILD_LOCK_STALE_THRESHOLD_MS = 30 * 60 * 1_000;
+const REBUILD_LOCK_STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
-export interface RebuildOptions {
+export type RebuildOptions = {
     /** 이전에 중단된 재구축을 같은 물리 index에서 이어서 진행한다. */
     resume?: boolean;
-}
+};
 
-export interface RebuildResult {
+export type RebuildResult = {
     index: string;
     scanned: number;
     caughtUp: number;
     tombstonesReplayed: number;
     documentCount: number;
     expectedCount: number;
-}
+};
 
 export class MessageSearchRebuildError extends Error {}
 
@@ -86,6 +86,7 @@ export class MessageSearchRebuilder {
         if (!await this.stateRepository.tryAcquireRebuildLock(lockId, REBUILD_LOCK_STALE_THRESHOLD_MS)) {
             throw new MessageSearchRebuildError('another search index rebuild is already running');
         }
+
         try {
             return await this.rebuildLocked(options);
         } finally {
@@ -152,6 +153,7 @@ export class MessageSearchRebuilder {
                     cursor: state?.lastRebuildScanCursor ? new Types.ObjectId(state.lastRebuildScanCursor) : null,
                 };
             }
+
             this.logger.warn('No resumable search index rebuild found, starting a new one');
         }
 
@@ -163,17 +165,21 @@ export class MessageSearchRebuilder {
     }
 
     private async isAliasTarget(index: string): Promise<boolean> {
-        return (await this.elasticsearchService.getAliasTargets()).includes(index);
+        const targets = await this.elasticsearchService.getAliasTargets();
+        return targets.includes(index);
     }
 
-    /** alias가 쓰지 않는 재구축 index를 지운다. `keep`과 현재 alias 대상은 남긴다. */
+    /** Alias가 쓰지 않는 재구축 index를 지운다. `keep`과 현재 alias 대상은 남긴다. */
     private async dropReplacedIndices(keep: string | null): Promise<void> {
         const [managed, aliasTargets] = await Promise.all([
             this.elasticsearchService.listManagedIndices(MESSAGE_SEARCH_INDEX_PREFIX),
             this.elasticsearchService.getAliasTargets(),
         ]);
         for (const index of managed) {
-            if (index === keep || aliasTargets.includes(index) || !isManagedMessageIndex(index)) continue;
+            if (index === keep || aliasTargets.includes(index) || !isManagedMessageIndex(index)) {
+                continue;
+            }
+
             await this.elasticsearchService.deleteIndex(index);
             this.logger.log(`Removed unused search index: ${index}`);
         }
@@ -185,10 +191,12 @@ export class MessageSearchRebuilder {
         let scanned = 0;
         for (;;) {
             const batch = await this.indexRepository.scanIndexScope(cursor, SCAN_BATCH_SIZE);
-            if (batch.length === 0) break;
+            if (batch.length === 0) {
+                break;
+            }
 
             const result = await this.elasticsearchService.bulkUpsertMessages(
-                batch.map((message) => ({
+                batch.map(message => ({
                     doc: buildMessageIndexDoc(message),
                     version: Math.max(message.searchIndexVersion, 1),
                 })),
@@ -197,10 +205,11 @@ export class MessageSearchRebuilder {
             this.assertNoFailures(result.failures);
 
             scanned += batch.length;
-            cursor = batch[batch.length - 1]._id;
+            cursor = batch.at(-1)!._id;
             await this.stateRepository.saveRebuildScanCursor(cursor.toString());
             this.logger.log(`Search index rebuild scanned=${scanned} index=${index}`);
         }
+
         return scanned;
     }
 
@@ -232,9 +241,13 @@ export class MessageSearchRebuilder {
             }
 
             watermark = roundStartedAt;
-            if (reindexResult.applied + tombstoneResult.replayed <= CATCH_UP_CONVERGED_THRESHOLD) break;
+            if (reindexResult.applied + tombstoneResult.replayed <= CATCH_UP_CONVERGED_THRESHOLD) {
+                break;
+            }
+
             this.logger.log(`Search index rebuild catch-up round=${round + 1} reindexed=${reindexResult.applied} deleted=${tombstoneResult.replayed}`);
         }
+
         return { applied, tombstones, watermark };
     }
 
@@ -243,12 +256,17 @@ export class MessageSearchRebuilder {
         let cursor: IndexScanCursor | null = null;
         let applied = 0;
         for (;;) {
-            if (Date.now() >= deadline) return { applied, completed: false };
+            if (Date.now() >= deadline) {
+                return { applied, completed: false };
+            }
+
             const batch = await this.indexRepository.scanUpdatedSince(since, cursor, SCAN_BATCH_SIZE);
-            if (batch.length === 0) return { applied, completed: true };
+            if (batch.length === 0) {
+                return { applied, completed: true };
+            }
 
             const result = await this.elasticsearchService.bulkUpsertMessages(
-                batch.map((message) => ({
+                batch.map(message => ({
                     doc: buildMessageIndexDoc(message),
                     version: Math.max(message.searchIndexVersion, 1),
                 })),
@@ -257,7 +275,7 @@ export class MessageSearchRebuilder {
             this.assertNoFailures(result.failures);
 
             applied += batch.length;
-            const last = batch[batch.length - 1];
+            const last = batch.at(-1)!;
             cursor = { updatedAt: last.updatedAt, id: last._id };
         }
     }
@@ -272,9 +290,14 @@ export class MessageSearchRebuilder {
         let cursor: IndexScanCursor | null = null;
         let replayed = 0;
         for (;;) {
-            if (Date.now() >= deadline) return { replayed, completed: false };
+            if (Date.now() >= deadline) {
+                return { replayed, completed: false };
+            }
+
             const batch = await this.tombstoneRepository.scanUpdatedSince(since, cursor, SCAN_BATCH_SIZE);
-            if (batch.length === 0) return { replayed, completed: true };
+            if (batch.length === 0) {
+                return { replayed, completed: true };
+            }
 
             for (const tombstone of batch) {
                 const result = await this.elasticsearchService.deleteMessage(tombstone.messageId, tombstone.version, index);
@@ -284,8 +307,9 @@ export class MessageSearchRebuilder {
                     );
                 }
             }
+
             replayed += batch.length;
-            const last = batch[batch.length - 1];
+            const last = batch.at(-1)!;
             cursor = { updatedAt: last.updatedAt, id: last._id };
         }
     }
@@ -312,19 +336,23 @@ export class MessageSearchRebuilder {
 
         const samples = await this.elasticsearchService.sampleDocuments(index, VERIFY_SAMPLE_SIZE);
         for (const sample of samples) {
-            const missing = MESSAGE_INDEX_REQUIRED_FIELDS.filter((field) => sample[field] === undefined || sample[field] === null);
+            const missing = MESSAGE_INDEX_REQUIRED_FIELDS.filter(field => sample[field] === undefined || sample[field] === null);
             if (missing.length > 0) {
                 throw new MessageSearchRebuildError(
                     `rebuilt document is missing required fields messageId=${sample.messageId ?? 'unknown'} fields=${missing.join(',')}`,
                 );
             }
         }
+
         this.logger.log(`Search index verified index=${index} documents=${documentCount} expected=${expectedCount}`);
         return { documentCount, expectedCount };
     }
 
     private assertNoFailures(failures: Array<{ messageId: string; error: string }>): void {
-        if (failures.length === 0) return;
+        if (failures.length === 0) {
+            return;
+        }
+
         const [first] = failures;
         throw new MessageSearchRebuildError(
             `bulk indexing failed for ${failures.length} document(s), first messageId=${first.messageId}: ${first.error}`,

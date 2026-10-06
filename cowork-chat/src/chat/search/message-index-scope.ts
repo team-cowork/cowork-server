@@ -1,4 +1,4 @@
-import { MessageIndexDoc } from '../../search/message-index.contract';
+import { type MessageIndexDoc } from '../../search/message-index.contract';
 
 export const SEARCH_INDEX_STATUSES = [
     'PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'DELETING', 'SKIPPED',
@@ -24,11 +24,11 @@ export const SEARCH_INDEX_SCOPE_FILTER = {
 };
 
 /** 색인 대상 메시지의 최소 필드. 스캔 projection과 write 경로가 공유한다. */
-export interface IndexableMessage {
+export type IndexableMessage = {
     teamId: number | null;
     projectId: number | null;
     type: string;
-}
+};
 
 export function isSearchIndexed(message: IndexableMessage): boolean {
     return message.teamId !== null && message.teamId !== undefined
@@ -41,7 +41,7 @@ export function initialSearchIndexStatus(message: IndexableMessage): SearchIndex
     return isSearchIndexed(message) ? 'PENDING' : 'SKIPPED';
 }
 
-export interface MessageIndexSource extends IndexableMessage {
+export type MessageIndexSource = {
     _id: { toString(): string };
     channelId: number;
     authorId: number;
@@ -49,7 +49,7 @@ export interface MessageIndexSource extends IndexableMessage {
     attachments?: unknown[];
     isPinned?: boolean;
     createdAt: Date;
-}
+} & IndexableMessage;
 
 /**
  * MongoDB 메시지를 색인 문서로 변환한다.

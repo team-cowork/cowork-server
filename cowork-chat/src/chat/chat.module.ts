@@ -3,6 +3,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DicoshotModule } from 'dicoshot-nest';
+import { MembershipModule } from '../membership/membership.module';
+import { BlockModule } from '../block/block.module';
+import { ObjectStorageModule } from '../storage/object-storage.module';
+import { SearchModule } from '../search/search.module';
+import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
+import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
+import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
+import { ThrottleGuard } from '../common/guard/throttle.guard';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { ChatController } from './chat.controller';
@@ -89,14 +97,6 @@ import {
     MessageSearchTombstoneRepository,
     MessageSearchIndexStateRepository,
 } from './repository';
-import { MembershipModule } from '../membership/membership.module';
-import { BlockModule } from '../block/block.module';
-import { ObjectStorageModule } from '../storage/object-storage.module';
-import { SearchModule } from '../search/search.module';
-import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
-import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
-import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
-import { ThrottleGuard } from '../common/guard/throttle.guard';
 import {
     MessageSearchIndexService,
     MessageSearchDeletionService,
