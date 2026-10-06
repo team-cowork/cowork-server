@@ -90,7 +90,9 @@ runs:
         username: ${{ steps.settings.outputs.ssh_user }}
         key: ${{ steps.settings.outputs.ssh_key }}
         fingerprint: ${{ steps.settings.outputs.ssh_fingerprint }}
-        command_timeout: 20m
+        # 서버의 deploy.sh는 후보 readiness 대기와 롤백 복구 대기를 각각 HEALTH_TIMEOUT_SECONDS까지 수행한다.
+        # 이 값이 더 짧으면 SSH만 끊기고 VM의 스크립트가 배포 락을 쥔 채 계속 실행된다.
+        command_timeout: 45m
         envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION
         script: |
           set -euo pipefail
