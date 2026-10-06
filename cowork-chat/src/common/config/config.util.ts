@@ -1,4 +1,4 @@
-import { ConfigService } from '@nestjs/config';
+import { type ConfigService } from '@nestjs/config';
 
 type ConfigKey = string | string[];
 
@@ -8,7 +8,9 @@ function normalizeKeys(keys: ConfigKey): string[] {
 
 export function getRequiredConfig(configService: ConfigService, keys: ConfigKey): string {
     const value = getConfigValue(configService, keys);
-    if (value !== undefined) return value;
+    if (value !== undefined) {
+        return value;
+    }
 
     throw new Error(`Required configuration is missing: ${normalizeKeys(keys).join(' or ')}`);
 }
@@ -20,7 +22,7 @@ export function getOptionalConfig(configService: ConfigService, keys: ConfigKey)
 export function getRequiredCsvConfig(configService: ConfigService, keys: ConfigKey): string[] {
     const values = getRequiredConfig(configService, keys)
         .split(',')
-        .map((value) => value.trim())
+        .map(value => value.trim())
         .filter(Boolean);
 
     if (values.length === 0) {

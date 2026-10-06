@@ -1,14 +1,19 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { Server } from 'socket.io';
 import { DicoshotService } from 'dicoshot-nest';
 import { ChatService } from '../chat.service';
-import { GithubIssueResultEvent } from './event/github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { ChannelMessageReadAccessService } from '../service';
 import { toMessageBroadcastPayload } from '../repository';
+import { GithubIssueResultEvent } from './event/github-issue.event';
 
 /**
  * Kafka `github.issue.result` 토픽을 구독하여 GitHub 이슈 생성 결과를 처리하는 컨슈머.
@@ -59,27 +64,32 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
         void this.consumer
             .run({
                 eachMessage: async ({ message }) => {
-                    if (!message.value) return;
+                    if (!message.value) {
+                        return;
+                    }
+
                     try {
                         const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
                         await this.handleResultEvent(event);
-                    } catch (err) {
-                        this.logger.error('Failed to process issue result event', err);
-                        if (!(err instanceof SyntaxError)) throw err;
+                    } catch (error) {
+                        this.logger.error('Failed to process issue result event', error);
+                        if (!(error instanceof SyntaxError)) {
+                            throw error;
+                        }
                     }
                 },
             })
-            .catch(async (err) => {
-                this.logger.error('github.issue.result Kafka consumer failed', err);
+            .catch(async (error: unknown) => {
+                this.logger.error('github.issue.result Kafka consumer failed', error);
                 await this.dicoshot.sendCustom({
                     title: '🔴 Kafka Consumer 중단',
                     description: 'cowork-chat의 github.issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                     color: 'danger',
                     fields: [
                         { name: 'Topic', value: 'github.issue.result', inline: true },
-                        ...buildErrorFields(err),
+                        ...buildErrorFields(error),
                     ],
-                }).catch(() => {});
+                }).catch(() => {/* Alert delivery is best-effort. */});
                 process.exit(1);
             });
         this.logger.log('Kafka consumer started: github.issue.result');
@@ -108,7 +118,9 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
             event.channelId,
             content,
         );
-        if (!saved) return;
+        if (!saved) {
+            return;
+        }
 
         await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
     }
@@ -123,10 +135,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
      * @returns 포맷된 시스템 메시지 문자열
      */
     private formatIssueResultMessage(event: GithubIssueResultEvent): string {
-        if (event.success) {
-            return `✅ 이슈가 생성됐어요: ${event.issueUrl}`;
-        }
-        return `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
+        return event.success ? `✅ 이슈가 생성됐어요: ${event.issueUrl}` : `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
     }
 
     /**
@@ -142,6 +151,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
             this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
             return;
         }
+
         await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, 'message', message);
     }
 }

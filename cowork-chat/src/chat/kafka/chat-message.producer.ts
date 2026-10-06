@@ -1,13 +1,18 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
 import { SendMessageDto } from '../dto';
-import { ChatMessageEvent } from './event/chat-message.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
 import { MessageScope } from '../service';
+import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
+import { ChatMessageEvent } from './event/chat-message.event';
 
 export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'attachments' | 'parentMessageId' | 'clientMessageId'>
     & MessageScope;
@@ -53,7 +58,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
                     { name: 'Topic', value: 'chat.message', inline: true },
                     ...buildErrorFields(error),
                 ],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
         });
     }
 
@@ -124,23 +129,21 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
      * @returns 연결 완료 후 이행되는 Promise
      * @throws {Error} Kafka 브로커 연결 실패 시
      */
-    private ensureConnected(): Promise<void> {
+    private async ensureConnected(): Promise<void> {
         if (this.isConnected) {
-            return Promise.resolve();
+            return;
         }
 
-        if (!this.connectPromise) {
-            this.connectPromise = this.producer
-                .connect()
-                .then(() => {
-                    this.isConnected = true;
-                    this.logger.log('Kafka producer connected');
-                })
-                .catch((error: unknown) => {
-                    this.connectPromise = undefined;
-                    throw error;
-                });
-        }
+        this.connectPromise ??= this.producer
+            .connect()
+            .then(() => {
+                this.isConnected = true;
+                this.logger.log('Kafka producer connected');
+            })
+            .catch((error: unknown) => {
+                this.connectPromise = undefined;
+                throw error;
+            });
 
         return this.connectPromise;
     }

@@ -1,4 +1,9 @@
-import { INestApplicationContext, Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
+import {
+    INestApplicationContext,
+    Injectable,
+    Logger,
+    OnApplicationShutdown,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import { Server, ServerOptions } from 'socket.io';
@@ -27,8 +32,14 @@ export function nextRedisAdapterState(input: {
     subReady: boolean;
     wasReady: boolean;
 }): SocketIoAdapterState {
-    if (input.stopping) return 'STOPPED';
-    if (input.installed && input.pubReady && input.subReady) return 'READY';
+    if (input.stopping) {
+        return 'STOPPED';
+    }
+
+    if (input.installed && input.pubReady && input.subReady) {
+        return 'READY';
+    }
+
     return input.wasReady ? 'DEGRADED' : 'CONNECTING';
 }
 
@@ -41,9 +52,11 @@ export function resolveAdapterMode(mode: string | undefined, profile: string): '
     if (resolved !== 'redis' && resolved !== 'in-memory') {
         throw new Error(`${ADAPTER_MODE_KEY} must be 'redis' or 'in-memory': ${resolved}`);
     }
+
     if (resolved === 'in-memory' && profile === 'prod') {
         throw new Error(`${ADAPTER_MODE_KEY}=in-memory is not allowed in the prod profile`);
     }
+
     return resolved;
 }
 
@@ -84,6 +97,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             this.host = getRequiredConfig(configService, ['REDIS_HOST', 'redis.host']);
             this.port = Number(getOptionalConfig(configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
         }
+
         this.state = this.mode === 'in-memory' ? 'IN_MEMORY' : 'CONNECTING';
 
         this.stateGauge = this.metric('cowork_chat_socketio_adapter_state', () => new Gauge({
@@ -120,7 +134,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             return undefined;
         }
 
-        // pub client는 기본 재시도 한도를 유지한다. `fetchSockets()`는 pub client의 `PUBSUB NUMSUB`을 기다린 뒤에야
+        // Pub client는 기본 재시도 한도를 유지한다. `fetchSockets()`는 pub client의 `PUBSUB NUMSUB`을 기다린 뒤에야
         // `requestsTimeout`을 걸기 때문에, 한도가 없으면 Redis 장애 동안 HTTP 요청과 Kafka consumer가 무기한 멈춘다.
         const pubClient = new Redis({ host: this.host, port: this.port });
         // 구독은 응답을 받은 뒤에만 재구독 대상으로 기록되므로, 연결 전 대기열의 SUBSCRIBE가 재시도 한도로 버려지면
@@ -144,8 +158,11 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     }
 
     whenReady(): Promise<void> {
-        if (this.isReady()) return Promise.resolve();
-        return new Promise((resolve) => this.readyWaiters.push(resolve));
+        return this.isReady()
+            ? Promise.resolve()
+            : new Promise(resolve => {
+                this.readyWaiters.push(resolve);
+            });
     }
 
     /** `isReady()` 값이 바뀔 때마다 호출된다. 최초 준비 전 대기는 `whenReady()`를 쓴다. */
@@ -166,40 +183,52 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     onApplicationShutdown(): void {
         this.stopping = true;
         this.updateState();
-        // disconnect는 ioredis의 재연결 timer를 취소하고 연결을 닫는다.
+        // Disconnect는 ioredis의 재연결 timer를 취소하고 연결을 닫는다.
         this.pubClient?.disconnect();
         this.subClient?.disconnect();
     }
 
     private watch(name: RedisClientName, client: Redis): void {
-        client.on('ready', () => this.updateState());
-        client.on('close', () => this.updateState());
-        client.on('reconnecting', () => this.reconnects.inc({ client: name }));
-        client.on('error', (err: unknown) => this.recordError(name, err));
+        client.on('ready', () => {
+            this.updateState();
+        });
+        client.on('close', () => {
+            this.updateState();
+        });
+        client.on('reconnecting', () => {
+            this.reconnects.inc({ client: name });
+        });
+        client.on('error', (error: unknown) => {
+            this.recordError(name, error);
+        });
     }
 
     /**
-     * adapter는 브로드캐스트·room 해제의 publish 결과를 버린다. 장애가 재시도 한도를 넘겨 publish가 거부되면
+     * Adapter는 브로드캐스트·room 해제의 publish 결과를 버린다. 장애가 재시도 한도를 넘겨 publish가 거부되면
      * unhandled rejection으로 프로세스가 종료되므로, 거부를 오류로 기록하고 해당 발행은 유실된 것으로 본다.
      */
     private handlePublishRejection(pubClient: Redis): void {
         const publish = pubClient.publish.bind(pubClient) as (...args: unknown[]) => Promise<number>;
         pubClient.publish = ((...args: unknown[]) => {
             const result = publish(...args);
-            result.catch((err: unknown) => this.recordError('pub', err));
+            result.catch((error: unknown) => {
+                this.recordError('pub', error);
+            });
             return result;
         });
     }
 
-    private recordError(name: RedisClientName, err: unknown): void {
+    private recordError(name: RedisClientName, error: unknown): void {
         this.errors.inc({ client: name });
-        this.lastError = `${name}: ${err instanceof Error ? err.message : String(err)}`;
+        this.lastError = `${name}: ${error instanceof Error ? error.message : String(error)}`;
         // 재연결마다 error가 발생하므로 경고는 간격을 두고 남긴다.
         const now = Date.now();
-        if (now - this.lastErrorWarnAt >= ERROR_WARN_INTERVAL_MS) {
-            this.lastErrorWarnAt = now;
-            this.logger.warn(`Socket.IO Redis ${this.lastError} (state=${this.state})`);
+        if (!(now - this.lastErrorWarnAt >= ERROR_WARN_INTERVAL_MS)) {
+            return;
         }
+
+        this.lastErrorWarnAt = now;
+        this.logger.warn(`Socket.IO Redis ${this.lastError} (state=${this.state})`);
     }
 
     private updateState(): void {
@@ -210,7 +239,9 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             subReady: this.subClient?.status === 'ready',
             wasReady: this.wasReady,
         });
-        if (next === this.state) return;
+        if (next === this.state) {
+            return;
+        }
 
         const previous = this.state;
         const readyBefore = this.isReady();
@@ -233,7 +264,9 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     }
 
     private resolveReadyWaiters(): void {
-        this.readyWaiters.splice(0).forEach((resolve) => resolve());
+        for (const resolve of this.readyWaiters.splice(0)) {
+            resolve();
+        }
     }
 
     private recordState(): void {
@@ -261,6 +294,7 @@ export class RedisIoAdapter extends IoAdapter {
         if (adapter) {
             server.adapter(adapter);
         }
+
         return server;
     }
 }
