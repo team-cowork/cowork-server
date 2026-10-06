@@ -98,11 +98,15 @@ func (m *mockRepo) DeleteByAccountIDAndToken(_ context.Context, accountID int64,
 
 type mockFCM struct {
 	calledTokens []string
+	calledData   []map[string]string
 	err          error
 }
 
-func (m *mockFCM) Send(_ context.Context, tokens []string, _, _ string, _ map[string]string) ([]fcm.TokenResult, error) {
-	m.calledTokens = tokens
+func (m *mockFCM) Send(_ context.Context, messages []fcm.Message, _, _ string) ([]fcm.TokenResult, error) {
+	for _, msg := range messages {
+		m.calledTokens = append(m.calledTokens, msg.Token)
+		m.calledData = append(m.calledData, msg.Data)
+	}
 	return nil, m.err
 }
 
@@ -124,12 +128,19 @@ func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64
 
 // snapshotRepo returns one token snapshot per FindByAccountIDs call so a test can
 // change ownership between Notify's first lookup and its pre-send re-verification.
+// reverifyErr fails every call after the first.
 type snapshotRepo struct {
 	mockRepo
-	snapshots []map[int64][]token.DeviceToken
+	snapshots   []map[int64][]token.DeviceToken
+	reverifyErr error
+	calls       int
 }
 
 func (m *snapshotRepo) FindByAccountIDs(_ context.Context, _ []int64) (map[int64][]token.DeviceToken, error) {
+	m.calls++
+	if m.calls > 1 && m.reverifyErr != nil {
+		return nil, m.reverifyErr
+	}
 	snapshot := m.snapshots[0]
 	if len(m.snapshots) > 1 {
 		m.snapshots = m.snapshots[1:]
@@ -178,6 +189,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"kept"}, fcm.calledTokens)
+		assert.Equal(t, []map[string]string{{"accountId": "1"}}, fcm.calledData)
 		assert.ElementsMatch(t, []string{"claim-moved", "claim-deleted"}, ledger.cancelled)
 	})
 
@@ -203,6 +215,19 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, fcm.calledTokens)
 		assert.Len(t, ledger.cancelled, 3)
+	})
+
+	t.Run("a failed re-verification sends nothing and leaves the claims for reclaim", func(t *testing.T) {
+		repo := &snapshotRepo{snapshots: []map[int64][]token.DeviceToken{before}, reverifyErr: errors.New("db down")}
+		fcm := &mockFCM{}
+		ledger := &mockDelivery{}
+		svc := token.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+
+		require.ErrorIs(t, err, repo.reverifyErr)
+		assert.Nil(t, fcm.calledTokens)
+		assert.Empty(t, ledger.cancelled)
 	})
 }
 
