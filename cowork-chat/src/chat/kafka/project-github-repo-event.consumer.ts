@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
@@ -10,7 +15,7 @@ import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kaf
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { ProjectGithubRepoProjectionRepository } from '../repository';
 
-interface ProjectGithubRepoEvent {
+type ProjectGithubRepoEvent = {
     schemaVersion: 1;
     eventType: 'UPSERT' | 'DELETE';
     repoId: number;
@@ -22,7 +27,7 @@ interface ProjectGithubRepoEvent {
     webhookChannelId: number | null;
     occurredAt: string;
     snapshot?: boolean;
-}
+};
 
 @Injectable()
 export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -49,15 +54,13 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
 
         void this.consumer.run({
             eachMessage: async ({ partition, message }): Promise<void> => {
-                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                    return applyProjectionMessage(
-                        stream,
-                        partition,
-                        message,
-                        this.projectionReadiness,
-                        (payload, key) => this.handleEvent(payload, key),
-                    );
-                });
+                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                    stream,
+                    partition,
+                    message,
+                    this.projectionReadiness,
+                    async (payload, key) => this.handleEvent(payload, key),
+                ));
             },
         }).catch(async (error: unknown) => {
             this.logger.error('project.github-repo.event Kafka consumer failed', error);
@@ -69,7 +72,7 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
                     { name: 'Topic', value: stream.topic, inline: true },
                     ...buildErrorFields(error),
                 ],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
@@ -83,18 +86,24 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
         if (!this.isProjectGithubRepoEvent(payload)) {
             throw new ProjectionContractError('invalid project GitHub repo event payload');
         }
+
         if (messageKey !== String(payload.repoId)) {
             throw new ProjectionContractError(
                 `project GitHub repo event key mismatch [key=${messageKey ?? '<missing>'}, repoId=${payload.repoId}]`,
             );
         }
+
         const eventTime = parseEventTime(payload.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('project GitHub repo occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('project GitHub repo occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.repository.remove(payload.repoId, occurredAt, sourceVersion);
             return;
         }
+
         if (!payload.githubRepoUrl || !payload.owner || !payload.repo) {
             throw new ProjectionContractError('project GitHub repo UPSERT requires URL, owner, and repo');
         }
@@ -113,7 +122,10 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
     }
 
     private isProjectGithubRepoEvent(payload: unknown): payload is ProjectGithubRepoEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<ProjectGithubRepoEvent>;
         if (event.schemaVersion !== 1
             || (event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
@@ -125,11 +137,13 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
             || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')) {
             return false;
         }
+
         if (event.eventType === 'DELETE') {
             return (event.githubRepoUrl === null || typeof event.githubRepoUrl === 'string')
                 && (event.owner === null || typeof event.owner === 'string')
                 && (event.repo === null || typeof event.repo === 'string');
         }
+
         return typeof event.githubRepoUrl === 'string'
             && typeof event.owner === 'string'
             && event.owner.length > 0
