@@ -12,11 +12,6 @@ class ControlPlaneAccounts(environment: Environment) {
     init {
         val profiles = environment.activeProfiles.filter { it == "local" || it == "prod" }
         require(profiles.size == 1) { "Select exactly one Config Server deployment profile" }
-        if (profiles.single() == "prod" && PRIVATE_HTTP_PROFILE !in environment.activeProfiles) {
-            require(environment.getProperty("server.ssl.enabled", Boolean::class.java, false)) {
-                "Enable TLS for the production Config Server or select the $PRIVATE_HTTP_PROFILE profile"
-            }
-        }
         val input = environment.getRequiredProperty("CONFIG_SERVER_ACCOUNTS_JSON")
         // Never propagate JSON parse exceptions: their messages can contain the credential document.
         val parsed = try {
@@ -49,8 +44,6 @@ class ControlPlaneAccounts(environment: Environment) {
     )
 
     companion object {
-        const val PRIVATE_HTTP_PROFILE = "private-http"
-
         private val USERNAME = Regex("[a-z][a-z0-9-]{2,63}")
 
         // SHA-256 digest of the password, hex encoded.
