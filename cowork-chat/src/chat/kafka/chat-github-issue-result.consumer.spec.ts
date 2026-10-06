@@ -1,5 +1,5 @@
 import { ChatGithubIssueResultConsumer } from './chat-github-issue-result.consumer';
-import { ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
+import { type ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
 
 const mockChatService = {
     saveSystemMessage: jest.fn(),
