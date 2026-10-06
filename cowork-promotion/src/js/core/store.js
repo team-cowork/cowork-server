@@ -7,16 +7,18 @@ export function createStore(initialState) {
     }
 
     function setState(update) {
-        const partial = typeof update === "function" ? update(state) : update;
+        const partial = typeof update === 'function' ? update(state) : update;
         const nextState = { ...state, ...partial };
         const changed = Object.keys(nextState).some(
-            (key) => !Object.is(nextState[key], state[key]),
+            key => !Object.is(nextState[key], state[key]),
         );
-        if (!changed) return state;
+        if (!changed) {
+            return state;
+        }
 
         const previousState = state;
         state = Object.freeze(nextState);
-        subscribers.forEach((subscriber) => subscriber(state, previousState));
+        subscribers.forEach(subscriber => subscriber(state, previousState));
         return state;
     }
 

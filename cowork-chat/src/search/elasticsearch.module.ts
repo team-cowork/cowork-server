@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { Client } from '@elastic/elasticsearch';
-import { ElasticsearchService } from './elasticsearch.service';
 import { getRequiredConfig } from '../common/config/config.util';
+import { ElasticsearchService } from './elasticsearch.service';
 import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
 
 @Module({

@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
@@ -10,14 +15,14 @@ import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kaf
 import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
 import { UserProfileProjectionRepository } from '../repository';
 
-interface UserProfileEvent {
+type UserProfileEvent = {
     eventType: 'UPSERT' | 'DELETE';
     userId: number;
     name: string;
     nickname: string | null;
     githubId: string | null;
     occurredAt: string;
-}
+};
 
 @Injectable()
 export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -44,24 +49,22 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         void this.consumer.run({
             eachMessage: async ({ partition, message }): Promise<void> => {
-                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                    return applyProjectionMessage(
-                        stream,
-                        partition,
-                        message,
-                        this.projectionReadiness,
-                        (payload, key) => this.handleEvent(payload, key),
-                    );
-                });
+                await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                    stream,
+                    partition,
+                    message,
+                    this.projectionReadiness,
+                    async (payload, key) => this.handleEvent(payload, key),
+                ));
             },
-        }).catch(async (err) => {
-            this.logger.error('user.profile.event Kafka consumer failed', err);
+        }).catch(async (error: unknown) => {
+            this.logger.error('user.profile.event Kafka consumer failed', error);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
                 description: 'cowork-chat의 user.profile.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'user.profile.event', inline: true }, ...buildErrorFields(err)],
-            }).catch(() => {});
+                fields: [{ name: 'Topic', value: 'user.profile.event', inline: true }, ...buildErrorFields(error)],
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log('Kafka projection consumer started: user.profile.event');
@@ -75,18 +78,24 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
         if (!this.isUserProfileEvent(payload)) {
             throw new ProjectionContractError('invalid user profile event payload');
         }
+
         if (messageKey !== String(payload.userId)) {
             throw new ProjectionContractError(
                 `user profile event key mismatch [key=${messageKey ?? '<missing>'}, userId=${payload.userId}]`,
             );
         }
+
         const eventTime = parseEventTime(payload.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('user profile event occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('user profile event occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.profileRepository.remove(payload.userId, occurredAt, sourceVersion);
             return;
         }
+
         await this.profileRepository.upsert({
             userId: payload.userId,
             name: payload.name,
@@ -98,14 +107,21 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private isUserProfileEvent(payload: unknown): payload is UserProfileEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<UserProfileEvent>;
         if ((event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
             || !isSafePositiveInteger(event.userId)
             || parseEventTime(event.occurredAt) === null) {
             return false;
         }
-        if (event.eventType === 'DELETE') return true;
+
+        if (event.eventType === 'DELETE') {
+            return true;
+        }
+
         return typeof event.name === 'string'
             && event.name.length > 0
             && (event.nickname === null || typeof event.nickname === 'string')
