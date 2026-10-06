@@ -1,10 +1,15 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
-import { ChatGithubIssueCreateCommand } from './event/chat-github-issue.event';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
+import { ChatGithubIssueCreateCommand } from './event/chat-github-issue.event';
 
 /**
  * 채팅발 GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행하는 프로듀서.
@@ -47,7 +52,7 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
                     { name: 'Topic', value: 'project.chat-github-issue.command', inline: true },
                     ...buildErrorFields(error),
                 ],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
         });
     }
 
@@ -94,23 +99,21 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
      * @returns 연결 완료 후 이행되는 Promise
      * @throws {Error} Kafka 브로커 연결 실패 시
      */
-    private ensureConnected(): Promise<void> {
+    private async ensureConnected(): Promise<void> {
         if (this.isConnected) {
-            return Promise.resolve();
+            return;
         }
 
-        if (!this.connectPromise) {
-            this.connectPromise = this.producer
-                .connect()
-                .then(() => {
-                    this.isConnected = true;
-                    this.logger.log('Chat GitHub issue command producer connected');
-                })
-                .catch((error: unknown) => {
-                    this.connectPromise = undefined;
-                    throw error;
-                });
-        }
+        this.connectPromise ??= this.producer
+            .connect()
+            .then(() => {
+                this.isConnected = true;
+                this.logger.log('Chat GitHub issue command producer connected');
+            })
+            .catch((error: unknown) => {
+                this.connectPromise = undefined;
+                throw error;
+            });
 
         return this.connectPromise;
     }

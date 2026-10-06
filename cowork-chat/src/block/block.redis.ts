@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
@@ -17,8 +22,8 @@ export class BlockRedis implements OnModuleInit, OnModuleDestroy {
         const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
 
         this.client = new Redis({ host, port, lazyConnect: true });
-        void this.client.connect().catch((err: unknown) => {
-            this.logger.warn(`Redis initial connection failed: ${err instanceof Error ? err.message : String(err)}`);
+        void this.client.connect().catch((error: unknown) => {
+            this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
         });
     }
 

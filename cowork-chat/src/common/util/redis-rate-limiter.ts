@@ -1,12 +1,17 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis, { ClientContext, Result } from 'ioredis';
-import { randomUUID } from 'crypto';
 import { getOptionalConfig, getRequiredConfig } from '../config/config.util';
 
-// this.client에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로 확장하면
+// This.client에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로 확장하면
 // defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
-interface WithTryAcquireScript<Context extends ClientContext = { type: 'default' }> {
+type WithTryAcquireScript<Context extends ClientContext = { type: 'default' }> = {
     tryAcquireScript(
         key: string,
         windowStart: number,
@@ -15,7 +20,7 @@ interface WithTryAcquireScript<Context extends ClientContext = { type: 'default'
         windowMs: number,
         maxRequests: number,
     ): Result<number, Context>;
-}
+};
 type RateLimiterRedis = Redis & WithTryAcquireScript;
 
 // KEYS[1]=key ARGV[1]=windowStart ARGV[2]=now ARGV[3]=member ARGV[4]=windowMs ARGV[5]=maxRequests
@@ -51,12 +56,12 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 
         this.client = new Redis({ host, port, lazyConnect: true }) as RateLimiterRedis;
         this.client.defineCommand('tryAcquireScript', { numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT });
-        // ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
-        this.client.on('error', (err: unknown) => {
-            this.logger.error(`Redis client error: ${err instanceof Error ? err.message : String(err)}`);
+        // Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
+        this.client.on('error', (error: unknown) => {
+            this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
         });
-        void this.client.connect().catch((err: unknown) => {
-            this.logger.warn(`Redis initial connection failed: ${err instanceof Error ? err.message : String(err)}`);
+        void this.client.connect().catch((error: unknown) => {
+            this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
         });
     }
 

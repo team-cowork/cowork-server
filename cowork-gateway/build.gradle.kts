@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20260926.0"
+version = "20261006.0"
 
 dependencyManagement {
     imports {
