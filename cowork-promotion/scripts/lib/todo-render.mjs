@@ -1,9 +1,9 @@
-import { escapeHtml } from "./validation.mjs";
+import { escapeHtml } from './validation.mjs';
 
-const priorityClasses = new Set(["high", "medium", "low", "unknown"]);
+const priorityClasses = new Set(['high', 'medium', 'low', 'unknown']);
 
 function priorityClass(priority) {
-    return priorityClasses.has(priority) ? priority : "unknown";
+    return priorityClasses.has(priority) ? priority : 'unknown';
 }
 
 export function renderTodoItem(item) {
@@ -20,7 +20,7 @@ export function renderTodoItem(item) {
 }
 
 export function renderTodoItems(items) {
-    return items.map(renderTodoItem).join("\n");
+    return items.map(item => renderTodoItem(item)).join('\n');
 }
 
 export function renderTodoHistoryItem(snapshot) {
@@ -38,7 +38,7 @@ export function renderTodoHistoryItem(snapshot) {
 }
 
 export function renderTodoHistory(snapshots) {
-    return snapshots.map(renderTodoHistoryItem).join("\n");
+    return snapshots.map(snapshot => renderTodoHistoryItem(snapshot)).join('\n');
 }
 
 function renderPriorityMarker(priority) {
@@ -47,16 +47,18 @@ function renderPriorityMarker(priority) {
 }
 
 function renderMetadata(metadata, documentPriority) {
-    if (!Array.isArray(metadata) || metadata.length === 0) return "";
+    if (!Array.isArray(metadata) || metadata.length === 0) {
+        return '';
+    }
 
     const entries = metadata
         .map(
-            (entry) => `        <div>
+            entry => `        <div>
           <dt>${escapeHtml(entry.label)}</dt>
-          <dd>${entry.label === "우선순위" ? renderPriorityMarker(documentPriority) : ""}${entry.html}</dd>
+          <dd>${entry.label === '우선순위' ? renderPriorityMarker(documentPriority) : ''}${entry.html}</dd>
         </div>`,
         )
-        .join("\n");
+        .join('\n');
 
     return `      <dl class="todo-document__metadata">
 ${entries}
@@ -75,7 +77,7 @@ ${metadata}
 
 export function renderTodoToc(toc) {
     return toc
-        .map((entry) => {
+        .map(entry => {
             const depth = entry.depth === 3 ? 3 : 2;
             const href = `#${encodeURIComponent(entry.id)}`;
 
@@ -83,5 +85,5 @@ export function renderTodoToc(toc) {
                 <a class="todo-toc__link" href="${escapeHtml(href)}">${escapeHtml(entry.text)}</a>
               </li>`;
         })
-        .join("\n");
+        .join('\n');
 }
