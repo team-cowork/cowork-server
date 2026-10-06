@@ -1,5 +1,5 @@
 export * from './add-reaction.dto';
-export * from './context';
+export type * from './context';
 export * from './create-file-upload-url.dto';
 export * from './create-github-issue.dto';
 export * from './edit-message.dto';
