@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+    CanActivate,
+    ExecutionContext,
+    HttpException,
+    HttpStatus,
+    Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
@@ -18,13 +24,17 @@ export class ThrottleGuard implements CanActivate {
     ) {}
 
     async canActivate(context: ExecutionContext): Promise<boolean> {
-        if (context.getType() !== 'http') return true;
+        if (context.getType() !== 'http') {
+            return true;
+        }
 
-        const options = this.reflector.getAllAndOverride<ThrottleOptions>(THROTTLE_OPTIONS_KEY, [
+        const options = this.reflector.getAllAndOverride<ThrottleOptions | undefined>(THROTTLE_OPTIONS_KEY, [
             context.getHandler(),
             context.getClass(),
         ]);
-        if (!options) return true;
+        if (!options) {
+            return true;
+        }
 
         const request = context.switchToHttp().getRequest<Request>();
         const userId = RequestContextUtil.getUserId(request.headers);
@@ -36,12 +46,15 @@ export class ThrottleGuard implements CanActivate {
         if (!allowed) {
             throw new HttpException(options.message ?? DEFAULT_THROTTLE_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
         }
+
         return true;
     }
 
     private resolveNumberConfig(configKey: string, defaultValue: number): number {
         const raw = getOptionalConfig(this.configService, configKey);
-        if (raw === undefined) return defaultValue;
+        if (raw === undefined) {
+            return defaultValue;
+        }
 
         const parsed = Number(raw);
         return Number.isNaN(parsed) ? defaultValue : parsed;
