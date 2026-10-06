@@ -22,7 +22,7 @@ deploy_container_safely() (
   shift 5
   if [ "${1:-}" = -- ]; then shift; fi
   local candidate="${container}-candidate" previous="${container}-previous"
-  local old_exists=false swapping=false complete=false candidate_id old_id
+  local old_exists=false old_was_healthy=false swapping=false complete=false candidate_id old_id
   local previous_health_base
   local health_host="$BIND_IP"
   [ "$health_host" != 0.0.0.0 ] || health_host=127.0.0.1
@@ -38,25 +38,39 @@ deploy_container_safely() (
     old_exists=true
     previous_health_base=$(docker container inspect -f '{{index .Config.Labels "cowork.health-base-url"}}' "$container")
     [ -n "$previous_health_base" ] || previous_health_base="http://${health_host}:${host_port}"
+    # 배포 전부터 비정상인 컨테이너는 롤백 때 readiness를 기다려도 회복되지 않는다.
+    if curl --fail --silent --connect-timeout 2 --max-time 5 "${previous_health_base}${health_path}" >/dev/null 2>&1; then
+      old_was_healthy=true
+    fi
   fi
 
   # Invoked by EXIT/INT/TERM traps below.
   # shellcheck disable=SC2329
   rollback() {
-    local status=$?
+    local status=$? failure_log
     trap - EXIT INT TERM
     if [ "$complete" = false ]; then
       if [ -n "${candidate_id:-}" ]; then
+        # 후보 로그는 CI 로그에 노출될 수 있는 비밀을 포함할 수 있어 VM 파일로만 보존한다.
+        failure_log="${DEPLOY_STATE_DIR:-${HOME}/.local/state/cowork}/${container}-last-failure.log"
+        if (umask 077 && mkdir -p "$(dirname "$failure_log")" && docker logs --tail 200 "$candidate_id" >"$failure_log" 2>&1); then
+          echo "[deploy] Candidate logs saved on this VM: ${failure_log}" >&2
+        fi
         docker rm -f "$candidate_id" >/dev/null || true
       fi
       if [ "$swapping" = true ] && [ "$old_exists" = true ]; then
         if docker container inspect "$previous" >/dev/null 2>&1; then
           docker rename "$previous" "$container" || true
         fi
-        if docker start "$old_id" >/dev/null && wait_for_health "${previous_health_base}${health_path}"; then
-          echo "[deploy] Previous container restored" >&2
+        if [ "$old_was_healthy" = true ]; then
+          if docker start "$old_id" >/dev/null && wait_for_health "${previous_health_base}${health_path}"; then
+            echo "[deploy] Previous container restored" >&2
+          else
+            echo "[deploy] Previous container retained but restoration needs operator attention" >&2
+          fi
         else
-          echo "[deploy] Previous container retained but restoration needs operator attention" >&2
+          docker start "$old_id" >/dev/null || true
+          echo "[deploy] Previous container was already unhealthy before this deployment; restarted it without waiting for readiness" >&2
         fi
       fi
     fi
