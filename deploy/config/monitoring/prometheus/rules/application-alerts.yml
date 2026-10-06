@@ -90,6 +90,36 @@ groups:
           summary: "High Node.js heap usage"
           description: "Node.js service {{ $labels.service }} heap usage is above 85% for 5 minutes."
 
+  - name: cowork-chat-socketio
+    rules:
+      # adapter가 DEGRADED인 동안 Eureka status는 OUT_OF_SERVICE지만 lease는 유지되므로 수집은 계속된다.
+      - alert: coworkSocketIoAdapterDegraded
+        expr: cowork_chat_socketio_adapter_state{state="DEGRADED"} == 1
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Socket.IO Redis adapter degraded"
+          description: "Service {{ $labels.service }} Socket.IO Redis adapter is degraded for more than 1 minute."
+
+      - alert: coworkSocketIoAdapterDegradedCritical
+        expr: cowork_chat_socketio_adapter_state{state="DEGRADED"} == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Socket.IO Redis adapter degraded for 5 minutes"
+          description: "Service {{ $labels.service }} Socket.IO Redis adapter is degraded for more than 5 minutes."
+
+      # 1분 안에 복구되는 짧은 단절이 반복되면 DEGRADED 알림은 울리지 않으므로 재연결 횟수로 잡는다.
+      - alert: coworkSocketIoRedisReconnectSpike
+        expr: increase(cowork_chat_socketio_redis_reconnects_total[10m]) > 5
+        labels:
+          severity: warning
+        annotations:
+          summary: "Socket.IO Redis reconnect spike"
+          description: "Service {{ $labels.service }} Socket.IO Redis {{ $labels.client }} client reconnected more than 5 times in 10 minutes."
+
   - name: cowork-kafka
     rules:
       - alert: coworkKafkaConsumerLag
