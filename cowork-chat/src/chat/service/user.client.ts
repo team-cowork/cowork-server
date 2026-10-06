@@ -8,10 +8,12 @@ export class UserClient {
 
     async getDisplayNames(userIds: number[]): Promise<Map<number, string>> {
         const uniqueUserIds = [...new Set(userIds)];
-        if (uniqueUserIds.length === 0) return new Map();
+        if (uniqueUserIds.length === 0) {
+            return new Map();
+        }
 
         const profiles = await this.projectionRepository.findByUserIds(uniqueUserIds);
-        return new Map(profiles.map((profile) => [
+        return new Map(profiles.map(profile => [
             profile.userId,
             profile.nickname && profile.nickname.length > 0 ? profile.nickname : profile.name,
         ]));
