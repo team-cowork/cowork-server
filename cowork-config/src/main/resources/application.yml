@@ -77,6 +77,7 @@ spring:
             search-locations: classpath:/configs/
 
 ---
+# private-http 프로파일은 TLS 없이 사설 IP 바인딩, CIDR 방화벽, 서비스별 Basic 인증만으로 운영하는 구성이다.
 server:
   ssl:
     enabled: true
@@ -86,7 +87,7 @@ server:
 spring:
   config:
     activate:
-      on-profile: prod
+      on-profile: "prod & !private-http"
   ssl:
     bundle:
       pem:
@@ -94,6 +95,12 @@ spring:
           keystore:
             certificate: ${CONFIG_TLS_CERTIFICATE}
             private-key: ${CONFIG_TLS_PRIVATE_KEY}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
   cloud:
     config:
       server:
