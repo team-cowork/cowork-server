@@ -13,7 +13,7 @@ const DEFAULT_REGION = 'us-east-1';
         {
             provide: S3_CLIENT,
             inject: [ConfigService],
-            useFactory: (configService: ConfigService) => {
+            useFactory(configService: ConfigService) {
                 const objectStorageConfig = buildObjectStorageConfig(configService);
                 const protocol = objectStorageConfig.useSSL ? 'https' : 'http';
                 const endpoint = objectStorageConfig.port

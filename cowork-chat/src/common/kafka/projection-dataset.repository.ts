@@ -1,6 +1,6 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { randomUUID } from 'crypto';
 import { Model } from 'mongoose';
 import { ChannelMember } from '../../chat/schema/channel-member.schema';
 import { ChannelProjection } from '../../chat/schema/channel-projection.schema';
@@ -31,7 +31,7 @@ export type ProjectionStreamName =
     | 'channelRolePolicy'
     | 'userProfile';
 
-export interface ProjectionDatasetState {
+export type ProjectionDatasetState = {
     stream: ProjectionStreamName;
     groupId: string;
     topic: string;
@@ -45,18 +45,18 @@ export interface ProjectionDatasetState {
     activationDocumentCount: number;
     baseOffsets: ProjectionDatasetPartitionOffset[];
     targetOffsets: ProjectionDatasetPartitionOffset[];
-}
+};
 
-interface ProjectionDatasetStream {
+type ProjectionDatasetStream = {
     name: string;
     groupId: string;
     topic: string;
     sourceGeneration: string;
-}
+};
 
 @Injectable()
 export class ProjectionDatasetRepository {
-    private readonly projectionModels: Record<ProjectionStreamName, Model<unknown>[]>;
+    private readonly projectionModels: Record<ProjectionStreamName, Array<Model<unknown>>>;
 
     constructor(
         @InjectModel(ProjectionDataset.name) private readonly datasets: Model<ProjectionDataset>,
@@ -82,7 +82,7 @@ export class ProjectionDatasetRepository {
             userProfile: [userProfile],
             teamRole: [teamRole, teamRoleAssignment, teamRoleMemberTombstone],
             channelRolePolicy: [channelRolePolicy],
-        } as Record<ProjectionStreamName, Model<unknown>[]>;
+        } as Record<ProjectionStreamName, Array<Model<unknown>>>;
     }
 
     async find(stream: ProjectionStreamName): Promise<ProjectionDatasetState | undefined> {
@@ -188,7 +188,9 @@ export class ProjectionDatasetRepository {
             { stream, datasetGeneration, status: 'RESETTING' },
             { $set: { status: 'REBUILDING' } },
         );
-        if (result.matchedCount !== 1) throw new Error(`Projection rebuild reset was superseded: ${stream}`);
+        if (result.matchedCount !== 1) {
+            throw new Error(`Projection rebuild reset was superseded: ${stream}`);
+        }
     }
 
     async markActive(stream: ProjectionStreamName, datasetGeneration: string): Promise<void> {
@@ -205,23 +207,27 @@ export class ProjectionDatasetRepository {
                 },
             },
         );
-        if (result.matchedCount !== 1) throw new Error(`Projection dataset activation was superseded: ${stream}`);
+        if (result.matchedCount !== 1) {
+            throw new Error(`Projection dataset activation was superseded: ${stream}`);
+        }
     }
 
     async countProjection(stream: ProjectionStreamName): Promise<number> {
-        const counts = await Promise.all(this.projectionModels[stream].map((model) => model.countDocuments({})));
+        const counts = await Promise.all(this.projectionModels[stream].map(model => model.countDocuments({})));
         return counts.reduce((total, count) => total + count, 0);
     }
 
-    /** projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다. */
+    /** Projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다. */
     async resetProjection(stream: ProjectionStreamName): Promise<void> {
         const models = this.projectionModels[stream];
         if (stream !== 'channelMember') {
             for (const model of models) {
                 await model.deleteMany({});
             }
+
             return;
         }
+
         await models[0].updateMany({}, {
             $set: {
                 deleted: true,
@@ -240,9 +246,9 @@ export class ProjectionDatasetRepository {
             datasetGeneration: dataset.datasetGeneration,
             mode: dataset.mode,
             status: dataset.status,
-            ...(dataset.reason ? { reason: dataset.reason } : {}),
-            ...(dataset.rebuildRequestedAt ? { rebuildRequestedAt: dataset.rebuildRequestedAt } : {}),
-            ...(dataset.activatedAt ? { activatedAt: dataset.activatedAt } : {}),
+            ...(dataset.reason && { reason: dataset.reason }),
+            ...(dataset.rebuildRequestedAt && { rebuildRequestedAt: dataset.rebuildRequestedAt }),
+            ...(dataset.activatedAt && { activatedAt: dataset.activatedAt }),
             activationDocumentCount: dataset.activationDocumentCount ?? 0,
             baseOffsets: dataset.baseOffsets ?? [],
             targetOffsets: dataset.targetOffsets ?? [],

@@ -1,28 +1,27 @@
-import { readFile } from "node:fs/promises";
-
+import { readFile } from 'node:fs/promises';
 import {
     componentStylesheets,
     foundationStylesheets,
-} from "../../src/design-system/index.mjs";
-import { bundleJavaScript } from "./bundle.mjs";
-import { composeTemplate } from "./template.mjs";
-import { loadTodoContent } from "./todo-content.mjs";
+} from '../../src/design-system/index.mjs';
+import { bundleJavaScript } from './bundle.mjs';
+import { composeTemplate } from './template.mjs';
+import { loadTodoContent } from './todo-content.mjs';
 
-const projectDirectory = new URL("../../", import.meta.url);
-const sourceDirectory = new URL("../../src/", import.meta.url);
-const htmlDirectory = new URL("html/", sourceDirectory);
+const projectDirectory = new URL('../../', import.meta.url);
+const sourceDirectory = new URL('../../src/', import.meta.url);
+const htmlDirectory = new URL('html/', sourceDirectory);
 
 export const stylesheetPaths = Object.freeze({
     shared: [
         ...foundationStylesheets,
-        "css/base.css",
-        "css/utilities.css",
-        "css/responsive.css",
+        'css/base.css',
+        'css/utilities.css',
+        'css/responsive.css',
         ...componentStylesheets,
-        "css/site.css",
+        'css/site.css',
     ],
-    home: ["css/home.css", "css/showcase.css"],
-    todo: ["css/todo.css"],
+    home: ['css/home.css', 'css/showcase.css'],
+    todo: ['css/todo.css'],
 });
 
 function projectUrl(path) {
@@ -34,7 +33,7 @@ function sourceUrl(path) {
 }
 
 function loadStylesheets(paths) {
-    return Promise.all(paths.map((path) => readFile(sourceUrl(path), "utf8")));
+    return Promise.all(paths.map(path => readFile(sourceUrl(path), 'utf8')));
 }
 
 export async function loadBuildInput({
@@ -57,15 +56,15 @@ export async function loadBuildInput({
         todoStylesheetSources,
         todoContent,
     ] = await Promise.all([
-        composeTemplate(new URL("index.html", htmlDirectory), htmlDirectory),
-        composeTemplate(new URL("todo.html", htmlDirectory), htmlDirectory),
-        readFile(projectUrl("data/tech-stacks.yaml"), "utf8"),
-        readFile(projectUrl("data/repositories.json"), "utf8"),
-        readFile(projectUrl("data/team-members.xml"), "utf8"),
-        readFile(projectUrl("data/feature-states.json"), "utf8"),
-        readFile(projectUrl("logo.svg"), "utf8"),
-        bundleJavaScript(sourceUrl("js/main.js"), sourceDirectory),
-        bundleJavaScript(sourceUrl("js/todo-main.js"), sourceDirectory),
+        composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
+        composeTemplate(new URL('todo.html', htmlDirectory), htmlDirectory),
+        readFile(projectUrl('data/tech-stacks.yaml'), 'utf8'),
+        readFile(projectUrl('data/repositories.json'), 'utf8'),
+        readFile(projectUrl('data/team-members.xml'), 'utf8'),
+        readFile(projectUrl('data/feature-states.json'), 'utf8'),
+        readFile(projectUrl('logo.svg'), 'utf8'),
+        bundleJavaScript(sourceUrl('js/main.js'), sourceDirectory),
+        bundleJavaScript(sourceUrl('js/todo-main.js'), sourceDirectory),
         loadStylesheets(stylesheetPaths.shared),
         loadStylesheets(stylesheetPaths.home),
         loadStylesheets(stylesheetPaths.todo),

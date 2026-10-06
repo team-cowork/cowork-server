@@ -1,21 +1,26 @@
 import { mongo } from 'mongoose';
 
-const ISO_EVENT_TIME = /^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?([zZ]|[+-]\d{2}:?\d{2})?$/;
+const ISO_EVENT_TIME = /^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(z|[+-]\d{2}:?\d{2})?$/iu;
 const NANOS_PER_MILLISECOND = 1_000_000n;
 const MAX_SIGNED_LONG = 9_223_372_036_854_775_807n;
 
-export interface ParsedEventTime {
+export type ParsedEventTime = {
     /** 표시와 기존 필드 호환을 위한 millisecond 정밀도 값. */
     occurredAt: Date;
     /** 실제 ordering에 사용하는 epoch nanoseconds BSON Long. */
     sourceVersion: mongo.Long;
-}
+};
 
 /** ISO-8601 원문의 최대 9자리 fraction을 보존해 epoch nanoseconds로 변환한다. */
 export function parseEventTime(value: unknown): ParsedEventTime | null {
-    if (typeof value !== 'string') return null;
+    if (typeof value !== 'string') {
+        return null;
+    }
+
     const match = ISO_EVENT_TIME.exec(value);
-    if (!match) return null;
+    if (!match) {
+        return null;
+    }
 
     const [, yearText, monthText, dayText, hourText, minuteText, secondText, fraction = '', zone] = match;
     const year = Number(yearText);
@@ -24,7 +29,9 @@ export function parseEventTime(value: unknown): ParsedEventTime | null {
     const hour = Number(hourText);
     const minute = Number(minuteText);
     const second = Number(secondText);
-    if (year < 1970 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) return null;
+    if (year < 1970 || month < 1 || month > 12 || hour > 23 || minute > 59 || second > 59) {
+        return null;
+    }
 
     const localMilliseconds = Date.UTC(year, month - 1, day, hour, minute, second);
     const localDate = new Date(localMilliseconds);
@@ -42,14 +49,19 @@ export function parseEventTime(value: unknown): ParsedEventTime | null {
         const offset = zone.slice(1).replace(':', '');
         const offsetHours = Number(offset.slice(0, 2));
         const offsetMinutePart = Number(offset.slice(2));
-        if (offsetHours > 23 || offsetMinutePart > 59) return null;
-        offsetMinutes = (zone.startsWith('+') ? 1 : -1) * (offsetHours * 60 + offsetMinutePart);
+        if (offsetHours > 23 || offsetMinutePart > 59) {
+            return null;
+        }
+
+        offsetMinutes = (zone.startsWith('+') ? 1 : -1) * ((offsetHours * 60) + offsetMinutePart);
     }
 
-    const utcMilliseconds = localMilliseconds - offsetMinutes * 60_000;
+    const utcMilliseconds = localMilliseconds - (offsetMinutes * 60_000);
     const fractionNanos = BigInt(fraction.padEnd(9, '0'));
-    const epochNanos = BigInt(utcMilliseconds) * NANOS_PER_MILLISECOND + fractionNanos;
-    if (epochNanos > MAX_SIGNED_LONG) return null;
+    const epochNanos = (BigInt(utcMilliseconds) * NANOS_PER_MILLISECOND) + fractionNanos;
+    if (epochNanos > MAX_SIGNED_LONG) {
+        return null;
+    }
 
     return {
         occurredAt: new Date(utcMilliseconds + Number(fractionNanos / NANOS_PER_MILLISECOND)),

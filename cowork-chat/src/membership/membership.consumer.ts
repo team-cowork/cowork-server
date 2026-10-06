@@ -1,11 +1,15 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Consumer } from 'kafkajs';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Server } from 'socket.io';
 import { ChannelMember } from '../chat/schema/channel-member.schema';
-import { ChannelMemberEvent } from './event/membership.event';
 import { getRequiredCsvConfig } from '../common/config/config.util';
 import { parseEventTime } from '../common/util/event-time.util';
 import { isSafePositiveInteger } from '../common/util/safe-integer.util';
@@ -19,6 +23,7 @@ import {
     projectionTimestampFields,
     PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util';
+import { ChannelMemberEvent } from './event/membership.event';
 
 @Injectable()
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
@@ -60,19 +65,17 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         void this.consumer
             .run({
                 eachMessage: async ({ partition, message }) => {
-                    await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => {
-                        return applyProjectionMessage(
-                            stream,
-                            partition,
-                            message,
-                            this.projectionReadiness,
-                            (payload, key) => this.handleEvent(payload, key),
-                        );
-                    });
+                    await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
+                        stream,
+                        partition,
+                        message,
+                        this.projectionReadiness,
+                        async (payload, key) => this.handleEvent(payload, key),
+                    ));
                 },
             })
-            .catch((err) => {
-                this.logger.error(`${stream.topic} Kafka consumer failed; exiting for restart`, err);
+            .catch((error: unknown) => {
+                this.logger.error(`${stream.topic} Kafka consumer failed; exiting for restart`, error);
                 process.exit(1);
             });
         this.logger.log(`Kafka consumer started: ${stream.topic}`);
@@ -86,6 +89,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         if (!this.isChannelMemberEvent(payload)) {
             throw new ProjectionContractError('invalid channel member event payload');
         }
+
         const event = payload;
         if (messageKey !== `${event.channelId}:${event.userId}`) {
             throw new ProjectionContractError(
@@ -93,8 +97,12 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 + `expected=${event.channelId}:${event.userId}]`,
             );
         }
+
         const eventTime = parseEventTime(event.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('channel member event occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('channel member event occurredAt must be RFC3339');
+        }
+
         const { occurredAt, sourceVersion } = eventTime;
         const { eventType, channelId, teamId, userId, role } = event;
         const channelType = event.channelType ?? 'TEXT';
@@ -135,13 +143,20 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     }],
                     { upsert: true, timestamps: false, updatePipeline: true },
                 );
-                if (!projectionUpdateApplied(result)) return;
-                if (event.snapshot === true) return;
-                if (eventType === 'ROLE_CHANGE') {
-                    await this.broadcast(channelId, 'member:role:updated', { channelId, teamId, userId, role });
+                if (!projectionUpdateApplied(result) || (event.snapshot === true)) {
                     return;
                 }
-                await this.broadcast(channelId, 'member:joined', { channelId, teamId, userId, role });
+
+                if (eventType === 'ROLE_CHANGE') {
+                    await this.broadcast(channelId, 'member:role:updated', {
+                        channelId, teamId, userId, role,
+                    });
+                    return;
+                }
+
+                await this.broadcast(channelId, 'member:joined', {
+                    channelId, teamId, userId, role,
+                });
             } else if (eventType === 'LEAVE') {
                 const shouldApply = deletedProjectionCondition(sourceVersion);
                 const result = await this.memberModel.updateOne(
@@ -170,7 +185,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     { upsert: true, timestamps: false, updatePipeline: true },
                 );
                 const applied = projectionUpdateApplied(result);
-                // replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
+                // Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
                 // 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
                 // 다른 stream이 닫혀도 판정은 전부 거부이므로 전체 readiness를 판정 전후로 확인한다.
                 if (this.projectionReadiness.isReady()
@@ -183,19 +198,26 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                         this.io.to(`user:${userId}`).emit('channel:access:revoked', { channelId });
                     }
                 }
-                if (event.snapshot === true || !applied) return;
+
+                if (event.snapshot === true || !applied) {
+                    return;
+                }
+
                 await this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
             }
-        } catch (err) {
-            this.logger.error(`Failed to handle membership event [${eventType}]`, err);
-            throw err;
+        } catch (error) {
+            this.logger.error(`Failed to handle membership event [${eventType}]`, error);
+            throw error;
         }
     }
 
     private isChannelMemberEvent(payload: unknown): payload is ChannelMemberEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<ChannelMemberEvent>;
-        return (event.eventType === 'JOIN' || event.eventType === 'LEAVE' || event.eventType === 'ROLE_CHANGE')
+        return ['JOIN', 'LEAVE', 'ROLE_CHANGE'].includes(event.eventType ?? '')
             && isSafePositiveInteger(event.channelId)
             && (event.teamId === null || isSafePositiveInteger(event.teamId))
             && isSafePositiveInteger(event.userId)
@@ -205,17 +227,21 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && parseEventTime(event.occurredAt) !== null;
     }
 
-    /** replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다. */
+    /** Replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다. */
     private isLive(): boolean {
         return this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channelMember.name);
     }
 
     private async broadcast(channelId: number, event: string, payload: unknown): Promise<void> {
-        if (!this.isLive()) return;
+        if (!this.isLive()) {
+            return;
+        }
+
         if (!this.io || !this.readableEmitter) {
             this.logger.warn(`Readable socket emitter not initialized yet, dropping ${event} event (channelId=${channelId})`);
             return;
         }
+
         await this.readableEmitter(channelId, event, payload);
     }
 }

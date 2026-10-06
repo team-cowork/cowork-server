@@ -1,4 +1,4 @@
-import { AttachmentDto } from '../../dto';
+import { type AttachmentDto } from '../../dto';
 
 /**
  * 채팅 메시지 발행 시 Kafka로 전송되는 이벤트 페이로드.
@@ -11,8 +11,8 @@ import { AttachmentDto } from '../../dto';
  * `clientMessageId`는 클라이언트가 생성한 멱등성 키로, 중복 발행 감지에 사용된다.
  * `occurredAt`은 ISO 8601 문자열이며 서버 시각 기준이다.
  */
-export interface ChatMessageEvent {
-    /** producer와 consumer가 공유하는 이벤트 계약 버전 */
+export type ChatMessageEvent = {
+    /** Producer와 consumer가 공유하는 이벤트 계약 버전 */
     contractVersion: 1;
     /** Kafka 라우팅용 이벤트 종류 식별자 */
     eventType: 'MESSAGE_SENT';
@@ -33,4 +33,4 @@ export interface ChatMessageEvent {
     clientMessageId?: string;
     /** 이벤트 발생 시각 (ISO 8601, 서버 기준) */
     occurredAt: string;
-}
+};
