@@ -302,6 +302,20 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
+        it('답장인 부모 메시지에도 답장할 수 있다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage({ parentMessageId: new Types.ObjectId() }));
+
+            await service.sendMessage(ctx, { content: 'hi', parentMessageId: mockMessageId });
+
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ parentMessageId: mockMessageId }),
+                ctx.userId,
+                ctx.userRole,
+            );
+        });
+
         it('같은 채널에 없는 부모 메시지로는 답장을 발행하지 않는다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
             mockMessageRepository.findByIdAndChannelId.mockResolvedValue(null);
