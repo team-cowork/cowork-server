@@ -6,10 +6,13 @@
     "dev": "node scripts/serve.mjs public --watch",
     "build": "node scripts/build.mjs",
     "preview": "npm run build && node scripts/serve.mjs public",
-    "test": "node --test"
+    "test": "node --test",
+    "lint": "xo \"src/**/*.{js,mjs}\" \"scripts/**/*.mjs\" \"test/**/*.mjs\" \"*.config.mjs\"",
+    "lint:fix": "npm run lint -- --fix"
   },
   "devDependencies": {
     "fast-xml-parser": "^5.11.1",
+    "globals": "17.12.0",
     "mdast-util-to-string": "^4.0.0",
     "rehype-sanitize": "^6.0.0",
     "rehype-slug": "^6.0.0",
@@ -19,6 +22,7 @@
     "remark-rehype": "^11.1.2",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.1.0",
+    "xo": "5.0.1",
     "yaml": "^2.9.1"
   },
   "engines": {

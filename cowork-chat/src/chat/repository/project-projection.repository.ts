@@ -11,7 +11,7 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
-export interface ProjectProjectionEvent {
+export type ProjectProjectionEvent = {
     projectId: number;
     teamId: number;
     name: string;
@@ -20,7 +20,7 @@ export interface ProjectProjectionEvent {
     position: number;
     occurredAt: Date;
     sourceVersion: mongo.Long;
-}
+};
 
 @Injectable()
 export class ProjectProjectionRepository {

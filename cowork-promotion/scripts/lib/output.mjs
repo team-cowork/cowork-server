@@ -1,8 +1,8 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 
 async function writeOutputFile(outputDirectory, relativePath, content) {
     const fileUrl = new URL(relativePath, outputDirectory);
-    await mkdir(new URL("./", fileUrl), { recursive: true });
+    await mkdir(new URL('./', fileUrl), { recursive: true });
     await writeFile(fileUrl, content);
 }
 

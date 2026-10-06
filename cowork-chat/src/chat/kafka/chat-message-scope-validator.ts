@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ChatMessageEvent } from './event/chat-message.event';
 import { ChannelProjectionRepository, MessageRepository } from '../repository';
 import { resolveMessageScope } from '../service';
+import { ChatMessageEvent } from './event/chat-message.event';
 
 export class ChatMessageScopeError extends Error {
     constructor(
@@ -26,15 +26,19 @@ export class ChatMessageScopeValidator {
         if (!channel) {
             throw new ChatMessageScopeError('CHANNEL_NOT_FOUND', 'channel projection was not found');
         }
+
         const scope = resolveMessageScope(channel);
-        if (!scope || scope.teamId !== event.teamId || scope.projectId !== (event.projectId ?? null)) {
+        if (scope?.teamId !== event.teamId || scope.projectId !== (event.projectId ?? null)) {
             throw new ChatMessageScopeError('CHANNEL_SCOPE_MISMATCH', 'event teamId or projectId does not match channel');
         }
-        if (event.parentMessageId) {
-            const parent = await this.messageRepository.findByIdAndChannelId(event.parentMessageId, event.channelId);
-            if (!parent) {
-                throw new ChatMessageScopeError('PARENT_NOT_FOUND', 'parent message was not found in channel');
-            }
+
+        if (!event.parentMessageId) {
+            return;
+        }
+
+        const parent = await this.messageRepository.findByIdAndChannelId(event.parentMessageId, event.channelId);
+        if (!parent) {
+            throw new ChatMessageScopeError('PARENT_NOT_FOUND', 'parent message was not found in channel');
         }
     }
 }
