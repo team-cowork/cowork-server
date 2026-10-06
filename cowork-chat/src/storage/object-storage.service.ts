@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
     BadRequestException,
     ConflictException,
@@ -20,20 +21,19 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as mime from 'mime-types';
-import { randomUUID } from 'crypto';
 import { S3_CLIENT } from './object-storage.constants';
 import { buildObjectStorageConfig, ObjectStorageConfig } from './object-storage.config';
 
-export interface PresignedUpload {
+export type PresignedUpload = {
     objectKey: string;
     uploadUrl: string;
     fileUrl: string;
     expiresInSeconds: number;
-}
+};
 
 function isNotFoundError(error: unknown): boolean {
-    const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
-    return err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404;
+    const error_ = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    return error_.name === 'NotFound' || error_.$metadata?.httpStatusCode === 404;
 }
 
 @Injectable()
@@ -68,24 +68,26 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     }
 
     onModuleDestroy(): void {
-        if (this.cleanupTimer) {
-            clearInterval(this.cleanupTimer);
-            this.cleanupTimer = undefined;
+        if (!this.cleanupTimer) {
+            return;
         }
+
+        clearInterval(this.cleanupTimer);
+        this.cleanupTimer = undefined;
     }
 
-    async createPresignedUpload(params: {
+    async createPresignedUpload(parameters: {
         channelId: number;
         userId: number;
         filename: string;
         contentType: string;
         size: number;
     }): Promise<PresignedUpload> {
-        this.checkUploadRateLimit(params.userId);
-        this.validateContentType(params.contentType);
-        this.validateFileSize(params.size);
+        this.checkUploadRateLimit(parameters.userId);
+        this.validateContentType(parameters.contentType);
+        this.validateFileSize(parameters.size);
 
-        const objectKey = this.buildObjectKey(params.channelId, params.userId, params.filename, params.contentType);
+        const objectKey = this.buildObjectKey(parameters.channelId, parameters.userId, parameters.filename, parameters.contentType);
         const uploadUrl = await getSignedUrl(
             this.s3Client,
             new PutObjectCommand({ Bucket: this.config.bucket, Key: objectKey }),
@@ -114,6 +116,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
             if (isNotFoundError(error)) {
                 throw new ConflictException('S3에 파일이 없습니다. 업로드를 먼저 완료하세요');
             }
+
             this.logger.error(`S3 HeadObject failed [key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 확인 중 오류가 발생했습니다');
         }
@@ -134,6 +137,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
             if (isNotFoundError(error)) {
                 return false;
             }
+
             this.logger.error(`S3 HeadObject failed [bucket=${this.config.bucket}, key=${objectKey}]`, error);
             throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
         }
@@ -148,6 +152,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         if (!fileUrl.startsWith(prefix)) {
             throw new BadRequestException('유효하지 않은 파일 URL입니다');
         }
+
         return fileUrl.slice(prefix.length);
     }
 
@@ -185,7 +190,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         const now = Date.now();
         const windowStart = now - this.config.uploadRateLimitWindowMs;
         const recentRequests = (this.uploadRateLimitBuckets.get(userId) ?? []).filter(
-            (requestedAt) => requestedAt > windowStart,
+            requestedAt => requestedAt > windowStart,
         );
 
         if (recentRequests.length >= this.config.uploadRateLimitMaxRequests) {
@@ -223,11 +228,12 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     private resolveExtension(filename: string, contentType: string): string {
         const parts = filename.split('.');
         const extensionFromName = parts.length > 1 ? parts.pop()?.toLowerCase() : undefined;
-        if (extensionFromName && /^[a-z0-9]+$/.test(extensionFromName)) {
+        if (extensionFromName !== undefined && extensionFromName !== '' && /^[0-9a-z]+$/u.test(extensionFromName)) {
             return extensionFromName;
         }
 
-        return mime.extension(contentType) || 'bin';
+        const extensionFromMime = mime.extension(contentType);
+        return extensionFromMime === false || extensionFromMime === '' ? 'bin' : extensionFromMime;
     }
 
     private buildPublicUrl(objectKey: string): string {

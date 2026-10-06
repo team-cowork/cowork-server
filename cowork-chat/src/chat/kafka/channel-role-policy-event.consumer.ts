@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Consumer, Kafka } from 'kafkajs';
 import { Server } from 'socket.io';
@@ -12,7 +17,7 @@ import { applyProjectionMessage, ProjectionContractError } from '../../common/ka
 import { ChannelRolePolicyProjectionRepository } from '../repository';
 import { ChannelMessageReadAccessService } from '../service';
 
-interface ChannelRolePolicyEvent {
+type ChannelRolePolicyEvent = {
     schemaVersion: 1;
     eventType: 'UPSERT' | 'DELETE';
     teamId: number;
@@ -21,7 +26,7 @@ interface ChannelRolePolicyEvent {
     permissions: { message_read: boolean } | null;
     occurredAt: string;
     snapshot?: boolean;
-}
+};
 
 @Injectable()
 export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -60,7 +65,7 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                         partition,
                         message,
                         this.projectionReadiness,
-                        (payload, key) => this.handleEvent(payload, key),
+                        async (payload, key) => this.handleEvent(payload, key),
                     ));
             },
         }).catch(async (error: unknown) => {
@@ -70,7 +75,7 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                 description: `cowork-chat의 ${stream.topic} consumer가 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
                 fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
         this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
@@ -84,14 +89,19 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
         if (!this.isChannelRolePolicyEvent(payload)) {
             throw new ProjectionContractError('invalid channel role policy event payload');
         }
+
         const expectedKey = `policy:${payload.teamId}:${payload.channelId}:${payload.roleId}`;
         if (messageKey !== expectedKey) {
             throw new ProjectionContractError(
                 `channel role policy event key mismatch [key=${messageKey ?? '<missing>'}, expected=${expectedKey}]`,
             );
         }
+
         const eventTime = parseEventTime(payload.occurredAt);
-        if (!eventTime) throw new ProjectionContractError('channel role policy occurredAt must be RFC3339');
+        if (!eventTime) {
+            throw new ProjectionContractError('channel role policy occurredAt must be RFC3339');
+        }
+
         if (payload.eventType === 'UPSERT') {
             await this.repository.upsert({
                 teamId: payload.teamId,
@@ -109,13 +119,17 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                 eventTime.sourceVersion,
             );
         }
+
         if (this.io) {
             await this.accessService.evictUnauthorizedSockets(this.io, [payload.channelId]);
         }
     }
 
     private isChannelRolePolicyEvent(payload: unknown): payload is ChannelRolePolicyEvent {
-        if (typeof payload !== 'object' || payload === null) return false;
+        if (typeof payload !== 'object' || payload === null) {
+            return false;
+        }
+
         const event = payload as Partial<ChannelRolePolicyEvent>;
         if (event.schemaVersion !== 1
             || (event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
@@ -123,9 +137,18 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
             || !isSafePositiveInteger(event.channelId)
             || !isSafePositiveInteger(event.roleId)
             || parseEventTime(event.occurredAt) === null
-            || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')) return false;
-        if (event.eventType === 'DELETE') return event.permissions === null;
-        if (typeof event.permissions !== 'object' || event.permissions === null) return false;
+            || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')) {
+            return false;
+        }
+
+        if (event.eventType === 'DELETE') {
+            return event.permissions === null;
+        }
+
+        if (typeof event.permissions !== 'object' || event.permissions === null) {
+            return false;
+        }
+
         const permissions = event.permissions as Record<string, unknown>;
         return Object.keys(permissions).length === 1 && typeof permissions.message_read === 'boolean';
     }
