@@ -1,7 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
-import { randomUUID } from 'crypto';
 import { Message, MessageDocument } from '../schema';
 import { isSearchIndexed } from '../search/message-index-scope';
 
@@ -186,15 +186,16 @@ export class MessageRepository {
      *
      * @param channelId - 조회할 채널의 식별자
      * @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
-     * @returns {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
+     * @returns 배열 (최신순 정렬, 최대 100개)
      */
-    findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
+    async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
         const query: Record<string, unknown> = { channelId };
         if (before) {
-            query['_id'] = { $lt: new Types.ObjectId(before) };
+            query._id = { $lt: new Types.ObjectId(before) };
         }
+
         if (parentMessageId) {
-            query['parentMessageId'] = new Types.ObjectId(parentMessageId);
+            query.parentMessageId = new Types.ObjectId(parentMessageId);
         }
 
         const lookupStages = parentMessageId
@@ -242,12 +243,12 @@ export class MessageRepository {
      * @param messageId - 조회할 메시지의 ObjectId 문자열
      * @returns Mongoose 도큐먼트. 존재하지 않으면 `null`
      */
-    findById(messageId: string): Promise<MessageDocument | null> {
+    async findById(messageId: string): Promise<MessageDocument | null> {
         return this.messageModel.findById(messageId);
     }
 
     /**
-     * messageId와 channelId를 함께 사용하여 메시지를 조회합니다.
+     * MessageId와 channelId를 함께 사용하여 메시지를 조회합니다.
      *
      * 채널 귀속 검증이 필요한 경우(예: 권한 확인)에 사용하며,
      * 다른 채널의 메시지가 우연히 반환되는 것을 방지합니다.
@@ -256,7 +257,7 @@ export class MessageRepository {
      * @param channelId - 메시지가 속해야 하는 채널의 식별자
      * @returns Mongoose 도큐먼트. 존재하지 않거나 채널이 불일치하면 `null`
      */
-    findByIdAndChannelId(messageId: string, channelId: number): Promise<MessageDocument | null> {
+    async findByIdAndChannelId(messageId: string, channelId: number): Promise<MessageDocument | null> {
         return this.messageModel.findOne({ _id: messageId, channelId });
     }
 
@@ -279,7 +280,7 @@ export class MessageRepository {
      * @param input - 생성할 메시지의 필드 값 ({@link CreateMessageInput})
      * @returns 생성된 Mongoose 도큐먼트
      */
-    createMessage(input: CreateMessageInput) {
+    async createMessage(input: CreateMessageInput) {
         const indexed = isSearchIndexed(input);
         return this.messageModel.create({
             ...input,
@@ -296,10 +297,12 @@ export class MessageRepository {
      * 색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
      * `editHistory`는 최근 {@link MAX_EDIT_HISTORY_ENTRIES}개만 보관하며 그보다 오래된 이력은 버립니다.
      *
+     * @param messageId - 수정할 메시지 ID
+     * @param content - 변경할 본문
      * @param indexed - 검색 색인 대상 메시지인지 여부
      * @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
-    applyEdit(messageId: string, content: string, indexed: boolean): Promise<MessageDocument | null> {
+    async applyEdit(messageId: string, content: string, indexed: boolean): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
             { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
@@ -329,10 +332,12 @@ export class MessageRepository {
     /**
      * 메시지 고정 상태를 원자적으로 바꾸고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
      *
+     * @param messageId - 수정할 메시지 ID
+     * @param isPinned - 고정 여부
      * @param indexed - 검색 색인 대상 메시지인지 여부
      * @returns 갱신된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
-    setPinned(messageId: string, isPinned: boolean, indexed: boolean): Promise<MessageDocument | null> {
+    async setPinned(messageId: string, isPinned: boolean, indexed: boolean): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
             { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
@@ -350,7 +355,7 @@ export class MessageRepository {
      *
      * @returns 예약된 도큐먼트. 메시지가 없거나 이미 삭제 예약된 경우 `null`
      */
-    reserveDeletion(messageId: string): Promise<MessageDocument | null> {
+    async reserveDeletion(messageId: string): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
             { _id: messageId, searchIndexStatus: { $ne: 'DELETING' } },
@@ -385,7 +390,7 @@ export class MessageRepository {
      * @param authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
      * @returns 생성된 Mongoose 도큐먼트
      */
-    createSystemMessage(
+    async createSystemMessage(
         teamId: number,
         channelId: number,
         content: string,
@@ -469,7 +474,7 @@ export class MessageRepository {
         const rows = await this.messageModel.aggregate<FileAttachmentAggregateRow>(pipeline);
         const hasNext = rows.length > safeLimit;
         const pageRows = rows.slice(0, safeLimit);
-        const items: FileAttachmentRow[] = pageRows.map((row) => {
+        const items: FileAttachmentRow[] = pageRows.map(row => {
             const attachmentIndex = row.attachmentIndex ?? 0;
             return {
                 fileId: this.encodeFileCursor(row)!,
@@ -523,9 +528,11 @@ export class MessageRepository {
             .limit(batchSize)
             .select('_id')
             .lean();
-        if (candidates.length === 0) return [];
+        if (candidates.length === 0) {
+            return [];
+        }
 
-        const ids = candidates.map((c) => c._id);
+        const ids = candidates.map(c => c._id);
         const notificationClaimId = randomUUID();
         await this.messageModel.updateMany(
             { _id: { $in: ids }, notificationStatus: 'PENDING' },
@@ -573,7 +580,7 @@ export class MessageRepository {
      * @param channelId - 고정 메시지를 조회할 채널의 식별자
      * @returns 고정된 {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-    findPinnedMessages(channelId: number): Promise<MessageRow[]> {
+    async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
         return this.messageModel.aggregate([
             { $match: { channelId, isPinned: true } },
             { $sort: { _id: -1 } },
@@ -618,13 +625,16 @@ export class MessageRepository {
     async findParentAuthorsByChannel(
         parents: Array<{ channelId: number; parentMessageId: Types.ObjectId }>,
     ): Promise<Map<string, { authorId: number }>> {
-        if (parents.length === 0) return new Map();
+        if (parents.length === 0) {
+            return new Map();
+        }
+
         const foundParents = await this.messageModel
             .find({ $or: parents.map(({ channelId, parentMessageId }) => ({ _id: parentMessageId, channelId })) })
             .select('channelId authorId')
-            .lean() as { _id: Types.ObjectId; channelId: number; authorId: number }[];
+            .lean() as Array<{ _id: Types.ObjectId; channelId: number; authorId: number }>;
 
-        return new Map(foundParents.map((parent) => [
+        return new Map(foundParents.map(parent => [
             `${parent.channelId}:${parent._id.toString()}`, { authorId: parent.authorId },
         ]));
     }
@@ -686,14 +696,14 @@ export class MessageRepository {
             { new: false, updatePipeline: true },
         ).lean() as ReactionDoc | null;
 
-        if (!before) return null;
+        if (!before) {
+            return null;
+        }
 
         const reactions = before.reactions ?? [];
         const existing = reactions.find(r => r.emoji === emoji);
         const userIds = existing?.userIds ?? [];
-        if (userIds.includes(userId)) return -1;
-
-        return userIds.length + 1;
+        return userIds.includes(userId) ? -1 : userIds.length + 1;
     }
 
     /**
@@ -739,11 +749,12 @@ export class MessageRepository {
         return count;
     }
 
-    countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
+    async countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
         const filter: Record<string, unknown> = { channelId, parentMessageId: null };
         if (afterId) {
-            filter['_id'] = { $gt: afterId };
+            filter._id = { $gt: afterId };
         }
+
         return this.messageModel.countDocuments(filter);
     }
 
@@ -760,13 +771,16 @@ export class MessageRepository {
         type: string;
         createdAt: Date;
     }>> {
-        if (channelIds.length === 0) return new Map();
+        if (channelIds.length === 0) {
+            return new Map();
+        }
+
         const rows = await this.messageModel.aggregate<{ _id: number; doc: Message & { _id: Types.ObjectId; createdAt: Date } }>([
             { $match: { channelId: { $in: channelIds } } },
             { $sort: { channelId: 1, _id: -1 } },
             { $group: { _id: '$channelId', doc: { $first: '$$ROOT' } } },
         ]);
-        return new Map(rows.map((row) => [row._id, {
+        return new Map(rows.map(row => [row._id, {
             messageId: row.doc._id.toString(),
             authorId: row.doc.authorId,
             content: row.doc.content,
@@ -781,11 +795,13 @@ export class MessageRepository {
         if (memberships.length === 0) {
             return new Map();
         }
+
         const orConditions = memberships.map(({ channelId, lastReadMessageId }) => {
             const cond: Record<string, unknown> = { channelId, parentMessageId: null };
             if (lastReadMessageId) {
-                cond['_id'] = { $gt: lastReadMessageId };
+                cond._id = { $gt: lastReadMessageId };
             }
+
             return cond;
         });
         const results = await this.messageModel.aggregate<{ _id: number; count: number }>([
@@ -796,6 +812,7 @@ export class MessageRepository {
         for (const row of results) {
             countMap.set(row._id, row.count);
         }
+
         return countMap;
     }
 
@@ -826,6 +843,7 @@ export class MessageRepository {
         if (notificationRetryCount !== undefined) {
             $set.notificationRetryCount = notificationRetryCount;
         }
+
         return this.messageModel.updateOne(
             { _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId },
             { $set },
@@ -885,7 +903,7 @@ export class MessageRepository {
     }
 
     /**
-     * base64 인코딩된 커서 문자열을 파싱하여 커서 객체로 반환합니다.
+     * Base64 인코딩된 커서 문자열을 파싱하여 커서 객체로 반환합니다.
      *
      * 파싱 실패, 타입 불일치, 잘못된 날짜 형식, 유효하지 않은 ObjectId 등
      * 모든 유효하지 않은 입력에 대해 예외를 던지지 않고 `null`을 반환합니다.
@@ -902,11 +920,11 @@ export class MessageRepository {
             };
 
             if (
-                typeof parsed.uploadedAt !== 'string' ||
-                typeof parsed.messageId !== 'string' ||
-                typeof parsed.attachmentIndex !== 'number' ||
-                Number.isNaN(Date.parse(parsed.uploadedAt)) ||
-                !Types.ObjectId.isValid(parsed.messageId)
+                typeof parsed.uploadedAt !== 'string'
+                || typeof parsed.messageId !== 'string'
+                || typeof parsed.attachmentIndex !== 'number'
+                || Number.isNaN(Date.parse(parsed.uploadedAt))
+                || !Types.ObjectId.isValid(parsed.messageId)
             ) {
                 return null;
             }
@@ -929,7 +947,10 @@ export class MessageRepository {
  * 버전 `1`로 써 둔 문서를 이후 수정이 버전 충돌로 잃지 않습니다.
  */
 function searchIndexIntent(indexed: boolean, now: Date): Record<string, unknown> {
-    if (!indexed) return { searchIndexStatus: 'SKIPPED', searchIndexVersion: 0 };
+    if (!indexed) {
+        return { searchIndexStatus: 'SKIPPED', searchIndexVersion: 0 };
+    }
+
     return {
         searchIndexStatus: 'PENDING',
         searchIndexVersion: { $add: [{ $max: [{ $ifNull: ['$searchIndexVersion', 0] }, 1] }, 1] },
