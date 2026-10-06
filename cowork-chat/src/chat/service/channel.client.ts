@@ -1,10 +1,10 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ChannelProjectionRepository } from '../repository';
 
-export interface ChannelInfo {
+export type ChannelInfo = {
     id: number;
     viewType: string;
-}
+};
 
 /** Kafka로 동기화된 로컬 채널 projection 조회기. */
 @Injectable()
@@ -17,6 +17,7 @@ export class ChannelClient {
         if (!channel) {
             throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
         }
+
         return { id: channel.channelId, viewType: channel.viewType };
     }
 }

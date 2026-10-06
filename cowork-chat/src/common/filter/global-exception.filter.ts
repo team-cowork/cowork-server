@@ -47,7 +47,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     }
 
     private logIfUnexpected(exception: unknown): void {
-        if (exception instanceof HttpException) return;
+        if (exception instanceof HttpException) {
+            return;
+        }
+
         this.logger.error(
             exception instanceof Error ? exception.message : String(exception),
             exception instanceof Error ? exception.stack : undefined,
