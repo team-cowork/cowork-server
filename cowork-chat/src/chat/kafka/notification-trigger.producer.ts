@@ -1,4 +1,9 @@
-import { Injectable, OnModuleDestroy, OnModuleInit, Logger } from '@nestjs/common';
+import {
+    Injectable,
+    OnModuleDestroy,
+    OnModuleInit,
+    Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka, Producer } from 'kafkajs';
 import { DicoshotService } from 'dicoshot-nest';
@@ -13,7 +18,7 @@ import { buildErrorFields } from '../../common/util/discord-alert.util';
  * `forcedUserIds`: 알림 설정과 무관하게 반드시 알림을 받아야 하는 유저 목록
  *   (예: 멘션된 사용자).
  */
-export interface NotificationTriggerEvent {
+export type NotificationTriggerEvent = {
     /**
      * 논리적 알림 이벤트의 안정적 식별자.
      * FCM 개별 전송 결과의 선택적 재시도가 이 값과 device token을 canonical key로 사용하므로,
@@ -35,7 +40,7 @@ export interface NotificationTriggerEvent {
         /** 이벤트 발생 시각 (ISO 8601, 서버 기준) */
         occurredAt: string;
     };
-}
+};
 
 /**
  * `notification.trigger` Kafka 토픽으로 알림 이벤트를 발행하는 프로듀서.
@@ -76,7 +81,7 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
                     { name: 'Topic', value: 'notification.trigger', inline: true },
                     ...buildErrorFields(error),
                 ],
-            }).catch(() => {});
+            }).catch(() => {/* Alert delivery is best-effort. */});
         });
     }
 
@@ -106,23 +111,21 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
      * 동시 호출이 들어와도 단일 연결 Promise를 공유해 중복 연결을 방지한다.
      * 연결 실패 시 `connectPromise`를 초기화하여 다음 호출 시 재시도할 수 있게 한다.
      */
-    private ensureConnected(): Promise<void> {
+    private async ensureConnected(): Promise<void> {
         if (this.isConnected) {
-            return Promise.resolve();
+            return;
         }
 
-        if (!this.connectPromise) {
-            this.connectPromise = this.producer
-                .connect()
-                .then(() => {
-                    this.isConnected = true;
-                    this.logger.log('Notification trigger producer connected');
-                })
-                .catch((error: unknown) => {
-                    this.connectPromise = undefined;
-                    throw error;
-                });
-        }
+        this.connectPromise ??= this.producer
+            .connect()
+            .then(() => {
+                this.isConnected = true;
+                this.logger.log('Notification trigger producer connected');
+            })
+            .catch((error: unknown) => {
+                this.connectPromise = undefined;
+                throw error;
+            });
 
         return this.connectPromise;
     }
