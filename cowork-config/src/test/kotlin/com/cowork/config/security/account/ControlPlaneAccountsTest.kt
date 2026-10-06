@@ -37,7 +37,8 @@ class ControlPlaneAccountsTest :
         }
         describe("배포 프로파일 선택") {
             it("local과 prod를 함께 선택하면 거부한다") {
-                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(environment("local", "prod", sslEnabled = true)) }
+                val both = environment("local", "prod", sslEnabled = true)
+                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(both) }
             }
         }
     })
