@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Render VM-reachable discovery addresses without requiring PyYAML on the VM."""
+import ipaddress
 import json
 import os
 import sys
@@ -7,11 +8,22 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+def private_ipv4(host):
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == 4 and address.is_private and not address.is_loopback and not address.is_unspecified
+
+
 def http_url(name):
     value = os.environ[name]
     url = urlsplit(value)
-    if url.scheme != "https" or not url.hostname or url.username is not None or url.query or url.fragment:
-        raise ValueError(f"{name} must be an HTTPS URL without credentials")
+    if not url.hostname or url.username is not None or url.query or url.fragment:
+        raise ValueError(f"{name} must be a URL without credentials")
+    # TLS 없는 Config Server는 사설 IPv4 주소 리터럴일 때만 허용한다(deploy/prod/config-access.py와 같은 규칙).
+    if url.scheme != "https" and not (url.scheme == "http" and private_ipv4(url.hostname)):
+        raise ValueError(f"{name} must be an HTTPS URL, or an HTTP URL with a private IPv4 address")
     return value
 
 

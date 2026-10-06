@@ -3,7 +3,8 @@
 서비스별 bootstrap 계정·운영 HTTPS·허용 peer 네트워크를 준비하고 교체하는 절차다.
 허용 endpoint의 기준은 [`ControlPlaneAccessPolicy`](../cowork-config/src/main/kotlin/com/cowork/config/security/policy/ControlPlaneAccessPolicy.kt)다.
 운영 인증서는 모든 런타임이 신뢰하는 CA에서 발급하고, 사설 DNS는 인증서 도메인을 Config VM의
-사설 IP로 해석한다. 로컬 HTTP는 격리된 개발 네트워크에서 사용한다.
+사설 IP로 해석한다. 인증서를 준비할 수 없는 사설망은 아래 "사설망 HTTP 모드"를 사용한다. 로컬 HTTP는 격리된
+개발 네트워크에서 사용한다.
 
 ## 로컬 준비
 
@@ -46,6 +47,24 @@ Config 배포 문서에 다음 `runtime` 또는 `runtime_refs`를 준비한다.
 모든 앱과 monitoring 배포 문서에도 HTTPS URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
 `application` overrides나 일반 Config 속성으로 배포하지 않는다. 서버 TLS 재료와 bootstrap 계정은
 컨테이너 환경을 읽을 수 있는 운영자에게 접근 가능하므로 VM·Docker 관리 권한을 제한한다.
+
+### 사설망 HTTP 모드 (TLS 없음)
+
+인증서를 발급할 도메인이 없고 Config Server를 사설망에서만 쓰는 환경을 위한 구성이다. Config 배포 문서에
+`CONFIG_TLS_ENABLED`를 `false`로 두면(기본값 `true`) 서버가 `private-http` 프로파일로 기동하며
+`CONFIG_TLS_CERTIFICATE`, `CONFIG_TLS_PRIVATE_KEY`는 필요하지 않다.
+
+| 항목 | 값 |
+|------|----|
+| `CONFIG_TLS_ENABLED` | `false` |
+| `CONFIG_SERVER_URL`, `EUREKA_SERVER_URL` | `http://<Config VM 사설 IPv4>:8761`, `.../eureka/` |
+
+- URL의 HTTP는 **사설 IPv4 주소 리터럴**일 때만 허용한다. 호스트 이름, 공인·루프백 주소, URL에 포함된 자격 증명은
+  거부한다(`deploy/prod/config-access.py`, monitoring 렌더러 동일). `CONFIG_TLS_ENABLED`와 URL 스킴이 어긋나면 배포 전에 실패한다.
+- 서비스별 Basic 인증 계정, `CONFIG_ALLOWED_CIDRS` 방화벽, Config 전용 Vault 토큰은 TLS 모드와 동일하게 필수다.
+- 보호는 사설 IP 바인딩(`BIND_IP`), 허용 CIDR 방화벽, 서비스별 인증에 의존한다. Basic 인증의 비밀번호가 사설망에서
+  평문으로 오가므로 신뢰하지 않는 호스트가 같은 사설망에 없어야 한다. 패널 프록시 등으로 공개 주소에 노출하지 않는다.
+- TLS 모드로 되돌릴 때는 `CONFIG_TLS_ENABLED`를 지우고 인증서·개인키·HTTPS URL을 설정한 뒤 Config와 모든 앱을 재배포한다.
 
 ### 기존 공통 Vault 값 이동
 
