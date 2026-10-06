@@ -7,7 +7,7 @@ HEALTH_PATH=/actuator/health
 require_env VAULT_EXTERNAL_HOST VAULT_TOKEN KAFKA_BOOTSTRAP_SERVERS LIVEKIT_URL LIVEKIT_WS_URL
 require_env CONFIG_SERVER_ACCOUNTS_JSON
 add_env CONFIG_SERVER_ACCOUNTS_JSON "$CONFIG_SERVER_ACCOUNTS_JSON"
-spring_profiles="$APP_CONFIG_PROFILE"
+add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
 add_env KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS"
 add_env VAULT_HOST "$VAULT_EXTERNAL_HOST"
 add_env VAULT_SCHEME https
@@ -20,20 +20,7 @@ add_env LIVEKIT_WS_URL "$LIVEKIT_WS_URL"
 if [ "$APP_CONFIG_PROFILE" = prod ]; then
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_ALLOWED_CIDRS
   python3 "${PROD_DIR}/validate-config-vault-token.py"
-  export CONFIG_TLS_ENABLED="${CONFIG_TLS_ENABLED:-true}"
-  case "$CONFIG_TLS_ENABLED" in
-    true)
-      require_env CONFIG_TLS_CERTIFICATE CONFIG_TLS_PRIVATE_KEY
-      add_env CONFIG_TLS_CERTIFICATE "$CONFIG_TLS_CERTIFICATE"
-      add_env CONFIG_TLS_PRIVATE_KEY "$CONFIG_TLS_PRIVATE_KEY"
-      # The certificate must match the canonical DNS name; never bypass certificate validation.
-      ;;
-    false)
-      # TLS 없이 사설 IP 바인딩, CIDR 방화벽, 서비스별 Basic 인증으로만 보호한다. 공개 주소로 노출하지 않는다.
-      spring_profiles="${spring_profiles},private-http"
-      ;;
-    *) fail 'CONFIG_TLS_ENABLED must be true or false' ;;
-  esac
+  # TLS 없이 사설 IP 바인딩, CIDR 방화벽, 서비스별 Basic 인증으로만 보호한다. 공개 주소로 노출하지 않는다.
   HEALTH_BASE_URL="${CONFIG_SERVER_URL%/}"
   source "${PROD_DIR}/lib/config-firewall.sh"
   configure_config_firewall
@@ -42,4 +29,3 @@ if [ "$APP_CONFIG_PROFILE" = prod ]; then
   add_env PUBLIC_API_BASE_URL "$PUBLIC_API_BASE_URL"
   add_env GITHUB_APP_SERVICE_URL "$GITHUB_APP_SERVICE_URL"
 fi
-add_env SPRING_PROFILES_ACTIVE "$spring_profiles"
