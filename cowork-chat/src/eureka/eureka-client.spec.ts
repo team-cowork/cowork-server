@@ -15,7 +15,9 @@ const config = {
 };
 const statusPath = 'http://eureka/eureka/apps/cowork-chat/chat-1/status';
 
-const flush = () => new Promise((resolve) => setImmediate(resolve));
+const flush = async () => new Promise<void>(resolve => {
+    setImmediate(resolve);
+});
 
 describe('EurekaClient status', () => {
     let fetchMock: jest.SpyInstance;
@@ -24,7 +26,7 @@ describe('EurekaClient status', () => {
     const calls = () => fetchMock.mock.calls.map(([url, init]) => `${(init as RequestInit).method} ${String(url)}`);
 
     beforeEach(() => {
-        fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+        fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(null, { status: 204 }));
         client = new EurekaClient(config);
     });
 
@@ -66,8 +68,10 @@ describe('EurekaClient status', () => {
     it('호출 중 상태가 흔들리면 직렬화하고 마지막 상태만 반영한다', async () => {
         await client.register();
         let release!: () => void;
-        fetchMock.mockClear().mockImplementationOnce(() => new Promise<Response>((resolve) => {
-            release = () => resolve(new Response(null, { status: 204 }));
+        fetchMock.mockClear().mockImplementationOnce(async () => new Promise<Response>(resolve => {
+            release = () => {
+                resolve(new Response(null, { status: 204 }));
+            };
         }));
 
         client.setStatus('OUT_OF_SERVICE');
