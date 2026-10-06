@@ -248,8 +248,11 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
         this.state = next;
         this.recordState();
         if (this.isReady() !== readyBefore) {
-            this.readinessListeners.forEach((listener) => listener(!readyBefore));
+            for (const listener of this.readinessListeners) {
+                listener(!readyBefore);
+            }
         }
+
         if (next === 'READY') {
             this.wasReady = true;
             this.degradedSince = undefined;
