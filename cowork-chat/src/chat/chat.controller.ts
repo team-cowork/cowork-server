@@ -11,7 +11,16 @@ import {
     HttpCode,
     HttpStatus,
 } from '@nestjs/common';
-import { ApiHeader, ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+    ApiHeader,
+    ApiOperation,
+    ApiQuery,
+    ApiResponse,
+    ApiTags,
+} from '@nestjs/swagger';
+import { UserId, UserRole } from '../common/decorator/user.decorator';
+import { Throttle } from '../common/decorator/throttle.decorator';
+import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 import { ChatService } from './chat.service';
 import {
     SendMessageDto,
@@ -33,10 +42,7 @@ import {
     AddReactionDto,
     ReadChannelDto,
 } from './dto';
-import { UserId, UserRole } from '../common/decorator/user.decorator';
-import { Throttle } from '../common/decorator/throttle.decorator';
 import { EMOJI_REGEX } from './util';
-import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 
 /**
  * 채널 채팅 REST 컨트롤러.
@@ -158,9 +164,9 @@ export class ChatController {
     }
 
     /**
-     * @deprecated 신규 클라이언트는 `POST /api/chat/chat/channels/{channelId}/slash-commands`를 사용하세요.
-     *
      * GitHub 이슈 생성 커맨드를 Kafka로 비동기 발행한다.
+     *
+     * @deprecated 신규 클라이언트는 `POST /api/chat/chat/channels/{channelId}/slash-commands`를 사용하세요.
      *
      * @param channelId - 채널 ID
      * @param dto - GitHub 이슈 생성 정보
@@ -220,7 +226,7 @@ export class ChatController {
      * 한 번에 최대 100개를 반환한다.
      *
      * @param channelId - 채널 ID
-     * @param query - 커서(`before`: MongoDB ObjectId 문자열)
+     * @param dto - 마지막으로 읽은 메시지 ID
      * @param userId - Gateway가 주입한 요청자 ID
      * @returns 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
@@ -274,7 +280,9 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        return this.chatService.editMessage({ channelId, messageId, userId, userRole }, dto);
+        return this.chatService.editMessage({
+            channelId, messageId, userId, userRole,
+        }, dto);
     }
 
     /**
@@ -326,7 +334,9 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        return this.chatService.deleteMessage({ channelId, messageId, userId, userRole });
+        return this.chatService.deleteMessage({
+            channelId, messageId, userId, userRole,
+        });
     }
 
     /**
@@ -353,7 +363,9 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        return this.chatService.pinMessage({ channelId, messageId, userId, userRole });
+        return this.chatService.pinMessage({
+            channelId, messageId, userId, userRole,
+        });
     }
 
     /**
@@ -379,7 +391,9 @@ export class ChatController {
         @UserId() userId: number,
         @UserRole() userRole: string,
     ) {
-        await this.chatService.unpinMessage({ channelId, messageId, userId, userRole });
+        await this.chatService.unpinMessage({
+            channelId, messageId, userId, userRole,
+        });
     }
 
     /**
@@ -437,6 +451,7 @@ export class ChatController {
         if (!EMOJI_REGEX.test(emoji)) {
             throw new BadRequestException('Invalid emoji format');
         }
+
         await this.chatService.removeReaction({ channelId, userId }, messageId, emoji);
     }
 

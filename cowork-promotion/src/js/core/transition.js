@@ -1,11 +1,11 @@
-import { readMotionDuration } from "../../design-system/tokens.js";
+import { readMotionDuration } from '../../design-system/tokens.js';
 
 function createScheduler() {
     const timers = new Set();
     const frames = new Set();
 
     function after(delay, callback) {
-        const timer = window.setTimeout(() => {
+        const timer = setTimeout(() => {
             timers.delete(timer);
             callback();
         }, delay);
@@ -25,8 +25,8 @@ function createScheduler() {
     }
 
     function clear() {
-        timers.forEach((timer) => window.clearTimeout(timer));
-        frames.forEach((frame) => cancelAnimationFrame(frame));
+        timers.forEach(timer => clearTimeout(timer));
+        frames.forEach(frame => cancelAnimationFrame(frame));
         timers.clear();
         frames.clear();
     }
@@ -42,7 +42,9 @@ export function createSceneTransition(
     let version = 0;
 
     function render(html) {
-        if (!element) return;
+        if (!element) {
+            return;
+        }
 
         const currentVersion = ++version;
         const isCurrent = () => currentVersion === version;
@@ -53,17 +55,23 @@ export function createSceneTransition(
         element.classList.add(`${name}-leave-active`, `${name}-leave-to`);
 
         scheduler.after(leave, () => {
-            if (!isCurrent()) return;
+            if (!isCurrent()) {
+                return;
+            }
 
             element.innerHTML = html;
             element.classList.remove(`${name}-leave-active`, `${name}-leave-to`);
             element.classList.add(`${name}-enter-active`, `${name}-enter-from`);
 
             scheduler.afterTwoFrames(() => {
-                if (isCurrent()) element.classList.remove(`${name}-enter-from`);
+                if (isCurrent()) {
+                    element.classList.remove(`${name}-enter-from`);
+                }
             });
             scheduler.after(enter, () => {
-                if (isCurrent()) element.classList.remove(`${name}-enter-active`);
+                if (isCurrent()) {
+                    element.classList.remove(`${name}-enter-active`);
+                }
             });
         });
     }
@@ -81,28 +89,36 @@ export function createBackgroundTransition(element, reducedMotion) {
     let version = 0;
 
     function render({ text, color }) {
-        if (!element) return;
+        if (!element) {
+            return;
+        }
 
         const currentVersion = ++version;
         const isCurrent = () => currentVersion === version;
-        const duration = reducedMotion.matches ? 0 : readMotionDuration("--duration-scene", element);
+        const duration = reducedMotion.matches ? 0 : readMotionDuration('--duration-scene', element);
 
-        element.classList.remove("bg-index-enter-active", "bg-index-enter-from");
-        element.classList.add("bg-index-leave-active", "bg-index-leave-to");
+        element.classList.remove('bg-index-enter-active', 'bg-index-enter-from');
+        element.classList.add('bg-index-leave-active', 'bg-index-leave-to');
 
         scheduler.after(duration, () => {
-            if (!isCurrent()) return;
+            if (!isCurrent()) {
+                return;
+            }
 
             element.textContent = text;
             element.style.color = color;
-            element.classList.remove("bg-index-leave-active", "bg-index-leave-to");
-            element.classList.add("bg-index-enter-active", "bg-index-enter-from");
+            element.classList.remove('bg-index-leave-active', 'bg-index-leave-to');
+            element.classList.add('bg-index-enter-active', 'bg-index-enter-from');
 
             scheduler.afterTwoFrames(() => {
-                if (isCurrent()) element.classList.remove("bg-index-enter-from");
+                if (isCurrent()) {
+                    element.classList.remove('bg-index-enter-from');
+                }
             });
             scheduler.after(duration, () => {
-                if (isCurrent()) element.classList.remove("bg-index-enter-active");
+                if (isCurrent()) {
+                    element.classList.remove('bg-index-enter-active');
+                }
             });
         });
     }
