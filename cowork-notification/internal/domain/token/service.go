@@ -154,9 +154,12 @@ func (s *Service) Notify(
 		slog.Warn("notification event missing eventId; falling back to non-durable single-attempt delivery")
 	}
 
-	tokensToSend := make([]string, len(toSend))
-	for i, t := range toSend {
-		tokensToSend[i] = t.Token
+	toSend, messages, err := s.excludeStaleTargets(ctx, eventID, enabledIDs, toSend)
+	if err != nil {
+		return nil, err
+	}
+	if len(toSend) == 0 {
+		return enabledIDs, nil
 	}
 
 	// fcm.Send appends one TokenResult per attempted token in input order (see its
@@ -171,11 +174,11 @@ func (s *Service) Notify(
 	// while these rows are still held IN_PROGRESS — another replica's reclaim could then
 	// resend them. 30s keeps a single attempt well clear of that.
 	sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
-	results, sendErr := s.fcm.Send(sendCtx, tokensToSend, title, body, nil)
+	results, sendErr := s.fcm.Send(sendCtx, messages, title, body)
 	sendCancel()
 	if sendErr != nil {
 		slog.Warn("fcm send returned early; finalizing whatever results were attempted",
-			"attempted", len(results), "total", len(tokensToSend), "err", sendErr)
+			"attempted", len(results), "total", len(messages), "err", sendErr)
 	}
 
 	// Finalizing is bookkeeping for an FCM call that has already happened — it must
@@ -225,6 +228,54 @@ func (s *Service) Notify(
 		return nil, sendErr
 	}
 	return enabledIDs, nil
+}
+
+// excludeStaleTargets re-reads the recipients' device tokens right before the FCM call
+// and drops any target whose DeviceTokenID generation was deleted or transferred to
+// another account after the first lookup (including while ResumeOrCreate waited on row
+// locks), mirroring the retry worker's CurrentToken check. device_token_id is never
+// reused, so a target is current only if the same ID still carries the same token.
+// Dropped durable claims are finalized CANCELLED so they do not sit IN_PROGRESS until
+// ReclaimStale. A lookup failure leaves the claims IN_PROGRESS for ReclaimStale and the
+// retry worker, as the worker does on its own lookup failure. The returned messages
+// align with the live targets and carry the generation's owning account
+// (fcm.DataKeyAccountID) so the client can drop a message that reaches a device after
+// a later transfer.
+func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accountIDs []int64, targets []delivery.TargetToken) ([]delivery.TargetToken, []fcm.Message, error) {
+	tokenMap, err := s.repo.FindByAccountIDs(ctx, accountIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("re-verify device token ownership: %w", err)
+	}
+	type generation struct {
+		id    int64
+		token string
+	}
+	owners := make(map[generation]int64)
+	for accountID, tokens := range tokenMap {
+		for _, t := range tokens {
+			owners[generation{t.ID, t.Token}] = accountID
+		}
+	}
+
+	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+
+	live := make([]delivery.TargetToken, 0, len(targets))
+	messages := make([]fcm.Message, 0, len(targets))
+	for _, t := range targets {
+		if owner, ok := owners[generation{t.DeviceTokenID, t.Token}]; ok {
+			live = append(live, t)
+			messages = append(messages, fcm.Message{Token: t.Token, Data: fcm.WithAccountID(nil, owner)})
+			continue
+		}
+		if eventID == "" {
+			continue
+		}
+		if err := s.delivery.FinalizeCancelled(finalizeCtx, eventID, t.DeviceTokenID, t.ClaimToken); err != nil {
+			slog.Warn("failed to finalize cancelled delivery", "deviceTokenId", t.DeviceTokenID, "err", err)
+		}
+	}
+	return live, messages, nil
 }
 
 func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.TargetToken, errClass delivery.ErrorClass) {
