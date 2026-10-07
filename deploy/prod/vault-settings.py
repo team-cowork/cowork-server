@@ -34,6 +34,10 @@ GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL MYSQL_EXPORTER_USER MYSQL_EXPORTER_PA
 KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
 """.split())
+# deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
+# container, inside one SSH session limited by command_timeout (45m) in .github/actions/deploy-target/action.yml.
+# Keep both in sync. 600s remains for the two 120s lock waits, the 30s container stop, source fetch and image pull.
+MAX_HEALTH_TIMEOUT_SECONDS = (45 * 60 - 600) // 2
 
 
 def demand(condition, message):
@@ -81,6 +85,11 @@ def validate_deployment(data):
     runtime = data.get("runtime", {})
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
+    if "HEALTH_TIMEOUT_SECONDS" in runtime:
+        timeout = runtime["HEALTH_TIMEOUT_SECONDS"]
+        demand(re.fullmatch(r"[1-9][0-9]{0,3}", timeout) and int(timeout) <= MAX_HEALTH_TIMEOUT_SECONDS,
+               f"HEALTH_TIMEOUT_SECONDS must be an integer from 1 to {MAX_HEALTH_TIMEOUT_SECONDS} "
+               "so readiness and rollback waits finish within the SSH command timeout")
     return data
 
 
