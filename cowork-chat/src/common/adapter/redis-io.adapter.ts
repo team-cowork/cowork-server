@@ -86,6 +86,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     private lastError?: string;
     private lastErrorWarnAt = 0;
     private readonly readyWaiters: Array<() => void> = [];
+    private readonly readinessListeners: Array<(ready: boolean) => void> = [];
     private readonly stateGauge: Gauge<'state'>;
     private readonly reconnects: Counter<'client'>;
     private readonly errors: Counter<'client'>;
@@ -164,6 +165,11 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             });
     }
 
+    /** `isReady()` 값이 바뀔 때마다 호출된다. 최초 준비 전 대기는 `whenReady()`를 쓴다. */
+    onReadinessChange(listener: (ready: boolean) => void): void {
+        this.readinessListeners.push(listener);
+    }
+
     getStatus() {
         return {
             state: this.state,
@@ -238,8 +244,15 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
         }
 
         const previous = this.state;
+        const readyBefore = this.isReady();
         this.state = next;
         this.recordState();
+        if (this.isReady() !== readyBefore) {
+            for (const listener of this.readinessListeners) {
+                listener(!readyBefore);
+            }
+        }
+
         if (next === 'READY') {
             this.wasReady = true;
             this.degradedSince = undefined;
