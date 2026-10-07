@@ -13,10 +13,16 @@ user는 `team.member.event`와 `user.presence.event`를 projection으로 소비�
 
 재생 속도는 장애 복구 시간과 CD health 대기 시간을 직접 결정한다. 다른 projection 소비자도 같은 구조인지는 아직 확인하지 않았다.
 
+## 구현 진척
+
+- `cowork-user/config/runtime.exs`에서 `APP_PROFILE=prod`일 때 Logger의 전역 최소 수준을 `info`로 설정하였다. 기존 파일 backend의 `info` 필터만으로 차단되지 않던 콘솔 SQL `debug` 로그도 제외한다.
+- 로컬 Docker와 운영 Docker가 모두 `MIX_ENV=prod`를 사용하므로 런타임 서비스 프로파일인 `APP_PROFILE`로 구분한다. `local`과 미지정 환경의 기존 로그 수준은 유지한다.
+- 설정 파일의 프로파일별 평가와 형식 검사를 완료하였다. 운영 배포 후 로그 확인, 로그 차단 전후 처리량 비교, DB 왕복 지연 측정은 아직 수행하지 않았다.
+
 ## 할 일
 
 - 레코드당 실행되는 쿼리 수와 운영 환경의 DB 왕복 지연을 측정한다.
-- 운영 로그 레벨에서 SQL debug 로그가 출력되지 않게 한다.
+- 운영 배포 후 콘솔과 파일 로그에 SQL debug 출력이 없는지 확인한다.
 - 순서·멱등성 규칙(`.claude/rules/kafka-projections.md`)을 유지하는 범위에서 여러 레코드를 한 transaction으로 적용하고 checkpoint를 묶어 갱신하는 방식을 검토한다.
 - channel, chat, notification의 재생 처리량도 같은 방식으로 측정한다.
 
