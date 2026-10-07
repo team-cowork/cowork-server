@@ -25,9 +25,8 @@ public class ControlPlaneClientConfig {
         }
         URI endpoint = URI.create(environment.getRequiredProperty("eureka.client.service-url.defaultZone"));
         boolean production = Arrays.asList(environment.getActiveProfiles()).contains("prod");
-        if (endpoint.getUserInfo() != null || endpoint.getHost() == null
-                || !("https".equals(endpoint.getScheme()) || ("http".equals(endpoint.getScheme())
-                        && (!production || isPrivateIpv4(endpoint.getHost()))))) {
+        if (endpoint.getUserInfo() != null || endpoint.getHost() == null || !("https".equals(endpoint.getScheme())
+                || ("http".equals(endpoint.getScheme()) && (!production || isPrivateIpv4(endpoint.getHost()))))) {
             throw new IllegalArgumentException(
                     "Use a Eureka URL without credentials and HTTPS or a private IPv4 HTTP URL in production");
         }
@@ -48,7 +47,8 @@ public class ControlPlaneClientConfig {
                 }));
     }
 
-    // ofLiteral never resolves DNS, and isSiteLocalAddress matches exactly the RFC1918 IPv4 ranges.
+    // ofLiteral never resolves DNS, and isSiteLocalAddress matches exactly the
+    // RFC1918 IPv4 ranges.
     private static boolean isPrivateIpv4(String host) {
         try {
             return Inet4Address.ofLiteral(host).isSiteLocalAddress();
