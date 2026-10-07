@@ -1,9 +1,9 @@
 # Config Server 접근 보호 운영
 
-서비스별 bootstrap 계정·운영 HTTPS·허용 peer 네트워크를 준비하고 교체하는 절차다.
+서비스별 bootstrap 계정과 허용 peer 네트워크를 준비하고 교체하는 절차다.
 허용 endpoint의 기준은 [`ControlPlaneAccessPolicy`](../cowork-config/src/main/kotlin/com/cowork/config/security/policy/ControlPlaneAccessPolicy.kt)다.
-운영 인증서는 모든 런타임이 신뢰하는 CA에서 발급하고, 사설 DNS는 인증서 도메인을 Config VM의
-사설 IP로 해석한다. 로컬 HTTP는 격리된 개발 네트워크에서 사용한다.
+Config Server는 TLS를 사용하지 않는다. 사설 IPv4에만 바인딩하고, 허용 CIDR 방화벽과 서비스별 Basic 인증으로
+보호한다. 운영·로컬 모두 사설 IPv4 주소 리터럴의 HTTP URL로 접근한다.
 
 ## 로컬 준비
 
@@ -35,17 +35,23 @@ Config 배포 문서에 다음 `runtime` 또는 `runtime_refs`를 준비한다.
 | 키                            | 값                                                                     |
 |-------------------------------|------------------------------------------------------------------------|
 | `CONFIG_SERVER_ACCOUNTS_JSON` | 생성한 계정 배열 JSON 문자열; 모든 레코드의 `profile`은 `prod`         |
-| `CONFIG_TLS_CERTIFICATE`      | 서버 인증서와 중간 인증서 PEM 전체                                     |
-| `CONFIG_TLS_PRIVATE_KEY`      | 대응하는 PKCS#8 PEM 개인키                                             |
-| `CONFIG_SERVER_URL`           | `https://config.example.com:8761` 형태의 실제 인증서 도메인            |
-| `EUREKA_SERVER_URL`           | 같은 서버의 `https://config.example.com:8761/eureka/`                  |
+| `CONFIG_SERVER_URL`           | `http://<Config VM 사설 IPv4>:8761`                                    |
+| `EUREKA_SERVER_URL`           | 같은 서버의 `http://<Config VM 사설 IPv4>:8761/eureka/`                |
 | `CONFIG_ALLOWED_CIDRS`        | 배포 VM과 monitoring VM의 사설 IPv4 CIDR을 쉼표로 연결; 가능하면 `/32` |
 | `BIND_IP`, `HOST_PORT`        | Config VM의 사설 IPv4와 공개 포트; 기본 포트 `8761`                    |
 | `VAULT_TOKEN`                 | 아래 전용 정책만 가진 유효기간 24시간 이하 토큰                        |
 
-모든 앱과 monitoring 배포 문서에도 HTTPS URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
-`application` overrides나 일반 Config 속성으로 배포하지 않는다. 서버 TLS 재료와 bootstrap 계정은
+모든 앱과 monitoring 배포 문서에도 같은 HTTP URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
+`application` overrides나 일반 Config 속성으로 배포하지 않는다. bootstrap 계정은
 컨테이너 환경을 읽을 수 있는 운영자에게 접근 가능하므로 VM·Docker 관리 권한을 제한한다.
+
+### 사설망 HTTP 전제
+
+- URL은 **사설 IPv4 주소 리터럴**의 `http`만 허용한다. 호스트 이름, 공인·루프백 주소, `https`, URL에 포함된 자격 증명은
+  배포 전에 거부한다(`deploy/prod/config-access.py`, monitoring 렌더러 동일).
+- 보호는 사설 IP 바인딩(`BIND_IP`), 허용 CIDR 방화벽, 서비스별 Basic 인증, Config 전용 Vault 토큰에 의존한다.
+  Basic 인증의 비밀번호가 사설망에서 평문으로 오가므로 신뢰하지 않는 호스트가 같은 사설망에 없어야 한다.
+  패널 프록시 등으로 공개 주소에 노출하지 않는다.
 
 ### 기존 공통 Vault 값 이동
 
@@ -107,7 +113,7 @@ Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 �
 제거한다. 서버의 동일 username 중복은 허용하지 않는다. 변경된 서비스의 레코드만 병합한다.
 
 유출된 계정은 서버 배열에서 즉시 제거하고 Config를 재배포한다. 기존 프로세스의 메모리에 로드된
-애플리케이션 시크릿은 계정 폐기로 지워지지 않으므로 필요한 시크릿도 교체한다. 인증서나 토큰 교체도
+애플리케이션 시크릿은 계정 폐기로 지워지지 않으므로 필요한 시크릿도 교체한다. 토큰 교체도
 배포 문서를 바꾼 뒤 Config 재배포로 적용한다.
 
 실패 시 보관된 이전 컨테이너와 해당 버전의 배포 snapshot으로 복구한다. 배포 스크립트는 이전
