@@ -19,21 +19,25 @@
       "get": {
         "tags": ["preference"],
         "summary": "계정 설정 조회",
+        "description": "본인 계정만 조회할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "put": {
         "tags": ["preference"],
         "summary": "계정 설정 수정",
+        "description": "본인 계정만 수정할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -283,6 +287,10 @@
     "responses": {
       "BadRequest": {
         "description": "잘못된 요청",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      },
+      "Forbidden": {
+        "description": "접근 권한 없음",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
       },
       "NotFound": {
