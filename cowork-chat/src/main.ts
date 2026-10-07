@@ -175,6 +175,10 @@ async function bootstrap() {
     let shuttingDown = false;
     let eurekaRegistered = false;
     let eurekaRegistration: Promise<void> | undefined;
+    // 등록 후 Redis adapter가 끊기면 Gateway 라우팅에서 빠지고, 복구되면 다시 받는다.
+    socketIoRedis.onReadinessChange(ready => {
+        eureka.setStatus(ready ? 'UP' : 'OUT_OF_SERVICE');
+    });
 
     void Promise.all([projectionReadiness.whenReady(), socketIoRedis.whenReady()]).then(async () => {
         if (shuttingDown) {
