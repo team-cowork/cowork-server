@@ -38,3 +38,9 @@
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
 
 운영 검색 컬럼의 collation은 `utf8mb4_unicode_ci`를 유지하고 세션 `sql_mode`에 `NO_BACKSLASH_ESCAPES`를 추가하지 않습니다. 대소문자 구분 없는 검색과 `%`·`_`의 문자 검색이 이 조건에 의존합니다. 기존 Flyway 이력을 유지하며 migration 실패 복구는 [배포 절차](../docs/deployment.md#실패-복구)를 따릅니다.
+
+## 로그
+
+`APP_PROFILE=prod`에서는 실행 시 Logger의 전역 최소 수준을 `info`로 설정하여 콘솔과 파일에 SQL `debug` 로그가 출력되지 않게 합니다. 로컬 Docker도 `MIX_ENV=prod`로 빌드하므로 로그 수준은 `APP_PROFILE`로 구분합니다.
+
+`APP_PROFILE=local` 또는 미지정 환경은 기존 콘솔 로그 수준을 유지합니다. 파일 로그의 최소 수준은 모든 프로파일에서 `info`입니다.
