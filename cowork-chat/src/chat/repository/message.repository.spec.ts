@@ -1,5 +1,6 @@
-import { Types } from 'mongoose';
-import { toMessageBroadcastPayload } from './message.repository';
+import { type Model, Types } from 'mongoose';
+import type { Message } from '../schema/message.schema';
+import { MessageRepository, toMessageBroadcastPayload } from './message.repository';
 
 describe('toMessageBroadcastPayload', () => {
     it('클라이언트가 쓰는 필드만 남기고 아웃박스 내부 상태 필드는 제외한다', () => {
@@ -62,5 +63,33 @@ describe('toMessageBroadcastPayload', () => {
         expect(payload).not.toHaveProperty('notificationStatus');
         expect(payload).not.toHaveProperty('searchIndexStatus');
         expect(payload).not.toHaveProperty('editHistory');
+    });
+});
+
+describe('MessageRepository unread 집계', () => {
+    const lastReadId = new Types.ObjectId();
+    const messageModel = {
+        countDocuments: jest.fn().mockResolvedValue(3),
+        aggregate: jest.fn().mockResolvedValue([{ _id: 1, count: 3 }]),
+    };
+    const repository = new MessageRepository(messageModel as unknown as Model<Message>);
+
+    it('단일 채널 unread는 답장을 제외하지 않고 센다', async () => {
+        await expect(repository.countUnread(1, lastReadId)).resolves.toBe(3);
+
+        expect(messageModel.countDocuments).toHaveBeenCalledWith({ channelId: 1, _id: { $gt: lastReadId } });
+    });
+
+    it('다중 채널 unread도 답장을 제외하지 않고 센다', async () => {
+        const counts = await repository.countUnreadForChannels([
+            { channelId: 1, lastReadMessageId: lastReadId },
+            { channelId: 2, lastReadMessageId: null },
+        ]);
+
+        expect(counts).toEqual(new Map([[1, 3]]));
+        expect(messageModel.aggregate).toHaveBeenCalledWith([
+            { $match: { $or: [{ channelId: 1, _id: { $gt: lastReadId } }, { channelId: 2 }] } },
+            { $group: { _id: '$channelId', count: { $sum: 1 } } },
+        ]);
     });
 });
