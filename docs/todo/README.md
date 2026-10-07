@@ -40,7 +40,7 @@
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md)
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md)
 
-### 코드 반영 완료·빌드 또는 운영 검증 대기 (6)
+### 코드 반영 완료·빌드 또는 운영 검증 대기 (7)
 
 - security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md)
 - configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md)
@@ -48,9 +48,11 @@
 - performance: [Gateway JSON 응답 전체 버퍼링 제거](./items/20-performance/gateway-response-buffering.md)
 - security: [멤버십 회수 시 WebSocket 구독 강제 해제](./items/25-security/websocket-membership-revocation.md)
 - security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md)
+- cleanup: [Config Server 기존 Vault 갱신 cron과 토큰 폐기](./items/61-cleanup/config-vault-legacy-token-retirement.md) — 2026-10-07 추가, 🟠 중간
 
 ## 점검 스냅샷
 
+- [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261006](./20261006_TODO.md) — CI 워크플로 변경 감지 조건 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
