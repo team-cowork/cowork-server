@@ -154,6 +154,42 @@ Vault 중단·봉인 복구는 `service=vault`, `target=vault`, `vault_recovery=
 `VAULT_BOOTSTRAP_JSON`을 사용한다. unseal 자료도 Vault 밖에 보관한다.
 상태 토픽을 바꾸거나 기존 projection을 복구할 때는 [전환 절차](./kafka-state-topic-cutover.md)를 따른다.
 
+### VM 재부팅 후 복구
+
+운영 Vault는 file storage와 단일 unseal key로 동작하므로 VM이 재부팅되면 sealed 상태로 시작한다.
+이 동안 Config Server는 모든 설정 요청에 `500`을 반환하고, 기동 시 Config를 읽는 앱은 재시작을 반복한다.
+자동 unseal은 구성되어 있지 않으므로 운영자가 다음 순서로 복구한다.
+
+1. Vault를 unseal한다. `Prod-CD(vault)`의 `VAULT_BOOTSTRAP_JSON`에는 `ssh`와 `runtime`의
+   `VAULT_EXTERNAL_HOST`·`VAULT_BIND_IP`·`VAULT_DATA_VOLUME`·`VAULT_UNSEAL_KEY`가 있어야 한다.
+   `sha`는 vault target에 마지막으로 적용한 SHA를 사용한다. 워크플로는 unseal 뒤 `vault status`와
+   컨테이너 healthcheck가 모두 정상이어야 성공한다.
+
+   ```bash
+   release_sha=$(gh api 'repos/team-cowork/cowork-server/deployments?environment=Prod-CD(vault)&task=cowork-runtime' --jq '.[0].sha')
+   gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
+     -f service=vault -f target=vault -f sha="$release_sha" -f check_only=false -f vault_recovery=true
+   ```
+
+2. `CONFIG_ALLOWED_CIDRS`에 포함된 VM에서 user 서비스 계정으로 설정 조회가 `200`인지 확인한다.
+   응답 본문에는 시크릿이 있으므로 상태 코드만 출력하고, 비밀번호는 curl 프롬프트에 입력한다.
+
+   ```bash
+   curl -sS -o /dev/null -w '%{http_code}\n' -u '<cowork-user 계정>' 'http://<Config VM 사설 IPv4>:8761/cowork-user/prod'
+   ```
+
+   Config는 Vault 복구 뒤 다음 설정 요청에서 AppRole로 다시 로그인한다. 계속 `500`이면 Config 로그에서
+   Vault 연결·로그인 실패를 확인하고 `service=config`를 마지막 적용 SHA로 재배포한다.
+3. 앱 컨테이너는 `unless-stopped` 정책으로 다시 기동한다. 각 VM의 `docker ps`에 `Restarting`인 앱이
+   없는지 확인하고, 같은 계정으로 Config·monitoring을 제외한 앱이 Eureka에 `UP`으로 등록됐는지 확인한다.
+
+   ```bash
+   curl -sS -u '<cowork-user 계정>' -H 'Accept: application/xml' 'http://<Config VM 사설 IPv4>:8761/eureka/apps' \
+     | grep -E '<name>|<status>'
+   ```
+
+   계속 실패하는 앱은 Config가 `200`을 반환한 뒤 위 재배포 절차로 마지막 적용 SHA를 다시 배포한다.
+
 ### DataGSM 웹훅 미반영
 
 응답 연결이 끊기거나 `503`이면 같은 ID·내용·발생 시각으로 재전달한다.
