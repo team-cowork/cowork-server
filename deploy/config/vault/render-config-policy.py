@@ -13,4 +13,6 @@ for service in "gateway authorization user team channel project roadmap notifica
     for suffix in ("", "/" + args.profile):
         print(f'path "{args.backend}/data/cowork-{service}{suffix}" {{ capabilities = ["read"] }}')
 print('path "auth/token/lookup-self" { capabilities = ["read"] }')
+if args.profile == "prod":
+    print('path "auth/token/renew-self" { capabilities = ["update"] }')
 print('path "auth/token/revoke-self" { capabilities = ["update"] }')
