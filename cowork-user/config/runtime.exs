@@ -1,5 +1,9 @@
 import Config
 
+if System.get_env("APP_PROFILE", "local") == "prod" do
+  config :logger, level: :info
+end
+
 # Database settings are loaded from Config Server by AppConfig before the Repo starts.
 default_log_path =
   if System.get_env("RELEASE_NAME") do
