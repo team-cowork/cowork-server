@@ -7,6 +7,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
 import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.web.client.RestClient
+import java.net.Inet4Address
 import java.net.URI
 import java.net.http.HttpClient
 import java.time.Duration
@@ -22,8 +23,9 @@ class ControlPlaneClientConfig {
         }
         val endpoint = URI.create(environment.getRequiredProperty("eureka.client.service-url.defaultZone"))
         require(endpoint.userInfo == null && endpoint.host != null) { "Use a Eureka URL without credentials" }
-        require(endpoint.scheme == "https" || ("prod" !in environment.activeProfiles && endpoint.scheme == "http")) {
-            "Use HTTPS for production Eureka"
+        val privateHttp = "prod" !in environment.activeProfiles || isPrivateIpv4(endpoint.host)
+        require(endpoint.scheme == "https" || (endpoint.scheme == "http" && privateHttp)) {
+            "Use HTTPS or a private IPv4 HTTP URL for production Eureka"
         }
         val client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build()
         val factory = EurekaClientHttpRequestFactorySupplier { _, _ ->
@@ -41,3 +43,7 @@ class ControlPlaneClientConfig {
         }
     }
 }
+
+// ofLiteral never resolves DNS, and isSiteLocalAddress matches exactly the RFC1918 IPv4 ranges.
+private fun isPrivateIpv4(host: String) =
+    runCatching { Inet4Address.ofLiteral(host).isSiteLocalAddress }.getOrDefault(false)
