@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strconv"
 	"strings"
 
 	firebase "firebase.google.com/go/v4"
@@ -28,6 +29,30 @@ const (
 	OutcomeUnclassified Outcome = "UNCLASSIFIED"
 )
 
+// DataKeyAccountID is the data payload key carrying the account that owns the target
+// device token generation. FCM cannot recall a message already handed to it, so a
+// token transferred after the pre-send ownership check may still receive the previous
+// account's message; the client must drop a message whose accountId is not the
+// currently signed-in account.
+const DataKeyAccountID = "accountId"
+
+// Message is one token's send request. Data is per token so each message can carry
+// the owning account (see DataKeyAccountID).
+type Message struct {
+	Token string
+	Data  map[string]string
+}
+
+// WithAccountID returns a copy of data with DataKeyAccountID set to accountID.
+func WithAccountID(data map[string]string, accountID int64) map[string]string {
+	out := make(map[string]string, len(data)+1)
+	for k, v := range data {
+		out[k] = v
+	}
+	out[DataKeyAccountID] = strconv.FormatInt(accountID, 10)
+	return out
+}
+
 // TokenResult is one token's classified send outcome.
 type TokenResult struct {
 	Token   string
@@ -40,7 +65,7 @@ type Sender struct {
 }
 
 type messagingClient interface {
-	SendEachForMulticast(context.Context, *messaging.MulticastMessage) (*messaging.BatchResponse, error)
+	SendEach(context.Context, []*messaging.Message) (*messaging.BatchResponse, error)
 }
 
 func (s *Sender) checkUnregistered(err error) bool {
@@ -64,8 +89,8 @@ func (s *Sender) classify(err error) Outcome {
 	default:
 		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
 		// message-level problems (oversized payload, a malformed field) that are not
-		// specific to one token. Since a multicast batch sends the same message to
-		// every token in it, classifying it as OutcomeInvalid here would delete every
+		// specific to one token. Since every message in a batch shares the same
+		// notification content, classifying it as OutcomeInvalid here would delete every
 		// recipient's token in the batch for what is actually a message construction
 		// bug. Routing it to OutcomeUnclassified instead only quarantines it (after
 		// MaxAttemptsUnclassified retries) without touching any token.
@@ -105,54 +130,57 @@ func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
 
 const fcmBatchSize = 500
 
-// Send delivers to every token, batched at fcmBatchSize, and returns a classified
-// result for each token attempted. It only returns a non-nil error for context
+// Send delivers every message, batched at fcmBatchSize, and returns a classified
+// result for each message attempted, in input order. It only returns a non-nil error for context
 // cancellation — a per-token or per-batch FCM failure is reported through the
 // returned TokenResult.Outcome instead, so a caller can persist retryable failures
 // durably rather than treat the whole call as failed.
-func (s *Sender) Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]TokenResult, error) {
-	if len(tokens) == 0 {
+func (s *Sender) Send(ctx context.Context, messages []Message, title, body string) ([]TokenResult, error) {
+	if len(messages) == 0 {
 		return nil, nil
 	}
 
-	results := make([]TokenResult, 0, len(tokens))
-	for i := 0; i < len(tokens); i += fcmBatchSize {
+	results := make([]TokenResult, 0, len(messages))
+	for i := 0; i < len(messages); i += fcmBatchSize {
 		if err := ctx.Err(); err != nil {
 			return results, err
 		}
 		end := i + fcmBatchSize
-		if end > len(tokens) {
-			end = len(tokens)
+		if end > len(messages) {
+			end = len(messages)
 		}
-		batch := tokens[i:end]
+		batch := messages[i:end]
 
-		msg := &messaging.MulticastMessage{
-			Notification: &messaging.Notification{Title: title, Body: body},
-			Data:         data,
-			Tokens:       batch,
+		msgs := make([]*messaging.Message, len(batch))
+		for j, m := range batch {
+			msgs[j] = &messaging.Message{
+				Notification: &messaging.Notification{Title: title, Body: body},
+				Data:         m.Data,
+				Token:        m.Token,
+			}
 		}
-		resp, err := s.client.SendEachForMulticast(ctx, msg)
+		resp, err := s.client.SendEach(ctx, msgs)
 		if err != nil {
 			// The whole batch failed before FCM assigned per-token responses; classify the
 			// batch-level error once and apply it to every token in the batch so none of them
 			// are silently dropped from the durable retry ledger.
 			outcome := s.classify(err)
 			slog.Warn("fcm multicast call failed", "err", err, "batch_size", len(batch), "outcome", outcome)
-			for _, t := range batch {
-				results = append(results, TokenResult{Token: t, Outcome: outcome})
+			for _, m := range batch {
+				results = append(results, TokenResult{Token: m.Token, Outcome: outcome})
 			}
 			continue
 		}
 		for j, r := range resp.Responses {
 			if r.Success {
-				results = append(results, TokenResult{Token: batch[j], Outcome: OutcomeSuccess})
+				results = append(results, TokenResult{Token: batch[j].Token, Outcome: OutcomeSuccess})
 				continue
 			}
 			outcome := s.classify(r.Error)
 			if outcome != OutcomeInvalid {
 				slog.Warn("fcm send failed", "err", r.Error, "batch_index", j, "outcome", outcome)
 			}
-			results = append(results, TokenResult{Token: batch[j], Outcome: outcome})
+			results = append(results, TokenResult{Token: batch[j].Token, Outcome: outcome})
 		}
 	}
 	return results, nil
