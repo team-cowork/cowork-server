@@ -5,6 +5,8 @@
 - **현재 상태**: 재부팅마다 Vault가 sealed 상태가 되어 전 서비스가 기동하지 못하며, `vault_recovery`는 unseal에 성공해도 실패로 표시된다
 - **관련 작업**: [배포 Vault 인증 자동화](../42-deployment/vault-auth-automation.md)
 
+> **2026-10-08 진척:** `deploy/prod/services/vault.sh`에서 unseal 뒤의 `docker compose up -d --wait`를 제거하고, 컨테이너 health가 `healthy`로 갱신될 때까지 최대 120초 기다린 뒤 `vault status`로 unseal 상태를 확인하도록 바꿨다. 둘 중 하나라도 정상이 아니면 실패로 끝난다. `docs/deployment.md`의 `실패 복구`에 재부팅 후 복구 순서(Vault unseal → Config `200` 확인 → 앱 재기동·Eureka 등록 확인)를 추가했다. 검증은 `bash -n` 구문 검사뿐이며, sealed 상태에서의 `vault_recovery` 실행 결과와 unseal 후 Config `200` 응답은 아직 운영에서 확인하지 않았다. auto-unseal 도입 여부는 결정하지 않았다.
+
 ## 문제
 
 운영 Vault `cowork-vault-prod`는 cowork-db에서 file storage, Shamir 임계값 1로 동작한다. VM이 재부팅되면 sealed 상태로 시작하고, Config Server는 Vault 경로를 읽지 못해 모든 `/{application}/{profile}` 요청에 500을 반환한다. Spring·Go·Elixir 서비스가 모두 기동 시 Config를 필수로 읽으므로, 2026-10-02 재부팅 직후 Vault 하나 때문에 전체 서비스가 재시작을 반복했다.
