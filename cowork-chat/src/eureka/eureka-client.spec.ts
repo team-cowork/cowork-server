@@ -115,4 +115,26 @@ describe('EurekaClient status', () => {
 
         expect(fetchMock).not.toHaveBeenCalled();
     });
+
+    it('등록 해제 중 진행 중이던 heartbeat가 404를 받아도 다시 등록하지 않는다', async () => {
+        jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+        await client.register();
+        let release!: () => void;
+        fetchMock.mockClear().mockImplementationOnce(async () => new Promise<Response>(resolve => {
+            release = () => {
+                resolve(new Response(null, { status: 404 }));
+            };
+        }));
+
+        await jest.advanceTimersByTimeAsync(30_000);
+        const deregistering = client.deregister();
+        release();
+        await deregistering;
+        await flush();
+
+        expect(calls()).toEqual([
+            'PUT http://eureka/eureka/apps/cowork-chat/chat-1',
+            'DELETE http://eureka/eureka/apps/cowork-chat/chat-1',
+        ]);
+    });
 });

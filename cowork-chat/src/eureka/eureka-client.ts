@@ -18,7 +18,9 @@ export type EurekaInstanceStatus = 'UP' | 'OUT_OF_SERVICE';
 export class EurekaClient {
     private readonly logger = new Logger(EurekaClient.name);
     private heartbeatTimer?: NodeJS.Timeout;
-    private isPolling = false;
+    private heartbeat?: Promise<void>;
+    /** `deregister()` 이후에는 종료 중이므로 다시 등록하지 않는다. */
+    private stopped = false;
     private desiredStatus: EurekaInstanceStatus = 'UP';
     /** 등록된 동안 Eureka 서버에 반영한 status. 미등록이면 `undefined`다. */
     private appliedStatus?: EurekaInstanceStatus;
@@ -48,7 +50,7 @@ export class EurekaClient {
     }
 
     async register(): Promise<void> {
-        if (!this.config.enabled) {
+        if (!this.config.enabled || this.stopped) {
             return;
         }
 
@@ -106,8 +108,11 @@ export class EurekaClient {
             return;
         }
 
+        this.stopped = true;
         this.stopHeartbeat();
         this.appliedStatus = undefined;
+        // 진행 중인 heartbeat가 해제 뒤 404를 받아 다시 등록하지 않도록 끝날 때까지 기다린다.
+        await this.heartbeat;
         await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
             method: 'DELETE',
         });
@@ -147,11 +152,13 @@ export class EurekaClient {
     }
 
     private async sendHeartbeat(): Promise<void> {
-        if (this.isPolling) {
-            return;
-        }
+        this.heartbeat ??= this.renewLease().finally(() => {
+            this.heartbeat = undefined;
+        });
+        return this.heartbeat;
+    }
 
-        this.isPolling = true;
+    private async renewLease(): Promise<void> {
         try {
             await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
                 method: 'PUT',
@@ -164,8 +171,6 @@ export class EurekaClient {
                     this.logger.error(`eureka re-registration failed: ${String(registrationError)}`);
                 });
             }
-        } finally {
-            this.isPolling = false;
         }
     }
 
