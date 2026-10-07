@@ -91,16 +91,16 @@ func (r *TokenRepository) FindByID(ctx context.Context, id int64) (*token.Device
 
 // CurrentToken satisfies delivery.TokenVerifier: it lets the FCM retry worker check
 // whether a device token row still exists before resending to it.
-func (r *TokenRepository) CurrentToken(ctx context.Context, deviceTokenID int64) (string, bool, error) {
+func (r *TokenRepository) CurrentToken(ctx context.Context, deviceTokenID int64) (string, int64, bool, error) {
 	t, err := r.FindByID(ctx, deviceTokenID)
 	if err != nil {
 		var appErr *apperr.AppError
 		if errors.As(err, &appErr) && appErr.Code == 404 {
-			return "", false, nil
+			return "", 0, false, nil
 		}
-		return "", false, err
+		return "", 0, false, err
 	}
-	return t.Token, true, nil
+	return t.Token, t.AccountID, true, nil
 }
 
 // DeleteInvalidToken satisfies delivery.InvalidTokenHandler.
