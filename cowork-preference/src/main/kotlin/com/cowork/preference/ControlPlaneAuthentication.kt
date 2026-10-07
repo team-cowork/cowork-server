@@ -1,5 +1,6 @@
 package com.cowork.preference
 
+import java.net.Inet4Address
 import java.net.URI
 import java.util.Base64
 
@@ -12,12 +13,17 @@ object ControlPlaneAuthentication {
         require(endpoint.userInfo == null && endpoint.host != null && endpoint.scheme in setOf("http", "https")) {
             "Use a Config/Eureka HTTP(S) URL without credentials"
         }
-        require(System.getenv("SPRING_PROFILES_ACTIVE") != "prod" || endpoint.scheme == "https") {
-            "Use HTTPS for production Config/Eureka"
+        val production = System.getenv("SPRING_PROFILES_ACTIVE") == "prod"
+        require(!production || endpoint.scheme == "https" || isPrivateIpv4(endpoint.host)) {
+            "Use HTTPS or a private IPv4 HTTP URL for production Config/Eureka"
         }
         require(!username.isNullOrBlank() && !password.isNullOrBlank()) {
             "Provide CONFIG_CLIENT_USERNAME and CONFIG_CLIENT_PASSWORD"
         }
         return "Basic " + Base64.getEncoder().encodeToString("$username:$password".toByteArray(Charsets.UTF_8))
     }
+
+    // ofLiteral never resolves DNS, and isSiteLocalAddress matches exactly the RFC1918 IPv4 ranges.
+    private fun isPrivateIpv4(host: String) =
+        runCatching { Inet4Address.ofLiteral(host).isSiteLocalAddress }.getOrDefault(false)
 }
