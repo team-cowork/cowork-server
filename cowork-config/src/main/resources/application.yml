@@ -77,23 +77,10 @@ spring:
             search-locations: classpath:/configs/
 
 ---
-server:
-  ssl:
-    enabled: true
-    bundle: control-plane
-    enabled-protocols: TLSv1.2,TLSv1.3
-
 spring:
   config:
     activate:
       on-profile: prod
-  ssl:
-    bundle:
-      pem:
-        control-plane:
-          keystore:
-            certificate: ${CONFIG_TLS_CERTIFICATE}
-            private-key: ${CONFIG_TLS_PRIVATE_KEY}
   cloud:
     config:
       server:
