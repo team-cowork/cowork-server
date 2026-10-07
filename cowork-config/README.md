@@ -34,7 +34,10 @@
 | `VAULT_HOST`              | `cowork-vault`                        | Vault 호스트. 운영에서는 외부 Vault 주소 필수                              |
 | `VAULT_PORT`              | `8200` (앱 기본값)                    | Vault 포트                                                                 |
 | `VAULT_SCHEME`            | `http` (local 앱 기본값)              | local에서만 변경 가능. prod는 `https` 고정                                 |
-| `VAULT_TOKEN`             | 로컬 개발 토큰 (앱 기본값)            | prod에서는 외부 Vault 토큰 필수                                            |
+| `VAULT_TOKEN`             | 로컬 개발 토큰 (앱 기본값)            | local 전용. prod는 AppRole로 로그인·갱신                                   |
+| `VAULT_APP_ROLE_PATH`     | `approle`                             | prod AppRole mount 경로. `auth/` 접두어 제외                               |
+| `VAULT_ROLE_ID`           | 없음                                  | prod 필수. Config 전용 Role ID                                             |
+| `VAULT_SECRET_ID`         | 없음                                  | prod 필수. 재로그인에 사용하는 재사용 가능한 Secret ID                     |
 | `COWORK_CONFIG_HOST_PORT` | `8761`                                | Compose 호스트 공개 포트                                                   |
 | `S3_INTERNAL_ENDPOINT`    | `http://seaweedfs:9000`               | 서비스 내부 S3 endpoint                                                    |
 | `S3_PUBLIC_ENDPOINT`      | `http://localhost:9000`               | 클라이언트가 접근하는 S3 endpoint. 운영 주소 지정 필요                     |
