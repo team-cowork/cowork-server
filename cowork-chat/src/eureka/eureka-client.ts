@@ -13,10 +13,18 @@ type EurekaConfig = {
     leaseRenewalIntervalSeconds: number;
 };
 
+export type EurekaInstanceStatus = 'UP' | 'OUT_OF_SERVICE';
+
 export class EurekaClient {
     private readonly logger = new Logger(EurekaClient.name);
     private heartbeatTimer?: NodeJS.Timeout;
-    private isPolling = false;
+    private heartbeat?: Promise<void>;
+    /** `deregister()` 이후에는 종료 중이므로 다시 등록하지 않는다. */
+    private stopped = false;
+    private desiredStatus: EurekaInstanceStatus = 'UP';
+    /** 등록된 동안 Eureka 서버에 반영한 status. 미등록이면 `undefined`다. */
+    private appliedStatus?: EurekaInstanceStatus;
+    private statusSync?: Promise<void>;
 
     constructor(private readonly config: EurekaConfig) {}
 
@@ -42,10 +50,11 @@ export class EurekaClient {
     }
 
     async register(): Promise<void> {
-        if (!this.config.enabled) {
+        if (!this.config.enabled || this.stopped) {
             return;
         }
 
+        const status = this.desiredStatus;
         await this.request(`/apps/${this.config.appName}`, {
             method: 'POST',
             body: JSON.stringify({
@@ -56,7 +65,7 @@ export class EurekaClient {
                     ipAddr: this.config.host,
                     vipAddress: this.config.appName,
                     secureVipAddress: this.config.appName,
-                    status: 'UP',
+                    status,
                     port: { $: this.config.port, '@enabled': 'true' },
                     securePort: { $: 443, '@enabled': 'false' },
                     healthCheckUrl: `http://${this.config.host}:${this.config.port}/health/ready`,
@@ -75,7 +84,23 @@ export class EurekaClient {
             }),
         });
 
+        this.appliedStatus = status;
         this.startHeartbeat();
+        void this.syncStatus();
+    }
+
+    /**
+     * 인스턴스가 트래픽을 받을 수 있는지 Eureka에 알린다. 프로세스와 lease는 유지한 채 status override만
+     * 바꾸므로 Gateway는 `OUT_OF_SERVICE` 인스턴스를 라우팅에서 빼고, Prometheus는 계속 수집한다.
+     * 호출은 직렬화하고 최신 상태만 반영하며, 실패는 다음 heartbeat에서 다시 맞춘다.
+     */
+    setStatus(status: EurekaInstanceStatus): void {
+        this.desiredStatus = status;
+        if (!this.config.enabled) {
+            return;
+        }
+
+        void this.syncStatus();
     }
 
     async deregister(): Promise<void> {
@@ -83,10 +108,40 @@ export class EurekaClient {
             return;
         }
 
+        this.stopped = true;
         this.stopHeartbeat();
+        this.appliedStatus = undefined;
+        // 진행 중인 heartbeat가 해제 뒤 404를 받아 다시 등록하지 않도록 끝날 때까지 기다린다.
+        await this.heartbeat;
         await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
             method: 'DELETE',
         });
+    }
+
+    private async syncStatus(): Promise<void> {
+        this.statusSync ??= this.applyStatus().finally(() => {
+            this.statusSync = undefined;
+        });
+        return this.statusSync;
+    }
+
+    private async applyStatus(): Promise<void> {
+        try {
+            while (this.appliedStatus !== undefined && this.appliedStatus !== this.desiredStatus) {
+                const status = this.desiredStatus;
+                // UP 복구는 override를 지워야 이후 재등록·heartbeat가 OUT_OF_SERVICE로 고정되지 않는다.
+                await this.request(`/apps/${this.config.appName}/${this.config.instanceId}/status?value=${status}`, {
+                    method: status === 'UP' ? 'DELETE' : 'PUT',
+                });
+                if (this.appliedStatus !== undefined) {
+                    this.appliedStatus = status;
+                }
+
+                this.logger.log(`eureka status → ${status}`);
+            }
+        } catch (error: unknown) {
+            this.logger.warn(`eureka status update failed; retrying on next heartbeat: ${String(error)}`);
+        }
     }
 
     private startHeartbeat(): void {
@@ -97,15 +152,18 @@ export class EurekaClient {
     }
 
     private async sendHeartbeat(): Promise<void> {
-        if (this.isPolling) {
-            return;
-        }
+        this.heartbeat ??= this.renewLease().finally(() => {
+            this.heartbeat = undefined;
+        });
+        return this.heartbeat;
+    }
 
-        this.isPolling = true;
+    private async renewLease(): Promise<void> {
         try {
             await this.request(`/apps/${this.config.appName}/${this.config.instanceId}`, {
                 method: 'PUT',
             });
+            await this.syncStatus();
         } catch (error: unknown) {
             this.logger.warn(`eureka heartbeat failed: ${String(error)}`);
             if (error instanceof Error && error.message.includes('404')) {
@@ -113,8 +171,6 @@ export class EurekaClient {
                     this.logger.error(`eureka re-registration failed: ${String(registrationError)}`);
                 });
             }
-        } finally {
-            this.isPolling = false;
         }
     }
 

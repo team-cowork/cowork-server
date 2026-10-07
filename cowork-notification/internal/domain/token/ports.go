@@ -18,7 +18,7 @@ type Repository interface {
 }
 
 type FCMSender interface {
-	Send(ctx context.Context, tokens []string, title, body string, data map[string]string) ([]fcm.TokenResult, error)
+	Send(ctx context.Context, messages []fcm.Message, title, body string) ([]fcm.TokenResult, error)
 }
 
 type NotificationPreferenceResolver interface {
@@ -45,4 +45,5 @@ type DeliveryRepository interface {
 	FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 	FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 	FinalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, claimToken string, errClass delivery.ErrorClass, now time.Time) (delivery.Status, error)
+	FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 }
