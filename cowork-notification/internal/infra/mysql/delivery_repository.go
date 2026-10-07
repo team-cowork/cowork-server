@@ -283,20 +283,19 @@ func (r *DeliveryRepository) ClaimDue(ctx context.Context, limit int, now time.T
 	return records, nil
 }
 
-func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, id int64, claimToken string) error {
+func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
 	updates := map[string]any{"status": string(delivery.StatusCancelled), "claim_token": nil}
 	for k, v := range clearedContent {
 		updates[k] = v
 	}
 	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("id = ? AND status = ? AND claim_token = ?", id, string(delivery.StatusInProgress), claimToken).
+		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
+			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected == 0 {
-		slog.Warn("fcm delivery: finalize cancelled skipped — claim no longer matches (reclaimed or already finalized)", "id", id)
-	}
+	warnIfClaimStale(result.RowsAffected, "cancelled", eventID, deviceTokenID)
 	return nil
 }
 

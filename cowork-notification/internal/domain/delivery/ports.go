@@ -49,9 +49,9 @@ type Repository interface {
 	ClaimDue(ctx context.Context, limit int, now time.Time) ([]Record, error)
 
 	// FinalizeCancelled marks a claimed row CANCELLED, clearing the stored notification
-	// content, because its device token was deleted or replaced before the retry ran.
+	// content, because its device token was deleted or replaced before the send ran.
 	// See FinalizeSuccess for claimToken fencing.
-	FinalizeCancelled(ctx context.Context, id int64, claimToken string) error
+	FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
 
 	// ReclaimStale returns IN_PROGRESS rows to PENDING_RETRY (eligible immediately),
 	// clearing their ClaimToken, when they have sat claimed longer than staleThreshold —
