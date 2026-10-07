@@ -12,11 +12,6 @@ class ControlPlaneAccounts(environment: Environment) {
     init {
         val profiles = environment.activeProfiles.filter { it == "local" || it == "prod" }
         require(profiles.size == 1) { "Select exactly one Config Server deployment profile" }
-        if (profiles.single() == "prod") {
-            require(environment.getProperty("server.ssl.enabled", Boolean::class.java, false)) {
-                "Enable TLS for the production Config Server"
-            }
-        }
         val input = environment.getRequiredProperty("CONFIG_SERVER_ACCOUNTS_JSON")
         // Never propagate JSON parse exceptions: their messages can contain the credential document.
         val parsed = try {
