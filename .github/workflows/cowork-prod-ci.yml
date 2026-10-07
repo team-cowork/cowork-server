@@ -139,6 +139,8 @@ jobs:
         id: filter
         with:
           filters: |
+            ci-workflow:
+              - '.github/workflows/cowork-prod-ci.yml'
             gradle-shared:
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
@@ -160,10 +162,8 @@ jobs:
               - 'cowork-voice/**'
             cowork-chat:
               - 'cowork-chat/**'
-              - '.github/workflows/cowork-prod-ci.yml'
             cowork-promotion:
               - 'cowork-promotion/**'
-              - '.github/workflows/cowork-prod-ci.yml'
               - 'docs/todo/**'
             cowork-notification:
               - 'cowork-notification/**'
@@ -180,7 +180,7 @@ jobs:
       - name: Build Service Matrix
         id: build-matrix
         run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ] || [ "${{ steps.filter.outputs.ci-workflow }}" == "true" ]; then
             MATRIX='{"include":[
               {"service":"cowork-gateway","build":"gradle","working-directory":"."},
               {"service":"cowork-config","build":"gradle","working-directory":"."},
