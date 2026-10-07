@@ -244,10 +244,10 @@ describe('ChatService', () => {
     describe('sendMessage', () => {
         const ctx = { channelId: 1, userId: 42, userRole: 'USER' };
 
-        it('팀 채널 메시지는 클라이언트 teamId를 멤버십의 teamId로 덮어쓴다', async () => {
+        it('팀 채널 메시지는 채널 범위의 teamId로 발행한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
 
-            await service.sendMessage(ctx, { teamId: 999, content: 'hi' });
+            await service.sendMessage(ctx, { content: 'hi' });
 
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
                 1,
@@ -264,13 +264,13 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
-        it('프로젝트 채널은 클라이언트 projectId를 무시하고 채널 범위로 발행한다', async () => {
+        it('프로젝트 채널은 채널 범위의 teamId·projectId로 발행한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
             mockChannelProjectionRepository.findById.mockResolvedValue({
                 channelId: 1, teamId: 100, projectId: 200, type: 'TEXT',
             });
 
-            await service.sendMessage(ctx, { teamId: 999, projectId: 999, content: 'hi' });
+            await service.sendMessage(ctx, { content: 'hi' });
 
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
                 1, expect.objectContaining({ teamId: 100, projectId: 200 }), 42, 'USER',
@@ -300,6 +300,20 @@ describe('ChatService', () => {
 
             expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, 1);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
+        });
+
+        it('답장인 부모 메시지에도 답장할 수 있다', async () => {
+            mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
+            mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage({ parentMessageId: new Types.ObjectId() }));
+
+            await service.sendMessage(ctx, { content: 'hi', parentMessageId: mockMessageId });
+
+            expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
+                1,
+                expect.objectContaining({ parentMessageId: mockMessageId }),
+                ctx.userId,
+                ctx.userRole,
+            );
         });
 
         it('같은 채널에 없는 부모 메시지로는 답장을 발행하지 않는다', async () => {
@@ -357,7 +371,7 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
-        it('DM 채널 메시지는 teamId/projectId를 null로 강제하고 수신자 숨김을 해제한다', async () => {
+        it('DM 채널 메시지는 teamId/projectId를 null로 발행하고 수신자 숨김을 해제한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: null, channelType: 'DM' });
             mockChannelProjectionRepository.findById.mockResolvedValue({
                 channelId: 1, teamId: null, projectId: null, type: 'DM',
@@ -365,7 +379,7 @@ describe('ChatService', () => {
             mockChannelMemberRepository.findByChannelId.mockResolvedValue([{ userId: 42 }, { userId: 7 }]);
             mockBlockService.isBlocked.mockResolvedValue(false);
 
-            await service.sendMessage(ctx, { teamId: 999, projectId: 5, content: 'hi' });
+            await service.sendMessage(ctx, { content: 'hi' });
 
             expect(mockChannelMemberRepository.setHidden).toHaveBeenCalledWith(1, 7, false);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
