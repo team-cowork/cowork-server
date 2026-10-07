@@ -14,11 +14,30 @@ def trusted_networks():
     return networks
 
 
+RFC1918 = [ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")]
+
+
+def is_private_ipv4(host):
+    # is_private는 링크 로컬(169.254.0.0/16)과 문서용 대역도 포함하므로 RFC1918 사설 대역만 허용한다.
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == 4 and any(address in network for network in RFC1918)
+
+
 def validate_url(name):
-    endpoint = urlsplit(os.environ[name])
-    if (endpoint.scheme != "https" or not endpoint.hostname or endpoint.username is not None or
+    value = os.environ[name]
+    # 쉼표나 공백은 SPRING_CONFIG_IMPORT에서 추가 Config Server 주소로 해석될 수 있어 거부한다.
+    if "," in value or any(char.isspace() for char in value):
+        raise ValueError(f"{name} must contain exactly one URL")
+    endpoint = urlsplit(value)
+    if (not endpoint.hostname or endpoint.username is not None or
             endpoint.password is not None or endpoint.query or endpoint.fragment):
-        raise ValueError(f"{name} must be a canonical HTTPS URL without credentials")
+        raise ValueError(f"{name} must be a canonical URL without credentials")
+    # Config Server는 TLS 없이 사설망에서만 운영한다. 호스트 이름(DNS 변조 가능)이 아니라 사설 IPv4 주소 리터럴만 허용한다.
+    if endpoint.scheme != "http" or not is_private_ipv4(endpoint.hostname):
+        raise ValueError(f"{name} must be an HTTP URL with a private IPv4 address")
     return endpoint
 
 

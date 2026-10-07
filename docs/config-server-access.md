@@ -1,9 +1,9 @@
 # Config Server 접근 보호 운영
 
-서비스별 bootstrap 계정·운영 HTTPS·허용 peer 네트워크를 준비하고 교체하는 절차다.
+서비스별 bootstrap 계정과 허용 peer 네트워크를 준비하고 교체하는 절차다.
 허용 endpoint의 기준은 [`ControlPlaneAccessPolicy`](../cowork-config/src/main/kotlin/com/cowork/config/security/policy/ControlPlaneAccessPolicy.kt)다.
-운영 인증서는 모든 런타임이 신뢰하는 CA에서 발급하고, 사설 DNS는 인증서 도메인을 Config VM의
-사설 IP로 해석한다. 로컬 HTTP는 격리된 개발 네트워크에서 사용한다.
+Config Server는 TLS를 사용하지 않는다. 사설 IPv4에만 바인딩하고, 허용 CIDR 방화벽과 서비스별 Basic 인증으로
+보호한다. 운영·로컬 모두 사설 IPv4 주소 리터럴의 HTTP URL로 접근한다.
 
 ## 로컬 준비
 
@@ -35,70 +35,193 @@ Config 배포 문서에 다음 `runtime` 또는 `runtime_refs`를 준비한다.
 | 키                            | 값                                                                     |
 |-------------------------------|------------------------------------------------------------------------|
 | `CONFIG_SERVER_ACCOUNTS_JSON` | 생성한 계정 배열 JSON 문자열; 모든 레코드의 `profile`은 `prod`         |
-| `CONFIG_TLS_CERTIFICATE`      | 서버 인증서와 중간 인증서 PEM 전체                                     |
-| `CONFIG_TLS_PRIVATE_KEY`      | 대응하는 PKCS#8 PEM 개인키                                             |
-| `CONFIG_SERVER_URL`           | `https://config.example.com:8761` 형태의 실제 인증서 도메인            |
-| `EUREKA_SERVER_URL`           | 같은 서버의 `https://config.example.com:8761/eureka/`                  |
+| `CONFIG_SERVER_URL`           | `http://<Config VM 사설 IPv4>:8761`                                    |
+| `EUREKA_SERVER_URL`           | 같은 서버의 `http://<Config VM 사설 IPv4>:8761/eureka/`                |
 | `CONFIG_ALLOWED_CIDRS`        | 배포 VM과 monitoring VM의 사설 IPv4 CIDR을 쉼표로 연결; 가능하면 `/32` |
 | `BIND_IP`, `HOST_PORT`        | Config VM의 사설 IPv4와 공개 포트; 기본 포트 `8761`                    |
-| `VAULT_TOKEN`                 | 아래 전용 정책만 가진 유효기간 24시간 이하 토큰                        |
+| `VAULT_EXTERNAL_HOST`         | Vault HTTPS 호스트. 스킴·경로 없이 입력                                |
+| `VAULT_PORT`, `VAULT_BACKEND` | 배포 기본값 `443`, `secret`                                            |
+| `VAULT_APP_ROLE_PATH`         | AppRole mount 경로. 기본값 `approle`. `auth/` 접두어 제외              |
+| `VAULT_ROLE_ID`               | Cloud에서 발급한 Config 전용 Role ID                                   |
+| `VAULT_SECRET_ID`             | 같은 role의 재사용 가능한 Secret ID                                    |
 
-모든 앱과 monitoring 배포 문서에도 HTTPS URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
-`application` overrides나 일반 Config 속성으로 배포하지 않는다. 서버 TLS 재료와 bootstrap 계정은
+모든 앱과 monitoring 배포 문서에도 같은 HTTP URL과 자기 계정 두 값을 설정한다. 인증 관련 값을
+`application` overrides나 일반 Config 속성으로 배포하지 않는다. bootstrap 계정은
 컨테이너 환경을 읽을 수 있는 운영자에게 접근 가능하므로 VM·Docker 관리 권한을 제한한다.
+
+Role ID와 Secret ID는 `secret/control-plane/prod/config-vault`에 저장한다.
+Config 배포 문서의 `runtime_refs`에서 다음과 같이 참조한다. 해당 경로에 대한 읽기 권한은
+Config 배포용 `VAULT_DEPLOY_READ_TOKEN`에만 추가한다. Config Server의 정책에는 추가하지 않는다.
+
+```json
+{
+  "VAULT_ROLE_ID": {"path": "control-plane/prod/config-vault", "key": "VAULT_ROLE_ID"},
+  "VAULT_SECRET_ID": {"path": "control-plane/prod/config-vault", "key": "VAULT_SECRET_ID"}
+}
+```
+
+운영 Config의 기존 `runtime.VAULT_TOKEN` 또는 `runtime_refs.VAULT_TOKEN`은 제거한다.
+GitHub Actions의 배포 읽기·설정 쓰기 토큰은 별도 용도다. 이 변경으로 교체되지 않는다.
+로컬 프로파일은 기존 개발 토큰을 계속 사용한다.
+
+### 사설망 HTTP 전제
+
+- URL은 **사설 IPv4 주소 리터럴**의 `http`만 허용한다. 호스트 이름, 공인·루프백 주소, `https`, URL에 포함된 자격 증명은
+  배포 전에 거부한다(`deploy/prod/config-access.py`, monitoring 렌더러 동일).
+- 보호는 사설 IP 바인딩(`BIND_IP`), 허용 CIDR 방화벽, 서비스별 Basic 인증, Config 전용 Vault 토큰에 의존한다.
+  Basic 인증의 비밀번호가 사설망에서 평문으로 오가므로 신뢰하지 않는 호스트가 같은 사설망에 없어야 한다.
+  패널 프록시 등으로 공개 주소에 노출하지 않는다.
 
 ### 기존 공통 Vault 값 이동
 
 Vault composite의 `default-key`를 빈 문자열로 설정했으므로 `secret/application`은 응답에 포함되지
 않는다. 최초 전환 전에 기존 서비스 속성을 보존하면서 필요한 값만 해당 서비스 경로에 추가한다.
 
-| 수신 서비스 | 기존 공통 경로에서 옮길 키 |
-|-------------|-------------------------|
-| channel, project, team, roadmap | `MYSQL_USER`, `MYSQL_PASSWORD` |
-| chat | `JWT_SECRET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
-| team, user | `S3_ACCESS_KEY`, `S3_SECRET_KEY` |
-| preference | `preference.db.username`, `preference.db.password`라는 실제 조회 키로 저장 |
+| 수신 서비스                     | 기존 공통 경로에서 옮길 키                                                 |
+|---------------------------------|----------------------------------------------------------------------------|
+| channel, project, team, roadmap | `MYSQL_USER`, `MYSQL_PASSWORD`                                             |
+| chat                            | `JWT_SECRET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`                             |
+| team, user                      | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                                           |
+| preference                      | `preference.db.username`, `preference.db.password`라는 실제 조회 키로 저장 |
 
 Gateway의 `jwt.secret`, authorization의 `JWT_SECRET`·`DB_DSN`, notification의 `db.dsn`, user의
 `DB_USERNAME`·`DB_PASSWORD`도 서비스 경로에 존재해야 한다. 환경별 시크릿은
 `secret/cowork-{서비스}/prod` 또는 `/local`에 저장하고 환경 공통 기본 경로에는 환경별 시크릿을 두지
 않는다. 로컬 seed는 필요한 수신 서비스에만 값을 기록한다. 운영에서 로컬 seed를 실행하지 않는다.
 
-### Vault 최소 권한과 만료
+### Vault AppRole 준비: Cloud 담당
+
+운영 Config는 Spring Cloud Config의 `APPROLE` 인증을 사용한다. Spring Vault가 첫 설정 요청에서
+로그인하고, 만료 전에 토큰을 갱신한다. 갱신 실패 또는 최대 수명 도달로 토큰을 버리면 다음 설정
+요청에서 같은 Role ID·Secret ID로 다시 로그인한다. 별도의 로그인 cron은 필요하지 않다.
+
+전용 정책을 먼저 갱신한다.
 
 ```sh
 python3 deploy/config/vault/render-config-policy.py --profile prod > config-server-prod.hcl
 vault policy write cowork-config-prod config-server-prod.hcl
-vault token create -policy=cowork-config-prod -no-default-policy -ttl=24h -explicit-max-ttl=24h
 ```
 
-토큰 발급 출력은 비밀 채널에서만 처리한다. 정책은 11개 서비스의 기본·해당 프로파일 KV v2 값에
-`read`만 허용하며, 공통 `application`, 다른 프로파일, `deploy`, `control-plane`에는 권한이 없다.
+정책은 11개 서비스의 기본·해당 프로파일 KV v2 값에 `read`만 허용한다.
+공통 `application`, 다른 프로파일, `deploy`, `control-plane`에는 권한이 없다.
 KV mount가 `secret`이 아니면 생성기에 `--backend`를 함께 지정한다.
 
-운영 Config 배포는 Vault HTTPS로 `lookup-self`를 호출해 단일 전용 정책과 남은 TTL 10분~24시간을
-검사한다. 정책 본문은 Vault 관리자가 생성한 내용 그대로 등록한다. 토큰은 자동 갱신하지 않으므로
-만료 전 새 토큰 발급 → Vault 배포 참조 수정 → Config 재배포를 수행한다. 토큰 만료 알림과 일일
-교체 작업을 운영 스케줄에 등록한다. root·default·추가 identity 정책이 붙은 토큰은 배포에서 거부한다.
+같은 `cowork-config-prod` 정책 안에 `auth/token/lookup-self`의 `read`,
+`auth/token/renew-self`와 `auth/token/revoke-self`의 `update`가 필요하다.
+두 `update` 권한은 자기 토큰의 갱신·폐기에만 사용한다. KV 값의 쓰기 권한은 추가하지 않는다.
+`default` 정책으로 이 권한을 보충하지 않는다.
+
+AppRole이 없으면 `vault auth enable approle`로 한 번 활성화한다. 다음 설정으로 role을 만든다.
+`CONFIG_VAULT_CIDRS`에는 Vault가 실제로 보는 Config VM·컨테이너의 송신 CIDR을 지정한다.
+배포 사전 검증도 Config VM에서 실행하므로 그 송신 주소를 포함한다. 프록시를 통과하면 Vault가
+관측하는 주소를 먼저 확인한다. 아래 변수는 Cloud 관리 명령용이며 배포 runtime 키가 아니다.
+
+```sh
+: "${CONFIG_VAULT_CIDRS:?Set the Config VM egress CIDRs}"
+vault write auth/approle/role/cowork-config-prod \
+  bind_secret_id=true secret_id_ttl=0 secret_id_num_uses=0 \
+  secret_id_bound_cidrs="$CONFIG_VAULT_CIDRS" \
+  token_bound_cidrs="$CONFIG_VAULT_CIDRS" \
+  token_policies=cowork-config-prod token_no_default_policy=true \
+  token_type=service token_ttl=1h token_max_ttl=24h \
+  token_explicit_max_ttl=24h token_period=0 token_num_uses=0
+```
+
+AppRole mount가 다르면 명령의 `approle`과 `VAULT_APP_ROLE_PATH`를 함께 변경한다.
+mount의 TTL 제한도 발급 TTL 1시간을 허용해야 한다. role의 identity·group 정책은 추가하지 않는다.
+
+| Cloud 설정 | 요구 값 | 목적 |
+|------------|---------|------|
+| `token_policies` | `cowork-config-prod`만 | 애플리케이션 설정 읽기 제한 |
+| `token_no_default_policy` | `true` | 추가 정책 차단 |
+| `token_type` | `service` | 토큰 갱신 지원 |
+| `token_ttl` | `1h` | 단기 토큰 발급 |
+| `token_max_ttl`, `token_explicit_max_ttl` | `24h` | 각 토큰의 최대 수명 제한 |
+| `token_period`, `token_num_uses` | `0`, `0` | 주기 토큰 미사용, 읽기 횟수 제한 없음 |
+| `bind_secret_id` | `true` | Role ID와 Secret ID 모두 요구 |
+| `secret_id_ttl`, `secret_id_num_uses` | `0`, `0` | 만료·횟수 소진 없는 재로그인 |
+
+Role ID와 Secret ID 발급 출력은 비밀 채널에서 처리한다. 예를 들어 접근을 제한한 디렉터리에서
+다음과 같이 파일로 받는다. 이 파일들은 저장소에 넣지 않는다.
+
+```sh
+umask 077
+vault read -field=role_id auth/approle/role/cowork-config-prod/role-id > config-role-id
+vault write -f -format=json auth/approle/role/cowork-config-prod/secret-id > config-secret-id.json
+```
+
+Cloud 담당자는 첫 파일의 Role ID와 두 번째 파일의 `data.secret_id`를 위 bootstrap 경로에 전달한다.
+`secret_id_accessor`는 폐기 작업용으로 별도 보관한다. wrapping token을 `VAULT_SECRET_ID`에 넣지 않는다.
+Secret ID 발급 시 `ttl`·`num_uses`를 유한한 값으로 덮어쓰지 않는다.
+
+이 구성은 Secret ID를 장기 자격 증명으로 보관한다. 만료가 짧거나 일회용인 Secret ID는 자동
+재로그인을 중단시킨다. VM·Vault 접근 통제와 CIDR 제한을 적용하고 정기 교체한다. Secret ID 자체의
+자동 발급·교체는 이 구성에 포함되지 않는다. Secret ID가 유효하고 Vault에 연결할 수 있으면,
+개별 토큰의 24시간 상한을 넘어 재배포 없이 7일 이상 로그인·갱신을 반복할 수 있다.
+
+### 배포 사전 검증과 로그
+
+`validate-config-vault-token.py`는 기존 파일명을 유지하며 AppRole을 검증한다.
+`check_only`와 실제 배포 모두 다음 Vault HTTPS 요청을 수행한다. `check_only`도 임시 토큰을 발급한다.
+
+1. Role ID와 Secret ID로 로그인한다.
+2. 로그인 응답과 `lookup-self`에서 단일 정책, identity 정책 부재, 갱신 가능 여부를 확인한다.
+3. service 토큰, 무제한 사용 횟수, 비주기 토큰, 남은 TTL과 명시적 최대 TTL 10분~24시간을 확인한다.
+4. `renew-self`를 호출하고 갱신 응답을 확인한다.
+5. 성공·실패 모두 발급받은 검증용 토큰의 `revoke-self`를 시도한다. 폐기 실패도 배포 실패로 처리한다.
+
+HTTPS 인증서 검증을 유지하고 리다이렉트는 거부한다. 오류 로그에는 실패 단계만 기록한다.
+자격 증명, HTTP 헤더, 응답 본문, 예외 원문은 출력하지 않는다. 검증용 토큰은 컨테이너에 전달하지 않는다.
+폐기 요청에 실패하면 Cloud 담당자가 Vault 감사 기록으로 검증용 토큰을 찾아 폐기한다.
+
+단일 정책 이름만으로 정책 본문의 최소 권한을 증명할 수는 없다. Cloud 담당자가 생성된 HCL과 실제
+정책을 대조한다. 검증기는 role 관리 권한이 없으므로 Secret ID의 TTL·사용 횟수 설정도 증명하지 못한다.
+Cloud 담당자가 role과 실제 발급한 Secret ID의 설정을 확인한다.
+
+운영 프로파일은 Spring Vault·Spring Web 로그를 INFO로, Apache HTTP 로그를 WARN으로 제한한다.
+HTTP DEBUG·TRACE, wire 로그, `set -x`, 자격 증명을 포함한 `curl -v`를 사용하지 않는다.
+Config 응답에는 실제 서비스 시크릿이 있으므로 성공 확인 때도 응답 본문을 로그에 남기지 않는다.
+
+인증과 수명 관리는 현재 의존성의 Spring Cloud Config 5.0.5·Spring Vault 4.0.3에 위임한다.
+설정 키는 [Spring Cloud Config Vault backend](https://docs.spring.io/spring-cloud-config/reference/server/environment-repository/vault-backend.html),
+갱신·재로그인은 [Spring Vault 인증](https://docs.spring.io/spring-vault/reference/vault/authentication.html),
+role 설정은 [Vault AppRole API](https://developer.hashicorp.com/vault/api-docs/auth/approle)를 기준으로 한다.
 
 ## 네트워크와 배포 순서
 
 Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 필요한 `sudo -n iptables`와
-`iptables-restore` 권한을 제공한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다. `check_only`는 정적 검증이므로
+`iptables-restore` 권한을 제공한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다.
+`check_only`는 컨테이너를 기동하지 않는다. Config 배포에서는 위 Vault 인증 요청도 실행한다.
 실제 네트워크 차단을 별도로 확인한다. 클라우드 보안 그룹도 같은 peer 목록으로
 제한하고 Docker 재시작 시 규칙이 재적용되도록 호스트 운영 설정을 유지한다.
 
-최초 HTTPS 전환은 서버 포트가 한 개이므로 점검 시간에 진행한다.
+최초 접근 보호 전환은 서버 포트가 한 개이므로 점검 시간에 진행한다.
 
-1. 서비스별 Vault 값, 새 계정, 인증서, 허용 CIDR, 전용 Vault 토큰을 준비한다.
+1. 서비스별 Vault 값, 새 계정, 허용 CIDR, AppRole 자격 증명을 준비한다.
 2. 모든 배포 문서의 bootstrap을 갱신하고 `check_only`를 실행한다.
-3. Config Server를 배포하고 실제 DNS·인증서·health를 확인한다.
+3. Config Server를 배포하고 사설 HTTP 주소·health와 Vault HTTPS 연결을 확인한다.
 4. 앱과 monitoring을 새 버전·자기 자격 증명으로 배포하고 Eureka 등록 상태를 확인한다.
 5. 허용 peer에서 자기 설정 조회 성공, 다른 서비스·다른 프로파일 거부, 미인증 거부를 수동 확인한다.
    비허용 네트워크에서는 포트 연결 자체가 차단되는지 확인한다. 시크릿 응답은 파일·CI 로그에 남기지 않는다.
 
 이 작업 중 실제 서비스 기동·외부망 차단 검증은 운영 환경에서 수행한다. 저장소 검증은 핵심 권한 정책
 단위 테스트, 클라이언트 컴파일, 배포 정적 검사로 제한한다.
+
+### 정적 토큰에서 AppRole로 전환
+
+1. Cloud에서 정책과 role을 준비한다. Role ID·Secret ID의 bootstrap 참조를 등록한다.
+2. 새 버전으로 `check_only`를 실행한다. 로그인·정책·갱신·폐기가 모두 성공해야 한다.
+3. Config Server를 한 번 배포한다. 허용된 서비스 계정으로 실제 Vault 값을 포함한 설정 조회를 확인한다.
+   `/actuator/health` 성공만으로 판단하지 않는다. Config repository health는 비활성화되어 있다.
+4. Vault 감사 기록에서 이 Config 인스턴스의 `auth/approle/login`과 `auth/token/renew-self` 성공을 확인한다.
+   배포 검증기의 즉시 갱신과 실행 중인 서버의 갱신을 구분한다.
+5. 24시간 상한을 넘겨 새 AppRole 로그인이 발생하는지 확인한다. 설정 요청을 계속 관측한다.
+6. 재시작·재배포 없이 7일을 넘겨 설정 조회와 갱신이 계속 성공하는지 확인한다.
+7. 위 확인 뒤 기존 토큰용 6시간 간격 cron과 기존 정적·주기 토큰을 폐기한다.
+   폐기 대상·선행 조건·완료 판정은 [기존 Vault 갱신 cron과 토큰 폐기 TODO](./todo/items/61-cleanup/config-vault-legacy-token-retirement.md)에서 관리한다.
+
+Vault 장애 중에는 설정 조회가 실패할 수 있다. 갱신 실패로 세션이 제거된 뒤 Vault가 복구되면 다음
+설정 요청에서 로그인한다. 7일 운영 결과와 장애 복구 결과는 Cloud 환경에서 별도 기록한다.
 
 ## 교체·폐기·복구
 
@@ -107,12 +230,17 @@ Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 �
 제거한다. 서버의 동일 username 중복은 허용하지 않는다. 변경된 서비스의 레코드만 병합한다.
 
 유출된 계정은 서버 배열에서 즉시 제거하고 Config를 재배포한다. 기존 프로세스의 메모리에 로드된
-애플리케이션 시크릿은 계정 폐기로 지워지지 않으므로 필요한 시크릿도 교체한다. 인증서나 토큰 교체도
-배포 문서를 바꾼 뒤 Config 재배포로 적용한다.
+애플리케이션 시크릿은 계정 폐기로 지워지지 않으므로 필요한 시크릿도 교체한다.
+
+AppRole Secret ID 교체는 새 Secret ID 발급 → bootstrap 참조 수정 → Config 재배포 → 로그인 확인 →
+기존 Secret ID accessor 폐기 순서로 수행한다. Secret ID 폐기는 이미 발급된 토큰을 폐기하지 않는다.
+유출 사고에서는 해당 Secret ID와 이미 발급된 토큰을 모두 폐기한다.
 
 실패 시 보관된 이전 컨테이너와 해당 버전의 배포 snapshot으로 복구한다. 배포 스크립트는 이전
 컨테이너에 기록된 health 프로토콜을 사용한다. 인증 도입 전 버전으로 복구해야 하면 허용 CIDR 방화벽을
 유지하고 앱 URL도 이전 프로토콜로 맞춘다. 인증 우회 계정이나 전역 익명 허용을 추가하지 않는다.
+AppRole 도입 전 버전으로 복구할 때는 그 버전에 필요한 유효한 `VAULT_TOKEN`과 snapshot을 준비한다.
+기존 정적 토큰을 폐기한 뒤에는 만료·폐기된 토큰을 포함한 snapshot으로 복구하지 않는다.
 
 인증 실패·권한 거부·등록 identity 거부와 성공한 설정 조회를 감사 로그에 남긴다. 헤더·비밀번호·Vault
 응답값을 기록하지 않는다. 거부 로그의 `remote`별 증가와 성공 조회 로그의 `client`별 반복 횟수를
