@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Render VM-reachable discovery addresses without requiring PyYAML on the VM."""
+import ipaddress
 import json
 import os
 import sys
@@ -7,11 +8,28 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 
+RFC1918 = [ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")]
+
+
+def private_ipv4(host):
+    # is_private는 링크 로컬과 문서용 대역도 포함하므로 RFC1918 사설 대역만 허용한다.
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.version == 4 and any(address in network for network in RFC1918)
+
+
 def http_url(name):
     value = os.environ[name]
+    if "," in value or any(char.isspace() for char in value):
+        raise ValueError(f"{name} must contain exactly one URL")
     url = urlsplit(value)
-    if url.scheme != "https" or not url.hostname or url.username is not None or url.query or url.fragment:
-        raise ValueError(f"{name} must be an HTTPS URL without credentials")
+    if not url.hostname or url.username is not None or url.query or url.fragment:
+        raise ValueError(f"{name} must be a URL without credentials")
+    # Config Server는 TLS 없이 사설 IPv4 주소 리터럴로만 접근한다(deploy/prod/config-access.py와 같은 규칙).
+    if url.scheme != "http" or not private_ipv4(url.hostname):
+        raise ValueError(f"{name} must be an HTTP URL with a private IPv4 address")
     return value
 
 
