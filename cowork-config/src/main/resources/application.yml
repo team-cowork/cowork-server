@@ -98,11 +98,22 @@ spring:
             host: ${VAULT_HOST}
             port: ${VAULT_PORT:8200}
             scheme: https
-            authentication: TOKEN
-            token: ${VAULT_TOKEN}
+            authentication: APPROLE
+            app-role:
+              app-role-path: ${VAULT_APP_ROLE_PATH:approle}
+              role-id: ${VAULT_ROLE_ID}
+              secret-id: ${VAULT_SECRET_ID}
             kv-version: 2
             backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
             default-key: ""
           - type: native
             search-locations: classpath:/configs/
+
+# HTTP debug/trace logging can include AppRole credentials and Vault responses.
+logging:
+  level:
+    org.springframework.vault: INFO
+    org.springframework.web: INFO
+    org.apache.hc.client5.http: WARN
+    org.apache.hc.core5.http: WARN
