@@ -2,6 +2,8 @@ package com.cowork.preference.handler
 
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.security.RequesterContext
+import com.cowork.preference.service.AccountOwnershipDeniedException
+import com.cowork.preference.service.AccountOwnershipGuard
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.TeamMembershipDeniedException
 import com.cowork.preference.service.TeamMembershipGuard
@@ -24,7 +26,7 @@ class PreferenceHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
-        val requester = if (resourceType == ResourceType.TEAM) {
+        val requester = if (resourceType == ResourceType.ACCOUNT || resourceType == ResourceType.TEAM) {
             RequesterContext.from(ctx) ?: run {
                 ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
                 return@handler
@@ -34,6 +36,9 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching {
+                if (resourceType == ResourceType.ACCOUNT) {
+                    AccountOwnershipGuard.requireOwner(resourceId, requireNotNull(requester))
+                }
                 if (resourceType == ResourceType.TEAM) {
                     teamMembershipGuard.requireMember(resourceId, requireNotNull(requester))
                 }
@@ -70,7 +75,7 @@ class PreferenceHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
-        val requester = if (resourceType == ResourceType.TEAM) {
+        val requester = if (resourceType == ResourceType.ACCOUNT || resourceType == ResourceType.TEAM) {
             RequesterContext.from(ctx) ?: run {
                 ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
                 return@handler
@@ -85,6 +90,9 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching {
+                if (resourceType == ResourceType.ACCOUNT) {
+                    AccountOwnershipGuard.requireOwner(resourceId, requireNotNull(requester))
+                }
                 if (resourceType == ResourceType.TEAM) {
                     teamMembershipGuard.requireSettingsManager(resourceId, requireNotNull(requester))
                 }
@@ -101,6 +109,7 @@ class PreferenceHandler(
     }
 
     private fun authorizationAwareStatus(e: Throwable): Int = when (e) {
+        is AccountOwnershipDeniedException -> 403
         is TeamMembershipDeniedException -> 403
         is TeamMembershipProjectionNotReadyException -> 503
         else -> 500
