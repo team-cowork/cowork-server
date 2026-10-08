@@ -1,4 +1,4 @@
-package com.cowork.roadmap.config;
+package com.cowork.roadmap.global.config;
 
 import java.net.Inet4Address;
 import java.net.URI;
