@@ -33,3 +33,9 @@
 
 - 배포 인증의 수명·교체 시점을 자동 관리한다.
 - 읽기·쓰기 권한이 분리되어 있고 기존 운영 복구 경로가 유지되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#453](https://github.com/team-cowork/cowork-server/pull/453).
+- [대조 코드](../../../../.github/workflows/cowork-prod-cd.yml): Actions는 `VAULT_DEPLOY_READ_TOKEN`·`VAULT_CONFIG_WRITE_TOKEN`을 계속 사용한다. Config AppRole PR #453은 이 토큰을 교체하지 않는다.
+- 판정: **미구현**. Actions용 단기 인증 또는 만료·교체 자동화를 남은 범위로 유지한다.

@@ -67,3 +67,9 @@
 - 모든 공개 Preference API가 호출자의 리소스별 권한을 확인한다.
 - 리소스 ID 변조로 타인의 설정·역할을 읽거나 변경할 수 없다.
 - 핵심 허용·거부 정책이 단위 테스트로 보호되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#428](https://github.com/team-cowork/cowork-server/pull/428) · [#456](https://github.com/team-cowork/cowork-server/pull/456).
+- [대조 코드](../../../../cowork-preference/src/main/kotlin/com/cowork/preference/handler/PreferenceHandler.kt): ACCOUNT·TEAM GET/PUT만 요청자·guard를 사용한다. 프로젝트·채널과 NotificationHandler·ProjectRoleHandler에는 같은 인가가 없다.
+- 판정: **부분 구현**. 프로젝트·채널 projection 인가와 notification의 계정 소유권 검증을 남은 범위로 유지한다.

@@ -2,8 +2,8 @@
 
 - **서비스**: cowork-chat, cowork-promotion, Node CI
 - **우선순위**: 🟡 낮음
-- **현재 상태**: 스택 #442의 XO 도입 코드에는 모듈별 커스텀 설정과 인라인 규칙 예외가 남아 있으며, 기본 설정만으로의 전면 적용은 수행하지 않았다.
-- **선행 작업**: 스택 #442의 [기존 린트 정리 #437](https://github.com/team-cowork/cowork-server/pull/437), [CI 린트 필수화 #438](https://github.com/team-cowork/cowork-server/pull/438), [XO 도입 #439](https://github.com/team-cowork/cowork-server/pull/439)
+- **현재 상태**: 병합된 XO 도입 코드에는 모듈별 커스텀 설정과 인라인 규칙 예외가 남아 있으며, 기본 설정만으로의 전면 적용은 수행하지 않았다.
+- **관련 작업**: 병합 완료된 [기존 린트 정리 #437](https://github.com/team-cowork/cowork-server/pull/437), [CI 린트 필수화 #438](https://github.com/team-cowork/cowork-server/pull/438), [XO 도입 #439](https://github.com/team-cowork/cowork-server/pull/439)
 
 ## 문제
 
@@ -52,3 +52,9 @@
 - 로컬·에디터·CI가 동일한 기본 규칙을 적용하며 CI에서 오류와 경고를 거부한다.
 - 빌드와 핵심 비즈니스 단위 테스트가 통과하고 실행 계약 검토 결과가 기록되어 있다.
 - 프로젝트 문서에 커스텀 스타일·예외를 전제로 한 안내가 남아 있지 않다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#437](https://github.com/team-cowork/cowork-server/pull/437) · [#438](https://github.com/team-cowork/cowork-server/pull/438) · [#439](https://github.com/team-cowork/cowork-server/pull/439).
+- [대조 코드](../../../../cowork-chat/xo.config.mjs): XO와 CI lint는 병합되어 있다. 양 모듈의 space·rules·ignore·인라인 예외와 CLI glob이 남아 있어 zero-config 전환은 아니다.
+- 판정: **부분 구현**. 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리를 남은 범위로 유지한다.
