@@ -42,3 +42,9 @@ checkpoint·readiness·rebuild 구현 설명을 반복하지 않고 연속성 �
 - broker 연속성을 확인한 경우에만 checkpoint를 재사용한다.
 - 교체·손상·retention gap은 이전 worker를 차단하고 projection·checkpoint·barrier를 함께 재구축한다.
 - 채팅 소유 필드를 보존하며 실제 복구와 성능 결과를 확인할 수 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#320](https://github.com/team-cowork/cowork-server/pull/320) · [#346](https://github.com/team-cowork/cowork-server/pull/346) · [#355](https://github.com/team-cowork/cowork-server/pull/355).
+- [대조 코드](../../../../cowork-chat/src/common/kafka/projection-readiness.service.ts): sourceGeneration·dataset·offset 재개와 rebuild는 구현되었다. broker topic UUID를 비교하지 않고 활성 collection의 완전 소실만 검사한다.
+- 판정: **부분 구현**. broker identity 확보와 부분 데이터 유실·source 교체의 복구 기준을 남은 범위로 유지한다.
