@@ -54,3 +54,29 @@ JS/TS 소스와 린터 설정을 검사하며, HTML·CSS·Markdown·JSON은 대�
 - Vault: `MONGODB_URI`, `JWT_SECRET`, Discord webhook, S3 access·secret key.
 
 Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
+
+## 메시지 범위와 기존 데이터 점검
+
+메시지의 `teamId`·`projectId`는 채널 projection에서 결정하며 요청에서 받지 않습니다.
+부모 메시지는 같은 채널에 존재해야 합니다. 답장의 답장을 허용하고 답장도 unread에 포함합니다.
+`parentMessageId` 조회는 직계 답장을 반환하며, 그 응답의 `mentionedMessage`는 채우지 않습니다.
+이 계약과 읽기 전용 감사 도구는 [#412](https://github.com/team-cowork/cowork-server/pull/412)·
+[#448](https://github.com/team-cowork/cowork-server/pull/448)에 반영되어 있습니다.
+
+기존 데이터를 유지·정정하기로 한 환경에서는 다음 절차를 사용합니다. 데이터 유지·복구·이관 여부는
+[배포 운영 기준](../docs/deployment.md)에 따라 정합니다.
+
+1. 채널 범위 확정과 읽기 경로의 부모 채널 제한이 적용된 버전인지 확인한다.
+2. `cowork-chat`에서 `MONGODB_URI`를 설정하고 `npm run ops:message-scope-audit`를 실행한다.
+   JSON Lines 보고서와 마지막 범주별 건수를 저장소 밖의 접근 제한된 위치에 보관한다.
+3. `CHANNEL_MISSING_OR_DELETED`·`CHANNEL_SCOPE_INVALID`는 채널 삭제·projection 복구 상태를
+   먼저 확인하며 자동 정리 대상에 넣지 않는다.
+4. `MESSAGE_SCOPE_MISMATCH`는 활성 채널의 `teamId`·`projectId` 정정을,
+   `PARENT_INVALID_ID`·`PARENT_MISSING`·`PARENT_CROSS_CHANNEL`은 부모 참조의 `null` 해제를 검토한다.
+   메시지 ID와 이전·새 값을 포함한 적용 목록을 승인받는다.
+5. 승인한 목록만 `_id`·`channelId`·감사 당시 필드 값으로 조건부 갱신한다.
+   조건이 바뀐 문서는 건너뛰고 다시 감사한다. 원본과 적용 결과를 복구 가능한 운영 기록으로 보관한다.
+6. 정정된 메시지가 색인 대상이면 `npm run ops:message-search-index -- rebuild`를 실행한다.
+   완료 뒤 감사 명령과 색인 `status`를 다시 확인한다.
+
+감사는 읽기 전용이다. 실제 데이터 변경과 재색인은 보고서 검토·승인 후 별도 운영 작업으로 수행한다.
