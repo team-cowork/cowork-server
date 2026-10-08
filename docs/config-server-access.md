@@ -5,18 +5,6 @@
 Config Server는 TLS를 사용하지 않는다. 사설 IPv4에만 바인딩하고, 허용 CIDR 방화벽과 서비스별 Basic 인증으로
 보호한다. 운영·로컬 모두 사설 IPv4 주소 리터럴의 HTTP URL로 접근한다.
 
-서비스별 인증·인가와 방화벽은 [#416](https://github.com/team-cowork/cowork-server/pull/416),
-사설 HTTP 계약은 [#451](https://github.com/team-cowork/cowork-server/pull/451)·[#452](https://github.com/team-cowork/cowork-server/pull/452),
-Vault AppRole은 [#453](https://github.com/team-cowork/cowork-server/pull/453)에 구현되어 있다.
-
-## 외부 Config Git 정리
-
-[#269](https://github.com/team-cowork/cowork-server/pull/269)에서 Git backend를 제거했다.
-현재 [backend 설정](../cowork-config/src/main/resources/application.yml)은 local·prod 모두 Vault와 classpath native를 사용한다.
-기존 외부 Config Git을 정리할 때는 과거 저장소·label·commit의 key 목록과 현재 공급 경로를 값 없이 대조한다.
-필요한 속성의 이동과 복구 자료를 확인한 뒤 사용하지 않는 저장소·자격 증명을 폐기한다.
-노출된 시크릿이 발견되면 Vault 이동과 키 교체, 기존 Git 이력 처리 범위를 정하며 native 파일에 복사하지 않는다.
-
 ## 로컬 준비
 
 `.env`에 기존 DB·Kafka·Vault bootstrap을 준비한 다음 한 번 실행한다.
