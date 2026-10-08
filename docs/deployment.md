@@ -97,7 +97,18 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 
 자동 배포는 target별 마지막 runtime 적용 성공 SHA를 기준으로 비교한다. 정적 검증·설정 변경의 성공은
 이 기준을 바꾸지 않는다. 이미 적용한 SHA보다 이전 버전으로 복구할 때는 수동 재배포를 사용한다.
-readiness 대기를 늘릴 때는 SSH `command_timeout`에 이미지 pull·실패 복구 시간도 확보한다.
+SSH `command_timeout`은 45분이며 `HEALTH_TIMEOUT_SECONDS`는 1~1050초로 제한한다.
+후보·롤백 대기 두 번과 준비 시간 600초를 고려한 상한이다. 이미지 pull 자체에 시간 제한이 있는 것은 아니다.
+실패 후보 로그 보존과 기존 비정상 컨테이너의 롤백 대기 생략은 [#450](https://github.com/team-cowork/cowork-server/pull/450),
+health 상한 검증은 [#459](https://github.com/team-cowork/cowork-server/pull/459)에 반영되어 있다.
+
+### 수동 복구 후 정리
+
+CD로 전환한 환경에서는 실행 중인 이미지 SHA와 `cowork-runtime` 성공 기록을 대조한다.
+사용하지 않는 `*-old`·수동 `:local`·`verify-test` 컨테이너와 임시 Docker 네트워크 연결은
+실행·복구 의존성이 없는지 확인한 뒤 정리한다. 임시 `~/pref.env`·`~/auth.env`·`~/noti.env`·
+`~/user.env`와 작업용 Firebase 키 파일도 실제 사용 여부를 확인해 불필요한 사본과 참조를 제거한다.
+Firebase 자격 증명은 Config 공급 경로, 클라이언트와의 프로젝트 일치, 실제 수신을 확인한다.
 
 ### 자격 증명 교체
 
@@ -136,6 +147,34 @@ Alloy로 전환할 때 기존 Promtail을 중지한다. 읽기 위치 형식이 
 남긴다. RPO/RTO·백업·복구 훈련과 용량 목표는 실제 배치를 기준으로 별도 정한다.
 토큰 교체와 릴리스 정리는 [인증 자동화](./todo/items/42-deployment/vault-auth-automation.md)·
 [디스크 정리](./todo/items/44-deployment/release-retention.md)에서 추적한다.
+
+### 배포 성공 기록 대조
+
+2026-10-08 점검에서 조회한 `task=cowork-runtime`의 target별 마지막 성공 기록이다. 자동 생성된 Environment job 성공과
+`check_only`는 제외했다. 시각은 한국 표준시다. 이 기록은 현재 가용성이나 미배포를 확정하지 않는다.
+
+| target | 마지막 성공 SHA | 성공 기록 시각 (KST) | 실행 기록 |
+|---|---|---|---|
+| authorization | `231bfea6` | 2026-10-04 01:25 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37136725666) |
+| channel | `231bfea6` | 2026-10-05 18:36 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37291017089) |
+| chat | `231bfea6` | 2026-10-06 01:01 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37337456074) |
+| config | `231bfea6` | 2026-09-29 00:52 | [run](https://github.com/team-cowork/cowork-server/actions/runs/36446755559) |
+| gateway | `231bfea6` | 2026-09-29 00:56 | [run](https://github.com/team-cowork/cowork-server/actions/runs/36447254521) |
+| notification | `231bfea6` | 2026-10-06 19:51 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37452069393) |
+| preference | `231bfea6` | 2026-10-04 03:28 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37143971044) |
+| project | `231bfea6` | 2026-10-06 00:35 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37333799641) |
+| roadmap | `231bfea6` | 2026-10-04 01:01 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37135216263) |
+| team | `231bfea6` | 2026-10-03 23:47 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37130756211) |
+| vault | `08706cdd` | 2026-10-07 13:47 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37571972300) |
+| voice | `231bfea6` | 2026-10-05 23:52 | [run](https://github.com/team-cowork/cowork-server/actions/runs/37326134539) |
+| user | 성공 기록 없음 | — | 환경 job 실패 기록만 확인 |
+| monitoring | 성공 기록 없음 | — | 환경 job 실패 기록만 확인 |
+
+당시 [자동 CD](https://github.com/team-cowork/cowork-server/actions/runs/37571972300)는 Vault 성공,
+Config 실패, 앱 배포 skipped였다. [notification 배포](https://github.com/team-cowork/cowork-server/actions/runs/37452069393)의
+성공 SHA `231bfea6`도 `fcm.credentials-json`과 `fcm.NewSender` 초기화가 필수이므로,
+과거 자격 증명 부재에 따른 기동 장애는 해당 배포에서 해소된 것으로 판단했다.
+실제 Firebase 전송 권한·키 파일 폐기 여부는 이 성공 기록만으로 판단하지 않는다.
 
 ## 실패 복구
 
