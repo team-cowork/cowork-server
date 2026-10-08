@@ -40,7 +40,6 @@ dependencies {
         exclude(group = "org.springdoc")
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
-    implementation(libs.logstash.logback.encoder)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)
