@@ -1,4 +1,4 @@
-package com.cowork.channel.config
+package com.cowork.project.global.config
 
 import org.springframework.cloud.netflix.eureka.http.EurekaClientHttpRequestFactorySupplier
 import org.springframework.cloud.netflix.eureka.http.RestClientDiscoveryClientOptionalArgs
@@ -18,9 +18,7 @@ class ControlPlaneClientConfig {
     fun eurekaClientOptionalArgs(environment: Environment): RestClientDiscoveryClientOptionalArgs {
         val username = System.getenv("CONFIG_CLIENT_USERNAME")
         val password = System.getenv("CONFIG_CLIENT_PASSWORD")
-        require(!username.isNullOrBlank() && !password.isNullOrBlank()) {
-            "Provide Config/Eureka bootstrap credentials"
-        }
+        require(!username.isNullOrBlank() && !password.isNullOrBlank()) { "Provide Config/Eureka bootstrap credentials" }
         val endpoint = URI.create(environment.getRequiredProperty("eureka.client.service-url.defaultZone"))
         require(endpoint.userInfo == null && endpoint.host != null) { "Use a Eureka URL without credentials" }
         val privateHttp = "prod" !in environment.activeProfiles || isPrivateIpv4(endpoint.host)
