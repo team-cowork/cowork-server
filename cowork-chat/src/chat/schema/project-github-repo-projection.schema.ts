@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type ProjectGithubRepoProjectionDocument = HydratedDocument<ProjectGithubRepoProjection>;
 
 /** `project.github-repo.event`로 동기화되는 프로젝트 GitHub 저장소 연결 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
