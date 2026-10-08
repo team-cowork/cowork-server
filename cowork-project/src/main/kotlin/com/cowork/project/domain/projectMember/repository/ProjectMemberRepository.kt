@@ -1,7 +1,6 @@
 package com.cowork.project.domain.projectMember.repository
 
 import com.cowork.project.domain.projectMember.entity.ProjectMember
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor
@@ -54,20 +53,4 @@ interface ProjectMemberRepository :
     fun findByProjectIdAndUserId(projectId: Long, userId: Long): ProjectMember?
 
     fun countByProjectId(projectId: Long): Long
-
-    fun existsByProjectIdAndUserIdAndRole(projectId: Long, userId: Long, role: ProjectMemberRole): Boolean
-
-    fun findAllByUserIdAndRole(userId: Long, role: ProjectMemberRole): List<ProjectMember>
-
-    fun findAllByUserIdAndRoleAndProjectIdIn(
-        userId: Long,
-        role: ProjectMemberRole,
-        projectIds: List<Long>,
-    ): List<ProjectMember>
-
-    fun findAllByProjectIdIn(projectIds: List<Long>): List<ProjectMember>
-
-    fun findAllByUserId(userId: Long): List<ProjectMember>
-
-    fun deleteAllByUserIdAndProjectIdIn(userId: Long, projectIds: List<Long>)
 }
