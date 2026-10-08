@@ -58,3 +58,9 @@ unread를 올리며, Redis 카운터 증가와 MongoDB unread 집계 모두 답�
 - 승인한 기존 범위 불일치와 부모 참조가 정리되고 검색 색인에 반영되어 있다.
 - 채널 미존재·삭제·복구 중인 데이터를 잘못된 범위로 자동 정정하지 않는다.
 - 요청 필드 제거와 중첩 답장 정책이 클라이언트·서버 계약에 반영되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#412](https://github.com/team-cowork/cowork-server/pull/412) · [#448](https://github.com/team-cowork/cowork-server/pull/448).
+- [대조 코드](../../../../cowork-chat/src/chat/chat.service.ts): scope 검증·요청 필드 제거·중첩 답장·답장 unread는 구현되었다. 감사 CLI는 읽기 전용이며 정정과 재색인 성공 기록은 이번에 확인되지 않았다.
+- 판정: **운영 정리**. 기존 데이터 감사·승인 정정·재색인과 클라이언트 계약 확인을 남은 범위로 유지한다.

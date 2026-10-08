@@ -59,3 +59,9 @@ data-only 푸시의 백그라운드 전달이 제한되므로 두 변경은 함�
 - 진행 중인 외부 전송의 회수 한계와 수신 측 계정 검증 정책이 명시되어 있다.
 - 백그라운드 수신에서도 `accountId`가 현재 계정과 다른 메시지는 표시되지 않는다.
 - migration과 클라이언트 전환 확인 결과가 기록되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#413](https://github.com/team-cowork/cowork-server/pull/413) · [#447](https://github.com/team-cowork/cowork-server/pull/447).
+- [대조 코드](../../../../cowork-notification/internal/infra/fcm/sender.go): 단일 소유권과 전송 직전 세대 확인·accountId는 반영되었지만 Message.Notification이 남아 있다. PR #447 리뷰에서도 data-only 동시 전환을 후속으로 남겼다.
+- 판정: **부분 구현**. data-only·클라이언트 표시 정책의 동시 전환과 migration 적용을 남은 범위로 유지한다.

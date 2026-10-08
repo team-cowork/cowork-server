@@ -45,3 +45,9 @@
 - 외부 HTTP API 모듈 10개의 공개 계약이 운영 probe에 포함되어 있다.
 - 서비스가 정상이어도 Gateway 경로 실패와 구 경로 재등장을 식별할 수 있다.
 - probe·알림에 시크릿이나 민감한 사용자 데이터가 남지 않는다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#60](https://github.com/team-cowork/cowork-server/pull/60) · [#366](https://github.com/team-cowork/cowork-server/pull/366).
+- [대조 코드](../../../../deploy/prod/monitoring/render-prometheus.py): blackbox 대상은 Eureka healthCheckUrl이며 canonical API별 method·인증·기대 응답 manifest는 없다.
+- 판정: **미구현**. Gateway를 경유하는 비파괴 API probe와 별도 알림을 남은 범위로 유지한다.
