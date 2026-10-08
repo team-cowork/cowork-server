@@ -2,7 +2,7 @@
 
 - **서비스**: cowork-config, Config Client 11개, 배포 인프라
 - **우선순위**: 🟠 중간
-- **현재 상태**: Git backend 제거와 local·prod native 설정 전환은 반영되어 있으며 외부 원본 대조·배포 확인·기존 자격 증명 폐기가 남아 있다.
+- **현재 상태**: Git backend 제거와 local·prod native 설정 전환 구현은 완료했으며 외부 원본 대조와 사용하지 않는 저장소·자격 증명 폐기가 남아 있다.
 
 ## 문제
 
@@ -36,3 +36,9 @@
 - 외부 원본에서 필요했던 속성이 현재 공급 경로에 반영되어 있다.
 - 모든 런타임의 분산 기동과 설정 복구 결과가 기록되어 있다.
 - 외부 Config Git과 불필요한 자격 증명이 폐기되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#269](https://github.com/team-cowork/cowork-server/pull/269) · [#453](https://github.com/team-cowork/cowork-server/pull/453).
+- [대조 코드](../../../../cowork-config/src/main/resources/application.yml): local·prod 모두 Vault + native이며 Git backend는 없다. PR #269도 외부 원본 key 대조 미실시를 명시한다.
+- 판정: **운영 정리**. 외부 원본 대조와 사용하지 않는 Git 저장소·자격 증명 폐기를 남은 범위로 유지한다.
