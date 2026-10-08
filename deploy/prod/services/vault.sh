@@ -29,7 +29,14 @@ if [ "$sealed" = true ]; then
 fi
 # Production secrets are managed in Vault, independently of container redeploys.
 # The destructive development seed script must never overwrite production values.
-"${COMPOSE[@]}" up -d --wait --wait-timeout 120
+# Compose --wait fails at once on the unhealthy status recorded while sealed, so poll until the healthcheck passes again.
+for ((attempt=0; attempt<60; attempt++)); do
+  health=$(docker inspect -f '{{.State.Health.Status}}' cowork-vault-prod 2>/dev/null || true)
+  [ "$health" = healthy ] && break
+  sleep 2
+done
+[ "$health" = healthy ] || fail "Vault container did not become healthy (status: ${health:-unknown})"
+docker exec cowork-vault-prod vault status >/dev/null || fail 'Vault is not unsealed'
 rm -f "$status_file"
 trap - EXIT
 echo '[vault] Healthy and unsealed'
