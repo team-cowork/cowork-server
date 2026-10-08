@@ -2,8 +2,8 @@
 
 - **서비스**: cowork-user
 - **우선순위**: 🟠 중간
-- **현재 상태**: 원격 MySQL 환경에서 projection 재생이 토픽당 초당 약 2건으로 진행되어 장기 중단 후 readiness가 수십 분 닫힌다
-- **관련 작업**: [CD health 대기와 SSH 명령 제한 분리](../53-deployment/cd-health-wait-ssh-timeout.md), [채팅 projection 증분 재개와 재구축 모드 분리](../31-performance/projection-incremental-resume.md)
+- **현재 상태**: 운영 SQL debug 로그 차단은 구현되었고 레코드별 transaction·checkpoint 처리는 유지되어 있으며, 과거 초당 약 2건의 재생 병목에 대한 측정·쿼리 최적화가 남아 있다.
+- **관련 작업**: [채팅 projection 증분 재개와 재구축 모드 분리](../31-performance/projection-incremental-resume.md)
 
 ## 문제
 
@@ -35,3 +35,9 @@ user는 `team.member.event`와 `user.presence.event`를 projection으로 소비�
 
 - 원격 DB 구성에서 user의 재생 처리량이 측정되어 있고 개선 목표치를 만족한다.
 - 운영 user 로그에 SQL debug 출력이 없다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#457](https://github.com/team-cowork/cowork-server/pull/457).
+- [대조 코드](../../../../cowork-user/lib/cowork_user/kafka/projection_processor.ex): prod Logger info 설정은 반영되었다. TeamMemberHandler는 레코드마다 ProjectionProcessor transaction과 checkpoint 갱신을 수행한다.
+- 판정: **부분 구현**. DB 왕복·처리량 측정과 필요 쿼리·배치 개선을 남은 범위로 유지한다.

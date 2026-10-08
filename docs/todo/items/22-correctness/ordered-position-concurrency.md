@@ -48,3 +48,9 @@ unique만 추가하면 여러 행을 재정렬하는 중간 상태에서 충돌�
 - 같은 scope의 최종 position이 중복되지 않는다.
 - 생성·reorder 경합과 gap 처리 결과가 결정적이다.
 - 저장값과 projection event가 같은 최종 순서를 표현한다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#102](https://github.com/team-cowork/cowork-server/pull/102) · [#419](https://github.com/team-cowork/cowork-server/pull/419).
+- [대조 코드](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/node/service/impl/CreateNodeReferenceServiceImpl.java): channel·project는 MAX + 1 생성과 기존 행 reorder 잠금, roadmap node·reference는 count 기반 position 할당을 유지한다.
+- 판정: **부분 구현**. 생성·reorder 공통 직렬화와 삭제 gap·기존 중복 처리를 남은 범위로 유지한다.

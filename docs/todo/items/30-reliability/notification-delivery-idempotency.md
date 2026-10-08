@@ -12,10 +12,10 @@ notification의 FCM 선택적 재시도도 event·device 식별자를 사용한�
 
 그러나 Kafka record key는 없고 전체 수신자·SSE fan-out을 식별하는 inbox가 없다.
 발행 뒤 상태 저장 전이나 전송 뒤 offset commit 전에 종료하면 재전달될 수 있다.
-unread는 최상위 메시지의 첫 시도에서 발행 전에 증가한다. 실패가 정상 처리되어 retry count가
+unread는 답장을 포함한 모든 메시지의 첫 시도에서 발행 전에 증가한다. 실패가 정상 처리되어 retry count가
 저장된 경우에는 재증가를 피하지만, count 저장 전 프로세스가 종료되면 같은 메시지로 다시 증가한다.
-SSE payload에는 `eventId`가 없고 FCM 호출의 data도 `nil`이어서 수신 측의 이벤트 중복 제거에
-현재 envelope의 안정적 ID가 전달되지 않는다.
+SSE payload에는 `eventId`가 없다. FCM data에는 수신 계정 검증용 `accountId`가 있지만
+`eventId`는 전달하지 않으므로, 안정적 이벤트 ID를 이용한 수신 측 중복 제거 계약은 남아 있다.
 
 ## 남은 경계
 
@@ -51,3 +51,9 @@ SSE payload에는 `eventId`가 없고 FCM 호출의 data도 `nil`이어서 수�
 - 재전달이 같은 이벤트의 완료한 fan-out을 새 논리 알림으로 만들지 않는다.
 - unread가 같은 메시지의 재발행으로 중복 증가하지 않는다.
 - SSE·FCM의 수신 측 중복 제거와 외부 재전달 경계가 명시되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#353](https://github.com/team-cowork/cowork-server/pull/353) · [#378](https://github.com/team-cowork/cowork-server/pull/378) · [#379](https://github.com/team-cowork/cowork-server/pull/379) · [#447](https://github.com/team-cowork/cowork-server/pull/447) · [#448](https://github.com/team-cowork/cowork-server/pull/448).
+- [대조 코드](../../../../cowork-notification/internal/infra/kafka/consumer.go): eventId·claim·FCM 원장은 구현되었다. Kafka key·SSE eventId·FCM eventId와 전체 fan-out inbox는 없고 unread 증가는 retry count 저장 전 중복될 수 있다.
+- 판정: **부분 구현**. 전체 fan-out·unread 멱등성과 수신 측 eventId 계약을 남은 범위로 유지한다.
