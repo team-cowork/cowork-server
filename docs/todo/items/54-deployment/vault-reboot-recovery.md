@@ -5,7 +5,7 @@
 - **현재 상태**: 재부팅마다 Vault가 sealed 상태가 되어 전 서비스가 기동하지 못하며, `vault_recovery`는 unseal에 성공해도 실패로 표시된다
 - **관련 작업**: [배포 Vault 인증 자동화](../42-deployment/vault-auth-automation.md)
 
-> **2026-10-08 진척:** `deploy/prod/services/vault.sh`에서 unseal 뒤의 `docker compose up -d --wait`를 제거하고, 컨테이너 health가 `healthy`로 갱신될 때까지 최대 120초 기다린 뒤 `vault status`로 unseal 상태를 확인하도록 바꿨다. 둘 중 하나라도 정상이 아니면 실패로 끝난다. `docs/deployment.md`의 `실패 복구`에 재부팅 후 복구 순서(Vault unseal → Config `200` 확인 → 앱 재기동·Eureka 등록 확인)를 추가했다. 검증은 `bash -n` 구문 검사뿐이며, sealed 상태에서의 `vault_recovery` 실행 결과와 unseal 후 Config `200` 응답은 아직 운영에서 확인하지 않았다. auto-unseal 도입 여부는 결정하지 않았다.
+> **2026-10-08 진척:** `deploy/prod/services/vault.sh`에서 unseal 뒤의 `docker compose up -d --wait`를 제거하고, 컨테이너 health가 `healthy`로 갱신될 때까지 최대 120초 기다린 뒤 `vault status`로 unseal 상태를 확인하도록 바꿨다. 둘 중 하나라도 정상이 아니면 실패로 끝난다. `docs/deployment.md`의 `실패 복구`에 재부팅 후 복구 순서(Vault unseal → Config `200` 확인 → 앱 재기동·Eureka 등록 확인)를 추가했다. 검증은 `bash -n` 구문 검사뿐이며, sealed 상태에서의 `vault_recovery` 실행 결과와 unseal 후 Config `200` 응답은 아직 운영에서 확인하지 않았다. auto-unseal 도입 여부는 결정하지 않았다. 문서의 복구 절차는 vault target에 마지막으로 적용한 SHA를 쓰므로, 이 수정이 포함된 SHA로 vault target이 배포되기 전까지는 복구가 성공해도 실패로 표시된다. 자동 CD는 `vault.sh`가 바뀐 main 반영에서 vault target을 배포 대상으로 고르지만, 그 배포가 성공해 마지막 적용 SHA가 갱신되었는지는 아직 확인하지 않았다.
 
 ## 문제
 
