@@ -47,3 +47,9 @@ channel의 OAuth는 짧은 권한 조회 → 외부 호출 → 짧은 저장으�
 
 - 외부 대기가 로컬 DB transaction을 장시간 유지하지 않는다.
 - 권한 조회·외부 작업·후속 기록의 실패·회수 경합 정책이 명확히 적용되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#393](https://github.com/team-cowork/cowork-server/pull/393).
+- [대조 코드](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/sharedAccount/service/impl/HandleOAuthCallbackServiceImpl.kt): OAuth 외부 호출은 transaction 밖이다. persist·중복 복구 재인가는 없고 project의 read transaction 안 Feign 및 send().get()은 유지된다.
+- 판정: **부분 구현**. project 외부 대기 분리와 OAuth 저장 시점 재인가를 남은 범위로 유지한다.
