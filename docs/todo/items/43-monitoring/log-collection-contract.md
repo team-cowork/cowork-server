@@ -43,3 +43,9 @@ user의 plain text·Preference의 ECS JSON처럼 출력 형식도 달라 top-lev
 
 - 모든 서비스의 로그 도착과 누락 여부를 확인할 수 있다.
 - 검증한 공통 필드·timestamp를 대시보드가 사용한다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#439](https://github.com/team-cowork/cowork-server/pull/439).
+- [대조 코드](../../../../cowork-chat/src/app.module.ts): Chat Pino는 파일 출력을 우선한다. prod Alloy는 Docker stdout의 level·service만 읽으며 application timestamp 정규화는 없다.
+- 판정: **부분 구현**. Chat prod 출력 수집과 서비스별 필드·timestamp 정규화를 남은 범위로 유지한다.
