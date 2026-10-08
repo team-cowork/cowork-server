@@ -5,6 +5,8 @@
 - **현재 상태**: projection 재생이 긴 서비스는 health 대기 중 SSH 세션이 20분에 끊겨 성공·롤백·기록 없이 실패한다
 - **관련 작업**: [운영 서비스의 CD 배포 일원화](../52-deployment/prod-cd-unification.md), [user projection 재생 처리량 개선](../56-performance/user-projection-replay-throughput.md)
 
+> **2026-10-08 진척:** `28ebfd4a`에서 `.github/actions/deploy-target/action.yml`의 `command_timeout`을 20분에서 45분으로 늘려 선택지 중 제한 정렬을 택했다. 같은 커밋은 배포 전부터 비정상이던 이전 컨테이너의 롤백 readiness 대기를 생략하고, 실패한 후보 로그를 VM 상태 디렉터리에 보존한다. `deploy/prod/vault-settings.py`의 `validate_deployment`는 `HEALTH_TIMEOUT_SECONDS`를 1~1050의 정수로 제한한다. 상한은 후보 대기와 롤백 복구 대기(각 `HEALTH_TIMEOUT_SECONDS`)에 락 대기·컨테이너 중지·소스 fetch·이미지 pull 여유 600초를 더해 45분 안에 끝나는 값이다. 이 검증은 Vault 갱신, snapshot 읽기(참조 해석 후 포함), VM의 `apply-settings.py`, `deploy/validate.py`에 함께 적용된다. 이미지 pull에는 시간 제한이 없어 여유 600초를 넘는 pull은 막지 않는다. `deploy/channel`·`deploy/chat`의 실제 값 확인, 2026-10-02 chat 배포가 VM에 남긴 후보 컨테이너 확인, 운영 배포 검증은 아직 하지 않았다. 실제 값이 1050을 넘으면 해당 대상의 배포는 snapshot 읽기 단계에서 거부된다.
+
 ## 문제
 
 `.github/actions/deploy-target/action.yml`은 `appleboy/ssh-action`을 `command_timeout: 20m`으로 실행한다. VM 안의 `deploy.sh`는 `deploy_container_safely`(`deploy/prod/lib/container.sh`)로 후보 컨테이너를 시작한 뒤 `HEALTH_TIMEOUT_SECONDS`(기본 420, `deploy/prod/lib/environment.sh`) 동안 health를 기다린다. 실패하면 이전 컨테이너로 롤백한다.
