@@ -163,7 +163,9 @@ Vault 중단·봉인 복구는 `service=vault`, `target=vault`, `vault_recovery=
 1. Vault를 unseal한다. `Prod-CD(vault)`의 `VAULT_BOOTSTRAP_JSON`에는 `ssh`와 `runtime`의
    `VAULT_EXTERNAL_HOST`·`VAULT_BIND_IP`·`VAULT_DATA_VOLUME`·`VAULT_UNSEAL_KEY`가 있어야 한다.
    `sha`는 vault target에 마지막으로 적용한 SHA를 사용한다. 워크플로는 unseal 뒤 `vault status`와
-   컨테이너 healthcheck가 모두 정상이어야 성공한다.
+   컨테이너 healthcheck가 모두 정상이어야 성공한다. 단, unseal 뒤 `docker compose up --wait`를 실행하던
+   이전 SHA의 `vault.sh`는 unseal에 성공해도 실패로 끝난다. 이때는 워크플로 결과 대신 2번의 Config `200`
+   확인으로 복구 여부를 판단한다.
 
    ```bash
    release_sha=$(gh api 'repos/team-cowork/cowork-server/deployments?environment=Prod-CD(vault)&task=cowork-runtime' --jq '.[0].sha')
