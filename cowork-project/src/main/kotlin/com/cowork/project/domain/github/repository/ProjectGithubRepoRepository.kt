@@ -33,9 +33,6 @@ interface ProjectGithubRepoRepository : JpaRepository<ProjectGithubRepo, Long> {
     fun findAllByGithubWebhookChannelIdForUpdate(@Param("channelId") channelId: Long): List<ProjectGithubRepo>
 
     fun findAllByProjectId(projectId: Long): List<ProjectGithubRepo>
-    fun findAllByProjectIdIn(projectIds: Collection<Long>): List<ProjectGithubRepo>
     fun findByIdAndProjectId(id: Long, projectId: Long): ProjectGithubRepo?
     fun existsByTeamIdAndGithubRepoUrl(teamId: Long, githubRepoUrl: String): Boolean
-    fun findAllByGithubRepoUrl(githubRepoUrl: String): List<ProjectGithubRepo>
-    fun findAllByGithubWebhookChannelId(channelId: Long): List<ProjectGithubRepo>
 }
