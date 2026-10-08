@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type ChannelProjectionDocument = HydratedDocument<ChannelProjection>;
 
 /** `channel.event.v2`로 동기화되는 채널 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
