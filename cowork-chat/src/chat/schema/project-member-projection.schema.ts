@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type ProjectMemberProjectionDocument = HydratedDocument<ProjectMemberProjection>;
 
 /** `project.member.event.v2`로 동기화되는 프로젝트 멤버십 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
