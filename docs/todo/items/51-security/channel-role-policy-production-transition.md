@@ -39,3 +39,9 @@
 - 기존 팀마다 승인 정책이 적용되거나 기본 거부 유지가 승인되어 있다.
 - 소유자 정책과 두 projection이 일치하며 의도하지 않은 전체 차단·우회 허용이 없다.
 - 적용·수렴·승인 결과가 환경별 운영 기록에 남아 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#314](https://github.com/team-cowork/cowork-server/pull/314) · [#425](https://github.com/team-cowork/cowork-server/pull/425).
+- [대조 코드](../../../../scripts/channel_role_policy_transition.py): 정책 평가와 plan·apply·verify·rollback-manifest 도구는 있다. 실제 팀별 manifest 적용·승인 자료는 조회한 PR과 배포 메타데이터에 없다.
+- 판정: **운영 전환**. 팀별 기본 거부·허용 정책 결정과 승인 manifest 적용을 남은 범위로 유지한다.

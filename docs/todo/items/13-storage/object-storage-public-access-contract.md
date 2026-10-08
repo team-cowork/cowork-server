@@ -49,3 +49,9 @@ team·user는 공개 endpoint로 업로드 URL을 서명하지만 chat은 내부
 - 객체별 읽기 권한·URL 수명·저장 경계가 확정되어 있고 비공개 객체가 공개되지 않는다.
 - 세 서비스의 서명·ingress·CORS가 같은 계약으로 동작한다.
 - 기존 URL 또는 object key의 처리 방침과 전환 결과가 기록되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#261](https://github.com/team-cowork/cowork-server/pull/261).
+- [대조 코드](../../../../cowork-chat/src/storage/object-storage.service.ts): Chat은 내부 S3 client로 PUT 서명하고 publicBaseUrl을 반환한다. team·user의 공개 signer와 분리 계약이 다르다.
+- 판정: **정책·구현**. 객체별 읽기 권한·공개 ingress·서명 endpoint·기존 URL 정책을 남은 범위로 유지한다.

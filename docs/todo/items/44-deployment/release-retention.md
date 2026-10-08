@@ -35,3 +35,9 @@ monitoring·Vault·Alloy는 릴리스 파일을 bind mount하므로 날짜만으
 
 - 반복 정리 뒤에도 실행·복구에 필요한 자료가 보존되어 있다.
 - 적용 전에 삭제 대상을 확인할 수 있고 디스크 부족을 사전에 식별할 수 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#450](https://github.com/team-cowork/cowork-server/pull/450).
+- [대조 코드](../../../../.github/actions/deploy-target/action.yml): SHA별 releases 적재와 배포 잠금은 있지만 실행·복구 참조를 보존하는 retention 명령은 없다. 실패 로그 보존은 용량 정리 구현이 아니다.
+- 판정: **미구현**. 참조 기반 보존 정책·미리보기·적용 명령을 남은 범위로 유지한다.
