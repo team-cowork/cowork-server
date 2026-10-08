@@ -21,17 +21,6 @@ class GithubLabelPolicyReader(
             ?: LABEL_AUTO_APPLY_DEFAULT
     }
 
-    fun readAutoApplyBulk(repoIds: List<Long>): Map<Long, Boolean> {
-        if (repoIds.isEmpty()) return emptyMap()
-        readinessGate.requireReady()
-        val preferencesById = repository.findAllById(repoIds)
-            .filterNot { it.deleted }
-            .associateBy { it.repoId }
-        return repoIds.associateWith { repoId ->
-            preferencesById[repoId]?.labelAutoApply ?: LABEL_AUTO_APPLY_DEFAULT
-        }
-    }
-
     private companion object {
         const val LABEL_AUTO_APPLY_DEFAULT = true
     }
