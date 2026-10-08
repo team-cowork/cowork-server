@@ -3,7 +3,7 @@
 `cowork-channel`, `cowork-team`, `cowork-project`의 relay 전환·격리 복구 절차다.
 설정 기본값은 [`configs/application.yml`](../cowork-config/src/main/resources/configs/application.yml),
 상태·claim·barrier 구현은 각 모듈의 `KafkaOutboxRelay`를 기준으로 한다.
-전환·장애 복구의 남은 확인은 [TODO](./todo/items/18-reliability/jvm-kafka-outbox-relay.md)에 기록한다.
+전환·장애 복구는 아래 절차로 확인하고 결과를 배포 기록에 남긴다.
 
 공유 DB backlog gauge는 replica별로 합산하지 않고 `max`로 확인한다. backlog·최장 대기·격리 증가와
 `cowork_kafka_outbox_observation_success`를 함께 확인한다. 한 key의 격리가 후속 event와 snapshot 완료를
