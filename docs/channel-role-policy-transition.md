@@ -6,6 +6,10 @@ snapshot completion marker가 발행되므로 projection readiness만으로 전�
 이 문서는 기존 팀에 운영자가 승인한 정책을 적용하는 maintenance window 절차다.
 도구는 `scripts/channel_role_policy_transition.py`이며 Python 3 표준 라이브러리만 사용한다.
 
+정책 평가와 전환 도구는 [#314](https://github.com/team-cowork/cowork-server/pull/314)·
+[#425](https://github.com/team-cowork/cowork-server/pull/425)에 구현되어 있다. 아래 절차를 실행한 결과와
+팀별 승인은 저장소 밖 운영 기록에 보관한다.
+
 기존 역할의 `permissions` 문자열에서 `message_read`를 추론하지 않는다. 정책이 없는 non-`OWNER`의
 기본 거부를 유지할 팀도 운영 승인이 필요하다. 정책 부재·상속과 명시적 `false`는 다르므로 manifest에서
 구분한다. 도구의 읽기 사전 점검은 채널 메타데이터 기준이며, 실제 메시지·검색·WebSocket은 별도로 확인한다.
