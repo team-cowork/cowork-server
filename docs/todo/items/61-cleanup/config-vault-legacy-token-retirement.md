@@ -2,7 +2,7 @@
 
 - **서비스**: cowork-config, Vault VM, 운영 배포
 - **우선순위**: 🟠 중간
-- **현재 상태**: AppRole 전환 코드는 반영했으며, 운영 적용·7일 연속 운영 확인과 기존 cron·토큰 폐기는 아직 수행하지 않았다.
+- **현재 상태**: AppRole 전환 구현은 완료했으며 기존 cron·토큰 폐기가 남아 있다. 폐기 선행 조건인 7일 연속 운영 기록은 확인되지 않았다.
 
 ## 문제
 
@@ -50,3 +50,9 @@ Config Server는 `APPROLE` 로그인·갱신·재로그인을 사용하도록 �
 - 이전 정적·주기 토큰이 폐기되어 있으며 불필요한 자격 증명 사본과 참조가 제거되어 있다.
 - Config Server는 기존 cron 없이 AppRole로 설정 조회와 인증 수명 관리를 유지한다.
 - 운영 확인 결과와 폐기한 토큰에 의존하지 않는 복구 절차가 기록되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#453](https://github.com/team-cowork/cowork-server/pull/453).
+- [대조 코드](../../../../cowork-config/src/main/resources/application.yml): AppRole 구현은 있으며 PR은 기존 cron·토큰 폐기를 수행하지 않았다고 명시한다. 마지막 Config runtime SHA는 AppRole 이전이다.
+- 판정: **운영 정리**. 운영 전환·7일 조건 충족 후 기존 cron·토큰·참조 폐기를 남은 범위로 유지한다.
