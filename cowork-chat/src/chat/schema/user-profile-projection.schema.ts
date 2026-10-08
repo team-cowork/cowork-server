@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type UserProfileProjectionDocument = HydratedDocument<UserProfileProjection>;
 
 /** `user.profile.event`로 동기화되는 사용자 표시 정보 읽기 모델. */
 @Schema({ timestamps: true, versionKey: false })
