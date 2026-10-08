@@ -2,11 +2,12 @@
 
 미완료 작업의 상세 문서와 점검 스냅샷을 연결한다. `develop`에 해당 작업의 구현이 병합되었으면 완료로 처리한다.
 로컬 동기화·`main` 반영·배포·검증 대기만으로 구현 TODO를 유지하지 않는다.
-정책 결정·데이터 정리·자격 증명 폐기처럼 별도로 실행할 작업이 남은 항목은 그 범위를 명시해 유지한다.
+운영 자료를 확인하지 못했다는 이유로 완료 항목에 후속 범위를 덧붙이지 않는다. 배포·데이터 점검 절차는 기존 운영 문서에서 관리한다.
+정책 결정·자격 증명 폐기 자체가 목적인 독립 작업은 그 범위를 명시해 유지한다.
 
 ## 진행 중
 
-2026-10-08 기준 **25건**이다. 로컬 `58bddf1a`, 원격 `develop`의 `a2a0212a`, `main`의 `08706cdd`와
+2026-10-08 기준 **20건**이다. 로컬 `58bddf1a`, 원격 `develop`의 `a2a0212a`, `main`의 `08706cdd`와
 Git 이력·GitHub PR·실제 `cowork-runtime` 배포 기록을 대조했다. PR 목록 437건에서 관련 PR 42건의
 변경·리뷰·검사 기록과 주요 11건의 인라인 리뷰를 확인했다. 항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
 
@@ -31,13 +32,8 @@ Git 이력·GitHub PR·실제 `cowork-runtime` 배포 기록을 대조했다. PR
 - monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md) — 기대 서비스 집합·인프라 알림과 상위 CI 결론 반영
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
 
-### 운영 전환·데이터·자격 증명 정리 필요 (6)
+### 별도 자격 증명 폐기 작업 (1)
 
-- security: [Config Server 접근 보호](./items/08-security/config-server-access-control.md) — 계정·AppRole·서비스별 시크릿과 최신 Config·클라이언트의 운영 전환
-- configuration: [외부 Config Git 제거 및 prod native 전환](./items/09-configuration/remove-external-config-git.md) — 외부 원본 대조와 사용하지 않는 Git 저장소·자격 증명 폐기
-- correctness: [채팅 메시지 채널·프로젝트·부모 범위 무결성 보장](./items/26-correctness/chat-message-scope-integrity.md) — 기존 데이터 감사·승인 정정·재색인과 클라이언트 계약 확인
-- security: [기존 역할·채널 정책 운영 환경 전환 수행](./items/51-security/channel-role-policy-production-transition.md) — 팀별 기본 거부·허용 정책 결정과 승인 manifest 적용
-- deployment: [운영 서비스의 CD 배포 일원화](./items/52-deployment/prod-cd-unification.md) — 최신 버전 전환·수동 복구 잔여물·FCM 자격 증명 정리
 - cleanup: [Config Server 기존 Vault 갱신 cron과 토큰 폐기](./items/61-cleanup/config-vault-legacy-token-retirement.md) — 운영 전환·7일 조건 충족 후 기존 cron·토큰·참조 폐기
 
 ### 운영 배치 결정 필요 (1)
@@ -49,13 +45,11 @@ Git 이력·GitHub PR·실제 `cowork-runtime` 배포 기록을 대조했다. PR
 - [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
-- [20260930](./20260930_TODO.md) — 기존 역할·채널 정책 운영 전환
 - [20260916](./20260916_TODO.md) — FCM 식별자·SDK 전환
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
 - [20260830](./20260830_TODO.md) — 역할 command operation 반환 계약
 - [20260828](./20260828_TODO.md) — 서버 애플리케이션 코드
 - [20260825](./20260825_TODO.md) — Gateway API 계약·메트릭 수집
-- [20260723](./20260723_TODO.md) — Config Server 운영 구성
 
 ## 작성 규칙
 
