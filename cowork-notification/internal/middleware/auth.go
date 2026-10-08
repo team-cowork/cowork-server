@@ -31,7 +31,3 @@ func AccountIDFromContext(ctx context.Context) (int64, bool) {
 	id, ok := ctx.Value(contextKeyAccountID).(int64)
 	return id, ok
 }
-
-func WithAccountID(ctx context.Context, id int64) context.Context {
-	return context.WithValue(ctx, contextKeyAccountID, id)
-}
