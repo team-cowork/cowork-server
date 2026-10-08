@@ -1,8 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
-
-/** Mongoose 문서 타입. HydratedDocument로 래핑되어 _id, save() 등 Mongoose 메서드를 포함합니다. */
-export type ChannelMemberDocument = HydratedDocument<ChannelMember>;
+import { Types } from 'mongoose';
 
 /**
  * 채널 멤버십을 나타내는 MongoDB 도큐먼트 스키마.
