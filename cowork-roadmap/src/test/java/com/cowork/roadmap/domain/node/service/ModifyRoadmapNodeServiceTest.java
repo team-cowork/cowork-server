@@ -48,7 +48,7 @@ class ModifyRoadmapNodeServiceTest {
     void modifyNode_updatesOnlyNonNullFields() {
         RoadmapNode node = node(5L, 10L, "원제목", "원내용");
         when(nodeRepository.findById(5L)).thenReturn(Mono.just(node));
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
         ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
         when(nodeRepository.save(savedCaptor.capture())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
