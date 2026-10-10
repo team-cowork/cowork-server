@@ -148,7 +148,7 @@ export class Message {
 
     /**
      * 메시지에서 멘션된 사용자 ID 목록.
-     * `@사용자명` 형식으로 언급된 사용자를 빠르게 조회하기 위한 배열 인덱스가 적용됩니다.
+     * 알림 대상 계산에만 사용하며, 멘션 기준 검색은 Elasticsearch가 담당하므로 인덱스를 두지 않습니다.
      */
     @Prop({ type: [Number], default: [] }) mentions!: number[];
 
@@ -230,12 +230,6 @@ export const MessageSchema = SchemaFactory.createForClass(Message);
 /** 채널별 최신순 메시지 조회를 위한 복합 인덱스 (`channelId` 오름차순, `_id` 내림차순) */
 MessageSchema.index({ channelId: 1, _id: -1 });
 
-/** 특정 작성자의 메시지를 빠르게 조회하기 위한 단일 필드 인덱스 */
-MessageSchema.index({ authorId: 1 });
-
-/** 스레드 답글 조회 시 부모 메시지 기준으로 빠르게 필터링하기 위한 인덱스 */
-MessageSchema.index({ parentMessageId: 1 });
-
 /** 채널 내 스레드 답글 목록 조회를 위한 복합 인덱스 (`channelId`, `parentMessageId`, `_id` 내림차순) */
 MessageSchema.index({ channelId: 1, parentMessageId: 1, _id: -1 });
 
@@ -247,9 +241,6 @@ MessageSchema.index({ isPinned: 1, channelId: 1 });
  * `sparse: true`는 필드가 없는 도큐먼트만 제외하며, 명시적인 `null`끼리는 중복으로 충돌합니다.
  */
 MessageSchema.index({ clientMessageId: 1 }, { unique: true, sparse: true });
-
-/** 멘션된 사용자 ID 기준 조회를 위한 배열 요소 인덱스 */
-MessageSchema.index({ mentions: 1 });
 
 /**
  * 아웃박스 워커가 PENDING 상태 메시지를 발생 시간 순으로 처리하기 위한 복합 인덱스.
