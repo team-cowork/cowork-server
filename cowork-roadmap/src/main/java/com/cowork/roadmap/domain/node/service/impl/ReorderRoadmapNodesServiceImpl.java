@@ -34,7 +34,7 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
     @Override
     @Transactional
     public Mono<Void> execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
-        return roadmapLookupSupport.findRoadmapOrThrow(roadmapId)
+        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                         .then(Mono
                                 .defer(() -> nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList()))
