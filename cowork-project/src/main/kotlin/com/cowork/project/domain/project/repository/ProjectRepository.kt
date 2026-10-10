@@ -28,8 +28,6 @@ interface ProjectRepository :
 
     fun findAllByTeamId(teamId: Long): List<Project>
 
-    fun findAllByTeamIdOrderByPositionAscIdAsc(teamId: Long): List<Project>
-
     @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
     fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
