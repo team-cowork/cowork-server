@@ -131,7 +131,7 @@ export class Message {
 
     /**
      * 메시지 고정 여부.
-     * `(isPinned, channelId)` 복합 인덱스로 채널별 고정 메시지를 빠르게 조회합니다.
+     * `isPinned: true`만 담는 부분 인덱스로 채널별 고정 메시지를 빠르게 조회합니다.
      */
     @Prop({ default: false }) isPinned!: boolean;
 
@@ -233,8 +233,12 @@ MessageSchema.index({ channelId: 1, _id: -1 });
 /** 채널 내 스레드 답글 목록 조회를 위한 복합 인덱스 (`channelId`, `parentMessageId`, `_id` 내림차순) */
 MessageSchema.index({ channelId: 1, parentMessageId: 1, _id: -1 });
 
-/** 채널별 고정 메시지 목록 조회를 위한 복합 인덱스 */
-MessageSchema.index({ isPinned: 1, channelId: 1 });
+/**
+ * 채널별 고정 메시지를 최신순으로 조회하기 위한 부분 인덱스 (`channelId` 오름차순, `_id` 내림차순).
+ * `isPinned: true`인 도큐먼트만 담아 고정되지 않은 메시지의 쓰기에는 인덱스 비용이 들지 않습니다.
+ * 같은 키 패턴의 전체 인덱스와 구분되도록 이름을 명시합니다.
+ */
+MessageSchema.index({ channelId: 1, _id: -1 }, { name: 'channelId_1__id_-1_pinned', partialFilterExpression: { isPinned: true } });
 
 /**
  * `clientMessageId` 유니크 인덱스.
