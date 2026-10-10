@@ -12,12 +12,15 @@ public interface RoadmapNodeRepository extends R2dbcRepository<RoadmapNode, Long
 
     Flux<RoadmapNode> findByRoadmapIdOrderByPositionAsc(Long roadmapId);
 
-    /** 삭제로 생긴 gap과 무관하게 기존 최댓값 다음 position을 반환한다. */
-    @Query("SELECT COALESCE(MAX(position) + 1, 0) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId AND parent_id IS NULL")
+    /** 삭제로 생긴 gap과 무관하게 기존 최댓값 다음 position을 반환한다. 잠금 읽기로 snapshot 이후 커밋된 행까지 본다. */
+    @Query("SELECT COALESCE(MAX(position) + 1, 0) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId AND parent_id IS NULL FOR SHARE")
     Mono<Long> findNextRootPosition(Long roadmapId);
 
-    /** 삭제로 생긴 gap과 무관하게 같은 부모의 기존 최댓값 다음 position을 반환한다. */
-    @Query("SELECT COALESCE(MAX(position) + 1, 0) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId AND parent_id = :parentId")
+    /**
+     * 삭제로 생긴 gap과 무관하게 같은 부모의 기존 최댓값 다음 position을 반환한다. 잠금 읽기로 snapshot 이후 커밋된 행까지
+     * 본다.
+     */
+    @Query("SELECT COALESCE(MAX(position) + 1, 0) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId AND parent_id = :parentId FOR SHARE")
     Mono<Long> findNextChildPosition(Long roadmapId, Long parentId);
 
     /** 하위 노드·과제 생성이 삭제 중인 노드를 참조하지 않도록 노드 삭제의 배타 잠금과 직렬화한다. */
