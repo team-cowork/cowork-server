@@ -92,7 +92,7 @@ class ReorderRoadmapNodesServiceTest {
     }
 
     private void prepareNodes(List<RoadmapNode> nodes) {
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
         when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L)).thenReturn(Flux.fromIterable(nodes));
     }

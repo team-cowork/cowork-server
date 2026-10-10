@@ -28,15 +28,15 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
     @Transactional
     public Mono<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId, NodeReferenceReqDto request) {
         return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
+                .flatMap(node -> roadmapLookupSupport.findRoadmapForUpdateOrThrow(node.getRoadmapId())
                         .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(Mono.defer(() -> referenceRepository.countByNodeId(nodeId)))
-                                .flatMap(count -> {
+                                .then(Mono.defer(() -> referenceRepository.findNextPosition(nodeId)))
+                                .flatMap(position -> {
                                     RoadmapNodeReference ref = RoadmapNodeReference.builder()
                                             .nodeId(nodeId)
                                             .title(request.title())
                                             .url(request.url())
-                                            .position(count.intValue())
+                                            .position(position.intValue())
                                             .build();
                                     return referenceRepository.save(ref).map(NodeReferenceResDto::from);
                                 })));
