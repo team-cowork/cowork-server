@@ -65,6 +65,26 @@ class ModifyRoadmapNodeServiceTest {
     }
 
     @Test
+    void modifyNode_savesPositionReReadAfterRoadmapLock() {
+        RoadmapNode stale = node(5L, 10L, "원제목", "원내용");
+        RoadmapNode reordered = stale.toBuilder().position(3).build();
+        when(nodeRepository.findById(5L)).thenReturn(Mono.just(stale)).thenReturn(Mono.just(reordered));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
+        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
+        ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
+        when(nodeRepository.save(savedCaptor.capture())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(Flux.empty());
+
+        StepVerifier
+                .create(modifyRoadmapNodeService
+                        .execute(7L, "ADMIN", 5L, new UpdateNodeReqDto("새제목", null, null, null)))
+                .expectNextCount(1)
+                .verifyComplete();
+
+        assertThat(savedCaptor.getValue().getPosition()).isEqualTo(3);
+    }
+
+    @Test
     void modifyNode_nodeNotFound_failsWithNotFound() {
         when(nodeRepository.findById(99L)).thenReturn(Mono.empty());
 
