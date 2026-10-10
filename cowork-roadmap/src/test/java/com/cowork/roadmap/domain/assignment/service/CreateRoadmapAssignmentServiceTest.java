@@ -110,7 +110,7 @@ class CreateRoadmapAssignmentServiceTest {
 
     private void prepareAuthorizedRoadmap() {
         Roadmap roadmap = Roadmap.builder().id(1L).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
-        when(roadmapRepository.findById(1L)).thenReturn(Mono.just(roadmap));
+        when(roadmapRepository.findByIdForUpdate(1L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireReadable(any(), any(), any())).thenReturn(Mono.empty());
         when(accessGuard.requireTeamManagerOrAdmin(any(), any(), any())).thenReturn(Mono.empty());
     }
