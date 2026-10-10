@@ -1,12 +1,6 @@
 package com.cowork.channel.global.config
 
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.EnableConfigurationProperties
-import org.springframework.context.annotation.Configuration
-
-@Configuration
-@EnableConfigurationProperties(OAuthProperties::class)
-class OAuthPropertiesConfig
 
 @ConfigurationProperties(prefix = "account-share.oauth")
 data class OAuthProperties(
