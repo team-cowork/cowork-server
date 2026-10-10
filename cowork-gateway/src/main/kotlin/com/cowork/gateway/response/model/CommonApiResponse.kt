@@ -18,12 +18,6 @@ data class CommonApiResponse<T>(
             data = data,
         )
 
-        fun noContent(): CommonApiResponse<Nothing> = CommonApiResponse(
-            status = HttpStatus.NO_CONTENT.name,
-            code = HttpStatus.NO_CONTENT.value(),
-            message = "No Content",
-        )
-
         fun error(httpStatus: HttpStatus, message: String): CommonApiResponse<Nothing> = CommonApiResponse(
             status = httpStatus.name,
             code = httpStatus.value(),
