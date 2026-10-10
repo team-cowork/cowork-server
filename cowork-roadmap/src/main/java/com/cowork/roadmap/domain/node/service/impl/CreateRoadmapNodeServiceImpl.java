@@ -29,7 +29,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
     @Override
     @Transactional
     public Mono<NodeResDto> execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
-        return roadmapLookupSupport.findRoadmapOrThrow(roadmapId)
+        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId)
                 .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
                         .then(validateParent(roadmapId, request.parentId()))
                         .then(nextPosition(roadmapId, request.parentId()))
@@ -62,9 +62,9 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
     }
 
     private Mono<Integer> nextPosition(Long roadmapId, Long parentId) {
-        Mono<Long> count = parentId == null
-                ? nodeRepository.countByRoadmapIdAndParentIdIsNull(roadmapId)
-                : nodeRepository.countByRoadmapIdAndParentId(roadmapId, parentId);
-        return count.map(Long::intValue);
+        Mono<Long> next = parentId == null
+                ? nodeRepository.findNextRootPosition(roadmapId)
+                : nodeRepository.findNextChildPosition(roadmapId, parentId);
+        return next.map(Long::intValue);
     }
 }
