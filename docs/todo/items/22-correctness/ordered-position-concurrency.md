@@ -2,7 +2,11 @@
 
 - **서비스**: cowork-channel, cowork-project, cowork-roadmap
 - **우선순위**: 🟠 중간
-- **현재 상태**: roadmap node·reference는 로드맵 행 잠금 아래 `MAX(position) + 1`로 할당하고 node reorder·삭제와 과제 생성도 같은 잠금을 먼저 잡는다. 채널·프로젝트의 생성·reorder 공통 직렬화와 기존 중복 정리·유일성 제약은 남아 있다.
+- **현재 상태**: roadmap node·reference는 로드맵 행 잠금 아래 `MAX(position) + 1`로 할당하고 node 수정·reorder·삭제와 과제 생성도 같은 잠금을 먼저 잡는다. 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈 모두의 기존 중복 정리·유일성 제약은 남아 있다.
+
+> **2026-10-10 진척:** 로드맵 잠금 전에 노드를 먼저 읽는 reference 생성·node 수정은 REPEATABLE READ snapshot 때문에 잠금 이후 조회가
+> 이전 값을 볼 수 있어 `READ COMMITTED`로 실행하고 잠금 이후 노드를 다시 읽는다. 다음 position 조회에 `FOR SHARE`를 붙이는 방식은
+> 빈 scope의 gap lock이 서로 다른 로드맵의 insert와 교착되어 쓰지 않는다. 실제 경합 결과는 아직 수동 확인하지 않았다.
 
 ## 문제
 
@@ -26,7 +30,7 @@ unique만 추가하면 여러 행을 재정렬하는 중간 상태에서 충돌�
 
 - [Channel reorder](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channel/service/impl/ReorderTeamChannelsServiceImpl.kt#L34): 기존 행을 잠그고 읽을 수 있는 채널의 position slot을 보존한다. MAX 기반 생성과 공유하는 scope 잠금은 없다.
 - [Project 생성](../../../../cowork-project/src/main/kotlin/com/cowork/project/domain/project/service/impl/CreateProjectServiceImpl.kt#L35): MAX(position) + 1을 사용하며 scope별 unique 제약·allocator가 없다.
-- [로드맵 잠금](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/roadmap/repository/RoadmapRepository.java): node 생성·reorder·삭제, reference·과제 생성이 로드맵 행을 노드 행보다 먼저 잠근다. 기존 중복 정리와 유일성 제약은 없다.
+- [로드맵 잠금](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/roadmap/repository/RoadmapRepository.java#L26): node 생성·수정·reorder·삭제, reference·과제 생성이 로드맵 행을 노드 행보다 먼저 잠근다. 기존 중복 정리와 유일성 제약은 없다.
 
 ## 할 일
 
