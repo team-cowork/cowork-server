@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -342,6 +343,17 @@ func indexExists(ctx context.Context, db *gorm.DB, table, index string) (bool, e
 	return count > 0, err
 }
 
+func indexColumnsEqual(ctx context.Context, db *gorm.DB, table, index string, columns ...string) (bool, error) {
+	var actual []string
+	err := db.WithContext(ctx).Raw(
+		`SELECT column_name FROM information_schema.statistics
+		 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
+		 ORDER BY seq_in_index`,
+		table, index,
+	).Scan(&actual).Error
+	return slices.Equal(actual, columns), err
+}
+
 func uniqueSingleColumnIndexExists(ctx context.Context, db *gorm.DB, table, index, column string) (bool, error) {
 	var count int64
 	err := db.WithContext(ctx).Raw(
@@ -480,6 +492,13 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				},
 			},
 		}, true
+	case 9:
+		return []tableExpectation{
+			{
+				name:    "tb_notification_delivery_retry",
+				columns: []string{"status", "updated_at"},
+			},
+		}, true
 	default:
 		return nil, false
 	}
@@ -502,6 +521,13 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 			return false, true, err
 		}
 		return !oldComposite, true, nil
+	}
+	if version == 9 {
+		indexed, err := indexColumnsEqual(
+			ctx, db, "tb_notification_delivery_retry",
+			"idx_tb_notification_delivery_retry_status_updated_at", "status", "updated_at",
+		)
+		return indexed, true, err
 	}
 	if version != 6 {
 		return true, true, nil
