@@ -17,7 +17,7 @@ export type ProjectionDatasetPartitionOffset = {
 /** Kafka checkpoint와 실제 Mongo projection collection을 묶는 durable dataset identity. */
 @Schema({ timestamps: true, versionKey: false, collection: 'projection_datasets' })
 export class ProjectionDataset {
-    @Prop({ required: true, unique: true }) stream!: string;
+    @Prop({ required: true }) stream!: string;
     @Prop({ required: true }) groupId!: string;
     @Prop({ required: true }) topic!: string;
     @Prop({ required: true }) sourceGeneration!: string;
