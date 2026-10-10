@@ -37,9 +37,9 @@ interface ProjectRepository :
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
     @Query(
-        value = "SELECT DISTINCT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
+        value = "SELECT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
             "WHERE m.userId = :userId",
-        countQuery = "SELECT COUNT(DISTINCT p) FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
+        countQuery = "SELECT COUNT(p) FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
             "WHERE m.userId = :userId",
     )
     fun findProjectsByMemberUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
