@@ -1,6 +1,7 @@
 package com.cowork.roadmap.domain.node.service.impl;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -24,13 +25,18 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
     private final RoadmapLookupSupport roadmapLookupSupport;
     private final RoadmapNodeLookupSupport nodeLookupSupport;
 
+    /**
+     * 저장이 position까지 전체 행을 덮어쓰므로 재정렬과 같은 로드맵 잠금 아래에서 노드를 다시 읽어 수정한다. 잠금 전에 노드를 읽으므로
+     * READ COMMITTED로 실행해 잠금 이후 조회가 최신 커밋을 보게 한다.
+     */
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Mono<NodeResDto> execute(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request) {
         return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                        .flatMap(
-                                roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
+                .flatMap(found -> roadmapLookupSupport.findRoadmapForUpdateOrThrow(found.getRoadmapId())
+                        .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
+                                .then(nodeLookupSupport.findNodeOrThrow(nodeId))
+                                .flatMap(node -> {
                                     RoadmapNode updated = node.toBuilder()
                                             .title(request.title() != null ? request.title() : node.getTitle())
                                             .content(request.content() != null ? request.content() : node.getContent())
@@ -44,8 +50,8 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
                                     updated.copyAuditFrom(node);
                                     updated.setLastModifiedBy(userId);
                                     return nodeRepository.save(updated);
-                                }))
-                                        .flatMap(saved -> nodeLookupSupport.loadReferences(saved.getId())
-                                                .map(refs -> NodeResDto.of(saved, refs)))));
+                                })
+                                .flatMap(saved -> nodeLookupSupport.loadReferences(saved.getId())
+                                        .map(refs -> NodeResDto.of(saved, refs)))));
     }
 }
