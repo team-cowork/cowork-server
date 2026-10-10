@@ -452,7 +452,9 @@ jobs:
         run: |
           status="success"
           color="0x4CAF50"
+          ran="false"
           for res in ${RESULTS}; do
+            [ "$res" = "skipped" ] || ran="true"
             if [ "$res" = "failure" ]; then
               status="failure"
               color="0xFF4C4C"
@@ -462,6 +464,14 @@ jobs:
               color="0xFFA500"
             fi
           done
+
+          # 상위 CI 실패 등으로 job이 하나도 실행되지 않으면 배포 성공으로 알리지 않는다.
+          run_desc="executed"
+          if [ "${ran}" = "false" ]; then
+            status="cancelled"
+            color="0xFFA500"
+            run_desc="not executed"
+          fi
 
           if [ "${SHOULD_RELEASE}" = "true" ]; then
             release_desc="v${VERSION} (created)"
@@ -474,6 +484,7 @@ jobs:
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           echo "color=${color}" >> "$GITHUB_OUTPUT"
           echo "release_desc=${release_desc}" >> "$GITHUB_OUTPUT"
+          echo "run_desc=${run_desc}" >> "$GITHUB_OUTPUT"
 
       - name: Send Discord Notification
         uses: sarisia/actions-status-discord@v1
@@ -486,6 +497,7 @@ jobs:
             `${{ github.event.workflow_run.head_branch || 'main' }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Release:** ${{ steps.status.outputs.release_desc }}
             **Operation:** ${{ inputs.operation || 'release' }}
+            **Upstream CI:** ${{ github.event.workflow_run.conclusion || 'n/a' }} · **Run:** ${{ steps.status.outputs.run_desc }}
             **Target:** ${{ needs.manual-request.outputs.services-list || needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
             **Prepare:** ${{ needs.prepare.result }}
