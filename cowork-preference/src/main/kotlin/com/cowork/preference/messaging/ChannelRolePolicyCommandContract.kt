@@ -143,7 +143,6 @@ object ChannelRolePolicyCommandParser {
 
     fun policyKey(teamId: Long, channelId: Long, roleId: Long): String = "policy:$teamId:$channelId:$roleId"
 
-    const val MESSAGE_READ_PERMISSION = ChannelRolePolicyPermissions.MESSAGE_READ
     private val REQUEST_HASH = Regex("^[0-9a-f]{64}$")
 }
 

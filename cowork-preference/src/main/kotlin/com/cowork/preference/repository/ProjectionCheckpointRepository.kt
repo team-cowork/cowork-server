@@ -77,12 +77,6 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
         ProjectionAssignmentResult(seekOffsets, invalidCheckpoint)
     }
 
-    suspend fun advance(checkpoint: ProjectionCheckpoint) {
-        withTransaction(serializeOutboxWrites = false) { connection ->
-            upsertMonotonic(connection, checkpoint)
-        }
-    }
-
     suspend fun completeSnapshot(checkpoint: ProjectionCheckpoint, markerOffset: Long) {
         withTransaction(serializeOutboxWrites = false) { connection ->
             val updated = connection.preparedQuery(
