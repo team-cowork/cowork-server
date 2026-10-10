@@ -8,6 +8,7 @@ import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
 import { Request } from 'express';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { LoggerModule } from 'nestjs-pino';
+import { multistream } from 'pino';
 import { ChatModule } from './chat/chat.module';
 import { HealthController } from './health.controller';
 import { AuthGuard } from './common/guard/auth.guard';
@@ -41,19 +42,32 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                 if (!loggerEnabled) {
                     return { pinoHttp: { level: 'silent' } };
                 }
-                const logDir = (configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR) ?? `${process.cwd()}/build/logs/cowork/chat`;
+                const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
                 const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
+                const level = nodeEnv === 'production' ? 'info' : 'debug';
+                // 운영 수집기는 Docker stdout을 읽으므로 stdout은 항상 쓴다. 파일은 로그 디렉터리를 지정한 로컬 이미지에서만 함께 쓴다.
                 const createLogStream = () => {
+                    if (!logDir) {
+                        return process.stdout;
+                    }
                     try {
                         mkdirSync(logDir, { recursive: true });
-                        return createWriteStream(`${logDir}/app.log`, { flags: 'a' });
                     } catch {
                         return process.stdout;
                     }
+                    const file = createWriteStream(`${logDir}/app.log`, { flags: 'a' });
+                    // 파일 쓰기 실패가 프로세스를 종료해 stdout 로그까지 끊기지 않게 한다.
+                    file.on('error', error => {
+                        process.stderr.write(`cowork-chat file log disabled: ${error.message}\n`);
+                    });
+                    return multistream([
+                        { level, stream: process.stdout },
+                        { level, stream: file },
+                    ]);
                 };
                 return {
                     pinoHttp: {
-                        level: nodeEnv === 'production' ? 'info' : 'debug',
+                        level,
                         stream: createLogStream(),
                         autoLogging: {
                             ignore(request) {
