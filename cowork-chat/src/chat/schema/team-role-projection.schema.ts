@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type TeamRoleProjectionDocument = HydratedDocument<TeamRoleProjection>;
 
 /** `preference.team-role.changed`의 role 정의 projection. */
 @Schema({ timestamps: true, versionKey: false })
