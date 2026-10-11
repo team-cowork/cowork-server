@@ -20,4 +20,9 @@ public class RoadmapLookupSupport {
         return roadmapRepository.findById(roadmapId)
                 .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
     }
+
+    public Mono<Roadmap> findRoadmapForUpdateOrThrow(Long roadmapId) {
+        return roadmapRepository.findByIdForUpdate(roadmapId)
+                .switchIfEmpty(Mono.error(new ExpectedException("로드맵을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
+    }
 }

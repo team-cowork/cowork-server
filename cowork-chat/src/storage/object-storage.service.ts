@@ -129,20 +129,6 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         return this.buildPublicUrl(objectKey);
     }
 
-    async objectExists(objectKey: string): Promise<boolean> {
-        try {
-            await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
-            return true;
-        } catch (error) {
-            if (isNotFoundError(error)) {
-                return false;
-            }
-
-            this.logger.error(`S3 HeadObject failed [bucket=${this.config.bucket}, key=${objectKey}]`, error);
-            throw new InternalServerErrorException('파일 존재 여부 확인 중 오류가 발생했습니다');
-        }
-    }
-
     async removeObject(objectKey: string): Promise<void> {
         await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
     }
