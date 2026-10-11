@@ -3,11 +3,13 @@ package com.cowork.project.domain.github.service.impl
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubLabelPolicyReqDto
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.UpdateGithubLabelPolicyService
+import com.cowork.project.domain.githubPreference.entity.GithubRepoSettingOperationStatus
 import com.cowork.project.domain.githubPreference.event.GITHUB_REPO_SETTING_COMMAND_TOPIC
 import com.cowork.project.domain.githubPreference.event.GithubRepoSettingValue
 import com.cowork.project.domain.githubPreference.event.UpdateGithubRepoSettingCommand
 import com.cowork.project.domain.githubPreference.presentation.data.response.GithubLabelPolicyOperationAcceptedResDto
-import com.cowork.project.domain.githubPreference.repository.GithubRepoSettingOperationRepository
+import com.cowork.project.domain.githubPreference.repository.GithubRepoSettingOperationSubmissionRepository
+import com.cowork.project.domain.githubPreference.repository.GithubRepoSettingOperationSubmissionRepository.InsertResult
 import com.cowork.project.global.outbox.OutboxWriter
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -19,7 +21,7 @@ import java.util.UUID
 @Service
 class UpdateGithubLabelPolicyServiceImpl(
     private val repoAccessResolver: GithubRepoAccessResolver,
-    private val operationRepository: GithubRepoSettingOperationRepository,
+    private val submissionRepository: GithubRepoSettingOperationSubmissionRepository,
     private val outboxWriter: OutboxWriter,
 ) : UpdateGithubLabelPolicyService {
 
@@ -33,7 +35,7 @@ class UpdateGithubLabelPolicyServiceImpl(
     ): GithubLabelPolicyOperationAcceptedResDto {
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val operationId = UUID.randomUUID().toString()
-        operationRepository.insertPendingIfAbsent(
+        val insertion = submissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             projectId = projectId,
@@ -41,27 +43,32 @@ class UpdateGithubLabelPolicyServiceImpl(
             requestedBy = userId,
             requestedAutoApply = request.autoApply,
         )
-        val operation = operationRepository.findByRequesterAndIdempotencyKeyForUpdate(userId, normalizedKey)
-            ?: error("접수한 GitHub 저장소 설정 작업을 찾을 수 없습니다.")
-        if (!operation.matches(projectId, repoId, userId, request.autoApply)) {
-            throw ExpectedException(
-                "같은 Idempotency-Key를 다른 설정 변경 요청에 사용할 수 없습니다.",
-                HttpStatus.CONFLICT,
-            )
+        when (insertion) {
+            InsertResult.Inserted -> Unit
+
+            is InsertResult.Existing -> {
+                val operation = insertion.operation
+                if (!operation.matches(projectId, repoId, userId, request.autoApply)) {
+                    throw ExpectedException(
+                        "같은 Idempotency-Key를 다른 설정 변경 요청에 사용할 수 없습니다.",
+                        HttpStatus.CONFLICT,
+                    )
+                }
+                return GithubLabelPolicyOperationAcceptedResDto.of(operation)
+            }
         }
-        if (operation.operationId != operationId) return GithubLabelPolicyOperationAcceptedResDto.of(operation)
 
         repoAccessResolver.resolveForModifyForUpdate(userId, projectId, repoId)
         val command = UpdateGithubRepoSettingCommand(
-            operationId = operation.operationId,
-            idempotencyKey = operation.idempotencyKey,
+            operationId = operationId,
+            idempotencyKey = normalizedKey,
             repoId = repoId,
             settings = GithubRepoSettingValue(request.autoApply),
             requestedBy = userId,
             occurredAt = Instant.now(),
         )
         outboxWriter.enqueue(GITHUB_REPO_SETTING_COMMAND_TOPIC, repoId.toString(), command)
-        return GithubLabelPolicyOperationAcceptedResDto.of(operation)
+        return GithubLabelPolicyOperationAcceptedResDto(operationId, GithubRepoSettingOperationStatus.PENDING)
     }
 
     private fun normalizeIdempotencyKey(raw: String): String {
