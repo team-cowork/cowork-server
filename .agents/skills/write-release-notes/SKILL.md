@@ -15,7 +15,7 @@ For each candidate, identify the affected consumer, their task, the behavior bef
 
 Group evidence by the resulting consumer change before writing bullets. Several PRs may support one item; one PR may support several distinct outcomes. Consolidate follow-up fixes and overlapping work into the final behavior. Neither PR count nor historical bullet count determines the length of the notes.
 
-Write from the consumer's perspective: explain the changed task or experience in terms they understand. Mention implementation details or numbers only when they explain a supported capability, a consumer-facing limit, compatibility, or a required action. An internal batch size of 1–5000 is not itself a release-note item. If consumers can newly submit multiple items together, describe that capability; if only internal processing changed, omit it. Read the examples and editorial check in [references/release-workflow.md](references/release-workflow.md).
+Lead each sentence with the affected task or experience and describe its concrete change in language the consumer understands. Adding “users can” to an implementation summary does not make it consumer-oriented: the sentence must explain what becomes possible, which problem is resolved, or what the consumer must do differently. Retain technical terms and numbers when they help the consumer use the change or understand a public limit, compatibility requirement, or required action. Read the examples and editorial check in [references/release-workflow.md](references/release-workflow.md).
 
 ## Preserve the historical presentation
 
