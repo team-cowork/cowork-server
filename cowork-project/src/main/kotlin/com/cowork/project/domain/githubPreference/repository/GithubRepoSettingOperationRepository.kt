@@ -42,6 +42,16 @@ interface GithubRepoSettingOperationRepository : JpaRepository<GithubRepoSetting
         @Param("idempotencyKey") idempotencyKey: String,
     ): GithubRepoSettingOperation?
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query(
+        "SELECT operation FROM GithubRepoSettingOperation operation " +
+            "WHERE operation.requestedBy = :requestedBy AND operation.idempotencyKey = :idempotencyKey",
+    )
+    fun findByRequesterAndIdempotencyKeyForShare(
+        @Param("requestedBy") requestedBy: Long,
+        @Param("idempotencyKey") idempotencyKey: String,
+    ): GithubRepoSettingOperation?
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT operation FROM GithubRepoSettingOperation operation WHERE operation.operationId = :operationId")
     fun findByIdForUpdate(@Param("operationId") operationId: String): GithubRepoSettingOperation?
