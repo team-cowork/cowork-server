@@ -1,4 +1,4 @@
-package com.cowork.gateway.config
+package com.cowork.gateway.security.config
 
 import org.springframework.cloud.netflix.eureka.http.EurekaClientHttpRequestFactorySupplier
 import org.springframework.cloud.netflix.eureka.http.RestClientDiscoveryClientOptionalArgs

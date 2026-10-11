@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type ChannelRolePolicyProjectionDocument = HydratedDocument<ChannelRolePolicyProjection>;
 
 /** `preference.channel-role-policy.changed`의 role×channel 정책 projection. */
 @Schema({ timestamps: true, versionKey: false })

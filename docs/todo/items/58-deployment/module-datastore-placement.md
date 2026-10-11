@@ -2,15 +2,15 @@
 
 - **서비스**: MySQL, Redis, cowork-db VM, 모든 모듈 VM
 - **우선순위**: 🟢 검토
-- **현재 상태**: 모든 서비스가 cowork-db의 단일 MySQL·Redis를 공유하며, 인프라 담당과 합의한 모듈별 배치와 다르다
+- **현재 상태**: 2026-10-02의 중앙 DB 관측과 모듈별 배치 제안을 재검토해야 하며, 현재 VM별 배치·사양과 운영 합의는 저장소·PR 기록만으로 확정할 수 없다.
 
 ## 문제
 
-현재 운영 MySQL 하나에 7개 DB(`cowork_<service>`)가 한 계정으로 들어 있다(`docs/deployment.md`). Redis, PostgreSQL, MongoDB, Elasticsearch, Kafka, Vault, Config, 모니터링도 모두 cowork-db에 모여 있다. 2026-10-02 복구 시 authorization, notification, user의 DB 접속 대상은 모두 cowork-db의 MySQL이었다.
+2026-10-02 복구 기록은 MySQL의 7개 DB와 주요 인프라가 cowork-db에 모여 있으며 authorization·notification·user가 중앙 MySQL을 사용했다고 기술한다. 현재 `docs/deployment.md`는 VM별 실제 자원 목록을 확정하지 않는다. 배포 코드도 `MYSQL_HOST`·`REDIS_HOST` 등을 외부 문서에서 공급받으므로 현재 실제 배치는 운영 자료로 다시 확인한다.
 
-인프라 담당과 2026-05에 합의한 구성은 다음과 같다. MySQL·Redis는 각 모듈 VM에 둔다. Kafka, Vault, Config/Eureka, 모니터링, 오브젝트 스토리지는 중앙에 둔다. VM 사양이 부족해 중앙 DB를 써야 하면 인프라 담당에게 보고해 사양을 조정한다. 현재 구성은 이 합의를 따르지 않고 있고, 사양 보고도 되어 있지 않다.
+기존 TODO에 기록된 2026-05 합의 내용은 다음과 같다. 이번 점검에서 합의 원문이나 이후 변경 승인 기록은 확인하지 않았다. MySQL·Redis는 각 모듈 VM에 둔다. Kafka, Vault, Config/Eureka, 모니터링, 오브젝트 스토리지는 중앙에 둔다. VM 사양이 부족해 중앙 DB를 써야 하면 인프라 담당에게 보고해 사양을 조정한다. 이후 배치 변경과 예외 보고 여부는 확인이 필요하다.
 
-단일 DB VM은 디스크(여유 약 5%)와 장애 범위가 집중되어 있다. 원격 DB 왕복은 projection 재생 처리량에도 영향을 준다. 반대로 모듈별 배치는 VM 사양, 백업, 운영 부담을 늘린다.
+중앙 배치는 디스크와 장애 범위를 집중시킨다. 여유 약 5%는 2026-10-02의 기록이며 현재 사용량은 확인하지 않았다. 원격 DB 왕복은 projection 재생 처리량에도 영향을 준다. 반대로 모듈별 배치는 VM 사양, 백업, 운영 부담을 늘린다.
 
 ## 선택지
 
@@ -33,3 +33,9 @@
 ## 완료 조건
 
 - 운영 데이터 저장소 배치가 인프라 담당과 합의된 구성과 일치하거나, 예외 사유가 보고되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#376](https://github.com/team-cowork/cowork-server/pull/376).
+- [대조 코드](../../../../deploy/prod/inventory.json): 배포 코드의 외부 host 설정과 VM별 배포 모델은 특정 datastore 배치를 강제하지 않는다. 10월 2일 관측을 현재 전체 배치로 확정할 수 없다.
+- 판정: **운영 결정**. 현재 VM·DB·Redis 자원 조사와 배치·예외 합의를 남은 범위로 유지한다.

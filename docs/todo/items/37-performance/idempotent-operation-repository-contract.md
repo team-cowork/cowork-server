@@ -36,3 +36,9 @@ MySQL/JDBC affected-row 값만으로 신규와 duplicate no-op을 구분하면 d
 - 신규 경로의 추가 조회가 제거되어 있고 호출자가 driver의 update count를 해석하지 않는다.
 - 중복·경합은 실제 승자 operation을 기준으로 판단하며 outbox 원자성이 유지되어 있다.
 - 세 모듈의 적용 범위가 정해져 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#314](https://github.com/team-cowork/cowork-server/pull/314).
+- [대조 코드](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channelRolePolicy/operation/ChannelRolePolicyCommandSubmission.kt): channel·team·project 모두 insertPendingIfAbsent 뒤 canonical 잠금 조회를 유지한다. 정확성 보장은 이미 있고 신규 경로 조회 최적화는 없다.
+- 판정: **미구현**. 신규·기존 구분 repository 결과 계약과 안전한 조회 생략을 남은 범위로 유지한다.

@@ -46,11 +46,11 @@ class CreateNodeReferenceServiceTest {
             nodeLookupSupport);
 
     @Test
-    void createReference_usesExistingCountAsPosition() {
+    void createReference_usesNextPositionAfterMax() {
         when(nodeRepository.findById(5L)).thenReturn(Mono.just(node(5L, 10L)));
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(referenceRepository.countByNodeId(5L)).thenReturn(Mono.just(3L));
+        when(referenceRepository.findNextPosition(5L)).thenReturn(Mono.just(3L));
         when(referenceRepository.save(any())).thenAnswer(invocation -> {
             RoadmapNodeReference ref = invocation.getArgument(0);
             RoadmapNodeReference saved = ref.toBuilder().id(100L).build();

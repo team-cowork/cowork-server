@@ -36,11 +36,6 @@ class GithubRepoAccessResolver(
         return parseLinkedRepoUrl(repoLink.githubRepoUrl)
     }
 
-    fun requireStateMutationAccess(userId: Long, projectId: Long) {
-        val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
-        projectAccessGuard.requireProjectModifier(project, userId)
-    }
-
     private fun parseLinkedRepo(projectId: Long, repoId: Long): GithubRepoRef {
         val repoLink = projectGithubRepoRepository.findByIdAndProjectId(repoId, projectId)
             ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

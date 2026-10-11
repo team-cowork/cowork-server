@@ -38,7 +38,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
             return Mono.error(new ExpectedException("PROJECT 할당에는 projectId가 필요합니다.", HttpStatus.BAD_REQUEST));
         }
 
-        return roadmapLookupSupport.findRoadmapOrThrow(request.roadmapId())
+        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId())
                 .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
                         .then(accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId()))
                         .then(validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId()))

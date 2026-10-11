@@ -44,3 +44,9 @@
 - GLOBAL 관리가 다른 팀의 진행 기록을 임의로 삭제하지 않는 정책으로 동작한다.
 - 삭제된 노드를 참조하는 과제가 남아 있지 않는다.
 - 정책 단위 테스트와 실제 데이터·잠금 확인 결과가 기록되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#419](https://github.com/team-cowork/cowork-server/pull/419).
+- [대조 코드](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/node/service/impl/DeleteRoadmapNodeServiceImpl.java): 연결 과제 409 거부·잠금·V7은 구현되었다. PR 리뷰에서 남긴 GLOBAL 노드와 타 팀 과제 보존 정책은 결정되지 않았다.
+- 판정: **정책·구현**. GLOBAL 관리·과제 보존 정책과 실제 데이터 전환을 남은 범위로 유지한다.

@@ -68,11 +68,3 @@ export function parseEventTime(value: unknown): ParsedEventTime | null {
         sourceVersion: mongo.Long.fromBigInt(epochNanos),
     };
 }
-
-/**
- * 상태 이벤트의 발생 시각을 일관된 UTC Date로 변환한다.
- * Kotlin `LocalDateTime`의 legacy offset-less 값은 실행 환경 TZ에 의존하지 않도록 UTC로 해석한다.
- */
-export function parseEventOccurredAt(value: unknown): Date | null {
-    return parseEventTime(value)?.occurredAt ?? null;
-}

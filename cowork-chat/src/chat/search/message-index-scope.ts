@@ -36,11 +36,6 @@ export function isSearchIndexed(message: IndexableMessage): boolean {
         && message.type !== 'SYSTEM';
 }
 
-/** 색인 대상이면 `PENDING`, 아니면 `SKIPPED`를 돌려준다. */
-export function initialSearchIndexStatus(message: IndexableMessage): SearchIndexStatus {
-    return isSearchIndexed(message) ? 'PENDING' : 'SKIPPED';
-}
-
 export type MessageIndexSource = {
     _id: { toString(): string };
     channelId: number;

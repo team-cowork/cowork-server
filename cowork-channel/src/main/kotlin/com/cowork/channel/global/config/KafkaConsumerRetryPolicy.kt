@@ -9,6 +9,4 @@ internal object KafkaConsumerRetryPolicy {
     fun stateProjectionBackOff(): FixedBackOff = FixedBackOff(RETRY_INTERVAL_MS, FixedBackOff.UNLIMITED_ATTEMPTS)
 
     fun commandResultBackOff(): FixedBackOff = FixedBackOff(RETRY_INTERVAL_MS, RESULT_RETRY_MAX_ATTEMPTS)
-
-    fun deadLetterTopic(sourceTopic: String): String = "$sourceTopic-dlt"
 }

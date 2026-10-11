@@ -9,7 +9,6 @@ import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.TeamRoleCommand
 import com.cowork.preference.messaging.TeamRoleCommandEnvelope
 import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
-import com.cowork.preference.messaging.TeamRoleCommandRoleInput
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository

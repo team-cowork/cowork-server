@@ -102,20 +102,7 @@ func NewConsumer(
 	}
 }
 
-// NewConsumerForTest returns a Consumer with no Kafka reader — for unit tests only.
-func NewConsumerForTest(svc NotificationService, teamNames TeamNameResolver, userNames UserNameResolver) *Consumer {
-	return &Consumer{svc: svc, teamNames: teamNames, userNames: userNames}
-}
-
-// HandleForTest exposes handle for unit testing.
-func (c *Consumer) HandleForTest(ctx context.Context, msg segkafka.Message) {
-	_ = c.handle(ctx, ctx, msg, nil)
-}
-
 func (c *Consumer) Start(ctx context.Context) {
-	if c.reader == nil {
-		panic("kafka: Consumer.Start called on test-only Consumer with nil reader")
-	}
 	for {
 		fetchLease, ok := c.acquireLease(ctx)
 		if !ok {
@@ -206,9 +193,6 @@ func (c *Consumer) handleWithRetry(
 }
 
 func (c *Consumer) Close() error {
-	if c.reader == nil {
-		return nil
-	}
 	return c.reader.Close()
 }
 
