@@ -41,10 +41,6 @@ export class MessageResponseDto {
     @ApiPropertyOptional({ type: MentionedMessageDto, nullable: true, description: '스레드 답글의 부모 메시지 정보 (최상위 메시지이거나 스레드가 아니면 null)' }) mentionedMessage?: MentionedMessageDto | null;
 }
 
-export class MessageListResponseDto {
-    @ApiProperty({ type: [MessageResponseDto] }) messages!: MessageResponseDto[];
-}
-
 export class DeleteMessageResponseDto {
     @ApiProperty() channelId!: number;
     @ApiProperty() messageId!: string;
