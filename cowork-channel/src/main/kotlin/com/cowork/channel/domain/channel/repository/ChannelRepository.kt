@@ -56,7 +56,7 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +
-            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) " +
+            "AND c.name LIKE CONCAT('%', :q, '%') " +
             "AND (c.isPrivate = false OR EXISTS (" +
             "SELECT cm.id FROM ChannelMember cm " +
             "WHERE cm.channelId = c.id AND cm.userId = :userId" +
