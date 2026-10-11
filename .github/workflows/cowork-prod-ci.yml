@@ -2010,7 +2010,6 @@ jobs:
             const pr = context.payload.pull_request;
             const issue_number = pr.number;
             const baseRef = pr.base.ref;
-            const prAuthor = pr.user.login;
             const marker = '<!-- contrib-delta-bot -->';
             const sh = (c) => execSync(c, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 
@@ -2085,55 +2084,58 @@ jobs:
               for (const email of c.coAuthorEmails) if (!sampleSha.has(email)) sampleSha.set(email, c.sha);
             }
             const coAuthorEmails = new Set(all.flatMap(c => c.coAuthorEmails));
-            const noreply = (e) => {
-              const m = e.match(/^(?:\d+\+)?([^@]+)@users\.noreply\.github\.com$/);
-              return m ? m[1] : null;
-            };
             const FAKE_TLDS = new Set(['test', 'invalid', 'example', 'localhost', 'local', 'internal', 'fake', 'nowhere']);
-            const isFake = (e) => FAKE_TLDS.has(e.split('.').pop());
-            const emailLogin = new Map();
+            const isFake = (email) => FAKE_TLDS.has(email.split('.').pop());
+            const emailAccountIds = new Map();
+            const accountLogins = new Map();
+            const noreplyAccounts = new Map();
             for (const [email, sha] of sampleSha) {
-              let login = noreply(email);
-              if (!login && email.includes('[bot]')) login = email.split('@')[0];
-              if (!login && !isFake(email)) {
-                try {
-                  if (coAuthorEmails.has(email)) {
-                    const data = await github.graphql(`
-                      query($owner: String!, $repo: String!, $oid: GitObjectID!) {
-                        repository(owner: $owner, name: $repo) {
-                          object(oid: $oid) {
-                            ... on Commit {
-                              authors(first: 100) { nodes { email user { login } } }
-                            }
+              if (isFake(email)) continue;
+              try {
+                let actor = null;
+                const accountId = email.match(/^(\d+)\+[^@]+@users\.noreply\.github\.com$/)?.[1];
+                if (accountId) {
+                  // The account ID survives renames; the username in the email does not.
+                  if (!noreplyAccounts.has(accountId)) {
+                    const { data } = await github.request('GET /user/{account_id}', { account_id: accountId });
+                    if (String(data.id) !== accountId) throw new Error('GitHub returned a different account ID');
+                    noreplyAccounts.set(accountId, data);
+                  }
+                  actor = noreplyAccounts.get(accountId);
+                } else if (coAuthorEmails.has(email)) {
+                  const data = await github.graphql(`
+                    query($owner: String!, $repo: String!, $oid: GitObjectID!) {
+                      repository(owner: $owner, name: $repo) {
+                        object(oid: $oid) {
+                          ... on Commit {
+                            authors(first: 100) { nodes { email user { login databaseId } } }
                           }
                         }
                       }
-                    `, { owner, repo, oid: sha });
-                    const actors = data.repository.object?.authors.nodes || [];
-                    login = actors.find(a => a.email.toLowerCase() === email)?.user?.login || null;
-                  } else {
-                    const r = await github.rest.repos.getCommit({ owner, repo, ref: sha });
-                    login = r.data.author ? r.data.author.login : null;
-                  }
-                } catch (e) {
-                  if (e.status === 403 || e.status === 429) core.warning(`GitHub API rate limit while verifying ${email}`);
-                  else core.warning(`GitHub API error while verifying ${email}: ${e.message}`);
-                  login = null;
+                    }
+                  `, { owner, repo, oid: sha });
+                  const authors = data.repository.object?.authors.nodes || [];
+                  const user = authors.find(a => a.email.toLowerCase() === email)?.user;
+                  if (user) actor = { id: user.databaseId, login: user.login };
+                } else {
+                  const { data } = await github.rest.repos.getCommit({ owner, repo, ref: sha });
+                  actor = data.author;
                 }
+                if (actor?.id && actor.login) {
+                  const id = String(actor.id);
+                  emailAccountIds.set(email, id);
+                  accountLogins.set(id, actor.login);
+                }
+              } catch (error) {
+                if (error.status === 404) {
+                  core.warning(`No GitHub account could be resolved for ${email}`);
+                  continue;
+                }
+                // Keep the previous comment when lookup fails instead of publishing wrong attribution.
+                throw new Error(`Unable to verify the contribution account for ${email}`, { cause: error });
               }
-              emailLogin.set(email, login);
             }
-            const canon = new Map();
-            for (const [email, login] of emailLogin) {
-              if (!login) continue;
-              const key = login.toLowerCase();
-              const prev = canon.get(key);
-              if (prev === undefined || (noreply(email) === null && prev !== login)) canon.set(key, login);
-            }
-            for (const [email, login] of emailLogin) {
-              emailLogin.set(email, login ? canon.get(login.toLowerCase()) : null);
-            }
-            for (const c of prCommits) if (!emailLogin.get(c.email)) emailLogin.set(c.email, prAuthor);
+            const emailLogin = new Map([...emailAccountIds].map(([email, id]) => [email, accountLogins.get(id)]));
 
             const fullCats = modules.concat(['ai-harness', 'etc']);
             const aggregate = (commits, metric) => {
