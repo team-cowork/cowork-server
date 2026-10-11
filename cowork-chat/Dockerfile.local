@@ -16,6 +16,8 @@ RUN --mount=type=cache,id=npm-chat-runtime,target=/root/.npm \
     npm ci --omit=dev
 COPY --chown=app:app --from=builder /app/dist ./dist
 COPY --chown=app:app public ./public
+ENV COWORK_CHAT_LOG_DIR=/var/log/cowork/chat
+RUN mkdir -p /var/log/cowork/chat && chown -R app:app /var/log/cowork
 USER app
 EXPOSE 8087
 ENV PORT=8087

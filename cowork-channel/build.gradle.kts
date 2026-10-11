@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261007.0"
+version = "20261011.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
@@ -40,7 +40,6 @@ dependencies {
         exclude(group = "org.springdoc")
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
-    implementation(libs.logstash.logback.encoder)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.mockk)

@@ -53,13 +53,10 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query("SELECT COALESCE(MAX(c.position), -1) FROM Channel c WHERE c.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
-    @Query("SELECT c.id FROM Channel c WHERE c.teamId = :teamId")
-    fun findAllIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
-
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +
-            "AND LOWER(c.name) LIKE LOWER(CONCAT('%', :q, '%')) " +
+            "AND c.name LIKE CONCAT('%', :q, '%') " +
             "AND (c.isPrivate = false OR EXISTS (" +
             "SELECT cm.id FROM ChannelMember cm " +
             "WHERE cm.channelId = c.id AND cm.userId = :userId" +

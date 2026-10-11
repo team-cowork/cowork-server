@@ -3,19 +3,6 @@
 ::backdrop,
 :after,
 :before {
-    --tw-border-spacing-x: 0;
-    --tw-border-spacing-y: 0;
-    --tw-translate-x: 0;
-    --tw-translate-y: 0;
-    --tw-rotate: 0;
-    --tw-skew-x: 0;
-    --tw-skew-y: 0;
-    --tw-scale-x: 1;
-    --tw-scale-y: 1;
-    --tw-pan-x: ;
-    --tw-pan-y: ;
-    --tw-pinch-zoom: ;
-    --tw-scroll-snap-strictness: proximity;
     --tw-gradient-from-position: ;
     --tw-gradient-via-position: ;
     --tw-gradient-to-position: ;
@@ -31,39 +18,12 @@
     --tw-ring-offset-shadow: 0 0 rgb(var(--palette-black) / 0);
     --tw-ring-shadow: 0 0 rgb(var(--palette-black) / 0);
     --tw-shadow: 0 0 rgb(var(--palette-black) / 0);
-    --tw-shadow-colored: 0 0 rgb(var(--palette-black) / 0);
-    --tw-blur: ;
-    --tw-brightness: ;
-    --tw-contrast: ;
-    --tw-grayscale: ;
-    --tw-hue-rotate: ;
-    --tw-invert: ;
-    --tw-saturate: ;
-    --tw-sepia: ;
-    --tw-drop-shadow: ;
-    --tw-backdrop-blur: ;
-    --tw-backdrop-brightness: ;
-    --tw-backdrop-contrast: ;
-    --tw-backdrop-grayscale: ;
-    --tw-backdrop-hue-rotate: ;
-    --tw-backdrop-invert: ;
-    --tw-backdrop-opacity: ;
-    --tw-backdrop-saturate: ;
-    --tw-backdrop-sepia: ;
-    --tw-contain-size: ;
-    --tw-contain-layout: ;
-    --tw-contain-paint: ;
-    --tw-contain-style: ;
 }
 *,
 :after,
 :before {
     box-sizing: border-box;
     border: 0 solid var(--color-border);
-}
-:after,
-:before {
-    --tw-content: "";
 }
 :host,
 html {
