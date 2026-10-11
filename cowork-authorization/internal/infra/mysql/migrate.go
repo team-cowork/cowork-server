@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -492,6 +493,10 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 			{name: "tb_kafka_outbox", columns: []string{"source_event_id", "source_event_index"}},
 			{name: "tb_processed_events", absent: true},
 		}, true
+	case 10:
+		return []tableExpectation{
+			{name: "tb_refresh_tokens", columns: []string{"user_id", "token_hash", "expires_at"}},
+		}, true
 	default:
 		return nil, false
 	}
@@ -542,7 +547,44 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 		complete, err := webhookSchemaComplete(ctx, db)
 		return complete, true, err
 	}
+	if version == 10 {
+		complete, err := refreshTokenIndexSchemaComplete(ctx, db)
+		return complete, true, err
+	}
 	return true, true, nil
+}
+
+// V10 changes only a column type and indexes, so column presence alone cannot
+// tell whether it ran.
+func refreshTokenIndexSchemaComplete(ctx context.Context, db *gorm.DB) (bool, error) {
+	var hashColumns int64
+	if err := db.WithContext(ctx).Raw(
+		`SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()
+		 AND table_name = 'tb_refresh_tokens' AND column_name = 'token_hash'
+		 AND data_type = 'char' AND character_maximum_length = 64
+		 AND character_set_name = 'ascii' AND collation_name = 'ascii_bin' AND is_nullable = 'NO'`,
+	).Scan(&hashColumns).Error; err != nil || hashColumns != 1 {
+		return false, err
+	}
+	composite, err := indexColumnsEqual(
+		ctx, db, "tb_refresh_tokens", "idx_tb_refresh_tokens_user_id_expires_at", "user_id", "expires_at",
+	)
+	if err != nil || !composite {
+		return false, err
+	}
+	// No expected columns: true only when the old single-column index is gone.
+	return indexColumnsEqual(ctx, db, "tb_refresh_tokens", "idx_tb_refresh_tokens_user_id")
+}
+
+func indexColumnsEqual(ctx context.Context, db *gorm.DB, table, index string, columns ...string) (bool, error) {
+	var actual []string
+	err := db.WithContext(ctx).Raw(
+		`SELECT column_name FROM information_schema.statistics
+		 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
+		 ORDER BY seq_in_index`,
+		table, index,
+	).Scan(&actual).Error
+	return slices.Equal(actual, columns), err
 }
 
 // Check constraints as well as columns before recording V9. MySQL DDL may have
