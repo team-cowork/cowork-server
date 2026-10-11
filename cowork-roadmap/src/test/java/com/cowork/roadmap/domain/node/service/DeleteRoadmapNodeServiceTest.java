@@ -117,7 +117,7 @@ class DeleteRoadmapNodeServiceTest {
         RoadmapNode otherRoot = node(4L, 10L, null);
 
         when(nodeRepository.findById(1L)).thenReturn(Mono.just(root));
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
         when(nodeRepository.findAllByRoadmapIdForUpdate(10L))
                 .thenReturn(Flux.fromIterable(List.of(root, child, grandChild, otherRoot)));
