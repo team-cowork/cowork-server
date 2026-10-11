@@ -1,5 +1,6 @@
 package com.cowork.channel.domain.channelRolePolicy.operation
 
+import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyOperationSubmissionRepository.InsertResult
 import com.cowork.channel.domain.channelRolePolicy.presentation.data.response.ChannelRolePolicyOperationResponse
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
@@ -14,7 +15,7 @@ import java.util.UUID
 
 @Component
 class ChannelRolePolicyCommandSubmission(
-    private val operationRepository: ChannelRolePolicyCommandOperationRepository,
+    private val submissionRepository: ChannelRolePolicyOperationSubmissionRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val outboxWriter: OutboxWriter,
     private val operationMapper: ChannelRolePolicyOperationMapper,
@@ -33,25 +34,30 @@ class ChannelRolePolicyCommandSubmission(
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val requestHash = requestHash(commandType, teamId, channelId, roleId, actorId, permissions)
         val operationId = UUID.randomUUID().toString()
-        operationRepository.insertPendingIfAbsent(
+        val insertion = submissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             teamId = teamId,
             channelId = channelId,
             roleId = roleId,
             actorId = actorId,
-            commandType = commandType.name,
+            commandType = commandType,
             requestHash = requestHash,
         )
-        val operation = operationRepository.findByActorAndIdempotencyKeyForUpdate(actorId, normalizedKey)
-            ?: error("접수한 channel role policy operation을 찾을 수 없습니다.")
-        if (!operation.matches(teamId, channelId, roleId, actorId, commandType, requestHash)) {
-            throw ExpectedException(
-                "같은 Idempotency-Key를 다른 채널 역할 정책 요청에 재사용할 수 없습니다.",
-                HttpStatus.CONFLICT,
-            )
+        when (insertion) {
+            InsertResult.Inserted -> Unit
+
+            is InsertResult.Existing -> {
+                val operation = insertion.operation
+                if (!operation.matches(teamId, channelId, roleId, actorId, commandType, requestHash)) {
+                    throw ExpectedException(
+                        "같은 Idempotency-Key를 다른 채널 역할 정책 요청에 재사용할 수 없습니다.",
+                        HttpStatus.CONFLICT,
+                    )
+                }
+                return operationMapper.toResponse(operation)
+            }
         }
-        if (operation.operationId != operationId) return operationMapper.toResponse(operation)
 
         validateNewRequest()
         val actorMembershipVersion = activeMemberVersion(teamId, actorId)
@@ -73,7 +79,7 @@ class ChannelRolePolicyCommandSubmission(
                 submittedAt = Instant.now(),
             ),
         )
-        return operationMapper.toResponse(operation)
+        return ChannelRolePolicyOperationResponse(operationId, ChannelRolePolicyOperationStatus.PENDING)
     }
 
     internal fun requestHash(
