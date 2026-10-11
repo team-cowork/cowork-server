@@ -1,7 +1,4 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
-
-export type TeamRoleMemberTombstoneDocument = HydratedDocument<TeamRoleMemberTombstone>;
 
 /** 이전 assignment 이벤트의 부활을 막는 member 단위 tombstone. */
 @Schema({ timestamps: true, versionKey: false })
