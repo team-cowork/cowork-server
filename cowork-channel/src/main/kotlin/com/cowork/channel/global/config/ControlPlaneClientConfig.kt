@@ -1,4 +1,4 @@
-package com.cowork.team.config
+package com.cowork.channel.global.config
 
 import org.springframework.cloud.netflix.eureka.http.EurekaClientHttpRequestFactorySupplier
 import org.springframework.cloud.netflix.eureka.http.RestClientDiscoveryClientOptionalArgs

@@ -12,5 +12,4 @@ func (e *AppError) Error() string {
 }
 
 func NotFound(msg string) *AppError   { return &AppError{Code: 404, Message: msg} }
-func Internal(msg string) *AppError   { return &AppError{Code: 500, Message: msg} }
 func BadRequest(msg string) *AppError { return &AppError{Code: 400, Message: msg} }
