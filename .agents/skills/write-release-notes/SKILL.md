@@ -1,6 +1,6 @@
 ---
 name: write-release-notes
-description: Write concise release notes in the same format as approved past releases, review PRs since the previous release PR, and update the existing GitHub Actions-generated body with gh CLI. Use for release-note drafting or refreshing an existing release.
+description: Write release notes about verified changes consumers can use or experience, consolidate related PRs, and omit internal-only work. Follow approved past formatting and update an existing GitHub Release body with gh CLI. Use for release-note drafting or refreshing an existing release.
 ---
 
 # Write Release Notes
