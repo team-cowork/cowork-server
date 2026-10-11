@@ -5,7 +5,6 @@ import java.time.Instant
 
 object ChannelRolePolicyContractTopics {
     const val COMMAND = Topics.CHANNEL_ROLE_POLICY_COMMAND
-    const val STATE = Topics.CHANNEL_ROLE_POLICY_CHANGED
     const val RESULT = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT
 }
 

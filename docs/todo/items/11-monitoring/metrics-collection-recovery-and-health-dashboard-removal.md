@@ -39,3 +39,9 @@ Gateway의 임시 `/health` 화면은 남아 있다. Eureka 등록 집계만으�
 - 장애 범위·근본 원인·수정 근거와 scrape·query·dashboard·alert 확인 결과가 기록되어 있다.
 - 재시작 뒤에도 수집이 유지되어 있다.
 - 임시 `/health` HTML·assets·공개 matcher가 제거되어 있고 기존 JSON 상태 API는 유지되어 있다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#60](https://github.com/team-cowork/cowork-server/pull/60) · [#416](https://github.com/team-cowork/cowork-server/pull/416) · [#451](https://github.com/team-cowork/cowork-server/pull/451).
+- [대조 코드](../../../../cowork-gateway/src/main/kotlin/com/cowork/gateway/health/controller/HealthDashboardController.kt): 운영 scrape 생성기는 있으나 임시 HealthDashboardController·assets와 SecurityConfig 공개 matcher가 유지된다.
+- 판정: **부분 구현**. 실제 수집 복구 판정과 임시 화면·공개 matcher 제거를 남은 범위로 유지한다.
