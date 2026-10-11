@@ -2,8 +2,8 @@
 
 - **서비스**: cowork-user
 - **우선순위**: 🟠 중간
-- **현재 상태**: 원격 MySQL 환경에서 projection 재생이 토픽당 초당 약 2건으로 진행되어 장기 중단 후 readiness가 수십 분 닫힌다
-- **관련 작업**: [CD health 대기와 SSH 명령 제한 분리](../53-deployment/cd-health-wait-ssh-timeout.md), [채팅 projection 증분 재개와 재구축 모드 분리](../31-performance/projection-incremental-resume.md)
+- **현재 상태**: 운영 SQL debug 로그 차단은 구현되었고 레코드별 transaction·checkpoint 처리는 유지되어 있으며, 과거 초당 약 2건의 재생 병목에 대한 측정·쿼리 최적화가 남아 있다.
+- **관련 작업**: [채팅 projection 증분 재개와 재구축 모드 분리](../31-performance/projection-incremental-resume.md)
 
 ## 문제
 
@@ -13,10 +13,16 @@ user는 `team.member.event`와 `user.presence.event`를 projection으로 소비�
 
 재생 속도는 장애 복구 시간과 CD health 대기 시간을 직접 결정한다. 다른 projection 소비자도 같은 구조인지는 아직 확인하지 않았다.
 
+## 구현 진척
+
+- `cowork-user/config/runtime.exs`에서 `APP_PROFILE=prod`일 때 Logger의 전역 최소 수준을 `info`로 설정하였다. 기존 파일 backend의 `info` 필터만으로 차단되지 않던 콘솔 SQL `debug` 로그도 제외한다.
+- 로컬 Docker와 운영 Docker가 모두 `MIX_ENV=prod`를 사용하므로 런타임 서비스 프로파일인 `APP_PROFILE`로 구분한다. `local`과 미지정 환경의 기존 로그 수준은 유지한다.
+- 설정 파일의 프로파일별 평가와 형식 검사를 완료하였다. 운영 배포 후 로그 확인, 로그 차단 전후 처리량 비교, DB 왕복 지연 측정은 아직 수행하지 않았다.
+
 ## 할 일
 
 - 레코드당 실행되는 쿼리 수와 운영 환경의 DB 왕복 지연을 측정한다.
-- 운영 로그 레벨에서 SQL debug 로그가 출력되지 않게 한다.
+- 운영 배포 후 콘솔과 파일 로그에 SQL debug 출력이 없는지 확인한다.
 - 순서·멱등성 규칙(`.claude/rules/kafka-projections.md`)을 유지하는 범위에서 여러 레코드를 한 transaction으로 적용하고 checkpoint를 묶어 갱신하는 방식을 검토한다.
 - channel, chat, notification의 재생 처리량도 같은 방식으로 측정한다.
 
@@ -29,3 +35,9 @@ user는 `team.member.event`와 `user.presence.event`를 projection으로 소비�
 
 - 원격 DB 구성에서 user의 재생 처리량이 측정되어 있고 개선 목표치를 만족한다.
 - 운영 user 로그에 SQL debug 출력이 없다.
+
+## 점검 근거 (2026-10-08)
+
+- 관련 PR: [#457](https://github.com/team-cowork/cowork-server/pull/457).
+- [대조 코드](../../../../cowork-user/lib/cowork_user/kafka/projection_processor.ex): prod Logger info 설정은 반영되었다. TeamMemberHandler는 레코드마다 ProjectionProcessor transaction과 checkpoint 갱신을 수행한다.
+- 판정: **부분 구현**. DB 왕복·처리량 측정과 필요 쿼리·배치 개선을 남은 범위로 유지한다.
