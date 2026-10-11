@@ -45,6 +45,16 @@ interface TeamRoleCommandOperationRepository : JpaRepository<TeamRoleCommandOper
         @Param("idempotencyKey") idempotencyKey: String,
     ): TeamRoleCommandOperation?
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query(
+        "SELECT operation FROM TeamRoleCommandOperation operation " +
+            "WHERE operation.actorId = :actorId AND operation.idempotencyKey = :idempotencyKey",
+    )
+    fun findByActorAndIdempotencyKeyForShare(
+        @Param("actorId") actorId: Long,
+        @Param("idempotencyKey") idempotencyKey: String,
+    ): TeamRoleCommandOperation?
+
     fun findTopByStatusOrderByOperationIdDesc(status: TeamRoleOperationStatus): TeamRoleCommandOperation?
 
     @Query(

@@ -50,6 +50,16 @@ interface ChannelRolePolicyCommandOperationRepository : JpaRepository<ChannelRol
         @Param("idempotencyKey") idempotencyKey: String,
     ): ChannelRolePolicyCommandOperation?
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query(
+        "SELECT operation FROM ChannelRolePolicyCommandOperation operation " +
+            "WHERE operation.actorId = :actorId AND operation.idempotencyKey = :idempotencyKey",
+    )
+    fun findByActorAndIdempotencyKeyForShare(
+        @Param("actorId") actorId: Long,
+        @Param("idempotencyKey") idempotencyKey: String,
+    ): ChannelRolePolicyCommandOperation?
+
     fun findTopByStatusOrderByOperationIdDesc(
         status: ChannelRolePolicyOperationStatus,
     ): ChannelRolePolicyCommandOperation?
