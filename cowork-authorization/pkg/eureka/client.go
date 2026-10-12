@@ -44,6 +44,8 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	instance.VipAddress = cfg.EurekaAppName
 	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.InstanceID = cfg.EurekaInstanceID
+	// 운영 Blackbox Exporter는 Eureka의 healthCheckUrl이 있는 인스턴스만 probe 대상으로 유지한다.
+	instance.HealthCheckUrl = fmt.Sprintf("http://%s:%d/health", cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
 			"management.port":   fmt.Sprintf("%d", cfg.EurekaInstancePort),
