@@ -14,10 +14,16 @@ loki.source.file "docker_logs" {
 loki.process "docker_logs" {
   stage.docker {}
   stage.json {
-    expressions = { level = "level", service = "service" }
+    expressions = { level = "level", service = "service", timestamp = "\"@timestamp\"" }
   }
   stage.labels {
     values = { level = "", service = "" }
+  }
+  // 앱이 기록한 시각을 쓴다. 없으면(plain text 등) Docker 기록 시각을 그대로 둔다.
+  stage.timestamp {
+    source            = "timestamp"
+    format            = "RFC3339Nano"
+    action_on_failure = "skip"
   }
   forward_to = [loki.write.central.receiver]
 }
