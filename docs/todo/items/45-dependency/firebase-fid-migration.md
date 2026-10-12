@@ -2,8 +2,17 @@
 
 - **서비스**: cowork-notification, iOS·Android·Web 클라이언트
 - **우선순위**: 🟠 중간
-- **현재 상태**: registration token 계약과 Firebase Admin Go `4.20.0` 고정을 유지하며 FID 전환은 반영하지 않았다.
+- **현재 상태**: 서버는 FID 전용 계약과 Firebase Admin Go `4.22.0`으로 전환했다. 클라이언트 전환과 실제 기기 확인은 남아 있다.
 - **관련 작업**: [FCM device token 단일 계정 소유권 보장](../17-security/fcm-token-single-owner.md)
+- **결론**: iOS·Android·Web 클라이언트의 FID 등록 전환, 배포, 수동 확인이 남아 있다.
+
+> **2026-10-12 진척:** 서버의 등록·저장·전송·재시도를 FID 기준으로 바꿨다.
+> `POST /notifications/installations`·`DELETE /notifications/installations/{fid}`가 token API를 대체하고,
+> `V10__replace_device_token_with_fid_installation.sql`이 `tb_device_token`과 기존 재시도 원장을 이관 없이 제거한 뒤
+> `tb_device_installation`과 `installation_id`·`fid` 기준 원장을 만든다. 전송은 `Message.Fid`만 사용하며
+> SDK 고정 주석을 제거했다. 등록 시 FID 형식(`^[cdef][A-Za-z0-9_-]{21}$`)이 아닌 값은 `400`으로 거부한다.
+> 상황별 API와 배포 순서는 [`cowork-notification/README.md`](../../../../cowork-notification/README.md)에 기록했다.
+> 클라이언트 SDK의 FID 획득 조건과 실제 기기 수신은 아직 검증하지 않았다.
 
 ## 문제
 
@@ -21,18 +30,19 @@ FID 전용 계약으로 일괄 전환한다. token API 하위 호환·병행 전
 
 ## 코드 근거
 
-- [Firebase SDK](../../../../cowork-notification/go.mod#L6): v4.20.0 고정과 FID 전환 전제 주석이 남아 있다.
-- [전송 식별자](../../../../cowork-notification/internal/infra/fcm/sender.go#L132): `SendEach`에 `Message.Token`을 전달하며 `Message.Fid` 전송 경로는 없다.
-- [등록 모델](../../../../cowork-notification/internal/domain/token/model.go): 현재 저장 모델은 registration token이며 FID 설치 모델이 아니다.
+- [Firebase SDK](../../../../cowork-notification/go.mod#L6): v4.22.0이며 고정 주석은 없다.
+- [전송 식별자](../../../../cowork-notification/internal/infra/fcm/sender.go): `SendEach`에 `Message.Fid`만 전달한다.
+- [등록 모델](../../../../cowork-notification/internal/domain/installation/model.go): `tb_device_installation`의 FID 설치 모델이다.
 
 ## 할 일
 
 - iOS·Android·Web의 FID 획득·전송 전제 조건과 필요한 클라이언트 버전을 확인한다.
-- 최초 등록·재설치·식별자 변경·계정 전환·해제의 FID API를 정한다.
-- 후속 migration으로 설치 스키마와 재시도 참조를 바꾸고 기존 token 등록·연결 상태를 정리한다.
-- 전송 대상·배치 결과를 신규 설치 ID와 연결하고 무효 식별자·계정 이전의 대기 전송을 처리한다.
-- 호환 SDK를 적용하고 token 경로·임시 버전 고정·deprecated 검사 제외를 제거한다.
-- 서버·클라이언트 일괄 배포와 신규 FID 등록 순서를 기록한다.
+- ~~최초 등록·재설치·식별자 변경·계정 전환·해제의 FID API를 정한다.~~
+- ~~후속 migration으로 설치 스키마와 재시도 참조를 바꾸고 기존 token 등록·연결 상태를 정리한다.~~
+- ~~전송 대상·배치 결과를 신규 설치 ID와 연결하고 무효 식별자·계정 이전의 대기 전송을 처리한다.~~
+- ~~호환 SDK를 적용하고 token 경로·임시 버전 고정·deprecated 검사 제외를 제거한다.~~
+- ~~서버·클라이언트 일괄 배포와 신규 FID 등록 순서를 기록한다.~~
+- 클라이언트가 FID를 등록하도록 전환하고 서버와 함께 배포한다.
 
 ## 검증
 
