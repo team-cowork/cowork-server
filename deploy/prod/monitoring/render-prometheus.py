@@ -76,6 +76,7 @@ scrape_configs = [
         "static_configs": [
             {"targets": [target], "labels": {"service": service}}
             for service, target in [
+                ("host", "node_exporter:9100"),
                 ("mysql", "mysqld_exporter:9104"), ("redis", "redis_exporter:9121"),
                 ("kafka", "kafka_exporter:9308"), ("postgres", "postgres_exporter:9187"),
                 ("mongodb", "mongodb_exporter:9216"),
