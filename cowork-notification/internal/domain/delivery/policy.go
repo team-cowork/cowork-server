@@ -15,7 +15,7 @@ const (
 
 	backoffBase = 30 * time.Second
 	backoffMax  = 30 * time.Minute
-	// jitterFraction randomizes each backoff by up to +/-20% so many tokens queued at
+	// jitterFraction randomizes each backoff by up to +/-20% so many installations queued at
 	// the same time do not all retry in the same instant.
 	jitterFraction = 0.2
 )
