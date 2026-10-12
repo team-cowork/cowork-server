@@ -10,6 +10,11 @@
 수집 장애 보고 뒤 로컬 scrape 주소를 Compose DNS로 바꿨다. 현재 Prometheus·Grafana의 실제
 데이터를 확인하지 않아 장애 범위와 복구 여부는 아직 확정하지 않았다.
 
+운영 Prometheus는 `deploy/config/monitoring/prometheus/prometheus.yml`을 읽지 않는다. 운영 compose는
+`render-prometheus.py`가 배포 때 생성한 설정과 `rules/` 디렉터리만 마운트하므로, 두 설정은 blackbox
+대상 선정 방식(고정 목록 / Eureka `healthCheckUrl`)과 외부 대상 범위가 서로 다르다. 로컬 파일만
+고친 조치는 운영 수집에 반영되지 않으므로 복구 판정의 근거가 될 수 없다.
+
 Gateway의 임시 `/health` 화면은 남아 있다. Eureka 등록 집계만으로 메트릭 수집과 알림 경로의
 정상을 판단할 수 없으므로, 실제 수집 복구를 확인한 뒤 화면을 제거한다.
 
