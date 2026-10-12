@@ -47,7 +47,7 @@ FCM 전송 대상은 Firebase installation ID(FID)뿐이다. registration token 
 | 계정 전환 | 이전 계정으로 `DELETE` 후 새 계정으로 `POST` |
 | 로그아웃 | `DELETE /notifications/installations/{fid}` |
 
-- `fid`는 Firebase Installations SDK가 만든 22자 URL-safe base64 문자열이어야 한다. registration token은 `400`으로 거부한다.
+- `fid`는 Firebase Installations SDK가 만든 URL-safe base64 문자열이어야 한다. 새로 생성된 FID는 22자이고, Android SDK가 레거시 Instance ID를 이관해 그대로 쓰는 FID는 11자다. registration token은 `400`으로 거부한다.
 - 같은 계정의 재등록은 `platform`과 `updated_at`을 갱신한다.
 - 다른 계정이 이미 소유한 FID를 등록하면 하나의 transaction에서 이전 행을 제거하고 새 소유권 행을 만든다. 새 `installation_id`를 사용하므로 이전 계정의 대기 중인 FCM 재시도는 취소된다.
 - 현재 계정이 소유한 FID만 해제할 수 있다.
