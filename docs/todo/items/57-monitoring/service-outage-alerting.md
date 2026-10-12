@@ -2,7 +2,7 @@
 
 - **서비스**: 모니터링, GitHub Actions, 모든 운영 서비스
 - **우선순위**: 🟠 중간
-- **현재 상태**: 등록된 target의 down·5xx·adapter 장애 알림과 CD job 결과·상위 CI 결론 표시는 구현되어 있으나, 서비스 소실·Vault seal·디스크 부족 감지는 남아 있다.
+- **현재 상태**: 등록된 target의 down·5xx·adapter 장애 알림, CD job 결과·상위 CI 결론 표시, 수집 대상 소실 감지는 구현되어 있고, Vault seal·디스크 부족 감지는 남아 있다.
 - **관련 작업**: [실행 중 릴리스를 보존하는 디스크 정리](../44-deployment/release-retention.md), [서비스 로그 수집 경로와 필드 정규화](../43-monitoring/log-collection-contract.md)
 
 ## 문제
@@ -24,7 +24,7 @@ CD는 배포 job의 실패·취소를 집계하고, job이 하나도 실행되�
 
 ## 할 일
 
-- 기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.
+- ~~기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.~~ (`coworkServiceMissingFromDiscovery`가 최근 2시간 안에 수집된 서비스의 시계열 소실을, `coworkServiceDiscoveryEmpty`가 대상 전체 소실을 감지한다)
 - Vault seal·Config 장애와 호스트 디스크 사용량의 수집·알림 경로를 마련한다.
 - ~~상위 CI 실패·취소·배포 미실행을 CD 알림에 명시한다.~~ (job이 하나도 실행되지 않으면 `cancelled`와 상위 CI 결론을 표시)
 - 현재 디스크 여유를 측정하고 필요한 정리는 릴리스 보존 작업과 함께 수행한다.
