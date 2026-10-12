@@ -30,10 +30,10 @@ data-only 푸시의 백그라운드 전달이 제한되므로 두 변경은 함�
 
 ## 코드 근거
 
-- [Token 소유권 이전](../../../../cowork-notification/internal/infra/mysql/token_repository.go#L22): token 잠금 후 다른 계정의 행을 재생성하여 설치 세대를 교체한다.
-- [재시도 전 검증](../../../../cowork-notification/internal/domain/delivery/worker.go#L155): CurrentToken으로 사라진 세대를 취소한 뒤 소유 계정을 `accountId`로 실어 FCM을 호출한다.
-- [최초 전송 직전 검증](../../../../cowork-notification/internal/domain/token/service.go#L244): 원장 claim 뒤 수신자 token을 다시 읽어 사라진 세대를 제외하고 claim을 취소하며, 남은 세대의 소유 계정을 `accountId`로 싣는다.
-- [수신 측 검증 payload](../../../../cowork-notification/internal/infra/fcm/sender.go#L37): `accountId` data key와 token별 메시지 전송을 정의한다.
+- [설치 소유권 이전](../../../../cowork-notification/internal/infra/mysql/installation_repository.go#L22): FID 잠금 후 다른 계정의 행을 재생성하여 설치 세대를 교체한다.
+- [재시도 전 검증](../../../../cowork-notification/internal/domain/delivery/worker.go#L156): CurrentFID로 사라진 세대를 취소한 뒤 소유 계정을 `accountId`로 실어 FCM을 호출한다.
+- [최초 전송 직전 검증](../../../../cowork-notification/internal/domain/installation/service.go#L265): 원장 claim 뒤 수신자 설치를 다시 읽어 사라진 세대를 제외하고 claim을 취소하며, 남은 세대의 소유 계정을 `accountId`로 싣는다.
+- [수신 측 검증 payload](../../../../cowork-notification/internal/infra/fcm/sender.go#L37): `accountId` data key와 FID별 메시지 전송을 정의한다.
 
 ## 할 일
 
