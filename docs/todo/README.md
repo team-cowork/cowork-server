@@ -10,17 +10,17 @@
 
 ## 진행 중
 
-2026-10-12 기준 **20건**이다. 원격 `develop`의 `5a534586`, `main`의 `f68758e2`를 기준으로
+2026-10-12 기준 **19건**이다. 원격 `develop`의 `5a534586`, `main`의 `f68758e2`를 기준으로
 2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
 나머지 항목은 현재 코드와 대조해 변동이 없음을 확인했다. 항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
 
-### 구현·설계 보완 필요 (18)
+### 구현·설계 보완 필요 (17)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — Gateway를 경유하는 비파괴 API probe와 별도 알림
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md) — 실제 수집 복구 판정과 임시 화면·공개 matcher 제거
 - storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md) — 객체별 읽기 권한·공개 ingress·서명 endpoint·기존 URL 정책
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md) — 프로젝트·채널 멤버 projection 기반 인가와 notification의 채널 멤버십 검증
-- security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md) — data-only·클라이언트 표시 정책의 동시 전환과 migration 적용
+- security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md) — data-only 메시지와 클라이언트 표시 정책의 동시 전환
 - correctness: [로드맵 노드 삭제 시 assignment 무결성 보장](./items/19-correctness/roadmap-node-assignment-cleanup.md) — GLOBAL 관리·과제 보존 정책과 실제 데이터 전환
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md) — project 외부 대기 분리와 OAuth 저장 시점 재인가
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md) — 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약
@@ -30,7 +30,6 @@
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md) — Actions용 단기 인증 또는 만료·교체 자동화
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md) — 서비스별 필드·timestamp 정규화와 전 서비스 로그 도착 확인
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md) — 참조 기반 보존 정책·미리보기·적용 명령
-- dependency: [Firebase 최신 SDK 적용을 위한 FCM 식별자 FID 전환](./items/45-dependency/firebase-fid-migration.md) — 프로젝트가 정한 FID 전용 계약과 클라이언트·서버 동시 전환
 - performance: [user projection 재생 처리량 개선](./items/56-performance/user-projection-replay-throughput.md) — DB 왕복·처리량 측정과 필요 쿼리·배치 개선
 - monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md) — 기대 서비스 집합과 Vault seal·디스크 부족 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
@@ -48,7 +47,6 @@
 - [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
-- [20260916](./20260916_TODO.md) — FCM 식별자·SDK 전환
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
 - [20260830](./20260830_TODO.md) — 역할 command operation 반환 계약
 - [20260828](./20260828_TODO.md) — 서버 애플리케이션 코드
