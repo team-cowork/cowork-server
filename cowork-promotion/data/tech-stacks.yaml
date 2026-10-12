@@ -61,7 +61,7 @@ categories:
     items:
       - { name: Maven, color: "#c71c36" }
       - { name: Gradle, color: "#02303a" }
-      - { name: Amper, color: "#1f6feb" }
+      - { name: Kotlin Toolchain, color: "#1f6feb" }
 
 positions:
   Server:
@@ -93,7 +93,7 @@ positions:
       - Apache Kafka
       - Maven
       - Gradle
-      - Amper
+      - Kotlin Toolchain
   Web Client:
     color: "#eab308"
     description: Next.js 기반 협업 웹 클라이언트를 개발합니다. FSD(Feature-Sliced Design) 구조로 기능별 코드를 구성합니다.
