@@ -2,7 +2,7 @@
 
 - **서비스**: 전체 앱, Alloy, Loki, Grafana
 - **우선순위**: 🟠 중간
-- **현재 상태**: local 파일·prod stdout 수집 설정은 있고 Chat은 stdout을 항상 쓰며 local 이미지에서만 파일을 함께 쓰지만, prod parser의 필드·timestamp 정규화 공백이 남아 있다.
+- **현재 상태**: local 파일·prod stdout 수집 설정이 있고 prod parser도 앱 기록 시각을 적용하지만, plain text·ECS 출력의 필드 정규화 공백이 남아 있다.
 - **관련 작업**: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](../11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
 
 > **2026-10-10 진척:** Chat은 stdout을 항상 쓰고 `COWORK_CHAT_LOG_DIR`을 지정한 local 이미지에서만 `/var/log/cowork/chat` 파일을 함께 쓴다.
@@ -32,7 +32,8 @@ user의 plain text·Preference의 ECS JSON처럼 출력 형식도 달라 top-lev
 - local의 파일 수집 유지·stdout 통일을 결정하고 실제 로거 경로·mount·권한을 맞춘다.
 - ~~Chat의 prod 출력과 Docker stdout 수집을 연결한다. 파일을 유지하면 별도 수집 경로를 명시한다.~~ (stdout 상시 출력, local 이미지만 `/var/log/cowork/chat` 파일 병행)
 - 서비스별 실제 로그로 `service`·`level`·timestamp의 최소 계약을 정규화한다.
-- prod의 application timestamp와 Docker 기록 시각을 구분하고 plain text·ECS 처리 정책을 적용한다.
+- ~~prod의 application timestamp와 Docker 기록 시각을 구분한다.~~ (`stage.timestamp`가 `@timestamp`를 적용하고, 값이 없으면 `action_on_failure = "skip"`으로 Docker 기록 시각을 유지)
+- plain text·ECS 출력의 필드 정규화 정책을 적용한다.
 - VM별 Alloy target 등록과 전 서비스 도착을 확인한다.
 - project·roadmap 조회와 기존 Grafana 쿼리를 실제 label에 맞춘다.
 - 누락·plain text·잘못된 JSON을 식별할 지표와 운영 확인 방법을 정한다.
