@@ -4,7 +4,7 @@ dependencies:
   - bom: io.vertx:vertx-stack-depchain:5.1.8
   - io.vertx:vertx-core
   - io.vertx:vertx-web
-  # Amper does not currently package vertx-web's required auth-common transitive dependency.
+  # Kotlin Toolchain does not currently package vertx-web's required auth-common transitive dependency.
   - io.vertx:vertx-auth-common
   - io.vertx:vertx-lang-kotlin
   - io.vertx:vertx-lang-kotlin-coroutines
