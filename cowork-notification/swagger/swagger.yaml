@@ -1,18 +1,101 @@
 basePath: /api/notification
 definitions:
-  internal_domain_token.registerTokenRequest:
+  internal_domain_installation.registerInstallationRequest:
     properties:
-      platform:
+      fid:
+        example: cXk9Y2Rl-ZWZnaGlqa2xt_
         type: string
-      token:
+      platform:
+        enum:
+        - IOS
+        - ANDROID
+        - WEB
         type: string
     type: object
 info:
   contact: {}
-  description: FCM 디바이스 토큰 관리 및 푸시 알림 서비스
+  description: Firebase 설치(FID) 관리 및 푸시 알림 서비스
   title: cowork-notification API
-  version: "20260926.0"
+  version: "20261011.0"
 paths:
+  /notifications/installations:
+    post:
+      consumes:
+      - application/json
+      description: Firebase installation ID(FID)를 현재 계정에 등록합니다. 다른 계정이 소유한 FID면 현재
+        계정으로 원자적으로 이전합니다
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      - description: 설치 등록 요청
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/internal_domain_installation.registerInstallationRequest'
+      responses:
+        "201":
+          description: Created
+        "400":
+          description: 잘못된 요청
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "500":
+          description: 내부 서버 오류
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Firebase 설치 등록
+      tags:
+      - installations
+  /notifications/installations/{fid}:
+    delete:
+      description: 로그아웃, 계정 전환 또는 FID 변경 시 현재 계정과 FID의 연결을 해제합니다
+      parameters:
+      - description: 사용자 ID (Gateway 주입)
+        format: int64
+        in: header
+        name: X-User-Id
+        required: true
+        type: integer
+      - description: Firebase installation ID
+        in: path
+        name: fid
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: 잘못된 요청
+          schema:
+            type: string
+        "401":
+          description: 인증 실패
+          schema:
+            type: string
+        "404":
+          description: 설치 없음
+          schema:
+            type: string
+        "500":
+          description: 내부 서버 오류
+          schema:
+            type: string
+      security:
+      - BearerAuth: []
+      summary: Firebase 설치 해제
+      tags:
+      - installations
   /notifications/stream:
     get:
       description: 인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive
@@ -44,83 +127,6 @@ paths:
       summary: SSE 알림 스트림 구독
       tags:
       - notifications
-  /notifications/tokens:
-    post:
-      consumes:
-      - application/json
-      description: FCM 토큰을 현재 계정에 등록합니다. 다른 계정이 소유한 토큰이면 현재 계정으로 원자적으로 이전합니다
-      parameters:
-      - description: 사용자 ID (Gateway 주입)
-        format: int64
-        in: header
-        name: X-User-Id
-        required: true
-        type: integer
-      - description: 토큰 등록 요청
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/internal_domain_token.registerTokenRequest'
-      responses:
-        "201":
-          description: Created
-        "400":
-          description: 잘못된 요청
-          schema:
-            type: string
-        "401":
-          description: 인증 실패
-          schema:
-            type: string
-        "500":
-          description: 내부 서버 오류
-          schema:
-            type: string
-      security:
-      - BearerAuth: []
-      summary: FCM 토큰 등록
-      tags:
-      - tokens
-  /notifications/tokens/{token}:
-    delete:
-      description: 로그아웃 또는 계정 전환 시 현재 계정과 FCM 토큰의 연결을 해제합니다
-      parameters:
-      - description: 사용자 ID (Gateway 주입)
-        format: int64
-        in: header
-        name: X-User-Id
-        required: true
-        type: integer
-      - description: FCM 토큰
-        in: path
-        name: token
-        required: true
-        type: string
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: 잘못된 요청
-          schema:
-            type: string
-        "401":
-          description: 인증 실패
-          schema:
-            type: string
-        "404":
-          description: 토큰 없음
-          schema:
-            type: string
-        "500":
-          description: 내부 서버 오류
-          schema:
-            type: string
-      security:
-      - BearerAuth: []
-      summary: FCM 토큰 삭제
-      tags:
-      - tokens
 securityDefinitions:
   BearerAuth:
     description: '"Bearer {access_token}" 형식으로 Gateway에 전달하세요.'
