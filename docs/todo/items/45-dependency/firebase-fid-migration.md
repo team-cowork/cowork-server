@@ -10,7 +10,7 @@
 > `POST /notifications/installations`·`DELETE /notifications/installations/{fid}`가 token API를 대체하고,
 > `V10__replace_device_token_with_fid_installation.sql`이 `tb_device_token`과 기존 재시도 원장을 이관 없이 제거한 뒤
 > `tb_device_installation`과 `installation_id`·`fid` 기준 원장을 만든다. 전송은 `Message.Fid`만 사용하며
-> SDK 고정 주석을 제거했다. 등록 시 FID 형식(`^[cdef][A-Za-z0-9_-]{21}$`)이 아닌 값은 `400`으로 거부한다.
+> SDK 고정 주석을 제거했다. 등록 시 FID 형식(생성된 22자 또는 Android의 레거시 IID 이관 11자)이 아닌 값은 `400`으로 거부한다.
 > 상황별 API와 배포 순서는 [`cowork-notification/README.md`](../../../../cowork-notification/README.md)에 기록했다.
 > 클라이언트 SDK의 FID 획득 조건과 실제 기기 수신은 아직 검증하지 않았다.
 
