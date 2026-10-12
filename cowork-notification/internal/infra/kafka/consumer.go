@@ -19,7 +19,7 @@ var errProjectionLeaseExpired = errors.New("projection readiness lease expired")
 type NotificationTriggerEvent struct {
 	// EventID is the stable identity of this logical notification, reused by the
 	// producer across its own retries (e.g. an outbox poller). It is the canonical
-	// delivery key for FCM's per-token selective retry; see
+	// delivery key for FCM's per-installation selective retry; see
 	// docs/todo/items/33-reliability/fcm-partial-failure-retry.md. A producer that has
 	// not been updated to send one leaves this empty, and Notify falls back to a
 	// single non-durable attempt.
