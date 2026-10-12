@@ -11,8 +11,8 @@
 
 ## 스택
 
-- Kotlin / Java 25 / Vert.x Coroutines
-- Amper (`module.yaml`)
+- Kotlin / Java 26 / Vert.x Coroutines
+- Kotlin Toolchain
 - Vert.x PostgreSQL Client / PostgreSQL / Flyway
 - Vert.x Redis Client / Kafka Client / Eureka / Config Server
 
