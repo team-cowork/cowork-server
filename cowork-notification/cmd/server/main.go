@@ -1,6 +1,6 @@
 // @title          cowork-notification API
 // @version        20261011.0
-// @description    FCM 디바이스 토큰 관리 및 푸시 알림 서비스
+// @description    Firebase 설치(FID) 관리 및 푸시 알림 서비스
 // @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
 // @in             header
@@ -26,8 +26,8 @@ import (
 
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
+	installationdomain "github.com/cowork/cowork-notification/internal/domain/installation"
 	"github.com/cowork/cowork-notification/internal/domain/projection"
-	tokendomain "github.com/cowork/cowork-notification/internal/domain/token"
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
@@ -66,12 +66,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	repo := mysqlinfra.NewTokenRepository(db)
+	repo := mysqlinfra.NewInstallationRepository(db)
 	deliveryRepo := mysqlinfra.NewDeliveryRepository(db)
 	projectionRepo := mysqlinfra.NewProjectionRepository(db)
 	projectionService := projection.NewService(projectionRepo)
-	svc := tokendomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
-	handler := tokendomain.NewHandler(svc)
+	svc := installationdomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
+	handler := installationdomain.NewHandler(svc)
 	deliveryWorker := delivery.NewWorker(deliveryRepo, repo, repo, fcmSender)
 
 	sseHub := sseinfra.NewHub()
@@ -113,8 +113,8 @@ func main() {
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.ExtractAuthUser)
-		r.Post("/notifications/tokens", handler.RegisterToken)
-		r.Delete("/notifications/tokens/{token}", handler.DeleteToken)
+		r.Post("/notifications/installations", handler.RegisterInstallation)
+		r.Delete("/notifications/installations/{fid}", handler.DeleteInstallation)
 		r.Get("/notifications/stream", sseinfra.Handler(sseHub))
 	})
 
