@@ -2,7 +2,7 @@
   "config": {"build": "gradle", "local": ".", "prod": "."},
   "gateway": {"build": "gradle", "local": ".", "prod": "."},
   "authorization": {"build": "go", "local": "cowork-authorization", "prod": "cowork-authorization"},
-  "preference": {"build": "amper", "local": ".", "prod": "cowork-preference"},
+  "preference": {"build": "kotlin-toolchain", "local": ".", "prod": "cowork-preference"},
   "user": {"build": "elixir", "local": ".", "prod": "cowork-user"},
   "team": {"build": "gradle", "local": ".", "prod": "."},
   "channel": {"build": "gradle", "local": ".", "prod": "."},

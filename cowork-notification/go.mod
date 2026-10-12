@@ -3,7 +3,7 @@ module github.com/cowork/cowork-notification
 go 1.27.1
 
 require (
-	firebase.google.com/go/v4 v4.20.0 // v4.21 deprecates registration tokens; FIDs require a coordinated client migration.
+	firebase.google.com/go/v4 v4.22.0
 	github.com/ArthurHlt/go-eureka-client v1.1.0
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-sql-driver/mysql v1.10.1
