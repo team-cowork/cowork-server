@@ -99,6 +99,10 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 이 기준을 바꾸지 않는다. 이미 적용한 SHA보다 이전 버전으로 복구할 때는 수동 재배포를 사용한다.
 readiness 대기를 늘릴 때는 SSH `command_timeout`에 이미지 pull·실패 복구 시간도 확보한다.
 
+`main` 이력을 재작성하면 기준 SHA가 현재 `main`의 조상이 아니게 되어 자동 배포가
+`divergent deployment history`로 중단된다. 이때는 이미지가 존재하는 `main`의 전체 SHA로 target마다
+수동 재배포한다. 성공하면 그 target의 기준 SHA가 새 이력으로 갱신된다.
+
 ### 자격 증명 교체
 
 DB 계정과 그 계정을 포함한 DSN·URI를 함께 갱신한다. 배포 참조로 문자열 일부를 조합하지 않는다.
