@@ -234,11 +234,12 @@ const deviceFID = "cXk9Y2Rl-ZWZnaGlqa2xt_"
 
 func TestServiceRegisterInstallationRejectsNonFID(t *testing.T) {
 	cases := map[string]string{
-		"legacy registration token": "cXk9Y2Rl-ZWZnaGlqa2xt_:APA91bHun4MxP5egoKMwt2KZFBaFUH-1RYqx",
-		"too short":                 "cXk9Y2Rl-ZWZnaGlqa2xt",
-		"too long":                  deviceFID + "A",
-		"invalid prefix":            "aXk9Y2Rl-ZWZnaGlqa2xt_",
-		"non URL-safe character":    "cXk9Y2Rl+ZWZnaGlqa2xt_",
+		"legacy registration token":           "cXk9Y2Rl-ZWZnaGlqa2xt_:APA91bHun4MxP5egoKMwt2KZFBaFUH-1RYqx",
+		"between legacy and generated length": "cXk9Y2Rl-ZWZnaGlqa2xt",
+		"shorter than a legacy IID":           "cXk9Y2Rl-Z",
+		"too long":                            deviceFID + "A",
+		"invalid prefix":                      "aXk9Y2Rl-ZWZnaGlqa2xt_",
+		"non URL-safe character":              "cXk9Y2Rl+ZWZnaGlqa2xt_",
 	}
 	for name, value := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -256,6 +257,18 @@ func TestServiceRegisterInstallationRejectsNonFID(t *testing.T) {
 			assert.Zero(t, repo.registerCalls)
 		})
 	}
+}
+
+func TestServiceRegisterInstallationAcceptsMigratedLegacyIID(t *testing.T) {
+	// The Android SDK keeps a migrated 11-character Instance ID as the installation's FID.
+	repo := &mockRepo{}
+	svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+
+	err := svc.RegisterInstallation(context.Background(), 1, "fA1b2C3d4E_", "ANDROID")
+
+	require.NoError(t, err)
+	require.Len(t, repo.installations[1], 1)
+	assert.Equal(t, "fA1b2C3d4E_", repo.installations[1][0].FID)
 }
 
 func TestServiceRegisterInstallationOwnership(t *testing.T) {
