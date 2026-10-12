@@ -13,16 +13,16 @@ import (
 	"google.golang.org/api/option"
 )
 
-// Outcome classifies one token's FCM send result so callers can decide whether to
-// delete the token, retry it durably, or treat it as delivered.
+// Outcome classifies one installation's FCM send result so callers can decide whether
+// to delete the installation, retry it durably, or treat it as delivered.
 type Outcome string
 
 const (
-	// OutcomeSuccess: FCM accepted and delivered the message to the provider for this token.
+	// OutcomeSuccess: FCM accepted and delivered the message to the provider for this FID.
 	OutcomeSuccess Outcome = "SUCCESS"
-	// OutcomeInvalid: the token itself is unusable (unregistered, sender mismatch, malformed) and must be removed.
+	// OutcomeInvalid: the FID itself is unusable (unregistered, sender mismatch) and must be removed.
 	OutcomeInvalid Outcome = "INVALID"
-	// OutcomeRetryable: a transient provider/infra error; the same token can be retried later.
+	// OutcomeRetryable: a transient provider/infra error; the same FID can be retried later.
 	OutcomeRetryable Outcome = "RETRYABLE"
 	// OutcomeUnclassified: an error the SDK does not map to a known permanent/transient category.
 	// Treated as retryable but with a much lower attempt ceiling, since it may in fact be permanent.
@@ -30,17 +30,17 @@ const (
 )
 
 // DataKeyAccountID is the data payload key carrying the account that owns the target
-// device token generation. FCM cannot recall a message already handed to it, so a
-// token transferred after the pre-send ownership check may still receive the previous
-// account's message; the client must drop a message whose accountId is not the
-// currently signed-in account.
+// installation generation. FCM cannot recall a message already handed to it, so an
+// installation transferred after the pre-send ownership check may still receive the
+// previous account's message; the client must drop a message whose accountId is not
+// the currently signed-in account.
 const DataKeyAccountID = "accountId"
 
-// Message is one token's send request. Data is per token so each message can carry
-// the owning account (see DataKeyAccountID).
+// Message is one Firebase installation's send request. Data is per installation so
+// each message can carry the owning account (see DataKeyAccountID).
 type Message struct {
-	Token string
-	Data  map[string]string
+	FID  string
+	Data map[string]string
 }
 
 // WithAccountID returns a copy of data with DataKeyAccountID set to accountID.
@@ -53,9 +53,9 @@ func WithAccountID(data map[string]string, accountID int64) map[string]string {
 	return out
 }
 
-// TokenResult is one token's classified send outcome.
-type TokenResult struct {
-	Token   string
+// Result is one installation's classified send outcome.
+type Result struct {
+	FID     string
 	Outcome Outcome
 }
 
@@ -89,11 +89,11 @@ func (s *Sender) classify(err error) Outcome {
 	default:
 		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
 		// message-level problems (oversized payload, a malformed field) that are not
-		// specific to one token. Since every message in a batch shares the same
+		// specific to one installation. Since every message in a batch shares the same
 		// notification content, classifying it as OutcomeInvalid here would delete every
-		// recipient's token in the batch for what is actually a message construction
-		// bug. Routing it to OutcomeUnclassified instead only quarantines it (after
-		// MaxAttemptsUnclassified retries) without touching any token.
+		// recipient's installation in the batch for what is actually a message
+		// construction bug. Routing it to OutcomeUnclassified instead only quarantines it
+		// (after MaxAttemptsUnclassified retries) without touching any installation.
 		return OutcomeUnclassified
 	}
 }
@@ -130,17 +130,18 @@ func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
 
 const fcmBatchSize = 500
 
-// Send delivers every message, batched at fcmBatchSize, and returns a classified
-// result for each message attempted, in input order. It only returns a non-nil error for context
-// cancellation — a per-token or per-batch FCM failure is reported through the
-// returned TokenResult.Outcome instead, so a caller can persist retryable failures
-// durably rather than treat the whole call as failed.
-func (s *Sender) Send(ctx context.Context, messages []Message, title, body string) ([]TokenResult, error) {
+// Send delivers every message to its FID, batched at fcmBatchSize, and returns a
+// classified result for each message attempted, in input order. SendEach returns one
+// response per message in request order. It only returns a non-nil error for context
+// cancellation — a per-installation or per-batch FCM failure is reported through the
+// returned Result.Outcome instead, so a caller can persist retryable failures durably
+// rather than treat the whole call as failed.
+func (s *Sender) Send(ctx context.Context, messages []Message, title, body string) ([]Result, error) {
 	if len(messages) == 0 {
 		return nil, nil
 	}
 
-	results := make([]TokenResult, 0, len(messages))
+	results := make([]Result, 0, len(messages))
 	for i := 0; i < len(messages); i += fcmBatchSize {
 		if err := ctx.Err(); err != nil {
 			return results, err
@@ -156,31 +157,31 @@ func (s *Sender) Send(ctx context.Context, messages []Message, title, body strin
 			msgs[j] = &messaging.Message{
 				Notification: &messaging.Notification{Title: title, Body: body},
 				Data:         m.Data,
-				Token:        m.Token,
+				Fid:          m.FID,
 			}
 		}
 		resp, err := s.client.SendEach(ctx, msgs)
 		if err != nil {
-			// The whole batch failed before FCM assigned per-token responses; classify the
-			// batch-level error once and apply it to every token in the batch so none of them
-			// are silently dropped from the durable retry ledger.
+			// The whole batch failed before FCM assigned per-message responses; classify the
+			// batch-level error once and apply it to every installation in the batch so none
+			// of them are silently dropped from the durable retry ledger.
 			outcome := s.classify(err)
 			slog.Warn("fcm multicast call failed", "err", err, "batch_size", len(batch), "outcome", outcome)
 			for _, m := range batch {
-				results = append(results, TokenResult{Token: m.Token, Outcome: outcome})
+				results = append(results, Result{FID: m.FID, Outcome: outcome})
 			}
 			continue
 		}
 		for j, r := range resp.Responses {
 			if r.Success {
-				results = append(results, TokenResult{Token: batch[j].Token, Outcome: OutcomeSuccess})
+				results = append(results, Result{FID: batch[j].FID, Outcome: OutcomeSuccess})
 				continue
 			}
 			outcome := s.classify(r.Error)
 			if outcome != OutcomeInvalid {
 				slog.Warn("fcm send failed", "err", r.Error, "batch_index", j, "outcome", outcome)
 			}
-			results = append(results, TokenResult{Token: batch[j].Token, Outcome: outcome})
+			results = append(results, Result{FID: batch[j].FID, Outcome: outcome})
 		}
 	}
 	return results, nil

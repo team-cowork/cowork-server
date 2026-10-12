@@ -5,42 +5,42 @@ import (
 	"time"
 )
 
-// Repository persists the (eventId, deviceTokenId) delivery ledger described in
+// Repository persists the (eventId, installationId) delivery ledger described in
 // docs/todo/items/33-reliability/fcm-partial-failure-retry.md.
 type Repository interface {
-	// ResumeOrCreate durably claims every target token under eventID before the first
-	// FCM call, then returns only the subset that still needs an attempt: newly
+	// ResumeOrCreate durably claims every target installation under eventID before the
+	// first FCM call, then returns only the subset that still needs an attempt: newly
 	// inserted rows, and any row a previous crash or Kafka redelivery left eligible to
-	// retry now. Every returned TargetToken is transitioned to IN_PROGRESS as part of
-	// this call (with a fresh ClaimToken) so the retry worker's ClaimDue cannot also
-	// pick it up during the synchronous FCM call that follows. Tokens whose row already
+	// retry now. Every returned Target is transitioned to IN_PROGRESS as part of this
+	// call (with a fresh ClaimToken) so the retry worker's ClaimDue cannot also pick it
+	// up during the synchronous FCM call that follows. Installations whose row already
 	// reached a terminal status, is currently IN_PROGRESS, or is still backing off are
 	// excluded so a redelivered message never resends to them out of turn.
 	ResumeOrCreate(
 		ctx context.Context,
 		eventID string,
-		targets []TargetToken,
+		targets []Target,
 		title, body string,
 		data map[string]string,
-	) ([]TargetToken, error)
+	) ([]Target, error)
 
-	// FinalizeSuccess marks one token's delivery for eventID as SUCCESS, clearing the
+	// FinalizeSuccess marks one installation's delivery for eventID as SUCCESS, clearing the
 	// stored notification content. claimToken must match the row's current claim (from
 	// ResumeOrCreate or ClaimDue); a mismatch means the row was reclaimed by someone
 	// else in the meantime and this call is a no-op rather than an overwrite.
-	FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
+	FinalizeSuccess(ctx context.Context, eventID string, installationID int64, claimToken string) error
 
-	// FinalizeInvalid marks one token's delivery for eventID as INVALID, clearing the
-	// stored notification content. The caller is still responsible for deleting the
-	// token from the device token table. See FinalizeSuccess for claimToken fencing.
-	FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
+	// FinalizeInvalid marks one installation's delivery for eventID as INVALID, clearing
+	// the stored notification content. The caller is still responsible for deleting the
+	// FID from the installation table. See FinalizeSuccess for claimToken fencing.
+	FinalizeInvalid(ctx context.Context, eventID string, installationID int64, claimToken string) error
 
 	// FinalizeFailure records a retryable or unclassified failure, applying the policy
 	// in policy.go to decide between PENDING_RETRY (with backoff) and QUARANTINED —
 	// clearing the stored notification content in the latter case — and returns which
 	// one it landed on so the caller can observe quarantines. See FinalizeSuccess for
 	// claimToken fencing.
-	FinalizeFailure(ctx context.Context, eventID string, deviceTokenID int64, claimToken string, errClass ErrorClass, now time.Time) (Status, error)
+	FinalizeFailure(ctx context.Context, eventID string, installationID int64, claimToken string, errClass ErrorClass, now time.Time) (Status, error)
 
 	// ClaimDue locks and transitions up to limit due PENDING_RETRY rows to IN_PROGRESS
 	// with a fresh ClaimToken, returning them for the retry worker to attempt.
@@ -49,9 +49,9 @@ type Repository interface {
 	ClaimDue(ctx context.Context, limit int, now time.Time) ([]Record, error)
 
 	// FinalizeCancelled marks a claimed row CANCELLED, clearing the stored notification
-	// content, because its device token was deleted or replaced before the send ran.
+	// content, because its installation was deleted or replaced before the send ran.
 	// See FinalizeSuccess for claimToken fencing.
-	FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error
+	FinalizeCancelled(ctx context.Context, eventID string, installationID int64, claimToken string) error
 
 	// ReclaimStale returns IN_PROGRESS rows to PENDING_RETRY (eligible immediately),
 	// clearing their ClaimToken, when they have sat claimed longer than staleThreshold —
