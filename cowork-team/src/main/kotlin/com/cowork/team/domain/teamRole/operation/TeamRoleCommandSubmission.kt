@@ -1,6 +1,7 @@
 package com.cowork.team.domain.teamRole.operation
 
 import com.cowork.team.domain.teamMember.repository.TeamMemberEventStateRepository
+import com.cowork.team.domain.teamRole.operation.TeamRoleOperationSubmissionRepository.InsertResult
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperationResponse
 import com.cowork.team.global.outbox.OutboxWriter
 import org.springframework.http.HttpStatus
@@ -13,7 +14,7 @@ import java.util.UUID
 
 @Component
 class TeamRoleCommandSubmission(
-    private val operationRepository: TeamRoleCommandOperationRepository,
+    private val submissionRepository: TeamRoleOperationSubmissionRepository,
     private val memberStateRepository: TeamMemberEventStateRepository,
     private val outboxWriter: OutboxWriter,
     private val operationMapper: TeamRoleOperationMapper,
@@ -32,23 +33,28 @@ class TeamRoleCommandSubmission(
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val requestHash = requestHash(commandType, teamId, actorId, targetAccountId, roleId, role)
         val operationId = UUID.randomUUID().toString()
-        operationRepository.insertPendingIfAbsent(
+        val insertion = submissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             teamId = teamId,
             actorId = actorId,
-            commandType = commandType.name,
+            commandType = commandType,
             requestHash = requestHash,
         )
-        val operation = operationRepository.findByActorAndIdempotencyKeyForUpdate(actorId, normalizedKey)
-            ?: error("접수한 팀 역할 command operation을 찾을 수 없습니다.")
-        if (!operation.matches(teamId, actorId, commandType, requestHash)) {
-            throw ExpectedException(
-                "같은 Idempotency-Key를 다른 팀 역할 요청에 재사용할 수 없습니다.",
-                HttpStatus.CONFLICT,
-            )
+        when (insertion) {
+            InsertResult.Inserted -> Unit
+
+            is InsertResult.Existing -> {
+                val operation = insertion.operation
+                if (!operation.matches(teamId, actorId, commandType, requestHash)) {
+                    throw ExpectedException(
+                        "같은 Idempotency-Key를 다른 팀 역할 요청에 재사용할 수 없습니다.",
+                        HttpStatus.CONFLICT,
+                    )
+                }
+                return operationMapper.toResponse(operation)
+            }
         }
-        if (operation.operationId != operationId) return operationMapper.toResponse(operation)
 
         validateNewRequest()
         val actorVersion = activeMemberVersion(teamId, actorId)
@@ -71,7 +77,7 @@ class TeamRoleCommandSubmission(
                 submittedAt = Instant.now(),
             ),
         )
-        return operationMapper.toResponse(operation)
+        return TeamRoleOperationResponse(operationId, TeamRoleOperationStatus.PENDING)
     }
 
     internal fun requestHash(
