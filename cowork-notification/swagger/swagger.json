@@ -1,13 +1,132 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "FCM 디바이스 토큰 관리 및 푸시 알림 서비스",
+        "description": "Firebase 설치(FID) 관리 및 푸시 알림 서비스",
         "title": "cowork-notification API",
         "contact": {},
-        "version": "20260926.0"
+        "version": "20261011.0"
     },
     "basePath": "/api/notification",
     "paths": {
+        "/notifications/installations": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Firebase installation ID(FID)를 현재 계정에 등록합니다. 다른 계정이 소유한 FID면 현재 계정으로 원자적으로 이전합니다",
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "installations"
+                ],
+                "summary": "Firebase 설치 등록",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "사용자 ID (Gateway 주입)",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "설치 등록 요청",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_domain_installation.registerInstallationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created"
+                    },
+                    "400": {
+                        "description": "잘못된 요청",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "인증 실패",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "내부 서버 오류",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/notifications/installations/{fid}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "로그아웃, 계정 전환 또는 FID 변경 시 현재 계정과 FID의 연결을 해제합니다",
+                "tags": [
+                    "installations"
+                ],
+                "summary": "Firebase 설치 해제",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "format": "int64",
+                        "description": "사용자 ID (Gateway 주입)",
+                        "name": "X-User-Id",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Firebase installation ID",
+                        "name": "fid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "잘못된 요청",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "401": {
+                        "description": "인증 실패",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "404": {
+                        "description": "설치 없음",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "내부 서버 오류",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
         "/notifications/stream": {
             "get": {
                 "security": [
@@ -54,136 +173,23 @@
                     }
                 }
             }
-        },
-        "/notifications/tokens": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "FCM 토큰을 현재 계정에 등록합니다. 다른 계정이 소유한 토큰이면 현재 계정으로 원자적으로 이전합니다",
-                "consumes": [
-                    "application/json"
-                ],
-                "tags": [
-                    "tokens"
-                ],
-                "summary": "FCM 토큰 등록",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "format": "int64",
-                        "description": "사용자 ID (Gateway 주입)",
-                        "name": "X-User-Id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "description": "토큰 등록 요청",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_domain_token.registerTokenRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created"
-                    },
-                    "400": {
-                        "description": "잘못된 요청",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "인증 실패",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "내부 서버 오류",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
-        },
-        "/notifications/tokens/{token}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "로그아웃 또는 계정 전환 시 현재 계정과 FCM 토큰의 연결을 해제합니다",
-                "tags": [
-                    "tokens"
-                ],
-                "summary": "FCM 토큰 삭제",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "format": "int64",
-                        "description": "사용자 ID (Gateway 주입)",
-                        "name": "X-User-Id",
-                        "in": "header",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "FCM 토큰",
-                        "name": "token",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "204": {
-                        "description": "No Content"
-                    },
-                    "400": {
-                        "description": "잘못된 요청",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "401": {
-                        "description": "인증 실패",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "404": {
-                        "description": "토큰 없음",
-                        "schema": {
-                            "type": "string"
-                        }
-                    },
-                    "500": {
-                        "description": "내부 서버 오류",
-                        "schema": {
-                            "type": "string"
-                        }
-                    }
-                }
-            }
         }
     },
     "definitions": {
-        "internal_domain_token.registerTokenRequest": {
+        "internal_domain_installation.registerInstallationRequest": {
             "type": "object",
             "properties": {
-                "platform": {
-                    "type": "string"
+                "fid": {
+                    "type": "string",
+                    "example": "cXk9Y2Rl-ZWZnaGlqa2xt_"
                 },
-                "token": {
-                    "type": "string"
+                "platform": {
+                    "type": "string",
+                    "enum": [
+                        "IOS",
+                        "ANDROID",
+                        "WEB"
+                    ]
                 }
             }
         }
