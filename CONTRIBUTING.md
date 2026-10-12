@@ -269,7 +269,7 @@ Node modules use XO with four-space indentation and module-specific settings in 
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 
-`cowork-project` (Maven) and `cowork-preference` (Amper) do not apply the Gradle Kotlin plugin and have no `ktlintFormat` task. Root KtLint commands do not format them; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
+`cowork-project` (Maven) and `cowork-preference` (Kotlin Toolchain) do not apply the Gradle Kotlin plugin and have no `ktlintFormat` task. Root KtLint commands do not format them; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
 
 Project hooks attempt root KtLint after recognized Kotlin edits and root Spotless after recognized Java/Kotlin/Groovy edits. The suffix that triggers a hook does not expand the formatter's configured targets. Hook failures are reported but do not replace an explicit check.
 
@@ -301,7 +301,7 @@ Exception handling is configured per service, not in a shared monorepo module: t
 
 ### Use SLF4J with the Module's Logging Backend
 
-JVM code uses the SLF4J API. Spring modules use Logback; `cowork-preference` binds SLF4J to Log4j2 through its Amper dependencies. Never use `println()` for application logging.
+JVM code uses the SLF4J API. Spring modules use Logback; `cowork-preference` binds SLF4J to Log4j2 through its Kotlin Toolchain dependencies. Never use `println()` for application logging.
 
 ```kotlin
 private val log = LoggerFactory.getLogger(TeamLifecycleConsumer::class.java)
@@ -384,14 +384,14 @@ class QueryTeamServiceTest : DescribeSpec({
 
 Run the owning module's tests from the repository root:
 
-| Scope                | Command                                                                               |
-|----------------------|---------------------------------------------------------------------------------------|
-| Gradle Kotlin module | `./gradlew :cowork-team:test` (replace `team` with `gateway`, `config`, or `channel`) |
-| Java roadmap         | `./gradlew :cowork-roadmap:test`                                                      |
-| Maven project        | `(cd cowork-project && ./mvnw test)`                                                  |
-| Amper preference     | `./gradlew :cowork-preference:amperTest`                                              |
+| Scope                       | Command                                                                               |
+|-----------------------------|---------------------------------------------------------------------------------------|
+| Gradle Kotlin module        | `./gradlew :cowork-team:test` (replace `team` with `gateway`, `config`, or `channel`) |
+| Java roadmap                | `./gradlew :cowork-roadmap:test`                                                      |
+| Maven project               | `(cd cowork-project && ./mvnw test)`                                                  |
+| Kotlin Toolchain preference | `./gradlew :cowork-preference:kotlinToolchainTest`                                    |
 
-The Amper wrapper uses `KOTLIN_CLI`, defaulting to `~/.local/bin/kotlin`; install that toolchain before running it. There is no `:cowork-project:test` or `:cowork-preference:test` Gradle task. An unqualified root `./gradlew test` does not cover those wrappers or the non-JVM services. Use each non-JVM module's documented native test command.
+The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Gradle, Docker, and CI use that project wrapper. `KOTLIN_CLI` can override the Gradle command; `~/` expands to the user home, and relative paths resolve against `cowork-preference`. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. There is no `:cowork-project:test` or `:cowork-preference:test` Gradle task. An unqualified root `./gradlew test` does not cover those wrappers or the non-JVM services. Use each non-JVM module's documented native test command.
 
 ## Security
 
