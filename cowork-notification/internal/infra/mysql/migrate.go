@@ -499,6 +499,23 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 				columns: []string{"status", "updated_at"},
 			},
 		}, true
+	case 10:
+		return []tableExpectation{
+			{
+				name: "tb_device_installation",
+				columns: []string{
+					"id", "account_id", "fid", "platform", "created_at", "updated_at",
+				},
+			},
+			{
+				name: "tb_notification_delivery_retry",
+				columns: []string{
+					"id", "event_id", "installation_id", "fid", "title", "body", "data_json",
+					"status", "attempt_count", "next_attempt_at", "last_error_class", "claim_token",
+					"created_at", "updated_at",
+				},
+			},
+		}, true
 	default:
 		return nil, false
 	}
@@ -529,6 +546,10 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 		)
 		return indexed, true, err
 	}
+	if version == 10 {
+		complete, err := fidInstallationSchemaComplete(ctx, db)
+		return complete, true, err
+	}
 	if version != 6 {
 		return true, true, nil
 	}
@@ -544,6 +565,18 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 		return false, true, err
 	}
 	return missingBackfillRows == 0, true, nil
+}
+
+// fidInstallationSchemaComplete verifies V10 beyond its columns: the registration
+// token table is gone and each FID has a single owner.
+func fidInstallationSchemaComplete(ctx context.Context, db *gorm.DB) (bool, error) {
+	legacyTokenTable, err := tableExists(ctx, db, "tb_device_token")
+	if err != nil || legacyTokenTable {
+		return false, err
+	}
+	return uniqueSingleColumnIndexExists(
+		ctx, db, "tb_device_installation", "uq_tb_device_installation_fid", "fid",
+	)
 }
 
 func migrationDDLComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
