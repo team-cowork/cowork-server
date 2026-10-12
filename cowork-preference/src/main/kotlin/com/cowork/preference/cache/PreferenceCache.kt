@@ -98,7 +98,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
     }.getOrDefault(true)
 
     private suspend fun writeSetting(key: String, settings: JsonObject) {
-        redisApi.setex(key, TTL_SECONDS.toString(), settings.encode()).coAwait()
+        redisApi.set(listOf(key, settings.encode(), "EX", TTL_SECONDS.toString())).coAwait()
     }
 
     private suspend fun deleteSetting(key: String) {

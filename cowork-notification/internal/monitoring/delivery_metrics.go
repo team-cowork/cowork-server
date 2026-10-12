@@ -6,7 +6,7 @@ var (
 	fcmDeliveryOutcomesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "cowork_notification_fcm_delivery_outcomes_total",
-			Help: "FCM per-token delivery outcomes, labeled by outcome and attempt source (initial send vs retry worker).",
+			Help: "FCM per-installation delivery outcomes, labeled by outcome and attempt source (initial send vs retry worker).",
 		},
 		[]string{"outcome", "source"},
 	)
