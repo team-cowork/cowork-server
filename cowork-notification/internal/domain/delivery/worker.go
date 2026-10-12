@@ -30,7 +30,7 @@ const (
 	fcmSendTimeout = 30 * time.Second
 	// finalizeTimeout bounds the detached context used to record an FCM result that has
 	// already happened. It must survive ctx (the Kafka consumer's lease) being cancelled
-	// or expiring, otherwise a token FCM already accepted could be resent by the retry
+	// or expiring, otherwise an FID FCM already accepted could be resent by the retry
 	// worker before the row is marked done.
 	finalizeTimeout = 30 * time.Second
 
@@ -38,36 +38,37 @@ const (
 	purgeRetention = 7 * 24 * time.Hour
 )
 
-// TokenVerifier answers whether a device token row is still current, so the retry
-// worker can cancel a queued retry when the token was deleted or reassigned.
-type TokenVerifier interface {
-	// CurrentToken returns the live token string and owning account for deviceTokenID
-	// and true, or ("", 0, false) if the device token row no longer exists.
-	CurrentToken(ctx context.Context, deviceTokenID int64) (token string, accountID int64, ok bool, err error)
+// InstallationVerifier answers whether an installation row is still current, so the
+// retry worker can cancel a queued retry when the installation was deleted or
+// reassigned.
+type InstallationVerifier interface {
+	// CurrentFID returns the live FID and owning account for installationID and true,
+	// or ("", 0, false) if the installation row no longer exists.
+	CurrentFID(ctx context.Context, installationID int64) (fid string, accountID int64, ok bool, err error)
 }
 
-// InvalidTokenHandler deletes a token FCM reports as permanently unusable.
-type InvalidTokenHandler interface {
-	DeleteInvalidToken(ctx context.Context, token string) error
+// InvalidInstallationHandler deletes an FID FCM reports as permanently unusable.
+type InvalidInstallationHandler interface {
+	DeleteInvalidFID(ctx context.Context, fid string) error
 }
 
 type fcmSender interface {
-	Send(ctx context.Context, messages []fcm.Message, title, body string) ([]fcm.TokenResult, error)
+	Send(ctx context.Context, messages []fcm.Message, title, body string) ([]fcm.Result, error)
 }
 
 // Worker periodically resends PENDING_RETRY rows whose backoff has elapsed. Run must
 // only ever be driven by one goroutine — tick's throttled purge state assumes it is
 // never called concurrently with itself.
 type Worker struct {
-	repo      Repository
-	tokens    TokenVerifier
-	invalid   InvalidTokenHandler
-	fcm       fcmSender
-	lastPurge time.Time
+	repo          Repository
+	installations InstallationVerifier
+	invalid       InvalidInstallationHandler
+	fcm           fcmSender
+	lastPurge     time.Time
 }
 
-func NewWorker(repo Repository, tokens TokenVerifier, invalid InvalidTokenHandler, sender fcmSender) *Worker {
-	return &Worker{repo: repo, tokens: tokens, invalid: invalid, fcm: sender}
+func NewWorker(repo Repository, installations InstallationVerifier, invalid InvalidInstallationHandler, sender fcmSender) *Worker {
+	return &Worker{repo: repo, installations: installations, invalid: invalid, fcm: sender}
 }
 
 func (w *Worker) Run(ctx context.Context) {
@@ -114,7 +115,7 @@ func (w *Worker) tick(ctx context.Context) {
 
 // attemptAll fans claimed rows out across a bounded worker pool so the whole batch's
 // wall-clock time cannot approach staleInProgressAfter even when FCM is slow. Each
-// row belongs to a different device token, so attempts share no mutable state.
+// row belongs to a different installation, so attempts share no mutable state.
 func (w *Worker) attemptAll(ctx context.Context, due []Record) {
 	if len(due) == 0 {
 		return
@@ -152,25 +153,25 @@ func (w *Worker) purgeIfDue(ctx context.Context) {
 }
 
 func (w *Worker) attempt(ctx context.Context, rec Record) {
-	currentToken, accountID, ok, err := w.tokens.CurrentToken(ctx, rec.DeviceTokenID)
+	currentFID, accountID, ok, err := w.installations.CurrentFID(ctx, rec.InstallationID)
 	if err != nil {
-		slog.Error("fcm retry worker: token lookup failed", "deviceTokenId", rec.DeviceTokenID, "err", err)
+		slog.Error("fcm retry worker: installation lookup failed", "installationId", rec.InstallationID, "err", err)
 		return
 	}
-	if !ok || currentToken != rec.Token {
-		// The token was deleted, or replaced (device_token_id is never reused, so a
-		// mismatch means the current row for this id no longer holds the token the
+	if !ok || currentFID != rec.FID {
+		// The installation was deleted, or replaced (installation_id is never reused, so
+		// a mismatch means the current row for this id no longer holds the FID the
 		// claimed delivery was for) — the row is stale relative to current state.
 		finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), finalizeTimeout)
 		defer cancel()
-		if err := w.repo.FinalizeCancelled(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeCancelled(finalizeCtx, rec.EventID, rec.InstallationID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize cancelled failed", "id", rec.ID, "err", err)
 		}
 		return
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, fcmSendTimeout)
-	msg := fcm.Message{Token: rec.Token, Data: fcm.WithAccountID(rec.Data, accountID)}
+	msg := fcm.Message{FID: rec.FID, Data: fcm.WithAccountID(rec.Data, accountID)}
 	results, err := w.fcm.Send(sendCtx, []fcm.Message{msg}, rec.Title, rec.Body)
 	cancel()
 	if err != nil || len(results) == 0 {
@@ -178,7 +179,7 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 		// non-empty input, which Send's contract does not produce. Leave the row
 		// IN_PROGRESS; ReclaimStale will return it to PENDING_RETRY on a later tick.
 		if err != nil && ctx.Err() == nil {
-			slog.Error("fcm retry worker: send failed", "deviceTokenId", rec.DeviceTokenID, "err", err)
+			slog.Error("fcm retry worker: send failed", "installationId", rec.InstallationID, "err", err)
 		}
 		return
 	}
@@ -190,17 +191,17 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 	monitoring.RecordFCMDeliveryOutcome(string(outcome), "retry")
 	switch outcome {
 	case fcm.OutcomeSuccess:
-		if err := w.repo.FinalizeSuccess(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeSuccess(finalizeCtx, rec.EventID, rec.InstallationID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize success failed", "id", rec.ID, "err", err)
 		}
 	case fcm.OutcomeInvalid:
-		if err := w.repo.FinalizeInvalid(finalizeCtx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken); err != nil {
+		if err := w.repo.FinalizeInvalid(finalizeCtx, rec.EventID, rec.InstallationID, rec.ClaimToken); err != nil {
 			slog.Error("fcm retry worker: finalize invalid failed", "id", rec.ID, "err", err)
 		}
-		if err := w.invalid.DeleteInvalidToken(finalizeCtx, rec.Token); err != nil {
-			slog.Warn("fcm retry worker: delete invalid token failed", "err", err)
+		if err := w.invalid.DeleteInvalidFID(finalizeCtx, rec.FID); err != nil {
+			slog.Warn("fcm retry worker: delete invalid installation failed", "err", err)
 		} else {
-			slog.Info("fcm retry worker: deleted invalid device token", "deviceTokenId", rec.DeviceTokenID)
+			slog.Info("fcm retry worker: deleted invalid installation", "installationId", rec.InstallationID)
 		}
 	case fcm.OutcomeUnclassified:
 		w.finalizeFailure(finalizeCtx, rec, ErrorClassUnclassified)
@@ -210,7 +211,7 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 }
 
 func (w *Worker) finalizeFailure(ctx context.Context, rec Record, errClass ErrorClass) {
-	status, err := w.repo.FinalizeFailure(ctx, rec.EventID, rec.DeviceTokenID, rec.ClaimToken, errClass, time.Now())
+	status, err := w.repo.FinalizeFailure(ctx, rec.EventID, rec.InstallationID, rec.ClaimToken, errClass, time.Now())
 	if err != nil {
 		slog.Error("fcm retry worker: finalize failure failed", "id", rec.ID, "err", err)
 		return
