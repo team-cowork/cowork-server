@@ -10,11 +10,11 @@
 
 ## 진행 중
 
-2026-10-12 기준 **20건**이다. 원격 `develop`의 `5a534586`, `main`의 `f68758e2`를 기준으로
+2026-10-12 기준 **19건**이다. 원격 `develop`의 `5a534586`, `main`의 `f68758e2`를 기준으로
 2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
 나머지 항목은 현재 코드와 대조해 변동이 없음을 확인했다. 항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
 
-### 구현·설계 보완 필요 (18)
+### 구현·설계 보완 필요 (17)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — Gateway를 경유하는 비파괴 API probe와 별도 알림
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md) — 실제 수집 복구 판정과 임시 화면·공개 matcher 제거
@@ -26,7 +26,6 @@
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md) — 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md) — 전체 fan-out·unread 멱등성과 수신 측 eventId 계약
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md) — broker identity 확보와 부분 데이터 유실·source 교체의 복구 기준
-- performance: [Idempotency operation repository 반환 계약 최적화](./items/37-performance/idempotent-operation-repository-contract.md) — 신규·기존 구분 repository 결과 계약과 안전한 조회 생략
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md) — Actions용 단기 인증 또는 만료·교체 자동화
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md) — 서비스별 필드·timestamp 정규화와 전 서비스 로그 도착 확인
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md) — 참조 기반 보존 정책·미리보기·적용 명령
@@ -50,7 +49,6 @@
 - [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
 - [20260916](./20260916_TODO.md) — FCM 식별자·SDK 전환
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
-- [20260830](./20260830_TODO.md) — 역할 command operation 반환 계약
 - [20260828](./20260828_TODO.md) — 서버 애플리케이션 코드
 - [20260825](./20260825_TODO.md) — Gateway API 계약·메트릭 수집
 
