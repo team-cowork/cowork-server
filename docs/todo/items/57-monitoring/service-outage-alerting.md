@@ -40,8 +40,8 @@ CD는 배포 job의 실패·취소를 집계하고, job이 하나도 실행되�
 - target이 사라진 서비스, Vault seal, 디스크 부족을 감지한다.
 - CD 알림이 상위 CI 결과와 실제 배포 실행 여부를 구분한다.
 
-## 점검 근거 (2026-10-08)
+## 점검 근거 (2026-10-12)
 
-- 관련 PR: [#348](https://github.com/team-cowork/cowork-server/pull/348) · [#349](https://github.com/team-cowork/cowork-server/pull/349) · [#449](https://github.com/team-cowork/cowork-server/pull/449).
-- [대조 코드](../../../../.github/workflows/cowork-prod-cd.yml): down·5xx·adapter 알림과 배포 job 결과 집계는 있다. 소실 target·seal·디스크와 CI 실패로 모든 CD job이 skipped인 경우는 처리하지 않는다.
-- 판정: **부분 구현**. 기대 서비스 집합·인프라 알림과 상위 CI 결론 반영을 남은 범위로 유지한다.
+- 관련 PR: [#348](https://github.com/team-cowork/cowork-server/pull/348) · [#349](https://github.com/team-cowork/cowork-server/pull/349) · [#449](https://github.com/team-cowork/cowork-server/pull/449) · [#473](https://github.com/team-cowork/cowork-server/pull/473).
+- [대조 코드](../../../../.github/workflows/cowork-prod-cd.yml#L457): 배포 job 결과를 집계해 모든 job이 `skipped`이면 `cancelled`와 상위 CI 결론을 표시한다. [알림 규칙](../../../../deploy/config/monitoring/prometheus/rules/application-alerts.yml)에는 down·5xx·adapter·Kafka lag·DB pool 규칙만 있고 기대 서비스 집합·Vault seal·filesystem 규칙은 없다.
+- 판정: **부분 구현**. 기대 서비스 집합과 Vault seal·디스크 부족 알림을 남은 범위로 유지한다.

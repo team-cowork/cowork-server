@@ -53,8 +53,8 @@ unique만 추가하면 여러 행을 재정렬하는 중간 상태에서 충돌�
 - 생성·reorder 경합과 gap 처리 결과가 결정적이다.
 - 저장값과 projection event가 같은 최종 순서를 표현한다.
 
-## 점검 근거 (2026-10-08)
+## 점검 근거 (2026-10-12)
 
-- 관련 PR: [#102](https://github.com/team-cowork/cowork-server/pull/102) · [#419](https://github.com/team-cowork/cowork-server/pull/419).
-- [대조 코드](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/node/service/impl/CreateNodeReferenceServiceImpl.java): channel·project는 MAX + 1 생성과 기존 행 reorder 잠금, roadmap node·reference는 count 기반 position 할당을 유지한다.
-- 판정: **부분 구현**. 생성·reorder 공통 직렬화와 삭제 gap·기존 중복 처리를 남은 범위로 유지한다.
+- 관련 PR: [#102](https://github.com/team-cowork/cowork-server/pull/102) · [#419](https://github.com/team-cowork/cowork-server/pull/419) · [#475](https://github.com/team-cowork/cowork-server/pull/475).
+- [대조 코드](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/roadmap/repository/RoadmapRepository.java#L25): roadmap node·reference는 `COALESCE(MAX(position) + 1, 0)`로 할당하고 로드맵 행 `FOR UPDATE` 잠금 아래에서 생성·수정·reorder·삭제를 직렬화한다. channel·project는 `findMaxPositionByTeamId` + 1 생성과 기존 행 reorder 잠금만 유지하며 둘 사이의 공통 직렬화는 없다.
+- 판정: **부분 구현**. 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약을 남은 범위로 유지한다.
