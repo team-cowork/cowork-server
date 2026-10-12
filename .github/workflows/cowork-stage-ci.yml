@@ -159,7 +159,7 @@ jobs:
               {"service":"cowork-config","build":"gradle","working-directory":"."},
               {"service":"cowork-user","build":"elixir","working-directory":"cowork-user","elixir-version":"1.20.4","otp-version":"29.1"},
               {"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"},
-              {"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"},
+              {"service":"cowork-preference","build":"kotlin-toolchain","working-directory":"cowork-preference"},
               {"service":"cowork-project","build":"gradle","working-directory":"."},
               {"service":"cowork-channel","build":"gradle","working-directory":"."},
               {"service":"cowork-roadmap","build":"gradle","working-directory":"."},
@@ -180,7 +180,7 @@ jobs:
             [ "${{ steps.filter.outputs.cowork-notification }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-notification","build":"go","working-directory":"cowork-notification","go-version-file":"cowork-notification/go.mod","build-command":"go build ./cmd/server"}]')
             [ "${{ steps.filter.outputs.cowork-preference }}" == "true" ] && \
-              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"amper","working-directory":"cowork-preference"}]')
+              MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-preference","build":"kotlin-toolchain","working-directory":"cowork-preference"}]')
             [ "${{ steps.filter.outputs.cowork-project == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
               MATRIX=$(echo "$MATRIX" | jq '.include += [{"service":"cowork-project","build":"gradle","working-directory":"."}]')
             [ "${{ steps.filter.outputs.cowork-roadmap == 'true' || steps.filter.outputs.gradle-shared == 'true' }}" == "true" ] && \
@@ -238,21 +238,22 @@ jobs:
         if: matrix.build == 'gradle'
         working-directory: ${{ matrix.working-directory }}
         run: ./gradlew :${{ matrix.service }}:build --build-cache
-      - name: Build & Test (Amper)
-        if: matrix.build == 'amper'
+      - name: Cache Kotlin Toolchain Dependencies
+        if: matrix.build == 'kotlin-toolchain'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/JetBrains/Kotlin
+          key: ${{ runner.os }}-${{ runner.arch }}-kotlin-toolchain-v1-${{ hashFiles(format('{0}/kotlin', matrix.working-directory)) }}-${{ hashFiles(format('{0}/module.yaml', matrix.working-directory)) }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-kotlin-toolchain-v1-${{ hashFiles(format('{0}/kotlin', matrix.working-directory)) }}-
+      - name: Build & Test (Kotlin Toolchain)
+        if: matrix.build == 'kotlin-toolchain'
         working-directory: ${{ matrix.working-directory }}
-        env:
-          KOTLIN_CLI_VERSION: '0.12.2'
-          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
         run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/kotlin" \
-            "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper"
-          echo "${KOTLIN_CLI_WRAPPER_SHA256}  $HOME/.local/bin/kotlin" | sha256sum -c -
-          chmod +x "$HOME/.local/bin/kotlin"
-          export PATH="$HOME/.local/bin:$PATH"
-          kotlin build
-          kotlin test
+          ./kotlin --version
+          ./kotlin build
+          ./kotlin test
+          ./kotlin package
+          test -s build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar
       - name: Setup Go
         if: matrix.build == 'go'
         uses: actions/setup-go@v7
@@ -437,6 +438,14 @@ jobs:
       - name: Define Coverage Inventory and Runner
         run: |
           mkdir -p "$RUNNER_TEMP/coverage-tools"
+          # Pin both measurements to the PR's wrapper, falling back to base for a removed module.
+          for snapshot in source-pr source-base; do
+            wrapper="$GITHUB_WORKSPACE/$snapshot/cowork-preference/kotlin"
+            if [ -f "$wrapper" ]; then
+              cp "$wrapper" "$RUNNER_TEMP/coverage-tools/kotlin"
+              break
+            fi
+          done
           cat > "$RUNNER_TEMP/coverage-tools/run.py" <<'COVERAGE_RUN_PY_0'
           #!/usr/bin/env python3
           """Discover both source snapshots and measure supported modules without a registry."""
@@ -465,7 +474,7 @@ jobs:
           RUNNERS = {
               'gradle': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
               'maven': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
-              'amper': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
+              'kotlin-toolchain': ('line', 'jacoco', 'report.xml', JVM_TEST_SOURCES),
               'go': ('statement', 'go', 'report.out', ('**/*_test.go',)),
               'elixir': ('line', 'counts', 'report.json', ('test/**/*_test.exs',)),
               'jest': ('line', 'istanbul', 'report.json', JAVASCRIPT_TEST_SOURCES),
@@ -512,7 +521,7 @@ jobs:
               if not directory.exists():
                   return metadata('absent', 'Module does not exist at this revision')
               # Owner build files take precedence over delegating Gradle wrappers.
-              for filename, runner in [('module.yaml', 'amper'), ('pom.xml', 'maven'), ('go.mod', 'go'), ('mix.exs', 'elixir')]:
+              for filename, runner in [('module.yaml', 'kotlin-toolchain'), ('pom.xml', 'maven'), ('go.mod', 'go'), ('mix.exs', 'elixir')]:
                   if (directory / filename).is_file():
                       return coverage_metadata(directory, runner)
               package_file = directory / 'package.json'
@@ -599,7 +608,7 @@ jobs:
                   result.write_text(json.dumps(dict(module=entry['module'], snapshot=snapshot, metric=info['metric'],
                                                    status=status, covered=None, total=None, reason=reason), ensure_ascii=False) + '\n')
                   return 1 if status == 'failed' else 0
-              adapter = 'run-jvm.sh' if runner in {'gradle', 'maven', 'amper'} else 'run-native.sh'
+              adapter = 'run-jvm.sh' if runner in {'gradle', 'maven', 'kotlin-toolchain'} else 'run-native.sh'
               completed = subprocess.run(['bash', str(TOOLS / adapter), runner, entry['module'], str(source), str(output)], check=False)
               exit_code = completed.returncode if completed.returncode >= 0 else 128 - completed.returncode
               normalized = subprocess.run([
@@ -668,7 +677,7 @@ jobs:
                       task.enabled = false
                   }
               }
-              // Maven and Amper wrapper projects have only the base plugin and must stay untouched.
+              // Maven and Kotlin Toolchain wrapper projects have only the base plugin and must stay untouched.
               project.pluginManager.withPlugin('java') {
                   project.pluginManager.apply('jacoco')
                   project.extensions.configure(JacocoPluginExtension) { jacoco ->
@@ -700,7 +709,7 @@ jobs:
           set -euo pipefail
 
           if [[ $# -ne 4 ]]; then
-            echo 'Usage: run-jvm.sh <gradle|maven|amper> <module> <absolute-source-root> <absolute-output-dir>' >&2
+            echo 'Usage: run-jvm.sh <gradle|maven|kotlin-toolchain> <module> <absolute-source-root> <absolute-output-dir>' >&2
             exit 2
           fi
 
@@ -713,7 +722,7 @@ jobs:
           script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
           case "$runner" in
-            gradle|maven|amper) ;;
+            gradle|maven|kotlin-toolchain) ;;
             *) echo "Unsupported JVM coverage runner: $runner" >&2; exit 2 ;;
           esac
 
@@ -830,10 +839,14 @@ jobs:
               validate_tests "$module_dir/target/surefire-reports"
               cp "$module_dir/target/site/jacoco/jacoco.xml" "$output/report.xml"
               ;;
-            amper)
-              kotlin_cli=${KOTLIN_CLI:-kotlin}
-              if ! "$kotlin_cli" --version | grep -Eq 'version 0\.12\.2([[:space:]]|$)'; then
-                echo 'Coverage requires Kotlin Toolchain (Amper) 0.12.2.' >&2
+            kotlin-toolchain)
+              kotlin_cli=${KOTLIN_CLI:-"$module_dir/kotlin"}
+              # Both snapshots use the wrapper shipped with the coverage toolkit, including
+              # base commits predating the project wrapper. Ignore snapshot-local versions.
+              export KOTLIN_CLI_WRAPPER_ALWAYS_USE_INTRINSIC_VERSION=1
+              expected_version=$(sed -n 's/^kotlin_cli_version=//p' "$kotlin_cli")
+              if [[ -z "$expected_version" ]] || ! "$kotlin_cli" --version | grep -Fq "version $expected_version "; then
+                echo 'Coverage requires the Kotlin Toolchain version pinned by its project wrapper.' >&2
                 exit 1
               fi
               tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.15
@@ -849,9 +862,9 @@ jobs:
               "$kotlin_cli" clean
               "$kotlin_cli" test --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
               validate_tests "$module_dir/build/reports"
-              # Artifact names use Amper's module identity, which need not match the directory.
+              # Artifact names use Kotlin Toolchain's module identity, which need not match the directory.
               # The pinned JVM layout gives production artifacts a jvm suffix and tests jvmTest.
-              python3 - "$module_dir/build/artifacts/CompiledJvmArtifact" "$output/amper-classdirs.txt" <<'PY'
+              python3 - "$module_dir/build/artifacts/CompiledJvmArtifact" "$output/kotlin-toolchain-classdirs.txt" <<'PY'
           import sys
           from pathlib import Path
           artifacts = Path(sys.argv[1])
@@ -861,13 +874,13 @@ jobs:
               if (output := artifact / name).is_dir() and any(output.rglob('*.class'))
           )
           if not class_dirs:
-              raise SystemExit(f'Amper production classes not found at {artifacts}')
+              raise SystemExit(f'Kotlin Toolchain production classes not found at {artifacts}')
           Path(sys.argv[2]).write_text(''.join(f'{path}\n' for path in class_dirs))
           PY
               class_args=()
               while IFS= read -r classes; do
                 class_args+=(--classfiles "$classes")
-              done < "$output/amper-classdirs.txt"
+              done < "$output/kotlin-toolchain-classdirs.txt"
               java -jar "$cli" report "$output/jacoco.exec" \
                 "${class_args[@]}" --sourcefiles "$module_dir/src" \
                 --name "$module" --xml "$output/report.xml"
@@ -1817,7 +1830,7 @@ jobs:
             echo "present=false" >> "$GITHUB_OUTPUT"
           fi
       - name: Setup JDK
-        if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","amper"]'), matrix.runner)
+        if: steps.module.outputs.present == 'true' && contains(fromJSON('["gradle","maven","kotlin-toolchain"]'), matrix.runner)
         uses: actions/setup-java@v6
         with:
           java-version: '26'
@@ -1833,17 +1846,20 @@ jobs:
           key: ${{ runner.os }}-coverage-maven-${{ hashFiles(format('source/{0}/pom.xml', matrix.module)) }}
           restore-keys: ${{ runner.os }}-coverage-maven-
       - name: Setup Kotlin Toolchain
-        if: steps.module.outputs.present == 'true' && matrix.runner == 'amper'
-        env:
-          KOTLIN_CLI_VERSION: '0.12.2'
-          KOTLIN_CLI_WRAPPER_SHA256: d8b5b852e54d4af5d92c6e1d3535ba60ec6485590e6d0dbc3666171e6136e040
+        id: kotlin-toolchain
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'kotlin-toolchain'
         run: |
-          mkdir -p "$RUNNER_TEMP/kotlin-bin"
-          curl -fsSL --retry 3 -o "$RUNNER_TEMP/kotlin-bin/kotlin" \
-            "https://packages.jetbrains.team/maven/p/amper/amper/org/jetbrains/kotlin/kotlin-cli/${KOTLIN_CLI_VERSION}/kotlin-cli-${KOTLIN_CLI_VERSION}-wrapper"
-          echo "${KOTLIN_CLI_WRAPPER_SHA256}  $RUNNER_TEMP/kotlin-bin/kotlin" | sha256sum -c -
-          chmod +x "$RUNNER_TEMP/kotlin-bin/kotlin"
-          echo "$RUNNER_TEMP/kotlin-bin" >> "$GITHUB_PATH"
+          wrapper="$RUNNER_TEMP/coverage-tools/kotlin"
+          chmod +x "$wrapper"
+          echo "KOTLIN_CLI=$wrapper" >> "$GITHUB_ENV"
+          echo "wrapper-sha=$(sha256sum "$wrapper" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+      - name: Cache Kotlin Toolchain Dependencies
+        if: steps.module.outputs.present == 'true' && matrix.runner == 'kotlin-toolchain'
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/JetBrains/Kotlin
+          key: ${{ runner.os }}-${{ runner.arch }}-kotlin-toolchain-v1-${{ steps.kotlin-toolchain.outputs.wrapper-sha }}-${{ hashFiles(format('source/{0}/module.yaml', matrix.module)) }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-kotlin-toolchain-v1-${{ steps.kotlin-toolchain.outputs.wrapper-sha }}-
       - name: Setup Go
         if: steps.module.outputs.present == 'true' && matrix.runner == 'go'
         uses: actions/setup-go@v7

@@ -1,9 +1,10 @@
-package token
+package installation
 
 import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/apperr"
@@ -23,15 +24,25 @@ func NewService(repo Repository, fcmSender FCMSender, pref NotificationPreferenc
 	return &Service{repo: repo, fcm: fcmSender, pref: pref, delivery: deliveryRepo}
 }
 
-func (s *Service) RegisterToken(ctx context.Context, accountID int64, tkn, platform string) error {
+// fidPattern matches a Firebase installation ID: URL-safe base64 whose first 4 bits are
+// 0b0111. Freshly generated FIDs are 22 characters on every Firebase Installations SDK
+// (iOS, Android and Web). The Android SDK instead keeps a legacy Instance ID as the
+// installation's FID when it migrates one; that ID is 8 bytes with the same prefix, so
+// 11 characters. It rejects FCM registration tokens, which are longer and contain ':'.
+var fidPattern = regexp.MustCompile(`^[cdef](?:[A-Za-z0-9_-]{10}|[A-Za-z0-9_-]{21})$`)
+
+func (s *Service) RegisterInstallation(ctx context.Context, accountID int64, fid, platform string) error {
+	if err := validateFID(fid); err != nil {
+		return err
+	}
 	parsedPlatform, err := parsePlatform(platform)
 	if err != nil {
 		return err
 	}
 
-	result, err := s.repo.Register(ctx, &DeviceToken{
+	result, err := s.repo.Register(ctx, &Installation{
 		AccountID: accountID,
-		Token:     tkn,
+		FID:       fid,
 		Platform:  parsedPlatform,
 	})
 	if err != nil {
@@ -39,8 +50,8 @@ func (s *Service) RegisterToken(ctx context.Context, accountID int64, tkn, platf
 	}
 	if result.Reassigned {
 		slog.Info(
-			"Reassigned device token ownership",
-			"deviceTokenId", result.DeviceTokenID,
+			"Reassigned installation ownership",
+			"installationId", result.InstallationID,
 			"previousAccountId", result.PreviousAccountID,
 			"accountId", accountID,
 		)
@@ -48,13 +59,23 @@ func (s *Service) RegisterToken(ctx context.Context, accountID int64, tkn, platf
 	return nil
 }
 
-func (s *Service) DeleteToken(ctx context.Context, accountID int64, tkn string) error {
-	if err := s.repo.DeleteByAccountIDAndToken(ctx, accountID, tkn); err != nil {
+func (s *Service) DeleteInstallation(ctx context.Context, accountID int64, fid string) error {
+	if err := validateFID(fid); err != nil {
 		return err
 	}
-	// Never log the raw FCM token. The authenticated account is sufficient to
-	// correlate an explicit logout/account-switch revocation.
-	slog.Info("Revoked device token", "accountId", accountID)
+	if err := s.repo.DeleteByAccountIDAndFID(ctx, accountID, fid); err != nil {
+		return err
+	}
+	// Never log the raw FID. The authenticated account is sufficient to correlate an
+	// explicit logout/account-switch revocation.
+	slog.Info("Revoked installation", "accountId", accountID)
+	return nil
+}
+
+func validateFID(fid string) error {
+	if !fidPattern.MatchString(fid) {
+		return apperr.BadRequest("fid must be a Firebase installation ID")
+	}
 	return nil
 }
 
@@ -118,14 +139,14 @@ func (s *Service) Notify(
 		return enabledIDs, nil
 	}
 
-	tokenMap, err := s.repo.FindByAccountIDs(ctx, enabledIDs)
+	installationMap, err := s.repo.FindByAccountIDs(ctx, enabledIDs)
 	if err != nil {
 		return nil, err
 	}
-	var allTargets []delivery.TargetToken
-	for _, tokens := range tokenMap {
-		for _, t := range tokens {
-			allTargets = append(allTargets, delivery.TargetToken{DeviceTokenID: t.ID, Token: t.Token})
+	var allTargets []delivery.Target
+	for _, installations := range installationMap {
+		for _, i := range installations {
+			allTargets = append(allTargets, delivery.Target{InstallationID: i.ID, FID: i.FID})
 		}
 	}
 	if len(allTargets) == 0 {
@@ -136,7 +157,7 @@ func (s *Service) Notify(
 		return nil, err
 	}
 
-	// eventId is the (eventId, deviceTokenId) canonical delivery key described in
+	// eventId is the (eventId, installationId) canonical delivery key described in
 	// docs/todo/items/33-reliability/fcm-partial-failure-retry.md. A producer that has
 	// not yet been updated to send one falls back to a single non-durable attempt
 	// (today's behavior) instead of failing the notification outright.
@@ -162,11 +183,11 @@ func (s *Service) Notify(
 		return enabledIDs, nil
 	}
 
-	// fcm.Send appends one TokenResult per attempted token in input order (see its
-	// doc comment), so results[i] always corresponds to toSend[i] — even when it
-	// returns early with a partial result set. Finalization must retain the claimed
-	// DeviceTokenID instead of looking the token string up again because an ownership
-	// transfer replaces the row with a new ID while an older delivery is in flight.
+	// fcm.Send appends one Result per attempted FID in input order (see its doc
+	// comment), so results[i] always corresponds to toSend[i] — even when it returns
+	// early with a partial result set. Finalization must retain the claimed
+	// InstallationID instead of looking the FID up again because an ownership transfer
+	// replaces the row with a new ID while an older delivery is in flight.
 	//
 	// The Firebase Admin SDK's default HTTP client retries 503s and network errors up to
 	// 4 times, honoring Retry-After for as long as 2 minutes, so an unbounded ctx here
@@ -183,27 +204,27 @@ func (s *Service) Notify(
 
 	// Finalizing is bookkeeping for an FCM call that has already happened — it must
 	// run even if ctx (the Kafka consumer's lease context) is cancelled or expires
-	// while we do it, otherwise a token FCM already accepted could be resent by the
+	// while we do it, otherwise an FID FCM already accepted could be resent by the
 	// retry worker. A short-lived detached context keeps these DB writes from being
 	// aborted by a ctx that dies for reasons unrelated to whether the writes succeed.
 	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 
-	var invalidTokens []string
+	var invalidFIDs []string
 	for i, r := range results {
 		target := toSend[i]
 		monitoring.RecordFCMDeliveryOutcome(string(r.Outcome), "initial")
 		switch r.Outcome {
 		case fcm.OutcomeSuccess:
 			if durable {
-				if err := s.delivery.FinalizeSuccess(finalizeCtx, eventID, target.DeviceTokenID, target.ClaimToken); err != nil {
+				if err := s.delivery.FinalizeSuccess(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
 					slog.Warn("failed to finalize successful delivery", "err", err)
 				}
 			}
 		case fcm.OutcomeInvalid:
-			invalidTokens = append(invalidTokens, r.Token)
+			invalidFIDs = append(invalidFIDs, r.FID)
 			if durable {
-				if err := s.delivery.FinalizeInvalid(finalizeCtx, eventID, target.DeviceTokenID, target.ClaimToken); err != nil {
+				if err := s.delivery.FinalizeInvalid(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
 					slog.Warn("failed to finalize invalid delivery", "err", err)
 				}
 			}
@@ -217,11 +238,11 @@ func (s *Service) Notify(
 			}
 		}
 	}
-	if len(invalidTokens) > 0 {
-		if delErr := s.repo.DeleteByTokens(finalizeCtx, invalidTokens); delErr != nil {
-			slog.Warn("failed to bulk delete invalid tokens", "count", len(invalidTokens), "err", delErr)
+	if len(invalidFIDs) > 0 {
+		if delErr := s.repo.DeleteByFIDs(finalizeCtx, invalidFIDs); delErr != nil {
+			slog.Warn("failed to bulk delete invalid installations", "count", len(invalidFIDs), "err", delErr)
 		} else {
-			slog.Info("Deleted invalid device tokens", "count", len(invalidTokens))
+			slog.Info("Deleted invalid installations", "count", len(invalidFIDs))
 		}
 	}
 	if sendErr != nil {
@@ -230,56 +251,56 @@ func (s *Service) Notify(
 	return enabledIDs, nil
 }
 
-// excludeStaleTargets re-reads the recipients' device tokens right before the FCM call
-// and drops any target whose DeviceTokenID generation was deleted or transferred to
+// excludeStaleTargets re-reads the recipients' installations right before the FCM call
+// and drops any target whose InstallationID generation was deleted or transferred to
 // another account after the first lookup (including while ResumeOrCreate waited on row
-// locks), mirroring the retry worker's CurrentToken check. device_token_id is never
-// reused, so a target is current only if the same ID still carries the same token.
+// locks), mirroring the retry worker's CurrentFID check. installation_id is never
+// reused, so a target is current only if the same ID still carries the same FID.
 // Dropped durable claims are finalized CANCELLED so they do not sit IN_PROGRESS until
 // ReclaimStale. A lookup failure leaves the claims IN_PROGRESS for ReclaimStale and the
 // retry worker, as the worker does on its own lookup failure. The returned messages
 // align with the live targets and carry the generation's owning account
 // (fcm.DataKeyAccountID) so the client can drop a message that reaches a device after
 // a later transfer.
-func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accountIDs []int64, targets []delivery.TargetToken) ([]delivery.TargetToken, []fcm.Message, error) {
-	tokenMap, err := s.repo.FindByAccountIDs(ctx, accountIDs)
+func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accountIDs []int64, targets []delivery.Target) ([]delivery.Target, []fcm.Message, error) {
+	installationMap, err := s.repo.FindByAccountIDs(ctx, accountIDs)
 	if err != nil {
-		return nil, nil, fmt.Errorf("re-verify device token ownership: %w", err)
+		return nil, nil, fmt.Errorf("re-verify installation ownership: %w", err)
 	}
 	type generation struct {
-		id    int64
-		token string
+		id  int64
+		fid string
 	}
 	owners := make(map[generation]int64)
-	for accountID, tokens := range tokenMap {
-		for _, t := range tokens {
-			owners[generation{t.ID, t.Token}] = accountID
+	for accountID, installations := range installationMap {
+		for _, i := range installations {
+			owners[generation{i.ID, i.FID}] = accountID
 		}
 	}
 
 	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
 
-	live := make([]delivery.TargetToken, 0, len(targets))
+	live := make([]delivery.Target, 0, len(targets))
 	messages := make([]fcm.Message, 0, len(targets))
 	for _, t := range targets {
-		if owner, ok := owners[generation{t.DeviceTokenID, t.Token}]; ok {
+		if owner, ok := owners[generation{t.InstallationID, t.FID}]; ok {
 			live = append(live, t)
-			messages = append(messages, fcm.Message{Token: t.Token, Data: fcm.WithAccountID(nil, owner)})
+			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(nil, owner)})
 			continue
 		}
 		if eventID == "" {
 			continue
 		}
-		if err := s.delivery.FinalizeCancelled(finalizeCtx, eventID, t.DeviceTokenID, t.ClaimToken); err != nil {
-			slog.Warn("failed to finalize cancelled delivery", "deviceTokenId", t.DeviceTokenID, "err", err)
+		if err := s.delivery.FinalizeCancelled(finalizeCtx, eventID, t.InstallationID, t.ClaimToken); err != nil {
+			slog.Warn("failed to finalize cancelled delivery", "installationId", t.InstallationID, "err", err)
 		}
 	}
 	return live, messages, nil
 }
 
-func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.TargetToken, errClass delivery.ErrorClass) {
-	status, err := s.delivery.FinalizeFailure(ctx, eventID, target.DeviceTokenID, target.ClaimToken, errClass, time.Now())
+func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.Target, errClass delivery.ErrorClass) {
+	status, err := s.delivery.FinalizeFailure(ctx, eventID, target.InstallationID, target.ClaimToken, errClass, time.Now())
 	if err != nil {
 		slog.Warn("failed to finalize delivery failure", "errClass", errClass, "err", err)
 		return

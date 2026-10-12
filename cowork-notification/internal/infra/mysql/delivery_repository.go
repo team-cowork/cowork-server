@@ -16,8 +16,8 @@ import (
 type deliveryRow struct {
 	ID             int64      `gorm:"column:id;primaryKey;autoIncrement"`
 	EventID        string     `gorm:"column:event_id"`
-	DeviceTokenID  int64      `gorm:"column:device_token_id"`
-	Token          string     `gorm:"column:token"`
+	InstallationID int64      `gorm:"column:installation_id"`
+	FID            string     `gorm:"column:fid"`
 	Title          string     `gorm:"column:title"`
 	Body           string     `gorm:"column:body"`
 	DataJSON       []byte     `gorm:"column:data_json"`
@@ -71,10 +71,10 @@ func NewDeliveryRepository(db *gorm.DB) *DeliveryRepository {
 func (r *DeliveryRepository) ResumeOrCreate(
 	ctx context.Context,
 	eventID string,
-	targets []delivery.TargetToken,
+	targets []delivery.Target,
 	title, body string,
 	data map[string]string,
-) ([]delivery.TargetToken, error) {
+) ([]delivery.Target, error) {
 	if len(targets) == 0 {
 		return nil, nil
 	}
@@ -84,44 +84,44 @@ func (r *DeliveryRepository) ResumeOrCreate(
 		return nil, err
 	}
 
-	deviceTokenIDs := make([]int64, len(targets))
+	installationIDs := make([]int64, len(targets))
 	for i, t := range targets {
-		deviceTokenIDs[i] = t.DeviceTokenID
+		installationIDs[i] = t.InstallationID
 	}
 
-	var toSend []delivery.TargetToken
+	var toSend []delivery.Target
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing []deliveryRow
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
-			Where("event_id = ? AND device_token_id IN ?", eventID, deviceTokenIDs).
+			Where("event_id = ? AND installation_id IN ?", eventID, installationIDs).
 			Find(&existing).Error; err != nil {
 			return err
 		}
-		existingByDeviceToken := make(map[int64]deliveryRow, len(existing))
+		existingByInstallation := make(map[int64]deliveryRow, len(existing))
 		for _, row := range existing {
-			existingByDeviceToken[row.DeviceTokenID] = row
+			existingByInstallation[row.InstallationID] = row
 		}
 
 		now := time.Now()
 		var newRows []deliveryRow
 		for _, t := range targets {
-			row, tracked := existingByDeviceToken[t.DeviceTokenID]
+			row, tracked := existingByInstallation[t.InstallationID]
 			if !tracked {
 				claimToken := newClaimToken()
 				newRows = append(newRows, deliveryRow{
-					EventID:       eventID,
-					DeviceTokenID: t.DeviceTokenID,
-					Token:         t.Token,
-					Title:         title,
-					Body:          body,
-					DataJSON:      dataJSON,
-					Status:        string(delivery.StatusInProgress),
-					ClaimToken:    &claimToken,
+					EventID:        eventID,
+					InstallationID: t.InstallationID,
+					FID:            t.FID,
+					Title:          title,
+					Body:           body,
+					DataJSON:       dataJSON,
+					Status:         string(delivery.StatusInProgress),
+					ClaimToken:     &claimToken,
 				})
-				toSend = append(toSend, delivery.TargetToken{
-					DeviceTokenID: t.DeviceTokenID,
-					Token:         t.Token,
-					ClaimToken:    claimToken,
+				toSend = append(toSend, delivery.Target{
+					InstallationID: t.InstallationID,
+					FID:            t.FID,
+					ClaimToken:     claimToken,
 				})
 				continue
 			}
@@ -144,10 +144,10 @@ func (r *DeliveryRepository) ResumeOrCreate(
 			}).Error; err != nil {
 				return err
 			}
-			toSend = append(toSend, delivery.TargetToken{
-				DeviceTokenID: t.DeviceTokenID,
-				Token:         t.Token,
-				ClaimToken:    claimToken,
+			toSend = append(toSend, delivery.Target{
+				InstallationID: t.InstallationID,
+				FID:            t.FID,
+				ClaimToken:     claimToken,
 			})
 		}
 		if len(newRows) == 0 {
@@ -161,42 +161,42 @@ func (r *DeliveryRepository) ResumeOrCreate(
 	return toSend, nil
 }
 
-func (r *DeliveryRepository) FinalizeSuccess(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
+func (r *DeliveryRepository) FinalizeSuccess(ctx context.Context, eventID string, installationID int64, claimToken string) error {
 	updates := map[string]any{"status": string(delivery.StatusSuccess), "claim_token": nil}
 	for k, v := range clearedContent {
 		updates[k] = v
 	}
 	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
-			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
+		Where("event_id = ? AND installation_id = ? AND status = ? AND claim_token = ?",
+			eventID, installationID, string(delivery.StatusInProgress), claimToken).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
-	warnIfClaimStale(result.RowsAffected, "success", eventID, deviceTokenID)
+	warnIfClaimStale(result.RowsAffected, "success", eventID, installationID)
 	return nil
 }
 
-func (r *DeliveryRepository) FinalizeInvalid(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
+func (r *DeliveryRepository) FinalizeInvalid(ctx context.Context, eventID string, installationID int64, claimToken string) error {
 	updates := map[string]any{"status": string(delivery.StatusInvalid), "claim_token": nil}
 	for k, v := range clearedContent {
 		updates[k] = v
 	}
 	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
-			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
+		Where("event_id = ? AND installation_id = ? AND status = ? AND claim_token = ?",
+			eventID, installationID, string(delivery.StatusInProgress), claimToken).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
-	warnIfClaimStale(result.RowsAffected, "invalid", eventID, deviceTokenID)
+	warnIfClaimStale(result.RowsAffected, "invalid", eventID, installationID)
 	return nil
 }
 
 func (r *DeliveryRepository) FinalizeFailure(
 	ctx context.Context,
 	eventID string,
-	deviceTokenID int64,
+	installationID int64,
 	claimToken string,
 	errClass delivery.ErrorClass,
 	now time.Time,
@@ -205,12 +205,12 @@ func (r *DeliveryRepository) FinalizeFailure(
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row deliveryRow
 		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
-			Where("event_id = ? AND device_token_id = ?", eventID, deviceTokenID).
+			Where("event_id = ? AND installation_id = ?", eventID, installationID).
 			Take(&row).Error; err != nil {
 			return err
 		}
 		if row.Status != string(delivery.StatusInProgress) || row.ClaimToken == nil || *row.ClaimToken != claimToken {
-			warnIfClaimStale(0, "failure", eventID, deviceTokenID)
+			warnIfClaimStale(0, "failure", eventID, installationID)
 			// Report a non-terminal status rather than echoing row.Status: if another
 			// attempt already quarantined this row, returning its current status here
 			// would make this stale/duplicate call look like the one that quarantined it,
@@ -283,19 +283,19 @@ func (r *DeliveryRepository) ClaimDue(ctx context.Context, limit int, now time.T
 	return records, nil
 }
 
-func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, eventID string, deviceTokenID int64, claimToken string) error {
+func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, eventID string, installationID int64, claimToken string) error {
 	updates := map[string]any{"status": string(delivery.StatusCancelled), "claim_token": nil}
 	for k, v := range clearedContent {
 		updates[k] = v
 	}
 	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
-		Where("event_id = ? AND device_token_id = ? AND status = ? AND claim_token = ?",
-			eventID, deviceTokenID, string(delivery.StatusInProgress), claimToken).
+		Where("event_id = ? AND installation_id = ? AND status = ? AND claim_token = ?",
+			eventID, installationID, string(delivery.StatusInProgress), claimToken).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
-	warnIfClaimStale(result.RowsAffected, "cancelled", eventID, deviceTokenID)
+	warnIfClaimStale(result.RowsAffected, "cancelled", eventID, installationID)
 	return nil
 }
 
@@ -317,7 +317,7 @@ func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold ti
 // PurgeTerminal deletes terminal rows older than olderThan, repeating in purgeBatchSize
 // chunks within this call until the backlog is caught up (a chunk shorter than
 // purgeBatchSize) or ctx is cancelled. tb_notification_delivery_retry gets one row per
-// recipient device per message, so a single fixed-size chunk per call (previously the
+// recipient installation per message, so a single fixed-size chunk per call (previously the
 // whole behavior) could fall permanently behind once message volume grew past what one
 // chunk clears per worker tick; looping here keeps each individual DELETE's lock
 // duration bounded by purgeBatchSize while still draining any accumulated backlog.
@@ -358,10 +358,10 @@ func (r *DeliveryRepository) CountPending(ctx context.Context) (int64, error) {
 // warnIfClaimStale logs when an UPDATE's WHERE clause (including its claim_token
 // match) touched no row, meaning the claim was reclaimed or already finalized by a
 // different attempt.
-func warnIfClaimStale(rowsAffected int64, outcome, eventID string, deviceTokenID int64) {
+func warnIfClaimStale(rowsAffected int64, outcome, eventID string, installationID int64) {
 	if rowsAffected == 0 {
 		slog.Warn("fcm delivery: finalize "+outcome+" skipped — claim no longer matches (reclaimed or already finalized)",
-			"eventId", eventID, "deviceTokenId", deviceTokenID)
+			"eventId", eventID, "installationId", installationID)
 	}
 }
 
@@ -384,8 +384,8 @@ func toRecord(row deliveryRow) (delivery.Record, error) {
 	return delivery.Record{
 		ID:             row.ID,
 		EventID:        row.EventID,
-		DeviceTokenID:  row.DeviceTokenID,
-		Token:          row.Token,
+		InstallationID: row.InstallationID,
+		FID:            row.FID,
 		Title:          row.Title,
 		Body:           row.Body,
 		Data:           data,
