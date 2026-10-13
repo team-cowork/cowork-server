@@ -169,7 +169,8 @@ runs:
             "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
             --release-directory "$release"
     - name: Record successful runtime deployment
-      if: ${{ inputs.check_only != 'true' }}
+      # Temporary branch verification does not create a production baseline.
+      if: ${{ false }}
       env:
         GH_TOKEN: ${{ github.token }}
         SERVICE: ${{ inputs.service }}
