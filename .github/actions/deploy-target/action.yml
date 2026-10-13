@@ -89,7 +89,8 @@ runs:
         DEPLOY_GHCR_TOKEN: >-
           ${{ inputs.check_only != 'true' && inputs.service != 'vault' &&
               inputs.service != 'monitoring' && inputs.service != 'datastores' &&
-              inputs.service != 'storage' && inputs.service != 'log-agent' && github.token || '' }}
+              inputs.service != 'storage' && inputs.service != 'log-agent' &&
+              inputs.service != 'node-agent' && github.token || '' }}
       with:
         host: ${{ steps.settings.outputs.ssh_host }}
         port: ${{ steps.settings.outputs.ssh_port }}

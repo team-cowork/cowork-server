@@ -32,6 +32,7 @@ models = {
     "monitoring": ["deploy/prod/monitoring/compose.yaml"],
     "vault": ["deploy/prod/vault/compose.yaml"],
     "log-agent": ["deploy/prod/log-agent/compose.yaml"],
+    "node-agent": ["deploy/prod/node-agent/compose.yaml"],
 }
 resolved = {}
 for name, files in models.items():

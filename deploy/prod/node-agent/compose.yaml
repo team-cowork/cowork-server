@@ -1,0 +1,16 @@
+# Run once on EACH VM whose host disk must be watched (application, datastore, Vault and monitoring VMs).
+services:
+  node_exporter:
+    image: prom/node-exporter:v1.10.2@sha256:3ac34ce007accad95afed72149e0d2b927b7e42fd1c866149b945b84737c62c3
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      # 컨테이너 레이어와 임시 파일시스템은 호스트 여유 공간이 아니므로 제외한다.
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs|fuse\\..*)$$
+    ports:
+      # monitoring VM의 Prometheus가 사설망으로 수집한다.
+      - ${NODE_EXPORTER_BIND_IP:?Set the private IPv4 address this VM advertises}:9100:9100
+    volumes:
+      - /:/host:ro,rslave
