@@ -85,7 +85,7 @@ print(f"{len(catalog) * 2} local/prod image inputs and Config Server profiles va
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
 settings_schema = runpy.run_path(str(ROOT / "deploy/prod/vault-settings.py"))
-settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()))
+settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()), "voice")
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]
