@@ -46,14 +46,23 @@ spring:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
           '[/**]':
-            allowedOrigins:
-              - "http://localhost:3000"
-            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
+            allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag
             allowCredentials: true
             maxAge: 3600
 
       routes:
+        - id: object-storage
+          uri: ${S3_INTERNAL_ENDPOINT}
+          predicates:
+            - Path=/api/storage/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
         - id: chat-service
           uri: lb://cowork-chat
           predicates:

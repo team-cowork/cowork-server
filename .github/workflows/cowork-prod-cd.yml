@@ -422,7 +422,6 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    environment: Production
     needs:
       - prepare
       - build-images
