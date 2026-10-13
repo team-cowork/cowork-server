@@ -12,7 +12,7 @@ GSM SV의 VM 생성·삭제·사양, 공인 포트 전달과 HTTPS 연결은 패
 | 앱 포트·자원 한도·mount·허용 peer·설정 및 비밀 참조 | Git의 [슬롯 명세](../deploy/prod/slots/) |
 | 앱 비밀·SSH 접속 정보·Config 앱 속성 | Vault |
 | IaC state 암호화 키·알림 webhook | GitHub Secrets |
-| Compose plugin·host 방화벽·모니터링 Compose·VM별 Alloy | [IaC 워크플로](../.github/workflows/cowork-prod-iac.yml)의 Ansible |
+| Compose plugin·host 방화벽·모니터링 Compose·VM별 Alloy | [운영 CD](../.github/workflows/cowork-prod-cd.yml)의 Ansible |
 | Grafana folder·datasource·dashboard | Terraform |
 | 앱 이미지 교체·readiness 확인·컨테이너 복구 | [운영 CD](../.github/workflows/cowork-prod-cd.yml) |
 
