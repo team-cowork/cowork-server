@@ -2,10 +2,16 @@
 
 - **서비스**: Config, Vault, Gateway, 업무 서비스
 - **우선순위**: 🔴 높음
-- **현재 상태**: 운영 Config는 접근 보호와 AppRole 전환 이전 버전으로 실행되어 있다.
-- **관련 작업**: [기존 Vault 갱신 cron과 토큰 폐기](../61-cleanup/config-vault-legacy-token-retirement.md), [VM 이름과 서비스 배치 정리](../68-deployment/vm-placement-rebuild.md)
+- **현재 상태**: 이전 Config를 제거했고 전용 VM의 고정 방화벽과 AppRole을 준비했다. 새 Config의 GitHub 배포와 실제 인증 수명 확인이 남아 있다.
+- **관련 작업**: [VM 이름과 서비스 배치 정리](../68-deployment/vm-placement-rebuild.md)
 
 > **2026-10-13 진척:** 배포 코드는 설정 검증과 이미지 확보, 후보 컨테이너 생성 후 Config 방화벽을 변경하도록 수정하였다. 실패 시 기존 `COWORK_CONFIG` 체인과 이번 배포에서 추가한 연결 규칙만 복원한다. 최초 접근 보호 전환에서는 새 사설 CIDR 제한을 유지한다. 방화벽 복구에 실패하면 이전 컨테이너를 재기동하지 않고 실패를 유지한다. 후보의 초기 기동 로그도 VM의 접근 제한 파일에 최대 `20 MiB`로 보존한다. `bash -n`과 `git diff --check`를 통과하였다. 운영 적용과 실제 복구 결과는 아직 검증하지 않았다.
+
+> **추가 관측:** 전용 Config VM에는 방화벽 영속 복원 서비스와 기존 `COWORK_CONFIG` 규칙이 없었다. 재부팅 후 제한이 사라지는 문제를 막도록 root 소유 정책과 Docker 선행 복원 서비스를 구현했다. 코드의 정적 확인과 전용 VM 설치를 마쳤다. 현재 main 배포는 GHCR 인증 누락으로 이미지 확보 단계에서 중단되었으며 수정 PR을 준비했다. 설치된 helper는 root 소유 정책만 복원하며 릴리스 캐시의 코드를 sudo로 실행하지 않는다.
+
+> **2026-10-13 진척:** 이전 Vault 클러스터·전용 볼륨, DB VM의 갱신 cron·스크립트·토큰 파일과 중지된 이전 Config를 제거했다. 새 클러스터와 복구 자료는 유지했다. 새 Config의 실제 기동 후 AppRole 갱신·재로그인 확인은 남아 있다.
+
+> **현재 인증 관측:** 새 Config AppRole 로그인과 허용된 `prod` 설정 조회는 성공했다. 배포·제어 경로와 `local` 조회 거부를 확인했다. 실행 중인 Config의 갱신과 재로그인 결과로 해석하지 않는다.
 
 ## 문제
 
@@ -19,7 +25,7 @@
 운영 Config에 서비스별 Basic 인증, 사설 IP 바인딩, 허용 CIDR, Vault AppRole을 적용하도록 구성되어 있다.
 코드 반영과 운영 적용 사이에 차이가 있다. 이전 토큰부터 폐기하면 현재 설정 조회가 중단될 수 있다.
 
-배포 코드에는 별도의 실패 복구 위험도 있다.
+점검 당시 배포 코드에는 별도의 실패 복구 위험도 있었다.
 [`config.sh`](../../../../deploy/prod/services/config.sh)는 Config 방화벽을 적용하고,
 [`deploy.sh`](../../../../deploy/prod/deploy.sh)는 그 뒤에 이미지를 가져온다.
 [`config-firewall.sh`](../../../../deploy/prod/lib/config-firewall.sh)는 기존 규칙을 보관하지 않으며,
@@ -36,7 +42,7 @@
 | Vault 인증 | `VAULT_ROLE_ID`·`VAULT_SECRET_ID`를 Config 전용 bootstrap 경로에서 참조한다. |
 | 네트워크 | `BIND_IP`와 `CONFIG_ALLOWED_CIDRS`를 실제 VM 배치 및 송신 주소와 대조한다. |
 | 설정 원본 | Vault의 `secret/deploy/{target}`와 서비스별 설정을 GitHub의 `update-config` 경로로 관리한다. |
-| 기존 토큰 폐기 | 실행 중인 Config의 AppRole 갱신·재로그인과 7일 이상 연속 설정 조회를 확인한 뒤 관련 작업에서 수행한다. |
+| 기존 토큰 폐기 | 새 클러스터의 Config 전환과 복구 자료를 확인한 뒤 관련 작업에서 수행한다. AppRole 갱신·재로그인은 별도로 검증한다. |
 
 ## 할 일
 
@@ -46,7 +52,7 @@
 - 서비스별 Config 계정과 Vault 애플리케이션 경로를 준비하고 기존 설정값의 누락 여부를 대조한다.
 - Config 전용 AppRole 정책, 발급 조건, 실제 송신 CIDR을 운영 문서의 기준과 대조한다.
 - 각 target의 Vault 배포 문서와 GitHub Environment 참조를 갱신한다. 비밀값을 저장소에 기록하지 않는다.
-- 새 이미지와 설정 snapshot, 이전 버전 복구에 필요한 유효한 인증 수단을 준비한다.
+- 새 이미지와 설정 snapshot, 현재 유효한 인증 수단을 준비한다. 이번 초기화에서 폐기한 미인증 구버전은 복구 대상으로 사용하지 않는다.
 
 ### 배포와 실패 복구
 
@@ -73,4 +79,4 @@
 - 운영 Config는 정적 `VAULT_TOKEN`에 의존하지 않고 AppRole로 인증되어 있다.
 - 배포 실패 시 컨테이너와 방화벽의 복구 상태가 일치되어 있다.
 - AppRole의 실제 갱신·재로그인 결과가 비밀값 없이 기록되어 있다.
-- 기존 토큰 폐기는 관련 작업의 연속 운영 확인 조건과 연결되어 있다.
+- 기존 토큰 폐기는 새 클러스터의 실제 전환 확인과 복구 절차에 연결되어 있다.
