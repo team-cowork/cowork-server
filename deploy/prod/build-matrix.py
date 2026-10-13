@@ -28,6 +28,8 @@ def affected(service, paths):
         return True
     if f"deploy/prod/services/{service}.sh" in paths:
         return True
+    if service == "config" and "deploy/prod/config-firewall.service" in paths:
+        return True
     if service in IMAGE_INPUTS["CATALOG"]:
         # Custom clients load configuration at startup and do not all refresh.
         config = "cowork-config/src/main/resources/"
