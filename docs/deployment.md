@@ -1,7 +1,5 @@
 # 운영 배치와 변경 제약
 
-다음 내용은 변경된 구현을 기준으로 한다. 이번 IaC 전환의 운영 적용과 수집 복구는 아직 검증하지 않았다.
-
 ## 관리 경계
 
 GSM SV의 VM 생성·삭제·사양, 공인 포트 전달과 HTTPS 연결은 패널에서 관리한다.
@@ -57,8 +55,7 @@ Docker 접근 권한을 가진 배포 계정은 VM의 root 상당 권한을 가�
 Ansible은 외부 경로의 MTU가 이 값 이상인지 확인한다. MTU 변경 시 새 이름의 네트워크를 만들며
 기존 네트워크와 Docker daemon은 변경하지 않는다. CD는 새 컨테이너만 전환하고 복구 시 이전 네트워크를 유지한다.
 
-모니터링 관리 화면은 loopback listener와 SSH 터널로 접근하도록 구성한다. 기존 공개 프록시의
-중지와 새 수집 경로의 실제 동작은 전환 결과를 확인한 뒤 완료로 판단한다.
+모니터링 관리 화면은 loopback listener와 SSH 터널로 접근한다. 기존 공개 Caddy 프록시는 중지·비활성화되어 있다.
 
 웹 예정 origin은 `https://service.gsmsv.site:22118`이다. 웹 배포와 TLS는 검증하지 않았다.
 origin 변경은 Config → Gateway·Channel 적용 후 프런트의 새 `return_origin` 사용을 시작한다.
@@ -75,7 +72,8 @@ IaC의 `check_only`는 정적 검증만 수행하며 host 적용·Terraform plan
 부분 적용된 migration은 실제 스키마부터 확인한다. 릴리스의 슬롯·비밀 버전 기록은 복구 판단 자료이며,
 참조한 Vault 문서와 Config 앱 속성을 자동으로 되돌리는 기능은 아니다.
 
-Terraform state는 암호화하여 운영 VM·DB·Vault 밖의 저장소 `infra-state` 브랜치에 보관한다.
+Terraform은 로컬 backend를 사용한다. 실행 도구가 state를 암호화하여 운영 VM·DB·Vault 밖의 저장소
+`infra-state` 브랜치에 보관하고 Git ref로 동시 실행을 잠근다.
 암호화 키와 Vault 복구 자료도 관리 대상 밖에 보관한다. state 저장 실패 시에는 남은 잠금과 암호화된
 복구 파일을 확인하고 복구한 뒤 재개한다. 잠금을 삭제하거나 빈 state로 다시 적용하여 우회하지 않는다.
 초기화와 잠금 복구 조건은 [IaC 운영 안내](../deploy/iac/README.md)를 따른다.
@@ -85,6 +83,3 @@ Vault 자동 unseal은 구성하지 않았다. 일반 CD는 외부에 보관한 
 재시작하면 봉인 복구가 필요하다. 복구 후 Config 조회, 앱 readiness와 Eureka 등록을 확인한다.
 앱 CD·설정 변경 인증의 [수명·교체 자동화](./todo/items/42-deployment/vault-auth-automation.md)와
 [참조 기반 릴리스 정리](./todo/items/44-deployment/release-retention.md)는 미구현이다.
-
-이번 전환은 일시 중단과 기존 구성·대상 데이터의 폐기를 허용한다. 삭제 대상·이유·결과는 실제 적용
-기록에 남긴다. 이 허용은 이후 운영 변경이나 전환 범위 밖의 삭제에 자동으로 적용되지 않는다.
