@@ -10,10 +10,12 @@ import {
     ServiceUnavailableException,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { ConfirmedAttachment } from '../storage/attachment-upload.schema';
 import { UserRole } from '../common/enum/user-role.enum';
 import { ElasticsearchService } from '../search/elasticsearch.service';
 import { ObjectStorageService } from '../storage/object-storage.service';
 import { BlockService } from '../block/block.service';
+import { publicAttachments, toMessageBroadcastPayload } from './repository/message.repository';
 import { MessageDocument } from './schema';
 import {
     EditMessageDto,
@@ -162,7 +164,7 @@ export class ChatService {
      *
      * @param ctx - 채널·사용자 컨텍스트
      * @param dto - 파일명, MIME 타입, 크기
-     * @returns presigned URL, objectKey, fileUrl, 만료 시간, 필수 헤더
+     * @returns presigned URL, 임시 objectKey, 만료 시간, 필수 헤더
      */
     async createFileUploadUrl(
         ctx: ChannelUserContext,
@@ -186,13 +188,13 @@ export class ChatService {
     }
 
     /**
-     * 클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 공개 URL을 반환한다.
+     * 클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 변경 불가능한 최종 object key를 반환한다.
      *
      * @param ctx - 채널·사용자 컨텍스트
      * @param dto - 검증할 objectKey
-     * @returns 메시지 attachments.url에 사용할 파일 URL
+     * @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
-    async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<string> {
+    async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
         await this.checkMembership(ctx.channelId, ctx.userId);
         return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
     }
@@ -225,7 +227,8 @@ export class ChatService {
                 messageId: item.messageId,
                 fileName: item.fileName,
                 fileSize: item.fileSize,
-                fileUrl: item.fileUrl,
+                attachmentIndex: item.attachmentIndex,
+                objectKey: item.objectKey,
                 mimeType: item.mimeType,
                 uploaderId: item.uploaderId,
                 uploaderName: uploaderNames.get(item.uploaderId) ?? String(item.uploaderId),
@@ -264,15 +267,15 @@ export class ChatService {
         await Promise.all(
             message.attachments.map(async attachment => {
                 try {
-                    const objectKey = this.objectStorageService.extractObjectKey(attachment.url);
-                    if (!objectKey.startsWith(`chat-files/${ctx.channelId}/`)) {
+                    const objectKey = attachment.objectKey ?? this.objectStorageService.extractObjectKey(attachment.url ?? '');
+                    if (!objectKey.startsWith(`chat-files/${ctx.channelId}/${message.authorId}/`)) {
                         this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
                         return;
                     }
 
                     await this.objectStorageService.removeObject(objectKey);
                 } catch (error) {
-                    this.logger.warn(`Failed to delete object storage file [url=${attachment.url}]`, error);
+                    this.logger.warn('Failed to delete object storage file', error);
                 }
             }),
         );
@@ -291,7 +294,7 @@ export class ChatService {
     }
 
     /**
-     * 메시지를 Kafka `chat.message` 토픽으로 발행한다.
+     * 메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
      * 실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
      *
      * @param ctx - 채널·사용자·역할 컨텍스트
@@ -320,23 +323,26 @@ export class ChatService {
             }
         }
 
-        if (dto.attachments?.length) {
-            for (const attachment of dto.attachments) {
-                this.objectStorageService.assertOwnedAttachmentUrl(attachment.url, ctx.channelId, ctx.userId);
-            }
-        }
-
         if (channel.type === DM_CHANNEL_TYPE) {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
         }
+
+        if (dto.attachments?.length && !dto.clientMessageId) {
+            throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
+        }
+
+        const clientMessageId = dto.clientMessageId ?? randomUUID();
+        const attachments = await this.objectStorageService.claimAttachments(
+            dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
+        );
 
         await this.chatMessageProducer.sendMessage(ctx.channelId, {
             ...scope,
             content: dto.content,
             type: dto.type,
-            attachments: dto.attachments,
+            attachments,
             parentMessageId: dto.parentMessageId,
-            clientMessageId: dto.clientMessageId,
+            clientMessageId,
         }, ctx.userId, ctx.userRole);
     }
 
@@ -588,7 +594,7 @@ export class ChatService {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 수정할 수 있습니다');
 
         if (message.content === dto.content) {
-            return message;
+            return this.toMessageResponse({ ...toMessageBroadcastPayload(message), mentionedMessage: null }, ctx.userId);
         }
 
         const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
@@ -607,7 +613,7 @@ export class ChatService {
             },
         );
 
-        return updated;
+        return this.toMessageResponse({ ...toMessageBroadcastPayload(updated), mentionedMessage: null }, ctx.userId);
     }
 
     /**
@@ -663,7 +669,7 @@ export class ChatService {
             { messageId: ctx.messageId, channelId: ctx.channelId },
         );
 
-        return updated;
+        return this.toMessageResponse({ ...toMessageBroadcastPayload(updated), mentionedMessage: null }, ctx.userId);
     }
 
     /**
@@ -894,6 +900,7 @@ export class ChatService {
     private toMessageResponse(row: MessageRow, userId: number) {
         return {
             ...row,
+            attachments: publicAttachments(row.attachments),
             reactions: (row.reactions ?? []).map(r => ({
                 emoji: r.emoji,
                 count: r.userIds.length,

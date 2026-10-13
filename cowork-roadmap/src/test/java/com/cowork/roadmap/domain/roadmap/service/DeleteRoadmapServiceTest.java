@@ -34,7 +34,7 @@ class DeleteRoadmapServiceTest {
     @Test
     void deleteRoadmap_whenMutable_deletes() {
         Roadmap roadmap = roadmap(10L);
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
         when(roadmapRepository.delete(roadmap)).thenReturn(Mono.empty());
 
@@ -45,7 +45,7 @@ class DeleteRoadmapServiceTest {
 
     @Test
     void deleteRoadmap_roadmapNotFound_failsWithNotFound() {
-        when(roadmapRepository.findById(99L)).thenReturn(Mono.empty());
+        when(roadmapRepository.findByIdForUpdate(99L)).thenReturn(Mono.empty());
 
         StepVerifier.create(deleteRoadmapService.execute(1L, "ADMIN", 99L))
                 .expectErrorMatches(error -> error instanceof ExpectedException expected
@@ -58,7 +58,7 @@ class DeleteRoadmapServiceTest {
     @Test
     void deleteRoadmap_whenNotMutable_doesNotDelete() {
         Roadmap roadmap = roadmap(10L);
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
         when(accessGuard.requireMutable(any(), anyLong(), anyString()))
                 .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
 
@@ -69,6 +69,17 @@ class DeleteRoadmapServiceTest {
 
         // delete는 Mono.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
         verify(roadmapRepository, never()).delete(any());
+    }
+
+    @Test
+    void customRoadmap_keepsExistingDeletionPolicy() {
+        Roadmap roadmap = Roadmap.builder().id(10L).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
+        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
+        when(roadmapRepository.delete(roadmap)).thenReturn(Mono.empty());
+
+        StepVerifier.create(deleteRoadmapService.execute(1L, "MEMBER", 10L)).verifyComplete();
+        verify(roadmapRepository).delete(roadmap);
     }
 
     private static Roadmap roadmap(Long id) {
