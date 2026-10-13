@@ -79,7 +79,7 @@ def infrastructure_source(path):
     value = Path(path)
     if value.suffix.lower() in {'.md', '.rst', '.adoc'} or 'docs' in value.parts:
         return False
-    if path == '.github/workflows/cowork-prod-iac.yml':
+    if path == '.github/workflows/cowork-prod-cd.yml':
         return True
     if path.startswith(('deploy/iac/', 'deploy/prod/slots/', 'deploy/prod/monitoring/',
                         'deploy/prod/log-agent/', 'deploy/prod/lib/', 'deploy/config/monitoring/')):
@@ -222,14 +222,13 @@ def main():
     parser.add_argument('--work-directory', type=Path, required=True)
     parser.add_argument('--recovery-file', type=Path)
     parser.add_argument('--check-only', action='store_true')
-    parser.add_argument('--from-cd', action='store_true')
     parser.add_argument('--automatic', action='store_true')
     parser.add_argument('--initialize-state', action='store_true')
     args = parser.parse_args()
     demand(re.fullmatch(r'[0-9a-f]{40}', args.sha), 'A full release commit is required')
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     demand(head == args.sha, 'Checkout must match the exact release SHA')
-    demand(not args.initialize_state or not (args.from_cd or args.automatic or args.check_only),
+    demand(not args.initialize_state or not (args.automatic or args.check_only),
            'State initialization is only available to an explicit manual apply')
     work = args.work_directory
     demand(work.is_absolute() and not work.is_symlink() and not work.exists() and not work.resolve().is_relative_to(ROOT),
