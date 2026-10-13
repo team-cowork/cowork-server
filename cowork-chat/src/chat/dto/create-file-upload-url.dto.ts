@@ -33,9 +33,6 @@ export class CreateFileUploadUrlResponseDto {
     @ApiProperty({ description: '클라이언트가 PUT 업로드에 사용할 presigned URL' })
     uploadUrl!: string;
 
-    @ApiProperty({ description: '메시지 attachments.url에 저장할 파일 URL' })
-    fileUrl!: string;
-
     @ApiProperty({ description: 'presigned URL 만료 시간(초)' })
     expiresInSeconds!: number;
 
@@ -51,7 +48,11 @@ export class ConfirmFileUploadRequestDto {
 }
 
 export class ConfirmFileUploadResponseDto {
-    @ApiProperty({ description: '메시지 attachments.url에 사용할 파일 URL' })
-    fileUrl!: string;
+    @ApiProperty({ description: '확정된 파일 key. 메시지 attachments.objectKey에 사용한다.' })
+    objectKey!: string;
+
+    @ApiProperty() name!: string;
+    @ApiProperty() size!: number;
+    @ApiProperty() mimeType!: string;
 }
 

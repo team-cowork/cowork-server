@@ -20,10 +20,10 @@ class ControlPlaneAccounts(environment: Environment) {
             (0 until root.size()).map { index ->
                 val node = root.path(index)
                 ControlPlaneAccount(
-                    node.path("username").asText(),
-                    node.path("passwordHash").asText(),
-                    node.path("application").asText(),
-                    node.path("profile").asText(),
+                    node.path("username").asString(),
+                    node.path("passwordHash").asString(),
+                    node.path("application").asString(),
+                    node.path("profile").asString(),
                 )
             }
         } catch (_: Exception) {
