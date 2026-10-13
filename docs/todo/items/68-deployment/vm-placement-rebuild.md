@@ -2,7 +2,7 @@
 
 - **서비스**: GSM SV VM, Config/Eureka, Gateway, Team, Project, Preference, Voice, Roadmap, Vault, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: 교체 앱 VM의 초기 설정과 기존 Config·Gateway의 local 컨테이너 정지를 완료했으며, Vault 전용 VM 구성과 GitHub 배포 전환을 진행하고 있다.
+- **현재 상태**: Vault 전용 VM의 GitHub 배포와 교체 앱 VM의 초기 설정을 완료했으며, GHCR 인증 수정 후 Config와 앱 배포를 진행한다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md), [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md), [운영 Eureka 등록과 광고 주소 복구](../66-deployment/eureka-registration-recovery.md), [공개 API 진입점과 TLS 인증서 정합성 복구](../67-configuration/public-api-tls.md), [모듈별 MySQL·Redis 배치 전환 검토](../58-deployment/module-datastore-placement.md)
 
 ## 문제
@@ -66,6 +66,17 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 | Vault HTTPS | DB VM의 HTTPS 슬롯 2개는 `chcowork.https.gsmsv.site:80`, `livekit.https.gsmsv.site:7880`이 사용하고 있었다. 누락된 Vault 도메인을 새 VM의 `8200`에 연결했다. 공개 health의 TLS 검증, HTTP 200과 새 cluster ID 일치를 확인했다. | Config AppRole과 GitHub 토큰의 실제 인증을 확인한다. |
 | Vault VM | `cowork-vault`, `gsmgpu1:105`, `10.0.0.91`, SSH `21105`를 생성했다. 사양은 `1 vCPU / 2 GB / 20 GB`이다. Docker 초기 설정과 신규 Vault 볼륨 이관을 마쳤고 기존 복구 키와 cluster ID를 유지했다. | 후보 컨테이너를 정지하고 GitHub 복구 경로로 최종 컨테이너를 기동한다. |
 | AppRole 송신 경로 | Config VM의 공개 HTTPS health 요청 3회가 모두 성공했다. 새 Vault의 TCP peer 표본 20개에서 프록시 `10.0.0.117`만 관측했다. | 관측한 `10.0.0.117/32`에서 AppRole 로그인이 허용되는지 확인한다. 이 CIDR은 Config VM 자체가 아니라 공용 TLS 프록시를 식별한다. |
+
+### 최신 적용 상태
+
+- Vault는 새 전용 VM에서 `f6fdc56e`의 정상 `redeploy`를 통과했다. GitHub runtime 성공 기록과 공개 TLS health를 확인했다.
+- Config 전용 AppRole의 로그인과 허용 경로 조회는 성공했고 배포·제어 경로와 `local` 조회는 거부되었다. 실행 중인 새 Config의 인증 갱신은 아직 확인하지 않았다.
+- GitHub의 `update-config`로 배포 문서 5개와 Team·User·Chat 애플리케이션 문서 3개를 갱신했다. 실제 Vault 값 일치와 일회성 입력 secret 삭제를 확인했다.
+- Channel은 `8 vCPU / 20 GB`에서 `4 vCPU / 8 GB`로 줄였다. 패널과 게스트의 온라인 CPU·메모리 용량을 확인했다. 기존 앱은 자동 재시작을 해제하고 정지했으며 새 CD 배포를 기다린다.
+- Gateway는 hotplug 제약으로 기존 `4 vCPU / 8 GB`를 유지했다. 공개 API 도메인의 전달 대상은 새 VM의 `8080`으로 바꿨다.
+- 웹 원본은 배포 예정인 `https://service.gsmsv.site:22118`로 설정했다. 웹은 아직 배포되지 않았으며 이 주소의 TLS 응답은 확인하지 않았다.
+- DB·객체 전체 초기화는 허용되었으나 현재 전환에 필요하지 않아 데이터를 보존했다. Roadmap DB를 백업하고 Chat v2 토픽과 서비스별 스토리지 권한을 준비했다.
+- 이전 Project·Preference·Voice VM과 DB VM의 기존 앱은 새 앱 확인 전까지 보존한다. 새 VM 생성만으로 교체 완료를 판정하지 않는다.
 
 DB VM에서 실행 중인 기존 운영 Config·Gateway·Team·Vault는 아직 정지하지 않았다.
 신규 VM 생성과 기존 컨테이너 정지를 서비스 이관 완료로 판단하지 않는다.
