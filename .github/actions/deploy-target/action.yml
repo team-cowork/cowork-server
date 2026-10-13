@@ -177,19 +177,12 @@ runs:
             "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
             --release-directory "$release"
     - name: Record successful runtime deployment
-      if: ${{ inputs.check_only != 'true' }}
+      # Temporary branch verification does not create a production baseline.
+      if: ${{ false }}
       env:
         GH_TOKEN: ${{ github.token }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
         RELEASE_SHA: ${{ inputs.sha }}
       shell: bash
-      run: |
-        python3 - <<'PYTHON'
-        import os, sys
-        sys.path.insert(0, 'deploy/prod')
-        import deployment_state
-        # Validation rollouts must not become the main branch's deployment baseline.
-        deployment_state.TASK = 'cowork-runtime-validation'
-        deployment_state.record(os.environ['SERVICE'], os.environ['TARGET'], os.environ['RELEASE_SHA'])
-        PYTHON
+      run: python3 deploy/prod/deployment_state.py "$SERVICE" "$TARGET" "$RELEASE_SHA"
