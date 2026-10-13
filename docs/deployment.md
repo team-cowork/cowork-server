@@ -213,7 +213,8 @@ Alloy로 전환할 때 기존 Promtail을 중지한다. 읽기 위치 형식이 
 호스트 디스크를 감시할 VM(앱·DB·Vault·monitoring VM)마다 `deploy/node-agent-<vm>` 문서의
 `runtime.NODE_EXPORTER_BIND_IP`에 그 VM의 사설 IPv4를 준비한다. 해당 target의 Environment를 등록하고
 `service=node-agent`, `target=node-agent-<vm>`으로 수동 배포한다. monitoring 문서의 `runtime.NODE_EXPORTER_TARGETS`에는
-각 VM의 `<사설 IPv4>:9100`을 쉼표로 나열한다. 비워 두면 호스트 지표를 수집하지 않는다.
+각 VM의 `<사설 IPv4>:9100`을 쉼표로 나열한다. 비워 두면 호스트 지표를 수집하지 않으며
+`coworkHostMetricsMissing`이 계속 발화한다.
 
 운영 기록에는 target·VM 배치·실제 주소·적용 SHA·프로파일·Vault 및 참조 버전·readiness·관측 결과를
 남긴다. RPO/RTO·백업·복구 훈련과 용량 목표는 실제 배치를 기준으로 별도 정한다.
