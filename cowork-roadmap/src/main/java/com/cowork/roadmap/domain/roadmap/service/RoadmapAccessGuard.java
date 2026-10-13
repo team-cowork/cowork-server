@@ -70,6 +70,18 @@ public class RoadmapAccessGuard {
         return requireTeamRole(teamId, userId, ignored -> true, "로드맵을 조회할 권한이 없습니다.");
     }
 
+    /** 과제 목록은 공용 콘텐츠의 공개 범위와 별개로 과제 소유 팀에 제한한다. */
+    public Mono<Boolean> canReadTeam(Long teamId, Long userId, String userRole) {
+        if (ROLE_ADMIN.equals(userRole)) {
+            return Mono.just(true);
+        }
+        if (teamId == null) {
+            return Mono.just(false);
+        }
+        return requireProjectionReady()
+                .then(Mono.defer(() -> teamMemberships.findActiveRole(teamId, userId).hasElement()));
+    }
+
     /** 과제 출제/삭제 권한. 글로벌 ADMIN 또는 해당 팀의 OWNER/ADMIN. */
     public Mono<Void> requireTeamManagerOrAdmin(Long userId, String userRole, Long teamId) {
         if (ROLE_ADMIN.equals(userRole)) {

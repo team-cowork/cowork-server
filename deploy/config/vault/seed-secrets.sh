@@ -17,8 +17,6 @@ ACCOUNT_SHARE_OAUTH_STATE_SECRET=${ACCOUNT_SHARE_OAUTH_STATE_SECRET:-}
 TEAM_GITHUB_STATE_SECRET=${TEAM_GITHUB_STATE_SECRET:-}
 GITHUB_APP_SLUG=${GITHUB_APP_SLUG:-}
 GITHUB_APP_INTERNAL_API_KEY=${GITHUB_APP_INTERNAL_API_KEY:-}
-S3_ACCESS_KEY=${S3_ACCESS_KEY:-seaweedfsadmin}
-S3_SECRET_KEY=${S3_SECRET_KEY:-seaweedfsadmin}
 LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
 LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-devsecret}
 
@@ -45,14 +43,14 @@ vault kv put secret/cowork-preference \
 vault kv put secret/cowork-user \
   DB_USERNAME="${MYSQL_USER}" \
   DB_PASSWORD="${MYSQL_PASSWORD}" \
-  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
-  S3_SECRET_KEY="${S3_SECRET_KEY}" >/dev/null
+  S3_ACCESS_KEY="${S3_USER_ACCESS_KEY:?service access key is required}" \
+  S3_SECRET_KEY="${S3_USER_SECRET_KEY:?service secret key is required}" >/dev/null
 
 vault kv put secret/cowork-team \
   MYSQL_USER="${MYSQL_USER}" \
   MYSQL_PASSWORD="${MYSQL_PASSWORD}" \
-  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
-  S3_SECRET_KEY="${S3_SECRET_KEY}" \
+  S3_ACCESS_KEY="${S3_TEAM_ACCESS_KEY:?service access key is required}" \
+  S3_SECRET_KEY="${S3_TEAM_SECRET_KEY:?service secret key is required}" \
   TEAM_GITHUB_STATE_SECRET="${TEAM_GITHUB_STATE_SECRET}" \
   GITHUB_APP_SLUG="${GITHUB_APP_SLUG}" >/dev/null
 
@@ -68,8 +66,8 @@ vault kv put secret/cowork-voice \
 
 vault kv put secret/cowork-chat \
   JWT_SECRET="${JWT_SECRET}" \
-  S3_ACCESS_KEY="${S3_ACCESS_KEY}" \
-  S3_SECRET_KEY="${S3_SECRET_KEY}" \
+  S3_ACCESS_KEY="${S3_CHAT_ACCESS_KEY:?service access key is required}" \
+  S3_SECRET_KEY="${S3_CHAT_SECRET_KEY:?service secret key is required}" \
   MONGODB_URI="mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/cowork_chat?authSource=admin" \
   DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" >/dev/null
 

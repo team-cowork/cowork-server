@@ -13,6 +13,7 @@ import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
 import { ThrottleGuard } from '../common/guard/throttle.guard';
 import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
+import { AttachmentDownloadService } from './service/attachment-download.service';
 import { ChatController } from './chat.controller';
 import { DmController } from './dm.controller';
 import { ProjectMessageController } from './project-message.controller';
@@ -153,6 +154,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
     providers: [
         ChatGateway,
         ChatService,
+        AttachmentDownloadService,
         MessageRepository,
         ChannelMemberRepository,
         ChatMessageProducer,
