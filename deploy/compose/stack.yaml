@@ -114,7 +114,7 @@ services:
         project.event.v2
         project.member.event.v2
         project.github-repo.event
-        chat.message
+        chat.message.v2
         github.issue.create
         github.issue.result
         github.repo.event
@@ -173,6 +173,10 @@ services:
             --partitions "$${KAFKA_TOPIC_PARTITIONS}" \
             --replication-factor "$${KAFKA_TOPIC_REPLICATION_FACTOR}"
         done
+        /opt/kafka/bin/kafka-configs.sh \
+          --bootstrap-server kafka:9092 \
+          --alter --entity-type topics --entity-name chat.message.v2 \
+          --add-config 'cleanup.policy=delete,retention.ms=604800000'
         for topic in $${KAFKA_COMPACTED_TOPICS}; do
           /opt/kafka/bin/kafka-configs.sh \
             --bootstrap-server kafka:9092 \
