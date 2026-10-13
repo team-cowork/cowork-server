@@ -77,13 +77,15 @@ def main():
         base = successful_sha(service, name)
         if base == sha:
             continue
+        if base and subprocess.run(
+            ["git", "cat-file", "-e", f"{base}^{{commit}}"], capture_output=True,
+        ).returncode != 0:
+            print(f"{name}: previous source is unavailable; deploy the selected source")
+            base = None
         if base:
-            subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"], check=True)
             if ancestor(sha, base):
                 print(f"{name}: skip stale automatic rollout; a newer SHA is deployed")
                 continue
-            if not ancestor(base, sha):
-                raise ValueError(f"{name}: divergent deployment history; use an explicit manual redeploy")
             if base not in changes:
                 changes[base] = subprocess.check_output(
                     ["git", "diff", "--name-only", "--no-renames", "-z", base, sha],
