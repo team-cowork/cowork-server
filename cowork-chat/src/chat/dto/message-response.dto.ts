@@ -8,7 +8,7 @@ class ReactionResponseDto {
 
 class AttachmentResponseDto {
     @ApiProperty() name!: string;
-    @ApiProperty() url!: string;
+    @ApiPropertyOptional() objectKey?: string;
     @ApiProperty() size!: number;
     @ApiProperty() mimeType!: string;
 }
