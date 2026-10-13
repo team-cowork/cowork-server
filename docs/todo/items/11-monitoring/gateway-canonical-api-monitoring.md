@@ -23,7 +23,7 @@ CORS preflight만으로 실제 업무 API의 도달성을 판정할 수 없다.
 
 - 외부 HTTP API 모듈 10개의 probe를 구현한다.
 - 자격 증명은 secret store로 공급하고 민감한 요청·응답은 저장하지 않는다.
-- 내부 readiness·metrics와 공개 집계 probe를 유지하며 업무 API별 상태를 Grafana·알림에 연결한다.
+- 업무 API별 상태를 Grafana·알림에 연결한다.
 
 ## 검증
 
