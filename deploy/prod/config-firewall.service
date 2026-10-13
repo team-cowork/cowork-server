@@ -1,0 +1,13 @@
+[Unit]
+Description=Restore cowork Config Server ingress before Docker
+Before=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py restore
+TimeoutStartSec=30
+
+[Install]
+RequiredBy=docker.service
