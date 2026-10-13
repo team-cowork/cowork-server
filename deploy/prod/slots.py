@@ -85,7 +85,8 @@ def validate(value, target):
     demand(isinstance(readiness, dict) and set(readiness) == {"path", "timeout_seconds"}, "Invalid readiness contract")
     demand(type(readiness["timeout_seconds"]) is int and 1 <= readiness["timeout_seconds"] <= 1050, "Readiness timeout must fit the deployment and rollback session")
     for path in (readiness["path"], c["metrics_path"]):
-        demand(isinstance(path, str) and re.fullmatch(r"/[A-Za-z0-9/_-]*", path), "Invalid health or metrics path")
+        demand(isinstance(path, str) and path.startswith("/") and not path.startswith("//")
+               and not re.search(r"[\x00-\x20\x7f?#]", path), "Invalid health or metrics path")
     demand(type(c["stop_timeout_seconds"]) is int and 1 <= c["stop_timeout_seconds"] <= 120, "Invalid stop timeout")
     limits = c["limits"]
     demand(isinstance(limits, dict) and set(limits) == {"memory", "cpus", "pids"}, "Invalid slot limits")
@@ -98,7 +99,7 @@ def validate(value, target):
         demand(isinstance(mount, dict) and set(mount) == {"type", "source", "target", "read_only"}, "Invalid mount contract")
         demand(mount["type"] == "volume" and re.fullmatch(r"cowork-[a-z0-9][a-z0-9_.-]*", mount["source"]), "Only dedicated named volumes are allowed in application slots")
         target_path = Path(mount["target"])
-        demand(target_path.is_absolute() and ".." not in target_path.parts and len(target_path.parts) > 2 and mount["target"] not in destinations and "," not in mount["target"], "Invalid mount target")
+        demand(target_path.is_absolute() and ".." not in target_path.parts and len(target_path.parts) > 1 and mount["target"] not in destinations and "," not in mount["target"], "Invalid mount target")
         demand(type(mount["read_only"]) is bool, "Mount read_only must be boolean")
         destinations.add(mount["target"])
     demand(isinstance(value.get("peers"), list) and value["peers"], "Slot peers are required")
@@ -138,7 +139,7 @@ def host_network(directory=None):
     value = json.loads(path.read_text(), object_pairs_hook=pairs)
     demand(isinstance(value, dict) and set(value) == {"name", "mtu"}, "Invalid host network contract")
     demand(type(value["mtu"]) is int and 1280 <= value["mtu"] <= 9000, "Invalid host network MTU")
-    demand(isinstance(value["name"], str) and re.fullmatch(f"cowork-runtime-mtu{value['mtu']}(?:-v[1-9][0-9]*)?", value["name"]), "Network names must identify their immutable MTU and optional revision")
+    demand(isinstance(value["name"], str) and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", value["name"]), "Invalid Docker network name")
     return value
 
 
