@@ -25,9 +25,10 @@ class ChannelAccessGuard(
     private val managerReadiness: ProjectionReadinessView,
 ) {
     /**
-     * 채널 설정 조회·계정별 채널 알림: 팀 채널은 팀 멤버이고, 비공개 채널은 채널 멤버이기도 해야 하며,
+     * 채널 설정 조회·계정별 채널 알림: 팀 채널은 팀 멤버이고, 채널 멤버가 아니면 공개 채널이어야 하며,
      * 팀 OWNER가 아니면 역할 정책으로 메시지 읽기가 허용되어야 한다. DM 채널(팀 없음)은 채널 멤버여야 한다.
-     * 공개 여부를 아직 알 수 없는(`isPrivate`가 null) 채널은 비공개로 취급한다.
+     * 팀 멤버이지만 채널 멤버가 아닌데 공개 여부(`isPrivate`)를 아직 알 수 없으면 공개로 가정하지 않고
+     * projection이 따라잡는 중으로 보아 [ProjectionNotReadyException]을 던진다.
      */
     suspend fun requireChannelAccess(channelId: Long, accountId: Long) {
         if (!accessReadiness.isReady) {
@@ -42,7 +43,13 @@ class ChannelAccessGuard(
         }
         val teamMember = teamMemberRepository.findForRead(pool, teamId, accountId)
         if (teamMember == null || teamMember.deleted) throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
-        if (channel.isPrivate != false) requireChannelMember(channelId, accountId)
+        if (!channelMemberRepository.isActiveMember(pool, channelId, accountId)) {
+            when (channel.isPrivate) {
+                true -> throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
+                null -> throw ProjectionNotReadyException("channel visibility is not known yet")
+                false -> Unit
+            }
+        }
         if (teamMember.builtInRole != OWNER_ROLE && !policyRepository.canReadMessages(teamId, accountId, channelId)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
