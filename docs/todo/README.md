@@ -36,7 +36,7 @@
 
 ### 별도 자격 증명 폐기 작업 (1)
 
-- cleanup: [Config Server 기존 Vault 갱신 cron과 토큰 폐기](./items/61-cleanup/config-vault-legacy-token-retirement.md) — 운영 전환·7일 조건 충족 후 기존 cron·토큰·참조 폐기
+- cleanup: [Config Server 기존 Vault 갱신 cron과 토큰 폐기](./items/61-cleanup/config-vault-legacy-token-retirement.md) — 새 Vault 전환과 복구 자료 확인 후 기존 cron·토큰·참조 폐기
 
 ### 운영 배치 결정 필요 (1)
 
