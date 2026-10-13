@@ -28,6 +28,7 @@ CONTAINERS=(
   cowork-vault
   cowork-redis
   cowork-seaweedfs
+  cowork-seaweedfs-lifecycle
 )
 
 load_env() {
