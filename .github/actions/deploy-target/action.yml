@@ -80,10 +80,15 @@ runs:
       env:
         DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
         DEPLOY_SHA: ${{ inputs.sha }}
+        DEPLOY_TOOLS_SHA: ${{ github.workflow_sha }}
         DEPLOY_SERVICE: ${{ inputs.service }}
         DEPLOY_TARGET: ${{ inputs.target }}
         DEPLOY_OWNER: ${{ github.repository_owner }}
         DEPLOY_ACTION: ${{ inputs.check_only == 'true' && 'check' || 'deploy' }}
+        DEPLOY_GHCR_USER: ${{ github.actor }}
+        DEPLOY_GHCR_TOKEN: >-
+          ${{ inputs.check_only != 'true' && inputs.service != 'vault' &&
+              inputs.service != 'monitoring' && inputs.service != 'log-agent' && github.token || '' }}
       with:
         host: ${{ steps.settings.outputs.ssh_host }}
         port: ${{ steps.settings.outputs.ssh_port }}
@@ -93,32 +98,71 @@ runs:
         # 서버의 deploy.sh는 후보 readiness 대기와 롤백 복구 대기를 각각 HEALTH_TIMEOUT_SECONDS까지 수행한다.
         # 이 값이 더 짧으면 SSH만 끊기고 VM의 스크립트가 배포 락을 쥔 채 계속 실행된다.
         command_timeout: 45m
-        envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION
+        envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_TOOLS_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION,DEPLOY_GHCR_USER,DEPLOY_GHCR_TOKEN
         script: |
           set -euo pipefail
+          umask 077
+          export -n DEPLOY_GHCR_TOKEN
+          staging=
+          docker_config=
+          cleanup() {
+            local status=$?
+            trap - EXIT HUP INT TERM
+            if [ -n "$staging" ]; then rm -rf -- "$staging" || status=1; fi
+            if [ -n "$docker_config" ]; then rm -rf -- "$docker_config" || status=1; fi
+            exit "$status"
+          }
+          trap cleanup EXIT
+          trap 'exit 129' HUP
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
           [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DEPLOY_TOOLS_SHA" =~ ^[0-9a-f]{40}$ ]]
           root="$HOME/.local/share/cowork"
           cache="$root/repository.git"
           release="$root/releases/$DEPLOY_SHA"
+          tools_release="$root/releases/$DEPLOY_TOOLS_SHA"
           mkdir -p "$root/releases"
           exec 9>"$root/source.lock"
           flock -w 120 9
           if [ ! -d "$cache" ]; then
             git clone --mirror https://github.com/team-cowork/cowork-server.git "$cache"
           fi
-          git --git-dir="$cache" fetch origin "$DEPLOY_SHA" --quiet
-          if [ ! -d "$release" ]; then
-            staging="$(mktemp -d "$root/releases/.staging.XXXXXX")"
-            trap 'rm -rf "$staging"' EXIT
-            git --git-dir="$cache" archive "$DEPLOY_SHA" | tar -x -C "$staging"
-            printf '%s\n' "$DEPLOY_SHA" > "$staging/.source-sha"
-            mv "$staging" "$release"
-            trap - EXIT
+          archive_release() {
+            local sha="$1" destination="$root/releases/$1"
+            test ! -L "$destination"
+            git --git-dir="$cache" fetch origin "$sha" --quiet
+            if [ ! -d "$destination" ]; then
+              staging="$(mktemp -d "$root/releases/.staging.XXXXXX")"
+              git --git-dir="$cache" archive "$sha" | tar -x -C "$staging"
+              printf '%s\n' "$sha" > "$staging/.source-sha"
+              mv "$staging" "$destination"
+              staging=
+            fi
+            test ! -L "$destination/.source-sha"
+            test "$(cat "$destination/.source-sha")" = "$sha"
+          }
+          archive_release "$DEPLOY_SHA"
+          if [ "$DEPLOY_TOOLS_SHA" != "$DEPLOY_SHA" ]; then
+            archive_release "$DEPLOY_TOOLS_SHA"
           fi
-          test "$(cat "$release/.source-sha")" = "$DEPLOY_SHA"
           flock -u 9
-          printf '%s' "$DEPLOY_PAYLOAD" | python3 "$release/deploy/prod/apply-settings.py" \
-            "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION"
+          # Never reuse or modify the VM's persistent Docker authentication.
+          docker_config="$(mktemp -d "$root/.docker-auth.XXXXXX")"
+          chmod 700 "$docker_config"
+          export DOCKER_CONFIG="$docker_config"
+          unset DOCKER_AUTH_CONFIG
+          # An explicit auth entry prevents automatic use of a host credential store.
+          printf '%s\n' '{"auths":{"ghcr.io":{}}}' > "$DOCKER_CONFIG/config.json"
+          chmod 600 "$DOCKER_CONFIG/config.json"
+          if [ "$DEPLOY_ACTION" = deploy ] && [ -n "${DEPLOY_GHCR_TOKEN:-}" ]; then
+            printf '%s' "$DEPLOY_GHCR_TOKEN" | docker login ghcr.io \
+              --username "$DEPLOY_GHCR_USER" --password-stdin
+          fi
+          unset DEPLOY_GHCR_TOKEN DEPLOY_GHCR_USER
+          printf '%s' "$DEPLOY_PAYLOAD" | python3 "$tools_release/deploy/prod/apply-settings.py" \
+            "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
+            --release-directory "$release"
     - name: Record successful runtime deployment
       if: ${{ inputs.check_only != 'true' }}
       env:
