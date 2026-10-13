@@ -6,7 +6,7 @@ defmodule CoworkUser.AppConfig do
     :eureka_instance_host,
     :eureka_instance_id
   ]
-  @derive {Inspect, except: [:repo_options]}
+  @derive {Inspect, except: [:repo_options, :s3_access_key, :s3_secret_key]}
   defstruct [
     :port,
     :repo_options,
@@ -32,7 +32,7 @@ defmodule CoworkUser.AppConfig do
     :kafka_enabled,
     :s3_region,
     :s3_internal_endpoint,
-    :s3_public_endpoint,
+    :public_api_base_url,
     :s3_access_key,
     :s3_secret_key,
     :s3_bucket,
@@ -51,7 +51,7 @@ defmodule CoworkUser.AppConfig do
     case :persistent_term.get(@persistent_key, :undefined) do
       :undefined ->
         remote = fetch_from_config_server()
-        config = build(remote)
+        config = build(remote) |> validate_storage!()
         :persistent_term.put(@persistent_key, config)
         config
 
@@ -61,7 +61,7 @@ defmodule CoworkUser.AppConfig do
   end
 
   def refresh! do
-    config = build(fetch_from_config_server())
+    config = build(fetch_from_config_server()) |> validate_storage!()
     :persistent_term.put(@persistent_key, config)
     config
   end
@@ -160,11 +160,11 @@ defmodule CoworkUser.AppConfig do
           ["S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"],
           "http://localhost:9000"
         ),
-      s3_public_endpoint:
+      public_api_base_url:
         lookup(
           remote,
-          ["S3_PUBLIC_ENDPOINT", "s3_public_endpoint"],
-          "http://localhost:9000"
+          ["PUBLIC_API_BASE_URL", "public_api_base_url"],
+          "http://localhost:8080"
         ),
       s3_access_key: lookup(remote, ["S3_ACCESS_KEY", "s3_access_key"], ""),
       s3_secret_key: lookup(remote, ["S3_SECRET_KEY", "s3_secret_key"], ""),
@@ -206,7 +206,10 @@ defmodule CoworkUser.AppConfig do
       url when is_binary(url) and url != "" ->
         profile = System.get_env("APP_PROFILE", "local")
 
-        options = CoworkUser.ControlPlane.options("#{String.trim_trailing(url, "/")}/cowork-user/#{profile}")
+        options =
+          CoworkUser.ControlPlane.options(
+            "#{String.trim_trailing(url, "/")}/cowork-user/#{profile}"
+          )
 
         case Req.get(options) do
           {:ok, %{status: 200, body: body}} ->
@@ -225,6 +228,32 @@ defmodule CoworkUser.AppConfig do
       _ ->
         %{}
     end
+  end
+
+  defp validate_storage!(config) do
+    for {endpoint, public?} <- [
+          {config.s3_internal_endpoint, false},
+          {config.public_api_base_url, true}
+        ] do
+      uri = URI.parse(endpoint)
+
+      unless uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != "" and
+               uri.path in [nil, "", "/"] and is_nil(uri.userinfo) and is_nil(uri.query) and
+               is_nil(uri.fragment) do
+        raise "Storage and API endpoints must be an HTTP(S) origin"
+      end
+
+      if public? and config.config_profile == "prod" and
+           (uri.scheme != "https" or uri.host in ["localhost", "127.0.0.1", "::1"]) do
+        raise "Production API endpoint requires HTTPS and a non-local host"
+      end
+    end
+
+    if config.s3_access_key == "" or config.s3_secret_key == "" or config.s3_bucket == "" do
+      raise "S3 bucket and service credentials are required"
+    end
+
+    config
   end
 
   defp merge_property_sources(%{"propertySources" => property_sources})

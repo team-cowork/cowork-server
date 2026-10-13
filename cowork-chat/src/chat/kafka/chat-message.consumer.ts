@@ -12,11 +12,15 @@ import { getOptionalConfig, getRequiredCsvConfig } from '../../common/config/con
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { ChatMessageQuarantineService } from '../service';
-import { ChatMessageContractError, validateChatMessageEvent } from './event/chat-message-contract';
+import {
+    ChatMessageContractError,
+    validateChatMessageEvent,
+    CHAT_MESSAGE_TOPIC,
+    CHAT_MESSAGE_CONTRACT_VERSION,
+} from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
 import { ChatMessageProcessor } from './chat-message.processor';
 
-const CHAT_MESSAGE_TOPIC = 'chat.message';
 /**
  * 파티션당 하나씩 순차 처리하는 KafkaJS 기본값(1) 대신, 서로 다른 채널(=파티션)의 메시지를
  * 동시에 처리하기 위한 동시성. `channelId`가 파티션 키이므로 채널 내 순서는 그대로 유지된다.
@@ -24,7 +28,7 @@ const CHAT_MESSAGE_TOPIC = 'chat.message';
  */
 const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 
-/** Kafka `chat.message` record를 검증하고, poison record만 durable quarantine한다. */
+/** Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다. */
 @Injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ChatMessageConsumer.name);
@@ -73,7 +77,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
         });
         this.consumer = kafka.consumer({ groupId: 'cowork-chat' });
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: CHAT_MESSAGE_TOPIC, fromBeginning: false });
+        await this.consumer.subscribe({ topic: CHAT_MESSAGE_TOPIC, fromBeginning: true });
         const partitionsConsumedConcurrently = this.resolveConcurrency();
         void this.consumer.run({
             partitionsConsumedConcurrently,
@@ -106,7 +110,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             if (payload === null) {
                 await this.quarantineService.quarantine({
                     topic, partition, messageOffset: message.offset, eventKey, payload: null,
-                    contractVersion: 1, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
+                    contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
                     reason: 'Kafka message value is required',
                 });
                 return;
@@ -122,7 +126,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
             await this.quarantineService.quarantine({
                 topic, partition, messageOffset: message.offset, eventKey, payload,
-                contractVersion: 1, ...classification,
+                contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, ...classification,
             });
         }
     }

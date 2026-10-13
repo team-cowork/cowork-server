@@ -2,7 +2,6 @@ import {
     IsArray,
     IsEnum,
     IsMongoId,
-    IsNumber,
     IsOptional,
     IsString,
     MaxLength,
@@ -12,17 +11,8 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AttachmentDto {
-    @ApiProperty({ description: 'S3 파일명' })
-    @IsString() name!: string;
-
-    @ApiProperty({ description: 'S3 URL' })
-    @IsString() url!: string;
-
-    @ApiProperty({ description: '파일 크기 (bytes)' })
-    @IsNumber() size!: number;
-
-    @ApiProperty({ description: 'MIME 타입', example: 'image/png' })
-    @IsString() mimeType!: string;
+    @ApiProperty({ description: '업로드 완료 확인에서 반환한 최종 object key' })
+    @IsString() objectKey!: string;
 }
 
 export class SendMessageDto {
