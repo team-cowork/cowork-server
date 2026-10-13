@@ -12,7 +12,12 @@ import { getOptionalConfig, getRequiredCsvConfig } from '../../common/config/con
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
 import { ChatMessageQuarantineService } from '../service';
-import { ChatMessageContractError, validateChatMessageEvent, CHAT_MESSAGE_TOPIC } from './event/chat-message-contract';
+import {
+    ChatMessageContractError,
+    validateChatMessageEvent,
+    CHAT_MESSAGE_TOPIC,
+    CHAT_MESSAGE_CONTRACT_VERSION,
+} from './event/chat-message-contract';
 import { ChatMessageScopeError } from './chat-message-scope-validator';
 import { ChatMessageProcessor } from './chat-message.processor';
 
@@ -105,7 +110,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             if (payload === null) {
                 await this.quarantineService.quarantine({
                     topic, partition, messageOffset: message.offset, eventKey, payload: null,
-                    contractVersion: 1, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
+                    contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
                     reason: 'Kafka message value is required',
                 });
                 return;
@@ -121,7 +126,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
             await this.quarantineService.quarantine({
                 topic, partition, messageOffset: message.offset, eventKey, payload,
-                contractVersion: 1, ...classification,
+                contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, ...classification,
             });
         }
     }
