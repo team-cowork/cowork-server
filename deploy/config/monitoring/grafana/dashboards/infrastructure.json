@@ -14,7 +14,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(mysql_global_status_queries{job=\"mysql\"}[1m])",
+          "expr": "rate(mysql_global_status_queries{service=\"mysql\"}[1m])",
           "legendFormat": "QPS",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -27,12 +27,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "mysql_global_status_threads_connected{job=\"mysql\"}",
+          "expr": "mysql_global_status_threads_connected{service=\"mysql\"}",
           "legendFormat": "Connected",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "mysql_global_status_threads_running{job=\"mysql\"}",
+          "expr": "mysql_global_status_threads_running{service=\"mysql\"}",
           "legendFormat": "Running",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -45,7 +45,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
-          "expr": "rate(redis_keyspace_hits_total{job=\"redis\"}[1m]) / (rate(redis_keyspace_hits_total{job=\"redis\"}[1m]) + rate(redis_keyspace_misses_total{job=\"redis\"}[1m])) * 100",
+          "expr": "rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) / (rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) + rate(redis_keyspace_misses_total{service=\"redis\"}[1m])) * 100",
           "legendFormat": "Hit Rate",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -59,12 +59,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         {
-          "expr": "redis_memory_used_bytes{job=\"redis\"}",
+          "expr": "redis_memory_used_bytes{service=\"redis\"}",
           "legendFormat": "Used",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "redis_memory_max_bytes{job=\"redis\"}",
+          "expr": "redis_memory_max_bytes{service=\"redis\"}",
           "legendFormat": "Max",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -78,7 +78,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{job=\"kafka\"})",
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{service=\"kafka\"})",
           "legendFormat": "{{consumergroup}} / {{topic}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -91,7 +91,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
-          "expr": "sum by (topic) (rate(kafka_topic_partition_current_offset{job=\"kafka\"}[1m]))",
+          "expr": "sum by (topic) (rate(kafka_topic_partition_current_offset{service=\"kafka\"}[1m]))",
           "legendFormat": "{{topic}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -104,12 +104,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "targets": [
         {
-          "expr": "pg_stat_activity_count{job=\"postgres\", state=\"active\"}",
+          "expr": "pg_stat_activity_count{service=\"postgres\", state=\"active\"}",
           "legendFormat": "Active",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "pg_stat_activity_count{job=\"postgres\", state=\"idle\"}",
+          "expr": "pg_stat_activity_count{service=\"postgres\", state=\"idle\"}",
           "legendFormat": "Idle",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
@@ -122,12 +122,12 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "targets": [
         {
-          "expr": "rate(pg_stat_database_xact_commit{job=\"postgres\", datname=\"cowork_preference\"}[1m])",
+          "expr": "rate(pg_stat_database_xact_commit{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
           "legendFormat": "Commits/s",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
-          "expr": "rate(pg_stat_database_xact_rollback{job=\"postgres\", datname=\"cowork_preference\"}[1m])",
+          "expr": "rate(pg_stat_database_xact_rollback{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
           "legendFormat": "Rollbacks/s",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
