@@ -96,7 +96,7 @@ URL은 `https://cowork-github-app.https.gsmsv.site/github/webhooks`이고 SSL �
 상태를 판단하지 않는다. 2026-10-13 20:24:51과 20:24:53 KST에 GitHub가 보낸 `push`와
 `pull_request.synchronize`는 `X-Hub-Signature-256`을 포함했고 모두 HTTP `200`을 받았다.
 실행 중 App과 private runtime 파일의 Secret이 준비한 값과 일치함을 값 노출 없이 확인했다.
-이는 현재 서명 검증과 webhook 수신의 성공을 확인한 결과다. 중지된 업무 서비스의 Kafka 소비나
+이는 현재 서명 검증과 webhook 수신의 성공을 확인한 결과다. 이 요청들의 업무 서비스 Kafka 소비와
 전체 업무 처리 완료까지 검증한 결과는 아니다.
 
 참고: [GitHub 이벤트와 권한](https://docs.github.com/en/webhooks/webhook-events-and-payloads),
