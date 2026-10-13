@@ -38,4 +38,4 @@ ALTER TABLE tb_channel_lifecycle_projections
     ADD COLUMN is_private BOOLEAN;
 
 COMMENT ON COLUMN tb_channel_lifecycle_projections.is_private IS
-    'cowork-channel의 tb_channels.is_private. NULL은 channel.event.v2로 아직 확인하지 못한 값이며 비공개로 취급한다';
+    'cowork-channel의 tb_channels.is_private. NULL은 channel.event.v2로 아직 확인하지 못한 값이며 공개로 가정하지 않는다';
