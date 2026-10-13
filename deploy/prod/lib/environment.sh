@@ -7,7 +7,7 @@ load_deploy_environment() {
   source "${PROD_DIR}/defaults.sh"
   set +a
   case "$SERVICE" in
-    vault|monitoring|storage|log-agent) ;;
+    vault|monitoring|datastores|storage|log-agent) ;;
     *) require_env APP_CONFIG_PROFILE
        case "$APP_CONFIG_PROFILE" in local|prod) ;; *) fail 'APP_CONFIG_PROFILE must be local or prod' ;; esac ;;
   esac
