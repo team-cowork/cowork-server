@@ -1,14 +1,18 @@
 name: cowork prod CD Workflow
 
 on:
-  # Temporary validation on the exact feature branch. Restore before merge.
+  workflow_run:
+    workflows: ["cowork prod CI Workflow"]
+    types: [completed]
+    branches: [main]
+
   workflow_dispatch:
     inputs:
       operation:
-        description: Temporary feature-branch validation operation
+        description: Manual operation (automatic CI completion keeps the normal release flow)
         required: true
         type: choice
-        options: [redeploy]
+        options: [redeploy, update-config]
       target:
         description: Optional Vault target override; defaults to the selected service
         required: false
@@ -62,8 +66,7 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'team-cowork/cowork-server' &&
-      github.ref == 'refs/heads/cicd/runtime-neutral-slots' &&
-      inputs.operation == 'redeploy'
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -171,12 +174,14 @@ jobs:
           PYTHON
 
   prepare:
-    needs: manual-request
+    needs: [manual-request, detect-changes]
     runs-on: ubuntu-latest
     if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/cicd/runtime-neutral-slots' &&
-      inputs.operation == 'redeploy' && needs.manual-request.result == 'success'
+      !cancelled() && (
+        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
+         needs.manual-request.result == 'success')
+      )
     permissions:
       contents: read
     outputs:
@@ -189,7 +194,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           fetch-depth: 0
 
       - name: Resolve release version
@@ -206,13 +211,17 @@ jobs:
 
           echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          # A validation deployment must not create or move release version tags.
-          echo "should_release=false" >> "${GITHUB_OUTPUT}"
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] &&
+             ! git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
+            echo "should_release=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "should_release=false" >> "${GITHUB_OUTPUT}"
+          fi
 
       - name: Resolve selected deployment image inputs
         id: images
         env:
-          DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix }}
+          DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
         run: |
           python3 - <<'PYTHON'
           import json, os
@@ -254,7 +263,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -275,11 +284,11 @@ jobs:
           # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
           # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
           tags: |
-            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ inputs.sha || github.sha }}
+            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
             ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ inputs.sha || github.sha }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
             org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
 
   release:
@@ -346,13 +355,15 @@ jobs:
   deployment-plan:
     needs: [prepare, build-images, release, detect-changes, manual-request]
     if: >
-      !cancelled() && github.event_name == 'workflow_dispatch' &&
-      github.ref == 'refs/heads/cicd/runtime-neutral-slots' && inputs.operation == 'redeploy' &&
-      needs.manual-request.result == 'success' && needs.prepare.result == 'success' && (
+      !cancelled() && needs.prepare.result == 'success' && (
+        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
+         needs.manual-request.result == 'success')
+      ) && (
         needs.build-images.result == 'success' ||
         (needs.build-images.result == 'skipped' &&
          (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}'))
-      )
+      ) && (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       vault: ${{ steps.waves.outputs.vault }}
@@ -703,9 +714,13 @@ jobs:
       - manual-request
       - update-config
     if: >
-      always() && github.event_name == 'workflow_dispatch' &&
-      github.repository == 'team-cowork/cowork-server' &&
-      github.ref == 'refs/heads/cicd/runtime-neutral-slots' && inputs.operation == 'redeploy'
+      always() && github.repository == 'team-cowork/cowork-server' && (
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == 'main' &&
+         github.event.workflow_run.head_repository.full_name == github.repository) ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      )
 
     steps:
       - name: Get Short SHA
