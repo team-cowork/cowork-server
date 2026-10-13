@@ -12,12 +12,59 @@ groups:
 
   - name: cowork-discovery
     rules:
+      # 있어야 할 서비스 집합. 관측 이력으로 대신하면 소실 상태가 창 길이만큼만 유지되고,
+      # 서비스가 계속 중단돼 있어도 알림이 스스로 해제된다. 서비스를 늘리거나 줄일 때 이 목록을 함께 고친다.
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: gateway
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: authorization
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: user
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: channel
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: project
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: team
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: roadmap
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: voice
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: preference
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: notification
+      - record: cowork:service:expected
+        expr: vector(1)
+        labels:
+          service: chat
+
       # up은 수집 대상이 남아 있을 때만 평가된다. Eureka에서 인스턴스가 빠지면 시계열 자체가 사라져
-      # coworkServiceDown(up == 0)에는 걸리지 않으므로, 최근까지 수집되던 서비스가 대상 목록에서
-      # 사라진 경우를 따로 감시한다.
+      # coworkServiceDown(up == 0)에는 걸리지 않으므로, 기대 집합과 현재 수집 대상의 차이를 감시한다.
+      # 재등록되거나 위 목록에서 지우기 전까지 알림이 유지된다.
       - alert: coworkServiceMissingFromDiscovery
         expr: |
-          max by (service) (max_over_time(up{job="cowork-services"}[2h]))
+          cowork:service:expected
           unless
           max by (service) (up{job="cowork-services"})
         for: 10m
@@ -25,7 +72,7 @@ groups:
           severity: critical
         annotations:
           summary: "cowork service missing from discovery"
-          description: "Service {{ $labels.service }} was scraped within the last 2 hours but is no longer a discovery target."
+          description: "Service {{ $labels.service }} is expected but is no longer a discovery target."
 
       # 대상이 하나도 없으면 서비스별 규칙은 아무것도 평가되지 않아 모든 알림이 조용해진다.
       # discovery나 Config 인증이 통째로 실패한 상태를 이 규칙으로 잡는다.
