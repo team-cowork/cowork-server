@@ -256,23 +256,6 @@ jobs:
         with:
           ref: ${{ inputs.sha || github.sha }}
 
-      # CI selects changes from the previous push. CD can retry older failed
-      # targets, so verify every selected source snapshot before publishing it.
-      - name: Verify selected deployment source
-        uses: ./.github/actions/verify-image
-        with:
-          module: cowork-${{ matrix.service }}
-          output: ${{ runner.temp }}/deployment-verification
-
-      - name: Upload deployment verification results
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: deployment-verification-${{ matrix.service }}
-          path: ${{ runner.temp }}/deployment-verification/
-          if-no-files-found: warn
-          retention-days: 7
-
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
         with:

@@ -11,7 +11,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Push runs select images against the previous commit, so every push run must finish.
+  # Keep active push validation; later runs include changes since the last success.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -113,6 +113,9 @@ jobs:
 
   detect-changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
       matrix: ${{ steps.verify.outputs.matrix }}
       services-list: ${{ steps.verify.outputs.services-list }}
@@ -123,10 +126,16 @@ jobs:
           fetch-depth: 0
       - name: Validate deployment syntax and Compose paths
         run: python3 deploy/validate.py
+      - name: Select the last successful push baseline
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 deploy/images/ci/select-base.py
       - name: Select image builds
         id: images
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ steps.baseline.outputs.base }}
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
@@ -134,7 +143,7 @@ jobs:
       - name: Select module verification
         id: verify
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_SHA: ${{ steps.baseline.outputs.base }}
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
