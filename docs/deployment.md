@@ -130,7 +130,9 @@ Channel 배포가 끝난 뒤 시작한다.
 
 ## 로그 수집과 운영 기록
 
-앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`을 준비한다.
+앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`과 node_exporter를 열
+그 VM의 사설 IPv4 `NODE_EXPORTER_BIND_IP`를 준비한다. monitoring 문서의 `runtime.NODE_EXPORTER_TARGETS`에는
+각 VM의 `<사설 IPv4>:9100`을 쉼표로 나열한다. 비워 두면 호스트 지표를 수집하지 않는다.
 Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. 해당 target의 Environment를
 등록하고 `service=log-agent`, `target=log-agent-<vm>`으로 수동 배포한다. 자동 배포도 필요하면 inventory에 등록한다.
 Alloy로 전환할 때 기존 Promtail을 중지한다. 읽기 위치 형식이 달라 과거 로그가 재전송될 수 있다.
