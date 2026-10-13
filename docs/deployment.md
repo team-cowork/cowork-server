@@ -43,27 +43,28 @@ Vault 배포 문서나 컨테이너 환경에 넣지 않으며 VM의 기존 Dock
 경로를 전달한다. 같은 배포 실행에서 readiness 실패 후 보존한 이전 컨테이너를 재시작하는 복구는
 이미지 pull을 수행하지 않는다.
 
-## 운영 MinIO 유지 범위
+## 운영 오브젝트 스토리지
 
-운영 스토리지는 기존 데이터·KMS·버전 관리를 보존하고 MinIO를 유지한다. 서비스별 IAM과
-MinIO 자체 수명 주기 관리로 필요한 권한 분리와 임시 파일 정리를 수행할 수 있어 SeaweedFS 이관을
-배포 조건으로 두지 않는다. 전용 버킷의 `team-icon-uploads/`·`profile-uploads/`·`chat-uploads/`에만
-현재 버전과 이전 버전의 1일 만료를 적용한다. 최종 저장 접두사에는 이 만료 규칙을 적용하지 않는다.
+운영 스토리지의 기준은 SeaweedFS 4.47이다. 전용
+[`deploy/prod/storage`](../deploy/prod/storage/README.md) 구성으로 storage·admin·`s3_lifecycle` worker를
+함께 설치한다. 최초 VM 준비 이후에는 `prod-cd`의 `storage` target이 선택한 GitHub SHA와 Vault
+배포 문서로 갱신한다. 상세 절차는 [운영 스토리지 GitHub CD](#운영-스토리지-github-cd)에 정의한다.
 
-`team-icons/`만 공개 읽기를 허용하고 프로필·채팅 파일·임시 업로드는 비공개로 유지한다.
-Team·User·Chat은 각 서비스의 최종 저장·임시 업로드 접두사에만 접근하는 별도 계정을 사용한다.
-현재 MinIO는 `PublicAccessBlock`과 `PutBucketCors`를 지원하지 않으므로
-[`configure-bucket.sh`](../deploy/config/seaweedfs/configure-bucket.sh)를 그대로 적용하지 않는다.
-버킷 정책·서비스별 IAM·호스트 방화벽으로 접근을 제한하고, 전용 MinIO의 전역 CORS 허용 원본을
-운영 웹 원본에 맞춘다.
+서비스별 키, 공개 아이콘 정책, 비공개 프로필·채팅 파일 정책은
+[`s3-config.json.template`](../deploy/config/seaweedfs/s3-config.json.template)을 기준으로 한다.
+[`configure-bucket.sh`](../deploy/config/seaweedfs/configure-bucket.sh)로 private 버킷 ACL·정책·CORS와
+임시 업로드 세 접두사의 1일 만료를 적용한다. SeaweedFS 4.47의 PublicAccessBlock은 미지원이므로
+그 기능의 적용 성공을 기록하지 않는다. 서비스의 객체·버킷 ACL 변경은 별도 권한 부재와 명시적
+버킷 정책으로 거부한다. worker 준비 상태와 실제 만료 작업 완료를 구분하여 확인한다.
 
-외부 스토리지 요청은 Gateway의 공개 API 경로로만 받고 S3 포트는 허용된 사설 peer로 제한한다.
-관리 콘솔은 호스트 loopback에 대한 SSH 터널로 접근한다. MinIO 컨테이너를 개별 재생성하면
-`systemctl reload cowork-minio-firewall.service`로 직접 bridge 주소의 방화벽 규칙을 갱신한다.
-기존 컨테이너의 임시 접근 예외를 제거할 때도 해당 컨테이너를 중지한 뒤 같은 reload를 수행한다.
+외부 파일 요청은 Gateway의 공개 API 경로로만 받는다. 사설 S3 9000 포트는 Gateway·Team·User·Chat과
+스토리지 운영 호스트만 허용한다. master·volume·filer·admin·worker 관리 포트는 공유 namespace의
+loopback에 제한하고 호스트에 게시하지 않는다. S3 내부 gRPC 19000은 bridge 안에서 수신하며,
+호스트 게시와 외부의 직접 bridge 접근을 차단한다. 호스트 방화벽은 Docker 시작 전에 복구한다.
 
-스토리지 설치·계정·정책·수명 주기·방화벽 변경은 현재 앱 `prod-cd` inventory 밖의 운영 작업이다.
-앱 CD 성공만으로 스토리지 설정이 갱신되었다고 판단하지 않는다.
+초기화가 승인된 전환에서는 새 데이터 디렉터리와 빈 버킷을 사용한다. 이전 MinIO의 객체·버전·KMS
+상태를 복사하지 않는다. 모든 구버전 업로더를 중지한 뒤 이전 엔진·전용 데이터·불필요한 관리 포트·
+임시 방화벽 예외를 제거한다. 애플리케이션 DB와 이벤트 저장소의 초기화 범위도 함께 확인한다.
 
 ## GitHub Environment와 Vault 권한
 
@@ -242,3 +243,139 @@ outbox 삭제나 timestamp 변경으로 적체를 우회하지 않는다. 미발
 보존하며 접수 기한 이후에도 발행을 기다린다. Kafka 데이터 유실은 inbox만으로 복구할 수 없다.
 보관이 끝난 ID를 새 발생 시각으로 재사용하지 않는다. inbox migration 전에는 구버전 replica를 중지하고
 이전 기록의 backfill 없이 기존 재전달 데이터를 처리할 방침을 정한다.
+
+## Backend VM의 HTTP 접근 보호
+
+업무 backend는 전용 VM의 사설 IPv4에 HTTP 포트를 게시한다. 운영자는 첫 앱 배포 전에
+`deploy/prod/bootstrap-backend-firewall.sh`로 고정 ingress 정책을 설치한다. 대상은 Authorization,
+User, Channel, Project, Team, Notification, Chat, Roadmap, Voice, Preference다. Config는 별도
+Config 방화벽을 사용한다. Gateway, DB, 스토리지, LiveKit의 포트에 이 정책을 적용하지 않는다.
+
+정책 파일은 `/etc/cowork/backend-firewall/policy.json`이며 소유자는 `root:root`, 권한은 `0600`이다.
+부모 디렉터리는 `0700`으로 제한한다. 각 VM의 실제 게시 주소와 포트를 기록한다. 예시는 다음과 같다.
+
+```json
+{
+  "bindings": [
+    {"address": "10.0.0.140", "host_port": 8081, "container_port": 8081}
+  ],
+  "peers": ["10.0.0.127/32", "10.0.0.137/32"]
+}
+```
+
+`peers`에는 Gateway와 기존 monitoring VM을 포함한다. 이 정책은 monitoring 배포나 설정을 바꾸지
+않는다. 다른 업무 서비스는 허용하지 않는다. Voice에 DB VM을 추가하려면 먼저 LiveKit의 webhook이
+Voice에 직접 연결되는지 확인한다. Gateway 경유 webhook이면 Voice에 DB peer를 추가하지 않는다.
+주소와 peer는 명시적 RFC1918 IPv4만 허용한다. 서비스별 기본 포트는 다음과 같다. Vault 문서의
+`HOST_PORT` override가 있으면 실제 값을 사용한다.
+
+| 서비스 | VM 게시 포트 | 컨테이너 포트 |
+|--------|-------------:|--------------:|
+| Authorization | 8081 | 8081 |
+| User | 8082 | 8082 |
+| Channel | 8083 | 8083 |
+| Project | 8089 | 8084 |
+| Team | 8085 | 8085 |
+| Notification | 8086 | 8086 |
+| Chat | 8087 | 8087 |
+| Roadmap | 8088 | 8088 |
+| Voice | 8089 | 8089 |
+| Preference | 9001 | 9001 |
+
+helper는 `COWORK_BACKEND` 체인과 해당 체인으로 향하는 `INPUT`·`DOCKER-USER` jump만 교체한다.
+`iptables-restore --noflush`의 한 filter-table commit으로 적용하며 다른 체인·규칙을 지우지 않는다.
+Docker 게시 경로는 conntrack의 원래 목적지 주소·게시 포트로 제한한다. 호스트가 직접 수신하는
+같은 주소·포트는 `INPUT`에서 제한한다. 호스트 자체 health 확인을 위한 loopback 경로는 유지한다.
+
+컨테이너 IP 직결 경로도 보호하기 위해 `docker+`·`br+` 인터페이스로 향하는 해당 컨테이너 포트를
+제한한다. 전용 VM에서 그 포트를 쓰는 모든 Docker 컨테이너에 같은 제한이 적용된다. 다른 포트,
+외부로 나가는 요청, conntrack 응답 방향에는 적용하지 않는다. SSH·DB 등 다른 포트의 규칙은
+교체하지 않는다. 이 helper는 표준 Docker bridge와 IPv4 iptables를 전제로 한다. 적용 전에 Docker
+network의 `EnableIPv6=false`와 컨테이너 global IPv6 주소 부재를 확인한다. 별도 이름의 bridge,
+host/macvlan/ipvlan 네트워크, IPv6 컨테이너 ingress에는 이 정책을 그대로 적용하지 않는다.
+
+### 초기 설치와 정책 변경
+
+1. 검토한 같은 커밋에서 `bootstrap-backend-firewall.sh`, `backend-firewall.py`,
+   `backend-firewall.service`를 준비한다. VM별 `policy.json`도 검토한다.
+2. 파일별 SHA-256과 커밋 ID를 기록한다. 진행 중인 앱 배포가 없는지 확인한다.
+3. 관리 권한으로 VM의 `/root/cowork-backend-firewall-bootstrap`을 `root:root`, `0700`으로 만든다.
+   네 파일을 이 디렉터리에 `root:root`, `0600`으로 복사한다.
+4. 복사한 **root 소유 파일**의 SHA-256이 검토한 값과 일치하는지 확인한다. 릴리스 캐시나 전송용
+   사용자 디렉터리에서 설치 스크립트를 직접 실행하지 않는다.
+5. 다음 명령으로 설치한다.
+
+```sh
+sudo /usr/bin/bash /root/cowork-backend-firewall-bootstrap/bootstrap-backend-firewall.sh
+```
+
+설치 스크립트는 소스와 부모 디렉터리의 root 소유권·쓰기 권한을 확인한 뒤 정책을 검증한다.
+helper·unit·정책을 고정 경로에 원자적으로 복사하고 현재 규칙을 적용한다. 이어서
+`cowork-backend-firewall.service`를 Docker의 필수 선행 unit으로 활성화한다. Docker를 재시작하지
+않는다. 다음 VM 부팅과 Docker 재시작에서는 방화벽 복원이 성공해야 Docker가 시작된다. 복원 unit을
+수동으로 중지하면 Docker도 중지될 수 있으므로 정상 정책 변경에 `systemctl stop`을 사용하지 않는다.
+
+일반 앱 CD는 이 고정 정책을 수정하지 않는다. `check_only`와 실제 배포 모두 설치된 root 소유 helper의
+`check-binding`을 호출하여 주소·게시 포트·컨테이너 포트의 정확한 일치와 복원 unit의 enabled·active
+상태를 확인한다. 이 명령은 설치된 정책으로 현재 규칙을 다시 적용하지만 정책 파일·peer·포트를
+변경하지 않는다. 따라서 `check_only`도 기존 보호 규칙을 복원할 수 있다. helper가 없거나 바인딩이
+일치하지 않거나 규칙 복원이 실패하면 배포를 중단한다. Config·Gateway·인프라 배포에는 이 검사를
+적용하지 않는다.
+
+`BIND_IP`, `HOST_PORT`, `CONTAINER_PORT`, peer 목록, Docker network 조건을 바꿀 때는 앱 컨테이너를
+중지하고 새 정책을 검토·재설치한 다음 배포한다. Vault 값만 변경하지 않는다. 정책 설치가 실패하면
+앱을 시작하지 않는다. 허용 peer의 health 응답과 비허용 peer의 연결 차단을 운영 환경에서 확인하고
+helper·unit·정책 해시 및 확인 결과를 설치 기록에 남긴다.
+
+## 운영 스토리지 GitHub CD
+
+`storage`는 `prod-cd`의 독립 인프라 target이다. 자동 배포 순서는 Vault → Storage → Config →
+나머지 서비스다. 선택된 Storage 배포가 실패하면 뒤의 Config·앱 배포는 실행하지 않는다. 수동 배포는
+선택한 target만 실행한다. `deploy/prod/storage/` 또는 `deploy/config/seaweedfs/`의 변경은 Storage
+배포 비교에 포함한다. SeaweedFS와 AWS CLI 이미지는 선택한 GitHub SHA의 Compose에 고정된 digest를
+사용하며 별도 GHCR 빌드나 토큰이 필요 없다.
+
+처음 한 번의 VM 준비는 관리자가 수행한다. SeaweedFS 데이터 디렉터리, root 소유 방화벽 helper·정책·
+systemd unit, `cowork-storage` SSH 계정을 준비한다. 이 계정의 UID와 기본 GID는 `10001`, home은
+`/home/cowork-storage`다. home은 `0700`으로 제한한다. `/opt/cowork`와 `/opt/cowork/storage`는
+`root:10001`, `0710`으로 설정하여 지정 계정의 경로 통과만 허용한다. 기존 `data`, `admin-data`,
+`lifecycle-data` 디렉터리는 `10001:10001` 소유로 유지한다. 계정은 Docker 사용 권한과 다음 고정
+방화벽 명령의 sudo 권한이 필요하다.
+
+```text
+/usr/bin/python3 -I /usr/local/libexec/cowork-storage-firewall.py check-binding
+```
+
+Docker 사용 권한은 root 상당 권한이다. 이 계정 분리는 VM에 대한 보안 격리를 보장하지 않는다.
+일반 CD에서는 릴리스 캐시의 Python이나 초기 설치 `prepare`·`apply`를 sudo로 실행하지 않는다.
+VM·DB·객체 초기화, 이전 엔진·볼륨 삭제는 CD에 포함하지 않는다.
+
+Vault `secret/deploy/storage`에는 해당 계정의 `ssh` 정보와 `runtime.STORAGE_SETTINGS_JSON`만 저장한다.
+이 키의 값은 [운영 스토리지 초기 설정](../deploy/prod/storage/README.md)의 여섯 필드
+`bind_ip`, `allowed_cidrs`, `bucket`, `region`, `public_web_origins`, `identities`를 가진 **JSON 문자열**이다.
+`identities`에는 admin·Team·User·Chat의 별도 키가 들어간다. 앱에서 사용하는 세 서비스 키와 일치시킨다.
+관리자 키는 앱 Config 경로에 기록하지 않는다. `application`·`application_refs`는 비우며
+`APP_CONFIG_PROFILE`은 필요하지 않다. 다른 target에서 `STORAGE_SETTINGS_JSON`을 전달하면 거부한다.
+같은 키의 `runtime_refs`도 지원하지만 현재 운영은 배포 문서에 직접 저장하여 `update-config`로 관리한다.
+
+GitHub에는 `Prod-CD(storage)`와 `Config-Update(storage)` 환경을 만든다. 배포 읽기 토큰은
+`secret/data/deploy/storage`만 읽고, 설정 쓰기 토큰은 같은 문서의 CAS 갱신만 허용한다. 참조 경로를
+도입할 때만 읽기 토큰에 그 경로의 `read`를 추가한다. Config AppRole과 일반 앱 배포 토큰에는
+Storage 배포 문서나 관리자 키 읽기 권한을 주지 않는다.
+
+`services/storage.sh`는 `cowork-storage` 계정으로 `storage/runtime.py`를 실행한다. 선택한 SHA의
+IAM 렌더러·버킷 설정 스크립트·Compose와 Vault 문서 버전을 사용한다. IAM·관리자 환경 파일은 계정의
+private snapshot에 생성한다. 컨테이너와 계정의 UID가 같으므로 비밀 파일을 공개 읽기로 바꿀 필요가
+없다. 데이터 mount 세 개만 기존 `/opt/cowork/storage` 아래의 고정 경로로 연결한다. 경로가 없으면
+배포를 중단하며 새 데이터 디렉터리를 자동 생성하지 않는다.
+
+`check_only`는 비밀 snapshot과 Compose 구문을 검증하고, 고정 root helper로 `bind_ip`·허용 peer
+집합과 설치 정책의 정확한 일치를 확인한다. helper는 기존 보호 규칙을 복원할 수 있다. 컨테이너를
+기동하거나 버킷 설정을 변경하지 않는다. 실제 배포는 이미지 pull 뒤 server를 교체하고 버킷 정책·
+CORS·만료 설정을 적용한 다음 admin·worker를 새 server namespace에 연결한다. server와 worker가
+healthy이고 admin이 running이어야 런타임 배포 성공을 기록한다.
+
+단일 데이터 디렉터리에 후보와 이전 server를 동시에 기동하지 않는다. 이미지 변경 뒤에는 데이터 형식이
+변했을 수 있으므로 실패 시 이전 이미지로 자동 복귀하지 않는다. 단계가 실패하면 CD를 실패로 종료하고
+데이터와 실제 배포 snapshot을 유지한다. 운영자는 실패 단계·private 로그·실행 상태를 확인한 다음
+검토한 SHA와 Vault 버전으로 다시 배포한다. 이 동작은 기존 객체를 초기화하는 기능이 아니다.
