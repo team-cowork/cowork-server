@@ -700,7 +700,7 @@ services:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GATEWAY_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GATEWAY_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8080:8080"
     volumes:
@@ -826,7 +826,7 @@ services:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_TEAM_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_TEAM_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8085:8085"
     volumes:
@@ -855,7 +855,7 @@ services:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHANNEL_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHANNEL_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8083:8083"
     volumes:
@@ -884,7 +884,7 @@ services:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PROJECT_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PROJECT_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "${COWORK_PROJECT_HOST_PORT:-8084}:8084"
     volumes:
@@ -915,7 +915,7 @@ services:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_ROADMAP_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_ROADMAP_PASSWORD:?Generate Config Server credentials}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
-      SPRING_CONFIG_IMPORT: "configserver:http://cowork-config:8761"
+      CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8088:8088"
     volumes:
