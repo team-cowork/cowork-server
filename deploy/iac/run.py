@@ -281,7 +281,7 @@ def main():
             command.append('--initialize')
         command.extend(['--', IAC / 'apply.sh', 'grafana', 'apply'])
         execute(command, grafana_env)
-        # Temporary branch verification does not create a production baseline.
+        record_success(args.sha, metadata['host_count'], env)
         print(f'[iac] Applied {metadata["host_count"]} hosts and persisted Grafana state')
         result_output('applied')
     finally:
