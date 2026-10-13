@@ -4,6 +4,8 @@
 - **우선순위**: 🟠 중간
 - **현재 상태**: AppRole 전환 구현은 완료했으며 기존 cron·토큰 폐기가 남아 있다. 폐기 선행 조건인 7일 연속 운영 기록은 확인되지 않았다.
 
+> **2026-10-13 관측:** 운영 Config는 `cowork-db` VM의 `231bfea6` 이미지에서 정적 `VAULT_TOKEN`을 사용하고 있었다. 실제 AppRole 전환은 아직 적용되지 않았다. [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md)을 마치고 기존 연속 운영 조건을 충족한 뒤 폐기한다.
+
 ## 문제
 
 요청 내용에 따르면 Vault VM의 cron이 `period=24h` 주기 토큰을 6시간마다 갱신한다.
