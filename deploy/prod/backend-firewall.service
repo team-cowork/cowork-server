@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore cowork backend HTTP ingress before Docker
+Before=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py restore
+ExecReload=/usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py restore
+TimeoutStartSec=90
+
+[Install]
+RequiredBy=docker.service

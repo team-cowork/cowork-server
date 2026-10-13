@@ -33,7 +33,9 @@ MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORIN
 GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
 KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
+STORAGE_SETTINGS_JSON DATASTORE_SETTINGS_JSON
 """.split())
+ISOLATED_RUNTIME_SETTINGS = {"storage": "STORAGE_SETTINGS_JSON", "datastores": "DATASTORE_SETTINGS_JSON"}
 # deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
 # container, inside one SSH session limited by command_timeout (45m) in .github/actions/deploy-target/action.yml.
 # Keep both in sync. 600s remains for the two 120s lock waits, the 30s container stop, source fetch and image pull.
@@ -57,7 +59,7 @@ def parse_json(value):
     return json.loads(value, object_pairs_hook=object_pairs)
 
 
-def validate_deployment(data):
+def validate_deployment(data, target):
     demand(isinstance(data, dict) and set(data) <= {"ssh", "runtime", "application", "runtime_refs", "application_refs"}, "Invalid deployment sections")
     ssh = data.get("ssh", {})
     demand(isinstance(ssh, dict) and set(ssh) == {"host", "port", "user", "key", "fingerprint"}, "ssh requires host, port, user, key, fingerprint")
@@ -83,6 +85,15 @@ def validate_deployment(data):
             demand(isinstance(reference["path"], str) and all(NAME.fullmatch(part) for part in reference["path"].split("/")), "Invalid reference path")
             demand(isinstance(reference["key"], str) and reference["key"], "Invalid reference key")
     runtime = data.get("runtime", {})
+    runtime_keys = set(runtime) | set(data.get("runtime_refs", {}))
+    if target in ISOLATED_RUNTIME_SETTINGS:
+        setting = ISOLATED_RUNTIME_SETTINGS[target]
+        demand(runtime_keys == {setting}, f"{target} requires only its isolated {setting} runtime setting")
+        demand(not data.get("application") and not data.get("application_refs"), "Isolated infrastructure cannot contain application settings")
+    else:
+        demand(not runtime_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings are restricted to their own targets")
+    application_keys = set(data.get("application", {})) | set(data.get("application_refs", {}))
+    demand(not application_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings cannot be forwarded to applications")
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
     if "HEALTH_TIMEOUT_SECONDS" in runtime:
@@ -152,7 +163,7 @@ def main():
         path = f"deploy/{args.target}"
     else:
         services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "log-agent"}, "Invalid Config Server application")
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
@@ -161,11 +172,12 @@ def main():
         demand(args.expected_version is not None and args.expected_version >= 0, "Expected KV version is required (0 creates only)")
         data = parse_json(os.environ["VAULT_UPDATE_JSON"])
         if args.scope == "deployment":
-            validate_deployment(data)
+            validate_deployment(data, args.target)
         else:
             demand(isinstance(data, dict), "Application properties must be a flat JSON object")
             for key, value in data.items():
                 demand(bool(re.fullmatch(r"[A-Za-z0-9_.\[\]-]+", key)), "Invalid application property key")
+                demand(key not in ISOLATED_RUNTIME_SETTINGS.values(), "Infrastructure settings cannot be stored as application properties")
                 demand(isinstance(value, (str, int, float, bool)), "Application properties must be scalar values")
         result = vault_request(api_path, {"options": {"cas": args.expected_version}, "data": data})
         print(f"Updated {path}, Vault version {result['data']['version']}")
@@ -173,13 +185,13 @@ def main():
     demand(args.scope == "deployment", "Only deployment documents are sent to a VM")
     if args.action == "bootstrap":
         demand(args.target == "vault", "Bootstrap bypass is restricted to Vault recovery")
-        data = validate_deployment(parse_json(os.environ["VAULT_BOOTSTRAP_JSON"]))
+        data = validate_deployment(parse_json(os.environ["VAULT_BOOTSTRAP_JSON"]), args.target)
         demand(not data.get("runtime_refs") and not data.get("application_refs"), "Vault recovery cannot depend on Vault references")
         version = "bootstrap"
     else:
         suffix = f"?version={args.version}" if args.version else ""
         result = vault_request(api_path + suffix)["data"]
-        data = validate_deployment(result["data"])
+        data = validate_deployment(result["data"], args.target)
         version = result["metadata"]["version"]
         references = {}
         for section in ("runtime", "application"):
@@ -190,7 +202,7 @@ def main():
                     references[path] = vault_request(f"{mount}/data/{path}")["data"]
                     print(f"Loaded referenced configuration {path}, Vault version {references[path]['metadata']['version']}")
                 values[key] = references[path]["data"][reference["key"]]
-        validate_deployment(data)
+        validate_deployment(data, args.target)
     mask(data)
     for key, value in data.pop("ssh").items():
         output("ssh_" + key, value, secret=True)
