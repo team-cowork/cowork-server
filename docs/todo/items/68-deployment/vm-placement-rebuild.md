@@ -2,7 +2,7 @@
 
 - **서비스**: GSM SV VM, Config/Eureka, Gateway, Team, Project, Preference, Voice, Roadmap, Vault, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: VM 이름과 실제 역할이 다른 배치를 확인했으며, 이름 정리와 서비스 이관에 필요한 VM·데이터·배포 값 대조가 남아 있다.
+- **현재 상태**: 교체 앱 VM의 초기 설정과 기존 Config·Gateway의 local 컨테이너 정지를 완료했으며, Vault 전용 VM 구성과 GitHub 배포 전환을 진행하고 있다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md), [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md), [운영 Eureka 등록과 광고 주소 복구](../66-deployment/eureka-registration-recovery.md), [공개 API 진입점과 TLS 인증서 정합성 복구](../67-configuration/public-api-tls.md), [모듈별 MySQL·Redis 배치 전환 검토](../58-deployment/module-datastore-placement.md)
 
 ## 문제
@@ -25,7 +25,7 @@ VM 이름만으로 운영 서비스의 실행 위치를 판단할 수 없는 상
 
 | 패널 VM / 식별자 | 관측한 상태 | 조정 방향 |
 |---|---|---|
-| `cowork-db` / `gsmgpu1:108` | `10.0.0.93`에서 운영 Config·Gateway·Team·Vault와 데이터 저장소가 함께 실행되어 있었다. | Config·Gateway·Team을 전용 VM으로 옮긴다. Vault와 데이터 저장소의 최종 배치는 별도로 확정한다. |
+| `cowork-db` / `gsmgpu1:108` | `10.0.0.93`에서 운영 Config·Gateway·Team·Vault와 데이터 저장소가 함께 실행되어 있었다. | Config·Gateway·Team·Vault를 각각 전용 VM으로 옮기고 데이터 저장소는 유지한다. |
 | `cowork-config` / `gsmgpu1:136` | `10.0.0.169`, `2 vCPU / 4 GB / 40 GB`. 기존 `local` Config와 MySQL·PostgreSQL·Redis·Kafka 등 별도 구성이 있었다. | 기존 데이터의 사용처와 보존 필요를 확인하고 운영 Config/Eureka 전용 배치로 정리한다. |
 | `cowork-gateway` / `gsmgpu1:132` | `10.0.0.127`에서 `local` Gateway가 실행되어 있었다. | 운영 Gateway를 배치하고 공개 전달 규칙과 Eureka 광고 주소를 맞춘다. |
 | `cowork-team` / `gsmgpu2:115` | `10.0.0.74`, SSH 점검 당시 컨테이너가 없었다. | Team의 배포 목적지와 광고 주소를 이 VM으로 맞춘다. |
@@ -35,7 +35,7 @@ VM 이름만으로 운영 서비스의 실행 위치를 판단할 수 없는 상
 | `cowork-roadmap` / `gsmgpu2:150` | 패널에 당일 생성, `2 vCPU / 4 GB / 20 GB`, `10.0.0.132`, SSH 포트 `24150`, cloud-init 설정 중으로 표시되었다. | 초기 설정 완료 뒤 새 접속 정보와 배포 대상을 확인한다. 앞선 SSH 결과를 새 VM의 상태로 사용하지 않는다. |
 
 Roadmap은 앞선 접속 자료의 `gsmgpu3:112`, SSH 포트 `27112`와 식별자가 다르다.
-이번 문서 작업에서는 VM을 생성하거나 삭제하지 않았다. 패널에서 이미 새 VM이 표시되는 상태를 관측했다.
+Roadmap은 이번 조정에 앞서 패널에 이미 새 VM으로 표시되어 있었다.
 Notification과 Chat도 앞선 SSH 점검에서 host key가 일치하지 않았으므로 다음 접속 전에 실제 VM identity를 확인한다.
 키 불일치만으로 VM 재생성이 필요하다고 판단하지 않는다.
 
@@ -55,6 +55,20 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 기존 Vault의 관리자·복구 자격 증명이 없어 별도 볼륨과 로컬 포트 `8201`에 새 Vault를 초기화했다.
 기존 Vault와 데이터 볼륨은 유지하고 새 root token·unseal 자료는 저장소 밖의 제한 권한 파일에 보관했다.
 실제 연결 값과 GitHub 자격 증명의 전환은 후속 단계에서 확인한다.
+
+## 추가 진행 상태 (2026-10-13)
+
+| 항목 | 확인한 상태 | 남은 작업 |
+|---|---|---|
+| Config VM | 기존 local 컨테이너 13개의 자동 재시작을 해제하고 정지했다. 컨테이너와 볼륨 18개는 보존했다. 기존 Config는 `cowork-config-legacy-20261013`으로 구분했다. | GitHub 경로로 prod Config를 배포한다. |
+| Gateway VM | 기존 local Gateway의 자동 재시작을 해제하고 정지한 뒤 `cowork-gateway-legacy-20261013`으로 구분했다. | prod Gateway 배포와 공개 TLS 연결을 확인한다. |
+| Team VM | 패널 변경 후 재기동했다. SSH에서 2 vCPU와 `lsmem`의 online 메모리 4 GiB를 확인했다. `virtio_balloon` 장치가 있으며 현재 `MemTotal`은 약 2.16 GiB였다. | Team 기동 후 실제 메모리와 readiness를 확인한다. |
+| Vault HTTPS | DB VM의 HTTPS 슬롯 2개는 `chcowork.https.gsmsv.site:80`, `livekit.https.gsmsv.site:7880`이 사용하고 있었다. 누락된 Vault 도메인을 새 VM의 `8200`에 연결했다. 공개 health의 TLS 검증, HTTP 200과 새 cluster ID 일치를 확인했다. | Config AppRole과 GitHub 토큰의 실제 인증을 확인한다. |
+| Vault VM | `cowork-vault`, `gsmgpu1:105`, `10.0.0.91`, SSH `21105`를 생성했다. 사양은 `1 vCPU / 2 GB / 20 GB`이다. Docker 초기 설정과 신규 Vault 볼륨 이관을 마쳤고 기존 복구 키와 cluster ID를 유지했다. | 후보 컨테이너를 정지하고 GitHub 복구 경로로 최종 컨테이너를 기동한다. |
+| AppRole 송신 경로 | Config VM의 공개 HTTPS health 요청 3회가 모두 성공했다. 새 Vault의 TCP peer 표본 20개에서 프록시 `10.0.0.117`만 관측했다. | 관측한 `10.0.0.117/32`에서 AppRole 로그인이 허용되는지 확인한다. 이 CIDR은 Config VM 자체가 아니라 공용 TLS 프록시를 식별한다. |
+
+DB VM에서 실행 중인 기존 운영 Config·Gateway·Team·Vault는 아직 정지하지 않았다.
+신규 VM 생성과 기존 컨테이너 정지를 서비스 이관 완료로 판단하지 않는다.
 
 | 항목 | 패널에서 확인한 내용 | 적용 조건 |
 |---|---|---|

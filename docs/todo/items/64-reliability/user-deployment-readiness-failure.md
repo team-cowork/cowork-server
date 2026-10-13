@@ -2,10 +2,10 @@
 
 - **서비스**: cowork-user, Kafka, MySQL, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: 새 후보 배포와 제한시간 내 이전 컨테이너 복구 확인이 실패했으며, 현재 이전 버전은 정상이나 당시 readiness 실패의 근본 원인은 확정하지 않았다.
+- **현재 상태**: 이전 컨테이너의 약 76분 재생과 후속 정상 상태를 확인했고 Team·Presence의 최대 20건 transaction 묶음 처리를 구현하였다. 후보의 당시 실패 원인과 새 이미지의 운영 처리량·readiness 도달 시간은 아직 확인하지 않았다.
 - **관련 작업**: [user projection 재생 처리량 개선](../56-performance/user-projection-replay-throughput.md), [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md)
 
-> **2026-10-13 진척:** 이전 컨테이너의 보존 로그에서 재시작 후 약 76분 동안 projection 재생이 지속된 사실을 확인하였다. 현재 readiness는 200이다. 후보의 당시 상태는 직접 확인하지 못했으며, 재시작 시 전체 재생을 반복하는 구조의 개선과 새 이미지 적용은 남아 있다.
+> **2026-10-13 진척:** 이전 컨테이너의 보존 로그에서 재시작 후 약 76분 동안 projection 재생이 지속된 사실을 확인하였다. 후속 조회에서 이전 버전의 readiness는 200이었다. 묶음 처리는 구현했으며 generation·lease·earliest 재생·readiness 정책은 유지하였다. 새 이미지의 운영 효과는 아직 검증하지 않았다. 처리량 개선의 구현 범위와 남은 작업은 [성능 과제](../56-performance/user-projection-replay-throughput.md)에 기록한다.
 
 ## 문제
 
@@ -57,7 +57,7 @@ SQL 지연은 전체 중앙값 약 `0.3ms`, 95백분위 약 `47ms`였다. `01:41
 
 한 레코드의 projection, barrier, checkpoint는 기존에도 하나의 transaction에서 처리되었다. Presence 저장소의 중첩 transaction도 같은 DB transaction에 참여한다. 레코드 내부의 작업을 별도 transaction으로 나누어 처리한 문제가 아니다.
 
-작업 중인 코드에서는 Team·Presence consumer만 `message_set`을 받고 최대 20건을 하나의 외곽 transaction에서 처리하도록 변경하였다. 기존 단건 handler를 Kafka 순서대로 호출하므로 업무 projection 적용, checkpoint 갱신, marker, invalid latch, lease 검사를 그대로 수행한다. 각 묶음이 성공한 뒤 다음 묶음으로 진행하며, 전체 `message_set`이 성공한 뒤에만 brod에 commit을 반환한다. 중간 묶음이 실패하면 그 묶음의 변경은 함께 rollback되고 이전 묶음의 projection과 checkpoint는 함께 보존된다. generation 초기화와 earliest 재생 조건은 변경하지 않았다.
+[#491](https://github.com/team-cowork/cowork-server/pull/491)에서 Team·Presence consumer만 `message_set`을 받고 최대 20건을 하나의 외곽 transaction에서 처리하도록 변경하였다. 다른 consumer는 기존 단건 처리를 유지한다. 기존 handler를 Kafka 순서대로 호출하므로 업무 projection 적용, 레코드별 checkpoint 갱신, marker, invalid latch, lease 검사를 그대로 수행한다. 각 묶음이 성공한 뒤 다음 묶음으로 진행하며, 전체 `message_set`이 성공한 뒤에만 brod에 commit을 반환한다. 중간 묶음이 실패하면 그 묶음의 변경은 함께 rollback되고 이전 묶음의 projection과 checkpoint는 함께 보존된다. generation 초기화, lease 정책, earliest 재생, readiness 조건은 변경하지 않았다. 구현과 남은 성능 검증 범위는 [처리량 개선 문서](../56-performance/user-projection-replay-throughput.md)를 기준으로 관리한다.
 
 변경한 네 파일의 `mix format --check-formatted`와 공백 검사는 통과하였다. 최초 `mix compile`은 로컬에 Hex 의존성이 없어 중단되었다. 이후 `mix deps.get`으로 잠긴 버전을 내려받고 `mix.lock`의 SHA-256이 동일한지 확인한 뒤 `mix compile`을 완료하였다. 변경한 코드에서 컴파일 경고는 없었으며 기존 의존성과 빌드 설정의 경고는 남아 있다. 회귀 테스트와 통합 테스트는 작성하거나 실행하지 않았다. 실제 배포 후 처리량, readiness 도달 시간, 로그 정책을 확인하기 전까지 이 과제는 완료로 처리하지 않는다.
 
