@@ -2,8 +2,10 @@
 
 - **서비스**: Vault, Config, Gateway, Authorization, User, Team, Channel, Project, Preference, Roadmap, Voice, Notification, Chat
 - **우선순위**: 🔴 높음
-- **현재 상태**: Team만 현재 `main` 이력에 속하는 runtime 성공 기준을 갖고 있으며, 나머지 대상의 실제 배포와 기준 복구가 남아 있다.
-- **관련 작업**: [Production 배포 결과 표시 수정](../63-deployment/production-deployment-status.md), [User 배포 readiness 실패 원인 확인](../64-reliability/user-deployment-readiness-failure.md)
+- **현재 상태**: Vault와 Team은 현재 `main` 이력에 속하는 runtime 성공 기준을 갖고 있으며, Config와 나머지 앱의 실제 배포가 남아 있다.
+- **관련 작업**: [User 배포 readiness 실패 원인 확인](../64-reliability/user-deployment-readiness-failure.md)
+
+> **2026-10-13 진척:** `main`의 `f6fdc56e`는 CI와 앱 이미지 12개 게시를 통과했다. [자동 CD](https://github.com/team-cowork/cowork-server/actions/runs/38362792593)는 Channel의 기존 배포 이력 불일치로 대상 계산에서 중단되었으며 앱을 배포하지 않았다. [Vault 수동 배포](https://github.com/team-cowork/cowork-server/actions/runs/38364414492)는 같은 SHA의 실제 적용과 runtime 성공 기록을 남겼다. [Config 수동 배포](https://github.com/team-cowork/cowork-server/actions/runs/38364675618)는 비공개 GHCR 인증 누락으로 이미지 pull에서 중단되었다. 후보 컨테이너와 방화벽은 변경하지 않았다.
 
 ## 문제
 
@@ -22,10 +24,10 @@
 |---|---|---|
 | Team | `ee68258a` | 현재 `main`의 조상이다. 컨테이너 readiness 200을 확인하였다. |
 | Config, Gateway, Authorization, Channel, Project, Preference, Roadmap, Voice, Notification, Chat | `231bfea6` | 현재 `main`의 조상이 아니다. 이 값은 GitHub 배포 기준이며, 모든 VM의 현재 이미지 조회 결과를 뜻하지 않는다. |
-| Vault | `10280762` | 현재 `main`의 조상이 아니다. 점검 당시 Vault는 unsealed·healthy 상태였다. |
+| Vault | `f6fdc56e` | 새 전용 VM에서 실제 배포와 `cowork-runtime` 성공 기록을 확인했다. |
 | User | 없음 | 이전 이미지 `231bfea6`가 실행 중이며, 수동 배포 실패 후 별도 원인 확인이 필요하다. |
 
-Voice, Notification, Chat은 SSH host key 불일치로 접속을 중단하였다. 사설망 readiness 200은 확인했으나 실행 이미지는 직접 확인하지 않았다. 배포 전에 패널의 VM 식별 정보와 신뢰한 host fingerprint를 대조한다.
+초기 점검에서 중단한 Voice·Notification·Chat 접속은 VM 식별 정보와 신뢰한 host key를 대조한 뒤 복구했다. 새 배포 대상 13개의 SSH 접속과 서버 ECDSA fingerprint를 확인했다.
 
 같은 날 이후 패널에서는 Roadmap이 새 `gsmgpu2:150` VM으로 표시되었다. 앞선 `gsmgpu3:112` SSH 관측과 다른 대상이며, 새 VM의 실행 이미지는 아직 확인하지 않았다. [VM 이름과 서비스 배치 정리](../68-deployment/vm-placement-rebuild.md)에 새 식별자와 접속 정보 변경 범위를 기록한다.
 
