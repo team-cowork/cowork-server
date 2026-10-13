@@ -15,4 +15,5 @@ config :logger, :cowork_user_file,
   path: System.get_env("LOG_PATH", "/var/log/cowork/user/application.log"),
   format: "$date $time $metadata[$level] $message\n",
   metadata: [:request_id],
-  level: :info
+  level: :info,
+  rotate: %{max_bytes: 20_971_520, keep: 4}
