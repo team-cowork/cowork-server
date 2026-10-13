@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "service": "roadmap",
+  "kind": "application",
+  "runtime": {
+    "APP_CONFIG_PROFILE": "prod",
+    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "DB_HOST": "10.0.0.93",
+    "DB_PORT": "3306",
+    "DB_USERNAME": "cowork",
+    "DB_NAME": "cowork_roadmap"
+  },
+  "secrets": {
+    "runtime": {
+      "CONFIG_CLIENT_PASSWORD": {
+        "key": "CONFIG_CLIENT_PASSWORD",
+        "path": "control-plane/prod/roadmap"
+      },
+      "CONFIG_CLIENT_USERNAME": {
+        "key": "CONFIG_CLIENT_USERNAME",
+        "path": "control-plane/prod/roadmap"
+      },
+      "DB_PASSWORD": {
+        "path": "slot-secrets/roadmap",
+        "key": "DB_PASSWORD"
+      }
+    }
+  },
+  "container": {
+    "port": 8088,
+    "host_port": 8088,
+    "bind_address": "10.0.0.132",
+    "advertise_address": "10.0.0.132",
+    "readiness": {
+      "path": "/actuator/health/readiness",
+      "timeout_seconds": 420
+    },
+    "metrics_path": "/actuator/prometheus",
+    "limits": {
+      "memory": "2048m",
+      "cpus": 2,
+      "pids": 512
+    },
+    "stop_timeout_seconds": 30,
+    "mounts": []
+  },
+  "peers": [
+    "10.0.0.127/32",
+    "10.0.0.137/32"
+  ]
+}
