@@ -48,8 +48,10 @@ class TeamController(
         ApiResponse(responseCode = "400", description = "허용되지 않는 파일 형식"),
     )
     @PostMapping("/icon/presigned")
-    fun generateIconPresignedUrl(@RequestBody request: IconPresignedUrlRequest): IconPresignedUrlResponse =
-        generateIconPresignedUrlService.execute(request.contentType)
+    fun generateIconPresignedUrl(
+        @RequestHeader("X-User-Id") userId: Long,
+        @RequestBody request: IconPresignedUrlRequest,
+    ): IconPresignedUrlResponse = generateIconPresignedUrlService.execute(userId, request.contentType)
 
     @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -59,8 +61,10 @@ class TeamController(
         ApiResponse(responseCode = "413", description = "파일 크기 초과"),
     )
     @PostMapping("/icon/confirm")
-    fun confirmIconUpload(@RequestBody request: IconConfirmRequest): IconConfirmResponse =
-        confirmIconUploadService.execute(request.objectKey)
+    fun confirmIconUpload(
+        @RequestHeader("X-User-Id") userId: Long,
+        @RequestBody request: IconConfirmRequest,
+    ): IconConfirmResponse = confirmIconUploadService.execute(userId, request.objectKey)
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
