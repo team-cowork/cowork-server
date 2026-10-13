@@ -12,13 +12,13 @@
 
 ## 진행 중
 
-2026-10-13 기준 미완료 상세 문서 16건에 운영 후속 작업 7건을 추가해 **23건**이다.
+2026-10-13 기준 미완료 상세 문서는 기존 작업 15건과 운영 후속 작업 6건을 합한 **21건**이다.
 기존 구현 항목의 대조 기준은 2026-10-12 원격 `develop`의 `5a534586`, `main`의 `f68758e2`다.
 2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
 나머지 항목은 당시 코드와 대조해 변동이 없음을 확인했다. 이번 추가 항목은 운영 상태와 GSM SV 패널 관측을 기준으로 한다.
 항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
 
-### 구현·설계 보완 필요 (14)
+### 구현·설계 보완 필요 (13)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — Gateway를 경유하는 비파괴 API probe와 별도 알림
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md) — 실제 수집 복구 판정과 임시 화면·공개 matcher 제거
@@ -31,7 +31,6 @@
 - deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md) — Actions용 단기 인증 또는 만료·교체 자동화
 - monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md) — 서비스별 필드·timestamp 정규화와 전 서비스 로그 도착 확인
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md) — 참조 기반 보존 정책·미리보기·적용 명령
-- performance: [user projection 재생 처리량 개선](./items/56-performance/user-projection-replay-throughput.md) — DB 왕복·처리량 측정과 필요 쿼리·배치 개선
 - monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md) — 기대 서비스 집합과 Vault seal·디스크 부족 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
 
@@ -43,10 +42,9 @@
 
 - deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md) — 현재 VM·DB·Redis 자원 조사와 배치·예외 합의
 
-### 운영 장애 복구와 VM 배치 정리 (7)
+### 운영 장애 복구와 VM 배치 정리 (6)
 
 - deployment: [운영 배포 기준 SHA 복구](./items/62-deployment/runtime-deployment-baseline-recovery.md) — 실제 적용과 target별 runtime 성공 기준 복구
-- deployment: [Production 배포 결과 표시 수정](./items/63-deployment/production-deployment-status.md) — 알림 성공과 운영 적용 성공의 표시 분리
 - reliability: [User 배포 readiness 실패 원인 확인](./items/64-reliability/user-deployment-readiness-failure.md) — 후보 기동 자료 확보와 원본 projection 미준비 원인 확인
 - security: [운영 Config 접근 보호와 AppRole 전환](./items/65-security/config-control-plane-rollout.md) — 서비스별 인증·AppRole 적용과 방화벽 실패 복구
 - deployment: [운영 Eureka 등록과 광고 주소 복구](./items/66-deployment/eureka-registration-recovery.md) — 등록 누락·중복 Gateway·도달 불가 주소 정리
