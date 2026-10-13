@@ -20,6 +20,11 @@ const makeMockMessage = (overrides = {}) => ({
     authorId: 42,
     content: '안녕하세요',
     type: 'TEXT',
+    attachments: [],
+    reactions: [],
+    toObject() {
+        return { ...this };
+    },
     isEdited: false,
     editHistory: [] as Array<{ content: string; editedAt: Date }>,
     updatedAt: new Date('2026-05-12T00:00:00.000Z'),
@@ -92,7 +97,7 @@ const mockElasticsearchService = {
 const mockObjectStorageService = {
     createPresignedUpload: jest.fn(),
     confirmUpload: jest.fn(),
-    assertOwnedAttachmentUrl: jest.fn(),
+    claimAttachments: jest.fn(),
     extractObjectKey: jest.fn(),
     removeObject: jest.fn(),
 };
@@ -153,6 +158,7 @@ describe('ChatService', () => {
             mockChannelProjectionRepository as never,
         );
         jest.clearAllMocks();
+        mockObjectStorageService.claimAttachments.mockResolvedValue([]);
         mockChannelProjectionRepository.findById.mockResolvedValue({
             channelId: 1, teamId: 100, projectId: null, type: 'TEXT',
         });
@@ -161,9 +167,9 @@ describe('ChatService', () => {
         });
         mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
         mockMessageRepository.applyEdit.mockImplementation(async (_id: string, content: string) =>
-            ({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
+            makeMockMessage({ content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z') }));
         mockMessageRepository.setPinned.mockImplementation(async (_id: string, isPinned: boolean) =>
-            ({ isPinned }));
+            makeMockMessage({ isPinned }));
         mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
         mockChannelMessageReadAccess.requireCanRead.mockResolvedValue(undefined);
         mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
@@ -328,33 +334,33 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
-        it('첨부파일이 있으면 각 url의 소유권을 검증한다', async () => {
+        it('첨부파일이 있으면 완료 확인한 파일의 소유권을 검증한다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
-            mockObjectStorageService.assertOwnedAttachmentUrl.mockReturnValue(undefined);
+            mockObjectStorageService.claimAttachments.mockReturnValue(undefined);
             const attachments = [
                 {
-                    name: 'a.png', url: 'http://object-storage/chat-files/1/42/uuid.png', size: 1, mimeType: 'image/png',
+                    objectKey: 'chat-files/1/42/uuid.png',
                 },
             ];
 
-            await service.sendMessage(ctx, { content: 'hi', attachments });
+            await service.sendMessage(ctx, { content: 'hi', attachments, clientMessageId: 'file-message' });
 
-            expect(mockObjectStorageService.assertOwnedAttachmentUrl).toHaveBeenCalledWith(attachments[0].url, 1, 42);
+            expect(mockObjectStorageService.claimAttachments).toHaveBeenCalledWith(attachments, 1, 42, expect.any(String));
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
-        it('소유하지 않은 첨부파일 url이면 검증에서 던진 예외가 전파되고 발행되지 않는다', async () => {
+        it('소유하지 않은 첨부파일이면 검증에서 던진 예외가 전파되고 발행되지 않는다', async () => {
             mockChannelMemberRepository.findMembership.mockResolvedValue({ teamId: 100, channelType: 'TEXT' });
-            mockObjectStorageService.assertOwnedAttachmentUrl.mockImplementation(() => {
+            mockObjectStorageService.claimAttachments.mockImplementation(() => {
                 throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
             });
             const attachments = [
                 {
-                    name: 'a.png', url: 'http://object-storage/chat-files/999/7/uuid.png', size: 1, mimeType: 'image/png',
+                    objectKey: 'chat-files/999/7/uuid.png',
                 },
             ];
 
-            await expect(service.sendMessage(ctx, { content: 'hi', attachments })).rejects.toThrow(BadRequestException);
+            await expect(service.sendMessage(ctx, { content: 'hi', attachments, clientMessageId: 'file-message' })).rejects.toThrow(BadRequestException);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
@@ -506,7 +512,7 @@ describe('ChatService', () => {
                         uploaderId: 42,
                         uploadedAt: createdAt.toISOString(),
                         fileName: 'report.pdf',
-                        fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                        objectKey: 'chat-files/1/42/report.pdf',
                         fileSize: 2048,
                         mimeType: 'application/pdf',
                         attachmentIndex: 0,
@@ -525,8 +531,9 @@ describe('ChatService', () => {
                 {
                     messageId: '665f00000000000000000001',
                     fileName: 'report.pdf',
+                    attachmentIndex: 0,
                     fileSize: 2048,
-                    fileUrl: 'http://localhost:9000/cowork-bucket/chat-files/1/42/report.pdf',
+                    objectKey: 'chat-files/1/42/report.pdf',
                     mimeType: 'application/pdf',
                     uploaderId: 42,
                     uploaderName: '홍길동',
@@ -680,7 +687,8 @@ describe('ChatService', () => {
 
             expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
             expect(mockTo).not.toHaveBeenCalled();
-            expect(result).toBe(message);
+            expect(result.content).toBe(message.content);
+            expect(result.attachments).toEqual([]);
         });
     });
 

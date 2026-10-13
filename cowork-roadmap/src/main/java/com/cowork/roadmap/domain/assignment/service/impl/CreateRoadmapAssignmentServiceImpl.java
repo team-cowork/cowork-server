@@ -11,6 +11,7 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.assignment.service.CreateRoadmapAssignmentService;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
@@ -39,7 +40,8 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         }
 
         return roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId())
-                .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
+                .flatMap(roadmap -> validateAssignmentRoadmap(roadmap)
+                        .then(accessGuard.requireReadable(roadmap, userId, userRole))
                         .then(accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId()))
                         .then(validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId()))
                         .then(Mono.defer(() -> {
@@ -56,6 +58,13 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
                                     .build();
                             return assignmentRepository.save(assignment).map(AssignmentResDto::from);
                         })));
+    }
+
+    private Mono<Void> validateAssignmentRoadmap(Roadmap roadmap) {
+        if (RoadmapScope.GLOBAL.name().equals(roadmap.getScope())) {
+            return Mono.error(new ExpectedException("글로벌 로드맵에는 과제를 연결할 수 없습니다.", HttpStatus.BAD_REQUEST));
+        }
+        return Mono.empty();
     }
 
     private Mono<Void> validateNodeBelongsToRoadmap(Long nodeId, Long roadmapId) {

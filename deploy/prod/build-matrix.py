@@ -20,13 +20,18 @@ def ancestor(base, head):
 
 
 def affected(service, paths):
+    config_firewall = {"deploy/prod/config-firewall.py", "deploy/prod/config-firewall.service",
+                       "deploy/prod/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
     shared = {"deploy/prod/deploy.sh", "deploy/prod/defaults.sh", "deploy/prod/inventory.json",
               ".github/workflows/cowork-prod-cd.yml"}
-    if any(path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
-           or (path.startswith("deploy/prod/") and path.count("/") == 2 and path.endswith(".py"))
-           for path in paths):
+    if any(path not in config_firewall and (
+        path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
+        or (path.startswith("deploy/prod/") and path.count("/") == 2 and path.endswith(".py"))
+    ) for path in paths):
         return True
     if f"deploy/prod/services/{service}.sh" in paths:
+        return True
+    if service == "config" and any(path in config_firewall for path in paths):
         return True
     if service in IMAGE_INPUTS["CATALOG"]:
         # Custom clients load configuration at startup and do not all refresh.
@@ -40,6 +45,8 @@ def affected(service, paths):
     prefixes = {
         "monitoring": ("deploy/config/monitoring/", "deploy/prod/monitoring/"),
         "vault": ("deploy/prod/vault/", "deploy/config/vault/server.hcl"),
+        "datastores": ("deploy/prod/datastores/", "deploy/images/elasticsearch/", "deploy/compose/stack.yaml"),
+        "storage": ("deploy/prod/storage/", "deploy/config/seaweedfs/"),
         "log-agent": ("deploy/prod/log-agent/",),
     }
     return any(path.startswith(prefixes[service]) for path in paths)
