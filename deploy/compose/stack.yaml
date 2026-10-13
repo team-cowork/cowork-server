@@ -243,6 +243,12 @@ services:
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-seaweedfsadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-seaweedfsadmin}
+      S3_TEAM_ACCESS_KEY: ${S3_TEAM_ACCESS_KEY:-local-team}
+      S3_TEAM_SECRET_KEY: ${S3_TEAM_SECRET_KEY:-local-team-secret}
+      S3_USER_ACCESS_KEY: ${S3_USER_ACCESS_KEY:-local-user}
+      S3_USER_SECRET_KEY: ${S3_USER_SECRET_KEY:-local-user-secret}
+      S3_CHAT_ACCESS_KEY: ${S3_CHAT_ACCESS_KEY:-local-chat}
+      S3_CHAT_SECRET_KEY: ${S3_CHAT_SECRET_KEY:-local-chat-secret}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
@@ -270,23 +276,28 @@ services:
     container_name: cowork-seaweedfs
     restart: unless-stopped
     environment:
+      S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-seaweedfsadmin}
       S3_SECRET_KEY: ${S3_SECRET_KEY:-seaweedfsadmin}
+      S3_TEAM_ACCESS_KEY: ${S3_TEAM_ACCESS_KEY:-local-team}
+      S3_TEAM_SECRET_KEY: ${S3_TEAM_SECRET_KEY:-local-team-secret}
+      S3_USER_ACCESS_KEY: ${S3_USER_ACCESS_KEY:-local-user}
+      S3_USER_SECRET_KEY: ${S3_USER_SECRET_KEY:-local-user-secret}
+      S3_CHAT_ACCESS_KEY: ${S3_CHAT_ACCESS_KEY:-local-chat}
+      S3_CHAT_SECRET_KEY: ${S3_CHAT_SECRET_KEY:-local-chat-secret}
     ports:
       - "9000:9000"
       - "9002:9333"
     volumes:
       - seaweedfs_data:/data
-      - ./deploy/config/seaweedfs/s3-config.json.template:/etc/seaweedfs/s3-config.json.template:ro
+      - ./deploy/config/seaweedfs:/storage-config:ro
     entrypoint: /bin/sh
     command:
       - -c
       - |
         set -e
-        escape_sed() { printf '%s' "$$1" | sed -e 's/[\/&|]/\\&/g'; }
-        sed -e "s|\$${S3_ACCESS_KEY}|$$(escape_sed "$$S3_ACCESS_KEY")|g" \
-            -e "s|\$${S3_SECRET_KEY}|$$(escape_sed "$$S3_SECRET_KEY")|g" \
-            /etc/seaweedfs/s3-config.json.template > /etc/seaweedfs/s3-config.json
+        mkdir -p /etc/seaweedfs
+        sh /storage-config/render-s3-config.sh /storage-config/s3-config.json.template /etc/seaweedfs/s3-config.json
         exec weed server -dir=/data -s3 \
           -s3.port=9000 \
           -s3.config=/etc/seaweedfs/s3-config.json \
@@ -309,18 +320,13 @@ services:
     environment:
       AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-seaweedfsadmin}
       AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-seaweedfsadmin}
-      AWS_DEFAULT_REGION: us-east-1
+      AWS_DEFAULT_REGION: ${S3_REGION:-us-east-1}
+      S3_INTERNAL_ENDPOINT: http://seaweedfs:9000
+      PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}
       S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
     volumes:
-      - ./deploy/config/seaweedfs/cors.json:/cors.json:ro
-    entrypoint: /bin/sh
-    command:
-      - -c
-      - |
-        set -e
-        aws --endpoint-url http://seaweedfs:9000 s3 mb "s3://$${S3_BUCKET}" || true
-        aws --endpoint-url http://seaweedfs:9000 s3api put-bucket-cors \
-          --bucket "$${S3_BUCKET}" --cors-configuration file:///cors.json
+      - ./deploy/config/seaweedfs:/storage-config:ro
+    entrypoint: ["/bin/sh", "/storage-config/configure-bucket.sh"]
 
   elasticsearch:
     build:
@@ -622,6 +628,8 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
+      S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
+      S3_REGION: ${S3_REGION:-us-east-1}
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
       S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:-http://localhost:9000/cowork-bucket}
