@@ -15,8 +15,7 @@ import uuid
 
 STATE_DIR = Path("/etc/cowork/config-firewall")
 STATE_FILE = STATE_DIR / "policy.json"
-INSTALLED_HELPER = Path("/usr/local/libexec/cowork-config-firewall.py")
-UNIT_FILE = Path("/etc/systemd/system/cowork-config-firewall.service")
+UNIT_NAME = "cowork-config-firewall.service"
 PRIVATE_NETWORKS = [ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")]
 
 
@@ -98,10 +97,13 @@ def load_state():
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
         raise ValueError("Config firewall policy must be a private root-owned file")
     state = json.loads(STATE_FILE.read_text())
-    if set(state) != {"transaction", "active", "previous", "candidate"}:
+    # Accept the first installed format during an operator-managed upgrade.
+    if set(state) == {"transaction", "active", "previous", "candidate"}:
+        state["requested"] = state["candidate"]
+    if set(state) != {"transaction", "active", "previous", "candidate", "requested"}:
         raise ValueError("Invalid Config firewall state")
     uuid.UUID(state["transaction"])
-    for name in ("active", "previous", "candidate"):
+    for name in ("active", "previous", "candidate", "requested"):
         state[name] = policy(state[name])
     return state
 
@@ -185,7 +187,7 @@ def prepare(transaction):
     incoming = sys.stdin.read(65537)
     if len(incoming) > 65536:
         raise ValueError("Config firewall policy is too large")
-    candidate = policy(json.loads(incoming))
+    requested = policy(json.loads(incoming))
     previous, _, _ = runtime_policy()
     if previous is None and STATE_FILE.exists():
         previous = load_state()["active"]
@@ -195,21 +197,34 @@ def prepare(transaction):
     # During cutover the old container may still run. Protect its old binding
     # even at the first transition; stopped containers can return on rollback.
     candidate = policy({
-        "bindings": (previous["bindings"] if previous else existing_bindings) + candidate["bindings"],
-        "cidrs": candidate["cidrs"],
+        "bindings": (previous["bindings"] if previous else existing_bindings) + requested["bindings"],
+        "cidrs": requested["cidrs"],
     })
     previous = previous or candidate
-    secure_directory(INSTALLED_HELPER.parent)
-    secure_directory(UNIT_FILE.parent)
-    source = Path(__file__).resolve()
-    helper_source, unit_source = source.read_bytes(), source.with_suffix(".service").read_bytes()
-    atomic_write(INSTALLED_HELPER, helper_source, 0o755)
-    atomic_write(UNIT_FILE, unit_source, 0o644)
     # Preparing does not change live rules. Boot still restores the previous
     # policy until activation; the first protected deployment retains its limit.
-    save_state({"transaction": transaction, "active": previous, "previous": previous, "candidate": candidate})
-    command("systemctl", "daemon-reload")
-    command("systemctl", "enable", UNIT_FILE.name)
+    save_state({"transaction": transaction, "active": previous, "previous": previous,
+                "candidate": candidate, "requested": requested})
+    command("systemctl", "enable", UNIT_NAME)
+
+
+def finalize(state):
+    # The caller has already checked readiness and removed the old container.
+    # Keep only the requested binding after that point, including on reboot.
+    if state["active"] != state["candidate"]:
+        raise ValueError("Config firewall candidate has not been activated")
+    committed = {"transaction": state["transaction"], **{
+        name: state["requested"] for name in ("active", "previous", "candidate", "requested")
+    }}
+    save_state(committed)
+    try:
+        apply_policy(committed["active"])
+    except (OSError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.TimeoutExpired):
+        # A failed finalization keeps the cutover restrictions and must fail CD.
+        # The new healthy container is retained; the old one no longer exists.
+        save_state(state)
+        apply_policy(state["active"])
+        raise
 
 
 def main():
@@ -220,7 +235,7 @@ def main():
             "cidrs": [cidr.strip() for cidr in os.environ["CONFIG_ALLOWED_CIDRS"].split(",")],
         })))
         return
-    if action not in {"prepare", "activate", "rollback", "restore"} or os.geteuid() != 0:
+    if action not in {"prepare", "activate", "rollback", "finalize", "restore"} or os.geteuid() != 0:
         raise ValueError("Expected a Config firewall operation as root")
     transaction = None if action == "restore" else str(uuid.UUID(sys.argv[2]))
     if len(sys.argv) != (2 if action == "restore" else 3):
@@ -238,12 +253,19 @@ def main():
         state = load_state()
         if transaction is not None and transaction != state["transaction"]:
             raise ValueError("Config firewall deployment transaction changed")
+        if action == "finalize":
+            finalize(state)
+            return
         if action != "restore":
             state["active"] = state["candidate" if action == "activate" else "previous"]
             save_state(state)
         # Failure leaves a restrictive boot policy and propagates to the caller:
         # Docker cannot start, or the deployment stops the previous container.
         apply_policy(state["active"])
+    if action in {"activate", "rollback"}:
+        # Release the lock before starting the unit: restore acquires it again.
+        # Never restart this required unit, which would also stop Docker.
+        command("systemctl", "start", UNIT_NAME)
 
 
 if __name__ == "__main__":

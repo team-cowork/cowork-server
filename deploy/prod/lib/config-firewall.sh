@@ -9,20 +9,20 @@ prepare_config_firewall() {
 
 # Called only after the image and candidate container have been prepared.
 before_container_cutover() {
-  # Install a root-owned copy outside the release directory, and preserve the
-  # previous policy before changing either the live or the boot-time policy.
-  sudo -n /usr/bin/python3 -I "${PROD_DIR}/config-firewall.py" prepare "$CONFIG_FIREWALL_TRANSACTION" \
+  # An operator installs this fixed root-owned helper before the first deploy.
+  # Release-cache code only renders data; it is never executed through sudo.
+  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py prepare "$CONFIG_FIREWALL_TRANSACTION" \
     < "${DEPLOY_SETTINGS_DIR}/config-firewall.json" || return 1
   CONFIG_FIREWALL_CHANGED=true
-  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py activate "$CONFIG_FIREWALL_TRANSACTION" || return 1
-  # Starting an already active oneshot is harmless. Do not restart this required
-  # unit: stopping it explicitly would also stop Docker.
-  sudo -n systemctl start cowork-config-firewall.service
+  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py activate "$CONFIG_FIREWALL_TRANSACTION"
 }
 
 rollback_container_cutover() {
   [ "${CONFIG_FIREWALL_CHANGED:-false}" = true ] || return 0
   sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py rollback "$CONFIG_FIREWALL_TRANSACTION" || return 1
-  sudo -n systemctl start cowork-config-firewall.service || return 1
   echo '[deploy] Config firewall runtime and boot policy restored; initial protection is retained' >&2
+}
+
+finalize_container_cutover() {
+  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py finalize "$CONFIG_FIREWALL_TRANSACTION"
 }
