@@ -587,7 +587,7 @@ jobs:
               echo "Static IaC validation passed at $RELEASE_SHA. No Vault read, SSH connection, Terraform plan or infrastructure apply was performed." >> "$GITHUB_STEP_SUMMARY"
               ;;
             skipped)
-              echo "Automatic IaC apply skipped at $RELEASE_SHA. Infrastructure sources have not changed since the last successful apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
+              echo "Automatic IaC apply skipped at $RELEASE_SHA. The selected source does not require an infrastructure apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
               ;;
             applied)
               echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
