@@ -63,7 +63,7 @@ consumer checkpoint·격리 상태를 확인한다. 로그인만 실패하면 `u
 
 `stack.sh`는 S3 공개 주소의 `__LOCAL_IP__`를 LAN IP로 치환한다. 직접 Compose를 실행하면
 이 치환이 없으므로 실기기용 주소를 `.env`에 지정한다. `LIVEKIT_WS_URL`도 실기기에서 도달 가능한
-LAN 주소로 설정한다. [S3 접근 정책](./todo/items/13-storage/object-storage-public-access-contract.md)은 아직 미확정이다.
+LAN 주소로 설정한다.
 
 로컬 데이터를 모두 버리는 재초기화가 필요할 때만 `docker compose down -v --remove-orphans`를
 실행한다. 이 명령은 DB·Kafka·파일 볼륨을 삭제한다.

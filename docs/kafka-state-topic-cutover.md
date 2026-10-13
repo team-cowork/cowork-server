@@ -22,6 +22,17 @@
 
 ID는 선행 0 없는 양의 정수 UTF-8 십진 문자열이다. 완료 marker는 예약 key로 각 partition에 발행한다.
 
+### 메시지 전송 이벤트의 복구 경계
+
+`chat.message.v2`는 메시지 전송 동작을 처리하는 이벤트 스트림이다. 원본 상태 snapshot으로
+과거 전송 요청을 재생성할 수 없으므로 위 네 상태 토픽의 snapshot 완료·projection 재구축 절차에
+포함하지 않는다. 구 토픽의 미처리 요청을 보존할 경우 구 소비자가 처리한 뒤 전환한다.
+
+소유자·소비자와 key 계약은 [발행자](../cowork-chat/src/chat/kafka/chat-message.producer.ts),
+[소비자](../cowork-chat/src/chat/kafka/chat-message.consumer.ts),
+[계약](../cowork-chat/src/chat/kafka/event/chat-message-contract.ts)을 기준으로 한다.
+보존 정책은 [토픽 초기화 설정](../deploy/compose/stack.yaml)을 따른다.
+
 ## 1. 점검과 쓰기 중단
 
 1. 유지보수 시간에 대상 API·WebSocket 트래픽을 차단하고 자동 배포·자동 재시작이 구 버전을 다시
