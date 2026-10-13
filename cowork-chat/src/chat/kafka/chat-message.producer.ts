@@ -11,14 +11,15 @@ import { SendMessageDto } from '../dto';
 import { getRequiredCsvConfig } from '../../common/config/config.util';
 import { buildErrorFields } from '../../common/util/discord-alert.util';
 import { MessageScope } from '../service';
-import { CHAT_MESSAGE_CONTRACT_VERSION } from './event/chat-message-contract';
+import { ConfirmedAttachment } from '../../storage/attachment-upload.schema';
+import { CHAT_MESSAGE_CONTRACT_VERSION, CHAT_MESSAGE_TOPIC } from './event/chat-message-contract';
 import { ChatMessageEvent } from './event/chat-message.event';
 
-export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'attachments' | 'parentMessageId' | 'clientMessageId'>
-    & MessageScope;
+export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'parentMessageId' | 'clientMessageId'>
+    & MessageScope & { attachments?: ConfirmedAttachment[] };
 
 /**
- * 채팅 메시지 이벤트를 Kafka `chat.message` 토픽으로 발행하는 프로듀서.
+ * 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행하는 프로듀서.
  *
  * **지연 연결 패턴(Lazy Connect)**:
  * `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
@@ -52,10 +53,10 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
                 title: '🔴 Kafka Producer 연결 실패',
-                description: 'cowork-chat의 chat.message producer가 부트스트랩 연결에 실패했습니다.',
+                description: 'cowork-chat의 chat.message.v2 producer가 부트스트랩 연결에 실패했습니다.',
                 color: 'danger',
                 fields: [
-                    { name: 'Topic', value: 'chat.message', inline: true },
+                    { name: 'Topic', value: 'chat.message.v2', inline: true },
                     ...buildErrorFields(error),
                 ],
             }).catch(() => {/* Alert delivery is best-effort. */});
@@ -79,7 +80,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 채팅 메시지 이벤트를 Kafka `chat.message` 토픽으로 발행한다.
+     * 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행한다.
      *
      * 메시지 키는 `channelId`로 설정되어 같은 채널의 메시지가 동일 파티션에 순서대로 전달된다.
      * 발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
@@ -109,7 +110,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
         };
 
         await this.producer.send({
-            topic: 'chat.message',
+            topic: CHAT_MESSAGE_TOPIC,
             messages: [
                 {
                     key: channelId.toString(),
