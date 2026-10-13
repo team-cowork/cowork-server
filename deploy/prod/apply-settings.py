@@ -50,10 +50,11 @@ def main():
     # SSH credentials stay on the runner. Validate only the deployment portion again.
     data["ssh"] = {"host": "unused", "port": 22, "user": "unused", "key": "unused", "fingerprint": "SHA256:unused"}
     schema["validate_deployment"](data, target)
-    demand((service == "storage") == (target == "storage"), "The storage target requires the storage service")
-    if service in {"vault", "monitoring", "storage", "log-agent"}:
+    for isolated in schema["ISOLATED_RUNTIME_SETTINGS"]:
+        demand((service == isolated) == (target == isolated), f"The {isolated} target requires the {isolated} service")
+    if service in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
         demand(not data.get("application"), "Infrastructure units use runtime settings only")
-    if service not in {"vault", "monitoring", "storage", "log-agent"}:
+    if service not in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
         demand(data.get("runtime", {}).get("APP_CONFIG_PROFILE") in {"local", "prod"}, "APP_CONFIG_PROFILE is required in Vault")
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target
