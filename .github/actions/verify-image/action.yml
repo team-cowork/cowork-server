@@ -19,6 +19,13 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Read source revision
+      if: inputs.contract == 'true'
+      id: source
+      shell: bash
+      env:
+        SOURCE: ${{ inputs.source }}
+      run: echo "sha=$(git -C "$SOURCE" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
     - uses: docker/setup-buildx-action@v4
       if: inputs.contract == 'true'
       id: builder
@@ -48,6 +55,7 @@ runs:
         context: ${{ inputs.source }}
         file: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.prod
         target: verify
+        build-args: SOURCE_REVISION=${{ steps.source.outputs.sha }}
         platforms: linux/amd64
         outputs: type=local,dest=${{ inputs.output }}/export
         provenance: false
