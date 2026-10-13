@@ -51,7 +51,10 @@ class S3Service(
             .putObjectRequest(putObjectRequest)
             .build()
 
-        return s3Presigner.presignPutObject(presignRequest).url().toString()
+        val signed = s3Presigner.presignPutObject(presignRequest).url().toURI()
+        // Gateway가 접두사를 제거하고 서명에 사용한 API Host로 전달한다.
+        val apiBaseUrl = objectStorageProperties.publicApiBaseUrl.trimEnd('/')
+        return "$apiBaseUrl/api/storage${signed.rawPath}?${signed.rawQuery}"
     }
 
     fun confirmObject(objectKey: String, expectedContentType: String? = null): String {

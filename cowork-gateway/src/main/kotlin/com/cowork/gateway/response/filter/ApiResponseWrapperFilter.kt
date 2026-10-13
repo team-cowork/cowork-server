@@ -37,6 +37,8 @@ class ApiResponseWrapperFilter(
     override fun getOrder(): Int = NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
+        if (exchange.request.uri.rawPath.startsWith("/api/storage/")) return chain.filter(exchange)
+
         val decoratedResponse = object : ServerHttpResponseDecorator(exchange.response) {
             override fun writeWith(body: Publisher<out DataBuffer>): Mono<Void> {
                 val decision = policy.decide(

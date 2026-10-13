@@ -8,7 +8,7 @@ const DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS = 20;
 
 export type ObjectStorageConfig = {
     internalEndpoint: string;
-    publicEndpoint: string;
+    publicApiBaseUrl: string;
     region: string;
     accessKey: string;
     secretKey: string;
@@ -27,25 +27,22 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
         'S3_ENDPOINT',
         'S3_INTERNAL_ENDPOINT',
     ]);
-    const publicEndpoint = getRequiredConfig(configService, ['object-storage.publicEndpoint', 'S3_PUBLIC_ENDPOINT']);
+    const publicApiBaseUrl = getRequiredConfig(configService, 'PUBLIC_API_BASE_URL').replace(/\/$/u, '');
     const production = getOptionalConfig(configService, 'NODE_ENV') === 'production';
     validateEndpoint(internalEndpoint, false);
-    validateEndpoint(publicEndpoint, production);
+    validateEndpoint(publicApiBaseUrl, production);
     const accessKey = getRequiredConfig(configService, ['object-storage.accessKey', 'S3_ACCESS_KEY']);
     const secretKey = getRequiredConfig(configService, ['object-storage.secretKey', 'S3_SECRET_KEY']);
     const bucket = getRequiredConfig(configService, ['object-storage.bucket', 'S3_BUCKET']);
 
     return {
         internalEndpoint,
-        publicEndpoint,
+        publicApiBaseUrl,
         region: getOptionalConfig(configService, ['object-storage.region', 'S3_REGION']) ?? 'us-east-1',
         accessKey,
         secretKey,
         bucket,
-        publicBaseUrl: (
-            getOptionalConfig(configService, ['object-storage.publicBaseUrl', 'S3_PUBLIC_BASE_URL'])
-            ?? `${publicEndpoint.replace(/\/$/u, '')}/${bucket}`
-        ).replace(/\/$/u, ''),
+        publicBaseUrl: `${publicApiBaseUrl}/api/storage/${bucket}`,
         presignedPutExpirySeconds: Number(getOptionalConfig(
             configService,
             ['object-storage.presignedPutExpirySeconds', 'S3_PRESIGNED_PUT_EXPIRY_SECONDS'],
@@ -91,6 +88,6 @@ function validateEndpoint(endpoint: string, production: boolean): void {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
         || url.pathname !== '/' || url.search || url.hash
         || (production && (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
-        throw new Error('S3 endpoint must be an HTTP(S) origin; production public endpoint requires HTTPS and a non-local host');
+        throw new Error('Storage and API endpoints must be HTTP(S) origins; production API requires HTTPS and a non-local host');
     }
 }

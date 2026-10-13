@@ -68,12 +68,11 @@ mysql_environment() {
 }
 
 object_storage_environment() {
-  require_env S3_INTERNAL_ENDPOINT S3_PUBLIC_ENDPOINT S3_PUBLIC_BASE_URL S3_BUCKET
+  require_env S3_INTERNAL_ENDPOINT PUBLIC_API_BASE_URL S3_BUCKET
   python3 "${PROD_DIR}/storage-config.py"
   # Secret values may come from Vault; never replace them with development credentials.
   add_env S3_INTERNAL_ENDPOINT "$S3_INTERNAL_ENDPOINT"
-  add_env S3_PUBLIC_ENDPOINT "$S3_PUBLIC_ENDPOINT"
-  add_env S3_PUBLIC_BASE_URL "$S3_PUBLIC_BASE_URL"
+  add_env PUBLIC_API_BASE_URL "$PUBLIC_API_BASE_URL"
   add_env S3_BUCKET "$S3_BUCKET"
   add_env S3_REGION "$S3_REGION"
   # Service-specific prefix credentials are supplied by each service's Vault application path.
