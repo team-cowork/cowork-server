@@ -118,8 +118,8 @@ def prepare(args):
     monitoring_settings = snapshot('monitoring', mount)
     demand('GRAFANA_ADMIN_PASSWORD' in monitoring_settings['runtime'], 'Monitoring requires Grafana bootstrap credentials')
     github_secret_sources = SLOTS['load']('monitoring').get('github_secrets', {})
-    demand(github_secret_sources == {'DISCORD_WEBHOOK_URL': 'DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK'},
-           'Monitoring must declare the existing GitHub alert webhook source')
+    demand(github_secret_sources == {'DISCORD_WEBHOOK_URL': 'DISCORD_MONITORING_ALERT_WEBHOOK'},
+           'Monitoring must declare its GitHub monitoring webhook source')
     webhook = os.environ.get('DISCORD_WEBHOOK_URL', '')
     demand(bool(webhook) and '\0' not in webhook, 'The declared GitHub monitoring webhook is required')
     monitoring_settings['runtime']['DISCORD_WEBHOOK_URL'] = webhook

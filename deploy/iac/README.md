@@ -13,6 +13,7 @@ bootstrap은 앱 CD의 슬롯 읽기·설정 쓰기 정책도 갱신한다. 비�
 IaC 실행은 GitHub OIDC로 인증하고 최대 20분 읽기 토큰을 사용한다. 관리자 토큰은 CI에 전달하지 않는다.
 Terraform state 암호화 키는 GitHub `Prod-IaC` Environment의 `IAC_STATE_ENCRYPTION_KEY`로 공급하고
 복구 사본을 관리 대상 VM·Vault 밖에 보관한다. 값은 32바이트 키의 Base64 문자열이다.
+모니터링 알림 주소는 같은 Environment의 `DISCORD_MONITORING_ALERT_WEBHOOK`으로 공급한다.
 
 Grafana는 SSH 터널로 접근한다. 인증 값은 프로세스 환경으로 전달하며 Terraform 입력·state에 넣지 않는다.
 실행 runner의 평문 state·plan·Vault snapshot·SSH 자료는 저장소 밖의 비공개 임시 디렉터리에서만 사용한다.
