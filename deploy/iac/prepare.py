@@ -44,17 +44,10 @@ def validate_host(host_id, entry):
     demand(type(ssh['port']) is int and 1 <= ssh['port'] <= 65535, 'Invalid SSH port')
     demand(isinstance(ssh['user'], str) and re.fullmatch(r'[a-z_][a-z0-9_-]*', ssh['user']), 'Invalid SSH account')
     demand(isinstance(ssh['key'], str) and 'PRIVATE KEY-----' in ssh['key'] and '\0' not in ssh['key'], 'Missing SSH private key')
-    demand(isinstance(ssh['known_hosts'], str) and ssh['known_hosts'].strip(), 'Verified SSH host keys are required')
-    expected = ssh['host'] if ssh['port'] == 22 else f"[{ssh['host']}]:{ssh['port']}"
-    keys = 0
-    for line in ssh['known_hosts'].splitlines():
-        if not line.strip() or line.startswith('#'):
-            continue
-        parts = line.split()
-        demand(len(parts) >= 3 and parts[0] == expected and parts[1] in {'ssh-ed25519', 'ecdsa-sha2-nistp256', 'ssh-rsa'}
-               and re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', parts[2]), 'SSH host keys must match the exact host and port')
-        keys += 1
-    demand(keys > 0, 'At least one verified SSH host key is required')
+    demand(isinstance(ssh['known_hosts'], str) and ssh['known_hosts'].strip()
+           and '\0' not in ssh['known_hosts'], 'Verified SSH host keys are required')
+    # OpenSSH verifies the host and port with StrictHostKeyChecking enabled,
+    # including its native hashed-host and alias formats.
     return ssh
 
 

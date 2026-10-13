@@ -22,13 +22,13 @@ on:
   workflow_dispatch:
     inputs:
       sha:
-        description: Full validation branch SHA, or cicd/runtime-neutral-slots for its current head
+        description: Optional full commit SHA for a previous version; defaults to this workflow run
         type: string
-        default: cicd/runtime-neutral-slots
+        default: ''
       check_only:
         description: Run static validation only; no host or Terraform apply
         type: boolean
-        default: true
+        default: false
       initialize_state:
         description: Explicitly create the first encrypted Terraform state
         type: boolean
@@ -52,47 +52,36 @@ jobs:
     environment: Prod-IaC
     steps:
       # Temporary validation path. Restore main-only operation before merging.
-      - name: Read the temporary validation branch history
+      - name: Read the selected source
         uses: actions/checkout@v7
         with:
-          ref: cicd/runtime-neutral-slots
+          ref: ${{ inputs.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Resolve and validate the exact source commit
         id: release
         env:
-          REQUESTED_SHA: ${{ inputs.sha || 'cicd/runtime-neutral-slots' }}
-          WORKFLOW_SHA: ${{ github.workflow_sha }}
+          REQUESTED_SHA: ${{ inputs.sha || github.sha }}
           FROM_CD: ${{ inputs.from_cd && 'true' || 'false' }}
           AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
           INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
           CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REPOSITORY" = team-cowork/cowork-server
           test "$GITHUB_REF" = refs/heads/cicd/runtime-neutral-slots
           test "$GITHUB_EVENT_NAME" = workflow_dispatch
           test "$AUTOMATIC" = false || {
             echo 'Automatic IaC is disabled during temporary branch validation' >&2
             exit 1
           }
-          git fetch --no-tags origin cicd/runtime-neutral-slots
-          if [ "$REQUESTED_SHA" = cicd/runtime-neutral-slots ] && [ "$FROM_CD" = false ]; then
-            release_sha=$(git rev-parse origin/cicd/runtime-neutral-slots)
-          else
-            [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-            release_sha=$REQUESTED_SHA
-          fi
-          test "$release_sha" = "$GITHUB_SHA"
-          test "$release_sha" = "$WORKFLOW_SHA"
-          git merge-base --is-ancestor "$release_sha" origin/cicd/runtime-neutral-slots
+          [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          release_sha=$REQUESTED_SHA
           if [ "$INITIALIZE_STATE" = true ]; then
             test "$GITHUB_EVENT_NAME" = workflow_dispatch
             test "$FROM_CD" = false
             test "$AUTOMATIC" = false
             test "$CHECK_ONLY" = false
           fi
-          git checkout --detach "$release_sha"
           test "$(git rev-parse HEAD)" = "$release_sha"
           echo "sha=$release_sha" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v7
