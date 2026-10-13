@@ -533,8 +533,8 @@ services:
     pid: host
     command:
       - --path.rootfs=/host
-      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|host/(dev|proc|sys)|var/lib/docker/.+)($$|/)
-      - --collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs)$$
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($$|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs|fuse\\..*)$$
     ports:
       - "9100:9100"
     volumes:

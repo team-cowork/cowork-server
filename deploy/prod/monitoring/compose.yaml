@@ -98,17 +98,6 @@ services:
       GF_USERS_ALLOW_SIGN_UP: 'false'
     depends_on:
       - prometheus
-  node_exporter:
-    image: prom/node-exporter:v1.10.2@sha256:3ac34ce007accad95afed72149e0d2b927b7e42fd1c866149b945b84737c62c3
-    restart: unless-stopped
-    pid: host
-    command:
-      - --path.rootfs=/host
-      # 컨테이너 레이어와 임시 파일시스템은 호스트 여유 공간 판단을 흐리므로 제외한다.
-      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|host/(dev|proc|sys)|var/lib/docker/.+)($$|/)
-      - --collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs)$$
-    volumes:
-      - /:/host:ro,rslave
   mysqld_exporter:
     image: prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e
     restart: unless-stopped

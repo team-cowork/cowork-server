@@ -20,6 +20,22 @@ def private_ipv4(host):
     return address.version == 4 and any(address in network for network in RFC1918)
 
 
+def host_targets():
+    # VM마다 도는 node_exporter 주소 목록. "10.0.0.1:9100,10.0.0.2:9100" 형식.
+    value = os.environ.get("NODE_EXPORTER_TARGETS", "").strip()
+    if not value:
+        return []
+    targets = []
+    for item in value.split(","):
+        item = item.strip()
+        host, _, port = item.rpartition(":")
+        # Config Server와 같은 규칙으로 사설 IPv4 주소 리터럴만 허용한다.
+        if not private_ipv4(host) or not port.isdigit():
+            raise ValueError("NODE_EXPORTER_TARGETS must be comma-separated private IPv4 host:port values")
+        targets.append({"targets": [item], "labels": {"service": "host", "host": host}})
+    return targets
+
+
 def http_url(name):
     value = os.environ[name]
     if "," in value or any(char.isspace() for char in value):
@@ -71,12 +87,15 @@ scrape_configs = [
             *service_labels,
         ],
     },
+    *([{
+        "job_name": "cowork-hosts",
+        "static_configs": host_targets(),
+    }] if host_targets() else []),
     {
         "job_name": "infrastructure",
         "static_configs": [
             {"targets": [target], "labels": {"service": service}}
             for service, target in [
-                ("host", "node_exporter:9100"),
                 ("mysql", "mysqld_exporter:9104"), ("redis", "redis_exporter:9121"),
                 ("kafka", "kafka_exporter:9308"), ("postgres", "postgres_exporter:9187"),
                 ("mongodb", "mongodb_exporter:9216"),
