@@ -1,7 +1,7 @@
 # TODO
 
-미완료 작업의 상세 문서와 점검 스냅샷을 연결한다. `develop`에 해당 작업의 구현이 병합되었으면 완료로 처리한다.
-로컬 동기화·`main` 반영·배포·검증 대기만으로 구현 TODO를 유지하지 않는다.
+미완료 작업의 상세 문서와 점검 스냅샷을 연결한다. 구현이 완료된 항목은 상세 문서와 인덱스·스냅샷의 참조를 폐기한다.
+병합·로컬 동기화·`main` 반영·배포·검증 대기만으로 구현 TODO를 유지하지 않는다.
 운영 자료를 확인하지 못했다는 이유로 완료 항목에 후속 범위를 덧붙이지 않는다.
 코드·스크립트·Git·PR 이력에서 확인할 수 있는 설명과 일반적인 점검 절차는 삭제할 때 다른 문서로 옮기지 않는다.
 문서에는 구현에서 드러나지 않는 결정 배경·운영 제약 등 프로젝트 고유 정보만 남긴다.
@@ -10,18 +10,14 @@
 
 ## 진행 중
 
-2026-10-12 기준 **19건**이다. 원격 `develop`의 `5a534586`, `main`의 `f68758e2`를 기준으로
-2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
-나머지 항목은 현재 코드와 대조해 변동이 없음을 확인했다. 항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
+진행 중인 작업은 **16건**이다. 항목별 현재 상태와 남은 범위는 각 상세 문서에 반영한다.
 
-### 구현·설계 보완 필요 (17)
+### 구현·설계 보완 필요 (14)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — Gateway를 경유하는 비파괴 API probe와 별도 알림
 - monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md) — 실제 수집 복구 판정과 임시 화면·공개 matcher 제거
-- storage: [오브젝트 스토리지 공개 접근 계약](./items/13-storage/object-storage-public-access-contract.md) — 구현 반영, 미병합
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md) — 프로젝트·채널 멤버 projection 기반 인가와 notification의 채널 멤버십 검증
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md) — data-only 메시지와 클라이언트 표시 정책의 동시 전환
-- correctness: [로드맵 노드 삭제 시 assignment 무결성 보장](./items/19-correctness/roadmap-node-assignment-cleanup.md) — 구현 반영, 미병합
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md) — project 외부 대기 분리와 OAuth 저장 시점 재인가
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md) — 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md) — 전체 fan-out·unread 멱등성과 수신 측 eventId 계약
@@ -45,7 +41,7 @@
 
 - [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
-- [20261002](./20261002_TODO.md) — 스냅샷 미등록 스토리지 TODO 연결과 운영 장애 복구·CD 배포 실패 점검
+- [20261002](./20261002_TODO.md) — 운영 장애 복구·CD 배포 실패 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
 - [20260828](./20260828_TODO.md) — 서버 애플리케이션 코드
 - [20260825](./20260825_TODO.md) — Gateway API 계약·메트릭 수집
