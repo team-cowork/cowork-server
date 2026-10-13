@@ -12,7 +12,7 @@
     "bound_subject": "repo:team-cowork/cowork-server:environment:Prod-IaC",
     "bound_claims": {
       "repository_id": "1208653612",
-      "ref": "refs/heads/main"
+      "ref": "refs/heads/cicd/runtime-neutral-slots"
     },
     "token_policies": ["cowork-iac-read"],
     "token_no_default_policy": true,
