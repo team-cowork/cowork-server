@@ -1,7 +1,9 @@
 package com.cowork.team.domain.team.service
 
 import com.cowork.team.global.config.ObjectStorageProperties
+import com.cowork.team.global.support.afterCommit
 import io.awspring.cloud.s3.S3Template
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.s3.S3Client
@@ -22,6 +24,8 @@ class S3Service(
     private val s3Client: S3Client,
     private val objectStorageProperties: ObjectStorageProperties,
 ) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     fun validateContentType(contentType: String) {
         if (contentType !in objectStorageProperties.allowedContentTypes) {
@@ -116,7 +120,14 @@ class S3Service(
             throw exception
         }
         confirmObject(objectKey, contentType)
-        s3Client.deleteObject { it.bucket(objectStorageProperties.bucket).key(uploadKey) }
+        afterCommit {
+            runCatching {
+                s3Client.deleteObject { it.bucket(objectStorageProperties.bucket).key(uploadKey) }
+            }.onFailure { exception ->
+                // 삭제 실패 또는 프로세스 종료로 남은 임시 객체는 bucket lifecycle이 만료시킨다.
+                log.warn("Failed to delete confirmed temporary icon upload", exception)
+            }
+        }
     }
 
     fun buildPublicUrl(objectKey: String): String = "${objectStorageProperties.publicBaseUrl.trimEnd('/')}/$objectKey"
