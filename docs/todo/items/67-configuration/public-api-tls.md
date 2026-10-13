@@ -4,6 +4,8 @@
 - **우선순위**: 🔴 높음
 - **현재 상태**: 운영 Config가 제공하는 공개 API 주소는 점검 클라이언트의 TLS 인증서 검증을 통과하지 못한다.
 
+> **2026-10-13 진척:** 대표 주소를 `https://cowork.https.gsmsv.site`로 정했다. 기존 패널 연결은 내부 `80`으로 전달했으나 Nginx가 같은 포트에서 TLS를 요구하여 `400 The plain HTTP request was sent to HTTPS port`를 반환했다. 인증서 검증은 통과했다. 승인 후 패널 연결을 Gateway VM `10.0.0.127:8080`으로 재등록했다. Vault 배포 입력의 `PUBLIC_API_BASE_URL`을 새 주소로 준비했으며, 실제 Config·Gateway 배포 후 응답과 callback 확인은 남아 있다.
+
 ## 문제
 
 2026-10-13 운영 Config의 `PUBLIC_API_BASE_URL`은 `https://ssh.gsmsv.site:22132`였다.
