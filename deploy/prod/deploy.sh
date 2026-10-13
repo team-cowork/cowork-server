@@ -50,6 +50,17 @@ RUN_ARGS=(--log-driver json-file --log-opt max-size=20m --log-opt max-file=5)
 source "${PROD_DIR}/services/${SERVICE}.sh"
 require_env HOST_PORT CONTAINER_PORT HEALTH_PATH
 
+case "$SERVICE" in
+  authorization|user|team|channel|project|roadmap|notification|preference|chat|voice)
+    # The operator-installed policy must cover the exact binding before both
+    # check-only and deploy. Release-cache code never runs through sudo.
+    python3 -c 'import json, sys; print(json.dumps({"address": sys.argv[1], "host_port": int(sys.argv[2]), "container_port": int(sys.argv[3])}))' \
+      "$BIND_IP" "$HOST_PORT" "$CONTAINER_PORT" |
+      sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-binding ||
+      fail 'Backend ingress policy is missing, inactive, or does not cover this binding; install the reviewed VM policy first'
+    ;;
+esac
+
 # Explicit container-only overrides support application values without shell evaluation.
 while IFS= read -r -d '' entry; do
   RUN_ARGS+=(-e "$entry")
