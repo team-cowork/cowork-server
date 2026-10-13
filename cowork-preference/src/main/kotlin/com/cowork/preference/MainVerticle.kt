@@ -8,24 +8,28 @@ import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
 import com.cowork.preference.messaging.ChannelLifecycleProjectionHandler
 import com.cowork.preference.messaging.ChannelRolePolicyCommandConsumer
+import com.cowork.preference.messaging.ChannelMemberProjectionHandler
 import com.cowork.preference.messaging.CombinedProjectionReadiness
 import com.cowork.preference.messaging.GithubRepoSettingCommandConsumer
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.messaging.PreferenceOutboxDispatcher
 import com.cowork.preference.messaging.PreferenceProducer
 import com.cowork.preference.messaging.PreferenceSnapshotPublisher
+import com.cowork.preference.messaging.ProjectLifecycleProjectionHandler
 import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.ProjectionStateConsumer
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionHandler
 import com.cowork.preference.messaging.TeamRoleCommandConsumer
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
+import com.cowork.preference.repository.ChannelMemberProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.GithubRepoSettingCommandInboxRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
+import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.repository.ProjectRoleRepository
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -33,10 +37,12 @@ import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
 import com.cowork.preference.service.ChannelLifecycleService
+import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.ChannelRolePolicyCommandProcessor
 import com.cowork.preference.service.GithubRepoSettingCommandProcessor
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
+import com.cowork.preference.service.ProjectAccessGuard
 import com.cowork.preference.service.ProjectRoleService
 import com.cowork.preference.service.TeamMembershipGuard
 import com.cowork.preference.service.TeamRoleCommandProcessor
@@ -71,6 +77,7 @@ class MainVerticle : AbstractVerticle() {
         private const val CACHE_REPAIR_INTERVAL_MS = 1_000L
         private const val TEAM_SNAPSHOT_SOURCE = "cowork-team"
         private const val CHANNEL_SNAPSHOT_SOURCE = "cowork-channel"
+        private const val PROJECT_SNAPSHOT_SOURCE = "cowork-project"
     }
 
     private val log = LoggerFactory.getLogger(MainVerticle::class.java)
@@ -83,6 +90,8 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var preferenceOutboxDispatcher: PreferenceOutboxDispatcher
     private lateinit var teamMemberProjectionConsumer: ProjectionStateConsumer
     private lateinit var channelLifecycleProjectionConsumer: ProjectionStateConsumer
+    private lateinit var projectLifecycleProjectionConsumer: ProjectionStateConsumer
+    private lateinit var channelMemberProjectionConsumer: ProjectionStateConsumer
     private lateinit var teamRoleCommandConsumer: TeamRoleCommandConsumer
     private lateinit var githubRepoSettingCommandConsumer: GithubRepoSettingCommandConsumer
     private lateinit var channelRolePolicyCommandConsumer: ChannelRolePolicyCommandConsumer
@@ -112,6 +121,8 @@ class MainVerticle : AbstractVerticle() {
         val channelRolePolicyRepo = ChannelRolePolicyRepository(pool)
         val teamMemberProjectionRepo = TeamMemberProjectionRepository()
         val channelLifecycleProjectionRepo = ChannelLifecycleProjectionRepository()
+        val projectLifecycleProjectionRepo = ProjectLifecycleProjectionRepository()
+        val channelMemberProjectionRepo = ChannelMemberProjectionRepository()
         val checkpointRepository = ProjectionCheckpointRepository(pool)
         val commandInboxRepository = TeamRoleCommandInboxRepository(pool)
         val githubRepoSettingCommandInboxRepository = GithubRepoSettingCommandInboxRepository(pool)
@@ -119,10 +130,18 @@ class MainVerticle : AbstractVerticle() {
         val outboxRepository = PreferenceOutboxRepository(pool)
         val projectionReadiness = ProjectionReadiness()
         val channelProjectionReadiness = ProjectionReadiness()
+        val projectLifecycleReadiness = ProjectionReadiness()
+        val channelMemberReadiness = ProjectionReadiness()
         // 채널 역할 정책은 팀 삭제와 채널 삭제가 모두 정리하므로 정책 command와 snapshot만 두 projection을 기다린다.
-        // HTTP API는 채널 projection을 읽지 않으므로 cowork-channel 장애가 트래픽 차단으로 번지지 않게 분리한다.
+        // 채널 설정 수정도 채널 소속 팀과 팀 역할을 함께 읽으므로 같은 조합을 쓴다.
         val channelRolePolicyReadiness = CombinedProjectionReadiness(
             listOf(projectionReadiness, channelProjectionReadiness),
+        )
+        // HTTP API는 팀·프로젝트·채널 projection을 읽지만 준비되기 전에는 해당 API만 503으로 응답한다.
+        // 소유 서비스 장애가 전체 트래픽 차단으로 번지지 않도록 /health/ready와 Eureka는 팀 projection만 기다린다.
+        val projectAccessReadiness = CombinedProjectionReadiness(listOf(projectionReadiness, projectLifecycleReadiness))
+        val channelAccessReadiness = CombinedProjectionReadiness(
+            listOf(projectionReadiness, channelProjectionReadiness, channelMemberReadiness),
         )
         projectionTopicIdentity = ProjectionTopicIdentityProvider(appConfig.kafka.bootstrapServers)
 
@@ -160,9 +179,30 @@ class MainVerticle : AbstractVerticle() {
         )
 
         val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness)
-        val prefHandler = PreferenceHandler(prefService, scope, teamMembershipGuard)
-        val notifHandler = NotificationHandler(notifService, scope)
-        val roleHandler = ProjectRoleHandler(roleService, scope)
+        val projectAccessGuard = ProjectAccessGuard(
+            pool,
+            projectLifecycleProjectionRepo,
+            teamMemberProjectionRepo,
+            projectAccessReadiness,
+        )
+        val channelAccessGuard = ChannelAccessGuard(
+            pool = pool,
+            channelRepository = channelLifecycleProjectionRepo,
+            channelMemberRepository = channelMemberProjectionRepo,
+            teamMemberRepository = teamMemberProjectionRepo,
+            policyRepository = channelRolePolicyRepo,
+            accessReadiness = channelAccessReadiness,
+            managerReadiness = channelRolePolicyReadiness,
+        )
+        val prefHandler = PreferenceHandler(
+            prefService,
+            scope,
+            teamMembershipGuard,
+            projectAccessGuard,
+            channelAccessGuard,
+        )
+        val notifHandler = NotificationHandler(notifService, scope, channelAccessGuard)
+        val roleHandler = ProjectRoleHandler(roleService, scope, projectAccessGuard)
 
         val router = buildRouter(
             vertx,
@@ -222,6 +262,34 @@ class MainVerticle : AbstractVerticle() {
             scope = scope,
         )
         channelLifecycleProjectionConsumer.start()
+
+        projectLifecycleProjectionConsumer = ProjectionStateConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.projectLifecycleConsumerGroupId,
+            topic = appConfig.kafka.projectTopic,
+            expectedSnapshotSource = PROJECT_SNAPSHOT_SOURCE,
+            handler = ProjectLifecycleProjectionHandler(projectLifecycleProjectionRepo, checkpointRepository),
+            checkpointRepository = checkpointRepository,
+            topicIdentity = projectionTopicIdentity,
+            readiness = projectLifecycleReadiness,
+            scope = scope,
+        )
+        projectLifecycleProjectionConsumer.start()
+
+        channelMemberProjectionConsumer = ProjectionStateConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.channelMemberConsumerGroupId,
+            topic = appConfig.kafka.channelMemberTopic,
+            expectedSnapshotSource = CHANNEL_SNAPSHOT_SOURCE,
+            handler = ChannelMemberProjectionHandler(channelMemberProjectionRepo, checkpointRepository),
+            checkpointRepository = checkpointRepository,
+            topicIdentity = projectionTopicIdentity,
+            readiness = channelMemberReadiness,
+            scope = scope,
+        )
+        channelMemberProjectionConsumer.start()
 
         teamRoleCommandConsumer = TeamRoleCommandConsumer(
             vertx = vertx,
@@ -428,6 +496,12 @@ class MainVerticle : AbstractVerticle() {
         if (::teamMemberProjectionConsumer.isInitialized) quiesceFutures.add(teamMemberProjectionConsumer.close())
         if (::channelLifecycleProjectionConsumer.isInitialized) {
             quiesceFutures.add(channelLifecycleProjectionConsumer.close())
+        }
+        if (::projectLifecycleProjectionConsumer.isInitialized) {
+            quiesceFutures.add(projectLifecycleProjectionConsumer.close())
+        }
+        if (::channelMemberProjectionConsumer.isInitialized) {
+            quiesceFutures.add(channelMemberProjectionConsumer.close())
         }
         if (::scopeJob.isInitialized) quiesceFutures.add(cancelScopeAndAwaitChildren())
 
