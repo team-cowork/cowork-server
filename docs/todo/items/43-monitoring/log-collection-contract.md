@@ -1,55 +1,29 @@
-# 서비스 로그 수집 경로와 필드 정규화
+# 서비스 로그 시각과 수집 누락 식별
 
 - **서비스**: 전체 앱, Alloy, Loki, Grafana
 - **우선순위**: 🟠 중간
-- **현재 상태**: local 파일·prod stdout 수집 설정은 있고 Chat은 stdout을 항상 쓰며 local 이미지에서만 파일을 함께 쓰지만, prod parser의 필드·timestamp 정규화 공백이 남아 있다.
-- **관련 작업**: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](../11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md)
-
-> **2026-10-10 진척:** Chat은 stdout을 항상 쓰고 `COWORK_CHAT_LOG_DIR`을 지정한 local 이미지에서만 `/var/log/cowork/chat` 파일을 함께 쓴다.
-> 파일 쓰기 오류는 stderr에 한 번 남기고 stdout 출력은 유지한다. local·prod Loki의 실제 Chat 로그 도착은 아직 검증하지 않았다.
+- **현재 상태**: prod의 서비스·레벨 정규화는 구현되어 있으며 발생 시각 정책과 파싱 실패·수집 누락 식별이 남아 있다.
 
 ## 문제
 
-local 파일 수집과 운영 VM별 stdout 수집의 경로가 다르다. 최근 로그 경로·mount 보완이 반영되어
-과거 누락 목록을 현재 장애 목록으로 사용할 수 없다. 실제 Loki의 전 서비스 도착은 확인하지 않았다.
+prod Alloy는 Docker 로그의 시각을 사용한다. 애플리케이션 발생 시각과 기록 시각이 다른 경우의
+조회 정책은 정하지 않았다. local 파일 수집도 별도 경로를 사용한다.
 
-Chat 이미지는 로그 디렉터리를 만들지 않고 `root` 소유 `/app` 아래 경로를 기본값으로 썼다. `Dockerfile` 구성상
-컨테이너의 파일 stream 생성은 권한 오류로 실패해 stdout으로 fallback했을 것으로 추정하며, 실행 중인 컨테이너에서는 확인하지 않았다.
-이 경우 prod는 우연히 stdout을 쓰고 local Alloy의 `/var/log/cowork` 파일 수집에서는 Chat이 빠진다.
-
-local Alloy는 JSON의 `@timestamp`를 event timestamp로 적용하지만 prod에는 해당 stage가 없다.
-user의 plain text·Preference의 ECS JSON처럼 출력 형식도 달라 top-level `service`·`level`만 읽는
-현재 parser를 모든 서비스의 공통 계약으로 사용할 수 없다.
-
-## 코드 근거
-
-- [Chat 로그 출력](../../../../cowork-chat/src/app.module.ts#L48): stdout은 항상 쓰고 `COWORK_CHAT_LOG_DIR`이 있을 때만 파일을 함께 쓴다. [local 이미지](../../../../cowork-chat/Dockerfile.local)만 이 경로를 지정한다.
-- [prod 수집](../../../../deploy/prod/log-agent/config.alloy#L16): Docker stdout과 top-level level·service만 읽고 application timestamp stage는 없다.
-- [local 수집](../../../../deploy/config/monitoring/alloy/config.alloy#L24): 파일 로그에서 JSON @timestamp를 읽는다. plain text·ECS 출력은 별도 대조·정규화가 필요하다.
+파싱되지 않은 레벨은 `UNKNOWN`으로 분류되지만, 로그를 내지 않은 서비스와 수집이 끊긴 서비스를
+구분하는 신호는 없다. 정상 로그의 표시만으로 누락이나 파싱 실패를 확인할 수 없다.
 
 ## 할 일
 
-- local의 파일 수집 유지·stdout 통일을 결정하고 실제 로거 경로·mount·권한을 맞춘다.
-- ~~Chat의 prod 출력과 Docker stdout 수집을 연결한다. 파일을 유지하면 별도 수집 경로를 명시한다.~~ (stdout 상시 출력, local 이미지만 `/var/log/cowork/chat` 파일 병행)
-- 서비스별 실제 로그로 `service`·`level`·timestamp의 최소 계약을 정규화한다.
-- prod의 application timestamp와 Docker 기록 시각을 구분하고 plain text·ECS 처리 정책을 적용한다.
-- VM별 Alloy target 등록과 전 서비스 도착을 확인한다.
-- project·roadmap 조회와 기존 Grafana 쿼리를 실제 label에 맞춘다.
-- 누락·plain text·잘못된 JSON을 식별할 지표와 운영 확인 방법을 정한다.
+- application timestamp와 Docker 기록 시각의 선택·보존 정책을 정하고 local·prod 입력에 적용한다.
+- 누락·plain text·잘못된 JSON을 식별할 지표와 조회를 마련한다.
+- local 파일 수집을 유지할지 stdout으로 통일할지 결정하고 경로·mount·권한을 맞춘다.
 
 ## 검증
 
-- local·prod의 대표 로그에서 Loki 도착·원래 시각·레벨·서비스 구분을 확인한다.
-- 재기동·로그 회전 뒤 수집 재개와 민감 정보의 로그·label 포함 여부를 수동 점검한다.
-- Grafana 쿼리가 실제 데이터로 표시되는지 확인한다.
+- 대표 로그의 Loki 도착·시각·레벨·서비스 구분과 Grafana 표시를 확인한다.
+- 재기동·로그 회전 뒤 수집 재개와 민감 정보의 로그·label 포함 여부를 수동 확인한다.
 
 ## 완료 조건
 
-- 모든 서비스의 로그 도착과 누락 여부를 확인할 수 있다.
-- 검증한 공통 필드·timestamp를 대시보드가 사용한다.
-
-## 점검 근거 (2026-10-12)
-
-- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#439](https://github.com/team-cowork/cowork-server/pull/439) · [#474](https://github.com/team-cowork/cowork-server/pull/474).
-- [대조 코드](../../../../cowork-chat/src/app.module.ts#L48): Chat Pino는 stdout을 항상 쓰고 `COWORK_CHAT_LOG_DIR`을 지정한 local 이미지에서만 파일을 함께 쓴다. [prod Alloy](../../../../deploy/prod/log-agent/config.alloy)는 Docker stdout의 level·service만 읽으며 application timestamp 정규화는 없다.
-- 판정: **부분 구현**. 서비스별 필드·timestamp 정규화와 전 서비스 로그 도착 확인을 남은 범위로 유지한다.
+- 로그의 시각 의미와 파싱 실패·수집 누락을 확인할 수 있다.
+- local·prod 수집 경로가 정한 시각·필드 정책을 따른다.
