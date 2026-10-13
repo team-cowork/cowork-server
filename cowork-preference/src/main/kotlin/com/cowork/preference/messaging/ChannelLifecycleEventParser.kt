@@ -8,7 +8,7 @@ data class ChannelLifecycleEvent(
     val teamId: Long?,
     val deleted: Boolean,
     val occurredAt: Instant,
-    /** null이면 이벤트에 값이 없는 것이며 비공개로 취급한다. */
+    /** null이면 이벤트에 값이 없는 것이며 공개로 가정하지 않는다. */
     val isPrivate: Boolean? = null,
 )
 
