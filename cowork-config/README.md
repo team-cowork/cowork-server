@@ -40,8 +40,6 @@
 | `VAULT_SECRET_ID`         | 없음                                  | prod 필수. 재로그인에 사용하는 재사용 가능한 Secret ID                     |
 | `COWORK_CONFIG_HOST_PORT` | `8761`                                | Compose 호스트 공개 포트                                                   |
 | `S3_INTERNAL_ENDPOINT`    | `http://seaweedfs:9000`               | 서비스 내부 S3 endpoint                                                    |
-| `S3_PUBLIC_ENDPOINT`      | `http://localhost:9000`               | 클라이언트가 접근하는 S3 endpoint. 운영 주소 지정 필요                     |
-| `S3_PUBLIC_BASE_URL`      | `http://localhost:9000/cowork-bucket` | 공개 파일 URL 기준 주소. 운영 주소 지정 필요                               |
 | `LIVEKIT_URL`             | `http://cowork-livekit:7880`          | 서비스 내부 LiveKit API endpoint                                           |
 | `LIVEKIT_WS_URL`          | `ws://localhost:7880`                 | 클라이언트 LiveKit WebSocket 주소. 운영 주소 지정 필요                     |
 | `PUBLIC_WEB_ORIGINS`      | 없음                                  | prod 필수. HTTP CORS·WebSocket·채널 OAuth 복귀에 사용하는 공통 Origin 목록 |

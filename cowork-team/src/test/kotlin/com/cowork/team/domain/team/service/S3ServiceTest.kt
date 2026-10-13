@@ -21,7 +21,8 @@ import java.util.function.Consumer
 
 class S3ServiceTest :
     DescribeSpec({
-        val publicBaseUrl = "https://cdn.example.com/team"
+        val publicApiBaseUrl = "https://api.example.com"
+        val publicBaseUrl = "$publicApiBaseUrl/api/storage/team-icons"
         lateinit var service: S3Service
         lateinit var client: S3Client
 
@@ -33,7 +34,7 @@ class S3ServiceTest :
                 client,
                 ObjectStorageProperties(
                     bucket = "team-icons",
-                    publicBaseUrl = publicBaseUrl,
+                    publicApiBaseUrl = publicApiBaseUrl,
                 ),
             )
         }
