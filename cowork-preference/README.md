@@ -43,14 +43,21 @@ Config Server를 3회 조회하지 못하면 종료합니다. Preference command
 | 소비 토픽                                | Consumer group                                   | 용도                                               |
 |------------------------------------------|--------------------------------------------------|----------------------------------------------------|
 | `team.member.event`                      | `cowork-preference-team-member-projection`       | 팀 멤버 projection, 팀 삭제·멤버 탈퇴 시 역할 정리 |
-| `channel.event.v2`                       | `cowork-preference-channel-lifecycle-projection` | 채널 삭제 fence, 삭제 채널의 역할 정책 정리        |
+| `channel.event.v2`                       | `cowork-preference-channel-lifecycle-projection` | 채널 소속 팀·공개 여부, 삭제 fence, 역할 정책 정리 |
+| `project.event.v2`                       | `cowork-preference-project-lifecycle-projection` | 프로젝트 소속 팀·삭제 상태 권한 검증               |
+| `channel.member.event.v2`                | `cowork-preference-channel-member-projection`    | 비공개 채널·DM 멤버십 권한 검증                    |
 | `preference.team-role.command`           | `cowork-preference-team-role-command`            | 사용자 정의 팀 역할·할당 command                   |
 | `preference.channel-role-policy.command` | `cowork-preference-channel-role-policy-command`  | 채널별 역할 정책 command                           |
 | `preference.github-repo.setting.command` | `cowork-preference-github-repo-setting-command`  | GitHub 저장소 설정 command                         |
 
 - `/health/ready`와 Eureka 등록은 `team.member.event` projection이 현재 generation의 snapshot 완료 marker와
-  시작 시 high-watermark까지 따라잡은 뒤에 열립니다. HTTP API는 채널 projection을 읽지 않으므로
-  `channel.event.v2` projection은 트래픽 readiness에 포함하지 않습니다.
+  시작 시 high-watermark까지 따라잡은 뒤에 열립니다. `channel.event.v2`, `project.event.v2`,
+  `channel.member.event.v2` projection은 소유 서비스 장애가 전체 트래픽 차단으로 번지지 않도록 트래픽 readiness에 포함하지 않습니다.
+- 프로젝트 설정·역할 API는 `project.event.v2`와 `team.member.event`, 채널 설정 조회와 채널 알림은 `channel.event.v2`,
+  `channel.member.event.v2`, `team.member.event`, 채널 설정 수정은 `channel.event.v2`와 `team.member.event` projection이
+  준비되어야 판단합니다. 준비되기 전에는 해당 API만 `503`으로 응답합니다.
+- 공개 여부(`isPrivate`)를 아직 확인하지 못한 채널은 비공개로 취급합니다. `V24` 이전에 저장된 `tb_channel_lifecycle_projections`
+  행은 소유 서비스가 5분마다 다시 발행하는 `channel.event.v2` snapshot으로 채워집니다.
 - 채널 역할 정책 command는 `team.member.event`, `channel.event.v2` projection이 모두 준비되어야 처리합니다.
 - 채널 역할 정책 command는 채널 projection row를 잠근 뒤 처리합니다. 채널 삭제가 먼저 반영됐으면 `UPSERT`와
   `DELETE` 모두 `CHANNEL_DELETED`, 채널이 요청 팀에 속하지 않으면 `CHANNEL_TEAM_MISMATCH` 실패 결과로
