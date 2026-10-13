@@ -3,7 +3,7 @@
 - **서비스**: Vault, Config, Gateway, Authorization, User, Team, Channel, Project, Preference, Roadmap, Voice, Notification, Chat
 - **우선순위**: 🔴 높음
 - **현재 상태**: Team만 현재 `main` 이력에 속하는 runtime 성공 기준을 갖고 있으며, 나머지 대상의 실제 배포와 기준 복구가 남아 있다.
-- **관련 작업**: [Production 배포 결과 표시 수정](../63-deployment/production-deployment-status.md), [User 배포 readiness 실패 원인 확인](../64-reliability/user-deployment-readiness-failure.md)
+- **관련 작업**: [User 배포 readiness 실패 원인 확인](../64-reliability/user-deployment-readiness-failure.md)
 
 ## 문제
 
