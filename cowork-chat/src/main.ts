@@ -90,7 +90,7 @@ async function bootstrap() {
             + '| `message` | S→C | 새 메시지 수신 |\n'
             + '| `message:*` | S→C | 수정·삭제·고정·반응 변경 |\n'
             + '| `member:*` / `channel:*` / `project:*` | S→C | 멤버십·채널·프로젝트 변경 |\n\n'
-            + '메시지 작성은 REST 요청 후 `chat.message` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n'
+            + '메시지 작성은 REST 요청 후 `chat.message.v2` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n'
             + '## 메시지 검색\n'
             + '`GET /api/chat/chat/projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n'
             + '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n'
