@@ -57,6 +57,10 @@
       "target": "vault"
     },
     {
+      "service": "datastores",
+      "target": "datastores"
+    },
+    {
       "service": "storage",
       "target": "storage"
     }
