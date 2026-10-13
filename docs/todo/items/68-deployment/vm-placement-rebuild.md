@@ -60,14 +60,18 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 
 | 항목 | 확인한 상태 | 남은 작업 |
 |---|---|---|
-| Config VM | 기존 local 컨테이너 13개의 자동 재시작을 해제하고 정지했다. 컨테이너와 볼륨 18개는 보존했다. 기존 Config는 `cowork-config-legacy-20261013`으로 구분했다. | GitHub 경로로 prod Config를 배포한다. |
-| Gateway VM | 기존 local Gateway의 자동 재시작을 해제하고 정지한 뒤 `cowork-gateway-legacy-20261013`으로 구분했다. | prod Gateway 배포와 공개 TLS 연결을 확인한다. |
+| Config VM | 기존 local 컨테이너 13개의 자동 재시작을 해제하고 정지했다. 이전 local 컨테이너 13개와 전용 볼륨 18개를 제거했다. | GitHub 경로로 prod Config를 배포한다. |
+| Gateway VM | 기존 local Gateway 컨테이너를 제거했다. | prod Gateway 배포와 공개 TLS 연결을 확인한다. |
 | Team VM | 패널 변경 후 재기동했다. SSH에서 2 vCPU와 `lsmem`의 online 메모리 4 GiB를 확인했다. `virtio_balloon` 장치가 있으며 현재 `MemTotal`은 약 2.16 GiB였다. | Team 기동 후 실제 메모리와 readiness를 확인한다. |
 | Vault HTTPS | DB VM의 HTTPS 슬롯 2개는 `chcowork.https.gsmsv.site:80`, `livekit.https.gsmsv.site:7880`이 사용하고 있었다. 누락된 Vault 도메인을 새 VM의 `8200`에 연결했다. 공개 health의 TLS 검증, HTTP 200과 새 cluster ID 일치를 확인했다. | Config AppRole과 GitHub 토큰의 실제 인증을 확인한다. |
 | Vault VM | `cowork-vault`, `gsmgpu1:105`, `10.0.0.91`, SSH `21105`를 생성했다. 사양은 `1 vCPU / 2 GB / 20 GB`이다. Docker 초기 설정과 신규 Vault 볼륨 이관을 마쳤고 기존 복구 키와 cluster ID를 유지했다. | 후보 컨테이너를 정지하고 GitHub 복구 경로로 최종 컨테이너를 기동한다. |
 | AppRole 송신 경로 | Config VM의 공개 HTTPS health 요청 3회가 모두 성공했다. 새 Vault의 TCP peer 표본 20개에서 프록시 `10.0.0.117`만 관측했다. | 관측한 `10.0.0.117/32`에서 AppRole 로그인이 허용되는지 확인한다. 이 CIDR은 Config VM 자체가 아니라 공용 TLS 프록시를 식별한다. |
 
 ### 최신 적용 상태
+
+- Config·Gateway·DB와 기존 앱 VM에서 이전 앱·Vault·임시 빌드 컨테이너 28개와 전용 볼륨 25개를 제거했다. User의 무회전 로그 약 27.2 GB도 컨테이너와 함께 제거됐다. Docker와 모니터링 컨테이너는 재시작하지 않았다.
+- DB VM의 MySQL·PostgreSQL·MongoDB·Redis·Elasticsearch·Kafka 및 이전 MinIO 공개 포트 전달 규칙 10개를 삭제했다. 패널에서 제거된 것을 확인했고, 운영 Mac에서 해당 TCP 포트 10개에 연결되지 않았다.
+- LiveKit을 저장소의 고정 `v1.13.7` 이미지로 교체하고 `http://10.0.0.90:8089/voice/webhook`을 등록했다. 공개 TLS와 미인증 WebSocket 요청의 LiveKit 도달은 확인했다. RTC 공인 주소·매핑 정렬과 실제 음성 통신은 아직 확인하지 않았다.
 
 - GSM SV 패널에서 이전 `cowork-app`(`gsmgpu2:134`), `cowork-preference-`(`gsmgpu2:153`), `owork-voice`(`gsmgpu3:109`)를 영구 삭제했다. 새 Project·Preference·Voice VM은 목록에 남아 있다.
 - 초기화 직후 MySQL 업무 테이블, Preference schema 객체, Chat·Voice collection, Redis DB0 key, Chat 검색 색인은 모두 0개였다. Kafka는 4.3.1의 새 영속 볼륨에서 실행되며 52개 topic의 end offset과 consumer group은 모두 0이었다.
@@ -85,7 +89,7 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 - 독립 GitHub App을 포함해 17개 VM의 업무 컨테이너 17개가 정지 상태이며 자동 재시작이 해제되어 있다. 처음 실행 중이던 컨테이너는 11개다. 이전 업무 컨테이너는 복구 대상으로 유지하지 않는다.
 - 초기화 완료와 서비스 복구는 별도로 판정한다. 앱 readiness·Config 권한·Eureka·공개 API가 확인되기 전에는 운영 복구 완료로 기록하지 않는다.
 
-DB VM의 기존 Config·Gateway·Team은 정지되어 있다. 기존 운영 Vault와 갱신 cron은 폐기했다. DB VM의 중지된 개발용 Vault와 이관용 복제 볼륨은 별도 정리 대상이다.
+DB VM의 기존 Config·Gateway·Team은 정지되어 있다. 기존 운영 Vault와 갱신 cron은 폐기했다. DB VM의 중지된 개발용 Vault와 이관용 복제 볼륨도 제거했다.
 신규 VM 생성과 기존 컨테이너 정지를 서비스 이관 완료로 판단하지 않는다.
 
 | 항목 | 패널에서 확인한 내용 | 적용 조건 |
