@@ -130,6 +130,29 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 완료 뒤 `gh secret delete VAULT_UPDATE_JSON --env "Config-Update($target)"`로 임시 입력을 삭제한다.
 큰 문서는 Vault UI/API로 변경한다. 배포 snapshot은 SSH 전달 한도를 넘지 않도록 준비한다.
 
+빈 데이터셋에서 앱 전체를 기동할 때는 `operation=redeploy`, `service=applications`,
+`target=applications`를 함께 지정한다. 선택한 `main` 릴리스 SHA의 inventory에서 Gateway와
+authorization·user·team·channel·project·roadmap·notification·preference·chat·voice의 11개 target을
+가져온다. 각 서비스가 하나씩 있어야 하며, target 중복이나 서비스 스크립트 누락은 거부한다.
+Config·Vault·Datastores·Storage·Monitoring·log-agent는 이 그룹에 포함하지 않는다. 필요한 인프라와
+Config가 먼저 준비되어 있어야 한다.
+
+```bash
+gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
+  -f service=applications -f target=applications -f sha="$release_sha" \
+  -f configuration_version=0 -f vault_recovery=false -f check_only=true
+```
+
+그룹은 각 target의 최신 Vault 배포 문서를 사용하는 `configuration_version=0`과
+`vault_recovery=false`만 허용한다. `check_only=true`는 11개 target 모두에 적용한다. 검증 성공 후
+같은 입력에서 `check_only=false`로 바꾸어 기동한다. `applications`는 `update-config` 대상이나
+단일 서비스와 섞어 사용할 수 없다. 단일 target의 버전 지정 재배포는 기존 입력을 사용한다.
+
+Team↔Preference와 Project↔Channel은 상대 서비스의 snapshot을 기다릴 수 있으므로 앱 job을 함께
+시작해야 한다. 수동 그룹과 자동 앱 배포 matrix에는 동시 실행 수 제한을 두지 않는다. 실행 환경에도
+11개 앱 job이 기동할 수 있는 runner 여유를 확보한다. 각 job은 기존 target별 Environment, 배포 잠금,
+readiness 검사와 runtime 성공 기록을 사용한다. 전체 workflow 실행 간 직렬화는 유지한다.
+
 자동 배포는 target별 마지막 runtime 적용 성공 SHA를 기준으로 비교한다. 정적 검증·설정 변경의 성공은
 이 기준을 바꾸지 않는다. 이미 적용한 SHA보다 이전 버전으로 복구할 때는 수동 재배포를 사용한다.
 readiness 대기를 늘릴 때는 SSH `command_timeout`에 이미지 pull·실패 복구 시간도 확보한다.
@@ -330,7 +353,7 @@ helper·unit·정책 해시 및 확인 결과를 설치 기록에 남긴다.
 ## 운영 스토리지 GitHub CD
 
 `storage`는 `prod-cd`의 독립 인프라 target이다. 자동 배포 순서는 Vault → Datastores → Storage → Config →
-나머지 서비스다. 선택된 Storage 배포가 실패하면 뒤의 Config·앱 배포는 실행하지 않는다. 수동 배포는
+나머지 서비스다. 선택된 Storage 배포가 실패하면 뒤의 Config·앱 배포는 실행하지 않는다. 수동 단일 대상 배포는
 선택한 target만 실행한다. `deploy/prod/storage/` 또는 `deploy/config/seaweedfs/`의 변경은 Storage
 배포 비교에 포함한다. SeaweedFS와 AWS CLI 이미지는 선택한 GitHub SHA의 Compose에 고정된 digest를
 사용하며 별도 GHCR 빌드나 토큰이 필요 없다.
@@ -384,7 +407,7 @@ healthy이고 admin이 running이어야 런타임 배포 성공을 기록한다.
 
 `datastores`는 MySQL·PostgreSQL·MongoDB·Redis·Kafka·Elasticsearch를 관리하는 독립 인프라 target이다.
 자동 배포 순서는 Vault → Datastores → Storage → Config → 나머지 서비스다. 선택된 Datastores 배포가
-실패하면 뒤의 배포는 실행하지 않는다. 수동 배포는 선택한 target만 실행한다. 배포 비교에는
+실패하면 뒤의 배포는 실행하지 않는다. 수동 단일 대상 배포는 선택한 target만 실행한다. 배포 비교에는
 `deploy/prod/datastores/`, `deploy/images/elasticsearch/`, `deploy/compose/stack.yaml`의 Kafka topic 정의를
 포함한다. 공용 이미지를 사용하므로 GHCR 인증 토큰은
 전달하지 않는다. Elasticsearch는 선택한 소스 SHA의 Dockerfile로 필요한 플러그인 이미지를 구성한다.
