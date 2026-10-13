@@ -1,5 +1,5 @@
 name: Build a cowork image
-description: Restore dependency caches, build an image and inspect its runtime files without starting the application
+description: Build an image and inspect its slot contract without starting the application
 inputs:
   service:
     required: true
@@ -61,7 +61,7 @@ runs:
         labels: ${{ inputs.labels }}
         cache-from: type=gha,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
         cache-to: type=gha,mode=max,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
-    - name: Inspect packaged runtime
+    - name: Inspect image slot contract
       shell: bash
       env:
         IMAGE_TAGS: ${{ inputs.tags }}
