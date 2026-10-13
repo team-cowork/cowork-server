@@ -188,6 +188,10 @@ Channel 배포가 끝난 뒤 시작한다.
 
 ## 로그 수집과 운영 기록
 
+현재 모니터링 VM과 설정은 새 배포 관리 방식으로 이관하지 않았으므로 자동 배포 inventory에서
+제외한다. 기존 `service=monitoring`, `target=monitoring` 수동 배포 지원은 유지한다. 이관 준비를
+마친 뒤 자동 관리 대상으로 명시적으로 등록한다.
+
 앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`을 준비한다.
 Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. 해당 target의 Environment를
 등록하고 `service=log-agent`, `target=log-agent-<vm>`으로 수동 배포한다. 자동 배포도 필요하면 inventory에 등록한다.
