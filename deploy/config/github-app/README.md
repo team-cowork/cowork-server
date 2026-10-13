@@ -17,8 +17,11 @@ GitHub HTTPS 요청
   `X-Forwarded-For`를 접근 허용 판정에 사용하지 않는다.
 - query string이 없는 정확한 `POST /github/webhooks`만 전달한다.
   다른 method, 경로 인코딩, 후행 slash, `/api/*`, `/github/setup`, `/health`는 전달하지 않는다.
-- 호스트 방화벽도 `8080/tcp`에 TLS proxy만 허용해야 한다.
-  `3000/tcp`는 Project의 내부 HTTP API용이며 공개 HTTPS 대상으로 등록하지 않는다.
+- 현재 호스트 방화벽은 `3000/tcp`와 `8080/tcp`에 공통 peer 정책을 사용하며,
+  Project `10.0.0.88`과 TLS proxy `10.0.0.117` 외의 원격 접근을 차단한다.
+  `8080/tcp`에서는 Nginx의 추가 ACL이 TLS proxy만 upstream으로 통과시킨다.
+- `3000/tcp`는 Project의 내부 HTTP API용이며 공개 HTTPS 대상으로 등록하지 않는다.
+  TLS proxy의 공개 연결 대상은 Nginx `8080/tcp`로 제한한다.
 - proxy는 본문을 재작성하지 않는다. GitHub 서명 헤더와 원문 본문을 App에 전달한다.
   접근 로그에는 본문, query string, 인증 헤더를 기록하지 않는다.
 - proxy가 upstream 요청을 자동으로 재시도하지 않도록 설정한다.
@@ -70,19 +73,27 @@ receiver 설정만으로 이 App 제한은 해소되지 않는다.
 
 ## 이벤트 구독과 권한
 
-2026-10-13에 확인한 App의 선택 이벤트 구독 목록은 비어 있다.
-아래 권한과 구독은 receiver 설치가 변경하지 않는다.
+2026-10-13에 사용자 승인으로 Webhook URL과 `issues`·`pull_request`·`push` 구독을 적용했다.
+URL은 `https://cowork-github-app.https.gsmsv.site/github/webhooks`이고 SSL 검증은 활성화했다.
+기존 PR 병합·head branch 삭제 구현에 필요한 `Contents: write`를 추가했다. 현재 소스에서 사용하지 않는
+`repository_projects` 권한은 제거했다. receiver 파일 설치 자체가 GitHub 설정을 바꾸지는 않는다.
 
 | 소스가 처리하는 이벤트 | 필요한 설정 | 확인한 상태 |
 | --- | --- | --- |
-| `installation` | GitHub App에 기본 전달된다. 수동 구독 대상이 아니다. | handler는 `deleted`만 연결 해제 이벤트로 처리한다. Webhook 활성화가 필요하다. |
-| `issues` | Issues 읽기 이상의 권한과 이벤트 구독 | 현재 `issues: write`로 권한은 충족한다. 이벤트 구독은 미적용이다. |
-| `pull_request` | Pull requests 읽기 이상의 권한과 이벤트 구독 | 현재 `pull_requests: write`로 권한은 충족한다. 이벤트 구독은 미적용이다. |
-| `push` | Contents 읽기 이상의 권한과 이벤트 구독 | 현재 Contents 권한이 없다. 권한 확대와 구독은 미적용이다. |
+| `installation` | GitHub App에 기본 전달된다. 수동 구독 대상이 아니다. | handler는 `deleted`만 연결 해제 이벤트로 처리한다. Webhook 활성화는 적용했다. |
+| `issues` | Issues 읽기 이상의 권한과 이벤트 구독 | 현재 `issues: write`로 권한은 충족한다. App 등록과 `team-cowork` 설치의 구독을 확인했다. |
+| `pull_request` | Pull requests 읽기 이상의 권한과 이벤트 구독 | 현재 `pull_requests: write`로 권한은 충족한다. App 등록과 `team-cowork` 설치의 구독을 확인했다. |
+| `push` | Contents 읽기 이상의 권한과 이벤트 구독 | `contents: write`와 구독을 App 등록 및 `team-cowork` 설치에서 확인했다. |
 
 `push`, `issues`, `pull_request`는 `github.repo.event`로 발행한다.
 `installation.deleted`는 `team.github.disconnected`로 발행한다.
-다른 이벤트는 처리하지 않는다. receiver 구성이 완료되어도 구독과 권한이 없는 이벤트는 수신하지 않는다.
+다른 이벤트는 처리하지 않는다. receiver 구성이 완료되어도 구독과 권한이 없는 설치의 이벤트는 수신하지 않는다.
+
+`NexTach`, `Be-Mentoring`, `Idea-Festival-project` 설치는 현재 로그인 계정으로 관리 화면에 접근할 수 없었다.
+조회한 이 세 설치에는 Contents 권한과 이벤트 구독이 아직 반영되지 않았다. 각 조직 관리자의 승인이 필요하다.
+
+설정 저장과 서명 검증 성공은 별개다. 활성화 직후 GitHub ping은 서명 헤더 없이 도착해 HTTP `401`로
+거부됐다. GitHub Secret 입력과 실제 서명된 delivery 성공을 확인하기 전에는 webhook 복구 완료로 판단하지 않는다.
 
 참고: [GitHub 이벤트와 권한](https://docs.github.com/en/webhooks/webhook-events-and-payloads),
 [Nginx 주소 접근 제어](https://nginx.org/en/docs/http/ngx_http_access_module.html),
