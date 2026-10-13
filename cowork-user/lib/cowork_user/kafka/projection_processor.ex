@@ -1,7 +1,41 @@
 defmodule CoworkUser.Kafka.ProjectionProcessor do
-  alias CoworkUser.Kafka.{ProjectionBarrier, ProjectionCheckpoint, ProjectionQuarantine}
+  alias CoworkUser.Kafka.{
+    ProjectionBarrier,
+    ProjectionCheckpoint,
+    ProjectionQuarantine,
+    TransientSyncError
+  }
+
   alias CoworkUser.Kafka.ProjectionReadiness
   alias CoworkUser.Repo
+
+  @transaction_batch_size 20
+
+  def process_batch(messages, state, handle_message)
+      when is_list(messages) and messages != [] and is_function(handle_message, 2) do
+    # Nested per-record transactions share this transaction. Bound its row-lock
+    # lifetime while committing projection changes and checkpoints together.
+    next_state =
+      messages
+      |> Enum.chunk_every(@transaction_batch_size)
+      |> Enum.reduce(state, fn batch, current_state ->
+        case Repo.transaction(fn ->
+               Enum.reduce(batch, current_state, fn message, record_state ->
+                 {:ok, :commit, next_state} = handle_message.(message, record_state)
+                 next_state
+               end)
+             end) do
+          {:ok, committed_state} ->
+            committed_state
+
+          {:error, reason} ->
+            raise TransientSyncError,
+              message: "projection batch transaction failed: #{inspect(reason)}"
+        end
+      end)
+
+    {:ok, :commit, next_state}
+  end
 
   def process(replay_lease, offset, record, apply_event)
       when is_map(replay_lease) and is_integer(offset) and is_map(record) and
