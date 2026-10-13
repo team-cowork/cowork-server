@@ -5,11 +5,15 @@
       - cowork_unit.service is match('^[a-z][a-z0-9-]*$')
       - cowork_unit.target is match('^[a-z][a-z0-9-]*$')
       - cowork_unit.settings_file is match('^/')
+  loop: "{{ cowork_units }}"
+  loop_control:
+    loop_var: cowork_unit
+    label: "{{ cowork_unit.target }}"
 - name: Create independent monitoring data volumes
   ansible.builtin.command:
     argv: [docker, volume, create, "{{ (lookup('ansible.builtin.file', cowork_repository ~ '/deploy/prod/slots/monitoring.json') | from_json).runtime.MONITORING_VOLUME_PREFIX }}_{{ item }}"]
   loop: [prometheus_data, grafana_data, loki_data]
-  when: cowork_unit.service == 'monitoring'
+  when: "'monitoring' in (cowork_units | map(attribute='service') | list)"
   changed_when: false
 - name: Apply the resolved private Vault snapshot
   ansible.builtin.command:
@@ -24,6 +28,10 @@
       - --release-directory
       - "{{ cowork_release_directory }}"
     stdin: "{{ lookup('ansible.builtin.file', cowork_unit.settings_file) | b64encode }}"
+  loop: "{{ cowork_units }}"
+  loop_control:
+    loop_var: cowork_unit
+    label: "{{ cowork_unit.target }}"
   # The snapshot includes credentials; Ansible must not log the invocation or result.
   no_log: true
   changed_when: true
