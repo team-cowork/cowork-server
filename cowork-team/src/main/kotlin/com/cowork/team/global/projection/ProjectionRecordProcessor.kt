@@ -60,7 +60,7 @@ class ProjectionRecordProcessor(
 
     /** completion marker 계약 검증을 통과한 record에만 사용한다. */
     private fun snapshotId(record: ConsumerRecord<String, String>): String =
-        objectMapper.readTree(record.value()).path("snapshotId").asText()
+        objectMapper.readTree(record.value()).path("snapshotId").asString()
 
     private fun requireTopicId(stream: ProjectionStream): String = checkNotNull(topicGenerations.topicId(stream)) {
         "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
@@ -75,24 +75,24 @@ class ProjectionRecordProcessor(
         }
         val payload = runCatching { objectMapper.readTree(record.value()) }
             .getOrElse { return "projection snapshot marker JSON 역직렬화 실패: ${it.message}" }
-        if (payload.path("eventType").asText() != ProjectionSnapshotCompletion.EVENT_TYPE) {
+        if (payload.path("eventType").asString() != ProjectionSnapshotCompletion.EVENT_TYPE) {
             return "projection snapshot marker eventType이 유효하지 않습니다."
         }
-        if (payload.path("topic").asText() != record.topic()) {
+        if (payload.path("topic").asString() != record.topic()) {
             return "projection snapshot marker topic이 record topic과 일치하지 않습니다."
         }
         if (!payload.path("partition").canConvertToInt() || payload.path("partition").asInt() != record.partition()) {
             return "projection snapshot marker partition이 record partition과 일치하지 않습니다."
         }
-        if (runCatching { UUID.fromString(payload.path("snapshotId").asText()) }.isFailure) {
+        if (runCatching { UUID.fromString(payload.path("snapshotId").asString()) }.isFailure) {
             return "projection snapshot marker snapshotId가 유효하지 않습니다."
         }
-        if (runCatching { Instant.parse(payload.path("occurredAt").asText()) }.isFailure) {
+        if (runCatching { Instant.parse(payload.path("occurredAt").asString()) }.isFailure) {
             return "projection snapshot marker occurredAt이 유효하지 않습니다."
         }
         val expectedSource = stream.expectedSource
             ?: return "snapshot-backed state stream이 아닌 topic에는 completion marker를 사용할 수 없습니다."
-        if (payload.path("source").asText() != expectedSource) {
+        if (payload.path("source").asString() != expectedSource) {
             return "projection snapshot marker source가 예상 producer와 일치하지 않습니다: $expectedSource"
         }
         return null
