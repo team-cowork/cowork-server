@@ -30,6 +30,41 @@ Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미�
 대조한다. 필요한 외부 볼륨은 배포 전에 생성한다. Vault의 TLS 프록시만 사설 listener에 접근시키고,
 현재 단일 unseal key 입력과 다른 다중 share 구성은 별도 복구 절차를 준비한다.
 
+## 비공개 GHCR 이미지 인증
+
+Config와 앱 배포 job은 `packages: read` 권한의 단기 `github.token`으로 GHCR에 로그인한다.
+인증 정보는 SSH 실행별 `0700` 임시 `DOCKER_CONFIG`에만 저장하고 종료 시 제거한다. 토큰을
+Vault 배포 문서나 컨테이너 환경에 넣지 않으며 VM의 기존 Docker 인증 파일도 변경하지 않는다.
+기존 `GHCR_READ_TOKEN` 설정을 사용하는 경우에도 Docker 로그인 결과는 같은 임시 디렉터리에 기록한다.
+`check_only`는 registry 로그인과 이미지 pull을 수행하지 않으므로 이미지 접근 성공을 보장하지 않는다.
+
+인증 전달과 설정 검증은 `github.workflow_sha`의 배포 실행기가 담당한다. 앱의 `deploy.sh`와 서비스
+스크립트는 요청한 릴리스 SHA에서 실행한다. 이전 SHA를 수동 재배포해도 최신 실행기가 임시 인증
+경로를 전달한다. 같은 배포 실행에서 readiness 실패 후 보존한 이전 컨테이너를 재시작하는 복구는
+이미지 pull을 수행하지 않는다.
+
+## 운영 MinIO 유지 범위
+
+운영 스토리지는 기존 데이터·KMS·버전 관리를 보존하고 MinIO를 유지한다. 서비스별 IAM과
+MinIO 자체 수명 주기 관리로 필요한 권한 분리와 임시 파일 정리를 수행할 수 있어 SeaweedFS 이관을
+배포 조건으로 두지 않는다. 전용 버킷의 `team-icon-uploads/`·`profile-uploads/`·`chat-uploads/`에만
+현재 버전과 이전 버전의 1일 만료를 적용한다. 최종 저장 접두사에는 이 만료 규칙을 적용하지 않는다.
+
+`team-icons/`만 공개 읽기를 허용하고 프로필·채팅 파일·임시 업로드는 비공개로 유지한다.
+Team·User·Chat은 각 서비스의 최종 저장·임시 업로드 접두사에만 접근하는 별도 계정을 사용한다.
+현재 MinIO는 `PublicAccessBlock`과 `PutBucketCors`를 지원하지 않으므로
+[`configure-bucket.sh`](../deploy/config/seaweedfs/configure-bucket.sh)를 그대로 적용하지 않는다.
+버킷 정책·서비스별 IAM·호스트 방화벽으로 접근을 제한하고, 전용 MinIO의 전역 CORS 허용 원본을
+운영 웹 원본에 맞춘다.
+
+외부 스토리지 요청은 Gateway의 공개 API 경로로만 받고 S3 포트는 허용된 사설 peer로 제한한다.
+관리 콘솔은 호스트 loopback에 대한 SSH 터널로 접근한다. MinIO 컨테이너를 개별 재생성하면
+`systemctl reload cowork-minio-firewall.service`로 직접 bridge 주소의 방화벽 규칙을 갱신한다.
+기존 컨테이너의 임시 접근 예외를 제거할 때도 해당 컨테이너를 중지한 뒤 같은 reload를 수행한다.
+
+스토리지 설치·계정·정책·수명 주기·방화벽 변경은 현재 앱 `prod-cd` inventory 밖의 운영 작업이다.
+앱 CD 성공만으로 스토리지 설정이 갱신되었다고 판단하지 않는다.
+
 ## GitHub Environment와 Vault 권한
 
 | Environment               | Variables                              | Secrets                                                 | 권한·용도                                    |
