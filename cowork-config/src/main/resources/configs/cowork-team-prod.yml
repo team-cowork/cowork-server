@@ -49,5 +49,6 @@ KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE: cowork-team.team-role-projection
 KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT: cowork-team.team-role-command-result
 
 object-storage:
+  bucket: ${S3_BUCKET:cowork-bucket}
   public-endpoint: ${S3_PUBLIC_ENDPOINT}
   public-base-url: ${S3_PUBLIC_BASE_URL}

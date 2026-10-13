@@ -6,6 +6,7 @@ import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -38,7 +39,12 @@ class UpdateTeamServiceImplTest :
         beforeEach {
             teamRepository = mockk()
             memberRepository = mockk()
+            val ownership = mockk<TeamIconOwnershipService>()
+            every { ownership.replace(any(), any(), any()) } answers {
+                secondArg<Team>().iconUrl = thirdArg<String>()
+            }
             service = UpdateTeamServiceImpl(
+                ownership,
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
