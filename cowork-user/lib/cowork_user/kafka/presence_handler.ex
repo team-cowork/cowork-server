@@ -34,6 +34,14 @@ defmodule CoworkUser.Kafka.PresenceHandler do
   end
 
   @impl :brod_group_subscriber_v2
+  def handle_message(
+        {:kafka_message_set, topic, partition, _high_watermark, messages},
+        %{topic: topic, partition: partition} = state
+      )
+      when is_list(messages) and messages != [] do
+    ProjectionProcessor.process_batch(messages, state, &handle_message/2)
+  end
+
   def handle_message({:kafka_message, offset, key, value, _ts_type, _ts, _headers}, state)
       when is_binary(value) do
     case Jason.decode(value) do
