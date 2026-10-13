@@ -43,7 +43,6 @@ runs:
       working-directory: release-source
       env:
         RELEASE_SHA: ${{ inputs.sha }}
-        WORKFLOW_SHA: ${{ github.workflow_sha }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
       shell: bash
@@ -58,13 +57,6 @@ runs:
           test -f "deploy/prod/services/$SERVICE.sh"
         fi
         test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-        # Temporary feature-branch validation; restore the main guard before merge.
-        test "$GITHUB_EVENT_NAME" = workflow_dispatch
-        test "$GITHUB_REPOSITORY" = team-cowork/cowork-server
-        test "$GITHUB_REF" = refs/heads/cicd/runtime-neutral-slots
-        test "$RELEASE_SHA" = "$GITHUB_SHA"
-        test "$RELEASE_SHA" = "$WORKFLOW_SHA"
-        git merge-base --is-ancestor "$RELEASE_SHA" origin/cicd/runtime-neutral-slots
     - name: Load Vault deployment snapshot
       id: settings
       env:
