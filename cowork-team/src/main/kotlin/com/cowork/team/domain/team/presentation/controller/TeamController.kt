@@ -57,6 +57,8 @@ class TeamController(
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "확인 성공"),
         ApiResponse(responseCode = "400", description = "유효하지 않은 objectKey"),
+        ApiResponse(responseCode = "403", description = "다른 사용자의 업로드 또는 폐기된 업로드"),
+        ApiResponse(responseCode = "404", description = "발급된 아이콘 업로드 없음"),
         ApiResponse(responseCode = "409", description = "S3에 파일 없음 (업로드 미완료)"),
         ApiResponse(responseCode = "413", description = "파일 크기 초과"),
     )
