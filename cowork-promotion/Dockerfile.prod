@@ -4,7 +4,8 @@ COPY cowork-promotion/package.json cowork-promotion/package-lock.json ./
 RUN --mount=type=cache,id=npm-promotion,target=/root/.npm npm ci
 # The site validates links to repository source files while rendering TODO pages.
 COPY . /workspace
-RUN npm run build
+ARG SOURCE_REVISION
+RUN GITHUB_SHA="$SOURCE_REVISION" npm run build
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3
