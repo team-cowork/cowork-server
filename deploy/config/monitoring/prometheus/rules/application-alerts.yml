@@ -12,51 +12,48 @@ groups:
 
   - name: cowork-host
     rules:
-      # 디스크가 차면 컨테이너 기동·로그 기록·DB 쓰기가 동시에 실패한다.
-      # 남은 비율만 보면 큰 디스크에서 늦게 울리므로 소진 예측을 함께 둔다.
+      # node_exporter는 --path.rootfs 접두어를 떼고 마운트 경로를 보고하므로 경로를 고정하지 않고,
+      # 수집 단계에서 걸러진 실제 파일시스템을 모두 본다. 어디가 찼는지는 mountpoint 라벨로 구분한다.
       - alert: coworkHostDiskSpaceLow
         expr: |
-          node_filesystem_avail_bytes{mountpoint="/host"}
-          / node_filesystem_size_bytes{mountpoint="/host"} < 0.15
+          node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.15
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: "Host disk space low"
-          description: "Host {{ $labels.instance }} has less than 15% free disk space for 10 minutes."
+          description: "{{ $labels.instance }} {{ $labels.mountpoint }} has less than 15% free space for 10 minutes."
 
       - alert: coworkHostDiskSpaceCritical
         expr: |
-          node_filesystem_avail_bytes{mountpoint="/host"}
-          / node_filesystem_size_bytes{mountpoint="/host"} < 0.07
+          node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.07
         for: 5m
         labels:
           severity: critical
         annotations:
           summary: "Host disk space critical"
-          description: "Host {{ $labels.instance }} has less than 7% free disk space for 5 minutes."
+          description: "{{ $labels.instance }} {{ $labels.mountpoint }} has less than 7% free space for 5 minutes."
 
-      # 비율이 아직 여유로워도 증가 추세면 미리 알린다.
+      # 비율이 아직 여유로워도 차오르는 중이면 미리 알린다. 두 조건을 함께 걸어 일시적 변동을 거른다.
       - alert: coworkHostDiskWillFill
         expr: |
-          predict_linear(node_filesystem_avail_bytes{mountpoint="/host"}[6h], 24 * 3600) < 0
-          and node_filesystem_avail_bytes{mountpoint="/host"}
-              / node_filesystem_size_bytes{mountpoint="/host"} < 0.3
+          predict_linear(node_filesystem_avail_bytes[6h], 24 * 3600) < 0
+          and node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.3
         for: 30m
         labels:
           severity: warning
         annotations:
           summary: "Host disk will fill within a day"
-          description: "Host {{ $labels.instance }} free disk space is trending to zero within 24 hours."
+          description: "{{ $labels.instance }} {{ $labels.mountpoint }} free space is trending to zero within 24 hours."
 
       - alert: coworkHostMetricsMissing
-        expr: absent(node_filesystem_avail_bytes{mountpoint="/host"})
+        expr: absent(node_filesystem_avail_bytes)
         for: 10m
         labels:
           severity: warning
         annotations:
           summary: "Host metrics missing"
-          description: "No host filesystem metrics for 10 minutes; the node exporter is not being scraped."
+          description: "No host filesystem metrics for 10 minutes; the node exporters are not being scraped."
 
   - name: cowork-jvm
     rules:
