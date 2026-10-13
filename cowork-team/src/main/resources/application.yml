@@ -109,9 +109,9 @@ spring.cloud.aws:
 
 object-storage:
   # presigned URL 서명용
-  public-endpoint: ${S3_PUBLIC_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://localhost:9000}}
+  public-endpoint: ${S3_PUBLIC_ENDPOINT}
   bucket: ${S3_BUCKET:cowork-bucket}
-  public-base-url: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
+  public-base-url: ${S3_PUBLIC_BASE_URL}
   presigned-put-expiry-minutes: 10
   max-file-size-bytes: 1048576
   allowed-content-types:
