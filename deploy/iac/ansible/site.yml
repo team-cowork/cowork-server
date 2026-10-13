@@ -1,0 +1,67 @@
+---
+- name: Apply reviewed service slots on existing VMs
+  hosts: all
+  gather_facts: true
+  vars:
+    cowork_release_directory: "{{ ansible_env.HOME }}/.local/share/cowork/releases/{{ cowork_release_sha }}"
+    cowork_repository: "{{ playbook_dir }}/../../.."
+  pre_tasks:
+    - name: Validate immutable release and units
+      ansible.builtin.assert:
+        that:
+          - cowork_release_sha is match('^[0-9a-f]{40}$')
+          - cowork_source_archive is match('^/')
+          - cowork_units | length > 0
+          - cowork_image_owner is match('^[a-z0-9][a-z0-9-]*$')
+    - name: Require the existing Docker Engine and CLI
+      ansible.builtin.command: docker version
+      changed_when: false
+    - name: Reconcile the reviewed Compose CLI plugin
+      ansible.builtin.include_tasks: tasks/container-tools.yml
+  tasks:
+    - name: Validate explicitly retired monitoring proxies
+      ansible.builtin.assert:
+        that:
+          - cowork_disabled_services | default([]) | difference(['caddy']) | length == 0
+          - not (cowork_disabled_services | default([]) | length) or cowork_firewall_target | default('') == 'monitoring'
+    - name: Read installed services before retiring an optional proxy
+      ansible.builtin.service_facts:
+      when: cowork_disabled_services | default([]) | length > 0
+    - name: Stop and disable the retired public monitoring proxy
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: false
+        state: stopped
+      become: true
+      loop: "{{ cowork_disabled_services | default([]) }}"
+      when: (ansible_facts.services | default({})).get(item ~ '.service', {}).get('status', 'not-found') != 'not-found'
+    - name: Create immutable source directory
+      ansible.builtin.file:
+        path: "{{ cowork_release_directory }}"
+        state: directory
+        mode: '0700'
+    - name: Unpack the reviewed Git archive
+      ansible.builtin.unarchive:
+        src: "{{ cowork_source_archive }}"
+        dest: "{{ cowork_release_directory }}"
+        creates: "{{ cowork_release_directory }}/.source-sha"
+    - name: Record the source identity
+      ansible.builtin.copy:
+        content: "{{ cowork_release_sha }}\n"
+        dest: "{{ cowork_release_directory }}/.source-sha"
+        mode: '0600'
+    - name: Prepare the immutable application bridge network
+      ansible.builtin.include_tasks: tasks/network.yml
+      when: cowork_runtime_network | default(false) | bool
+    - name: Apply host ingress policy from its slot
+      ansible.builtin.include_tasks: tasks/firewall.yml
+      when: cowork_firewall_target is defined or cowork_firewall_policy is defined
+    - name: Apply the dedicated datastore ingress policy
+      ansible.builtin.include_tasks: tasks/datastore-firewall.yml
+      when: cowork_datastore_firewall | default(false) | bool
+    - name: Apply each deployment unit
+      ansible.builtin.include_tasks: tasks/unit.yml
+      loop: "{{ cowork_units }}"
+      loop_control:
+        loop_var: cowork_unit
+        label: "{{ cowork_unit.target }}"

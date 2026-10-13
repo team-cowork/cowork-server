@@ -5,3 +5,21 @@ modules:
     http:
       method: GET
       preferred_ip_protocol: ip4
+  http_public_gateway:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200]
+      follow_redirects: false
+      fail_if_not_ssl: true
+      body_size_limit: 64KB
+      headers:
+        Accept: application/json
+      fail_if_header_not_matches:
+        - header: Content-Type
+          regexp: '^application/json(;.*)?$'
+      # /api/health returns HTTP 200 even when a downstream service is DOWN.
+      # Verify the JSON API identity; internal probes own service readiness.
+      fail_if_body_json_not_matches_cel: "body.status == 'OK' && body.code == 200.0 && type(body.data) == map && size(body.data) > 0"
