@@ -51,7 +51,7 @@ def main():
     demand((directory / "deploy.sh").is_file() and not (directory / "deploy.sh").is_symlink(),
            "Release deployment script must be a regular file")
     demand(action in {"check", "deploy"}, "Invalid deployment action")
-    data = schema["parse_json"](base64.b64decode(sys.stdin.buffer.read(), validate=True))
+    data = schema["parse_json"](base64.b64decode(sys.stdin.buffer.read().strip(), validate=True))
     version = data.pop("vault_version")
     secret_versions = data.pop("secret_versions", {})
     demand(isinstance(secret_versions, dict) and all(isinstance(path, str) and type(value) is int and value > 0
