@@ -15,7 +15,7 @@ defmodule CoworkUser.Storage.ObjectStorage do
   end
 
   def presigned_put_url(object_key, content_type) do
-    config = s3_config(:public)
+    config = s3_config(:signing)
 
     ExAws.S3.presigned_url(
       config,
@@ -29,7 +29,7 @@ defmodule CoworkUser.Storage.ObjectStorage do
   end
 
   def presigned_get_url(object_key) do
-    config = s3_config(:public)
+    config = s3_config(:signing)
 
     ExAws.S3.presigned_url(
       config,
@@ -47,7 +47,7 @@ defmodule CoworkUser.Storage.ObjectStorage do
 
       with {:ok, %{headers: headers}} <-
              ExAws.S3.head_object(config.s3_bucket, object_key)
-             |> ExAws.request(s3_config(:internal)),
+             |> ExAws.request(s3_config()),
            {:ok, metadata} <-
              validate_metadata(headers, config.max_file_size_bytes, config.allowed_content_types),
            final_key =
@@ -59,7 +59,7 @@ defmodule CoworkUser.Storage.ObjectStorage do
                content_type: metadata.content_type,
                cache_control: "private, no-store"
              )
-             |> ExAws.request(s3_config(:internal)) do
+             |> ExAws.request(s3_config()) do
         {:ok, final_key}
       else
         {:error, {:http_error, status, _}} when status in [404, 412] ->
@@ -124,16 +124,16 @@ defmodule CoworkUser.Storage.ObjectStorage do
     end
 
     ExAws.S3.delete_object(AppConfig.load().s3_bucket, object_key)
-    |> ExAws.request(s3_config(:internal))
+    |> ExAws.request(s3_config())
 
     :ok
   end
 
-  defp s3_config(mode) do
+  defp s3_config(mode \\ :internal) do
     config = AppConfig.load()
 
     endpoint =
-      if mode == :public, do: config.s3_public_endpoint, else: config.s3_internal_endpoint
+      if mode == :signing, do: config.public_api_base_url, else: config.s3_internal_endpoint
 
     uri = URI.parse(endpoint)
 
@@ -148,7 +148,13 @@ defmodule CoworkUser.Storage.ObjectStorage do
     }
   end
 
-  defp unwrap({:ok, value}), do: {:ok, value}
+  defp unwrap({:ok, value}) do
+    signed = URI.parse(value)
+    api = String.trim_trailing(AppConfig.load().public_api_base_url, "/")
+    # Gateway restores the signed API Host and removes only /api/storage.
+    {:ok, "#{api}/api/storage#{signed.path}?#{signed.query}"}
+  end
+
   defp unwrap({:error, reason}), do: {:error, {:presigned_url_generation_failed, inspect(reason)}}
 
   defp parse_content_length(value) do

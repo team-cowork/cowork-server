@@ -32,12 +32,10 @@ def origin(name, public=False):
 
 def main():
     origin("S3_INTERNAL_ENDPOINT")
-    public = origin("S3_PUBLIC_ENDPOINT", public=True)
+    origin("PUBLIC_API_BASE_URL", public=True)
     bucket = os.environ["S3_BUCKET"]
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket):
         raise ValueError("S3_BUCKET must be a valid bucket name")
-    if os.environ["S3_PUBLIC_BASE_URL"].rstrip("/") != f"{public}/{bucket}":
-        raise ValueError("S3_PUBLIC_BASE_URL must equal S3_PUBLIC_ENDPOINT/S3_BUCKET")
 
 
 if __name__ == "__main__":
