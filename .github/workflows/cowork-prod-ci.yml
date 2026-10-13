@@ -262,6 +262,7 @@ jobs:
             **PR Verification & Coverage:** ${{ needs.coverage-plan.result }} / ${{ needs.coverage.result }}
 
   coverage-plan:
+    needs: detect-changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
@@ -279,8 +280,11 @@ jobs:
           persist-credentials: false
       - name: Plan both Dockerfile snapshots
         id: plan
+        env:
+          VERIFY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
         run: |
-          matrix=$(python3 deploy/images/ci/run.py plan --base source-base --head . --output "$RUNNER_TEMP/modules.json")
+          matrix=$(python3 deploy/images/ci/run.py plan --base source-base --head . \
+            --matrix "$VERIFY_MATRIX" --output "$RUNNER_TEMP/modules.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
