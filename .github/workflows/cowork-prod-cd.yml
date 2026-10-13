@@ -20,7 +20,7 @@ on:
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, monitoring, vault, datastores, storage, log-agent]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, monitoring, vault, datastores, storage, log-agent, node-agent]
       sha:
         description: Full main commit SHA with an existing image (redeploy only)
         type: string

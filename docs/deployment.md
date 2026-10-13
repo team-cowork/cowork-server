@@ -146,7 +146,7 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 `target=applications`를 함께 지정한다. 선택한 `main` 릴리스 SHA의 inventory에서 Gateway와
 authorization·user·team·channel·project·roadmap·notification·preference·chat·voice의 11개 target을
 가져온다. 각 서비스가 하나씩 있어야 하며, target 중복이나 서비스 스크립트 누락은 거부한다.
-Config·Vault·Datastores·Storage·Monitoring·log-agent는 이 그룹에 포함하지 않는다. 필요한 인프라와
+Config·Vault·Datastores·Storage·Monitoring·log-agent·node-agent는 이 그룹에 포함하지 않는다. 필요한 인프라와
 Config가 먼저 준비되어 있어야 한다.
 
 ```bash
@@ -204,13 +204,16 @@ Channel 배포가 끝난 뒤 시작한다.
 제외한다. 기존 `service=monitoring`, `target=monitoring` 수동 배포 지원은 유지한다. 이관 준비를
 마친 뒤 자동 관리 대상으로 명시적으로 등록한다.
 
-앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`과 node_exporter를 열
-그 VM의 사설 IPv4 `NODE_EXPORTER_BIND_IP`를 준비한다. monitoring 문서의 `runtime.NODE_EXPORTER_TARGETS`에는
-각 VM의 `<사설 IPv4>:9100`을 쉼표로 나열한다. 비워 두면 호스트 지표를 수집하지 않는다.
+앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`을 준비한다.
 Docker data-root가 다르면 `DOCKER_CONTAINER_LOG_DIR`도 지정한다. 해당 target의 Environment를
 등록하고 `service=log-agent`, `target=log-agent-<vm>`으로 수동 배포한다. 자동 배포도 필요하면 inventory에 등록한다.
 Alloy로 전환할 때 기존 Promtail을 중지한다. 읽기 위치 형식이 달라 과거 로그가 재전송될 수 있다.
 서비스별 실제 도착·필드 정규화는 [로그 TODO](./todo/items/43-monitoring/log-collection-contract.md)에서 확인한다.
+
+호스트 디스크를 감시할 VM(앱·DB·Vault·monitoring VM)마다 `deploy/node-agent-<vm>` 문서의
+`runtime.NODE_EXPORTER_BIND_IP`에 그 VM의 사설 IPv4를 준비한다. 해당 target의 Environment를 등록하고
+`service=node-agent`, `target=node-agent-<vm>`으로 수동 배포한다. monitoring 문서의 `runtime.NODE_EXPORTER_TARGETS`에는
+각 VM의 `<사설 IPv4>:9100`을 쉼표로 나열한다. 비워 두면 호스트 지표를 수집하지 않는다.
 
 운영 기록에는 target·VM 배치·실제 주소·적용 SHA·프로파일·Vault 및 참조 버전·readiness·관측 결과를
 남긴다. RPO/RTO·백업·복구 훈련과 용량 목표는 실제 배치를 기준으로 별도 정한다.

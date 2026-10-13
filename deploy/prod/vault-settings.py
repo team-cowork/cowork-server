@@ -163,7 +163,7 @@ def main():
         path = f"deploy/{args.target}"
     else:
         services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent", "node-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
