@@ -30,7 +30,7 @@
 | 변수                       | 기본값                                   | 설명                                |
 |----------------------------|------------------------------------------|-------------------------------------|
 | `SPRING_PROFILES_ACTIVE`   | `local`                                  | 설정 프로파일 (`local` 또는 `prod`) |
-| `SPRING_CONFIG_IMPORT`     | `configserver:http://cowork-config:8761` | 필수 Config Server 연결             |
+| `CONFIG_SERVER_URL`     | `http://cowork-config:8761` | 필수 Config Server 연결             |
 | `COWORK_PROJECT_HOST_PORT` | `8084`                                   | Compose 호스트 공개 포트            |
 
 - Config Server: 포트, MySQL URL, Kafka, Eureka, GitHub App 서비스 URL.
