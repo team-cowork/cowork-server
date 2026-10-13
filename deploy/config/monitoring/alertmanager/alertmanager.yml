@@ -21,5 +21,5 @@ receivers:
           {{ range .Alerts }}
           **Service**: {{ .Labels.service }}
           **Severity**: {{ .Labels.severity }}
-          {{ .Annotations.description }}
+          {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}{{ .Annotations.summary }}{{ end }}
           {{ end }}
