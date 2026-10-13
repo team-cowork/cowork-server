@@ -49,10 +49,11 @@ def main():
     version = data.pop("vault_version")
     # SSH credentials stay on the runner. Validate only the deployment portion again.
     data["ssh"] = {"host": "unused", "port": 22, "user": "unused", "key": "unused", "fingerprint": "SHA256:unused"}
-    schema["validate_deployment"](data)
-    if service in {"vault", "monitoring", "log-agent"}:
+    schema["validate_deployment"](data, target)
+    demand((service == "storage") == (target == "storage"), "The storage target requires the storage service")
+    if service in {"vault", "monitoring", "storage", "log-agent"}:
         demand(not data.get("application"), "Infrastructure units use runtime settings only")
-    if service not in {"vault", "monitoring", "log-agent"}:
+    if service not in {"vault", "monitoring", "storage", "log-agent"}:
         demand(data.get("runtime", {}).get("APP_CONFIG_PROFILE") in {"local", "prod"}, "APP_CONFIG_PROFILE is required in Vault")
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target
