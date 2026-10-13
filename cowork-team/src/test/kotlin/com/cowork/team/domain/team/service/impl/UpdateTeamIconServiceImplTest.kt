@@ -2,8 +2,8 @@ package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.service.S3Service
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.core.spec.style.DescribeSpec
@@ -14,16 +14,16 @@ import io.mockk.verify
 
 class UpdateTeamIconServiceImplTest :
     DescribeSpec({
-        lateinit var s3Service: S3Service
+        lateinit var iconOwnership: TeamIconOwnershipService
         lateinit var accessGuard: TeamAccessGuard
         lateinit var publisher: TeamEventPublisher
         lateinit var service: UpdateTeamIconServiceImpl
 
         beforeEach {
-            s3Service = mockk(relaxed = true)
+            iconOwnership = mockk(relaxed = true)
             accessGuard = mockk()
             publisher = mockk(relaxed = true)
-            service = UpdateTeamIconServiceImpl(s3Service, accessGuard, publisher)
+            service = UpdateTeamIconServiceImpl(iconOwnership, accessGuard, publisher)
         }
 
         describe("UpdateTeamIconServiceImpl 클래스의") {
@@ -46,7 +46,7 @@ class UpdateTeamIconServiceImplTest :
 
                         result.iconUrl shouldBe team.iconUrl
                         verify(exactly = 0) { publisher.publishUpdated(any(), any(), any()) }
-                        verify(exactly = 0) { s3Service.deleteObject(any()) }
+                        verify(exactly = 0) { iconOwnership.replace(any(), any(), any()) }
                     }
                 }
             }
