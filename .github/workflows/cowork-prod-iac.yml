@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       sha:
-        description: Exact source commit already on main
+        description: Exact source commit on the temporary runtime-neutral validation branch
         type: string
         required: true
       check_only:
@@ -16,15 +16,15 @@ on:
         type: boolean
         default: false
       automatic:
-        description: Refuse a superseded main SHA in an automatic production run
+        description: Automatic runs are disabled during temporary branch validation
         type: boolean
         default: false
   workflow_dispatch:
     inputs:
       sha:
-        description: Full main commit SHA, or main for the current head
+        description: Full validation branch SHA, or cicd/runtime-neutral-slots for its current head
         type: string
-        default: main
+        default: cicd/runtime-neutral-slots
       check_only:
         description: Run static validation only; no host or Terraform apply
         type: boolean
@@ -51,37 +51,41 @@ jobs:
     timeout-minutes: 60
     environment: Prod-IaC
     steps:
-      - name: Read main source history
+      # Temporary validation path. Restore main-only operation before merging.
+      - name: Read the temporary validation branch history
         uses: actions/checkout@v7
         with:
-          ref: main
+          ref: cicd/runtime-neutral-slots
           fetch-depth: 0
           persist-credentials: false
       - name: Resolve and validate the exact source commit
         id: release
         env:
-          REQUESTED_SHA: ${{ inputs.sha || 'main' }}
+          REQUESTED_SHA: ${{ inputs.sha || 'cicd/runtime-neutral-slots' }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
           FROM_CD: ${{ inputs.from_cd && 'true' || 'false' }}
           AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
           INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
           CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = refs/heads/main
-          git fetch --no-tags origin main
-          if [ "$REQUESTED_SHA" = main ] && [ "$FROM_CD" = false ]; then
-            release_sha=$(git rev-parse origin/main)
+          test "$GITHUB_REPOSITORY" = team-cowork/cowork-server
+          test "$GITHUB_REF" = refs/heads/cicd/runtime-neutral-slots
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$AUTOMATIC" = false || {
+            echo 'Automatic IaC is disabled during temporary branch validation' >&2
+            exit 1
+          }
+          git fetch --no-tags origin cicd/runtime-neutral-slots
+          if [ "$REQUESTED_SHA" = cicd/runtime-neutral-slots ] && [ "$FROM_CD" = false ]; then
+            release_sha=$(git rev-parse origin/cicd/runtime-neutral-slots)
           else
             [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
             release_sha=$REQUESTED_SHA
           fi
-          git merge-base --is-ancestor "$release_sha" origin/main
-          if [ "$AUTOMATIC" = true ]; then
-            test "$release_sha" = "$(git rev-parse origin/main)" || {
-              echo 'Automatic IaC refused a superseded main commit' >&2
-              exit 1
-            }
-          fi
+          test "$release_sha" = "$GITHUB_SHA"
+          test "$release_sha" = "$WORKFLOW_SHA"
+          git merge-base --is-ancestor "$release_sha" origin/cicd/runtime-neutral-slots
           if [ "$INITIALIZE_STATE" = true ]; then
             test "$GITHUB_EVENT_NAME" = workflow_dispatch
             test "$FROM_CD" = false
