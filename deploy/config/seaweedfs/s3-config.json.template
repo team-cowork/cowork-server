@@ -1,7 +1,7 @@
 {
   "identities": [
     {
-      "name": "cowork",
+      "name": "cowork-storage-admin",
       "credentials": [
         {
           "accessKey": "${S3_ACCESS_KEY}",
@@ -9,9 +9,58 @@
         }
       ],
       "actions": [
-        "Admin",
-        "Read",
-        "Write"
+        "Admin"
+      ]
+    },
+    {
+      "name": "cowork-team",
+      "credentials": [
+        {
+          "accessKey": "${S3_TEAM_ACCESS_KEY}",
+          "secretKey": "${S3_TEAM_SECRET_KEY}"
+        }
+      ],
+      "actions": [
+        "Read:${S3_BUCKET}/team-icons/*",
+        "Write:${S3_BUCKET}/team-icons/*",
+        "Read:${S3_BUCKET}/team-icon-uploads/*",
+        "Write:${S3_BUCKET}/team-icon-uploads/*"
+      ]
+    },
+    {
+      "name": "cowork-user",
+      "credentials": [
+        {
+          "accessKey": "${S3_USER_ACCESS_KEY}",
+          "secretKey": "${S3_USER_SECRET_KEY}"
+        }
+      ],
+      "actions": [
+        "Read:${S3_BUCKET}/profiles/*",
+        "Write:${S3_BUCKET}/profiles/*",
+        "Read:${S3_BUCKET}/profile-uploads/*",
+        "Write:${S3_BUCKET}/profile-uploads/*"
+      ]
+    },
+    {
+      "name": "cowork-chat",
+      "credentials": [
+        {
+          "accessKey": "${S3_CHAT_ACCESS_KEY}",
+          "secretKey": "${S3_CHAT_SECRET_KEY}"
+        }
+      ],
+      "actions": [
+        "Read:${S3_BUCKET}/chat-files/*",
+        "Write:${S3_BUCKET}/chat-files/*",
+        "Read:${S3_BUCKET}/chat-uploads/*",
+        "Write:${S3_BUCKET}/chat-uploads/*"
+      ]
+    },
+    {
+      "name": "anonymous",
+      "actions": [
+        "Read:${S3_BUCKET}/team-icons/*"
       ]
     }
   ]

@@ -1,4 +1,4 @@
-import { type AttachmentDto } from '../../dto';
+import { type ConfirmedAttachment } from '../../../storage/attachment-upload.schema';
 
 /**
  * 채팅 메시지 발행 시 Kafka로 전송되는 이벤트 페이로드.
@@ -13,7 +13,7 @@ import { type AttachmentDto } from '../../dto';
  */
 export type ChatMessageEvent = {
     /** Producer와 consumer가 공유하는 이벤트 계약 버전 */
-    contractVersion: 1;
+    contractVersion: 2;
     /** Kafka 라우팅용 이벤트 종류 식별자 */
     eventType: 'MESSAGE_SENT';
     /** DM 채널 메시지는 팀에 속하지 않으므로 null */
@@ -26,7 +26,7 @@ export type ChatMessageEvent = {
     content: string;
     /** 메시지 렌더링 타입 (예: TEXT, FILE, SYSTEM) */
     type: string;
-    attachments?: AttachmentDto[];
+    attachments?: ConfirmedAttachment[];
     /** 스레드 부모 메시지 ID (MongoDB ObjectId 문자열); 최상위 메시지는 undefined */
     parentMessageId?: string;
     /** 클라이언트 측 멱등성 키; 중복 전송 방지에 사용 */
