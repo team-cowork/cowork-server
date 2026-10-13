@@ -247,8 +247,9 @@ jobs:
     needs: prepare
     # Release tags and deployment images have separate lifecycles. A selected
     # deployment always gets sha-<sha>, even when VERSION did not change.
+    # One source-selection job is intentionally skipped for each trigger.
     if: >
-      !inputs.check_only && needs.prepare.result == 'success' &&
+      !cancelled() && !inputs.check_only && needs.prepare.result == 'success' &&
       needs.prepare.outputs.image-matrix != '{"include":[]}'
     runs-on: ubuntu-latest
     permissions:
