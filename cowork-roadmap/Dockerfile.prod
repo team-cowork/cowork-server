@@ -5,15 +5,12 @@ COPY gradlew gradlew
 COPY gradle gradle
 COPY build-logic build-logic
 COPY settings.gradle.kts build.gradle.kts ./
-COPY cowork-config/build.gradle.kts cowork-config/build.gradle.kts
-COPY cowork-gateway/build.gradle.kts cowork-gateway/build.gradle.kts
-COPY cowork-channel/build.gradle.kts cowork-channel/build.gradle.kts
-COPY cowork-project/build.gradle.kts cowork-project/build.gradle.kts
-COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
-COPY cowork-preference/build.gradle.kts cowork-preference/build.gradle.kts
 COPY cowork-roadmap/build.gradle.kts cowork-roadmap/build.gradle.kts
 COPY cowork-roadmap/config cowork-roadmap/config
 COPY cowork-roadmap/src cowork-roadmap/src
+# This image evaluates only its own module; other slots may use another toolchain.
+RUN sed -i '/^include(/d' settings.gradle.kts \
+    && printf 'include("cowork-roadmap")\n' >> settings.gradle.kts
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     chmod +x gradlew \
     && ./gradlew :cowork-roadmap:bootJar -x test --no-daemon --build-cache \
@@ -24,6 +21,35 @@ RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
 RUN java -Djarmode=tools -jar /workspace/app.jar extract \
     --layers --launcher --destination /workspace/extracted
 
+
+FROM builder AS verification
+RUN apk --no-cache add bash python3 curl
+COPY .editorconfig /workspace/.editorconfig
+COPY deploy/images/ci /ci
+RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
+    ./gradlew :cowork-roadmap:check -x test --no-daemon --build-cache \
+    && bash /ci/run-jvm.sh gradle cowork-roadmap /workspace /coverage \
+        com.cowork.roadmap.domain.assignment.service.CreateRoadmapAssignmentServiceTest \
+        com.cowork.roadmap.domain.assignment.service.DeleteRoadmapAssignmentServiceTest \
+        com.cowork.roadmap.domain.assignment.service.ListRoadmapAssignmentsServiceTest \
+        com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusServiceTest \
+        com.cowork.roadmap.domain.node.service.CreateNodeReferenceServiceTest \
+        com.cowork.roadmap.domain.node.service.CreateRoadmapNodeServiceTest \
+        com.cowork.roadmap.domain.node.service.DeleteNodeReferenceServiceTest \
+        com.cowork.roadmap.domain.node.service.DeleteRoadmapNodeServiceTest \
+        com.cowork.roadmap.domain.node.service.ModifyNodeReferenceServiceTest \
+        com.cowork.roadmap.domain.node.service.ModifyRoadmapNodeServiceTest \
+        com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesServiceTest \
+        com.cowork.roadmap.domain.roadmap.service.CreateRoadmapServiceTest \
+        com.cowork.roadmap.domain.roadmap.service.DeleteRoadmapServiceTest \
+        com.cowork.roadmap.domain.roadmap.service.ModifyRoadmapServiceTest \
+        com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeServiceTest \
+        com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuardTest \
+    && python3 /ci/report.py collect --module cowork-roadmap --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
+
+FROM scratch AS verify
+COPY --from=verification /coverage /
+
 FROM eclipse-temurin:26.0.2_10-jre-alpine-3.24@sha256:2c984601c59ac93f97947ce66d03df25c2e16bed97a28289fbc0ab157087f1b5 AS runtime
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
 WORKDIR /app
@@ -33,6 +59,8 @@ COPY --chown=app:app --from=builder /workspace/extracted/snapshot-dependencies/ 
 COPY --chown=app:app --from=builder /workspace/extracted/application/ ./
 ENV COWORK_LOG_DIR=/var/log/cowork
 RUN mkdir -p /var/log/cowork && chown app:app /var/log/cowork
+COPY --chmod=0755 cowork-roadmap/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
+RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 8088
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]

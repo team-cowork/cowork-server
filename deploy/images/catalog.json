@@ -1,14 +1,50 @@
 {
-  "config": {"build": "gradle", "local": ".", "prod": "."},
-  "gateway": {"build": "gradle", "local": ".", "prod": "."},
-  "authorization": {"build": "go", "local": "cowork-authorization", "prod": "cowork-authorization"},
-  "preference": {"build": "kotlin-toolchain", "local": ".", "prod": "cowork-preference"},
-  "user": {"build": "elixir", "local": ".", "prod": "cowork-user"},
-  "team": {"build": "gradle", "local": ".", "prod": "."},
-  "channel": {"build": "gradle", "local": ".", "prod": "."},
-  "notification": {"build": "go", "local": "cowork-notification", "prod": "cowork-notification"},
-  "chat": {"build": "node", "local": "cowork-chat", "prod": "cowork-chat"},
-  "voice": {"build": "go", "local": "cowork-voice", "prod": "cowork-voice"},
-  "project": {"build": "maven", "local": ".", "prod": "."},
-  "roadmap": {"build": "gradle", "local": ".", "prod": "."}
+  "config": {
+    "local": ".",
+    "prod": "."
+  },
+  "gateway": {
+    "local": ".",
+    "prod": "."
+  },
+  "authorization": {
+    "local": "cowork-authorization",
+    "prod": "."
+  },
+  "preference": {
+    "local": ".",
+    "prod": "."
+  },
+  "user": {
+    "local": ".",
+    "prod": "."
+  },
+  "team": {
+    "local": ".",
+    "prod": "."
+  },
+  "channel": {
+    "local": ".",
+    "prod": "."
+  },
+  "notification": {
+    "local": "cowork-notification",
+    "prod": "."
+  },
+  "chat": {
+    "local": "cowork-chat",
+    "prod": "."
+  },
+  "voice": {
+    "local": "cowork-voice",
+    "prod": "."
+  },
+  "project": {
+    "local": ".",
+    "prod": "."
+  },
+  "roadmap": {
+    "local": ".",
+    "prod": "."
+  }
 }
