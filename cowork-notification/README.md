@@ -1,36 +1,5 @@
 # cowork-notification
 
-## 역할
+푸시 알림과 SSE 알림을 전달한다.
 
-사용자 설정에 맞춰 푸시 알림과 실시간 알림을 전달합니다.
-
-- Kafka 알림 요청 소비와 수신 대상·표시 정보 결정
-- Firebase Cloud Messaging 푸시 발송과 Firebase 설치(FID) 관리
-- SSE 기반 실시간 알림 스트림 제공
-
-## 스택
-
-- Go / Chi
-- Go modules + Makefile
-- GORM / MySQL
-- Kafka / Firebase Admin SDK / Eureka / Config Server
-
-## 포트
-
-| 용도       | 컨테이너 포트 | Compose 기본 호스트 포트 |
-|------------|---------------|--------------------------|
-| HTTP / SSE | `8086`        | `8086`                   |
-
-## 환경변수
-
-아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
-
-| 변수             | 기본값                      | 설명                                                      |
-|------------------|-----------------------------|-----------------------------------------------------------|
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
-| `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
-
-- Config Server: 포트, Kafka topic·group, Eureka.
-- Vault: `db.dsn`, 프로파일별 `fcm.credentials-json`.
-
-Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
+[로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md)
