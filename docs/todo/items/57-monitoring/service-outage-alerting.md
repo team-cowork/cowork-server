@@ -18,14 +18,13 @@ CD는 배포 job의 실패·취소를 집계하고, job이 하나도 실행되�
 
 ## 코드 근거
 
-- [알림 규칙](../../../../deploy/config/monitoring/prometheus/rules/application-alerts.yml): down·5xx·adapter·Kafka lag·DB pool 규칙은 있으나 기대 집합·seal·filesystem 규칙은 없다.
+- [알림 규칙](../../../../deploy/config/monitoring/prometheus/rules/application-alerts.yml): down·5xx·adapter·Kafka lag·DB pool·호스트 filesystem 규칙은 있으나 기대 집합·seal 규칙은 없다.
 - [수집 대상 생성](../../../../deploy/prod/monitoring/render-prometheus.py): 앱 target과 health probe가 Eureka discovery에 의존한다.
 - [CD 결과 집계](../../../../.github/workflows/cowork-prod-cd.yml): `needs.*.result`를 순회하고 전부 `skipped`이면 미실행으로 표시하며 상위 CI 결론을 함께 싣는다.
 
 ## 할 일
 
 - 기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.
-- ~~호스트 디스크 사용량의 수집·알림 경로를 마련한다.~~ (node exporter를 VM마다 도는 별도 node-agent 단위로 배포하고 `NODE_EXPORTER_TARGETS`로 수집 대상에 등록, `coworkHostDiskSpaceLow`·`Critical`·`WillFill`·`HostMetricsMissing` 규칙을 둠)
 - Vault seal·Config 장애의 수집·알림 경로를 마련한다.
 - ~~상위 CI 실패·취소·배포 미실행을 CD 알림에 명시한다.~~ (job이 하나도 실행되지 않으면 `cancelled`와 상위 CI 결론을 표시)
 - 현재 디스크 여유를 측정하고 필요한 정리는 릴리스 보존 작업과 함께 수행한다.
