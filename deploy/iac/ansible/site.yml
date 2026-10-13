@@ -61,7 +61,3 @@
       when: cowork_datastore_firewall | default(false) | bool
     - name: Apply each deployment unit
       ansible.builtin.include_tasks: tasks/unit.yml
-      loop: "{{ cowork_units }}"
-      loop_control:
-        loop_var: cowork_unit
-        label: "{{ cowork_unit.target }}"
