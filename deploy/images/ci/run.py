@@ -14,8 +14,8 @@ def has_contract(source, module):
     return dockerfile.is_file() and re.search(r"^FROM\s+(?:--[^\s]+\s+)*[^\s]+\s+AS\s+verify\s*$", dockerfile.read_text(), re.I | re.M) is not None
 
 
-def plan(base, head, output):
-    modules = sorted({p.parent.name for source in (base, head) for p in source.glob("cowork-*/Dockerfile.prod")})
+def plan(base, head, selection, output):
+    modules = sorted({"cowork-" + entry["service"] for entry in selection["include"]})
     manifest = {"modules": [{"module": name, "metric": "line"} for name in modules], "excluded": []}
     output.write_text(json.dumps(manifest, indent=2) + "\n")
     matrix = {"include": [{"module": name, "snapshot": snapshot, "contract": has_contract(source, name),
@@ -80,6 +80,7 @@ def main():
     planner = commands.add_parser("plan")
     planner.add_argument("--base", type=Path, required=True)
     planner.add_argument("--head", type=Path, required=True)
+    planner.add_argument("--matrix", type=json.loads, required=True)
     planner.add_argument("--output", type=Path, required=True)
     collector = commands.add_parser("collect")
     collector.add_argument("--module", required=True)
@@ -93,7 +94,7 @@ def main():
     renderer.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "plan":
-        plan(args.base, args.head, args.output)
+        plan(args.base, args.head, args.matrix, args.output)
     elif args.command == "collect":
         if re.fullmatch(r"cowork-[a-z][a-z0-9-]*", args.module) is None:
             parser.error("invalid module name")
