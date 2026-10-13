@@ -108,10 +108,8 @@ spring.cloud.aws:
     path-style-access-enabled: ${S3_PATH_STYLE_ACCESS_ENABLED:true}
 
 object-storage:
-  # presigned URL 서명용
-  public-endpoint: ${S3_PUBLIC_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://localhost:9000}}
   bucket: ${S3_BUCKET:cowork-bucket}
-  public-base-url: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
+  public-api-base-url: ${PUBLIC_API_BASE_URL}
   presigned-put-expiry-minutes: 10
   max-file-size-bytes: 1048576
   allowed-content-types:
