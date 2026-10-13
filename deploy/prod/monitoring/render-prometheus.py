@@ -36,6 +36,34 @@ def http_url(name):
 eureka = http_url("EUREKA_SERVER_URL")
 config_server = urlsplit(http_url("CONFIG_SERVER_URL"))
 basic_auth = {"username": os.environ["CONFIG_CLIENT_USERNAME"], "password": os.environ["CONFIG_CLIENT_PASSWORD"]}
+slots_directory = Path(__file__).resolve().parents[1] / "slots"
+application_slots = [
+    slot for path in sorted(slots_directory.glob("*.json"))
+    if (slot := json.loads(path.read_text())).get("kind") == "application"
+]
+if not application_slots:
+    raise ValueError("Monitoring requires declared application slots")
+gateway_slots = [slot for slot in application_slots if slot["service"] == "gateway"]
+if len(gateway_slots) != 1:
+    raise ValueError("Public monitoring requires exactly one Gateway slot")
+public_api_url = gateway_slots[0]["runtime"]["PUBLIC_API_BASE_URL"]
+public_api = urlsplit(public_api_url)
+if (public_api.scheme != "https" or not public_api.hostname or public_api.username is not None
+        or public_api.password is not None or public_api.path not in {"", "/"}
+        or public_api.query or public_api.fragment or "," in public_api_url
+        or any(char.isspace() for char in public_api_url)):
+    raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
+public_health_url = f"https://{public_api.netloc}/api/health"
+probe_targets = []
+for slot in application_slots:
+    container = slot["container"]
+    address = container["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Application monitoring targets must use private IPv4 addresses")
+    probe_targets.append({
+        "targets": [f'http://{address}:{container["host_port"]}{container["readiness"]["path"]}'],
+        "labels": {"service": slot["service"]},
+    })
 service_labels = [
     {"source_labels": ["__meta_eureka_app_name"], "target_label": "service", "regex": "COWORK-(.*)", "replacement": "${1}"},
     {"source_labels": ["service"], "target_label": "service", "action": "lowercase"},
@@ -62,13 +90,24 @@ scrape_configs = [
         "job_name": "blackbox",
         "metrics_path": "/probe",
         "params": {"module": ["http_2xx"]},
-        "eureka_sd_configs": [{"server": eureka, "refresh_interval": "30s", "basic_auth": basic_auth, "follow_redirects": False}],
+        "static_configs": probe_targets,
         "relabel_configs": [
-            {"source_labels": ["__meta_eureka_app_instance_healthcheck_url"], "regex": "https?://.+", "action": "keep"},
-            {"source_labels": ["__meta_eureka_app_instance_healthcheck_url"], "target_label": "__param_target"},
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
             {"source_labels": ["__param_target"], "target_label": "instance"},
             {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
-            *service_labels,
+        ],
+    },
+    {
+        # This existing public JSON API checks DNS, TLS, the public proxy and
+        # Gateway routing. Downstream readiness remains a separate signal.
+        "job_name": "public-gateway",
+        "metrics_path": "/probe",
+        "params": {"module": ["http_public_gateway"]},
+        "static_configs": [{"targets": [public_health_url], "labels": {"service": "gateway"}}],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
         ],
     },
     {
@@ -82,12 +121,35 @@ scrape_configs = [
             ]
         ],
     },
+    {
+        "job_name": "monitoring",
+        "static_configs": [
+            {"targets": [target], "labels": {"service": service}}
+            for service, target in [
+                ("prometheus", "prometheus:9090"), ("alertmanager", "alertmanager:9093"),
+                ("loki", "loki:3100"), ("blackbox", "blackbox_exporter:9115"),
+            ]
+        ],
+    },
 ]
 config = {
     "global": {"scrape_interval": "15s", "evaluation_interval": "15s", "external_labels": {"project": "cowork"}},
-    "rule_files": ["/etc/prometheus/rules/*.yml"],
+    "rule_files": ["/etc/prometheus/rules/*.yml", "/etc/prometheus/rules/*.json"],
     "alerting": {"alertmanagers": [{"static_configs": [{"targets": ["alertmanager:9093"]}]}]},
     "scrape_configs": scrape_configs,
 }
 # JSON is a YAML subset accepted by Prometheus. Escape all operator-supplied addresses.
 Path(sys.argv[1]).write_text(json.dumps(config, indent=2) + "\n")
+expected_rules = {
+    "groups": [{"name": "cowork-expected-services", "rules": [
+        {
+            "alert": "coworkServiceMissing",
+            "expr": f'absent(up{{job="cowork-services",service="{slot["service"]}"}})',
+            "for": "3m",
+            "labels": {"severity": "critical", "service": slot["service"]},
+            "annotations": {"summary": "Declared service is missing from authenticated discovery"},
+        }
+        for slot in application_slots
+    ]}]
+}
+Path(sys.argv[1] + ".rules.json").write_text(json.dumps(expected_rules, indent=2) + "\n")

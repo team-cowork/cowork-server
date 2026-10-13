@@ -170,16 +170,21 @@ def existing_container_bindings():
     ))
     if existing["name"] != "/cowork-config":
         raise ValueError("Existing Config container changed during preparation")
-    published = (existing["bindings"] or {}).get("8761/tcp")
-    if not isinstance(published, list) or not published:
+    ports = existing["bindings"] or {}
+    if not isinstance(ports, dict) or not ports:
         raise ValueError("Existing Config container requires an explicit private published port")
     bindings = []
-    for binding in published:
-        # HostConfig retains stopped-container ports; rollback may restart it.
-        # Empty/wildcard/IPv6 addresses cannot be protected by this IPv4 policy.
-        address = str(ipaddress.IPv4Address(binding["HostIp"]))
-        private_network(address)
-        bindings.append({"address": address, "port": int(binding["HostPort"])})
+    for container_port, published in ports.items():
+        if not container_port.endswith("/tcp") or not isinstance(published, list) or not published:
+            raise ValueError("Existing Config container must publish explicit TCP bindings")
+        if not 1 <= int(container_port.removesuffix("/tcp")) <= 65535:
+            raise ValueError("Invalid existing Config container port")
+        for binding in published:
+            # The old image may use a different internal port. Protect every
+            # actual published binding until its container has been retired.
+            address = str(ipaddress.IPv4Address(binding["HostIp"]))
+            private_network(address)
+            bindings.append({"address": address, "port": int(binding["HostPort"])})
     return bindings
 
 

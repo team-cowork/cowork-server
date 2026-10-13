@@ -1,0 +1,170 @@
+name: cowork prod IaC Workflow
+
+on:
+  workflow_call:
+    inputs:
+      sha:
+        description: Exact source commit already on main
+        type: string
+        required: true
+      check_only:
+        description: Static validation without reading credentials or applying infrastructure
+        type: boolean
+        default: false
+      from_cd:
+        description: Parent production CD already holds the production concurrency group
+        type: boolean
+        default: false
+      automatic:
+        description: Refuse a superseded main SHA in an automatic production run
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full main commit SHA, or main for the current head
+        type: string
+        default: main
+      check_only:
+        description: Run static validation only; no host or Terraform apply
+        type: boolean
+        default: true
+      initialize_state:
+        description: Explicitly create the first encrypted Terraform state
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  deployments: write
+  packages: read
+  id-token: write
+
+# A called workflow must not wait for the production lock held by its caller.
+concurrency:
+  group: ${{ inputs.from_cd && format('cowork-iac-parent-{0}', github.run_id) || 'cowork-production' }}
+  cancel-in-progress: false
+
+jobs:
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: Prod-IaC
+    steps:
+      - name: Read main source history
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve and validate the exact source commit
+        id: release
+        env:
+          REQUESTED_SHA: ${{ inputs.sha || 'main' }}
+          FROM_CD: ${{ inputs.from_cd && 'true' || 'false' }}
+          AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/main
+          git fetch --no-tags origin main
+          if [ "$REQUESTED_SHA" = main ] && [ "$FROM_CD" = false ]; then
+            release_sha=$(git rev-parse origin/main)
+          else
+            [[ "$REQUESTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+            release_sha=$REQUESTED_SHA
+          fi
+          git merge-base --is-ancestor "$release_sha" origin/main
+          if [ "$AUTOMATIC" = true ]; then
+            test "$release_sha" = "$(git rev-parse origin/main)" || {
+              echo 'Automatic IaC refused a superseded main commit' >&2
+              exit 1
+            }
+          fi
+          if [ "$INITIALIZE_STATE" = true ]; then
+            test "$GITHUB_EVENT_NAME" = workflow_dispatch
+            test "$FROM_CD" = false
+            test "$AUTOMATIC" = false
+            test "$CHECK_ONLY" = false
+          fi
+          git checkout --detach "$release_sha"
+          test "$(git rev-parse HEAD)" = "$release_sha"
+          echo "sha=$release_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.14.0'
+          terraform_wrapper: false
+      - name: Install pinned IaC tools
+        run: python -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
+      - name: Validate or apply infrastructure
+        id: apply
+        env:
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
+          FROM_CD: ${{ inputs.from_cd && 'true' || 'false' }}
+          AUTOMATIC: ${{ inputs.automatic && 'true' || 'false' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          options=(--sha "$RELEASE_SHA"
+            --work-directory "$RUNNER_TEMP/cowork-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            --recovery-file "$RUNNER_TEMP/cowork-iac-recovery/grafana.tfstate.aesgcm")
+          [ "$CHECK_ONLY" != true ] || options+=(--check-only)
+          [ "$FROM_CD" != true ] || options+=(--from-cd)
+          [ "$AUTOMATIC" != true ] || options+=(--automatic)
+          [ "$INITIALIZE_STATE" != true ] || options+=(--initialize-state)
+          python deploy/iac/run.py "${options[@]}"
+      - name: Preserve encrypted state if persistence failed
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v7
+        with:
+          name: cowork-iac-encrypted-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cowork-iac-recovery/grafana.tfstate.aesgcm
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Remove any remaining plaintext inputs
+        if: always()
+        env:
+          PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-iac-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PYTHON'
+          import os, shutil
+          from pathlib import Path
+          directory = Path(os.environ['PRIVATE_DIRECTORY'])
+          parent = Path(os.environ['RUNNER_TEMP']).resolve()
+          if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith('cowork-iac-'):
+              raise SystemExit('Invalid IaC cleanup path')
+          if directory.exists():
+              shutil.rmtree(directory)
+          PYTHON
+      - name: Summarize the scope actually executed
+        if: success()
+        env:
+          IAC_RESULT: ${{ steps.apply.outputs.result }}
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          case "$IAC_RESULT" in
+            checked)
+              echo "Static IaC validation passed at $RELEASE_SHA. No Vault read, SSH connection, Terraform plan or infrastructure apply was performed." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            skipped)
+              echo "Automatic IaC apply skipped at $RELEASE_SHA. Infrastructure sources have not changed since the last successful apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            applied)
+              echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo 'Infrastructure execution did not report a result' >&2
+              exit 1
+              ;;
+          esac

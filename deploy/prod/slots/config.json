@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "service": "config",
+  "kind": "config",
+  "runtime": {
+    "APP_CONFIG_PROFILE": "prod",
+    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "LIVEKIT_URL": "http://10.0.0.93:7880",
+    "LIVEKIT_WS_URL": "wss://chcowork.https.gsmsv.site/livekit/",
+    "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
+    "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118",
+    "S3_BUCKET": "cowork-bucket",
+    "S3_INTERNAL_ENDPOINT": "http://10.0.0.93:9000",
+    "S3_REGION": "us-east-1",
+    "VAULT_APP_ROLE_PATH": "approle",
+    "VAULT_BACKEND": "secret",
+    "VAULT_EXTERNAL_HOST": "vault.https.gsmsv.site",
+    "VAULT_PORT": "443"
+  },
+  "secrets": {
+    "runtime": {
+      "CONFIG_SERVER_ACCOUNTS_JSON": {
+        "key": "CONFIG_SERVER_ACCOUNTS_JSON",
+        "path": "control-plane/prod/server"
+      },
+      "VAULT_ROLE_ID": {
+        "key": "VAULT_ROLE_ID",
+        "path": "control-plane/prod/config-vault"
+      },
+      "VAULT_SECRET_ID": {
+        "key": "VAULT_SECRET_ID",
+        "path": "control-plane/prod/config-vault"
+      }
+    }
+  },
+  "container": {
+    "port": 8761,
+    "host_port": 8761,
+    "bind_address": "10.0.0.169",
+    "advertise_address": "10.0.0.169",
+    "readiness": {
+      "path": "/actuator/health",
+      "timeout_seconds": 420
+    },
+    "metrics_path": "/actuator/prometheus",
+    "limits": {
+      "memory": "2048m",
+      "cpus": 2,
+      "pids": 512
+    },
+    "stop_timeout_seconds": 30,
+    "mounts": []
+  },
+  "peers": [
+    "10.0.0.127/32",
+    "10.0.0.131/32",
+    "10.0.0.132/32",
+    "10.0.0.137/32",
+    "10.0.0.140/32",
+    "10.0.0.144/32",
+    "10.0.0.169/32",
+    "10.0.0.74/32",
+    "10.0.0.88/32",
+    "10.0.0.89/32",
+    "10.0.0.90/32",
+    "10.0.0.93/32",
+    "10.0.0.97/32",
+    "10.0.0.98/32"
+  ]
+}

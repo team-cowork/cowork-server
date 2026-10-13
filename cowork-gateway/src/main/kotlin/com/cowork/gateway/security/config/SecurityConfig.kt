@@ -89,8 +89,6 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.PUT, "/api/storage/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/api/health").permitAll()
-                    // TODO(temporary health dashboard): Remove this matcher with the temporary /health dashboard.
-                    .pathMatchers(HttpMethod.GET, "/health", "/health/**").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
