@@ -19,6 +19,10 @@ preference:
     team-member-topic: ${KAFKA_TOPIC_TEAM_MEMBER_EVENT:team.member.event}
     channel-lifecycle-consumer-group-id: ${KAFKA_GROUP_ID_CHANNEL_LIFECYCLE_PROJECTION:cowork-preference-channel-lifecycle-projection}
     channel-topic: ${KAFKA_TOPIC_CHANNEL_EVENT:channel.event.v2}
+    project-lifecycle-consumer-group-id: ${KAFKA_GROUP_ID_PROJECT_LIFECYCLE_PROJECTION:cowork-preference-project-lifecycle-projection}
+    project-topic: ${KAFKA_TOPIC_PROJECT_EVENT:project.event.v2}
+    channel-member-consumer-group-id: ${KAFKA_GROUP_ID_CHANNEL_MEMBER_PROJECTION:cowork-preference-channel-member-projection}
+    channel-member-topic: ${KAFKA_TOPIC_CHANNEL_MEMBER_EVENT:channel.member.event.v2}
     team-role-command-consumer-group-id: ${KAFKA_GROUP_ID_TEAM_ROLE_COMMAND:cowork-preference-team-role-command}
     github-repo-setting-command-consumer-group-id: ${KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND:cowork-preference-github-repo-setting-command}
     channel-role-policy-command-consumer-group-id: ${KAFKA_GROUP_ID_CHANNEL_ROLE_POLICY_COMMAND:cowork-preference-channel-role-policy-command}

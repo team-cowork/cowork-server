@@ -16,8 +16,8 @@
 | 토픽                      | 소유자  | 소비자                    | 데이터 key             | 보존·복구                          |
 |---------------------------|---------|---------------------------|------------------------|------------------------------------|
 | `channel.event.v2`        | channel | project, chat, preference | `<channelId>`          | `compact`, 현재·삭제 상태 snapshot |
-| `channel.member.event.v2` | channel | chat, voice               | `<channelId>:<userId>` | `compact`, 현재·삭제 상태 snapshot |
-| `project.event.v2`        | project | channel, chat             | `<projectId>`          | `compact`, 현재·삭제 상태 snapshot |
+| `channel.member.event.v2` | channel | chat, voice, preference   | `<channelId>:<userId>` | `compact`, 현재·삭제 상태 snapshot |
+| `project.event.v2`        | project | channel, chat, preference | `<projectId>`          | `compact`, 현재·삭제 상태 snapshot |
 | `project.member.event.v2` | project | chat                      | `<projectId>:<userId>` | `compact`, 현재·삭제 상태 snapshot |
 
 ID는 선행 0 없는 양의 정수 UTF-8 십진 문자열이다. 완료 marker는 예약 key로 각 partition에 발행한다.
