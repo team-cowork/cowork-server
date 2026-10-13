@@ -25,7 +25,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as mime from 'mime-types';
 import { AttachmentUploadRepository } from './attachment-upload.repository';
 import { AttachmentUpload, ConfirmedAttachment } from './attachment-upload.schema';
-import { S3_CLIENT, S3_PUBLIC_CLIENT } from './object-storage.constants';
+import { S3_CLIENT, S3_SIGNING_CLIENT } from './object-storage.constants';
 import { buildObjectStorageConfig, ObjectStorageConfig } from './object-storage.config';
 
 export type PresignedUpload = {
@@ -50,7 +50,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     constructor(
         @Inject(S3_CLIENT) private readonly s3Client: S3Client,
         configService: ConfigService,
-        @Inject(S3_PUBLIC_CLIENT) private readonly publicS3Client: S3Client,
+        @Inject(S3_SIGNING_CLIENT) private readonly signingClient: S3Client,
         private readonly uploads: AttachmentUploadRepository,
     ) {
         this.config = buildObjectStorageConfig(configService);
@@ -99,14 +99,14 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
             name: parameters.filename, mimeType: parameters.contentType, declaredSize: parameters.size,
         });
         const uploadUrl = await getSignedUrl(
-            this.publicS3Client,
+            this.signingClient,
             new PutObjectCommand({ Bucket: this.config.bucket, Key: objectKey, ContentType: parameters.contentType }),
             { expiresIn: this.config.presignedPutExpirySeconds, signableHeaders: new Set(['content-type']) },
         );
 
         return {
             objectKey,
-            uploadUrl,
+            uploadUrl: this.relayUrl(uploadUrl),
             expiresInSeconds: this.config.presignedPutExpirySeconds,
         };
     }
@@ -208,12 +208,18 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         this.validateOwnedKey(objectKey, channelId, authorId);
         const signingDate = new Date();
         const expiresInSeconds = 60;
-        const downloadUrl = await getSignedUrl(this.publicS3Client, new GetObjectCommand({
+        const downloadUrl = await getSignedUrl(this.signingClient, new GetObjectCommand({
             Bucket: this.config.bucket,
             Key: objectKey,
             ResponseCacheControl: 'private, no-store',
         }), { expiresIn: expiresInSeconds, signingDate });
-        return { downloadUrl, expiresInSeconds, expiresAt: new Date(signingDate.getTime() + (expiresInSeconds * 1000)).toISOString() };
+        return { downloadUrl: this.relayUrl(downloadUrl), expiresInSeconds, expiresAt: new Date(signingDate.getTime() + (expiresInSeconds * 1000)).toISOString() };
+    }
+
+    private relayUrl(signedUrl: string): string {
+        const signed = new URL(signedUrl);
+        // Gateway restores the signed API Host and removes only /api/storage.
+        return `${this.config.publicApiBaseUrl}/api/storage${signed.pathname}${signed.search}`;
     }
 
     async removeObject(objectKey: string): Promise<void> {

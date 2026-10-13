@@ -17,8 +17,7 @@ const mockedGetSignedUrl = jest.mocked(getSignedUrl);
 const configService = (overrides: Record<string, string> = {}): ConfigService => ({
     get: jest.fn((key: string) => ({
         'object-storage.endpoint': 'https://storage.internal:9000',
-        'object-storage.publicEndpoint': 'https://storage.example.com',
-        'object-storage.publicBaseUrl': 'https://cdn.example.com/chat',
+        PUBLIC_API_BASE_URL: 'https://api.example.com',
         'object-storage.accessKey': 'unit-test-access',
         'object-storage.secretKey': 'unit-test-secret',
         'object-storage.bucket': 'cowork-chat',
@@ -96,7 +95,7 @@ describe('ObjectStorageService', () => {
 
             expect(() => {
                 service.assertOwnedAttachmentUrl(
-                    'https://cdn.example.com/chat/chat-files/1/42/file.png',
+                    'https://api.example.com/api/storage/cowork-chat/chat-files/1/42/file.png',
                     1,
                     42,
                 );
@@ -108,7 +107,7 @@ describe('ObjectStorageService', () => {
 
             expect(() => {
                 service.assertOwnedAttachmentUrl(
-                    'https://cdn.example.com/chat/chat-files/2/99/file.png',
+                    'https://api.example.com/api/storage/cowork-chat/chat-files/2/99/file.png',
                     1,
                     42,
                 );
@@ -137,7 +136,7 @@ describe('ObjectStorageService', () => {
         ])('소유자 prefix 안에서도 잘못된 key %s를 거부한다', objectKey => {
             const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
             expect(() => {
-                service.assertOwnedAttachmentUrl(`https://cdn.example.com/chat/${objectKey}`, 1, 42);
+                service.assertOwnedAttachmentUrl(`https://api.example.com/api/storage/cowork-chat/${objectKey}`, 1, 42);
             })
                 .toThrow(BadRequestException);
         });

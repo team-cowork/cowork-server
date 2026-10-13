@@ -4,14 +4,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { S3Client } from '@aws-sdk/client-s3';
 import { AttachmentUploadRepository } from './attachment-upload.repository';
 import { AttachmentUpload, AttachmentUploadSchema } from './attachment-upload.schema';
-import { S3_CLIENT, S3_PUBLIC_CLIENT } from './object-storage.constants';
+import { S3_CLIENT, S3_SIGNING_CLIENT } from './object-storage.constants';
 import { buildObjectStorageConfig } from './object-storage.config';
 import { ObjectStorageService } from './object-storage.service';
 
-function createClient(configService: ConfigService, publicEndpoint: boolean): S3Client {
+function createClient(configService: ConfigService, signing = false): S3Client {
     const config = buildObjectStorageConfig(configService);
     return new S3Client({
-        endpoint: publicEndpoint ? config.publicEndpoint : config.internalEndpoint,
+        endpoint: signing ? config.publicApiBaseUrl : config.internalEndpoint,
         region: config.region,
         credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
         forcePathStyle: true,
@@ -26,10 +26,10 @@ function createClient(configService: ConfigService, publicEndpoint: boolean): S3
         {
             provide: S3_CLIENT,
             inject: [ConfigService],
-            useFactory: (configService: ConfigService) => createClient(configService, false),
+            useFactory: (configService: ConfigService) => createClient(configService),
         },
         {
-            provide: S3_PUBLIC_CLIENT,
+            provide: S3_SIGNING_CLIENT,
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => createClient(configService, true),
         },
