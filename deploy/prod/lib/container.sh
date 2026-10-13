@@ -3,6 +3,7 @@
 # A service may override these hooks for host state that must follow its container.
 before_container_cutover() { :; }
 rollback_container_cutover() { :; }
+finalize_container_cutover() { :; }
 
 wait_for_health() {
   # Snapshot republication alone can take 300s; allow a VM-specific readiness budget.
@@ -26,7 +27,7 @@ deploy_container_safely() (
   shift 5
   if [ "${1:-}" = -- ]; then shift; fi
   local candidate="${container}-candidate" previous="${container}-previous"
-  local old_exists=false old_was_healthy=false swapping=false complete=false candidate_id old_id
+  local old_exists=false old_was_healthy=false swapping=false candidate_ready=false complete=false candidate_id old_id
   local previous_health_base capture_pid startup_log
   local log_dir="${DEPLOY_STATE_DIR:-${HOME}/.local/state/cowork}/logs"
   local health_host="$BIND_IP"
@@ -59,6 +60,12 @@ deploy_container_safely() (
       wait "$capture_pid" 2>/dev/null || true
     fi
     if [ "$complete" = false ]; then
+      if [ "$candidate_ready" = true ]; then
+        # Cleanup may already have removed the old container. Keep the healthy
+        # candidate and cutover policy; report failure instead of false success.
+        echo '[deploy] Candidate is healthy, but cutover finalization failed; retained state needs operator attention' >&2
+        exit 1
+      fi
       if [ -n "${candidate_id:-}" ]; then
         # 후보 로그는 CI 로그에 노출될 수 있는 비밀을 포함할 수 있어 VM 파일로만 보존한다.
         failure_log="${log_dir}/${container}-last-failure.log"
@@ -124,9 +131,11 @@ deploy_container_safely() (
     echo "[deploy] ${container} failed readiness; restoring previous container" >&2
     exit 1
   fi
-  complete=true
+  candidate_ready=true
   # Only retire the old container after the new instance passes readiness.
   if [ "$old_exists" = true ]; then docker rm "$old_id" >/dev/null; fi
+  finalize_container_cutover
+  complete=true
   echo "[deploy] ${container} healthy on ${BIND_IP}:${host_port}"
 )
 
