@@ -1,7 +1,7 @@
 ARG ELIXIR_IMAGE=hexpm/elixir:1.20.4-erlang-29.1-debian-trixie-20260824-slim@sha256:871867d46185c7be1c74fe69c1d3e90aca5779f0d9393f4fe0399cf48f5df181
 
 FROM ${ELIXIR_IMAGE} AS builder
-WORKDIR /app
+WORKDIR /workspace/cowork-user
 ENV MIX_ENV=prod
 RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
@@ -10,15 +10,38 @@ RUN apt-get update \
     && mix local.rebar --force
 ENV ERL_FLAGS="+S 1:1 +JMsingle true"
 
-COPY mix.exs mix.lock ./
-COPY config config
+COPY cowork-user/mix.exs cowork-user/mix.lock ./
+COPY cowork-user/config config
 RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
     mix deps.get --only prod \
     && mix deps.compile
-COPY lib lib
-COPY priv priv
+COPY cowork-user/lib lib
+COPY cowork-user/priv priv
 RUN mix compile \
     && mix release
+
+
+FROM builder AS verification
+RUN apt-get update && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY cowork-user/test test
+COPY deploy/images/ci /ci
+ENV MIX_ENV=test
+RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
+    SECRET_KEY_BASE=ci-test-secret-key-base-ci-test-secret-key-base-ci-test-secret-key-base \
+    DB_HOST=localhost DB_PORT=3306 DB_NAME=cowork_test DB_USERNAME=cowork DB_PASSWORD=cowork \
+    bash /ci/run-native.sh elixir cowork-user /workspace /coverage \
+        test/cowork_user/accounts_csv_parsing_test.exs \
+        test/cowork_user/accounts_presence_policy_test.exs \
+        test/cowork_user/accounts_profile_patch_policy_test.exs \
+        test/cowork_user/accounts_search_policy_test.exs \
+        test/cowork_user/accounts_student_event_policy_test.exs \
+        test/cowork_user/accounts_student_event_validation_test.exs \
+        test/cowork_user/object_storage_policy_test.exs \
+    && python3 /ci/report.py collect --module cowork-user --snapshot pr --format counts --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
+
+FROM scratch AS verify
+COPY --from=verification /coverage /
 
 FROM debian:trixie-20260824-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS runtime
 WORKDIR /app
@@ -30,9 +53,13 @@ RUN apt-get update \
     && mkdir -p /var/log/cowork/user \
     && chown -R app:app /var/log/cowork
 
-COPY --chown=app:app --from=builder /app/_build/prod/rel/cowork_user ./
+COPY --chown=app:app --from=builder /workspace/cowork-user/_build/prod/rel/cowork_user ./
 ENV ELIXIR_ERL_OPTIONS="+fnu"
 RUN chown app:app /app
+COPY --chmod=0755 cowork-user/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
+RUN test -x /app/bin/cowork_user \
+    && test -n "$(find /app/lib -path '*/priv/db/migration/V*__*.sql' -print -quit)"
+RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 8082
-ENTRYPOINT ["/app/bin/cowork_user", "start"]
+ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "/app/bin/cowork_user", "start"]
