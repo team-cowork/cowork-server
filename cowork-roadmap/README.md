@@ -28,7 +28,7 @@
 | 변수                     | 기본값                                   | 설명                                |
 |--------------------------|------------------------------------------|-------------------------------------|
 | `SPRING_PROFILES_ACTIVE` | `local`                                  | 설정 프로파일 (`local` 또는 `prod`) |
-| `SPRING_CONFIG_IMPORT`   | `configserver:http://cowork-config:8761` | 필수 Config Server 연결             |
+| `CONFIG_SERVER_URL`   | `http://cowork-config:8761` | 필수 Config Server 연결             |
 
 - Config Server: 포트, R2DBC·Flyway URL, Kafka topic·group, Eureka.
 - Vault: MySQL 계정.

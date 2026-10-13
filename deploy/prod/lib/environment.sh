@@ -38,7 +38,8 @@ spring_environment() {
   control_plane_environment
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL KAFKA_BOOTSTRAP_SERVERS
   add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
-  add_env SPRING_CONFIG_IMPORT "configserver:${CONFIG_SERVER_URL}"
+  # Keep the import beside the application name and credentials in application.yml.
+  # An external import is resolved before those classpath properties are available.
   add_env CONFIG_SERVER_URL "$CONFIG_SERVER_URL"
   add_env EUREKA_SERVER_URL "$EUREKA_SERVER_URL"
   add_env KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS"
