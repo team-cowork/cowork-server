@@ -254,7 +254,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-          PROD_CD_AUTO_EXCLUDE_TARGETS: ${{ vars.PROD_CD_AUTO_EXCLUDE_TARGETS }}
         run: python3 .deployment-tools/deploy/prod/build-matrix.py
 
   deployment-plan:
