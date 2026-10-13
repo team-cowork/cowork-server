@@ -3,6 +3,8 @@ package com.cowork.roadmap.domain.assignment.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.Nested;
@@ -51,6 +53,29 @@ class CreateRoadmapAssignmentServiceTest {
                     .expectErrorMatches(error -> error instanceof ExpectedException expected
                             && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
                     .verify();
+        }
+
+        @Test
+        void globalRoadmap_rejectsEveryTeamAndProjectAssignmentIncludingAdminAndWholeRoadmap() {
+            Roadmap roadmap = Roadmap.builder().id(1L).scope(RoadmapScope.GLOBAL.name()).build();
+            when(roadmapRepository.findByIdForUpdate(1L)).thenReturn(Mono.just(roadmap));
+            when(accessGuard.requireReadable(any(), any(), any())).thenReturn(Mono.empty());
+            when(accessGuard.requireTeamManagerOrAdmin(any(), any(), any())).thenReturn(Mono.empty());
+            when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.just(node(99L, 1L)));
+            when(assignmentRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+
+            for (String role : new String[]{"ADMIN", "MEMBER"}) {
+                for (RoadmapScope scope : new RoadmapScope[]{RoadmapScope.TEAM, RoadmapScope.PROJECT}) {
+                    for (Long nodeId : new Long[]{null, 99L}) {
+                        StepVerifier.create(createRoadmapAssignmentService
+                                .execute(1L, role, request(scope, scope == RoadmapScope.PROJECT ? 9L : null, nodeId)))
+                                .expectErrorMatches(error -> error instanceof ExpectedException expected
+                                        && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
+                                .verify();
+                    }
+                }
+            }
+            verify(assignmentRepository, never()).save(any());
         }
 
         @Test
