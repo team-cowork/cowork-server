@@ -119,6 +119,10 @@ services:
         chat.message.v2
         github.issue.create
         github.issue.result
+        github.pr.approve
+        github.pr.approve.result
+        github.pr.merge
+        github.pr.merge.result
         github.repo.event
         team.github.connected
         team.github.disconnected
