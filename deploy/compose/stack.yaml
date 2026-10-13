@@ -328,6 +328,39 @@ services:
       - ./deploy/config/seaweedfs:/storage-config:ro
     entrypoint: ["/bin/sh", "/storage-config/configure-bucket.sh"]
 
+  seaweedfs-admin:
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    container_name: cowork-seaweedfs-admin
+    restart: unless-stopped
+    # Share loopback with the storage process; the admin API has no external listener.
+    network_mode: "service:seaweedfs"
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    command: ["admin", "-master=localhost:9333", "-ip=127.0.0.1", "-dataDir=/data"]
+    volumes:
+      - seaweedfs_admin_data:/data
+
+  seaweedfs-lifecycle:
+    image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
+    container_name: cowork-seaweedfs-lifecycle
+    restart: unless-stopped
+    network_mode: "service:seaweedfs"
+    depends_on:
+      seaweedfs-admin:
+        condition: service_started
+      seaweedfs-init:
+        condition: service_completed_successfully
+    command: ["worker", "-admin=localhost:23646", "-jobType=s3_lifecycle", "-workingDir=/data", "-metricsPort=9327", "-metricsIp=127.0.0.1"]
+    volumes:
+      - seaweedfs_lifecycle_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:9327/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   elasticsearch:
     build:
       context: ./deploy/images/elasticsearch
@@ -997,6 +1030,8 @@ volumes:
   kafka_data:
   redis_data:
   seaweedfs_data:
+  seaweedfs_admin_data:
+  seaweedfs_lifecycle_data:
   es_data:
   prometheus_data:
   grafana_data:
