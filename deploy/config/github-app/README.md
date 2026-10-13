@@ -92,8 +92,12 @@ URL은 `https://cowork-github-app.https.gsmsv.site/github/webhooks`이고 SSL �
 `NexTach`, `Be-Mentoring`, `Idea-Festival-project` 설치는 현재 로그인 계정으로 관리 화면에 접근할 수 없었다.
 조회한 이 세 설치에는 Contents 권한과 이벤트 구독이 아직 반영되지 않았다. 각 조직 관리자의 승인이 필요하다.
 
-설정 저장과 서명 검증 성공은 별개다. 활성화 직후 GitHub ping은 서명 헤더 없이 도착해 HTTP `401`로
-거부됐다. GitHub Secret 입력과 실제 서명된 delivery 성공을 확인하기 전에는 webhook 복구 완료로 판단하지 않는다.
+활성화 직후 서명 헤더가 없던 요청은 HTTP `401`로 거부됐다. 이 과거 기록만으로 현재 Secret 저장
+상태를 판단하지 않는다. 2026-10-13 20:24:51과 20:24:53 KST에 GitHub가 보낸 `push`와
+`pull_request.synchronize`는 `X-Hub-Signature-256`을 포함했고 모두 HTTP `200`을 받았다.
+실행 중 App과 private runtime 파일의 Secret이 준비한 값과 일치함을 값 노출 없이 확인했다.
+이는 현재 서명 검증과 webhook 수신의 성공을 확인한 결과다. 중지된 업무 서비스의 Kafka 소비나
+전체 업무 처리 완료까지 검증한 결과는 아니다.
 
 참고: [GitHub 이벤트와 권한](https://docs.github.com/en/webhooks/webhook-events-and-payloads),
 [Nginx 주소 접근 제어](https://nginx.org/en/docs/http/ngx_http_access_module.html),
