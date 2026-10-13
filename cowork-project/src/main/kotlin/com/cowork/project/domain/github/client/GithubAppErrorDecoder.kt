@@ -25,7 +25,7 @@ class GithubAppErrorDecoder(private val objectMapper: ObjectMapper) : ErrorDecod
 
     private fun extractMessage(response: Response): String = runCatching {
         response.body()?.asInputStream()?.use { stream ->
-            objectMapper.readTree(stream).get("message")?.asText()
+            objectMapper.readTree(stream).get("message")?.asString()
         }
     }
         .onFailure { logger.warn("Failed to parse cowork-github-app error response body", it) }
