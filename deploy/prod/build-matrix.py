@@ -50,12 +50,22 @@ def main():
     if not SHA.fullmatch(sha) or subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() != sha:
         raise ValueError("Checkout must match the release SHA")
     inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
+    exclusions = os.environ.get("PROD_CD_AUTO_EXCLUDE_TARGETS", "").strip()
+    excluded = {target.strip() for target in exclusions.split(",")} if exclusions else set()
+    if "" in excluded:
+        raise ValueError("PROD_CD_AUTO_EXCLUDE_TARGETS contains an empty target")
+    unknown = excluded - {target["target"] for target in inventory["targets"]}
+    if unknown:
+        raise ValueError("Unknown automatic deployment exclusions: " + ", ".join(sorted(unknown)))
     include, seen, changes = [], set(), {}
     for target in inventory["targets"]:
         service, name = target["service"], target["target"]
         if name in seen or not (ROOT / "deploy/prod/services" / f"{service}.sh").is_file():
             raise ValueError("Duplicate or unknown deployment target")
         seen.add(name)
+        if name in excluded:
+            print(f"{name}: excluded from automatic rollout by PROD_CD_AUTO_EXCLUDE_TARGETS")
+            continue
         base = successful_sha(service, name)
         if base == sha:
             continue
