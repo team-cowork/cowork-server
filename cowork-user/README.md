@@ -44,3 +44,5 @@ Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [�
 `APP_PROFILE=prod`에서는 실행 시 Logger의 전역 최소 수준을 `info`로 설정하여 콘솔과 파일에 SQL `debug` 로그가 출력되지 않게 합니다. 로컬 Docker도 `MIX_ENV=prod`로 빌드하므로 로그 수준은 `APP_PROFILE`로 구분합니다.
 
 `APP_PROFILE=local` 또는 미지정 환경은 기존 콘솔 로그 수준을 유지합니다. 파일 로그의 최소 수준은 모든 프로파일에서 `info`입니다.
+
+파일 로그는 20 MiB에 도달하면 다음 기록 전에 회전하며, 현재 파일과 보관본 4개를 유지합니다. 파일 크기는 마지막 로그 한 건만큼 임계값을 초과할 수 있습니다. Docker의 stdout 로그 회전은 별도이며 이 파일에는 적용되지 않습니다.
