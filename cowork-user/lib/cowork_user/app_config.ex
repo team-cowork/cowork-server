@@ -32,7 +32,7 @@ defmodule CoworkUser.AppConfig do
     :kafka_enabled,
     :s3_region,
     :s3_internal_endpoint,
-    :s3_public_endpoint,
+    :public_api_base_url,
     :s3_access_key,
     :s3_secret_key,
     :s3_bucket,
@@ -160,11 +160,11 @@ defmodule CoworkUser.AppConfig do
           ["S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"],
           "http://localhost:9000"
         ),
-      s3_public_endpoint:
+      public_api_base_url:
         lookup(
           remote,
-          ["S3_PUBLIC_ENDPOINT", "s3_public_endpoint"],
-          "http://localhost:9000"
+          ["PUBLIC_API_BASE_URL", "public_api_base_url"],
+          "http://localhost:8080"
         ),
       s3_access_key: lookup(remote, ["S3_ACCESS_KEY", "s3_access_key"], ""),
       s3_secret_key: lookup(remote, ["S3_SECRET_KEY", "s3_secret_key"], ""),
@@ -233,19 +233,19 @@ defmodule CoworkUser.AppConfig do
   defp validate_storage!(config) do
     for {endpoint, public?} <- [
           {config.s3_internal_endpoint, false},
-          {config.s3_public_endpoint, true}
+          {config.public_api_base_url, true}
         ] do
       uri = URI.parse(endpoint)
 
       unless uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != "" and
                uri.path in [nil, "", "/"] and is_nil(uri.userinfo) and is_nil(uri.query) and
                is_nil(uri.fragment) do
-        raise "S3 endpoint must be an HTTP(S) origin"
+        raise "Storage and API endpoints must be an HTTP(S) origin"
       end
 
       if public? and config.config_profile == "prod" and
            (uri.scheme != "https" or uri.host in ["localhost", "127.0.0.1", "::1"]) do
-        raise "Production S3 public endpoint requires HTTPS and a non-local host"
+        raise "Production API endpoint requires HTTPS and a non-local host"
       end
     end
 

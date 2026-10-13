@@ -14,33 +14,27 @@ import java.net.URI
 @Configuration
 class S3PresignerConfig(private val env: Environment) {
 
-    /**
-     * 내부 통신용 오브젝트 스토리지 endpoint(예: 내부 IP)와
-     * 외부/앱이 접근 가능한 public endpoint(예: 도메인)가 다를 수 있어서,
-     * presigned URL은 public endpoint로 서명하도록 Presigner만 분리한다.
-     */
     @Bean
     @Primary
-    fun publicS3Presigner(): S3Presigner {
-        val publicEndpoint = env.getRequired("object-storage.public-endpoint")
+    fun s3Presigner(): S3Presigner {
+        val apiEndpoint = env.getRequired("object-storage.public-api-base-url")
         val region = env.getProperty("spring.cloud.aws.region.static") ?: "ap-northeast-2"
         val accessKey = env.getProperty("spring.cloud.aws.credentials.access-key").orEmpty()
         val secretKey = env.getProperty("spring.cloud.aws.credentials.secret-key").orEmpty()
-        val endpoint = URI.create(publicEndpoint)
+        val endpoint = URI.create(apiEndpoint)
         require(
             endpoint.scheme in setOf("http", "https") && !endpoint.host.isNullOrBlank() &&
                 endpoint.path in setOf("", "/") && endpoint.rawUserInfo == null &&
                 endpoint.rawQuery == null && endpoint.rawFragment == null,
         ) {
-            "S3 public endpoint must be an HTTP(S) origin"
-        }
-        if ("prod" in env.activeProfiles) {
-            require(endpoint.scheme == "https" && endpoint.host !in setOf("localhost", "127.0.0.1", "[::1]")) {
-                "Production S3 public endpoint requires HTTPS and a non-local host"
-            }
+            "Public API endpoint must be an HTTP(S) origin"
         }
         require(accessKey.isNotBlank() && secretKey.isNotBlank()) { "S3 service credentials are required" }
-        val pathStyle = env.getProperty("spring.cloud.aws.s3.path-style-access-enabled", Boolean::class.java, true)
+        if ("prod" in env.activeProfiles) {
+            require(endpoint.scheme == "https" && endpoint.host !in setOf("localhost", "127.0.0.1", "[::1]")) {
+                "Production API endpoint requires HTTPS and a non-local host"
+            }
+        }
 
         return S3Presigner.builder()
             .endpointOverride(endpoint)
@@ -52,7 +46,7 @@ class S3PresignerConfig(private val env: Environment) {
             )
             .serviceConfiguration(
                 S3Configuration.builder()
-                    .pathStyleAccessEnabled(pathStyle)
+                    .pathStyleAccessEnabled(true)
                     .build(),
             )
             .build()
