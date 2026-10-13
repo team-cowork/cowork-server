@@ -448,9 +448,9 @@ def render(args: argparse.Namespace) -> str:
     overall_change = delta(base, pr) if complete and not unit_changed and not scope_changed else None
     lines = [MARKER, "## 테스트 커버리지", ""]
     if complete and pr.total:
-        lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="PR 전체 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
+        lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="영향 모듈 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
 
-    lines += ["```diff", coverage_line("전체", pr.percent if complete else None, overall_change)]
+    lines += ["```diff", coverage_line("영향 모듈 합계", pr.percent if complete else None, overall_change)]
     for module in modules:
         name = module["module"]
         previous, current = results[(name, "base")], results[(name, "pr")]
