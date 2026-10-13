@@ -26,7 +26,7 @@ if [ "$APP_CONFIG_PROFILE" = prod ]; then
   # TLS 없이 사설 IP 바인딩, CIDR 방화벽, 서비스별 Basic 인증으로만 보호한다. 공개 주소로 노출하지 않는다.
   HEALTH_BASE_URL="${CONFIG_SERVER_URL%/}"
   source "${PROD_DIR}/lib/config-firewall.sh"
-  configure_config_firewall
+  prepare_config_firewall
   require_env PUBLIC_WEB_ORIGINS PUBLIC_API_BASE_URL GITHUB_APP_SERVICE_URL
   add_env PUBLIC_WEB_ORIGINS "$PUBLIC_WEB_ORIGINS"
   add_env PUBLIC_API_BASE_URL "$PUBLIC_API_BASE_URL"
