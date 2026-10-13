@@ -49,9 +49,9 @@ class EurekaRegistrationGuard(
                 val instance = mapper.readTree(body).path("instance")
                 policy.allowsRegistration(
                     account.application,
-                    instance.path("app").asText(),
-                    instance.path("vipAddress").asText(),
-                    instance.path("secureVipAddress").asText(),
+                    instance.path("app").asString(),
+                    instance.path("vipAddress").asString(),
+                    instance.path("secureVipAddress").asString(),
                 )
             }.getOrDefault(false)
         if (!allowed) {
