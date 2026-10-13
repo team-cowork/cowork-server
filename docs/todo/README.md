@@ -7,10 +7,16 @@
 문서에는 구현에서 드러나지 않는 결정 배경·운영 제약 등 프로젝트 고유 정보만 남긴다.
 정책 결정·자격 증명 폐기는 별도 요청이나 관측 기록으로 남은 대상·범위가 확인된 독립 작업만 유지한다.
 운영 승인·적용 기록의 부재나 일반적인 전환·폐기 절차만으로 독립 작업으로 분류하지 않는다.
+2026-10-13 항목은 직접 관측한 운영 장애와 사용자가 요청한 VM 이름·역할 조정을 기록한 독립 작업이다.
+이미 병합된 구현을 미완료로 되돌리는 항목과 구분한다.
 
 ## 진행 중
 
-진행 중인 작업은 **16건**이다. 항목별 현재 상태와 남은 범위는 각 상세 문서에 반영한다.
+2026-10-13 기준 미완료 상세 문서 16건에 운영 후속 작업 7건을 추가해 **23건**이다.
+기존 구현 항목의 대조 기준은 2026-10-12 원격 `develop`의 `5a534586`, `main`의 `f68758e2`다.
+2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
+나머지 항목은 당시 코드와 대조해 변동이 없음을 확인했다. 이번 추가 항목은 운영 상태와 GSM SV 패널 관측을 기준으로 한다.
+항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
 
 ### 구현·설계 보완 필요 (14)
 
@@ -37,8 +43,19 @@
 
 - deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md) — 현재 VM·DB·Redis 자원 조사와 배치·예외 합의
 
+### 운영 장애 복구와 VM 배치 정리 (7)
+
+- deployment: [운영 배포 기준 SHA 복구](./items/62-deployment/runtime-deployment-baseline-recovery.md) — 실제 적용과 target별 runtime 성공 기준 복구
+- deployment: [Production 배포 결과 표시 수정](./items/63-deployment/production-deployment-status.md) — 알림 성공과 운영 적용 성공의 표시 분리
+- reliability: [User 배포 readiness 실패 원인 확인](./items/64-reliability/user-deployment-readiness-failure.md) — 후보 기동 자료 확보와 원본 projection 미준비 원인 확인
+- security: [운영 Config 접근 보호와 AppRole 전환](./items/65-security/config-control-plane-rollout.md) — 서비스별 인증·AppRole 적용과 방화벽 실패 복구
+- deployment: [운영 Eureka 등록과 광고 주소 복구](./items/66-deployment/eureka-registration-recovery.md) — 등록 누락·중복 Gateway·도달 불가 주소 정리
+- configuration: [공개 API 진입점과 TLS 인증서 정합성 복구](./items/67-configuration/public-api-tls.md) — 공개 주소·전달 대상·신뢰 체인 정합성 확보
+- deployment: [VM 이름과 서비스 배치 정리](./items/68-deployment/vm-placement-rebuild.md) — 이름 오타·역할 불일치 조정과 재생성 후 Vault·GitHub 배포 값 갱신
+
 ## 점검 스냅샷
 
+- [20261013](./20261013_TODO.md) — 운영 배포 복구와 VM 이름·서비스 배치 점검
 - [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 운영 장애 복구·CD 배포 실패 점검
