@@ -28,7 +28,8 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
         'S3_INTERNAL_ENDPOINT',
     ]);
     const publicApiBaseUrl = getRequiredConfig(configService, 'PUBLIC_API_BASE_URL').replace(/\/$/u, '');
-    const production = getOptionalConfig(configService, 'NODE_ENV') === 'production';
+    const profile = getOptionalConfig(configService, ['APP_PROFILE', 'SPRING_PROFILES_ACTIVE']) ?? 'local';
+    const production = profile === 'prod';
     validateEndpoint(internalEndpoint, false);
     validateEndpoint(publicApiBaseUrl, production);
     const accessKey = getRequiredConfig(configService, ['object-storage.accessKey', 'S3_ACCESS_KEY']);
