@@ -52,9 +52,9 @@ def main():
     schema["validate_deployment"](data, target)
     for isolated in schema["ISOLATED_RUNTIME_SETTINGS"]:
         demand((service == isolated) == (target == isolated), f"The {isolated} target requires the {isolated} service")
-    if service in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
+    if service in {"vault", "monitoring", "storage", "datastores", "log-agent", "node-agent"}:
         demand(not data.get("application"), "Infrastructure units use runtime settings only")
-    if service not in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
+    if service not in {"vault", "monitoring", "storage", "datastores", "log-agent", "node-agent"}:
         demand(data.get("runtime", {}).get("APP_CONFIG_PROFILE") in {"local", "prod"}, "APP_CONFIG_PROFILE is required in Vault")
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target
