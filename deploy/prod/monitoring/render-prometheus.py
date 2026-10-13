@@ -33,7 +33,7 @@ def http_url(name):
     return value
 
 
-eureka = http_url("EUREKA_SERVER_URL")
+eureka = http_url("EUREKA_SERVER_URL").rstrip("/")
 config_server = urlsplit(http_url("CONFIG_SERVER_URL"))
 basic_auth = {"username": os.environ["CONFIG_CLIENT_USERNAME"], "password": os.environ["CONFIG_CLIENT_PASSWORD"]}
 slots_directory = Path(__file__).resolve().parents[1] / "slots"
