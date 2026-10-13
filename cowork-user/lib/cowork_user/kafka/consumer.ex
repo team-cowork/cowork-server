@@ -222,7 +222,7 @@ defmodule CoworkUser.Kafka.Consumer do
           },
           handler_data
         ),
-      message_type: :message,
+      message_type: if(projection?, do: :message_set, else: :message),
       consumer_config: [
         begin_offset: :earliest,
         prefetch_count: 100,

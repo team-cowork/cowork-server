@@ -28,7 +28,7 @@ def is_private_ipv4(host):
 
 def validate_url(name):
     value = os.environ[name]
-    # 쉼표나 공백은 SPRING_CONFIG_IMPORT에서 추가 Config Server 주소로 해석될 수 있어 거부한다.
+    # 쉼표나 공백은 spring.config.import에서 추가 Config Server 주소로 해석될 수 있어 거부한다.
     if "," in value or any(char.isspace() for char in value):
         raise ValueError(f"{name} must contain exactly one URL")
     endpoint = urlsplit(value)
