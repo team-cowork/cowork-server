@@ -57,6 +57,8 @@ spring:
     config:
       server:
         overrides:
+          S3_BUCKET: ${S3_BUCKET:cowork-bucket}
+          S3_REGION: ${S3_REGION:us-east-1}
           S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
           S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:http://localhost:9000}
           S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
@@ -85,6 +87,8 @@ spring:
     config:
       server:
         overrides:
+          S3_BUCKET: ${S3_BUCKET:cowork-bucket}
+          S3_REGION: ${S3_REGION:us-east-1}
           S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
           S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
           S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
