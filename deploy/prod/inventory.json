@@ -45,10 +45,6 @@
       "target": "config"
     },
     {
-      "service": "monitoring",
-      "target": "monitoring"
-    },
-    {
       "service": "roadmap",
       "target": "roadmap"
     },
