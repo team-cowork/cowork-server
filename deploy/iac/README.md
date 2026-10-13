@@ -1,6 +1,6 @@
 # 운영 IaC
 
-[워크플로](../../.github/workflows/cowork-prod-iac.yml)는 기존 VM에 host 정책과 모니터링을 적용하고
+[운영 CD](../../.github/workflows/cowork-prod-cd.yml)의 `apply-infrastructure` 단계는 기존 VM에 host 정책과 모니터링을 적용하고
 Terraform으로 Grafana 객체를 관리한다. VM에는 Docker Engine·Python 3와 검증된 SSH 접속 및
 관리자 권한이 먼저 필요하다. Compose plugin은 [고정 도구 명세](./container-tools.json)에 따라 IaC가 관리한다.
 GSM SV의 VM·사양·공개 연결은 관리하지 않는다.
@@ -24,7 +24,8 @@ MySQL·PostgreSQL·MongoDB exporter 계정은 첫 적용과 비밀번호 교체 
 비공개 표준 입력으로 전달한다. 비밀번호는 24바이트 난수의 48자리 소문자 16진수로 준비하고,
 DB 계정과 Vault의 모니터링 비밀을 맞춘 뒤 IaC를 적용한다. CI에는 DB 관리자 자료를 전달하지 않는다.
 
-첫 state 생성은 수동 실행의 `initialize_state`로 명시한다. 기존 Grafana 객체는 import하거나
+인프라만 재적용할 때는 운영 CD에서 `operation=redeploy`, `service=infrastructure`를 선택한다.
+첫 state 생성은 같은 수동 실행의 `initialize_state`로 명시한다. 기존 Grafana 객체는 import하거나
 이번 전환에서 승인된 초기화를 수행한다. state를 읽을 수 없다는 이유로 새 state를 만들지 않는다.
 로컬 적용도 워크플로와 같은 `infra-state` 브랜치와 `infra-state-lock` 잠금을 사용한다.
 
