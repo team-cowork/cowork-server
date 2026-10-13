@@ -4,6 +4,18 @@
 저장소만으로 확정할 수 없으므로 적용 전에 운영값과 대조한다. 기존 데이터의 유지·복구·이관 여부는
 운영 담당자 재량이며 배포의 필수 조건이 아니다.
 
+## 현재 저장소 배치 결정
+
+2026-10-13 재구성에서는 MySQL·PostgreSQL·MongoDB·Redis·Elasticsearch·Kafka와 SeaweedFS를
+`cowork-db`에 유지한다. 운영 담당자가 기존 데이터 폐기와 배치 재설계를 승인했고, 여유가 있는 VM의
+자원을 낮추도록 요청했다. 각 앱 VM에 DB 엔진을 추가하면 메모리와 관리 대상을 늘리므로 중앙 구성을
+선택했다. Config/Eureka와 Vault는 각각 전용 VM에서 실행한다.
+
+이 결정은 부하 측정으로 최적 구성을 입증한 결과가 아니다. DB VM의 저장장치와 장애 범위가 집중되며,
+이번 재구성에서 업무 데이터의 백업·복원 가능성은 검증하지 않았다. CD가 기존 볼륨과 데이터 경로를
+유지하는 것은 백업을 대신하지 않는다. 데이터 보존이 필요한 운영을 시작하기 전에 백업 대상과 복원
+절차를 별도로 확정한다.
+
 ## 최초 설치와 target 추가
 
 서비스와 target의 연결은 [`inventory.json`](../deploy/prod/inventory.json), 배포 문서 형식은
@@ -24,12 +36,47 @@ Vault `secret/deploy/{target}`에 저장한다. 운영 VM의 환경 파일을 �
    공개 트래픽을 연다. 앱 배포 wave 안에서는 업무 의존성별 순차 기동을 보장하지 않는다.
 
 외부 앱 HTTP는 Gateway로 들어오고 downstream 포트는 사설 주소와 허용 peer로 제한한다.
-Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미디어·S3 요청은 별도 공개 경로가 필요하다.
-실제 S3 접근 정책은 [TODO](./todo/items/13-storage/object-storage-public-access-contract.md)에서 관리한다.
+Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미디어는 별도 공개 경로가 필요하다.
 
 같은 VM에 같은 서비스의 여러 target을 배치하는 구성은 지원하지 않는다. 배치·실제 포트는 Vault와
 대조한다. 필요한 외부 볼륨은 배포 전에 생성한다. Vault의 TLS 프록시만 사설 listener에 접근시키고,
 현재 단일 unseal key 입력과 다른 다중 share 구성은 별도 복구 절차를 준비한다.
+
+## 비공개 GHCR 이미지 인증
+
+Config와 앱 배포 job은 `packages: read` 권한의 단기 `github.token`으로 GHCR에 로그인한다.
+인증 정보는 SSH 실행별 `0700` 임시 `DOCKER_CONFIG`에만 저장하고 종료 시 제거한다. 토큰을
+Vault 배포 문서나 컨테이너 환경에 넣지 않으며 VM의 기존 Docker 인증 파일도 변경하지 않는다.
+기존 `GHCR_READ_TOKEN` 설정을 사용하는 경우에도 Docker 로그인 결과는 같은 임시 디렉터리에 기록한다.
+`check_only`는 registry 로그인과 이미지 pull을 수행하지 않으므로 이미지 접근 성공을 보장하지 않는다.
+
+인증 전달과 설정 검증은 `github.workflow_sha`의 배포 실행기가 담당한다. 앱의 `deploy.sh`와 서비스
+스크립트는 요청한 릴리스 SHA에서 실행한다. 이전 SHA를 수동 재배포해도 최신 실행기가 임시 인증
+경로를 전달한다. 같은 배포 실행에서 readiness 실패 후 보존한 이전 컨테이너를 재시작하는 복구는
+이미지 pull을 수행하지 않는다.
+
+## 운영 오브젝트 스토리지
+
+운영 스토리지의 기준은 SeaweedFS 4.47이다. 전용
+[`deploy/prod/storage`](../deploy/prod/storage/README.md) 구성으로 storage·admin·`s3_lifecycle` worker를
+함께 설치한다. 최초 VM 준비 이후에는 `prod-cd`의 `storage` target이 선택한 GitHub SHA와 Vault
+배포 문서로 갱신한다. 상세 절차는 [운영 스토리지 GitHub CD](#운영-스토리지-github-cd)에 정의한다.
+
+서비스별 키, 공개 아이콘 정책, 비공개 프로필·채팅 파일 정책은
+[`s3-config.json.template`](../deploy/config/seaweedfs/s3-config.json.template)을 기준으로 한다.
+[`configure-bucket.sh`](../deploy/config/seaweedfs/configure-bucket.sh)로 private 버킷 ACL·정책·CORS와
+임시 업로드 세 접두사의 1일 만료를 적용한다. SeaweedFS 4.47의 PublicAccessBlock은 미지원이므로
+그 기능의 적용 성공을 기록하지 않는다. 서비스의 객체·버킷 ACL 변경은 별도 권한 부재와 명시적
+버킷 정책으로 거부한다. worker 준비 상태와 실제 만료 작업 완료를 구분하여 확인한다.
+
+외부 파일 요청은 Gateway의 공개 API 경로로만 받는다. 사설 S3 9000 포트는 Gateway·Team·User·Chat과
+스토리지 운영 호스트만 허용한다. master·volume·filer·admin·worker 관리 포트는 공유 namespace의
+loopback에 제한하고 호스트에 게시하지 않는다. S3 내부 gRPC 19000은 bridge 안에서 수신하며,
+호스트 게시와 외부의 직접 bridge 접근을 차단한다. 호스트 방화벽은 Docker 시작 전에 복구한다.
+
+초기화가 승인된 전환에서는 새 데이터 디렉터리와 빈 버킷을 사용한다. 이전 MinIO의 객체·버전·KMS
+상태를 복사하지 않는다. 모든 구버전 업로더를 중지한 뒤 이전 엔진·전용 데이터·불필요한 관리 포트·
+임시 방화벽 예외를 제거한다. 애플리케이션 DB와 이벤트 저장소의 초기화 범위도 함께 확인한다.
 
 ## GitHub Environment와 Vault 권한
 
@@ -95,6 +142,29 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 완료 뒤 `gh secret delete VAULT_UPDATE_JSON --env "Config-Update($target)"`로 임시 입력을 삭제한다.
 큰 문서는 Vault UI/API로 변경한다. 배포 snapshot은 SSH 전달 한도를 넘지 않도록 준비한다.
 
+빈 데이터셋에서 앱 전체를 기동할 때는 `operation=redeploy`, `service=applications`,
+`target=applications`를 함께 지정한다. 선택한 `main` 릴리스 SHA의 inventory에서 Gateway와
+authorization·user·team·channel·project·roadmap·notification·preference·chat·voice의 11개 target을
+가져온다. 각 서비스가 하나씩 있어야 하며, target 중복이나 서비스 스크립트 누락은 거부한다.
+Config·Vault·Datastores·Storage·Monitoring·log-agent는 이 그룹에 포함하지 않는다. 필요한 인프라와
+Config가 먼저 준비되어 있어야 한다.
+
+```bash
+gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
+  -f service=applications -f target=applications -f sha="$release_sha" \
+  -f configuration_version=0 -f vault_recovery=false -f check_only=true
+```
+
+그룹은 각 target의 최신 Vault 배포 문서를 사용하는 `configuration_version=0`과
+`vault_recovery=false`만 허용한다. `check_only=true`는 11개 target 모두에 적용한다. 검증 성공 후
+같은 입력에서 `check_only=false`로 바꾸어 기동한다. `applications`는 `update-config` 대상이나
+단일 서비스와 섞어 사용할 수 없다. 단일 target의 버전 지정 재배포는 기존 입력을 사용한다.
+
+Team↔Preference와 Project↔Channel은 상대 서비스의 snapshot을 기다릴 수 있으므로 앱 job을 함께
+시작해야 한다. 수동 그룹과 자동 앱 배포 matrix에는 동시 실행 수 제한을 두지 않는다. 실행 환경에도
+11개 앱 job이 기동할 수 있는 runner 여유를 확보한다. 각 job은 기존 target별 Environment, 배포 잠금,
+readiness 검사와 runtime 성공 기록을 사용한다. 전체 workflow 실행 간 직렬화는 유지한다.
+
 자동 배포는 target별 마지막 runtime 적용 성공 SHA를 기준으로 비교한다. 정적 검증·설정 변경의 성공은
 이 기준을 바꾸지 않는다. 이미 적용한 SHA보다 이전 버전으로 복구할 때는 수동 재배포를 사용한다.
 readiness 대기를 늘릴 때는 SSH `command_timeout`에 이미지 pull·실패 복구 시간도 확보한다.
@@ -109,7 +179,7 @@ DB 계정과 그 계정을 포함한 DSN·URI를 함께 갱신한다. 배포 참
 notification의 Vault DSN 키는 `db.dsn`, preference의 DB 계정 키는
 `preference.db.username`·`preference.db.password`다. bootstrap 환경변수 이름으로 대체하지 않는다.
 
-JWT는 authorization·Gateway·Chat, S3 key pair는 S3 서버·chat·team·user,
+JWT는 authorization·Gateway·Chat, 서비스별 S3 key pair는 S3 서버와 해당 서비스,
 LiveKit key pair는 LiveKit 서버·voice에서 교체 시점과 재배포 순서를 맞춘다.
 Config/Eureka 계정·방화벽은 [접근 보호 절차](./config-server-access.md)를 따른다.
 
@@ -129,6 +199,10 @@ Eureka 광고 주소는 Gateway와 monitoring에서 도달 가능한 VM 주소·
 Channel 배포가 끝난 뒤 시작한다.
 
 ## 로그 수집과 운영 기록
+
+현재 모니터링 VM과 설정은 새 배포 관리 방식으로 이관하지 않았으므로 자동 배포 inventory에서
+제외한다. 기존 `service=monitoring`, `target=monitoring` 수동 배포 지원은 유지한다. 이관 준비를
+마친 뒤 자동 관리 대상으로 명시적으로 등록한다.
 
 앱 VM마다 `deploy/log-agent-<vm>` 문서의 `runtime.LOG_HOST`·`LOKI_PUSH_URL`과 node_exporter를 열
 그 VM의 사설 IPv4 `NODE_EXPORTER_BIND_IP`를 준비한다. monitoring 문서의 `runtime.NODE_EXPORTER_TARGETS`에는
@@ -210,3 +284,179 @@ outbox 삭제나 timestamp 변경으로 적체를 우회하지 않는다. 미발
 보존하며 접수 기한 이후에도 발행을 기다린다. Kafka 데이터 유실은 inbox만으로 복구할 수 없다.
 보관이 끝난 ID를 새 발생 시각으로 재사용하지 않는다. inbox migration 전에는 구버전 replica를 중지하고
 이전 기록의 backfill 없이 기존 재전달 데이터를 처리할 방침을 정한다.
+
+## Backend VM의 HTTP 접근 보호
+
+업무 backend는 전용 VM의 사설 IPv4에 HTTP 포트를 게시한다. 운영자는 첫 앱 배포 전에
+`deploy/prod/bootstrap-backend-firewall.sh`로 고정 ingress 정책을 설치한다. 대상은 Authorization,
+User, Channel, Project, Team, Notification, Chat, Roadmap, Voice, Preference다. Config는 별도
+Config 방화벽을 사용한다. Gateway, DB, 스토리지, LiveKit의 포트에 이 정책을 적용하지 않는다.
+
+정책 파일은 `/etc/cowork/backend-firewall/policy.json`이며 소유자는 `root:root`, 권한은 `0600`이다.
+부모 디렉터리는 `0700`으로 제한한다. 각 VM의 실제 게시 주소와 포트를 기록한다. 예시는 다음과 같다.
+
+```json
+{
+  "bindings": [
+    {"address": "10.0.0.140", "host_port": 8081, "container_port": 8081}
+  ],
+  "peers": ["10.0.0.127/32", "10.0.0.137/32"]
+}
+```
+
+`peers`에는 Gateway와 기존 monitoring VM을 포함한다. 이 정책은 monitoring 배포나 설정을 바꾸지
+않는다. 다른 업무 서비스는 허용하지 않는다. Voice에 DB VM을 추가하려면 먼저 LiveKit의 webhook이
+Voice에 직접 연결되는지 확인한다. Gateway 경유 webhook이면 Voice에 DB peer를 추가하지 않는다.
+주소와 peer는 명시적 RFC1918 IPv4만 허용한다. 서비스별 기본 포트는 다음과 같다. Vault 문서의
+`HOST_PORT` override가 있으면 실제 값을 사용한다.
+
+| 서비스 | VM 게시 포트 | 컨테이너 포트 |
+|--------|-------------:|--------------:|
+| Authorization | 8081 | 8081 |
+| User | 8082 | 8082 |
+| Channel | 8083 | 8083 |
+| Project | 8089 | 8084 |
+| Team | 8085 | 8085 |
+| Notification | 8086 | 8086 |
+| Chat | 8087 | 8087 |
+| Roadmap | 8088 | 8088 |
+| Voice | 8089 | 8089 |
+| Preference | 9001 | 9001 |
+
+helper는 `COWORK_BACKEND` 체인과 해당 체인으로 향하는 `INPUT`·`DOCKER-USER` jump만 교체한다.
+`iptables-restore --noflush`의 한 filter-table commit으로 적용하며 다른 체인·규칙을 지우지 않는다.
+Docker 게시 경로는 conntrack의 원래 목적지 주소·게시 포트로 제한한다. 호스트가 직접 수신하는
+같은 주소·포트는 `INPUT`에서 제한한다. 호스트 자체 health 확인을 위한 loopback 경로는 유지한다.
+
+컨테이너 IP 직결 경로도 보호하기 위해 `docker+`·`br+` 인터페이스로 향하는 해당 컨테이너 포트를
+제한한다. 전용 VM에서 그 포트를 쓰는 모든 Docker 컨테이너에 같은 제한이 적용된다. 다른 포트,
+외부로 나가는 요청, conntrack 응답 방향에는 적용하지 않는다. SSH·DB 등 다른 포트의 규칙은
+교체하지 않는다. 이 helper는 표준 Docker bridge와 IPv4 iptables를 전제로 한다. 적용 전에 Docker
+network의 `EnableIPv6=false`와 컨테이너 global IPv6 주소 부재를 확인한다. 별도 이름의 bridge,
+host/macvlan/ipvlan 네트워크, IPv6 컨테이너 ingress에는 이 정책을 그대로 적용하지 않는다.
+
+### 초기 설치와 정책 변경
+
+1. 검토한 같은 커밋에서 `bootstrap-backend-firewall.sh`, `backend-firewall.py`,
+   `backend-firewall.service`를 준비한다. VM별 `policy.json`도 검토한다.
+2. 파일별 SHA-256과 커밋 ID를 기록한다. 진행 중인 앱 배포가 없는지 확인한다.
+3. 관리 권한으로 VM의 `/root/cowork-backend-firewall-bootstrap`을 `root:root`, `0700`으로 만든다.
+   네 파일을 이 디렉터리에 `root:root`, `0600`으로 복사한다.
+4. 복사한 **root 소유 파일**의 SHA-256이 검토한 값과 일치하는지 확인한다. 릴리스 캐시나 전송용
+   사용자 디렉터리에서 설치 스크립트를 직접 실행하지 않는다.
+5. 다음 명령으로 설치한다.
+
+```sh
+sudo /usr/bin/bash /root/cowork-backend-firewall-bootstrap/bootstrap-backend-firewall.sh
+```
+
+설치 스크립트는 소스와 부모 디렉터리의 root 소유권·쓰기 권한을 확인한 뒤 정책을 검증한다.
+helper·unit·정책을 고정 경로에 원자적으로 복사하고 현재 규칙을 적용한다. 이어서
+`cowork-backend-firewall.service`를 Docker의 필수 선행 unit으로 활성화한다. Docker를 재시작하지
+않는다. 다음 VM 부팅과 Docker 재시작에서는 방화벽 복원이 성공해야 Docker가 시작된다. 복원 unit을
+수동으로 중지하면 Docker도 중지될 수 있으므로 정상 정책 변경에 `systemctl stop`을 사용하지 않는다.
+
+일반 앱 CD는 이 고정 정책을 수정하지 않는다. `check_only`와 실제 배포 모두 설치된 root 소유 helper의
+`check-binding`을 호출하여 주소·게시 포트·컨테이너 포트의 정확한 일치와 복원 unit의 enabled·active
+상태를 확인한다. 이 명령은 설치된 정책으로 현재 규칙을 다시 적용하지만 정책 파일·peer·포트를
+변경하지 않는다. 따라서 `check_only`도 기존 보호 규칙을 복원할 수 있다. helper가 없거나 바인딩이
+일치하지 않거나 규칙 복원이 실패하면 배포를 중단한다. Config·Gateway·인프라 배포에는 이 검사를
+적용하지 않는다.
+
+`BIND_IP`, `HOST_PORT`, `CONTAINER_PORT`, peer 목록, Docker network 조건을 바꿀 때는 앱 컨테이너를
+중지하고 새 정책을 검토·재설치한 다음 배포한다. Vault 값만 변경하지 않는다. 정책 설치가 실패하면
+앱을 시작하지 않는다. 허용 peer의 health 응답과 비허용 peer의 연결 차단을 운영 환경에서 확인하고
+helper·unit·정책 해시 및 확인 결과를 설치 기록에 남긴다.
+
+## 운영 스토리지 GitHub CD
+
+`storage`는 `prod-cd`의 독립 인프라 target이다. 자동 배포 순서는 Vault → Datastores → Storage → Config →
+나머지 서비스다. 선택된 Storage 배포가 실패하면 뒤의 Config·앱 배포는 실행하지 않는다. 수동 단일 대상 배포는
+선택한 target만 실행한다. `deploy/prod/storage/` 또는 `deploy/config/seaweedfs/`의 변경은 Storage
+배포 비교에 포함한다. SeaweedFS와 AWS CLI 이미지는 선택한 GitHub SHA의 Compose에 고정된 digest를
+사용하며 별도 GHCR 빌드나 토큰이 필요 없다.
+
+처음 한 번의 VM 준비는 관리자가 수행한다. SeaweedFS 데이터 디렉터리, root 소유 방화벽 helper·정책·
+systemd unit, `cowork-storage` SSH 계정을 준비한다. 이 계정의 UID와 기본 GID는 `10001`, home은
+`/home/cowork-storage`다. home은 `0700`으로 제한한다. `/opt/cowork`와 `/opt/cowork/storage`는
+`root:10001`, `0710`으로 설정하여 지정 계정의 경로 통과만 허용한다. 기존 `data`, `admin-data`,
+`lifecycle-data` 디렉터리는 `10001:10001` 소유로 유지한다. 계정은 Docker 사용 권한과 다음 고정
+방화벽 명령의 sudo 권한이 필요하다.
+
+```text
+/usr/bin/python3 -I /usr/local/libexec/cowork-storage-firewall.py check-binding
+```
+
+Docker 사용 권한은 root 상당 권한이다. 이 계정 분리는 VM에 대한 보안 격리를 보장하지 않는다.
+일반 CD에서는 릴리스 캐시의 Python이나 초기 설치 `prepare`·`apply`를 sudo로 실행하지 않는다.
+VM·DB·객체 초기화, 이전 엔진·볼륨 삭제는 CD에 포함하지 않는다.
+
+Vault `secret/deploy/storage`에는 해당 계정의 `ssh` 정보와 `runtime.STORAGE_SETTINGS_JSON`만 저장한다.
+이 키의 값은 [운영 스토리지 초기 설정](../deploy/prod/storage/README.md)의 여섯 필드
+`bind_ip`, `allowed_cidrs`, `bucket`, `region`, `public_web_origins`, `identities`를 가진 **JSON 문자열**이다.
+`identities`에는 admin·Team·User·Chat의 별도 키가 들어간다. 앱에서 사용하는 세 서비스 키와 일치시킨다.
+관리자 키는 앱 Config 경로에 기록하지 않는다. `application`·`application_refs`는 비우며
+`APP_CONFIG_PROFILE`은 필요하지 않다. 다른 target에서 `STORAGE_SETTINGS_JSON`을 전달하면 거부한다.
+같은 키의 `runtime_refs`도 지원하지만 현재 운영은 배포 문서에 직접 저장하여 `update-config`로 관리한다.
+
+GitHub에는 `Prod-CD(storage)`와 `Config-Update(storage)` 환경을 만든다. 배포 읽기 토큰은
+`secret/data/deploy/storage`만 읽고, 설정 쓰기 토큰은 같은 문서의 CAS 갱신만 허용한다. 참조 경로를
+도입할 때만 읽기 토큰에 그 경로의 `read`를 추가한다. Config AppRole과 일반 앱 배포 토큰에는
+Storage 배포 문서나 관리자 키 읽기 권한을 주지 않는다.
+
+`services/storage.sh`는 `cowork-storage` 계정으로 `storage/runtime.py`를 실행한다. 선택한 SHA의
+IAM 렌더러·버킷 설정 스크립트·Compose와 Vault 문서 버전을 사용한다. IAM·관리자 환경 파일은 계정의
+private snapshot에 생성한다. 컨테이너와 계정의 UID가 같으므로 비밀 파일을 공개 읽기로 바꿀 필요가
+없다. 데이터 mount 세 개만 기존 `/opt/cowork/storage` 아래의 고정 경로로 연결한다. 경로가 없으면
+배포를 중단하며 새 데이터 디렉터리를 자동 생성하지 않는다.
+
+`check_only`는 비밀 snapshot과 Compose 구문을 검증하고, 고정 root helper로 `bind_ip`·허용 peer
+집합과 설치 정책의 정확한 일치를 확인한다. helper는 기존 보호 규칙을 복원할 수 있다. 컨테이너를
+기동하거나 버킷 설정을 변경하지 않는다. 실제 배포는 이미지 pull 뒤 server를 교체하고 버킷 정책·
+CORS·만료 설정을 적용한 다음 admin·worker를 새 server namespace에 연결한다. server와 worker가
+healthy이고 admin이 running이어야 런타임 배포 성공을 기록한다.
+
+단일 데이터 디렉터리에 후보와 이전 server를 동시에 기동하지 않는다. 이미지 변경 뒤에는 데이터 형식이
+변했을 수 있으므로 실패 시 이전 이미지로 자동 복귀하지 않는다. 단계가 실패하면 CD를 실패로 종료하고
+데이터와 실제 배포 snapshot을 유지한다. 운영자는 실패 단계·private 로그·실행 상태를 확인한 다음
+검토한 SHA와 Vault 버전으로 다시 배포한다. 이 동작은 기존 객체를 초기화하는 기능이 아니다.
+
+## 운영 데이터 저장소 GitHub CD
+
+`datastores`는 MySQL·PostgreSQL·MongoDB·Redis·Kafka·Elasticsearch를 관리하는 독립 인프라 target이다.
+자동 배포 순서는 Vault → Datastores → Storage → Config → 나머지 서비스다. 선택된 Datastores 배포가
+실패하면 뒤의 배포는 실행하지 않는다. 수동 단일 대상 배포는 선택한 target만 실행한다. 배포 비교에는
+`deploy/prod/datastores/`, `deploy/images/elasticsearch/`, `deploy/compose/stack.yaml`의 Kafka topic 정의를
+포함한다. 공용 이미지를 사용하므로 GHCR 인증 토큰은
+전달하지 않는다. Elasticsearch는 선택한 소스 SHA의 Dockerfile로 필요한 플러그인 이미지를 구성한다.
+
+처음 한 번의 VM 준비는 관리자가 수행한다. 데이터 볼륨, Docker network, root 소유 방화벽과
+`/etc/cowork/datastores-bootstrap.json`을 준비한다. manifest는 등록한 일곱 데이터 볼륨의 생성 시각,
+network ID, Kafka cluster ID를 기록한다. `cowork-datastores` SSH 계정은 UID·기본 GID `10002`와
+Docker 사용 권한을 사용한다. home과 설정 snapshot을 다른 사용자에게 공개하지 않는다. 일반 CD에서
+릴리스 캐시의 코드를 sudo로 실행하거나 신규 VM·볼륨을 자동 초기화하지 않는다. 데이터 삭제, DB reset,
+이전 엔진 정리도 일반 CD에 포함하지 않는다.
+
+Vault `secret/deploy/datastores`에는 해당 계정의 `ssh` 정보와 `runtime.DATASTORE_SETTINGS_JSON`만
+저장한다. 값은 `bind_ip`, `mysql`, `postgres`, `mongodb`, `kafka`를 가진 **JSON 문자열**이다.
+`mysql`에는 `root_password`, `user`, `password`가 필요하다. `postgres`와 `mongodb`에는 각각
+`user`, `password`, `kafka`에는 기존 `cluster_id`가 필요하다. 구체적인 필드와 값은 Datastores
+runtime이 검증한다. 허용 peer 정책은 root 소유 방화벽에서 관리한다. 계정·비밀번호·cluster ID는
+실제 저장소와 일치시킨다. 초기 기동용 환경 변수만 바꾸어 기존 DB 비밀번호를 회전시키지 않는다.
+
+`application`·`application_refs`는 비우고 `APP_CONFIG_PROFILE`은 지정하지 않는다.
+`DATASTORE_SETTINGS_JSON`과 `STORAGE_SETTINGS_JSON`은 각각 자기 target에만 전달할 수 있다.
+Config Server application scope와 일반 앱 환경 변수에 두 설정 묶음을 저장하거나 전달하면 거부한다.
+운영 문서는 JSON 문자열을 직접 저장하여 `update-config`로 관리한다. `runtime_refs`를 사용하는 경우에도
+같은 target 격리 규칙을 적용한다.
+
+GitHub 환경은 `Prod-CD(datastores)`와 `Config-Update(datastores)`를 사용한다. 배포 읽기 토큰은
+`secret/data/deploy/datastores`만 읽고, 쓰기 토큰은 같은 문서의 CAS 갱신만 허용한다. Config AppRole과
+일반 앱 배포 토큰에는 이 문서의 읽기 권한을 부여하지 않는다.
+
+`services/datastores.sh`는 전용 계정으로 Datastores runtime을 실행한다. 설정 snapshot은
+`/home/cowork-datastores/.local/state/cowork/settings/datastores` 아래에 생성한다. `check_only`는
+설정·Compose·등록된 기존 자원·고정 방화벽 바인딩을 검증하며 저장소를 기동하거나 초기화하지 않는다.
+실제 배포는 선택한 소스 SHA와 Vault 문서 버전으로 기존 데이터 볼륨을 사용하는 엔진을 갱신한다.
+필수 단계 또는 준비 상태 확인이 실패하면 런타임 배포 성공을 기록하지 않는다. 데이터와 실제 배포
+snapshot은 유지하며, 데이터 형식이 변경될 수 있으므로 이전 이미지로 자동 복귀하지 않는다.
