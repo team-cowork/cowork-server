@@ -5,8 +5,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties(prefix = "object-storage")
 data class ObjectStorageProperties(
     val bucket: String,
-    val publicBaseUrl: String,
+    val publicApiBaseUrl: String,
     val presignedPutExpiryMinutes: Long = 10,
     val maxFileSizeBytes: Long = 1048576,
     val allowedContentTypes: List<String> = listOf("image/jpeg", "image/png", "image/webp"),
-)
+) {
+    val publicBaseUrl: String get() = "${publicApiBaseUrl.trimEnd('/')}/api/storage/$bucket"
+}

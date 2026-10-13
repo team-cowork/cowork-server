@@ -47,12 +47,22 @@ spring:
         cors-configurations:
           '[/**]':
             allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
-            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag
             allowCredentials: true
             maxAge: 3600
 
       routes:
+        - id: object-storage
+          uri: ${S3_INTERNAL_ENDPOINT}
+          predicates:
+            - Path=/api/storage/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
