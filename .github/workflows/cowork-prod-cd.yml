@@ -20,7 +20,7 @@ on:
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, monitoring, vault, datastores, storage, log-agent]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, vault, datastores, storage]
       sha:
         description: Full main commit SHA with an existing image (redeploy only)
         type: string
@@ -40,7 +40,7 @@ on:
         description: Vault document type (update-config only)
         default: deployment
         type: choice
-        options: [deployment, application]
+        options: [deployment, application, slot-secrets]
       profile:
         description: Application profile path (update-config only; deployment uses base)
         default: base
@@ -54,7 +54,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: cowork-production
   cancel-in-progress: false
 
 jobs:
@@ -89,7 +89,7 @@ jobs:
               [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
               if [ "$SERVICE" != applications ]; then
-                test -f "deploy/prod/services/$SERVICE.sh"
+                test -f "deploy/prod/services/$SERVICE.sh" || test -f "deploy/prod/slots/$TARGET.json"
               fi
               test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
               git merge-base --is-ancestor "$RELEASE_SHA" origin/main
@@ -103,6 +103,10 @@ jobs:
           target, service = os.environ["TARGET"], os.environ["SERVICE"]
           deploy = os.environ["OPERATION"] == "redeploy"
           group = service == "applications" or target == "applications"
+          if os.environ["VAULT_RECOVERY"] == "true" and (not deploy or service != "vault" or target != "vault"):
+              raise SystemExit("vault_recovery requires redeploy with service=target=vault")
+          if deploy and service in {"monitoring", "log-agent"}:
+              raise SystemExit("Use the cowork prod IaC workflow for monitoring and log agents")
           if group:
               if not deploy or (service, target) != ("applications", "applications"):
                   raise SystemExit("The applications selector requires redeploy with service=target=applications")
@@ -129,8 +133,12 @@ jobs:
                       continue
                   if unit["service"] in selected or unit["target"] == "applications":
                       raise SystemExit("Each application must have one distinct deployment target")
-                  if not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
-                      raise SystemExit("An application deployment script is missing from the selected release")
+                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
+                  if slot.is_file():
+                      if json.loads(slot.read_text()).get("service") != unit["service"]:
+                          raise SystemExit("The application slot does not match its inventory service")
+                  elif not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
+                      raise SystemExit("An application slot or deployment script is missing from the selected release")
                   selected[unit["service"]] = unit
               if set(selected) != set(applications):
                   raise SystemExit("The applications group requires all eleven application services in the selected release")
@@ -139,6 +147,11 @@ jobs:
           else:
               units = [{"service": service, "target": target}] if deploy else []
               summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
+          if deploy:
+              for unit in units:
+                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
+                  if slot.is_file() and json.loads(slot.read_text()).get("service") != unit["service"]:
+                      raise SystemExit("The requested target slot belongs to a different service")
           matrix = {"include": units}
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
@@ -146,6 +159,7 @@ jobs:
           PYTHON
 
   prepare:
+    needs: detect-changes
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.conclusion == 'success' &&
@@ -187,18 +201,36 @@ jobs:
             echo "should_release=true" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Resolve production image inputs
+      - name: Resolve selected deployment image inputs
         id: images
-        run: python3 deploy/images/build-matrix.py --environment prod
+        env:
+          DEPLOY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          catalog = json.loads(Path('deploy/images/catalog.json').read_text())
+          selected = {unit['service'] for unit in json.loads(os.environ['DEPLOY_MATRIX'])['include']}
+          infrastructure = {'vault', 'datastores', 'storage', 'monitoring', 'log-agent'}
+          unknown = selected - set(catalog) - infrastructure
+          if unknown:
+              raise SystemExit('Selected services have no image contract: ' + ', '.join(sorted(unknown)))
+          # Every selected app needs this release SHA, including deployments caused
+          # only by slot or shared configuration changes. Unselected apps keep their image.
+          matrix = {'include': [
+              {'service': service, 'context': settings['prod'], 'dockerfile': f'cowork-{service}/Dockerfile.prod'}
+              for service, settings in catalog.items() if service in selected
+          ]}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps(matrix, separators=(',', ':')) + '\n')
+          PYTHON
 
   build-images:
     name: Build and push cowork-${{ matrix.service }}
     needs: prepare
-    # should_release는 "v<version> 태그/릴리스를 새로 만들지"만 결정해야 한다 — sha-<sha>
-    # 이미지는 release job과 무관하게 매 성공한 커밋마다 항상 push돼야 deploy job이
-    # 기대하는 이미지를 항상 찾을 수 있다. 예전엔 이 job 자체가 should_release로
-    # 걸려 있어서, VERSION을 안 올린 커밋은 이미지가 아예 안 만들어지고 deploy만
-    # 그대로 실행돼 docker pull이 실패했다(리뷰 지적).
+    # Release tags and deployment images have separate lifecycles. A selected
+    # deployment always gets sha-<sha>, even when VERSION did not change.
+    if: needs.prepare.outputs.image-matrix != '{"include":[]}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -213,6 +245,23 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
+
+      # CI selects changes from the previous push. CD can retry older failed
+      # targets, so verify every selected source snapshot before publishing it.
+      - name: Verify selected deployment source
+        uses: ./.github/actions/verify-image
+        with:
+          module: cowork-${{ matrix.service }}
+          output: ${{ runner.temp }}/deployment-verification
+
+      - name: Upload deployment verification results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: deployment-verification-${{ matrix.service }}
+          path: ${{ runner.temp }}/deployment-verification/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -244,7 +293,11 @@ jobs:
     needs:
       - prepare
       - build-images
-    if: needs.prepare.outputs.should_release == 'true'
+    if: >
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_release == 'true' &&
+      (needs.build-images.result == 'success' ||
+       (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -304,7 +357,8 @@ jobs:
         (github.event_name == 'workflow_run' &&
          needs.detect-changes.result == 'success' &&
          needs.prepare.result == 'success' &&
-         needs.build-images.result == 'success' &&
+         (needs.build-images.result == 'success' ||
+          (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped')) &&
          (needs.release.result == 'success' || needs.release.result == 'skipped')) ||
         (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
          needs.manual-request.result == 'success')
@@ -327,6 +381,9 @@ jobs:
           units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
           waves = {'vault': [], 'datastores': [], 'storage': [], 'config': [], 'applications': []}
           for unit in units:
+              # IaC owns these lifecycles and records their deployment status.
+              if unit['service'] in {'monitoring', 'log-agent'}:
+                  continue
               wave = unit['service'] if unit['service'] in {'vault', 'datastores', 'storage', 'config'} else 'applications'
               waves[wave].append(unit)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -435,11 +492,33 @@ jobs:
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
 
-  deploy-config:
+  apply-infrastructure:
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage]
+    if: >
+      !cancelled() && needs.deployment-plan.result == 'success' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
+      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
+      !(github.event_name == 'workflow_dispatch' && inputs.service == 'vault' && inputs.vault_recovery)
+    permissions:
+      contents: write
+      deployments: write
+      packages: read
+      id-token: write
+    uses: ./.github/workflows/cowork-prod-iac.yml
+    with:
+      sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+      from_cd: true
+      automatic: ${{ github.event_name != 'workflow_dispatch' }}
+    secrets: inherit
+
+  deploy-config:
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.config != '{"include":[]}' &&
+      needs.apply-infrastructure.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
       (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped')
@@ -474,10 +553,11 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
-    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, deploy-config]
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure, deploy-config]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.applications != '{"include":[]}' &&
+      needs.apply-infrastructure.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
       (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
@@ -549,6 +629,7 @@ jobs:
       - deploy-vault
       - deploy-datastores
       - deploy-storage
+      - apply-infrastructure
       - deploy-config
       - deploy
       - manual-request
@@ -565,7 +646,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -627,6 +708,7 @@ jobs:
             **Vault:** ${{ needs.deploy-vault.result }}
             **Datastores:** ${{ needs.deploy-datastores.result }}
             **Storage:** ${{ needs.deploy-storage.result }}
+            **Infrastructure:** ${{ needs.apply-infrastructure.result }}
             **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
             **Manual Request:** ${{ needs.manual-request.result }}
