@@ -2,10 +2,30 @@
 
 - **서비스**: cowork-user, Kafka, MySQL, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: 이전 컨테이너의 약 76분 재생과 후속 정상 상태를 확인했고 Team·Presence의 최대 20건 transaction 묶음 처리를 구현하였다. 후보의 당시 실패 원인과 새 이미지의 운영 처리량·readiness 도달 시간은 아직 확인하지 않았다.
+- **현재 상태**: 초기화한 데이터셋의 `main` 배포에서 MyXQL의 다중 SQL 응답 처리 오류로 User 기동이 중단됐다. 문장별 실행으로 수정했으며 운영 재적용과 불완전한 User 스키마 정리가 남아 있다. 과거 대량 재생 성능은 입증하지 않았다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md)
 
 > **2026-10-13 진척:** 이전 컨테이너의 보존 로그에서 재시작 후 약 76분 동안 projection 재생이 지속된 사실을 확인하였다. 후속 조회에서 이전 버전의 readiness는 200이었다. 묶음 처리는 구현했으며 generation·lease·earliest 재생·readiness 정책은 유지하였다. 새 이미지의 운영 효과는 아직 검증하지 않았다.
+
+## 새 데이터셋의 기동 실패
+
+사용자 승인으로 이전 업무 데이터를 초기화한 뒤 `main`의 `90f17043`을
+[앱 배포 실행](https://github.com/team-cowork/cowork-server/actions/runs/38398407812)으로 적용했다.
+User는 projection 기동 전에 마이그레이션에서 종료됐다. DB 접속 대상·계정·비밀번호 일치와 TCP
+handshake를 확인했으며, 연결·인증 실패가 원인은 아니다.
+
+`MyXQL 0.9.0`의 text multi-query 처리는 DDL의 OK 응답 뒤 수신 버퍼가 비면 남은 결과를 읽기 전에
+반환할 수 있다. 실제 오류는 뒤따르는 이력 갱신에서 발생한 `DBConnection.ConnectionError`의
+`bad return value`였다. V1·V2는 성공했고 V3는 DDL 적용 뒤 성공 이력 기록에 실패했다.
+`tb_accounts`, `tb_profile_roles`, `tb_profiles`는 각각 0행이었다. 이력 테이블에는 V3 실패가 남아 있다.
+
+같은 checked-out 연결에서 문자열·주석 밖의 문장 경계만 나누어 단일 SQL 응답을 순차 소비하도록
+수정했다. 원문 checksum, named lock, 실패 이력 차단은 유지한다. 문법·격리 컴파일 검사를 통과했으며
+운영에서 새 실행 방식의 성공은 아직 확인하지 않았다. 불완전한 User 스키마만 정리한 뒤 다시 배포한다.
+다른 DB·Kafka·오브젝트 스토리지를 다시 초기화하지 않는다.
+
+이번 마이그레이션 실패는 이전 후보의 readiness 지연과 다른 문제다. 새 데이터셋에서 기동에 성공해도
+과거 후보의 미확정 원인이나 대량 재생의 처리량 개선이 입증되는 것은 아니다.
 
 ## 문제
 
