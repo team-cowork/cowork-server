@@ -33,8 +33,9 @@ MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORIN
 GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
 KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
-STORAGE_SETTINGS_JSON
+STORAGE_SETTINGS_JSON DATASTORE_SETTINGS_JSON
 """.split())
+ISOLATED_RUNTIME_SETTINGS = {"storage": "STORAGE_SETTINGS_JSON", "datastores": "DATASTORE_SETTINGS_JSON"}
 # deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
 # container, inside one SSH session limited by command_timeout (45m) in .github/actions/deploy-target/action.yml.
 # Keep both in sync. 600s remains for the two 120s lock waits, the 30s container stop, source fetch and image pull.
@@ -85,13 +86,14 @@ def validate_deployment(data, target):
             demand(isinstance(reference["key"], str) and reference["key"], "Invalid reference key")
     runtime = data.get("runtime", {})
     runtime_keys = set(runtime) | set(data.get("runtime_refs", {}))
-    if target == "storage":
-        demand(runtime_keys == {"STORAGE_SETTINGS_JSON"}, "Storage requires only its isolated STORAGE_SETTINGS_JSON runtime setting")
-        demand(not data.get("application") and not data.get("application_refs"), "Storage cannot contain application settings")
+    if target in ISOLATED_RUNTIME_SETTINGS:
+        setting = ISOLATED_RUNTIME_SETTINGS[target]
+        demand(runtime_keys == {setting}, f"{target} requires only its isolated {setting} runtime setting")
+        demand(not data.get("application") and not data.get("application_refs"), "Isolated infrastructure cannot contain application settings")
     else:
-        demand("STORAGE_SETTINGS_JSON" not in runtime_keys, "Storage settings are restricted to the storage target")
-    demand("STORAGE_SETTINGS_JSON" not in data.get("application", {}) and
-           "STORAGE_SETTINGS_JSON" not in data.get("application_refs", {}), "Storage settings cannot be forwarded to applications")
+        demand(not runtime_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings are restricted to their own targets")
+    application_keys = set(data.get("application", {})) | set(data.get("application_refs", {}))
+    demand(not application_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings cannot be forwarded to applications")
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
     if "HEALTH_TIMEOUT_SECONDS" in runtime:
@@ -161,7 +163,7 @@ def main():
         path = f"deploy/{args.target}"
     else:
         services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "log-agent"}, "Invalid Config Server application")
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
@@ -175,7 +177,7 @@ def main():
             demand(isinstance(data, dict), "Application properties must be a flat JSON object")
             for key, value in data.items():
                 demand(bool(re.fullmatch(r"[A-Za-z0-9_.\[\]-]+", key)), "Invalid application property key")
-                demand(key != "STORAGE_SETTINGS_JSON", "Storage settings cannot be stored as application properties")
+                demand(key not in ISOLATED_RUNTIME_SETTINGS.values(), "Infrastructure settings cannot be stored as application properties")
                 demand(isinstance(value, (str, int, float, bool)), "Application properties must be scalar values")
         result = vault_request(api_path, {"options": {"cas": args.expected_version}, "data": data})
         print(f"Updated {path}, Vault version {result['data']['version']}")
