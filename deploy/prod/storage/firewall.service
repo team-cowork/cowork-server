@@ -1,0 +1,14 @@
+[Unit]
+Description=Restore cowork storage ingress before Docker
+Before=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/cowork-storage-firewall.py
+ExecReload=/usr/bin/python3 -I /usr/local/libexec/cowork-storage-firewall.py
+TimeoutStartSec=30
+
+[Install]
+RequiredBy=docker.service
