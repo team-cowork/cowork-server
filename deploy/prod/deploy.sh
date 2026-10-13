@@ -7,7 +7,7 @@ export RELEASE_ROOT
 SERVICE="${1:-}"
 ACTION="${2:-deploy}"
 case "$SERVICE" in
-  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|log-agent) ;;
+  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|datastores|storage|log-agent) ;;
   *) echo "Usage: $0 <service> [check|deploy]" >&2; exit 1 ;;
 esac
 case "$ACTION" in check|deploy) ;; *) echo 'Action must be check or deploy' >&2; exit 1 ;; esac
@@ -26,7 +26,7 @@ if [ "$ACTION" = deploy ]; then
 fi
 
 case "$SERVICE" in
-  vault|monitoring|log-agent)
+  vault|monitoring|datastores|storage|log-agent)
     # These deployment units have their own lifecycle; none starts the application stack.
     # shellcheck source=/dev/null
     source "${PROD_DIR}/services/${SERVICE}.sh"
@@ -49,6 +49,17 @@ RUN_ARGS=(--log-driver json-file --log-opt max-size=20m --log-opt max-file=5)
 # shellcheck source=/dev/null
 source "${PROD_DIR}/services/${SERVICE}.sh"
 require_env HOST_PORT CONTAINER_PORT HEALTH_PATH
+
+case "$SERVICE" in
+  authorization|user|team|channel|project|roadmap|notification|preference|chat|voice)
+    # The operator-installed policy must cover the exact binding before both
+    # check-only and deploy. Release-cache code never runs through sudo.
+    python3 -c 'import json, sys; print(json.dumps({"address": sys.argv[1], "host_port": int(sys.argv[2]), "container_port": int(sys.argv[3])}))' \
+      "$BIND_IP" "$HOST_PORT" "$CONTAINER_PORT" |
+      sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-binding ||
+      fail 'Backend ingress policy is missing, inactive, or does not cover this binding; install the reviewed VM policy first'
+    ;;
+esac
 
 # Explicit container-only overrides support application values without shell evaluation.
 while IFS= read -r -d '' entry; do

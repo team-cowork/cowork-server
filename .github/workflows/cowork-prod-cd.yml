@@ -14,13 +14,13 @@ on:
         type: choice
         options: [redeploy, update-config]
       target:
-        description: Vault deployment target or application service name (application for shared properties)
+        description: Vault target, applications for the 11-app redeploy group, or application for shared properties
         required: true
         type: string
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, monitoring, vault, log-agent]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, monitoring, vault, datastores, storage, log-agent]
       sha:
         description: Full main commit SHA with an existing image (redeploy only)
         type: string
@@ -78,6 +78,8 @@ jobs:
           TARGET: ${{ inputs.target }}
           SERVICE: ${{ inputs.service }}
           RELEASE_SHA: ${{ inputs.sha }}
+          CONFIGURATION_VERSION: ${{ inputs.configuration_version || '0' }}
+          VAULT_RECOVERY: ${{ inputs.vault_recovery && 'true' || 'false' }}
         run: |
           set -euo pipefail
           test "$GITHUB_REF" = refs/heads/main
@@ -86,7 +88,9 @@ jobs:
             redeploy)
               [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-              test -f "deploy/prod/services/$SERVICE.sh"
+              if [ "$SERVICE" != applications ]; then
+                test -f "deploy/prod/services/$SERVICE.sh"
+              fi
               test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
               git merge-base --is-ancestor "$RELEASE_SHA" origin/main
               ;;
@@ -94,11 +98,48 @@ jobs:
             *) echo 'Unknown manual operation' >&2; exit 1 ;;
           esac
           python3 - <<'PYTHON'
-          import json, os
+          import json, os, re
+          from pathlib import Path
           target, service = os.environ["TARGET"], os.environ["SERVICE"]
           deploy = os.environ["OPERATION"] == "redeploy"
-          matrix = {"include": [{"service": service, "target": target}] if deploy else []}
-          summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
+          group = service == "applications" or target == "applications"
+          if group:
+              if not deploy or (service, target) != ("applications", "applications"):
+                  raise SystemExit("The applications selector requires redeploy with service=target=applications")
+              if os.environ["CONFIGURATION_VERSION"] != "0" or os.environ["VAULT_RECOVERY"] != "false":
+                  raise SystemExit("The applications group requires configuration_version=0 and vault_recovery=false")
+              # Read mappings from the selected release, including when an older
+              # main SHA has no knowledge of this workflow's group selector.
+              applications = ("gateway", "authorization", "user", "team", "channel", "project",
+                              "roadmap", "notification", "preference", "chat", "voice")
+              inventory = json.loads(Path("deploy/prod/inventory.json").read_text())
+              if not isinstance(inventory, dict) or not isinstance(inventory.get("targets"), list):
+                  raise SystemExit("The selected release has an invalid deployment inventory")
+              selected, targets = {}, set()
+              for unit in inventory["targets"]:
+                  if not isinstance(unit, dict) or set(unit) != {"service", "target"} or any(
+                      not isinstance(unit[key], str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", unit[key])
+                      for key in ("service", "target")
+                  ):
+                      raise SystemExit("The selected release has an invalid inventory entry")
+                  if unit["target"] in targets:
+                      raise SystemExit("The selected release has duplicate deployment targets")
+                  targets.add(unit["target"])
+                  if unit["service"] not in applications:
+                      continue
+                  if unit["service"] in selected or unit["target"] == "applications":
+                      raise SystemExit("Each application must have one distinct deployment target")
+                  if not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
+                      raise SystemExit("An application deployment script is missing from the selected release")
+                  selected[unit["service"]] = unit
+              if set(selected) != set(applications):
+                  raise SystemExit("The applications group requires all eleven application services in the selected release")
+              units = [selected[name] for name in applications]
+              summary = "Applications (" + ", ".join(unit["target"] for unit in units) + ")"
+          else:
+              units = [{"service": service, "target": target}] if deploy else []
+              summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
+          matrix = {"include": units}
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
               output.write("services-list=" + summary + "\n")
@@ -271,10 +312,12 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       vault: ${{ steps.waves.outputs.vault }}
+      datastores: ${{ steps.waves.outputs.datastores }}
+      storage: ${{ steps.waves.outputs.storage }}
       config: ${{ steps.waves.outputs.config }}
       applications: ${{ steps.waves.outputs.applications }}
     steps:
-      - name: Order Vault, Config Server and remaining services
+      - name: Order Vault, datastores, storage, Config Server and remaining services
         id: waves
         env:
           DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
@@ -282,9 +325,9 @@ jobs:
           python3 - <<'PYTHON'
           import json, os
           units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
-          waves = {'vault': [], 'config': [], 'applications': []}
+          waves = {'vault': [], 'datastores': [], 'storage': [], 'config': [], 'applications': []}
           for unit in units:
-              wave = unit['service'] if unit['service'] in {'vault', 'config'} else 'applications'
+              wave = unit['service'] if unit['service'] in {'vault', 'datastores', 'storage', 'config'} else 'applications'
               waves[wave].append(unit)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               for wave, units in waves.items():
@@ -325,15 +368,85 @@ jobs:
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
-  deploy-config:
+  deploy-datastores:
     needs: [deployment-plan, deploy-vault]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
-      needs.deployment-plan.outputs.config != '{"include":[]}' &&
+      needs.deployment-plan.outputs.datastores != '{"include":[]}' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped')
     permissions:
       contents: read
       deployments: write
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.datastores) }}
+    steps:
+      - name: Checkout deployment tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+          configuration_version: ${{ inputs.configuration_version || '0' }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+
+  deploy-storage:
+    needs: [deployment-plan, deploy-vault, deploy-datastores]
+    if: >
+      always() && needs.deployment-plan.result == 'success' &&
+      needs.deployment-plan.outputs.storage != '{"include":[]}' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped')
+    permissions:
+      contents: read
+      deployments: write
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    concurrency:
+      group: deploy-${{ matrix.target }}
+      cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.storage) }}
+    steps:
+      - name: Checkout deployment tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
+          configuration_version: ${{ inputs.configuration_version || '0' }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
+
+  deploy-config:
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage]
+    if: >
+      always() && needs.deployment-plan.result == 'success' &&
+      needs.deployment-plan.outputs.config != '{"include":[]}' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
+      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped')
+    permissions:
+      contents: read
+      deployments: write
+      packages: read
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -361,15 +474,18 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
-    needs: [deployment-plan, deploy-vault, deploy-config]
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, deploy-config]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.applications != '{"include":[]}' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
+      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
       (needs.deploy-config.result == 'success' || needs.deploy-config.result == 'skipped')
     permissions:
       contents: read
       deployments: write
+      packages: read
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -377,6 +493,8 @@ jobs:
       cancel-in-progress: false
     strategy:
       fail-fast: false
+      # Empty projections can require peers to publish snapshots before readiness.
+      # Let all selected application jobs start; do not cap this matrix's parallelism.
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.applications) }}
     steps:
       - name: Checkout deployment tools
@@ -422,7 +540,6 @@ jobs:
 
   notify:
     runs-on: ubuntu-latest
-    environment: Production
     needs:
       - prepare
       - build-images
@@ -430,6 +547,8 @@ jobs:
       - detect-changes
       - deployment-plan
       - deploy-vault
+      - deploy-datastores
+      - deploy-storage
       - deploy-config
       - deploy
       - manual-request
@@ -446,7 +565,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -506,6 +625,8 @@ jobs:
             **Detect Changes:** ${{ needs.detect-changes.result }}
             **Deployment Plan:** ${{ needs.deployment-plan.result }}
             **Vault:** ${{ needs.deploy-vault.result }}
+            **Datastores:** ${{ needs.deploy-datastores.result }}
+            **Storage:** ${{ needs.deploy-storage.result }}
             **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
             **Manual Request:** ${{ needs.manual-request.result }}
