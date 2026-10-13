@@ -16,7 +16,7 @@ on:
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, vault, datastores, storage]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault, datastores, storage]
       sha:
         description: Optional full commit SHA for a previous version; defaults to the selected branch
         type: string
@@ -26,6 +26,10 @@ on:
         type: string
       check_only:
         description: Validate settings without starting containers (redeploy only)
+        default: false
+        type: boolean
+      initialize_state:
+        description: Create the first Terraform state (service=infrastructure only)
         default: false
         type: boolean
       vault_recovery:
@@ -79,6 +83,8 @@ jobs:
           SERVICE: ${{ inputs.service }}
           RELEASE_SHA: ${{ inputs.sha || github.sha }}
           CONFIGURATION_VERSION: ${{ inputs.configuration_version || '0' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
           VAULT_RECOVERY: ${{ inputs.vault_recovery && 'true' || 'false' }}
         run: |
           set -euo pipefail
@@ -87,7 +93,7 @@ jobs:
             redeploy)
               [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-              if [ "$SERVICE" != applications ]; then
+              if [ "$SERVICE" != applications ] && [ "$SERVICE" != infrastructure ]; then
                 test -f "deploy/prod/services/$SERVICE.sh" || test -f "deploy/prod/slots/$TARGET.json"
               fi
               test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
@@ -103,9 +109,17 @@ jobs:
           group = service == "applications" or target == "applications"
           if os.environ["VAULT_RECOVERY"] == "true" and (not deploy or service != "vault" or target != "vault"):
               raise SystemExit("vault_recovery requires redeploy with service=target=vault")
+          if os.environ["INITIALIZE_STATE"] == "true" and (
+              not deploy or service != "infrastructure" or os.environ["CHECK_ONLY"] == "true"
+          ):
+              raise SystemExit("State initialization requires service=infrastructure and check_only=false")
           if deploy and service in {"monitoring", "log-agent"}:
-              raise SystemExit("Use the cowork prod IaC workflow for monitoring and log agents")
-          if group:
+              raise SystemExit("Select service=infrastructure to apply monitoring and log agents")
+          if service == "infrastructure":
+              if not deploy or target != "infrastructure":
+                  raise SystemExit("Infrastructure requires redeploy with service=target=infrastructure")
+              units, summary = [], "Infrastructure and monitoring"
+          elif group:
               if not deploy or (service, target) != ("applications", "applications"):
                   raise SystemExit("The applications selector requires redeploy with service=target=applications")
               if os.environ["CONFIGURATION_VERSION"] != "0" or os.environ["VAULT_RECOVERY"] != "false":
@@ -498,13 +512,91 @@ jobs:
       deployments: write
       packages: read
       id-token: write
-    uses: ./.github/workflows/cowork-prod-iac.yml
-    with:
-      sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-      check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-      from_cd: true
-      automatic: ${{ github.event_name != 'workflow_dispatch' }}
-    secrets: inherit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: Prod-IaC
+    steps:
+      - name: Read the selected infrastructure source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.14.0'
+          terraform_wrapper: false
+      - name: Install pinned IaC tools
+        run: python -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
+      - name: Validate or apply infrastructure
+        id: apply
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
+          AUTOMATIC: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          options=(--sha "$RELEASE_SHA"
+            --work-directory "$RUNNER_TEMP/cowork-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            --recovery-file "$RUNNER_TEMP/cowork-iac-recovery/grafana.tfstate.aesgcm")
+          [ "$CHECK_ONLY" != true ] || options+=(--check-only)
+          [ "$AUTOMATIC" != true ] || options+=(--automatic)
+          [ "$INITIALIZE_STATE" != true ] || options+=(--initialize-state)
+          python deploy/iac/run.py "${options[@]}"
+      - name: Preserve encrypted state if persistence failed
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v7
+        with:
+          name: cowork-iac-encrypted-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cowork-iac-recovery/grafana.tfstate.aesgcm
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Remove any remaining plaintext inputs
+        if: always()
+        env:
+          PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-iac-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PYTHON'
+          import os, shutil
+          from pathlib import Path
+          directory = Path(os.environ['PRIVATE_DIRECTORY'])
+          parent = Path(os.environ['RUNNER_TEMP']).resolve()
+          if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith('cowork-iac-'):
+              raise SystemExit('Invalid IaC cleanup path')
+          if directory.exists():
+              shutil.rmtree(directory)
+          PYTHON
+      - name: Summarize the scope actually executed
+        if: success()
+        env:
+          IAC_RESULT: ${{ steps.apply.outputs.result }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+        run: |
+          case "$IAC_RESULT" in
+            checked)
+              echo "Static IaC validation passed at $RELEASE_SHA. No Vault read, SSH connection, Terraform plan or infrastructure apply was performed." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            skipped)
+              echo "Automatic IaC apply skipped at $RELEASE_SHA. Infrastructure sources have not changed since the last successful apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            applied)
+              echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo 'Infrastructure execution did not report a result' >&2
+              exit 1
+              ;;
+          esac
 
   deploy-config:
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure]
