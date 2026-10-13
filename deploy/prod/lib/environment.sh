@@ -7,7 +7,7 @@ load_deploy_environment() {
   source "${PROD_DIR}/defaults.sh"
   set +a
   case "$SERVICE" in
-    vault|monitoring|log-agent) ;;
+    vault|monitoring|datastores|storage|log-agent) ;;
     *) require_env APP_CONFIG_PROFILE
        case "$APP_CONFIG_PROFILE" in local|prod) ;; *) fail 'APP_CONFIG_PROFILE must be local or prod' ;; esac ;;
   esac
@@ -38,7 +38,8 @@ spring_environment() {
   control_plane_environment
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL KAFKA_BOOTSTRAP_SERVERS
   add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
-  add_env SPRING_CONFIG_IMPORT "configserver:${CONFIG_SERVER_URL}"
+  # Keep the import beside the application name and credentials in application.yml.
+  # An external import is resolved before those classpath properties are available.
   add_env CONFIG_SERVER_URL "$CONFIG_SERVER_URL"
   add_env EUREKA_SERVER_URL "$EUREKA_SERVER_URL"
   add_env KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS"
@@ -68,13 +69,14 @@ mysql_environment() {
 }
 
 object_storage_environment() {
-  require_env S3_INTERNAL_ENDPOINT S3_PUBLIC_ENDPOINT S3_PUBLIC_BASE_URL
+  require_env S3_INTERNAL_ENDPOINT PUBLIC_API_BASE_URL S3_BUCKET
+  python3 "${PROD_DIR}/storage-config.py"
   # Secret values may come from Vault; never replace them with development credentials.
   add_env S3_INTERNAL_ENDPOINT "$S3_INTERNAL_ENDPOINT"
-  add_env S3_PUBLIC_ENDPOINT "$S3_PUBLIC_ENDPOINT"
-  add_env S3_PUBLIC_BASE_URL "$S3_PUBLIC_BASE_URL"
+  add_env PUBLIC_API_BASE_URL "$PUBLIC_API_BASE_URL"
   add_env S3_BUCKET "$S3_BUCKET"
-  [ -z "${S3_ACCESS_KEY:-}" ] || add_env S3_ACCESS_KEY "$S3_ACCESS_KEY"
-  [ -z "${S3_SECRET_KEY:-}" ] || add_env S3_SECRET_KEY "$S3_SECRET_KEY"
+  add_env S3_REGION "$S3_REGION"
+  # Service-specific prefix credentials are supplied by each service's Vault application path.
+  # Never forward the storage provisioning identity through a shared runtime configuration.
   return 0
 }

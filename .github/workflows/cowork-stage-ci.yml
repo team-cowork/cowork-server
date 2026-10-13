@@ -98,7 +98,7 @@ jobs:
           fetch-depth: 0
       - name: Validate deployment syntax and Compose paths
         run: python3 deploy/validate.py
-      - name: Select local and production images
+      - name: Select local images
         id: images
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
@@ -106,7 +106,7 @@ jobs:
           args=()
           # A new branch or force push has no reachable previous commit; build every image then.
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 deploy/images/build-matrix.py "${args[@]}"
+          python3 deploy/images/build-matrix.py --environment local "${args[@]}"
       - name: Detect Changed Services
         uses: dorny/paths-filter@v4
         id: filter
@@ -349,7 +349,8 @@ jobs:
   image-validation:
     name: Image validation
     needs: [detect-changes, image-build]
-    if: always()
+    # Superseded PR runs must stop when their image builds are cancelled.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Require all selected image builds

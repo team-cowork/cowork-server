@@ -57,9 +57,11 @@ spring:
     config:
       server:
         overrides:
+          S3_BUCKET: ${S3_BUCKET:cowork-bucket}
+          S3_REGION: ${S3_REGION:us-east-1}
           S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
-          S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:http://localhost:9000}
-          S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL:http://localhost:9000/cowork-bucket}
+          PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:http://localhost:8080}
+          PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:5173}
           LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:ws://localhost:7880}
         composite:
@@ -85,9 +87,9 @@ spring:
     config:
       server:
         overrides:
+          S3_BUCKET: ${S3_BUCKET:cowork-bucket}
+          S3_REGION: ${S3_REGION:us-east-1}
           S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}
-          S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
-          S3_PUBLIC_BASE_URL: ${S3_PUBLIC_BASE_URL}
           PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS}
           PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
           GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}

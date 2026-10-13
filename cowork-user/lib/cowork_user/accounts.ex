@@ -235,13 +235,14 @@ defmodule CoworkUser.Accounts do
 
   def confirm_upload(user_id, %{"object_key" => object_key}) do
     with %Profile{} = profile <- load_profile(user_id),
-         :ok <- ObjectStorage.verify_upload(user_id, object_key),
+         {:ok, final_key} <- ObjectStorage.verify_upload(user_id, object_key),
          previous_key = profile.profile_image_key,
          {:ok, _} <-
            profile
-           |> Profile.changeset(%{profile_image_key: object_key, last_modified_by: user_id})
+           |> Profile.changeset(%{profile_image_key: final_key, last_modified_by: user_id})
            |> Repo.update() do
-      if previous_key && previous_key != object_key, do: ObjectStorage.delete_object(previous_key)
+      if previous_key && previous_key != final_key, do: ObjectStorage.delete_object(previous_key)
+      ObjectStorage.delete_object(object_key)
       :ok
     else
       nil -> {:error, :not_found}

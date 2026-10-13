@@ -45,16 +45,20 @@
       "target": "config"
     },
     {
-      "service": "monitoring",
-      "target": "monitoring"
-    },
-    {
       "service": "roadmap",
       "target": "roadmap"
     },
     {
       "service": "vault",
       "target": "vault"
+    },
+    {
+      "service": "datastores",
+      "target": "datastores"
+    },
+    {
+      "service": "storage",
+      "target": "storage"
     }
   ]
 }

@@ -1,3 +1,5 @@
+import { Types } from 'mongoose';
+import { type MessageBroadcastPayload } from '../repository';
 import { ChatGithubIssueResultConsumer } from './chat-github-issue-result.consumer';
 import { type ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
 
@@ -41,10 +43,32 @@ describe('ChatGithubIssueResultConsumer', () => {
         occurredAt: '2026-09-26T00:00:00.000Z',
     };
 
+    function savedSystemMessage(content: string) {
+        const message: MessageBroadcastPayload = {
+            _id: new Types.ObjectId('507f1f77bcf86cd799439011'),
+            teamId: baseResult.teamId,
+            projectId: baseResult.projectId,
+            channelId: baseResult.channelId,
+            authorId: 0,
+            content,
+            type: 'SYSTEM',
+            attachments: [],
+            parentMessageId: null,
+            isEdited: false,
+            isPinned: false,
+            mentions: [],
+            reactions: [],
+            createdAt: new Date(baseResult.occurredAt),
+            updatedAt: new Date(baseResult.occurredAt),
+        };
+        return { toObject: jest.fn().mockReturnValue(message) };
+    }
+
     describe('handleResultEvent (REJECTED)', () => {
         it('거부 사유를 담은 시스템 메시지를 저장하고 브로드캐스트한다', async () => {
-            const savedMessage = { toObject: jest.fn().mockReturnValue({ id: 'm1' }) };
-            mockChatService.saveSystemMessage.mockResolvedValue(savedMessage);
+            mockChatService.saveSystemMessage.mockResolvedValue(
+                savedSystemMessage('❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.'),
+            );
 
             await (consumer as unknown as {
                 handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
@@ -59,7 +83,9 @@ describe('ChatGithubIssueResultConsumer', () => {
         });
 
         it('error가 없으면 알 수 없는 오류 문구를 사용한다', async () => {
-            mockChatService.saveSystemMessage.mockResolvedValue({ toObject: jest.fn().mockReturnValue({}) });
+            mockChatService.saveSystemMessage.mockResolvedValue(
+                savedSystemMessage('❌ 이슈 생성 실패: 알 수 없는 오류'),
+            );
 
             await (consumer as unknown as {
                 handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;

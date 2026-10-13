@@ -2,9 +2,17 @@
 require_env VAULT_EXTERNAL_HOST VAULT_BIND_IP VAULT_DATA_VOLUME
 COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
   -p "${VAULT_COMPOSE_PROJECT:-vault}" -f "${PROD_DIR}/vault/compose.yaml")
+vault_config_file="${RELEASE_ROOT}/deploy/config/vault/server.hcl"
+[ -f "$vault_config_file" ] && [ ! -L "$vault_config_file" ] ||
+  fail 'Vault configuration must be a regular non-symlink file'
+[ "$(readlink -f -- "$vault_config_file")" = "$vault_config_file" ] ||
+  fail 'Vault configuration path must not contain symlinks'
 "${COMPOSE[@]}" config --quiet
 [ "$ACTION" = deploy ] || { echo '[vault] Configuration valid'; return; }
 "${COMPOSE[@]}" pull
+# Source archives inherit umask 077. Only this secret-free Git configuration
+# needs to be readable by Vault's non-root user through its read-only bind mount.
+chmod 0644 -- "$vault_config_file"
 "${COMPOSE[@]}" up -d
 
 status_file=$(mktemp)

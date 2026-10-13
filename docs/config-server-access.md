@@ -174,6 +174,10 @@ HTTPS 인증서 검증을 유지하고 리다이렉트는 거부한다. 오류 �
 자격 증명, HTTP 헤더, 응답 본문, 예외 원문은 출력하지 않는다. 검증용 토큰은 컨테이너에 전달하지 않는다.
 폐기 요청에 실패하면 Cloud 담당자가 Vault 감사 기록으로 검증용 토큰을 찾아 폐기한다.
 
+2026-10-13 운영 전환에서 실행 중 Config의 AppRole 설정, 서비스별 설정 조회, 교차 서비스·다른
+프로파일 접근 거부와 실제 방화벽 정책을 확인했다. 같은 인스턴스의 만료 전 자동 갱신과 최대 수명
+이후 재로그인은 아직 관측하지 않았다. 사전 검증기의 즉시 갱신 성공은 이 장기 동작의 증거가 아니다.
+
 단일 정책 이름만으로 정책 본문의 최소 권한을 증명할 수는 없다. Cloud 담당자가 생성된 HCL과 실제
 정책을 대조한다. 검증기는 role 관리 권한이 없으므로 Secret ID의 TTL·사용 횟수 설정도 증명하지 못한다.
 Cloud 담당자가 role과 실제 발급한 Secret ID의 설정을 확인한다.
@@ -189,13 +193,66 @@ role 설정은 [Vault AppRole API](https://developer.hashicorp.com/vault/api-doc
 
 ## 네트워크와 배포 순서
 
-Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 필요한 `sudo -n iptables`와
-`iptables-restore` 권한을 제공한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다.
+Config VM은 Docker의 iptables 방식을 사용한다. 배포 사용자는 고정 경로의 root 소유 Config 방화벽
+helper를 실행할 수 있어야 한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다.
 `check_only`는 컨테이너를 기동하지 않는다. Config 배포에서는 위 Vault 인증 요청도 실행한다.
-실제 네트워크 차단을 별도로 확인한다. 클라우드 보안 그룹도 같은 peer 목록으로
-제한하고 Docker 재시작 시 규칙이 재적용되도록 호스트 운영 설정을 유지한다.
+실제 네트워크 차단을 별도로 확인하고 클라우드 보안 그룹도 같은 peer 목록으로 제한한다.
 
-최초 접근 보호 전환은 서버 포트가 한 개이므로 점검 시간에 진행한다.
+실제 배포는 확정된 `BIND_IP`, `HOST_PORT`, `CONFIG_ALLOWED_CIDRS`를
+`/etc/cowork/config-firewall/policy.json`에 root 소유·`0600` 권한으로 보존한다. 운영자가 먼저 설치한
+`/usr/local/libexec/cowork-config-firewall.py`를 사용하므로 배포 디렉터리를 정리해도 남는다.
+`cowork-config-firewall.service`는 Docker의 필수 선행 서비스다. VM 재부팅과 Docker 재시작에서
+방화벽 복원이 성공해야 Docker가 시작된다. `DOCKER-USER`가 없으면 생성하고 `COWORK_CONFIG`와
+그 체인으로 향하는 jump만 복원한다. 다른 체인과 규칙은 지우지 않는다.
+
+배포 실패 시 이전 CIDR·바인딩을 실행 규칙과 영속 파일에 함께 복원한다. 이전 보호 정책이 없던
+첫 전환에서는 새 제한을 유지한다. 복원이 실패하면 이전 컨테이너를 시작하지 않는다. 바인딩이 바뀌는
+배포에서는 이전 컨테이너가 남아 있는 동안 재부팅해도 보호되도록 기존 바인딩의 제한도 유지한다.
+새 컨테이너의 readiness 확인과 이전 컨테이너 제거가 모두 끝나면 요청한 새 바인딩만 남긴다.
+이 최종화가 실패하면 가능한 경우 실행 규칙과 영속 파일을 전환 중 정책으로 되돌린다. 새 컨테이너는
+유지하고 배포는 실패로 기록한다. 이전 컨테이너 제거가 실패한 경우도 성공으로 기록하지 않는다.
+운영자는 남은 컨테이너와 정책을 확인한 뒤 정리하고 다시 배포한다. 준비·전환·최종화의 트랜잭션 ID가
+다르면 helper가 요청을 거부한다.
+최초 전환에서도 기존 `cowork-config`의 실제 게시 포트를 확인한다. 기존 바인딩이 wildcard 또는
+IPv6이면 이 IPv4 정책으로 보호할 수 없으므로 배포를 중단하고 해당 바인딩을 먼저 정리한다.
+복원 서비스를 수동으로 중지하면 의존하는 Docker도 중지되므로 정책 갱신은 배포 helper를 사용한다.
+
+### Config VM의 방화벽 helper 초기 설치
+
+최초 Config 배포 전과 helper 변경 시 운영자가 다음 세 파일을 같은 검토된 커밋에서 준비한다.
+이 설치는 일반 CD에서 실행하지 않는다. 배포 사용자가 쓸 수 있는 릴리스 캐시의 Python 파일을
+`sudo`로 실행하지 않는다.
+
+- `deploy/prod/bootstrap-config-firewall.sh`
+- `deploy/prod/config-firewall.py`
+- `deploy/prod/config-firewall.service`
+
+1. 로컬에서 검토된 커밋의 세 파일과 SHA-256을 준비한다. 커밋 ID와 해시를 설치 기록에 남긴다.
+2. Config VM에 파일을 전송한다. 진행 중인 Config 배포가 없는지 확인한다.
+3. 관리 권한으로 `/root/cowork-config-firewall-bootstrap`을 만들고 소유자를 `root:root`, 권한을
+   `0700`으로 설정한다. 전송한 세 파일을 이 디렉터리에 `root:root`, `0600`으로 복사한다.
+4. **복사한 root 소유 파일**의 SHA-256을 1번의 값과 대조한다. 일치하지 않으면 실행하지 않는다.
+   전송 경로나 릴리스 캐시에서 직접 설치 스크립트를 실행하지 않는다.
+5. 다음 명령으로 설치한다.
+
+```sh
+sudo /usr/bin/bash /root/cowork-config-firewall-bootstrap/bootstrap-config-firewall.sh
+```
+
+설치 스크립트는 소스 파일과 부모 디렉터리의 root 소유권·쓰기 권한을 확인하고 helper와 systemd
+unit을 고정 경로에 원자적으로 복사한다. 일반 CD는 이미 설치된 helper에 검증할 JSON 데이터와
+`prepare`, `activate`, `rollback`, `finalize` 요청만 전달한다. 임의 파일 경로나 명령은 받지 않는다.
+`prepare`가 첫 정책 파일을 만든 뒤 복원 서비스를 활성화한다. VM 초기 설치만으로 포트를 공개하거나
+Docker를 재시작하지 않는다. helper를 바꿀 때도 같은 검토·해시 확인·설치 절차를 반복한다.
+
+정상 CD의 privileged command는 `/usr/bin/python3 -I /usr/local/libexec/cowork-config-firewall.py`다.
+복원 서비스 시작은 이 helper가 고정된 unit 이름으로 수행한다. 배포 사용자의 sudo 권한을 구성할 때
+이 실행 경로와 지원하는 작업만 허용한다. Docker 그룹 또는 다른 무제한 sudo 권한이 있으면 해당
+사용자는 여전히 VM의 root 권한을 얻을 수 있으므로 이 절차를 사용자 격리 수단으로 간주하지 않는다.
+
+### 최초 접근 보호 전환
+
+서버 포트가 한 개이므로 점검 시간에 진행한다.
 
 1. 서비스별 Vault 값, 새 계정, 허용 CIDR, AppRole 자격 증명을 준비한다.
 2. 모든 배포 문서의 bootstrap을 갱신하고 `check_only`를 실행한다.
@@ -218,7 +275,7 @@ Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 �
 5. 24시간 상한을 넘겨 새 AppRole 로그인이 발생하는지 확인한다. 설정 요청을 계속 관측한다.
 6. 재시작·재배포 없이 7일을 넘겨 설정 조회와 갱신이 계속 성공하는지 확인한다.
 7. 위 확인 뒤 기존 토큰용 6시간 간격 cron과 기존 정적·주기 토큰을 폐기한다.
-   폐기 대상·선행 조건·완료 판정은 [기존 Vault 갱신 cron과 토큰 폐기 TODO](./todo/items/61-cleanup/config-vault-legacy-token-retirement.md)에서 관리한다.
+   기존 클러스터를 유지하는 전환에 적용하는 순서다. 승인된 새 클러스터 재구성에서는 현재 자격 증명과 복구 자료가 분리되어 있음을 확인한 뒤 이전 전용 cron·토큰 파일·클러스터를 제거한다. 새 AppRole의 수명 관리 확인은 계속 필요하다.
 
 Vault 장애 중에는 설정 조회가 실패할 수 있다. 갱신 실패로 세션이 제거된 뒤 Vault가 복구되면 다음
 설정 요청에서 로그인한다. 7일 운영 결과와 장애 복구 결과는 Cloud 환경에서 별도 기록한다.

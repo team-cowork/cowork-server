@@ -1,7 +1,7 @@
 import { type ChatMessageScopeError, ChatMessageScopeValidator } from './chat-message-scope-validator';
 
 const event = {
-    contractVersion: 1 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,
+    contractVersion: 2 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,
     channelId: 2, authorId: 3, authorRole: 'MEMBER', content: 'hello', type: 'TEXT' as const,
     attachments: [], occurredAt: '2026-09-03T00:00:00.000Z',
 };
