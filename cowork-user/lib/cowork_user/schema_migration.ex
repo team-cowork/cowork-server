@@ -98,14 +98,14 @@ defmodule CoworkUser.SchemaMigration do
             end
 
             sql = directory |> Path.join(filename) |> File.read!() |> strip_bom()
-            validate_sql!(sql, filename)
+            statements = validate_sql!(sql, filename)
 
             %{
               version: String.to_integer(version),
               description: String.replace(description, "_", " "),
               script: filename,
               checksum: checksum(sql),
-              sql: sql
+              statements: statements
             }
 
           _ ->
@@ -134,9 +134,12 @@ defmodule CoworkUser.SchemaMigration do
       fail!("Migration uses unsupported placeholders or executable directives: #{filename}")
     end
 
-    # This masks literals/comments only for the support checks. Execution sends
-    # the original complete file to MySQL; it never splits SQL on semicolons.
-    code = Regex.replace(@sql_literals_and_comments, sql, " ")
+    # Keep byte offsets so only semicolons outside literals/comments delimit
+    # statements, while the SQL sent to MySQL retains its original contents.
+    code =
+      Regex.replace(@sql_literals_and_comments, sql, fn token ->
+        String.duplicate(" ", byte_size(token))
+      end)
 
     keywords =
       ~r/(?:\A|;)\s*([a-z]+)/i
@@ -154,6 +157,26 @@ defmodule CoworkUser.SchemaMigration do
         "Migration must contain plain DDL/DML without session, lock or history control: #{filename}"
       )
     end
+
+    split_statements(sql, code)
+  end
+
+  defp split_statements(sql, code) do
+    boundaries = :binary.matches(code, ";") ++ [{byte_size(sql), 0}]
+
+    {statements, _offset} =
+      Enum.map_reduce(boundaries, 0, fn {position, delimiter_size}, offset ->
+        size = position - offset
+
+        statement =
+          unless String.trim(binary_part(code, offset, size)) == "" do
+            binary_part(sql, offset, size)
+          end
+
+        {statement, position + delimiter_size}
+      end)
+
+    Enum.reject(statements, &is_nil/1)
   end
 
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
@@ -386,30 +409,37 @@ defmodule CoworkUser.SchemaMigration do
     started_at = System.monotonic_time(:millisecond)
     Logger.info("Applying user schema migration #{migration.script}")
 
-    case MyXQL.query_many(connection, migration.sql, [],
-           query_type: :text,
-           timeout: @bootstrap_timeout_ms,
-           checkout_retries: 0
-         ) do
-      {:ok, _results} ->
-        result =
-          query!(
-            connection,
-            "UPDATE `flyway_schema_history` SET execution_time = ?, success = 1 WHERE installed_rank = ? AND success = 0",
-            [elapsed_ms(started_at), rank],
-            "mark migration #{migration.script} as successful"
-          )
+    # MyXQL 0.9 can return from a text multi-query at a DDL OK packet before
+    # reading the remaining results. Consume one complete response per statement
+    # on the same checked-out connection before updating the migration history.
+    Enum.each(migration.statements, fn statement ->
+      case MyXQL.query(connection, statement, [],
+             query_type: :text,
+             timeout: @bootstrap_timeout_ms,
+             checkout_retries: 0
+           ) do
+        {:ok, _result} ->
+          :ok
 
-        unless result.num_rows == 1 do
+        {:error, error} ->
           fail!(
-            "Migration history changed while applying #{migration.script}; startup has been stopped"
+            "Migration #{migration.script} failed (#{error_code(error)}); its history remains failed. Reconcile any partial DDL and repair history before restarting"
           )
-        end
+      end
+    end)
 
-      {:error, error} ->
-        fail!(
-          "Migration #{migration.script} failed (#{error_code(error)}); its history remains failed. Reconcile any partial DDL and repair history before restarting"
-        )
+    result =
+      query!(
+        connection,
+        "UPDATE `flyway_schema_history` SET execution_time = ?, success = 1 WHERE installed_rank = ? AND success = 0",
+        [elapsed_ms(started_at), rank],
+        "mark migration #{migration.script} as successful"
+      )
+
+    unless result.num_rows == 1 do
+      fail!(
+        "Migration history changed while applying #{migration.script}; startup has been stopped"
+      )
     end
   end
 
