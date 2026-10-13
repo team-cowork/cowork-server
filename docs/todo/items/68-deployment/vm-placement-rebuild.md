@@ -2,7 +2,7 @@
 
 - **서비스**: GSM SV VM, Config/Eureka, Gateway, Team, Project, Preference, Voice, Roadmap, Vault, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: Vault 전용 VM과 교체 앱 VM을 준비했으며, 업무 데이터를 초기화하고 SeaweedFS로 전환했으며 이전 VM 3개를 삭제했다. 엔진 버전 정렬과 GitHub 경로의 앱 배포는 진행 중이다.
+- **현재 상태**: Vault 전용 VM과 교체 앱 VM을 준비했으며, 업무 데이터를 초기화하고 SeaweedFS로 전환했으며 이전 VM 3개를 삭제했다. 엔진 버전 정렬을 마쳤으며 Datastores의 Compose 전환과 GitHub 경로의 앱 배포는 진행 중이다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md), [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md), [운영 Eureka 등록과 광고 주소 복구](../66-deployment/eureka-registration-recovery.md), [공개 API 진입점과 TLS 인증서 정합성 복구](../67-configuration/public-api-tls.md), [모듈별 MySQL·Redis 배치 전환 검토](../58-deployment/module-datastore-placement.md)
 
 ## 문제
@@ -71,10 +71,13 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 
 - Config·Gateway·DB와 기존 앱 VM에서 이전 앱·Vault·임시 빌드 컨테이너 28개와 전용 볼륨 25개를 제거했다. User의 무회전 로그 약 27.2 GB도 컨테이너와 함께 제거됐다. Docker와 모니터링 컨테이너는 재시작하지 않았다.
 - DB VM의 MySQL·PostgreSQL·MongoDB·Redis·Elasticsearch·Kafka 및 이전 MinIO 공개 포트 전달 규칙 10개를 삭제했다. 패널에서 제거된 것을 확인했고, 운영 Mac에서 해당 TCP 포트 10개에 연결되지 않았다.
-- LiveKit을 저장소의 고정 `v1.13.7` 이미지로 교체하고 `http://10.0.0.90:8089/voice/webhook`을 등록했다. 공개 TLS와 미인증 WebSocket 요청의 LiveKit 도달은 확인했다. RTC 공인 주소·매핑 정렬과 실제 음성 통신은 아직 확인하지 않았다.
+- LiveKit을 저장소의 고정 `v1.13.7` 이미지로 교체하고 `http://10.0.0.90:8089/voice/webhook`을 등록했다. 공개 TLS와 미인증 WebSocket 요청의 LiveKit 도달을 확인했다. RTC 공인 주소는 `158.247.251.109`, 광고 TCP·UDP 포트는 각각 `32154`·`37932`로 실제 매핑과 맞췄다. 외부 TCP 연결은 성공했다. UDP 왕복과 실제 음성 통신은 아직 확인하지 않았다. 별도 relay 포트 범위가 없는 현재 GSM SV 연결에서는 TURN을 비활성화했다.
 
 - GSM SV 패널에서 이전 `cowork-app`(`gsmgpu2:134`), `cowork-preference-`(`gsmgpu2:153`), `owork-voice`(`gsmgpu3:109`)를 영구 삭제했다. 새 Project·Preference·Voice VM은 목록에 남아 있다.
 - 초기화 직후 MySQL 업무 테이블, Preference schema 객체, Chat·Voice collection, Redis DB0 key, Chat 검색 색인은 모두 0개였다. Kafka는 4.3.1의 새 영속 볼륨에서 실행되며 52개 topic의 end offset과 consumer group은 모두 0이었다.
+- MySQL `9.7.2`, PostgreSQL `18.6`, MongoDB `8.3.11`, Redis `8.10.1`, Elasticsearch `9.5.4`로 엔진을 정렬했다. 이전 엔진 컨테이너와 전용 볼륨을 제거했다. Elasticsearch의 새 내부 운영 색인에 문서가 생겼으므로 전체 색인이 0개라는 상태를 유지한다고 표현하지 않는다. 업무 데이터와는 구분한다.
+- DB의 포트별 방화벽을 설치했다. 허용 서비스의 DB 연결은 성공하고 비허용 Vault VM의 보호 포트 10개 연결은 차단되었다. 기존 MySQL·PostgreSQL·MongoDB exporter의 인증 오류는 남아 있으며 제외 범위인 모니터링 설정은 변경하지 않았다.
+- Datastores GitHub target, 전용 UID/GID `10002` 계정, Vault 문서와 GitHub Environment를 준비했다. 일반 CD는 기존 외부 볼륨 7개와 cluster identity를 검증한다. 최초 Compose 소유권 전환과 main GitHub 실행 결과는 아직 확인하지 않았다.
 - Storage GitHub target과 전용 Vault 문서·GitHub Environment를 준비했다. 일반 CD는 기존 데이터를 유지하며, 최초 초기화와 이전 엔진 제거는 수행하지 않는다. 이 GitHub 경로의 실제 실행은 아직 확인하지 않았다.
 
 - Vault는 새 전용 VM에서 `f6fdc56e`의 정상 `redeploy`를 통과했다. GitHub runtime 성공 기록과 공개 TLS health를 확인했다.
@@ -86,10 +89,11 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 - 사용자는 기존 업무 데이터 보존을 요구하지 않으며, 초기 상태와 같은 구성이 더 명확하면 파괴적 재구성을 허용했다. 기존 MinIO 유지 판단을 철회하고 빈 SeaweedFS 4.47 데이터셋으로 전환했다. MinIO 컨테이너 2개와 전용 볼륨을 제거했다.
 - MySQL 업무 DB 7개, PostgreSQL Preference, MongoDB Chat·Voice, Redis DB0, Chat 검색 색인과 Kafka 데이터셋을 초기화했다. 새 Vault와 현재 유효한 외부 연동 자격 증명은 유지한다.
 - 기존 Voice DB에서 처리 실패 기록 51,325개를 확인했다. Kafka의 실제 로그 경로는 `/tmp/kafka-logs`이며 연결한 `/var/lib/kafka/data` 볼륨을 사용하지 않았다. 새 브로커는 저장소의 고정 이미지와 명시한 영속 경로를 사용한다.
-- 독립 GitHub App을 포함해 17개 VM의 업무 컨테이너 17개가 정지 상태이며 자동 재시작이 해제되어 있다. 처음 실행 중이던 컨테이너는 11개다. 이전 업무 컨테이너는 복구 대상으로 유지하지 않는다.
+- 초기화 전에 독립 GitHub App을 포함한 업무 컨테이너 17개를 정지하고 자동 재시작을 해제했다. 처음 실행 중이던 컨테이너는 11개였다. 이 기록을 현재 남아 있는 컨테이너 수로 사용하지 않는다. 이후 이전 업무 컨테이너와 VM을 제거했으며 구버전 복구 대상으로 유지하지 않는다.
+- GitHub App의 최신 main 이미지와 webhook secret 입력을 준비했다. Config·Project의 잘못된 내부 URL을 GitHub `update-config`로 `http://10.0.0.150:3000`으로 수정했고 내부 API 키 일치를 확인했다. App의 현재 webhook은 비활성이며 URL과 구독 목록이 비어 있다. `issues`·`pull_request` 권한은 있고 `push`에 필요한 Contents 읽기 권한은 없다. 실제 이벤트 수신은 아직 확인하지 않았다.
 - 초기화 완료와 서비스 복구는 별도로 판정한다. 앱 readiness·Config 권한·Eureka·공개 API가 확인되기 전에는 운영 복구 완료로 기록하지 않는다.
 
-DB VM의 기존 Config·Gateway·Team은 정지되어 있다. 기존 운영 Vault와 갱신 cron은 폐기했다. DB VM의 중지된 개발용 Vault와 이관용 복제 볼륨도 제거했다.
+DB VM의 기존 Config·Gateway·Team 컨테이너는 제거했다. 기존 운영 Vault와 갱신 cron은 폐기했다. DB VM의 중지된 개발용 Vault와 이관용 복제 볼륨도 제거했다.
 신규 VM 생성과 기존 컨테이너 정지를 서비스 이관 완료로 판단하지 않는다.
 
 | 항목 | 패널에서 확인한 내용 | 적용 조건 |
@@ -145,7 +149,7 @@ DB·Redis의 모듈별 분리 여부는 관련 배치 작업에서 결정하며,
 
 ### GitHub 경로로 적용
 
-- 확정한 VM에 `check_only`를 수행한 뒤 Vault, Storage, Config/Eureka, 앱 순서로 GitHub 수동 배포를 실행한다.
+- 확정한 VM에 `check_only`를 수행한 뒤 Vault, Datastores, Storage, Config/Eureka, 앱 순서로 GitHub 수동 배포를 실행한다.
 - Config·Gateway·Team이 각각 전용 VM에서 실행되는지 확인한다.
 - 새 배치의 readiness, Config 조회 권한, Eureka identity와 광고 주소, 필요한 projection 상태를 확인한다.
 - 이전 업무 컨테이너와 불필요한 등록을 제거한다. 교체 VM이 준비되고 현재 설정·자격 증명이 이전 VM에 의존하지 않는지 확인한 뒤 이전 VM을 삭제한다.
