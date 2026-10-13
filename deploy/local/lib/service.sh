@@ -23,18 +23,12 @@ load_env() {
   local ip
   ip="$(detect_local_ip || true)"
   if [ -n "$ip" ]; then
-    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
-      export S3_PUBLIC_ENDPOINT="${S3_PUBLIC_ENDPOINT/__LOCAL_IP__/$ip}"
-    fi
-    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
-      export S3_PUBLIC_BASE_URL="${S3_PUBLIC_BASE_URL/__LOCAL_IP__/$ip}"
+    if [ -n "${PUBLIC_API_BASE_URL:-}" ] && [[ "$PUBLIC_API_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      export PUBLIC_API_BASE_URL="${PUBLIC_API_BASE_URL/__LOCAL_IP__/$ip}"
     fi
   else
-    if [ -n "${S3_PUBLIC_ENDPOINT:-}" ] && [[ "$S3_PUBLIC_ENDPOINT" == *"__LOCAL_IP__"* ]]; then
-      echo "WARN: failed to detect local IP; S3_PUBLIC_ENDPOINT still contains __LOCAL_IP__"
-    fi
-    if [ -n "${S3_PUBLIC_BASE_URL:-}" ] && [[ "$S3_PUBLIC_BASE_URL" == *"__LOCAL_IP__"* ]]; then
-      echo "WARN: failed to detect local IP; S3_PUBLIC_BASE_URL still contains __LOCAL_IP__"
+    if [ -n "${PUBLIC_API_BASE_URL:-}" ] && [[ "$PUBLIC_API_BASE_URL" == *"__LOCAL_IP__"* ]]; then
+      echo "WARN: failed to detect local IP; PUBLIC_API_BASE_URL still contains __LOCAL_IP__"
     fi
   fi
 }

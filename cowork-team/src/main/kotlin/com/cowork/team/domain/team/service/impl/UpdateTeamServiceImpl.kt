@@ -5,6 +5,7 @@ import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.team.service.UpdateTeamService
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -13,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class UpdateTeamServiceImpl(
+    private val iconOwnership: TeamIconOwnershipService,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
@@ -23,7 +25,8 @@ class UpdateTeamServiceImpl(
     override fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
         val team = teamAccessGuard.findTeamForUpdateOrThrow(teamId)
         teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
-        team.update(request.name, request.description, request.iconUrl)
+        request.iconUrl?.let { iconOwnership.replace(userId, team, it) }
+        team.update(request.name, request.description, null)
         val members = teamMemberRepository.findAllByTeamIdForUpdate(teamId)
         teamEventPublisher.publishUpdated(team, userId)
         members.forEach(teamMemberEventPublisher::publishUpsert)

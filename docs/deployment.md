@@ -24,8 +24,7 @@ Vault `secret/deploy/{target}`에 저장한다. 운영 VM의 환경 파일을 �
    공개 트래픽을 연다. 앱 배포 wave 안에서는 업무 의존성별 순차 기동을 보장하지 않는다.
 
 외부 앱 HTTP는 Gateway로 들어오고 downstream 포트는 사설 주소와 허용 peer로 제한한다.
-Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미디어·S3 요청은 별도 공개 경로가 필요하다.
-실제 S3 접근 정책은 [TODO](./todo/items/13-storage/object-storage-public-access-contract.md)에서 관리한다.
+Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미디어는 별도 공개 경로가 필요하다.
 
 같은 VM에 같은 서비스의 여러 target을 배치하는 구성은 지원하지 않는다. 배치·실제 포트는 Vault와
 대조한다. 필요한 외부 볼륨은 배포 전에 생성한다. Vault의 TLS 프록시만 사설 listener에 접근시키고,
@@ -109,7 +108,7 @@ DB 계정과 그 계정을 포함한 DSN·URI를 함께 갱신한다. 배포 참
 notification의 Vault DSN 키는 `db.dsn`, preference의 DB 계정 키는
 `preference.db.username`·`preference.db.password`다. bootstrap 환경변수 이름으로 대체하지 않는다.
 
-JWT는 authorization·Gateway·Chat, S3 key pair는 S3 서버·chat·team·user,
+JWT는 authorization·Gateway·Chat, 서비스별 S3 key pair는 S3 서버와 해당 서비스,
 LiveKit key pair는 LiveKit 서버·voice에서 교체 시점과 재배포 순서를 맞춘다.
 Config/Eureka 계정·방화벽은 [접근 보호 절차](./config-server-access.md)를 따른다.
 
