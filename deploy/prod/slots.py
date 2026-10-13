@@ -63,8 +63,8 @@ def validate(value, target):
     demand(isinstance(github_secrets, dict), "GitHub secret references must be an object")
     if github_secrets:
         demand(value["kind"] == "infrastructure" and value["service"] == "monitoring"
-               and github_secrets == {"DISCORD_WEBHOOK_URL": "DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK"},
-               "Only monitoring can consume the existing GitHub alert webhook")
+               and github_secrets == {"DISCORD_WEBHOOK_URL": "DISCORD_MONITORING_ALERT_WEBHOOK"},
+               "Only monitoring can consume its GitHub monitoring webhook")
         demand(not set(github_secrets).intersection(value.get("runtime", {}))
                and not set(github_secrets).intersection(secrets.get("runtime", {}))
                and not set(github_secrets).intersection(secrets.get("application", {})),

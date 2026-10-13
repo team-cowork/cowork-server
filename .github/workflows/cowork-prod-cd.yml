@@ -536,7 +536,7 @@ jobs:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
