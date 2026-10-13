@@ -12,7 +12,7 @@
 
 ## 진행 중
 
-2026-10-13 기준 미완료 상세 문서는 기존 작업 15건과 운영 후속 작업 6건을 합한 **21건**이다.
+2026-10-13 기준 미완료 상세 문서는 기존 작업 14건과 운영 후속 작업 6건을 합한 **20건**이다.
 기존 구현 항목의 대조 기준은 2026-10-12 원격 `develop`의 `5a534586`, `main`의 `f68758e2`다.
 2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
 나머지 항목은 당시 코드와 대조해 변동이 없음을 확인했다. 이번 추가 항목은 운영 상태와 GSM SV 패널 관측을 기준으로 한다.
@@ -34,10 +34,6 @@
 - monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md) — 기대 서비스 집합과 Vault seal·디스크 부족 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
 
-### 별도 자격 증명 폐기 작업 (1)
-
-- cleanup: [Config Server 기존 Vault 갱신 cron과 토큰 폐기](./items/61-cleanup/config-vault-legacy-token-retirement.md) — 새 Vault 전환과 복구 자료 확인 후 기존 cron·토큰·참조 폐기
-
 ### 운영 배치 결정 필요 (1)
 
 - deployment: [모듈별 MySQL·Redis 배치 전환 검토](./items/58-deployment/module-datastore-placement.md) — 현재 VM·DB·Redis 자원 조사와 배치·예외 합의
@@ -54,7 +50,6 @@
 ## 점검 스냅샷
 
 - [20261013](./20261013_TODO.md) — 운영 배포 복구와 VM 이름·서비스 배치 점검
-- [20261007](./20261007_TODO.md) — Config Server Vault 인증 전환 후속 운영 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 운영 장애 복구·CD 배포 실패 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
