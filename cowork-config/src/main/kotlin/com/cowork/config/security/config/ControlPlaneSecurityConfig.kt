@@ -4,6 +4,7 @@ import com.cowork.config.security.account.ControlPlaneAccounts
 import com.cowork.config.security.filter.EurekaRegistrationGuard
 import com.cowork.config.security.password.ControlPlanePasswordEncoder
 import com.cowork.config.security.policy.ControlPlaneAccessPolicy
+import jakarta.servlet.DispatcherType
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -43,6 +44,8 @@ class ControlPlaneSecurityConfig {
             .logout { it.disable() }
             .csrf { it.ignoringRequestMatchers("/eureka/**") }
             .authorizeHttpRequests { rules ->
+                // Preserve Eureka's missing-lease 404 through the container's error dispatch.
+                rules.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
                 rules.requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 rules.anyRequest().access { authentication, context ->
                     val account = accounts.accounts[authentication.get().name]
