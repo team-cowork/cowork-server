@@ -99,6 +99,12 @@ gh workflow run cowork-prod-cd.yml --ref main -f operation=redeploy \
 이 기준을 바꾸지 않는다. 이미 적용한 SHA보다 이전 버전으로 복구할 때는 수동 재배포를 사용한다.
 readiness 대기를 늘릴 때는 SSH `command_timeout`에 이미지 pull·실패 복구 시간도 확보한다.
 
+특정 target의 자동 배포를 보류할 때는 저장소 variable `PROD_CD_AUTO_EXCLUDE_TARGETS`에
+target 이름을 쉼표로 구분하여 등록한다. 예를 들어 `monitoring`을 등록하면 해당 target은
+자동 배포 매트릭스와 배포 이력 비교에서 제외된다. 빈 값은 전체 inventory를 기존 방식으로 처리한다.
+존재하지 않는 target이나 빈 항목을 넣으면 자동 대상 판정이 실패한다. 이 설정은 이미지 빌드와
+`workflow_dispatch` 수동 재배포에 적용되지 않는다. 보류 해제 전에는 대상의 설정과 배포 기준 SHA를 확인한다.
+
 `main` 이력을 재작성하면 기준 SHA가 현재 `main`의 조상이 아니게 되어 자동 배포가
 `divergent deployment history`로 중단된다. 이때는 이미지가 존재하는 `main`의 전체 SHA로 target마다
 수동 재배포한다. 성공하면 그 target의 기준 SHA가 새 이력으로 갱신된다.
