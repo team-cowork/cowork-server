@@ -204,8 +204,7 @@ def record_success(sha, host_count, env):
         return
     repository = env['GITHUB_REPOSITORY']
     deployment = github_api('deployments', env, {
-        # Temporary branch validation must not become main's deployment baseline.
-        'ref': sha, 'task': 'cowork-infrastructure-validation', 'environment': 'Prod-IaC',
+        'ref': sha, 'task': 'cowork-infrastructure', 'environment': 'Prod-IaC',
         'auto_merge': False, 'required_contexts': [], 'production_environment': True,
         'payload': {'host_count': host_count, 'scope': 'hosts-and-monitoring'},
         'description': 'Host configuration applied and Grafana state persisted',
@@ -287,7 +286,7 @@ def main():
             command.append('--initialize')
         command.extend(['--', IAC / 'apply.sh', 'grafana', 'apply'])
         execute(command, grafana_env)
-        record_success(args.sha, metadata['host_count'], env)
+        # Temporary branch verification does not create a production baseline.
         print(f'[iac] Applied {metadata["host_count"]} hosts and persisted Grafana state')
         result_output('applied')
     finally:
