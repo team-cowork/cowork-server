@@ -189,11 +189,24 @@ role 설정은 [Vault AppRole API](https://developer.hashicorp.com/vault/api-doc
 
 ## 네트워크와 배포 순서
 
-Config VM은 Docker의 iptables 방식을 사용하고 배포 사용자에게 필요한 `sudo -n iptables`와
-`iptables-restore` 권한을 제공한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다.
+Config VM은 Docker의 iptables 방식을 사용한다. 배포 사용자는 Config 방화벽 helper를 root로 실행하고
+systemd 복원 서비스를 시작할 수 있어야 한다. `CONFIG_ALLOWED_CIDRS`와 실제 배포·monitoring peer를 대조한다.
 `check_only`는 컨테이너를 기동하지 않는다. Config 배포에서는 위 Vault 인증 요청도 실행한다.
-실제 네트워크 차단을 별도로 확인한다. 클라우드 보안 그룹도 같은 peer 목록으로
-제한하고 Docker 재시작 시 규칙이 재적용되도록 호스트 운영 설정을 유지한다.
+실제 네트워크 차단을 별도로 확인하고 클라우드 보안 그룹도 같은 peer 목록으로 제한한다.
+
+실제 배포는 확정된 `BIND_IP`, `HOST_PORT`, `CONFIG_ALLOWED_CIDRS`를
+`/etc/cowork/config-firewall/policy.json`에 root 소유·`0600` 권한으로 보존한다. helper는
+`/usr/local/libexec/cowork-config-firewall.py`에 설치하므로 배포 디렉터리를 정리해도 남는다.
+`cowork-config-firewall.service`는 Docker의 필수 선행 서비스다. VM 재부팅과 Docker 재시작에서
+방화벽 복원이 성공해야 Docker가 시작된다. `DOCKER-USER`가 없으면 생성하고 `COWORK_CONFIG`와
+그 체인으로 향하는 jump만 복원한다. 다른 체인과 규칙은 지우지 않는다.
+
+배포 실패 시 이전 CIDR·바인딩을 실행 규칙과 영속 파일에 함께 복원한다. 이전 보호 정책이 없던
+첫 전환에서는 새 제한을 유지한다. 복원이 실패하면 이전 컨테이너를 시작하지 않는다. 바인딩이 바뀌는
+배포에서는 이전 컨테이너가 남아 있는 동안 재부팅해도 보호되도록 기존 바인딩의 제한도 유지한다.
+최초 전환에서도 기존 `cowork-config`의 실제 게시 포트를 확인한다. 기존 바인딩이 wildcard 또는
+IPv6이면 이 IPv4 정책으로 보호할 수 없으므로 배포를 중단하고 해당 바인딩을 먼저 정리한다.
+복원 서비스를 수동으로 중지하면 의존하는 Docker도 중지되므로 정책 갱신은 배포 helper를 사용한다.
 
 최초 접근 보호 전환은 서버 포트가 한 개이므로 점검 시간에 진행한다.
 
