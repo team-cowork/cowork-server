@@ -45,12 +45,6 @@ def execute(arguments, env):
         raise RuntimeError('Infrastructure command failed; inspect the preceding non-secret diagnostics')
 
 
-def latest_main(sha, env):
-    result = subprocess.run(['git', 'ls-remote', '--exit-code', 'origin', 'refs/heads/main'],
-                            cwd=ROOT, env=env, capture_output=True, text=True, check=True)
-    demand(result.stdout.split()[0] == sha, 'Automatic IaC refused a superseded main commit')
-
-
 def github_api(endpoint, env, payload=None):
     repository = env.get('GITHUB_REPOSITORY', '')
     demand(re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', repository), 'Invalid repository')
@@ -103,7 +97,9 @@ def automatic_apply_needed(sha, env):
                'Invalid successful IaC deployment SHA')
         ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', baseline, sha],
                                   cwd=ROOT, env=env, capture_output=True)
-        demand(ancestor.returncode == 0, 'Successful IaC baseline is not an available ancestor of this release')
+        if ancestor.returncode != 0:
+            print('[iac] The previous source baseline is unavailable; apply the selected infrastructure source')
+            return True
         changes = subprocess.run(['git', 'diff', '--name-only', '--no-renames', '-z', baseline, sha, '--'],
                                  cwd=ROOT, env=env, capture_output=True, check=True)
         paths = [os.fsdecode(path) for path in changes.stdout.split(b'\0') if path]
@@ -244,7 +240,6 @@ def main():
     tunnel = None
     try:
         if args.automatic:
-            latest_main(args.sha, env)
             if not args.check_only and not automatic_apply_needed(args.sha, env):
                 print('[iac] Automatic apply skipped. Existing infrastructure was not changed; drift was not inspected.')
                 result_output('skipped')
@@ -264,8 +259,6 @@ def main():
         env = vault_identity(env)
         inputs = work / 'inputs'
         execute([sys.executable, IAC / 'prepare.py', '--sha', args.sha, '--output', inputs], env)
-        if args.automatic:
-            latest_main(args.sha, env)
         execute([IAC / 'apply.sh', 'hosts'], {**env, 'IAC_INVENTORY': str(inputs / 'inventory.json')})
         metadata = json.loads((inputs / 'metadata.json').read_text())
         alias = metadata['monitoring_ssh_alias']
@@ -278,8 +271,6 @@ def main():
         wait_for_grafana(tunnel)
         # state.py's temporary checkout and plaintext state are covered by this run's cleanup.
         grafana_env = {**env, **grafana_environment(inputs / 'grafana.env0'), 'TMPDIR': str(work)}
-        if args.automatic:
-            latest_main(args.sha, env)
         command = [sys.executable, IAC / 'state.py', '--recovery-file', args.recovery_file]
         if args.initialize_state:
             command.append('--initialize')
