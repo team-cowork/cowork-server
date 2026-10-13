@@ -91,7 +91,7 @@ Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 �
 - 기존 Voice DB에서 처리 실패 기록 51,325개를 확인했다. Kafka의 실제 로그 경로는 `/tmp/kafka-logs`이며 연결한 `/var/lib/kafka/data` 볼륨을 사용하지 않았다. 새 브로커는 저장소의 고정 이미지와 명시한 영속 경로를 사용한다.
 - 초기화 전에 독립 GitHub App을 포함한 업무 컨테이너 17개를 정지하고 자동 재시작을 해제했다. 처음 실행 중이던 컨테이너는 11개였다. 이 기록을 현재 남아 있는 컨테이너 수로 사용하지 않는다. 이후 이전 업무 컨테이너와 VM을 제거했으며 구버전 복구 대상으로 유지하지 않는다.
 - 독립 GitHub App을 최신 main `16e11b07` 이미지로 교체했다. HTTP health `200`과 Kafka 그룹의 `Stable` 상태 및 필수 토픽 4개의 할당을 확인했다. Config·Project 내부 URL은 GitHub `update-config`로 `http://10.0.0.150:3000`으로 수정했고 내부 API 키 일치를 확인했다.
-- GitHub App의 HTTPS receiver는 정확한 `POST /github/webhooks`만 전달한다. 사용자 승인으로 Webhook과 Issues·Pull request·Push 구독 및 Contents 쓰기 권한을 적용했다. `team-cowork` 설치의 반영을 확인했다. 추가 조직 설치 3곳은 관리 화면 접근이 없어 변경하지 않았다. 첫 ping은 서명 헤더가 없어 `401`로 거부됐으며 Secret 입력과 서명된 수신 검증이 남아 있다.
+- GitHub App의 HTTPS receiver는 정확한 `POST /github/webhooks`만 전달한다. 사용자 승인으로 Webhook과 Issues·Pull request·Push 구독 및 Contents 쓰기 권한을 적용했다. `team-cowork` 설치의 반영을 확인했다. 추가 조직 설치 3곳은 관리 화면 접근이 없어 변경하지 않았다. 초기 서명 없는 요청은 `401`로 거부됐다. 이후 20:24 KST의 실제 `push`와 `pull_request.synchronize`는 서명을 포함했고 모두 `200`으로 수신됐다. 실행 중 App의 Secret 일치를 확인했다. 중지된 업무 서비스의 소비와 전체 업무 처리 완료는 아직 검증하지 않았다.
 - 독립 App에는 기본 `100kb` JSON parser 상한, delivery ID 중복 제거 부재, 설치 callback의 검증 순서 문제가 남아 있다. 공개 receiver는 설치 callback과 내부 API를 차단한다. 이 설정만으로 새 App 설치와 cowork 팀 연결 절차가 완성되지는 않는다. 상세 범위는 [receiver 운영 문서](../../../../deploy/config/github-app/README.md)에 기록한다.
 - 초기화 완료와 서비스 복구는 별도로 판정한다. 앱 readiness·Config 권한·Eureka·공개 API가 확인되기 전에는 운영 복구 완료로 기록하지 않는다.
 
