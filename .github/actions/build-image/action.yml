@@ -54,7 +54,7 @@ runs:
         push: false
         load: true
         # The Docker exporter used by hosted runners cannot load attestations.
-        # Publish them separately after the local filesystem inspection passes.
+        # Publish them separately after the slot contract inspection passes.
         provenance: false
         sbom: false
         tags: ${{ inputs.tags }}
