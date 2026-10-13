@@ -1,0 +1,59 @@
+import org.gradle.api.tasks.testing.Test
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension
+import org.gradle.testing.jacoco.plugins.JacocoTaskExtension
+import org.gradle.testing.jacoco.tasks.JacocoReport
+
+// Instrument only the module selected explicitly by its Dockerfile verify stage.
+// Included builds rerun init scripts without the root build's -P arguments.
+// Instrument only the main build containing the selected service.
+if (gradle.parent != null) {
+    return
+}
+def coverageProjectDir = gradle.startParameter.projectProperties['coverageProjectDir']
+def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
+def coverageTestClasses = gradle.startParameter.projectProperties['coverageTestClasses']
+if (!coverageProjectDir || !coverageOutput || !coverageTestClasses) {
+    throw new GradleException('coverageProjectDir, coverageOutput and coverageTestClasses are required')
+}
+
+gradle.beforeProject { project ->
+    if (project.projectDir.canonicalFile != new File(coverageProjectDir).canonicalFile) {
+        return
+    }
+    // Coverage must not rewrite production sources, even if compilation depends on formatting.
+    // Disable apply tasks themselves because disabling the aggregate task leaves dependencies active.
+    project.tasks.configureEach { task ->
+        if (task.name.startsWith('spotless') && task.name.endsWith('Apply')) {
+            task.enabled = false
+        }
+    }
+    // Maven and Kotlin Toolchain wrapper projects have only the base plugin and must stay untouched.
+    project.pluginManager.withPlugin('java') {
+        project.pluginManager.apply('jacoco')
+        project.extensions.configure(JacocoPluginExtension) { jacoco ->
+            jacoco.toolVersion = '0.8.15'
+        }
+        def executionFile = new File(coverageOutput, 'jacoco.exec')
+        def testTask = project.tasks.named('test', Test) { test ->
+            test.filter { filter ->
+                coverageTestClasses.split(',').each { filter.includeTestsMatching(it) }
+                filter.failOnNoMatchingTests = true
+            }
+            test.ignoreFailures = false
+            test.outputs.upToDateWhen { false }
+            test.outputs.cacheIf { false }
+            test.extensions.configure(JacocoTaskExtension) { jacoco ->
+                jacoco.destinationFile = executionFile
+            }
+        }
+        project.tasks.register('coworkCoverageReport', JacocoReport) { report ->
+            report.dependsOn(testTask)
+            report.executionData(executionFile)
+            report.sourceSets(project.extensions.getByName('sourceSets').main)
+            report.reports.xml.required = true
+            report.reports.xml.outputLocation = new File(coverageOutput, 'report.xml')
+            report.reports.html.required = false
+            report.reports.csv.required = false
+        }
+    }
+}

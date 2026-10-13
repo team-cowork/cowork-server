@@ -5,14 +5,37 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace/cowork-preference
-COPY --chmod=0755 kotlin kotlin
-COPY module.yaml module.yaml
+COPY --chmod=0755 cowork-preference/kotlin kotlin
+COPY cowork-preference/module.yaml module.yaml
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     ./kotlin --version
 
-COPY src src
+COPY cowork-preference/src src
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     ./kotlin package
+
+
+FROM builder AS verification
+RUN apt-get update && apt-get install -y --no-install-recommends python3 \
+    && rm -rf /var/lib/apt/lists/*
+COPY .editorconfig /workspace/.editorconfig
+COPY deploy/images/ci /ci
+RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
+    bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
+        com.cowork.preference.domain.SettingDefaultsResolverTest \
+        com.cowork.preference.service.AccountOwnershipGuardTest \
+        com.cowork.preference.service.ChannelLifecycleServiceTest \
+        com.cowork.preference.service.ChannelRolePolicyCommandProcessorTest \
+        com.cowork.preference.service.NotificationServiceTest \
+        com.cowork.preference.service.PreferenceServiceTest \
+        com.cowork.preference.service.ProjectRoleServiceTest \
+        com.cowork.preference.service.TeamMembershipGuardTest \
+        com.cowork.preference.service.TeamRoleCommandProcessorTest \
+        com.cowork.preference.service.TeamRoleServiceTest \
+    && python3 /ci/report.py collect --module cowork-preference --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
+
+FROM scratch AS verify
+COPY --from=verification /coverage /
 
 FROM eclipse-temurin:26.0.2_10-jre-alpine-3.24@sha256:2c984601c59ac93f97947ce66d03df25c2e16bed97a28289fbc0ab157087f1b5 AS runtime
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
@@ -20,6 +43,8 @@ WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
 ENV PREFERENCE_LOG_DIR=/var/log/cowork/preference
 RUN mkdir -p /var/log/cowork/preference && chown -R app:app /var/log/cowork
+COPY --chmod=0755 cowork-preference/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
+RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 9001
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

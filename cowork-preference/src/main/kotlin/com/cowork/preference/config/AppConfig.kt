@@ -36,6 +36,7 @@ data class AppConfig(
     val eurekaAppName: String,
     val eurekaInstanceHost: String,
     val eurekaInstanceId: String,
+    val eurekaInstancePort: Int = serverPort,
 ) {
     companion object {
         fun from(json: JsonObject): AppConfig {
@@ -46,6 +47,9 @@ data class AppConfig(
             val eureka = json.getJsonObject("eureka") ?: JsonObject()
             val instance = eureka.getJsonObject("instance") ?: JsonObject()
             val serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001
+            val instancePort = System.getenv("EUREKA_INSTANCE_PORT")?.let { value ->
+                value.toInt().also { require(it in 1..65535) { "Invalid Eureka advertised port" } }
+            } ?: serverPort
             val appName = eureka.getString("app-name", "cowork-preference")
             val configuredInstanceHost = instance.getString("host", "localhost")
             val useRuntimeIdentity = System.getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
@@ -61,9 +65,9 @@ data class AppConfig(
                 ?: if (useRuntimeIdentity) {
                     val identityHost = runtimeHostname
                         ?: error("HOSTNAME is required for replica-unique Eureka identity")
-                    "$identityHost:$appName:$serverPort"
+                    "$identityHost:$appName:$instancePort"
                 } else {
-                    instance.getString("id", "$instanceHost:$appName:$serverPort")
+                    instance.getString("id", "$instanceHost:$appName:$instancePort")
                 }
             return AppConfig(
                 serverPort = serverPort,
@@ -110,6 +114,7 @@ data class AppConfig(
                 eurekaAppName = appName,
                 eurekaInstanceHost = instanceHost,
                 eurekaInstanceId = instanceId,
+                eurekaInstancePort = instancePort,
             )
         }
 
