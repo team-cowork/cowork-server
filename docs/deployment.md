@@ -25,7 +25,6 @@ Vault `secret/deploy/{target}`에 저장한다. 운영 VM의 환경 파일을 �
 
 외부 앱 HTTP는 Gateway로 들어오고 downstream 포트는 사설 주소와 허용 peer로 제한한다.
 Docker 네트워크·볼륨은 VM 사이에 공유되지 않는다. LiveKit 미디어·S3 요청은 별도 공개 경로가 필요하다.
-실제 S3 접근 정책은 [TODO](./todo/items/13-storage/object-storage-public-access-contract.md)에서 관리한다.
 
 같은 VM에 같은 서비스의 여러 target을 배치하는 구성은 지원하지 않는다. 배치·실제 포트는 Vault와
 대조한다. 필요한 외부 볼륨은 배포 전에 생성한다. Vault의 TLS 프록시만 사설 listener에 접근시키고,
