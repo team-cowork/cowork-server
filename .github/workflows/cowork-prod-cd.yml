@@ -334,6 +334,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      packages: read
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -370,6 +371,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      packages: read
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
