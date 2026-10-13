@@ -5,6 +5,7 @@ import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -34,7 +35,12 @@ class CreateTeamServiceImplTest :
             every { memberRepository.save(any()) } answers {
                 firstArg<TeamMember>().also { savedOwner = it }
             }
+            val ownership = mockk<TeamIconOwnershipService>()
+            every { ownership.replace(any(), any(), any()) } answers {
+                secondArg<Team>().iconUrl = thirdArg<String>()
+            }
             service = CreateTeamServiceImpl(
+                ownership,
                 teamRepository,
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),

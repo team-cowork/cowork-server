@@ -26,10 +26,24 @@ class S3PresignerConfig(private val env: Environment) {
         val region = env.getProperty("spring.cloud.aws.region.static") ?: "ap-northeast-2"
         val accessKey = env.getProperty("spring.cloud.aws.credentials.access-key").orEmpty()
         val secretKey = env.getProperty("spring.cloud.aws.credentials.secret-key").orEmpty()
+        val endpoint = URI.create(publicEndpoint)
+        require(
+            endpoint.scheme in setOf("http", "https") && !endpoint.host.isNullOrBlank() &&
+                endpoint.path in setOf("", "/") && endpoint.rawUserInfo == null &&
+                endpoint.rawQuery == null && endpoint.rawFragment == null,
+        ) {
+            "S3 public endpoint must be an HTTP(S) origin"
+        }
+        if ("prod" in env.activeProfiles) {
+            require(endpoint.scheme == "https" && endpoint.host !in setOf("localhost", "127.0.0.1", "[::1]")) {
+                "Production S3 public endpoint requires HTTPS and a non-local host"
+            }
+        }
+        require(accessKey.isNotBlank() && secretKey.isNotBlank()) { "S3 service credentials are required" }
         val pathStyle = env.getProperty("spring.cloud.aws.s3.path-style-access-enabled", Boolean::class.java, true)
 
         return S3Presigner.builder()
-            .endpointOverride(URI.create(publicEndpoint))
+            .endpointOverride(endpoint)
             .region(Region.of(region))
             .credentialsProvider(
                 StaticCredentialsProvider.create(
