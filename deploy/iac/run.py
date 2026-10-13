@@ -98,6 +98,11 @@ def automatic_apply_needed(sha, env):
         ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', baseline, sha],
                                   cwd=ROOT, env=env, capture_output=True)
         if ancestor.returncode != 0:
+            newer = subprocess.run(['git', 'merge-base', '--is-ancestor', sha, baseline],
+                                   cwd=ROOT, env=env, capture_output=True)
+            if newer.returncode == 0:
+                print('[iac] A newer source is already applied; skip this stale automatic run')
+                return False
             print('[iac] The previous source baseline is unavailable; apply the selected infrastructure source')
             return True
         changes = subprocess.run(['git', 'diff', '--name-only', '--no-renames', '-z', baseline, sha, '--'],
