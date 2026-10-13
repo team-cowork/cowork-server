@@ -24,7 +24,7 @@ CD는 배포 job의 실패·취소를 집계하고, job이 하나도 실행되�
 
 ## 할 일
 
-- ~~기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.~~ (`coworkServiceMissingFromDiscovery`가 최근 2시간 안에 수집된 서비스의 시계열 소실을, `coworkServiceDiscoveryEmpty`가 대상 전체 소실을 감지한다)
+- ~~기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.~~ (`cowork:service:expected` 기대 집합과 현재 수집 대상의 차이를 `coworkServiceMissingFromDiscovery`가, 대상 전체 소실을 `coworkServiceDiscoveryEmpty`가 감지한다. 재등록하거나 목록에서 지우기 전까지 알림이 유지된다)
 - Vault seal·Config 장애와 호스트 디스크 사용량의 수집·알림 경로를 마련한다.
 - ~~상위 CI 실패·취소·배포 미실행을 CD 알림에 명시한다.~~ (job이 하나도 실행되지 않으면 `cancelled`와 상위 CI 결론을 표시)
 - 현재 디스크 여유를 측정하고 필요한 정리는 릴리스 보존 작업과 함께 수행한다.
