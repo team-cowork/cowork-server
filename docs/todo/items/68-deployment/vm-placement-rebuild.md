@@ -2,8 +2,25 @@
 
 - **서비스**: GSM SV VM, Config/Eureka, Gateway, Team, Project, Preference, Voice, Roadmap, Vault, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: Vault 전용 VM과 교체 앱 VM을 준비했으며, 업무 데이터를 초기화하고 SeaweedFS로 전환했으며 이전 VM 3개를 삭제했다. 엔진 버전 정렬과 Datastores의 Compose 전환을 마쳤으며 GitHub 경로의 앱 배포는 진행 중이다.
+- **현재 상태**: VM 교체·이전 VM 3개 삭제·업무 데이터 초기화를 마쳤다. Datastores·SeaweedFS·Config의 `main` 배포와 사후 확인은 성공했으며, 앱 배포에서 확인한 Spring 초기 설정·User 마이그레이션 오류의 수정 적용이 남아 있다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md), [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md), [운영 Eureka 등록과 광고 주소 복구](../66-deployment/eureka-registration-recovery.md), [공개 API 진입점과 TLS 인증서 정합성 복구](../67-configuration/public-api-tls.md), [모듈별 MySQL·Redis 배치 전환 검토](../58-deployment/module-datastore-placement.md)
+
+## `main` 적용 관측
+
+소스는 PR #493이 반영된 `90f17043`이다. 아래 결과는 실제 GitHub 배포 실행과 읽기 전용 운영 조회를
+대조한 값이다. 업무 기능 전체의 종단간 성공을 뜻하지 않는다.
+
+| 대상 | 실제 배포 | 확인 결과 |
+|---|---|---|
+| Datastores | [38395537873](https://github.com/team-cowork/cowork-server/actions/runs/38395537873) | 6개 엔진 정상, 7개 데이터 볼륨·Kafka cluster identity 유지, 선언한 52개 앱 토픽 확인 |
+| SeaweedFS | [38397184725](https://github.com/team-cowork/cowork-server/actions/runs/38397184725) | server·lifecycle 정상, admin 실행, 고정 이미지·IAM·bucket policy·ACL·CORS·임시 prefix 만료 정책 일치 |
+| Config | [38397872030](https://github.com/team-cowork/cowork-server/actions/runs/38397872030) | 전용 VM 배포 성공, 11개 앱 VM의 자기 설정 조회와 접근 제한 확인 |
+| 앱 11개 | [38398407812](https://github.com/team-cowork/cowork-server/actions/runs/38398407812) | Authorization 성공. Spring 앱 5개와 User는 기동 오류, 다른 4개는 upstream snapshot 미발행으로 readiness 실패 |
+
+모니터링 컨테이너 11개의 상태는 Datastores·Storage 배포 전후에 일치했다. 앱 복구는 완료하지 않았다.
+자동 CD의 [38395750600](https://github.com/team-cowork/cowork-server/actions/runs/38395750600)은
+이미지 12개를 게시했으나 과거 runtime 배포 SHA의 이력 불일치로 대상 계산에 실패했다.
+실제 앱 배포 성공 기록이 갖춰진 뒤 자동 대상 계산과 CD를 다시 확인한다. 성공 기록을 임의로 만들지 않는다.
 
 ## 문제
 
