@@ -66,7 +66,7 @@ jobs:
     if: >
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'team-cowork/cowork-server' &&
-      github.ref == 'refs/heads/main'
+      github.ref == 'refs/heads/cicd/runtime-neutral-slots'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -719,7 +719,7 @@ jobs:
          github.event.workflow_run.event == 'push' &&
          github.event.workflow_run.head_branch == 'main' &&
          github.event.workflow_run.head_repository.full_name == github.repository) ||
-        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/cicd/runtime-neutral-slots')
       )
 
     steps:
