@@ -67,6 +67,8 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      # Keep both broker records and KRaft metadata on the mounted data volume.
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
       # Topics are provisioned explicitly by kafka-init so cold starts do not
       # depend on broker auto-creation timing. This also matches production
       # clusters where automatic topic creation is normally disabled.
