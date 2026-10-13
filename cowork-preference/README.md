@@ -56,8 +56,9 @@ Config Server를 3회 조회하지 못하면 종료합니다. Preference command
 - 프로젝트 설정·역할 API는 `project.event.v2`와 `team.member.event`, 채널 설정 조회와 채널 알림은 `channel.event.v2`,
   `channel.member.event.v2`, `team.member.event`, 채널 설정 수정은 `channel.event.v2`와 `team.member.event` projection이
   준비되어야 판단합니다. 준비되기 전에는 해당 API만 `503`으로 응답합니다.
-- 공개 여부(`isPrivate`)를 아직 확인하지 못한 채널은 비공개로 취급합니다. `V24` 이전에 저장된 `tb_channel_lifecycle_projections`
-  행은 소유 서비스가 5분마다 다시 발행하는 `channel.event.v2` snapshot으로 채워집니다.
+- 팀 멤버이지만 채널 멤버가 아닌 요청자가 공개 여부(`isPrivate`)를 아직 확인하지 못한 채널에 접근하면 공개로 가정하지 않고 `503`으로
+  응답합니다. `V24` 이전에 저장된 `tb_channel_lifecycle_projections` 행은 소유 서비스가 5분마다 다시 발행하는
+  `channel.event.v2` snapshot으로 채워집니다.
 - 채널 역할 정책 command는 `team.member.event`, `channel.event.v2` projection이 모두 준비되어야 처리합니다.
 - 채널 역할 정책 command는 채널 projection row를 잠근 뒤 처리합니다. 채널 삭제가 먼저 반영됐으면 `UPSERT`와
   `DELETE` 모두 `CHANNEL_DELETED`, 채널이 요청 팀에 속하지 않으면 `CHANNEL_TEAM_MISMATCH` 실패 결과로
