@@ -2,7 +2,7 @@
 
 - **서비스**: GSM SV VM, Config/Eureka, Gateway, Team, Project, Preference, Voice, Roadmap, Vault, prod-cd
 - **우선순위**: 🔴 높음
-- **현재 상태**: 교체 앱 VM의 초기 설정과 기존 Config·Gateway의 local 컨테이너 정지를 완료했으며, Vault 전용 VM 구성과 GitHub 배포 전환을 진행하고 있다.
+- **현재 상태**: Vault 전용 VM과 교체 앱 VM을 준비했으며, 업무 데이터를 초기화하고 SeaweedFS로 전환했으며 이전 VM 3개를 삭제했다. 엔진 버전 정렬과 Datastores의 Compose 전환을 마쳤으며 GitHub 경로의 앱 배포는 진행 중이다.
 - **관련 작업**: [운영 배포 기준 SHA 복구](../62-deployment/runtime-deployment-baseline-recovery.md), [운영 Config 접근 보호와 AppRole 전환](../65-security/config-control-plane-rollout.md), [운영 Eureka 등록과 광고 주소 복구](../66-deployment/eureka-registration-recovery.md), [공개 API 진입점과 TLS 인증서 정합성 복구](../67-configuration/public-api-tls.md), [모듈별 MySQL·Redis 배치 전환 검토](../58-deployment/module-datastore-placement.md)
 
 ## 문제
@@ -26,7 +26,7 @@ VM 이름만으로 운영 서비스의 실행 위치를 판단할 수 없는 상
 | 패널 VM / 식별자 | 관측한 상태 | 조정 방향 |
 |---|---|---|
 | `cowork-db` / `gsmgpu1:108` | `10.0.0.93`에서 운영 Config·Gateway·Team·Vault와 데이터 저장소가 함께 실행되어 있었다. | Config·Gateway·Team·Vault를 각각 전용 VM으로 옮기고 데이터 저장소는 유지한다. |
-| `cowork-config` / `gsmgpu1:136` | `10.0.0.169`, `2 vCPU / 4 GB / 40 GB`. 기존 `local` Config와 MySQL·PostgreSQL·Redis·Kafka 등 별도 구성이 있었다. | 기존 데이터의 사용처와 보존 필요를 확인하고 운영 Config/Eureka 전용 배치로 정리한다. |
+| `cowork-config` / `gsmgpu1:136` | `10.0.0.169`, `2 vCPU / 4 GB / 40 GB`. 기존 `local` Config와 MySQL·PostgreSQL·Redis·Kafka 등 별도 구성이 있었다. | 사용하지 않는 local 데이터 저장소를 제거하고 운영 Config/Eureka 전용 배치로 정리한다. |
 | `cowork-gateway` / `gsmgpu1:132` | `10.0.0.127`에서 `local` Gateway가 실행되어 있었다. | 운영 Gateway를 배치하고 공개 전달 규칙과 Eureka 광고 주소를 맞춘다. |
 | `cowork-team` / `gsmgpu2:115` | `10.0.0.74`, SSH 점검 당시 컨테이너가 없었다. | Team의 배포 목적지와 광고 주소를 이 VM으로 맞춘다. |
 | `cowork-app` / `gsmgpu2:134` | `10.0.0.145`에서 Project가 실행되어 있었다. 사양은 `8 vCPU / 16 GB / 70 GB`였다. | 이름을 `cowork-project`로 정리한다. 기존 VM의 이름 변경 가능 여부와 재생성 시 자원 감소를 먼저 확인한다. |
@@ -41,7 +41,7 @@ Notification과 Chat도 앞선 SSH 점검에서 host key가 일치하지 않았�
 
 ## 재생성 제약
 
-> 2026-10-13 진행: 사용자는 트래픽 차단 상태에서 새 구성을 허용했으며 전체 데이터 마이그레이션은 요구하지 않았다. Project·Preference·Voice 교체 VM을 생성했다. 세 VM과 앞서 생성된 Roadmap VM은 모두 `2 vCPU / 4 GB / 20 GB`이다. 공식 Docker 저장소로 Engine·Compose·Buildx를 설치하고 target별 SSH 키, `20m × 5` 로그 회전을 적용했다. 새 키 접속과 Docker 권한을 확인했다. 애플리케이션 배포와 이전 VM 삭제는 아직 완료하지 않았다.
+> 2026-10-13 진행: 사용자는 트래픽 차단 상태에서 새 구성을 허용했으며 전체 데이터 마이그레이션은 요구하지 않았다. Project·Preference·Voice 교체 VM을 생성했다. 세 VM과 앞서 생성된 Roadmap VM은 모두 `2 vCPU / 4 GB / 20 GB`이다. 공식 Docker 저장소로 Engine·Compose·Buildx를 설치하고 target별 SSH 키, `20m × 5` 로그 회전을 적용했다. 새 키 접속과 Docker 권한을 확인했다. 이전 VM 3개는 영구 삭제했다. 애플리케이션 배포는 아직 완료하지 않았다.
 
 | 새 VM | 식별자 | 사설 IP | SSH 포트 | 준비 상태 |
 |---|---|---|---|---|
@@ -53,21 +53,49 @@ Notification과 Chat도 앞선 SSH 점검에서 host key가 일치하지 않았�
 기존 Project의 앱 사용량은 약 724 MiB, Preference는 약 378 MiB였다. 두 VM에는 앱 데이터 볼륨이 없었다.
 Team과 Gateway도 `2 vCPU / 4 GB`로 줄이는 방향을 정했다. DB VM은 데이터 저장소를 함께 실행하므로 사양을 유지한다.
 기존 Vault의 관리자·복구 자격 증명이 없어 별도 볼륨과 로컬 포트 `8201`에 새 Vault를 초기화했다.
-기존 Vault와 데이터 볼륨은 유지하고 새 root token·unseal 자료는 저장소 밖의 제한 권한 파일에 보관했다.
+기존 운영 Vault와 그 전용 데이터 볼륨·갱신 cron은 제거했다. 새 root token·unseal 자료는 저장소 밖의 제한 권한 파일에 보관했다.
 실제 연결 값과 GitHub 자격 증명의 전환은 후속 단계에서 확인한다.
 
 ## 추가 진행 상태 (2026-10-13)
 
 | 항목 | 확인한 상태 | 남은 작업 |
 |---|---|---|
-| Config VM | 기존 local 컨테이너 13개의 자동 재시작을 해제하고 정지했다. 컨테이너와 볼륨 18개는 보존했다. 기존 Config는 `cowork-config-legacy-20261013`으로 구분했다. | GitHub 경로로 prod Config를 배포한다. |
-| Gateway VM | 기존 local Gateway의 자동 재시작을 해제하고 정지한 뒤 `cowork-gateway-legacy-20261013`으로 구분했다. | prod Gateway 배포와 공개 TLS 연결을 확인한다. |
+| Config VM | 기존 local 컨테이너 13개의 자동 재시작을 해제하고 정지했다. 이전 local 컨테이너 13개와 전용 볼륨 18개를 제거했다. | GitHub 경로로 prod Config를 배포한다. |
+| Gateway VM | 기존 local Gateway 컨테이너를 제거했다. | prod Gateway 배포와 공개 TLS 연결을 확인한다. |
 | Team VM | 패널 변경 후 재기동했다. SSH에서 2 vCPU와 `lsmem`의 online 메모리 4 GiB를 확인했다. `virtio_balloon` 장치가 있으며 현재 `MemTotal`은 약 2.16 GiB였다. | Team 기동 후 실제 메모리와 readiness를 확인한다. |
 | Vault HTTPS | DB VM의 HTTPS 슬롯 2개는 `chcowork.https.gsmsv.site:80`, `livekit.https.gsmsv.site:7880`이 사용하고 있었다. 누락된 Vault 도메인을 새 VM의 `8200`에 연결했다. 공개 health의 TLS 검증, HTTP 200과 새 cluster ID 일치를 확인했다. | Config AppRole과 GitHub 토큰의 실제 인증을 확인한다. |
 | Vault VM | `cowork-vault`, `gsmgpu1:105`, `10.0.0.91`, SSH `21105`를 생성했다. 사양은 `1 vCPU / 2 GB / 20 GB`이다. Docker 초기 설정과 신규 Vault 볼륨 이관을 마쳤고 기존 복구 키와 cluster ID를 유지했다. | 후보 컨테이너를 정지하고 GitHub 복구 경로로 최종 컨테이너를 기동한다. |
 | AppRole 송신 경로 | Config VM의 공개 HTTPS health 요청 3회가 모두 성공했다. 새 Vault의 TCP peer 표본 20개에서 프록시 `10.0.0.117`만 관측했다. | 관측한 `10.0.0.117/32`에서 AppRole 로그인이 허용되는지 확인한다. 이 CIDR은 Config VM 자체가 아니라 공용 TLS 프록시를 식별한다. |
 
-DB VM에서 실행 중인 기존 운영 Config·Gateway·Team·Vault는 아직 정지하지 않았다.
+### 최신 적용 상태
+
+- Config·Gateway·DB와 기존 앱 VM에서 이전 앱·Vault·임시 빌드 컨테이너 28개와 전용 볼륨 25개를 제거했다. User의 무회전 로그 약 27.2 GB도 컨테이너와 함께 제거됐다. Docker와 모니터링 컨테이너는 재시작하지 않았다.
+- DB VM의 MySQL·PostgreSQL·MongoDB·Redis·Elasticsearch·Kafka 및 이전 MinIO 공개 포트 전달 규칙 10개를 삭제했다. 패널에서 제거된 것을 확인했고, 운영 Mac에서 해당 TCP 포트 10개에 연결되지 않았다.
+- LiveKit을 저장소의 고정 `v1.13.7` 이미지로 교체하고 `http://10.0.0.90:8089/voice/webhook`을 등록했다. 공개 TLS와 미인증 WebSocket 요청의 LiveKit 도달을 확인했다. RTC 공인 주소는 `158.247.251.109`, 광고 TCP·UDP 포트는 각각 `32154`·`37932`로 실제 매핑과 맞췄다. 외부 TCP 연결은 성공했다. UDP 왕복과 실제 음성 통신은 아직 확인하지 않았다. 별도 relay 포트 범위가 없는 현재 GSM SV 연결에서는 TURN을 비활성화했다.
+
+- GSM SV 패널에서 이전 `cowork-app`(`gsmgpu2:134`), `cowork-preference-`(`gsmgpu2:153`), `owork-voice`(`gsmgpu3:109`)를 영구 삭제했다. 새 Project·Preference·Voice VM은 목록에 남아 있다.
+- 초기화 직후 MySQL 업무 테이블, Preference schema 객체, Chat·Voice collection, Redis DB0 key, Chat 검색 색인은 모두 0개였다. Kafka는 4.3.1의 새 영속 볼륨에서 실행되며 52개 topic의 end offset과 consumer group은 모두 0이었다.
+- MySQL `9.7.2`, PostgreSQL `18.6`, MongoDB `8.3.11`, Redis `8.10.1`, Elasticsearch `9.5.4`로 엔진을 정렬했다. 이전 엔진 컨테이너와 전용 볼륨을 제거했다. Elasticsearch의 새 내부 운영 색인에 문서가 생겼으므로 전체 색인이 0개라는 상태를 유지한다고 표현하지 않는다. 업무 데이터와는 구분한다.
+- DB의 포트별 방화벽을 설치했다. 허용 서비스의 DB 연결은 성공하고 비허용 Vault VM의 보호 포트 10개 연결은 차단되었다. 기존 MySQL·PostgreSQL·MongoDB exporter의 인증 오류는 남아 있으며 제외 범위인 모니터링 설정은 변경하지 않았다.
+- Datastores GitHub target, 전용 UID/GID `10002` 계정, Vault 문서와 GitHub Environment를 준비했다. 일반 CD는 기존 외부 볼륨 7개와 cluster identity를 검증한다. 최초 Compose 전환 후 엔진 6개의 health, 현재 인증, 기존 볼륨·network·cluster identity와 필수 토픽 52개를 확인했다. 다른 컨테이너 15개의 ID·기동 시각·상태는 유지됐다. main GitHub 경로의 실행 결과는 아직 확인하지 않았다.
+- Storage GitHub target과 전용 Vault 문서·GitHub Environment를 준비했다. 일반 CD는 기존 데이터를 유지하며, 최초 초기화와 이전 엔진 제거는 수행하지 않는다. 이 GitHub 경로의 실제 실행은 아직 확인하지 않았다.
+
+- Vault는 새 전용 VM에서 `f6fdc56e`의 정상 `redeploy`를 통과했다. GitHub runtime 성공 기록과 공개 TLS health를 확인했다.
+- Config 전용 AppRole의 로그인과 허용 경로 조회는 성공했고 배포·제어 경로와 `local` 조회는 거부되었다. 실행 중인 새 Config의 인증 갱신은 아직 확인하지 않았다.
+- GitHub의 `update-config`로 배포 문서 5개와 Team·User·Chat 애플리케이션 문서 3개를 갱신했다. 실제 Vault 값 일치와 일회성 입력 secret 삭제를 확인했다.
+- Channel은 `8 vCPU / 20 GB`에서 `4 vCPU / 8 GB`로 줄였다. 패널과 게스트의 온라인 CPU·메모리 용량을 확인했다. 기존 앱은 자동 재시작을 해제하고 정지했으며 새 CD 배포를 기다린다.
+- Gateway는 hotplug 제약으로 기존 `4 vCPU / 8 GB`를 유지했다. 공개 API 도메인의 전달 대상은 새 VM의 `8080`으로 바꿨다.
+- 웹 원본은 배포 예정인 `https://service.gsmsv.site:22118`로 설정했다. 웹은 아직 배포되지 않았으며 이 주소의 TLS 응답은 확인하지 않았다.
+- 사용자는 기존 업무 데이터 보존을 요구하지 않으며, 초기 상태와 같은 구성이 더 명확하면 파괴적 재구성을 허용했다. 기존 MinIO 유지 판단을 철회하고 빈 SeaweedFS 4.47 데이터셋으로 전환했다. MinIO 컨테이너 2개와 전용 볼륨을 제거했다.
+- MySQL 업무 DB 7개, PostgreSQL Preference, MongoDB Chat·Voice, Redis DB0, Chat 검색 색인과 Kafka 데이터셋을 초기화했다. 새 Vault와 현재 유효한 외부 연동 자격 증명은 유지한다.
+- 기존 Voice DB에서 처리 실패 기록 51,325개를 확인했다. Kafka의 실제 로그 경로는 `/tmp/kafka-logs`이며 연결한 `/var/lib/kafka/data` 볼륨을 사용하지 않았다. 새 브로커는 저장소의 고정 이미지와 명시한 영속 경로를 사용한다.
+- 초기화 전에 독립 GitHub App을 포함한 업무 컨테이너 17개를 정지하고 자동 재시작을 해제했다. 처음 실행 중이던 컨테이너는 11개였다. 이 기록을 현재 남아 있는 컨테이너 수로 사용하지 않는다. 이후 이전 업무 컨테이너와 VM을 제거했으며 구버전 복구 대상으로 유지하지 않는다.
+- 독립 GitHub App을 최신 main `16e11b07` 이미지로 교체했다. HTTP health `200`과 Kafka 그룹의 `Stable` 상태 및 필수 토픽 4개의 할당을 확인했다. Config·Project 내부 URL은 GitHub `update-config`로 `http://10.0.0.150:3000`으로 수정했고 내부 API 키 일치를 확인했다.
+- GitHub App의 HTTPS receiver는 정확한 `POST /github/webhooks`만 전달한다. 사용자 승인으로 Webhook과 Issues·Pull request·Push 구독 및 Contents 쓰기 권한을 적용했다. `team-cowork` 설치의 반영을 확인했다. 추가 조직 설치 3곳은 관리 화면 접근이 없어 변경하지 않았다. 초기 서명 없는 요청은 `401`로 거부됐다. 이후 20:24 KST의 실제 `push`와 `pull_request.synchronize`는 서명을 포함했고 모두 `200`으로 수신됐다. 실행 중 App의 Secret 일치를 확인했다. 중지된 업무 서비스의 소비와 전체 업무 처리 완료는 아직 검증하지 않았다.
+- 독립 App에는 기본 `100kb` JSON parser 상한, delivery ID 중복 제거 부재, 설치 callback의 검증 순서 문제가 남아 있다. 공개 receiver는 설치 callback과 내부 API를 차단한다. 이 설정만으로 새 App 설치와 cowork 팀 연결 절차가 완성되지는 않는다. 상세 범위는 [receiver 운영 문서](../../../../deploy/config/github-app/README.md)에 기록한다.
+- 초기화 완료와 서비스 복구는 별도로 판정한다. 앱 readiness·Config 권한·Eureka·공개 API가 확인되기 전에는 운영 복구 완료로 기록하지 않는다.
+
+DB VM의 기존 Config·Gateway·Team 컨테이너는 제거했다. 기존 운영 Vault와 갱신 cron은 폐기했다. DB VM의 중지된 개발용 Vault와 이관용 복제 볼륨도 제거했다.
 신규 VM 생성과 기존 컨테이너 정지를 서비스 이관 완료로 판단하지 않는다.
 
 | 항목 | 패널에서 확인한 내용 | 적용 조건 |
@@ -106,7 +134,7 @@ DB·Redis의 모듈별 분리 여부는 관련 배치 작업에서 결정하며,
 - 변경 대상의 Docker volume·bind mount, DB, 객체 저장소, Kafka, 로컬 파일과 외부 참조를 조사한다.
 - Config VM의 기존 데이터 저장소를 사용하는 클라이언트가 있는지 확인하고, 보존·이관·폐기할 자료를 구분한다.
 - Project·Preference·Voice의 이름 변경 지원 여부를 확인한다. 재생성이 필요하면 현재 생성 제한 안에서 필요한 자원과 저장 용량을 확정한다.
-- 재생성 전에 이미지·배포 소스·필요한 데이터·설정과 복구 자료를 삭제할 VM 밖에 확보한다.
+- 현재 배포 소스·설정·유효한 자격 증명과 새 Vault 복구 자료를 삭제할 VM 밖에 확보한다. 초기화 대상 업무 데이터와 이전 이미지는 이관하지 않는다.
 - 새 VM을 먼저 준비할 수 있는지 확인하고, 먼저 삭제해야 하는 경우에는 서비스 중단 범위와 복구 가능한 상태를 확정한다.
 
 ### 초기 설정과 배포 값 갱신
@@ -123,10 +151,10 @@ DB·Redis의 모듈별 분리 여부는 관련 배치 작업에서 결정하며,
 
 ### GitHub 경로로 적용
 
-- 확정한 VM에 `check_only`를 수행한 뒤 Vault, Config/Eureka, 앱 순서로 GitHub 수동 배포를 실행한다.
+- 확정한 VM에 `check_only`를 수행한 뒤 Vault, Datastores, Storage, Config/Eureka, 앱 순서로 GitHub 수동 배포를 실행한다.
 - Config·Gateway·Team이 각각 전용 VM에서 실행되는지 확인한다.
 - 새 배치의 readiness, Config 조회 권한, Eureka identity와 광고 주소, 필요한 projection 상태를 확인한다.
-- 전환이 확인된 뒤 이전 VM의 중복 앱과 불필요한 등록을 정리한다. 기존 VM 삭제는 필요한 자료와 참조가 모두 이관된 대상에 한정한다.
+- 이전 업무 컨테이너와 불필요한 등록을 제거한다. 교체 VM이 준비되고 현재 설정·자격 증명이 이전 VM에 의존하지 않는지 확인한 뒤 이전 VM을 삭제한다.
 - 대상별 실제 SHA와 runtime 성공 기록을 대조하고 후속 자동 배포가 새 VM을 사용하는지 확인한다.
 
 ## 검증
@@ -140,7 +168,7 @@ DB·Redis의 모듈별 분리 여부는 관련 배치 작업에서 결정하며,
 ## 완료 조건
 
 - VM 이름과 실제 서비스 역할이 일치하며 Config·Gateway·Team이 각각 전용 VM에서 실행되어 있다.
-- 조정한 VM의 사양과 데이터 보존 상태가 확정한 요구를 충족한다.
+- 조정한 VM의 사양과 초기화 범위가 확정한 요구를 충족하며 이전 데이터셋과 구버전 업무 프로세스가 남아 있지 않다.
 - 실제 접속 정보와 SSH 지문, Vault 배포 문서, GitHub Environment, 포트 전달 규칙이 일치되어 있다.
 - 앱과 Vault는 GitHub 배포 경로로 관리되며 VM의 수동 설정만을 원본으로 사용하지 않는다.
 - 이전 VM과 주소를 참조하는 불필요한 실행·등록·배포 값이 정리되어 있다.
