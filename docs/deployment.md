@@ -329,7 +329,7 @@ helper·unit·정책 해시 및 확인 결과를 설치 기록에 남긴다.
 
 ## 운영 스토리지 GitHub CD
 
-`storage`는 `prod-cd`의 독립 인프라 target이다. 자동 배포 순서는 Vault → Storage → Config →
+`storage`는 `prod-cd`의 독립 인프라 target이다. 자동 배포 순서는 Vault → Datastores → Storage → Config →
 나머지 서비스다. 선택된 Storage 배포가 실패하면 뒤의 Config·앱 배포는 실행하지 않는다. 수동 배포는
 선택한 target만 실행한다. `deploy/prod/storage/` 또는 `deploy/config/seaweedfs/`의 변경은 Storage
 배포 비교에 포함한다. SeaweedFS와 AWS CLI 이미지는 선택한 GitHub SHA의 Compose에 고정된 digest를
@@ -379,3 +379,43 @@ healthy이고 admin이 running이어야 런타임 배포 성공을 기록한다.
 변했을 수 있으므로 실패 시 이전 이미지로 자동 복귀하지 않는다. 단계가 실패하면 CD를 실패로 종료하고
 데이터와 실제 배포 snapshot을 유지한다. 운영자는 실패 단계·private 로그·실행 상태를 확인한 다음
 검토한 SHA와 Vault 버전으로 다시 배포한다. 이 동작은 기존 객체를 초기화하는 기능이 아니다.
+
+## 운영 데이터 저장소 GitHub CD
+
+`datastores`는 MySQL·PostgreSQL·MongoDB·Redis·Kafka·Elasticsearch를 관리하는 독립 인프라 target이다.
+자동 배포 순서는 Vault → Datastores → Storage → Config → 나머지 서비스다. 선택된 Datastores 배포가
+실패하면 뒤의 배포는 실행하지 않는다. 수동 배포는 선택한 target만 실행한다. 배포 비교에는
+`deploy/prod/datastores/`, `deploy/images/elasticsearch/`, `deploy/compose/stack.yaml`의 Kafka topic 정의를
+포함한다. 공용 이미지를 사용하므로 GHCR 인증 토큰은
+전달하지 않는다. Elasticsearch는 선택한 소스 SHA의 Dockerfile로 필요한 플러그인 이미지를 구성한다.
+
+처음 한 번의 VM 준비는 관리자가 수행한다. 데이터 볼륨, Docker network, root 소유 방화벽과
+`/etc/cowork/datastores-bootstrap.json`을 준비한다. manifest는 등록한 일곱 데이터 볼륨의 생성 시각,
+network ID, Kafka cluster ID를 기록한다. `cowork-datastores` SSH 계정은 UID·기본 GID `10002`와
+Docker 사용 권한을 사용한다. home과 설정 snapshot을 다른 사용자에게 공개하지 않는다. 일반 CD에서
+릴리스 캐시의 코드를 sudo로 실행하거나 신규 VM·볼륨을 자동 초기화하지 않는다. 데이터 삭제, DB reset,
+이전 엔진 정리도 일반 CD에 포함하지 않는다.
+
+Vault `secret/deploy/datastores`에는 해당 계정의 `ssh` 정보와 `runtime.DATASTORE_SETTINGS_JSON`만
+저장한다. 값은 `bind_ip`, `mysql`, `postgres`, `mongodb`, `kafka`를 가진 **JSON 문자열**이다.
+`mysql`에는 `root_password`, `user`, `password`가 필요하다. `postgres`와 `mongodb`에는 각각
+`user`, `password`, `kafka`에는 기존 `cluster_id`가 필요하다. 구체적인 필드와 값은 Datastores
+runtime이 검증한다. 허용 peer 정책은 root 소유 방화벽에서 관리한다. 계정·비밀번호·cluster ID는
+실제 저장소와 일치시킨다. 초기 기동용 환경 변수만 바꾸어 기존 DB 비밀번호를 회전시키지 않는다.
+
+`application`·`application_refs`는 비우고 `APP_CONFIG_PROFILE`은 지정하지 않는다.
+`DATASTORE_SETTINGS_JSON`과 `STORAGE_SETTINGS_JSON`은 각각 자기 target에만 전달할 수 있다.
+Config Server application scope와 일반 앱 환경 변수에 두 설정 묶음을 저장하거나 전달하면 거부한다.
+운영 문서는 JSON 문자열을 직접 저장하여 `update-config`로 관리한다. `runtime_refs`를 사용하는 경우에도
+같은 target 격리 규칙을 적용한다.
+
+GitHub 환경은 `Prod-CD(datastores)`와 `Config-Update(datastores)`를 사용한다. 배포 읽기 토큰은
+`secret/data/deploy/datastores`만 읽고, 쓰기 토큰은 같은 문서의 CAS 갱신만 허용한다. Config AppRole과
+일반 앱 배포 토큰에는 이 문서의 읽기 권한을 부여하지 않는다.
+
+`services/datastores.sh`는 전용 계정으로 Datastores runtime을 실행한다. 설정 snapshot은
+`/home/cowork-datastores/.local/state/cowork/settings/datastores` 아래에 생성한다. `check_only`는
+설정·Compose·등록된 기존 자원·고정 방화벽 바인딩을 검증하며 저장소를 기동하거나 초기화하지 않는다.
+실제 배포는 선택한 소스 SHA와 Vault 문서 버전으로 기존 데이터 볼륨을 사용하는 엔진을 갱신한다.
+필수 단계 또는 준비 상태 확인이 실패하면 런타임 배포 성공을 기록하지 않는다. 데이터와 실제 배포
+snapshot은 유지하며, 데이터 형식이 변경될 수 있으므로 이전 이미지로 자동 복귀하지 않는다.
