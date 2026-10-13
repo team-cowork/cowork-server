@@ -1,12 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import {
     BadRequestException,
+    ForbiddenException,
     ConflictException,
     HttpException,
     HttpStatus,
     Inject,
     Injectable,
-    InternalServerErrorException,
     Logger,
     OnModuleDestroy,
     OnModuleInit,
@@ -14,20 +14,23 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+    CopyObjectCommand,
     DeleteObjectCommand,
     HeadObjectCommand,
+    GetObjectCommand,
     PutObjectCommand,
     S3Client,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import * as mime from 'mime-types';
-import { S3_CLIENT } from './object-storage.constants';
+import { AttachmentUploadRepository } from './attachment-upload.repository';
+import { AttachmentUpload, ConfirmedAttachment } from './attachment-upload.schema';
+import { S3_CLIENT, S3_PUBLIC_CLIENT } from './object-storage.constants';
 import { buildObjectStorageConfig, ObjectStorageConfig } from './object-storage.config';
 
 export type PresignedUpload = {
     objectKey: string;
     uploadUrl: string;
-    fileUrl: string;
     expiresInSeconds: number;
 };
 
@@ -47,6 +50,8 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     constructor(
         @Inject(S3_CLIENT) private readonly s3Client: S3Client,
         configService: ConfigService,
+        @Inject(S3_PUBLIC_CLIENT) private readonly publicS3Client: S3Client,
+        private readonly uploads: AttachmentUploadRepository,
     ) {
         this.config = buildObjectStorageConfig(configService);
         this.validateCredentials();
@@ -87,49 +92,135 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         this.validateContentType(parameters.contentType);
         this.validateFileSize(parameters.size);
 
-        const objectKey = this.buildObjectKey(parameters.channelId, parameters.userId, parameters.filename, parameters.contentType);
+        const objectKey = this.buildObjectKey(parameters.channelId, parameters.userId, parameters.filename, parameters.contentType)
+            .replace('chat-files/', 'chat-uploads/');
+        await this.uploads.create({
+            uploadKey: objectKey, channelId: parameters.channelId, userId: parameters.userId,
+            name: parameters.filename, mimeType: parameters.contentType, declaredSize: parameters.size,
+        });
         const uploadUrl = await getSignedUrl(
-            this.s3Client,
-            new PutObjectCommand({ Bucket: this.config.bucket, Key: objectKey }),
-            { expiresIn: this.config.presignedPutExpirySeconds },
+            this.publicS3Client,
+            new PutObjectCommand({ Bucket: this.config.bucket, Key: objectKey, ContentType: parameters.contentType }),
+            { expiresIn: this.config.presignedPutExpirySeconds, signableHeaders: new Set(['content-type']) },
         );
 
         return {
             objectKey,
             uploadUrl,
-            fileUrl: this.buildPublicUrl(objectKey),
             expiresInSeconds: this.config.presignedPutExpirySeconds,
         };
     }
 
-    async confirmUpload(channelId: number, userId: number, objectKey: string): Promise<string> {
-        const expectedPrefix = `chat-files/${channelId}/${userId}/`;
-        if (!objectKey.startsWith(expectedPrefix)) {
-            throw new BadRequestException('유효하지 않은 objectKey입니다');
+    async confirmUpload(channelId: number, userId: number, uploadKey: string): Promise<ConfirmedAttachment> {
+        this.validateOwnedKey(uploadKey.replace('chat-uploads/', 'chat-files/'), channelId, userId);
+        const upload = await this.uploads.find(uploadKey);
+        if (upload?.channelId !== channelId || upload.userId !== userId) {
+            throw new ForbiddenException('직접 발급한 업로드만 확인할 수 있습니다');
         }
 
-        let contentLength: number | undefined;
+        if (upload.objectKey) {
+            return this.confirmedAttachment(upload);
+        }
+
+        // Each attempt gets its own immutable destination. A delayed copy cannot overwrite a CAS winner.
+        const objectKey = this.buildObjectKey(channelId, userId, upload.name, upload.mimeType);
         try {
-            const stat = await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
-            contentLength = stat.ContentLength;
-        } catch (error) {
-            if (isNotFoundError(error)) {
-                throw new ConflictException('S3에 파일이 없습니다. 업로드를 먼저 완료하세요');
+            const stat = await this.s3Client.send(new HeadObjectCommand({ Bucket: this.config.bucket, Key: uploadKey }));
+            this.validateFileSize(stat.ContentLength ?? NaN);
+            this.validateContentType(stat.ContentType ?? '');
+            if (stat.ContentType !== upload.mimeType || stat.ContentLength !== upload.declaredSize || !stat.ETag) {
+                throw new BadRequestException('발급한 크기·형식과 업로드한 파일 정보가 다릅니다');
             }
 
-            this.logger.error(`S3 HeadObject failed [key=${objectKey}]`, error);
-            throw new InternalServerErrorException('파일 확인 중 오류가 발생했습니다');
+            await this.s3Client.send(new CopyObjectCommand({
+                Bucket: this.config.bucket, Key: objectKey,
+                CopySource: `${this.config.bucket}/${uploadKey}`, CopySourceIfMatch: stat.ETag,
+                MetadataDirective: 'REPLACE', ContentType: upload.mimeType, CacheControl: 'private, no-store',
+            }));
+            const confirmed = await this.uploads.confirm(uploadKey, {
+                objectKey, name: upload.name, size: stat.ContentLength, mimeType: upload.mimeType,
+            });
+            if (confirmed) {
+                await this.removeObject(uploadKey).catch((error: unknown) => {
+                    this.logger.warn('Failed to remove confirmed temporary upload', error);
+                });
+                return this.confirmedAttachment(confirmed);
+            }
+
+            await this.removeObject(objectKey);
+            const winner = await this.uploads.find(uploadKey);
+            if (winner?.objectKey) {
+                return this.confirmedAttachment(winner);
+            }
+
+            throw new ConflictException('업로드 완료를 다시 요청해야 합니다');
+        } catch (error) {
+            // Another successful confirmation may already have removed the temporary object.
+            const winner = await this.uploads.find(uploadKey);
+            if (winner?.objectKey) {
+                return this.confirmedAttachment(winner);
+            }
+
+            if (isNotFoundError(error) || (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 412) {
+                throw new ConflictException('업로드한 파일이 없거나 변경되었습니다. 다시 업로드하세요');
+            }
+
+            throw error;
+        }
+    }
+
+    async claimAttachments(
+        attachments: Array<{ objectKey: string }>, channelId: number, userId: number, clientMessageId: string,
+    ): Promise<ConfirmedAttachment[]> {
+        if (new Set(attachments.map(item => item.objectKey)).size !== attachments.length) {
+            throw new BadRequestException('동일한 첨부파일을 중복해서 연결할 수 없습니다');
         }
 
-        if ((contentLength ?? 0) > this.config.maxFileSizeBytes) {
-            await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
-            throw new PayloadTooLargeException('파일 크기가 허용 한도를 초과했습니다');
+        const confirmed: ConfirmedAttachment[] = [];
+        for (const attachment of attachments) {
+            this.validateOwnedKey(attachment.objectKey, channelId, userId);
+            const upload = await this.uploads.claim(attachment.objectKey, channelId, userId, clientMessageId);
+            if (!upload) {
+                throw new ForbiddenException('확인된 본인 업로드만 한 메시지에 연결할 수 있습니다');
+            }
+
+            confirmed.push(this.confirmedAttachment(upload));
         }
 
-        return this.buildPublicUrl(objectKey);
+        return confirmed;
+    }
+
+    private confirmedAttachment(upload: AttachmentUpload): ConfirmedAttachment {
+        if (!upload.objectKey || !Number.isSafeInteger(upload.size) || upload.size! <= 0) {
+            throw new ConflictException('확인된 첨부파일 정보가 없습니다');
+        }
+
+        return {
+            objectKey: upload.objectKey, name: upload.name, size: upload.size!, mimeType: upload.mimeType,
+        };
+    }
+
+    async createPresignedDownload(objectKey: string, channelId: number, authorId: number): Promise<{
+        downloadUrl: string;
+        expiresAt: string;
+        expiresInSeconds: number;
+    }> {
+        this.validateOwnedKey(objectKey, channelId, authorId);
+        const signingDate = new Date();
+        const expiresInSeconds = 60;
+        const downloadUrl = await getSignedUrl(this.publicS3Client, new GetObjectCommand({
+            Bucket: this.config.bucket,
+            Key: objectKey,
+            ResponseCacheControl: 'private, no-store',
+        }), { expiresIn: expiresInSeconds, signingDate });
+        return { downloadUrl, expiresInSeconds, expiresAt: new Date(signingDate.getTime() + (expiresInSeconds * 1000)).toISOString() };
     }
 
     async removeObject(objectKey: string): Promise<void> {
+        if (!/^chat-(?:files|uploads)\/[1-9]\d*\/[1-9]\d*\/[\w-]+\.[\da-z]+$/iu.test(objectKey)) {
+            throw new BadRequestException('삭제할 첨부파일 경로가 유효하지 않습니다');
+        }
+
         await this.s3Client.send(new DeleteObjectCommand({ Bucket: this.config.bucket, Key: objectKey }));
     }
 
@@ -143,9 +234,9 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 첨부파일 URL이 해당 채널·사용자가 실제로 업로드한 오브젝트를 가리키는지 검증한다.
-     * presigned/confirm 단계를 우회해 임의의 objectKey(타 채널·타 사용자 파일)를
-     * 메시지 attachments에 삽입하는 것을 차단한다.
+     * 첨부파일 URL이 해당 채널·사용자에게 할당된 경로인지 검증한다.
+     * 타 채널·타 사용자 경로를 메시지 attachments에 삽입하는 것을 차단한다.
+     * 실제 객체 존재 여부와 업로드 완료 이력은 이 검사로 증명되지 않는다.
      *
      * @param fileUrl - 검증할 첨부파일 URL
      * @param channelId - 메시지가 속한 채널 ID
@@ -154,9 +245,13 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
      */
     assertOwnedAttachmentUrl(fileUrl: string, channelId: number, userId: number): void {
         const objectKey = this.extractObjectKey(fileUrl);
-        const expectedPrefix = `chat-files/${channelId}/${userId}/`;
-        if (!objectKey.startsWith(expectedPrefix)) {
-            throw new BadRequestException('첨부파일 URL이 유효하지 않습니다');
+        this.validateOwnedKey(objectKey, channelId, userId);
+    }
+
+    private validateOwnedKey(objectKey: string, channelId: number, userId: number): void {
+        if (!objectKey.startsWith(`chat-files/${channelId}/${userId}/`)
+            || !/^chat-files\/[1-9]\d*\/[1-9]\d*\/[\w-]+\.[\da-z]+$/iu.test(objectKey)) {
+            throw new BadRequestException('첨부파일 경로가 유효하지 않습니다');
         }
     }
 
@@ -201,6 +296,10 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     }
 
     private validateFileSize(size: number): void {
+        if (!Number.isSafeInteger(size) || size <= 0) {
+            throw new BadRequestException('파일 크기 메타데이터가 유효하지 않습니다');
+        }
+
         if (size > this.config.maxFileSizeBytes) {
             throw new PayloadTooLargeException('파일 크기가 허용 한도를 초과했습니다');
         }
@@ -220,9 +319,5 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 
         const extensionFromMime = mime.extension(contentType);
         return extensionFromMime === false || extensionFromMime === '' ? 'bin' : extensionFromMime;
-    }
-
-    private buildPublicUrl(objectKey: string): string {
-        return `${this.config.publicBaseUrl}/${objectKey}`;
     }
 }

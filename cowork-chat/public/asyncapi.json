@@ -3,7 +3,7 @@
   "info": {
     "title": "cowork Chat WebSocket API",
     "version": "20260719.0",
-    "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message Kafka 흐름을 사용합니다."
+    "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message.v2 Kafka 흐름을 사용합니다."
   },
   "servers": {
     "gateway": {
@@ -113,7 +113,7 @@
           "authorId": { "type": "integer", "format": "int64" },
           "content": { "type": "string" },
           "type": { "type": "string", "enum": ["TEXT", "FILE", "SYSTEM"] },
-          "attachments": { "type": "array", "items": { "type": "object" } },
+          "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } },
           "parentMessageId": { "type": "string", "nullable": true },
           "mentions": { "type": "array", "items": { "type": "integer", "format": "int64" } },
           "isEdited": { "type": "boolean" },
@@ -123,6 +123,17 @@
           "updatedAt": { "type": "string", "format": "date-time" }
         },
         "additionalProperties": true
+      },
+      "Attachment": {
+        "type": "object",
+        "required": ["name", "size", "mimeType"],
+        "properties": {
+          "objectKey": { "type": "string", "description": "확정 object key. 과거 메시지는 없을 수 있으며 다운로드는 메시지 ID와 첨부 순번으로 요청한다." },
+          "name": { "type": "string" },
+          "size": { "type": "integer", "minimum": 1 },
+          "mimeType": { "type": "string" }
+        },
+        "additionalProperties": false
       },
       "MessageMutation": {
         "type": "object",
