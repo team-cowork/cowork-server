@@ -13,6 +13,7 @@ for path in sorted((ROOT / "deploy").rglob("*.sh")):
     subprocess.run(["bash", "-n", str(path)], check=True)
 for path in sorted((ROOT / "deploy").rglob("*.py")):
     ast.parse(path.read_text(), filename=str(path))
+subprocess.run(["python3", str(ROOT / "deploy/iac/databases/runtime.py"), "check"], check=True)
 
 # No real .env values are emitted or required. Override every Compose placeholder.
 env = {key: value for key, value in os.environ.items() if not key.startswith("COMPOSE_")}

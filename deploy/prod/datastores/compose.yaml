@@ -7,58 +7,6 @@ x-engine: &engine
     options: {max-size: 20m, max-file: "5"}
 
 services:
-  mysql:
-    <<: *engine
-    image: ${MYSQL_IMAGE:?MYSQL_IMAGE is required}
-    container_name: cowork-mysql
-    hostname: mysql
-    env_file: [{path: ./mysql.env, format: raw}]
-    ports: ["${DATASTORE_BIND_IP:?DATASTORE_BIND_IP is required}:3306:3306"]
-    networks: {datastores: {aliases: [mysql]}}
-    volumes:
-      - {type: volume, source: mysql_data, target: /var/lib/mysql, volume: {nocopy: true}}
-    healthcheck:
-      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql --protocol=tcp -h 127.0.0.1 -u "$${MYSQL_USER}" --batch --skip-column-names --execute "SELECT 1" >/dev/null']
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
-  postgres:
-    <<: *engine
-    image: ${POSTGRES_IMAGE:?POSTGRES_IMAGE is required}
-    container_name: cowork-postgres
-    hostname: postgres
-    env_file: [{path: ./postgres.env, format: raw}]
-    ports: ["${DATASTORE_BIND_IP:?DATASTORE_BIND_IP is required}:5432:5432"]
-    networks: {datastores: {aliases: [postgres]}}
-    volumes:
-      - {type: volume, source: postgres_data, target: /var/lib/postgresql, volume: {nocopy: true}}
-    healthcheck:
-      test: [CMD-SHELL, 'PGPASSWORD="$${POSTGRES_PASSWORD}" psql -h 127.0.0.1 -U "$${POSTGRES_USER}" -d cowork_preference --no-password --no-psqlrc -Atc "SELECT 1" >/dev/null']
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
-  mongodb:
-    <<: *engine
-    image: ${MONGODB_IMAGE:?MONGODB_IMAGE is required}
-    container_name: cowork-mongodb
-    hostname: mongodb
-    env_file: [{path: ./mongodb.env, format: raw}]
-    ports: ["${DATASTORE_BIND_IP:?DATASTORE_BIND_IP is required}:27017:27017"]
-    networks: {datastores: {aliases: [mongodb]}}
-    volumes:
-      - {type: volume, source: mongo_data, target: /data/db, volume: {nocopy: true}}
-      - {type: volume, source: mongo_configdb, target: /data/configdb, volume: {nocopy: true}}
-    healthcheck:
-      test: [CMD, mongosh, --quiet, --eval, 'const a=db.getSiblingDB("admin");if(!a.auth(process.env.MONGO_INITDB_ROOT_USERNAME,process.env.MONGO_INITDB_ROOT_PASSWORD)){quit(1)};if(a.runCommand({ping:1}).ok!==1){quit(1)}']
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-
   redis:
     <<: *engine
     image: ${REDIS_IMAGE:?REDIS_IMAGE is required}
@@ -113,10 +61,6 @@ services:
       start_period: 30s
 
 volumes:
-  mysql_data: {external: true, name: cowork-prod-mysql-data}
-  postgres_data: {external: true, name: cowork-prod-postgres-data}
-  mongo_data: {external: true, name: cowork-prod-mongo-data}
-  mongo_configdb: {external: true, name: cowork-prod-mongo-configdb}
   redis_data: {external: true, name: cowork-prod-redis-data}
   elasticsearch_data: {external: true, name: cowork-prod-elasticsearch-data}
   kafka_data: {external: true, name: cowork-kafka-data-20261013-fresh}
