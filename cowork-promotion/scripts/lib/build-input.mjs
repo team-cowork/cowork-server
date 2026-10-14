@@ -49,6 +49,7 @@ export async function loadBuildInput({
 		teamSource,
 		featureStateSource,
 		logoSource,
+		socialImageSource,
 		homeScriptBundle,
 		todoScriptBundle,
 		sharedStylesheetSources,
@@ -63,6 +64,7 @@ export async function loadBuildInput({
 		readFile(projectUrl('data/team-members.xml'), 'utf8'),
 		readFile(projectUrl('data/feature-states.json'), 'utf8'),
 		readFile(projectUrl('logo.svg'), 'utf8'),
+		readFile(projectUrl('social-card.png')),
 		bundleJavaScript(sourceUrl('js/main.js'), sourceDirectory),
 		bundleJavaScript(sourceUrl('js/todo-main.js'), sourceDirectory),
 		loadStylesheets(stylesheetPaths.shared),
@@ -83,6 +85,7 @@ export async function loadBuildInput({
 		teamSource,
 		featureStateSource,
 		logoSource,
+		socialImageSource,
 		homeScriptBundle,
 		todoScriptBundle,
 		stylesheetSources: {
