@@ -296,7 +296,9 @@ describe('ChannelMessageReadAccessService', () => {
                 order.push('sweep');
                 return 1;
             });
-            const emit = jest.fn(() => { order.push('emit'); });
+            const emit = jest.fn(() => {
+                order.push('emit');
+            });
             const io = { local: { fetchSockets: jest.fn().mockResolvedValue(sockets) }, to: jest.fn().mockReturnValue({ emit }) };
 
             projectionReadiness.isReady.mockReturnValue(false);
@@ -366,5 +368,4 @@ describe('ChannelMessageReadAccessService', () => {
             expect(stale.emit).not.toHaveBeenCalled();
         });
     });
-
 });
