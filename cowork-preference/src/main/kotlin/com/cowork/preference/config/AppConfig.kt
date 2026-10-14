@@ -47,14 +47,15 @@ data class AppConfig(
             val eureka = json.getJsonObject("eureka") ?: JsonObject()
             val instance = eureka.getJsonObject("instance") ?: JsonObject()
             val serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001
-            val instancePort = System.getenv("EUREKA_INSTANCE_PORT")?.let { value ->
+            val instancePort = (System.getenv("APP_ADVERTISE_PORT") ?: System.getenv("EUREKA_INSTANCE_PORT"))?.let { value ->
                 value.toInt().also { require(it in 1..65535) { "Invalid Eureka advertised port" } }
             } ?: serverPort
             val appName = eureka.getString("app-name", "cowork-preference")
             val configuredInstanceHost = instance.getString("host", "localhost")
             val useRuntimeIdentity = System.getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
             val runtimeHostname = System.getenv("HOSTNAME")?.takeIf(String::isNotBlank)
-            val instanceHost = if (useRuntimeIdentity) {
+            val advertisedAddress = System.getenv("APP_ADVERTISE_ADDRESS")?.takeIf(String::isNotBlank)
+            val instanceHost = advertisedAddress ?: if (useRuntimeIdentity) {
                 System.getenv("EUREKA_INSTANCE_HOST")?.takeIf(String::isNotBlank)
                     ?: nonLoopbackIpv4()
                     ?: error("No non-loopback IPv4 address is available for Eureka registration")

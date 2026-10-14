@@ -32,9 +32,8 @@ RUN apk --no-cache add ca-certificates tzdata \
 WORKDIR /app
 COPY --chown=app:app --from=builder /out/cowork-notification /usr/local/bin/cowork-notification
 COPY --chown=app:app cowork-notification/src/main/resources/db/migration ./db/migration
-COPY --chmod=0755 cowork-notification/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test -n "$(find /app/db/migration -name 'V*__*.sql' -print -quit)"
 USER app
 EXPOSE 8086
 ENV PORT=8086
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "cowork-notification"]
+ENTRYPOINT ["cowork-notification"]
