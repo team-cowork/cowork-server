@@ -1,37 +1,16 @@
 #!/bin/bash
-# Assignments are consumed by the sourcing deploy.sh and environment helpers.
-# shellcheck disable=SC2034
-CONTAINER_PORT=8761
-HOST_PORT=${HOST_PORT:-8761}
-HEALTH_PATH=/actuator/health
-require_env VAULT_EXTERNAL_HOST KAFKA_BOOTSTRAP_SERVERS LIVEKIT_URL LIVEKIT_WS_URL
-require_env CONFIG_SERVER_ACCOUNTS_JSON
-add_env CONFIG_SERVER_ACCOUNTS_JSON "$CONFIG_SERVER_ACCOUNTS_JSON"
-add_env SPRING_PROFILES_ACTIVE "$APP_CONFIG_PROFILE"
-add_env KAFKA_BOOTSTRAP_SERVERS "$KAFKA_BOOTSTRAP_SERVERS"
-add_env VAULT_HOST "$VAULT_EXTERNAL_HOST"
-add_env VAULT_SCHEME https
-add_env VAULT_PORT "${VAULT_PORT:-443}"
-add_env VAULT_BACKEND "${VAULT_BACKEND:-secret}"
-object_storage_environment
-add_env LIVEKIT_URL "$LIVEKIT_URL"
-add_env LIVEKIT_WS_URL "$LIVEKIT_WS_URL"
+# Config Server owns an explicit control-plane capability, independent of its runtime.
+[ "$SLOT_KIND" = config ] || fail 'Config Server requires the config slot capability'
+require_env CONFIG_SERVER_ACCOUNTS_JSON VAULT_EXTERNAL_HOST KAFKA_BOOTSTRAP_SERVERS LIVEKIT_URL LIVEKIT_WS_URL
+require_env S3_INTERNAL_ENDPOINT PUBLIC_API_BASE_URL S3_BUCKET
+python3 "${PROD_DIR}/storage-config.py"
 if [ "$APP_CONFIG_PROFILE" = prod ]; then
-  require_env VAULT_ROLE_ID VAULT_SECRET_ID
-  add_env VAULT_APP_ROLE_PATH "${VAULT_APP_ROLE_PATH:-approle}"
-  add_env VAULT_ROLE_ID "$VAULT_ROLE_ID"
-  add_env VAULT_SECRET_ID "$VAULT_SECRET_ID"
-  require_env CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_ALLOWED_CIDRS
+  require_env VAULT_ROLE_ID VAULT_SECRET_ID CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_ALLOWED_CIDRS
+  require_env PUBLIC_WEB_ORIGINS PUBLIC_API_BASE_URL GITHUB_APP_SERVICE_URL
   python3 "${PROD_DIR}/validate-config-vault-token.py"
-  # TLS 없이 사설 IP 바인딩, CIDR 방화벽, 서비스별 Basic 인증으로만 보호한다. 공개 주소로 노출하지 않는다.
   HEALTH_BASE_URL="${CONFIG_SERVER_URL%/}"
   source "${PROD_DIR}/lib/config-firewall.sh"
   prepare_config_firewall
-  require_env PUBLIC_WEB_ORIGINS PUBLIC_API_BASE_URL GITHUB_APP_SERVICE_URL
-  add_env PUBLIC_WEB_ORIGINS "$PUBLIC_WEB_ORIGINS"
-  add_env PUBLIC_API_BASE_URL "$PUBLIC_API_BASE_URL"
-  add_env GITHUB_APP_SERVICE_URL "$GITHUB_APP_SERVICE_URL"
 else
   require_env VAULT_TOKEN
-  add_env VAULT_TOKEN "$VAULT_TOKEN"
 fi

@@ -30,11 +30,11 @@ class EurekaRegistration(private val config: AppConfig) {
                     .put("vipAddress", config.eurekaAppName)
                     .put("secureVipAddress", config.eurekaAppName)
                     .put("status", "UP")
-                    .put("port", JsonObject().put("\$", config.serverPort).put("@enabled", "true"))
+                    .put("port", JsonObject().put("\$", config.eurekaInstancePort).put("@enabled", "true"))
                     .put("securePort", JsonObject().put("\$", 443).put("@enabled", "false"))
-                    .put("healthCheckUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health/ready")
-                    .put("statusPageUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/health/ready")
-                    .put("homePageUrl", "http://${config.eurekaInstanceHost}:${config.serverPort}/")
+                    .put("healthCheckUrl", "http://${config.eurekaInstanceHost}:${config.eurekaInstancePort}/health/ready")
+                    .put("statusPageUrl", "http://${config.eurekaInstanceHost}:${config.eurekaInstancePort}/health/ready")
+                    .put("homePageUrl", "http://${config.eurekaInstanceHost}:${config.eurekaInstancePort}/")
                     .put(
                         "dataCenterInfo",
                         JsonObject()
@@ -44,7 +44,7 @@ class EurekaRegistration(private val config: AppConfig) {
                     .put(
                         "metadata",
                         JsonObject()
-                            .put("management.port", config.serverPort.toString())
+                            .put("management.port", config.eurekaInstancePort.toString())
                             .put("prometheus.scrape", "true")
                             .put("prometheus.path", "/metrics"),
                     ),
