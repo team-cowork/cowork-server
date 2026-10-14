@@ -20,6 +20,20 @@ def private_ipv4(host):
     return address.version == 4 and any(address in network for network in RFC1918)
 
 
+def host_targets(directory):
+    # node-agent는 log-agent와 같은 방식으로 VM마다 node-agent-<host>.json slot을 하나씩 선언한다.
+    # 이 목록이 유일한 출처이므로(coworkServiceMissing과 같은 원칙), 별도 CSV 환경변수로 중복 유지하지 않는다.
+    targets = []
+    for path in sorted(directory.glob("node-agent-*.json")):
+        slot = json.loads(path.read_text())
+        host = path.stem.removeprefix("node-agent-")
+        address = slot["runtime"]["NODE_EXPORTER_BIND_IP"]
+        if not private_ipv4(address):
+            raise ValueError(f"{path.name} NODE_EXPORTER_BIND_IP must be a private IPv4 address")
+        targets.append({"targets": [f"{address}:9100"], "labels": {"service": "host", "host": host}})
+    return targets
+
+
 def http_url(name):
     value = os.environ[name]
     if "," in value or any(char.isspace() for char in value):
@@ -55,6 +69,7 @@ if (public_api.scheme != "https" or not public_api.hostname or public_api.userna
         or any(char.isspace() for char in public_api_url)):
     raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
 public_health_url = f"https://{public_api.netloc}/api/health"
+host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
     container = slot["container"]
@@ -146,6 +161,12 @@ scrape_configs = [
             {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
         ],
     },
+    *([{
+        # Not prefixed "cowork-": coworkServiceDown already matches up{job=~"cowork-.*"} == 0, and
+        # a dead node_exporter isn't a cowork service outage — it's covered by coworkInfrastructureScrapeFailed instead.
+        "job_name": "hosts",
+        "static_configs": host_target_configs,
+    }] if host_target_configs else []),
     {
         "job_name": "infrastructure",
         "static_configs": database_targets + [

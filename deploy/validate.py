@@ -26,6 +26,7 @@ env.update(
     COWORK_PROJECT_HOST_PORT="8084", LIVEKIT_CONFIG_FILE="livekit.yaml", APP_CONFIG_PROFILE="local",
     VAULT_PORT="8200", MYSQL_PORT="3306", REDIS_PORT="6379", VAULT_HOST_PORT="8200",
     MONITORING_BIND_IP="127.0.0.1", VAULT_BIND_IP="127.0.0.1", MONITORING_ADMIN_BIND_IP="127.0.0.1",
+    NODE_EXPORTER_BIND_IP="127.0.0.1",
     DOCKER_CONTAINER_LOG_DIR="/var/lib/docker/containers", MONITORING_PROMETHEUS_CONFIG="/tmp/cowork-validation-prometheus.json",
 )
 models = {
@@ -33,6 +34,7 @@ models = {
     "monitoring": ["deploy/prod/monitoring/compose.yaml"],
     "vault": ["deploy/prod/vault/compose.yaml"],
     "log-agent": ["deploy/prod/log-agent/compose.yaml"],
+    "node-agent": ["deploy/prod/node-agent/compose.yaml"],
 }
 resolved = {}
 for name, files in models.items():
