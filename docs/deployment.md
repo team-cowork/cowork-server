@@ -19,8 +19,11 @@ Prometheus 규칙과 Alertmanager 설정도 Git으로 관리한다. Terraform이
 Vault policy·인증 role의 초기 신뢰 구성과 복구는 관리자 bootstrap 범위이며 현재 Terraform 대상이 아니다.
 
 앱 VM은 실행 슬롯이다. 동일한 API·이벤트·DB 계약과 슬롯 한도를 지키는 구현은 소스와
-`Dockerfile.prod`에서 런타임, 설정 변환과 검증 명령을 소유한다. 런타임 변경이 비밀 참조나 포트,
+`Dockerfile.prod`에서 런타임과 검증 명령을 소유한다. 런타임 변경이 비밀 참조나 포트,
 자원 요구량도 바꾸면 슬롯을 함께 수정한다. 컨테이너 한도 변경으로 VM의 CPU·RAM이 늘어나지는 않는다.
+
+앱의 기존 설정 로딩 코드가 슬롯 환경변수와 Config Server 응답을 직접 읽는다.
+Config Server에 최초 접속할 주소·프로파일·인증정보는 시작 환경변수로 전달한다.
 
 Stage CI(`develop` push·`main` 이외 대상 PR)는 `Dockerfile.local`을 사용한다.
 Prod CI(`main` push·`main` 대상 PR)는 `Dockerfile.prod`를 사용한다. 이미지 빌드와 `verify` 단계,
