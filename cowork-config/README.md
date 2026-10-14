@@ -27,7 +27,7 @@
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 |
+| `APP_CONFIG_PROFILE` | `local` | 설정 프로파일 |
 | `CONFIG_SERVER_ACCOUNTS_JSON` | 없음 | 필수. 서비스별 Config/Eureka 계정 목록 |
 | `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Config Bus 브로커 |
 | `VAULT_HOST` | `cowork-vault` | 로컬 Vault 호스트 |
