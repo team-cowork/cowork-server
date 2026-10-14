@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Apply existing VM configuration and Grafana state with private, short-lived inputs."""
+"""Apply existing VM and service configuration with private, short-lived inputs."""
 import argparse
 import json
 import os
@@ -10,9 +10,6 @@ import shutil
 import signal
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.request
 from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,8 +36,7 @@ def execute(arguments, env):
     try:
         result = process.wait()
     except BaseException:
-        # state.py gets time to persist a partial apply before its group is stopped.
-        stop_process(process, timeout=90)
+        stop_process(process)
         raise
     if result:
         raise RuntimeError('Infrastructure command failed; inspect the preceding non-secret diagnostics')
@@ -131,41 +127,6 @@ def vault_identity(env):
     return authentication['authenticate'](env, 'prod-iac')
 
 
-def grafana_environment(path):
-    info = path.lstat()
-    demand(path.is_file() and not path.is_symlink() and info.st_uid == os.getuid() and not info.st_mode & 0o077,
-           'Grafana input must be a private file owned by the invoking user')
-    content = path.read_bytes()
-    demand(len(content) <= 65536 and content.endswith(b'\0'), 'Invalid Grafana environment input')
-    values = {}
-    for item in content[:-1].split(b'\0'):
-        key, separator, value = item.decode().partition('=')
-        demand(separator and key in {'GRAFANA_URL', 'GRAFANA_AUTH'} and key not in values and value,
-               'Invalid Grafana environment key')
-        values[key] = value
-    demand(set(values) == {'GRAFANA_URL', 'GRAFANA_AUTH'} and values['GRAFANA_URL'] == 'http://127.0.0.1:43001',
-           'Grafana must use the declared loopback SSH tunnel')
-    if os.environ.get('GITHUB_ACTIONS') == 'true':
-        for value in (values['GRAFANA_AUTH'], values['GRAFANA_AUTH'].partition(':')[2]):
-            if value:
-                print('::add-mask::' + value.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
-    return values
-
-
-def wait_for_grafana(tunnel):
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    for _ in range(30):
-        demand(tunnel.poll() is None, 'The monitoring SSH tunnel terminated')
-        try:
-            with opener.open('http://127.0.0.1:43001/api/health', timeout=3) as response:
-                if response.status == 200 and json.load(response).get('database') == 'ok':
-                    return
-        except (OSError, ValueError, urllib.error.URLError):
-            pass
-        time.sleep(2)
-    raise RuntimeError('Grafana did not become ready through the SSH tunnel')
-
-
 def record_success(sha, host_count, env):
     if not env.get('GITHUB_RUN_ID'):
         print('[iac] Applied locally; no GitHub Actions deployment record was created')
@@ -175,11 +136,11 @@ def record_success(sha, host_count, env):
         'ref': sha, 'task': 'cowork-infrastructure', 'environment': 'Prod-IaC',
         'auto_merge': False, 'required_contexts': [], 'production_environment': True,
         'payload': {'host_count': host_count, 'scope': 'hosts-persistent-services-and-monitoring'},
-        'description': 'Host and persistent service configuration applied; Grafana state persisted',
+        'description': 'Host, persistent service and monitoring configuration applied',
     })
     github_api(f'deployments/{deployment["id"]}/statuses', env, {
         'state': 'success', 'auto_inactive': False,
-        'description': 'Host and persistent service configuration applied; Grafana state persisted',
+        'description': 'Host, persistent service and monitoring configuration applied',
         'log_url': f'{env.get("GITHUB_SERVER_URL", "https://github.com")}/{repository}/actions/runs/{env["GITHUB_RUN_ID"]}',
     })
 
@@ -188,31 +149,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--sha', required=True)
     parser.add_argument('--work-directory', type=Path, required=True)
-    parser.add_argument('--recovery-file', type=Path)
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--automatic', action='store_true')
-    parser.add_argument('--initialize-state', action='store_true')
     parser.add_argument('--settings-targets', help='Apply only these comma-separated infrastructure selectors')
     args = parser.parse_args()
     demand(re.fullmatch(r'[0-9a-f]{40}', args.sha), 'A full release commit is required')
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     demand(head == args.sha, 'Checkout must match the exact release SHA')
-    demand(not args.initialize_state or not (args.automatic or args.check_only),
-           'State initialization is only available to an explicit manual apply')
-    demand(args.settings_targets is None or not (args.automatic or args.initialize_state),
-           'A settings apply cannot request a full automatic apply or Terraform state initialization')
+    demand(args.settings_targets is None or not args.automatic,
+           'A settings apply cannot request a full automatic apply')
     work = args.work_directory
     demand(work.is_absolute() and not work.is_symlink() and not work.exists() and not work.resolve().is_relative_to(ROOT),
            'The private work directory must be a new absolute path outside the checkout')
-    if not args.check_only and args.settings_targets is None:
-        demand(args.recovery_file is not None and args.recovery_file.is_absolute()
-               and not args.recovery_file.resolve().is_relative_to(ROOT)
-               and not args.recovery_file.resolve().is_relative_to(work.resolve()),
-               'Encrypted recovery output must be outside the checkout and disposable work directory')
     os.umask(0o077)
     work.mkdir(mode=0o700, parents=True)
     env = {**os.environ, 'ANSIBLE_CONFIG': str(IAC / 'ansible/ansible.cfg'), 'ANSIBLE_HOST_KEY_CHECKING': 'True'}
-    tunnel = None
     try:
         if args.automatic:
             if not args.check_only and not automatic_apply_needed(args.sha, env):
@@ -223,20 +174,11 @@ def main():
         for source in ('databases/runtime.py', 'databases/search.py', 'shared/runtime.py', 'storage/runtime.py'):
             execute([sys.executable, IAC / source, 'check'], env)
         execute(['ansible-playbook', '-i', IAC / 'inventory.example.yml', IAC / 'ansible/site.yml', '--syntax-check'], env)
-        if args.settings_targets is None:
-            validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
-            execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)
-            execute(['terraform', f'-chdir={IAC / "terraform"}', 'init', '-backend=false', '-input=false', '-lockfile=readonly'], validation_env)
-            execute(['terraform', f'-chdir={IAC / "terraform"}', 'validate'], validation_env)
         if args.check_only:
-            print('[iac] Static validation passed. No Vault read, SSH connection, host apply, Terraform plan or deployment occurred.')
+            print('[iac] Static validation passed. No Vault read, SSH connection or deployment occurred.')
             result_output('checked')
             return
-        required = ['VAULT_ADDR']
-        if args.settings_targets is None:
-            required.extend(('IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'))
-        for key in required:
-            demand(bool(env.get(key)), f'{key} is required for an infrastructure apply')
+        demand(bool(env.get('VAULT_ADDR')), 'VAULT_ADDR is required for an infrastructure apply')
         env = vault_identity(env)
         inputs = work / 'inputs'
         command = [sys.executable, IAC / 'scripts/prepare.py', '--sha', args.sha, '--output', inputs]
@@ -250,27 +192,10 @@ def main():
             print(f'[iac] Applied selected settings on {metadata["host_count"]} hosts; persistent data retained')
             result_output('applied')
             return
-        alias = metadata['monitoring_ssh_alias']
-        demand(re.fullmatch(r'cowork-iac-[a-z][a-z0-9-]*', alias), 'Invalid monitoring SSH alias')
-        tunnel = subprocess.Popen([
-            'ssh', '-F', str(inputs / 'ssh-config'), '-N', '-T',
-            '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=15', '-o', 'ServerAliveCountMax=3',
-            '-L', '127.0.0.1:43001:127.0.0.1:3001', alias,
-        ], env=env, start_new_session=True)
-        wait_for_grafana(tunnel)
-        # state.py's temporary checkout and plaintext state are covered by this run's cleanup.
-        grafana_env = {**env, **grafana_environment(inputs / 'grafana.env0'), 'TMPDIR': str(work)}
-        command = [sys.executable, IAC / 'scripts/state.py', '--recovery-file', args.recovery_file]
-        if args.initialize_state:
-            command.append('--initialize')
-        command.extend(['--', IAC / 'apply.sh', 'grafana', 'apply'])
-        execute(command, grafana_env)
         record_success(args.sha, metadata['host_count'], env)
-        print(f'[iac] Applied {metadata["host_count"]} hosts and persisted Grafana state')
+        print(f'[iac] Applied {metadata["host_count"]} hosts and provisioned monitoring configuration')
         result_output('applied')
     finally:
-        if tunnel is not None:
-            stop_process(tunnel, timeout=10)
         shutil.rmtree(work)
 
 
