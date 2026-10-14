@@ -11,7 +11,7 @@
     "LIVEKIT_URL": "http://10.0.0.172:7880",
     "LIVEKIT_WS_URL": "wss://cowork-livekit.https.gsmsv.site",
     "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
-    "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118",
+    "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118,http://localhost:3000",
     "S3_BUCKET": "cowork-bucket",
     "S3_REGION": "us-east-1",
     "VAULT_APP_ROLE_PATH": "approle",
