@@ -2,6 +2,7 @@ apiVersion: 1
 
 datasources:
   - name: Loki
+    uid: cowork-loki
     type: loki
     url: http://loki:3100
     isDefault: false
