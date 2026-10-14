@@ -84,7 +84,7 @@ class ProjectionStateConsumer(
             scope.launch(vertx.dispatcher()) {
                 processBatchWithRetry(records, generation)
                 refreshReadiness()
-                if (isCurrentAssignment(generation) && !assignmentBlocked.get() && !checkpointRangeBlocked.get()) {
+                if (isCurrentAssignment(generation)) {
                     consumer.resume()
                 }
             }
@@ -113,26 +113,23 @@ class ProjectionStateConsumer(
     }
 
     private fun initializeAssignedPartitions(partitions: Set<TopicPartition>) {
+        if (closed) return
         val generation = assignmentGeneration.incrementAndGet()
         assignmentBlocked.set(true)
+        applyBlocked.set(false)
         assignedTopicId = null
         readiness.markInitializing("initializing Kafka partition checkpoints")
-        consumer.pause()
+        consumer.resume()
         scope.launch(vertx.dispatcher()) {
             val localRangeViolation = initializeAssignedPartitionsWithRetry(partitions, generation)
-            ensureCurrentAssignment(generation)
             checkpointRangeBlocked.set(localRangeViolation)
-            if (!localRangeViolation) {
-                retry("resume initialized Kafka projection partitions", generation) {
-                    consumer.resume(partitions).coAwait()
-                }
-            }
-            ensureCurrentAssignment(generation)
             assignmentBlocked.set(false)
             readiness.markInitialized()
             refreshReadiness()
-            if (isCurrentAssignment(generation) && !assignmentBlocked.get() && !checkpointRangeBlocked.get()) {
-                consumer.resume()
+            if (isCurrentAssignment(generation) && !checkpointRangeBlocked.get()) {
+                retry("resume initialized Kafka projection partitions", generation) {
+                    consumer.resume(partitions).coAwait()
+                }
             }
         }
     }
@@ -193,6 +190,7 @@ class ProjectionStateConsumer(
         if (rangeViolation) {
             checkpointRangeBlocked.set(true)
             readiness.markUnavailable("database checkpoint is outside the retained Kafka range")
+            pauseAssignedPartitions(generation)
         }
         return !rangeViolation
     }
@@ -284,16 +282,13 @@ class ProjectionStateConsumer(
         if (assignmentBlocked.get()) return
         val generation = assignmentGeneration.get()
         runCatching {
-            val topicState = topicIdentity.topicState(topic)
             val checkpoints = checkpointRepository.load(groupId, topic)
             val barriers = checkpointRepository.loadBarriers(groupId, topic)
+            val topicState = topicIdentity.topicState(topic)
             ensureCurrentAssignment(generation)
             if (hasRangeViolation(checkpoints, topicState)) {
                 checkpointRangeBlocked.set(true)
-                val assignments = consumer.assignment().coAwait()
-                ensureCurrentAssignment(generation)
-                if (assignments.isNotEmpty()) consumer.pause(assignments).coAwait()
-                ensureCurrentAssignment(generation)
+                pauseAssignedPartitions(generation)
             }
             if (assignmentBlocked.get() || applyBlocked.get() || checkpointRangeBlocked.get()) {
                 readiness.markUnavailable("$topic consumer is not ready to apply records")
@@ -306,6 +301,13 @@ class ProjectionStateConsumer(
             readiness.markUnavailable("projection readiness verification failed")
             log.warn("Unable to verify Kafka projection readiness topic={}", topic, error)
         }
+    }
+
+    private suspend fun pauseAssignedPartitions(generation: Long) {
+        val assignments = consumer.assignment().coAwait()
+        ensureCurrentAssignment(generation)
+        if (assignments.isNotEmpty()) consumer.pause(assignments).coAwait()
+        ensureCurrentAssignment(generation)
     }
 
     private fun hasRangeViolation(
