@@ -157,9 +157,8 @@ func (s *Service) Notify(
 		return nil, err
 	}
 
-	// eventId is the (eventId, installationId) canonical delivery key described in
-	// docs/todo/items/33-reliability/fcm-partial-failure-retry.md. A producer that has
-	// not yet been updated to send one falls back to a single non-durable attempt
+	// eventId is the (eventId, installationId) canonical delivery key. A producer that
+	// has not yet been updated to send one falls back to a single non-durable attempt
 	// (today's behavior) instead of failing the notification outright.
 	toSend := allTargets
 	durable := eventID != ""

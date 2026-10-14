@@ -35,4 +35,4 @@
 
 ## 작성 규칙
 
-새 항목의 형식·번호·스냅샷 등록은 [todo-docs 스킬](../../.agents/skills/todo-docs/SKILL.md)을 따른다.
+새 항목의 형식·번호·스냅샷 등록은 [todo-docs 스킬](../../../.agents/skills/todo-docs/SKILL.md)을 따른다.
