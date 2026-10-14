@@ -2,6 +2,8 @@
 require_env CONFIG_SERVER_URL EUREKA_SERVER_URL MYSQL_HOST REDIS_HOST DEPLOY_SHA MONITORING_BIND_IP MONITORING_VOLUME_PREFIX GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL \
   MYSQL_EXPORTER_PASSWORD KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 require_env CONFIG_CLIENT_USERNAME CONFIG_CLIENT_PASSWORD
+# This validates URL shape and private addressing only; it does not contact Config.
+# Authenticated discovery retries after Config's later deployment activates its peer policy.
 python3 "${PROD_DIR}/config-access.py"
 # Generated runtime configuration stays outside the immutable source bundle.
 export MONITORING_PROMETHEUS_CONFIG="${DEPLOY_SETTINGS_DIR}/prometheus.json"
@@ -19,4 +21,9 @@ COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
 health_host="${MONITORING_ADMIN_BIND_IP:-127.0.0.1}"
 [ "$health_host" != 0.0.0.0 ] || health_host=127.0.0.1
 wait_for_health "http://${health_host}:9090/-/ready" || fail 'Prometheus is not ready'
-echo '[monitoring] Healthy'
+wait_for_health "http://${health_host}:9093/-/ready" || fail 'Alertmanager is not ready'
+wait_for_health "http://${health_host}:3001/api/health" || fail 'Grafana is not ready'
+loki_health_host="$MONITORING_BIND_IP"
+[ "$loki_health_host" != 0.0.0.0 ] || loki_health_host=127.0.0.1
+wait_for_health "http://${loki_health_host}:3100/ready" || fail 'Loki is not ready'
+echo '[monitoring] Local services ready; verify remote collection after Config and application rollout'
