@@ -25,20 +25,18 @@ MYSQL_HOST MYSQL_PORT MYSQL_USER COWORK_MYSQL_PASSWORD
 POSTGRES_HOST POSTGRES_PORT POSTGRES_USER COWORK_POSTGRES_PASSWORD
 MONGO_HOST MONGO_PORT MONGO_USER COWORK_MONGO_PASSWORD
 REDIS_HOST REDIS_PORT ELASTICSEARCH_URL
-S3_INTERNAL_ENDPOINT S3_BUCKET S3_REGION
+S3_INTERNAL_ENDPOINT S3_BUCKET S3_REGION S3_ACCESS_KEY S3_SECRET_KEY
 LIVEKIT_URL LIVEKIT_WS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET
 GITHUB_APP_SERVICE_URL COWORK_GITHUB_APP_INTERNAL_API_KEY PUBLIC_WEB_ORIGINS PUBLIC_API_BASE_URL
 JWT_SECRET JWT_ACCESS_EXPIRE JWT_REFRESH_EXPIRE
 VAULT_EXTERNAL_HOST VAULT_PORT VAULT_BACKEND VAULT_TOKEN VAULT_BIND_IP VAULT_DATA_VOLUME VAULT_COMPOSE_PROJECT VAULT_UNSEAL_KEY
 VAULT_APP_ROLE_PATH VAULT_ROLE_ID VAULT_SECRET_ID
 MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORING_VOLUME_PREFIX
-GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
-KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
+GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK
+KAFKA_EXPORTER_SERVER
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
 DB_PASSWORD GITHUB_APP_INTERNAL_API_KEY
-STORAGE_SETTINGS_JSON DATASTORE_SETTINGS_JSON
 """.split())
-ISOLATED_RUNTIME_SETTINGS = {"storage": "STORAGE_SETTINGS_JSON", "datastores": "DATASTORE_SETTINGS_JSON"}
 # deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
 # container, inside one SSH session limited by command_timeout (45m) in .github/actions/deploy-target/action.yml.
 # Keep both in sync. 600s remains for the two 120s lock waits, the 30s container stop, source fetch and image pull.
@@ -90,15 +88,6 @@ def validate_deployment(data, target, slot=None):
             demand(isinstance(reference["path"], str) and all(NAME.fullmatch(part) for part in reference["path"].split("/")), "Invalid reference path")
             demand(isinstance(reference["key"], str) and reference["key"], "Invalid reference key")
     runtime = data.get("runtime", {})
-    runtime_keys = set(runtime) | set(data.get("runtime_refs", {}))
-    if target in ISOLATED_RUNTIME_SETTINGS:
-        setting = ISOLATED_RUNTIME_SETTINGS[target]
-        demand(runtime_keys == {setting}, f"{target} requires only its isolated {setting} runtime setting")
-        demand(not data.get("application") and not data.get("application_refs"), "Isolated infrastructure cannot contain application settings")
-    else:
-        demand(not runtime_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings are restricted to their own targets")
-    application_keys = set(data.get("application", {})) | set(data.get("application_refs", {}))
-    demand(not application_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings cannot be forwarded to applications")
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
     if "HEALTH_TIMEOUT_SECONDS" in runtime:
@@ -174,7 +163,7 @@ def main():
     else:
         services = {p.stem for p in (Path(__file__).resolve().parents[1] / "services").glob("*.sh")} | {
             json.loads(p.read_text())["service"] for p in (Path(__file__).resolve().parents[1] / "slots").glob("*.json")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "log-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
@@ -200,7 +189,6 @@ def main():
             demand(isinstance(data, dict), "Application properties must be a flat JSON object")
             for key, value in data.items():
                 demand(bool(re.fullmatch(r"[A-Za-z0-9_.\[\]-]+", key)), "Invalid application property key")
-                demand(key not in ISOLATED_RUNTIME_SETTINGS.values(), "Infrastructure settings cannot be stored as application properties")
                 demand(isinstance(value, (str, int, float, bool)), "Application properties must be scalar values")
         result = vault_request(api_path, {"options": {"cas": args.expected_version}, "data": data})
         print(f"Updated {path}, Vault version {result['data']['version']}")
