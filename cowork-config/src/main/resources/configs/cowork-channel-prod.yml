@@ -58,8 +58,8 @@ account-share:
     allowed-return-origins: "${PUBLIC_WEB_ORIGINS}"
     state-secret: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
     github:
-      client-id: ${GITHUB_ACCOUNT_SHARE_CLIENT_ID:}
-      client-secret: ${GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:}
+      client-id: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:}
+      client-secret: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:}
       token-url: https://github.com/login/oauth/access_token
       userinfo-url: https://api.github.com/user
       scope: read:user,user:email
