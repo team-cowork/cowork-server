@@ -1,0 +1,27 @@
+---
+- name: Stage the trusted application network implementation
+  become: true
+  block:
+    - name: Create the private administrator network directory
+      ansible.builtin.file:
+        path: /root/cowork-iac/network
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+    - name: Copy the reviewed network contract and implementation
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/prod/{{ item }}"
+        dest: "/root/cowork-iac/network/{{ item }}"
+        owner: root
+        group: root
+        mode: '0600'
+      loop:
+        - host-network.json
+        - host-network.py
+        - slots.py
+    - name: Validate egress MTU and prepare the versioned application network
+      ansible.builtin.command:
+        argv: [/usr/bin/python3, -I, /root/cowork-iac/network/host-network.py]
+      register: cowork_network_result
+      changed_when: (cowork_network_result.stdout | from_json).created | bool

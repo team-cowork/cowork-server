@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "compose": {
+    "version": "5.6.0",
+    "platform": "linux-x86_64",
+    "url": "https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64",
+    "sha256": "40343e21ca777173e69cff5dbafeb37c6f81f3b0d57d9e597f036e95eb63e76a",
+    "checksum_url": "https://github.com/docker/compose/releases/download/v5.6.0/docker-compose-linux-x86_64.sha256"
+  }
+}

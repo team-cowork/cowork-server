@@ -55,12 +55,12 @@ func Load() (*AppConfig, error) {
 		return nil, err
 	}
 
-	accessExpire, err := time.ParseDuration(lookup(flatMap, "JWT_ACCESS_EXPIRE", defaultJWTAccessExpire))
+	accessExpire, err := time.ParseDuration(getEnvOrDefault("JWT_ACCESS_EXPIRE", lookup(flatMap, "JWT_ACCESS_EXPIRE", defaultJWTAccessExpire)))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_ACCESS_EXPIRE: %w", err)
 	}
 
-	refreshExpire, err := time.ParseDuration(lookup(flatMap, "JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire))
+	refreshExpire, err := time.ParseDuration(getEnvOrDefault("JWT_REFRESH_EXPIRE", lookup(flatMap, "JWT_REFRESH_EXPIRE", defaultJWTRefreshExpire)))
 	if err != nil {
 		return nil, fmt.Errorf("invalid JWT_REFRESH_EXPIRE: %w", err)
 	}
@@ -73,9 +73,10 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_IDENTITY_COMMAND_TIMEOUT")
 	}
 
-	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", "8081"))
+	eurekaPortValue := getEnvOrDefault("EUREKA_INSTANCE_PORT", lookup(flatMap, "EUREKA_INSTANCE_PORT", "8081"))
+	eurekaPort, err := strconv.Atoi(getEnvOrDefault("APP_ADVERTISE_PORT", eurekaPortValue))
 	if err != nil {
-		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
+		return nil, fmt.Errorf("invalid Eureka advertised port")
 	}
 
 	cfg := &AppConfig{
@@ -107,6 +108,10 @@ func Load() (*AppConfig, error) {
 	}
 
 	overrideFromEnv(cfg)
+	cfg.DBDSN, err = mysqlDSN(cfg.DBDSN)
+	if err != nil {
+		return nil, err
+	}
 	if cfg.DBDSN != "" {
 		cfg.DBDSN, err = normalizeMySQLDSNUTC(cfg.DBDSN)
 		if err != nil {
@@ -141,12 +146,12 @@ func normalizeMySQLDSNUTC(dsn string) (string, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := os.Getenv("APP_CONFIG_URL")
+	configURL := getEnvOrDefault("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnvOrDefault("APP_PROFILE", "local")
+	profile := getEnvOrDefault("APP_CONFIG_PROFILE", getEnvOrDefault("APP_PROFILE", "local"))
 	client := springconfig.NewClient(configURL, "cowork-authorization", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -164,9 +169,6 @@ func fetchFromConfigServer() (map[string]string, error) {
 func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
-	}
-	if v := os.Getenv("DB_DSN"); v != "" {
-		cfg.DBDSN = v
 	}
 	if v := os.Getenv("DATAGSM_CLIENT_ID"); v != "" {
 		cfg.DataGSMClientID = v
@@ -210,13 +212,8 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := os.Getenv("EUREKA_INSTANCE_HOST"); v != "" {
+	if v := getEnvOrDefault("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
 		cfg.EurekaInstanceHost = v
-	}
-	if v := os.Getenv("EUREKA_INSTANCE_PORT"); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			cfg.EurekaInstancePort = parsed
-		}
 	}
 }
 
@@ -232,7 +229,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := os.Getenv("EUREKA_INSTANCE_HOST"); explicitHost != "" {
+		if explicitHost := getEnvOrDefault("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address
@@ -274,4 +271,34 @@ func lookup(flatMap map[string]string, key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// Individual database inputs define one connection and take precedence over a stored DSN.
+func mysqlDSN(fallback string) (string, error) {
+	keys := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"}
+	configured := false
+	for _, key := range keys {
+		if _, present := os.LookupEnv(key); present {
+			configured = true
+			break
+		}
+	}
+	if !configured {
+		return getEnvOrDefault("DB_DSN", fallback), nil
+	}
+	for _, key := range keys {
+		if os.Getenv(key) == "" {
+			return "", fmt.Errorf("required configuration %q is not set", key)
+		}
+	}
+	cfg := mysqlDriver.NewConfig()
+	cfg.User = os.Getenv("DB_USERNAME")
+	cfg.Passwd = os.Getenv("DB_PASSWORD")
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"))
+	cfg.DBName = os.Getenv("DB_NAME")
+	cfg.ParseTime = true
+	cfg.Loc = time.Local
+	cfg.Params = map[string]string{"charset": "utf8mb4"}
+	return cfg.FormatDSN(), nil
 }

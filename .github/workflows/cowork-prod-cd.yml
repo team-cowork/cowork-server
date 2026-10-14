@@ -14,15 +14,15 @@ on:
         type: choice
         options: [redeploy, update-config]
       target:
-        description: Vault target, applications for the 11-app redeploy group, or application for shared properties
-        required: true
+        description: Optional Vault target override; defaults to the selected service
+        required: false
         type: string
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, monitoring, vault, datastores, storage, log-agent]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault, datastores, storage]
       sha:
-        description: Full main commit SHA with an existing image (redeploy only)
+        description: Optional full commit SHA for a previous version; defaults to the selected branch
         type: string
       configuration_version:
         description: Vault deployment version (0 selects latest; redeploy only)
@@ -30,7 +30,11 @@ on:
         type: string
       check_only:
         description: Validate settings without starting containers (redeploy only)
-        default: true
+        default: false
+        type: boolean
+      initialize_state:
+        description: Create the first Terraform state (service=infrastructure only)
+        default: false
         type: boolean
       vault_recovery:
         description: Use VAULT_BOOTSTRAP_JSON for Vault recovery (redeploy only)
@@ -40,7 +44,7 @@ on:
         description: Vault document type (update-config only)
         default: deployment
         type: choice
-        options: [deployment, application]
+        options: [deployment, application, slot-secrets]
       profile:
         description: Application profile path (update-config only; deployment uses base)
         default: base
@@ -54,12 +58,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: cowork-production
   cancel-in-progress: false
 
 jobs:
   manual-request:
-    if: github.event_name == 'workflow_dispatch'
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'team-cowork/cowork-server' &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -75,24 +82,24 @@ jobs:
         id: request
         env:
           OPERATION: ${{ inputs.operation }}
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ inputs.target || inputs.service }}
           SERVICE: ${{ inputs.service }}
-          RELEASE_SHA: ${{ inputs.sha }}
+          RELEASE_SHA: ${{ inputs.sha || github.sha }}
           CONFIGURATION_VERSION: ${{ inputs.configuration_version || '0' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
           VAULT_RECOVERY: ${{ inputs.vault_recovery && 'true' || 'false' }}
         run: |
           set -euo pipefail
-          test "$GITHUB_REF" = refs/heads/main
           [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
           case "$OPERATION" in
             redeploy)
               [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
               [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-              if [ "$SERVICE" != applications ]; then
-                test -f "deploy/prod/services/$SERVICE.sh"
+              if [ "$SERVICE" != applications ] && [ "$SERVICE" != infrastructure ]; then
+                test -f "deploy/prod/services/$SERVICE.sh" || test -f "deploy/prod/slots/$TARGET.json"
               fi
               test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-              git merge-base --is-ancestor "$RELEASE_SHA" origin/main
               ;;
             update-config) ;;
             *) echo 'Unknown manual operation' >&2; exit 1 ;;
@@ -103,7 +110,19 @@ jobs:
           target, service = os.environ["TARGET"], os.environ["SERVICE"]
           deploy = os.environ["OPERATION"] == "redeploy"
           group = service == "applications" or target == "applications"
-          if group:
+          if os.environ["VAULT_RECOVERY"] == "true" and (not deploy or service != "vault" or target != "vault"):
+              raise SystemExit("vault_recovery requires redeploy with service=target=vault")
+          if os.environ["INITIALIZE_STATE"] == "true" and (
+              not deploy or service != "infrastructure" or os.environ["CHECK_ONLY"] == "true"
+          ):
+              raise SystemExit("State initialization requires service=infrastructure and check_only=false")
+          if deploy and service in {"monitoring", "log-agent"}:
+              raise SystemExit("Select service=infrastructure to apply monitoring and log agents")
+          if service == "infrastructure":
+              if not deploy or target != "infrastructure":
+                  raise SystemExit("Infrastructure requires redeploy with service=target=infrastructure")
+              units, summary = [], "Infrastructure and monitoring"
+          elif group:
               if not deploy or (service, target) != ("applications", "applications"):
                   raise SystemExit("The applications selector requires redeploy with service=target=applications")
               if os.environ["CONFIGURATION_VERSION"] != "0" or os.environ["VAULT_RECOVERY"] != "false":
@@ -129,8 +148,12 @@ jobs:
                       continue
                   if unit["service"] in selected or unit["target"] == "applications":
                       raise SystemExit("Each application must have one distinct deployment target")
-                  if not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
-                      raise SystemExit("An application deployment script is missing from the selected release")
+                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
+                  if slot.is_file():
+                      if json.loads(slot.read_text()).get("service") != unit["service"]:
+                          raise SystemExit("The application slot does not match its inventory service")
+                  elif not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
+                      raise SystemExit("An application slot or deployment script is missing from the selected release")
                   selected[unit["service"]] = unit
               if set(selected) != set(applications):
                   raise SystemExit("The applications group requires all eleven application services in the selected release")
@@ -139,6 +162,11 @@ jobs:
           else:
               units = [{"service": service, "target": target}] if deploy else []
               summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
+          if deploy:
+              for unit in units:
+                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
+                  if slot.is_file() and json.loads(slot.read_text()).get("service") != unit["service"]:
+                      raise SystemExit("The requested target slot belongs to a different service")
           matrix = {"include": units}
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
@@ -146,12 +174,14 @@ jobs:
           PYTHON
 
   prepare:
+    needs: [manual-request, detect-changes]
     runs-on: ubuntu-latest
     if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository
+      !cancelled() && (
+        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
+        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
+         needs.manual-request.result == 'success')
+      )
     permissions:
       contents: read
     outputs:
@@ -164,7 +194,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           fetch-depth: 0
 
       - name: Resolve release version
@@ -181,24 +211,46 @@ jobs:
 
           echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          if git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
-            echo "should_release=false" >> "${GITHUB_OUTPUT}"
-          else
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] &&
+             ! git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
             echo "should_release=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "should_release=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Resolve production image inputs
+      - name: Resolve selected deployment image inputs
         id: images
-        run: python3 deploy/images/build-matrix.py --environment prod
+        env:
+          DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
+        run: |
+          python3 - <<'PYTHON'
+          import json, os
+          from pathlib import Path
+          catalog = json.loads(Path('deploy/images/catalog.json').read_text())
+          selected = {unit['service'] for unit in json.loads(os.environ['DEPLOY_MATRIX'])['include']}
+          infrastructure = {'vault', 'datastores', 'storage', 'monitoring', 'log-agent'}
+          unknown = selected - set(catalog) - infrastructure
+          if unknown:
+              raise SystemExit('Selected services have no image contract: ' + ', '.join(sorted(unknown)))
+          # Every selected app needs this release SHA, including deployments caused
+          # only by slot or shared configuration changes. Unselected apps keep their image.
+          matrix = {'include': [
+              {'service': service, 'context': settings['prod'], 'dockerfile': f'cowork-{service}/Dockerfile.prod'}
+              for service, settings in catalog.items() if service in selected
+          ]}
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write('matrix=' + json.dumps(matrix, separators=(',', ':')) + '\n')
+          PYTHON
 
   build-images:
     name: Build and push cowork-${{ matrix.service }}
     needs: prepare
-    # should_release는 "v<version> 태그/릴리스를 새로 만들지"만 결정해야 한다 — sha-<sha>
-    # 이미지는 release job과 무관하게 매 성공한 커밋마다 항상 push돼야 deploy job이
-    # 기대하는 이미지를 항상 찾을 수 있다. 예전엔 이 job 자체가 should_release로
-    # 걸려 있어서, VERSION을 안 올린 커밋은 이미지가 아예 안 만들어지고 deploy만
-    # 그대로 실행돼 docker pull이 실패했다(리뷰 지적).
+    # Release tags and deployment images have separate lifecycles. A selected
+    # deployment always gets sha-<sha>, even when VERSION did not change.
+    # One source-selection job is intentionally skipped for each trigger.
+    if: >
+      !cancelled() && !inputs.check_only && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.image-matrix != '{"include":[]}'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -212,7 +264,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v4
@@ -233,18 +285,22 @@ jobs:
           # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
           # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
           tags: |
-            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha }}
+            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
             ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha }}
+            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
             org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
 
   release:
     needs:
       - prepare
       - build-images
-    if: needs.prepare.outputs.should_release == 'true'
+    if: >
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_release == 'true' &&
+      (needs.build-images.result == 'success' ||
+       (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -300,15 +356,15 @@ jobs:
   deployment-plan:
     needs: [prepare, build-images, release, detect-changes, manual-request]
     if: >
-      always() && (
-        (github.event_name == 'workflow_run' &&
-         needs.detect-changes.result == 'success' &&
-         needs.prepare.result == 'success' &&
-         needs.build-images.result == 'success' &&
-         (needs.release.result == 'success' || needs.release.result == 'skipped')) ||
+      !cancelled() && needs.prepare.result == 'success' && (
+        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
         (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
          needs.manual-request.result == 'success')
-      )
+      ) && (
+        needs.build-images.result == 'success' ||
+        (needs.build-images.result == 'skipped' &&
+         (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}'))
+      ) && (needs.release.result == 'success' || needs.release.result == 'skipped')
     runs-on: ubuntu-latest
     outputs:
       vault: ${{ steps.waves.outputs.vault }}
@@ -327,6 +383,9 @@ jobs:
           units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
           waves = {'vault': [], 'datastores': [], 'storage': [], 'config': [], 'applications': []}
           for unit in units:
+              # IaC owns these lifecycles and records their deployment status.
+              if unit['service'] in {'monitoring', 'log-agent'}:
+                  continue
               wave = unit['service'] if unit['service'] in {'vault', 'datastores', 'storage', 'config'} else 'applications'
               waves[wave].append(unit)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
@@ -359,7 +418,7 @@ jobs:
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
           configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
@@ -394,7 +453,7 @@ jobs:
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
           configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_addr: ${{ vars.VAULT_ADDR }}
@@ -428,18 +487,118 @@ jobs:
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
           configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
 
-  deploy-config:
+  apply-infrastructure:
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage]
+    if: >
+      !cancelled() && needs.deployment-plan.result == 'success' &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
+      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
+      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
+      !(github.event_name == 'workflow_dispatch' && inputs.service == 'vault' && inputs.vault_recovery)
+    permissions:
+      contents: write
+      deployments: write
+      packages: read
+      id-token: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: Prod-IaC
+    steps:
+      - name: Read the selected infrastructure source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: '1.14.0'
+          terraform_wrapper: false
+      - name: Install pinned IaC tools
+        run: python -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
+      - name: Validate or apply infrastructure
+        id: apply
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
+          AUTOMATIC: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          umask 077
+          options=(--sha "$RELEASE_SHA"
+            --work-directory "$RUNNER_TEMP/cowork-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+            --recovery-file "$RUNNER_TEMP/cowork-iac-recovery/grafana.tfstate.aesgcm")
+          [ "$CHECK_ONLY" != true ] || options+=(--check-only)
+          [ "$AUTOMATIC" != true ] || options+=(--automatic)
+          [ "$INITIALIZE_STATE" != true ] || options+=(--initialize-state)
+          python deploy/iac/run.py "${options[@]}"
+      - name: Preserve encrypted state if persistence failed
+        if: always() && (failure() || cancelled())
+        uses: actions/upload-artifact@v7
+        with:
+          name: cowork-iac-encrypted-recovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/cowork-iac-recovery/grafana.tfstate.aesgcm
+          if-no-files-found: ignore
+          retention-days: 30
+      - name: Remove any remaining plaintext inputs
+        if: always()
+        env:
+          PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-iac-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python - <<'PYTHON'
+          import os, shutil
+          from pathlib import Path
+          directory = Path(os.environ['PRIVATE_DIRECTORY'])
+          parent = Path(os.environ['RUNNER_TEMP']).resolve()
+          if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith('cowork-iac-'):
+              raise SystemExit('Invalid IaC cleanup path')
+          if directory.exists():
+              shutil.rmtree(directory)
+          PYTHON
+      - name: Summarize the scope actually executed
+        if: success()
+        env:
+          IAC_RESULT: ${{ steps.apply.outputs.result }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+        run: |
+          case "$IAC_RESULT" in
+            checked)
+              echo "Static IaC validation passed at $RELEASE_SHA. No Vault read, SSH connection, Terraform plan or infrastructure apply was performed." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            skipped)
+              echo "Automatic IaC apply skipped at $RELEASE_SHA. The selected source does not require an infrastructure apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            applied)
+              echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo 'Infrastructure execution did not report a result' >&2
+              exit 1
+              ;;
+          esac
+
+  deploy-config:
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.config != '{"include":[]}' &&
+      needs.apply-infrastructure.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
       (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped')
@@ -464,7 +623,7 @@ jobs:
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
           configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
@@ -474,10 +633,11 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
-    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, deploy-config]
+    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure, deploy-config]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.applications != '{"include":[]}' &&
+      needs.apply-infrastructure.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
       (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
@@ -505,7 +665,7 @@ jobs:
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
           configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
@@ -518,7 +678,7 @@ jobs:
     needs: manual-request
     if: inputs.operation == 'update-config'
     runs-on: ubuntu-latest
-    environment: Config-Update(${{ inputs.target }})
+    environment: Config-Update(${{ inputs.target || inputs.service }})
     permissions:
       contents: read
     steps:
@@ -529,7 +689,7 @@ jobs:
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           VAULT_TOKEN: ${{ secrets.VAULT_CONFIG_WRITE_TOKEN }}
           VAULT_UPDATE_JSON: ${{ secrets.VAULT_UPDATE_JSON }}
-          TARGET: ${{ inputs.target }}
+          TARGET: ${{ inputs.target || inputs.service }}
           SCOPE: ${{ inputs.scope }}
           PROFILE: ${{ inputs.profile }}
           EXPECTED_VERSION: ${{ inputs.expected_version }}
@@ -549,11 +709,19 @@ jobs:
       - deploy-vault
       - deploy-datastores
       - deploy-storage
+      - apply-infrastructure
       - deploy-config
       - deploy
       - manual-request
       - update-config
-    if: always()
+    if: >
+      always() && github.repository == 'team-cowork/cowork-server' && (
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.head_branch == 'main' &&
+         github.event.workflow_run.head_repository.full_name == github.repository) ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      )
 
     steps:
       - name: Get Short SHA
@@ -565,7 +733,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -613,7 +781,7 @@ jobs:
           color: ${{ steps.status.outputs.color }}
           title: "cowork Server Prod CD"
           description: |
-            `${{ github.event.workflow_run.head_branch || 'main' }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
+            `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Release:** ${{ steps.status.outputs.release_desc }}
             **Operation:** ${{ inputs.operation || 'release' }}
             **Upstream CI:** ${{ github.event.workflow_run.conclusion || 'n/a' }} · **Run:** ${{ steps.status.outputs.run_desc }}
@@ -627,6 +795,7 @@ jobs:
             **Vault:** ${{ needs.deploy-vault.result }}
             **Datastores:** ${{ needs.deploy-datastores.result }}
             **Storage:** ${{ needs.deploy-storage.result }}
+            **Infrastructure:** ${{ needs.apply-infrastructure.result }}
             **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
             **Manual Request:** ${{ needs.manual-request.result }}
