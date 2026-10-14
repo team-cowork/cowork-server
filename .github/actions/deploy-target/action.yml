@@ -8,14 +8,20 @@ inputs:
     description: Deployment target in the inventory
     required: true
   sha:
-    description: Full immutable release commit SHA
+    description: Full immutable deployment source commit SHA
     required: true
+  image_sha:
+    description: Existing image commit SHA to reuse; defaults to the source SHA
+    default: ''
   check_only:
     description: Validate configuration without applying the release
     default: 'false'
   configuration_version:
     description: Pinned Vault configuration version or zero for latest
     default: '0'
+  reference_versions:
+    description: JSON map of exact Vault document versions selected by settings synchronization
+    default: '{}'
   vault_recovery:
     description: Bootstrap the Vault target from recovery settings
     default: 'false'
@@ -26,8 +32,8 @@ inputs:
     description: Vault KV mount
     default: 'secret'
   vault_token:
-    description: Vault deployment read token
-    required: true
+    description: Legacy read token used only for the Vault target
+    default: ''
   vault_bootstrap_json:
     description: Bootstrap settings used only for Vault recovery
     default: ''
@@ -44,12 +50,14 @@ runs:
       working-directory: release-source
       env:
         RELEASE_SHA: ${{ inputs.sha }}
+        IMAGE_SHA: ${{ inputs.image_sha || inputs.sha }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
       shell: bash
       run: |
         set -euo pipefail
         [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+        [[ "$IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]]
         [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
         [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
         if [ -f "deploy/prod/slots/$TARGET.json" ]; then
@@ -58,33 +66,46 @@ runs:
           test -f "deploy/prod/services/$SERVICE.sh"
         fi
         test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+    - name: Authenticate To Vault With The Target Identity
+      if: ${{ inputs.service != 'vault' }}
+      env:
+        VAULT_ADDR: ${{ inputs.vault_addr }}
+        TARGET: ${{ inputs.target }}
+      shell: bash
+      run: python3 deploy/prod/cd/vault-auth.py --role "prod-settings-$TARGET"
     - name: Load Vault Deployment Snapshot
       id: settings
       env:
         VAULT_ADDR: ${{ inputs.vault_addr }}
         VAULT_KV_MOUNT: ${{ inputs.vault_kv_mount }}
-        VAULT_TOKEN: ${{ inputs.vault_token }}
+        VAULT_LEGACY_TOKEN: ${{ inputs.vault_token }}
         VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery == 'true' && inputs.vault_bootstrap_json || '' }}
         RECOVERY: ${{ inputs.vault_recovery }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
         CONFIG_VERSION: ${{ inputs.configuration_version || '0' }}
+        REFERENCE_VERSIONS: ${{ inputs.reference_versions }}
       shell: bash
       run: |
         set -euo pipefail
         mode=read
+        if [ "$SERVICE" = vault ]; then
+          export VAULT_TOKEN="$VAULT_LEGACY_TOKEN"
+        fi
+        unset VAULT_LEGACY_TOKEN
         if [ "$RECOVERY" = true ]; then
           test "$SERVICE" = vault
           test "$TARGET" = vault
           mode=bootstrap
         fi
         python3 deploy/prod/cd/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION" \
-          --slot-directory release-source/deploy/prod/slots
+          --slot-directory release-source/deploy/prod/slots --reference-versions "$REFERENCE_VERSIONS"
     - name: Apply Immutable Release And Vault Settings
       uses: appleboy/ssh-action@v1
       env:
         DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
         DEPLOY_SHA: ${{ inputs.sha }}
+        DEPLOY_IMAGE_SHA: ${{ inputs.image_sha || inputs.sha }}
         DEPLOY_TOOLS_SHA: ${{ github.workflow_sha }}
         DEPLOY_SERVICE: ${{ inputs.service }}
         DEPLOY_TARGET: ${{ inputs.target }}
@@ -104,7 +125,7 @@ runs:
         # 서버의 deploy.sh는 후보 readiness 대기와 롤백 복구 대기를 각각 HEALTH_TIMEOUT_SECONDS까지 수행한다.
         # 이 값이 더 짧으면 SSH만 끊기고 VM의 스크립트가 배포 락을 쥔 채 계속 실행된다.
         command_timeout: 45m
-        envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_TOOLS_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION,DEPLOY_GHCR_USER,DEPLOY_GHCR_TOKEN
+        envs: DEPLOY_PAYLOAD,DEPLOY_SHA,DEPLOY_IMAGE_SHA,DEPLOY_TOOLS_SHA,DEPLOY_SERVICE,DEPLOY_TARGET,DEPLOY_OWNER,DEPLOY_ACTION,DEPLOY_GHCR_USER,DEPLOY_GHCR_TOKEN
         script: |
           set -euo pipefail
           umask 077
@@ -123,6 +144,7 @@ runs:
           trap 'exit 130' INT
           trap 'exit 143' TERM
           [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$DEPLOY_IMAGE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$DEPLOY_TOOLS_SHA" =~ ^[0-9a-f]{40}$ ]]
           root="$HOME/.local/share/cowork"
           cache="$root/repository.git"
@@ -168,7 +190,7 @@ runs:
           unset DEPLOY_GHCR_TOKEN DEPLOY_GHCR_USER
           printf '%s' "$DEPLOY_PAYLOAD" | python3 "$tools_release/deploy/prod/cd/apply-settings.py" \
             "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
-            --release-directory "$release"
+            --release-directory "$release" --image-sha "$DEPLOY_IMAGE_SHA"
     - name: Record Successful Runtime Deployment
       if: ${{ inputs.check_only != 'true' }}
       env:
@@ -176,5 +198,6 @@ runs:
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
         RELEASE_SHA: ${{ inputs.sha }}
+        IMAGE_SHA: ${{ inputs.image_sha || inputs.sha }}
       shell: bash
-      run: python3 deploy/prod/cd/deployment_state.py "$SERVICE" "$TARGET" "$RELEASE_SHA"
+      run: python3 deploy/prod/cd/deployment_state.py "$SERVICE" "$TARGET" "$IMAGE_SHA" --source-sha "$RELEASE_SHA"
