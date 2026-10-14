@@ -147,7 +147,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 deploy/images/build-matrix.py --verify "${args[@]}"
+          python3 deploy/images/build-matrix.py --verify --environment prod "${args[@]}"
 
   # Pull requests already verify the same source in coverage(pr).
   build-and-test:
@@ -170,6 +170,7 @@ jobs:
       - uses: ./.github/actions/verify-image
         with:
           module: cowork-${{ matrix.service }}
+          environment: prod
           output: ${{ runner.temp }}/verification
       - name: Upload unit verification results
         if: always()
@@ -293,7 +294,7 @@ jobs:
           VERIFY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
         run: |
           matrix=$(python3 deploy/images/ci/run.py plan --base source-base --head . \
-            --matrix "$VERIFY_MATRIX" --output "$RUNNER_TEMP/modules.json")
+            --matrix "$VERIFY_MATRIX" --environment prod --output "$RUNNER_TEMP/modules.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v7
         with:
@@ -329,6 +330,7 @@ jobs:
       - uses: ./.github/actions/verify-image
         with:
           module: ${{ matrix.module }}
+          environment: prod
           snapshot: ${{ matrix.snapshot }}
           source: source
           # Current modules must implement verify; old snapshots may predate the contract.
