@@ -21,6 +21,6 @@ find "$@" -type f -exec chmod 0444 {} +
 
 # Keep credentials out of other services' mounts, including those with the same UID.
 cp /source-prometheus.json /generated/prometheus/prometheus.yml
-printf '%s' "${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}" > /generated/alertmanager/discord-webhook-url
+printf '%s' "${DISCORD_MONITORING_ALERT_WEBHOOK:?DISCORD_MONITORING_ALERT_WEBHOOK is required}" > /generated/alertmanager/discord-webhook-url
 chown 65534:65534 /generated/prometheus/prometheus.yml /generated/alertmanager/discord-webhook-url
 chmod 0400 /generated/prometheus/prometheus.yml /generated/alertmanager/discord-webhook-url
