@@ -28,6 +28,8 @@ Config Server에 최초 접속할 주소·프로파일·인증정보는 시작 �
 Stage CI(`develop` push·`main` 이외 대상 PR)는 `Dockerfile.local`을 사용한다.
 Prod CI(`main` push·`main` 대상 PR)는 `Dockerfile.prod`를 사용한다. 이미지 빌드와 `verify` 단계,
 PR 기준·현재 소스의 커버리지 수집에 같은 파일 구분을 적용한다. 런타임을 교체할 때는 두 파일을 함께 갱신한다.
+테스트는 각 모듈의 기본 테스트 명령과 설정으로 실행한다. CI와 커버리지 수집기는 테스트 종류나
+클래스·파일 목록으로 실행 대상을 제한하지 않는다.
 
 ## 배치와 비밀 값
 

@@ -15,12 +15,6 @@ COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=npm-chat-builder,target=/root/.npm \
     npm run lint -- --max-warnings=0 \
     && bash /ci/run-native.sh jest cowork-chat /workspace /coverage \
-        src/chat/chat.service.spec.ts \
-        src/chat/service/attachment-download.service.spec.ts \
-        src/chat/service/channel-message-read-access.service.spec.ts \
-        src/chat/service/message-scope.spec.ts \
-        src/chat/kafka/chat-message-scope-validator.spec.ts \
-        src/storage/object-storage.service.spec.ts \
     && python3 /ci/report.py collect --module cowork-chat --snapshot pr --format istanbul --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify

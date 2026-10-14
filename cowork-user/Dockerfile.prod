@@ -31,13 +31,6 @@ RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
     SECRET_KEY_BASE=ci-test-secret-key-base-ci-test-secret-key-base-ci-test-secret-key-base \
     DB_HOST=localhost DB_PORT=3306 DB_NAME=cowork_test DB_USERNAME=cowork DB_PASSWORD=cowork \
     bash /ci/run-native.sh elixir cowork-user /workspace /coverage \
-        test/cowork_user/accounts_csv_parsing_test.exs \
-        test/cowork_user/accounts_presence_policy_test.exs \
-        test/cowork_user/accounts_profile_patch_policy_test.exs \
-        test/cowork_user/accounts_search_policy_test.exs \
-        test/cowork_user/accounts_student_event_policy_test.exs \
-        test/cowork_user/accounts_student_event_validation_test.exs \
-        test/cowork_user/object_storage_policy_test.exs \
     && python3 /ci/report.py collect --module cowork-user --snapshot pr --format counts --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
