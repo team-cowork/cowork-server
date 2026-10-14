@@ -19,6 +19,7 @@ services:
       - blackbox_config:/generated/blackbox
       - prometheus_config:/generated/prometheus
       - alertmanager_config:/generated/alertmanager
+      - grafana_proxy_config:/generated/grafana-proxy
     entrypoint: [/bin/sh, /prepare-configs.sh]
   loki:
     image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
@@ -126,6 +127,8 @@ services:
       - grafana_data:/var/lib/grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
+      GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:?GRAFANA_ROOT_URL is required}
+      GF_SECURITY_COOKIE_SECURE: 'true'
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_USERS_ALLOW_SIGN_UP: 'false'
@@ -134,6 +137,37 @@ services:
         condition: service_completed_successfully
       prometheus:
         condition: service_healthy
+  grafana_proxy:
+    image: nginxinc/nginx-unprivileged:1.30.5-alpine@sha256:56b8272e43a0525f67aed68d1e0794a712d10e3e45a563e118e9a77c817e6f86
+    user: '101:101'
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '3'
+    ports:
+      - ${MONITORING_BIND_IP:?MONITORING_BIND_IP is required}:8080:8080
+    volumes:
+      - grafana_proxy_config:/etc/nginx/conf.d:ro
+    entrypoint: [nginx]
+    command: [-g, 'daemon off;']
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://127.0.0.1:8080/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    depends_on:
+      monitoring-config-init:
+        condition: service_completed_successfully
+      grafana:
+        condition: service_started
   mysqld_exporter:
     image: prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e
     restart: unless-stopped
@@ -211,3 +245,4 @@ volumes:
   loki_config: {}
   blackbox_config: {}
   prometheus_config: {}
+  grafana_proxy_config: {}
