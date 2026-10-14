@@ -39,7 +39,7 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  */
 @Injectable()
 export class ChannelMessageReadAccessService {
-    /** readiness가 닫혀 브로드캐스트를 건너뛴 적이 있어, 다시 열린 뒤 첫 전송 전에 로컬 room 재검증이 필요한지. */
+    /** 준비 상태(readiness)가 닫혀 브로드캐스트를 건너뛴 적이 있어, 다시 열린 뒤 첫 전송 전에 로컬 room 재검증이 필요한지. */
     private needsRoomSweepAfterReadinessGap = false;
     private roomSweepAfterReadinessGap?: Promise<void>;
 
@@ -204,7 +204,7 @@ export class ChannelMessageReadAccessService {
     }
 
     /**
-     * readiness가 닫혔다 열린 뒤 첫 전송 전에 이 인스턴스의 room을 한 번 재검증한다.
+     * 준비 상태(readiness)가 닫혔다 열린 뒤 첫 전송 전에 이 인스턴스의 room을 한 번 재검증한다.
      * 동시에 들어온 전송들은 같은 재검증을 기다린다. 재검증 도중 readiness가 다시 닫히면 false를 돌려준다.
      */
     private async ensureRoomsSweptAfterReadinessGap(io: Server): Promise<boolean> {
@@ -212,11 +212,10 @@ export class ChannelMessageReadAccessService {
             return true;
         }
 
-        if (!this.roomSweepAfterReadinessGap) {
-            this.roomSweepAfterReadinessGap = io.local.fetchSockets()
-                .then(sockets => this.evictUnauthorizedRooms(sockets))
-                .then(() => undefined);
-        }
+        this.roomSweepAfterReadinessGap ??= io.local.fetchSockets()
+            .then(async sockets => this.evictUnauthorizedRooms(sockets))
+            .then(() => undefined);
+
         const sweep = this.roomSweepAfterReadinessGap;
         try {
             await sweep;
@@ -262,12 +261,13 @@ export class ChannelMessageReadAccessService {
             return;
         }
 
-        // room 멤버십은 projection 기준의 판정 결과이므로, projection이 catch-up 중이면 그 판정을 믿을 수 없다.
+        // 채팅방(room) 멤버십은 projection 기준의 판정 결과이므로, projection이 catch-up 중이면 그 판정을 믿을 수 없다.
         // 이전에는 이 구간의 평가가 전부 거부로 떨어져 아무에게도 전달되지 않았다(fail-closed). 같은 성질을 유지한다.
         if (!this.projectionReadiness.isReady()) {
             this.needsRoomSweepAfterReadinessGap = true;
             return;
         }
+
         // 닫혀 있던 동안 처리된 회수는 evict 쪽에서 버려졌다. 다시 열린 뒤 첫 전송 전에 로컬 room을 대조해,
         // 주기 sweep(최대 30초)을 기다리는 동안 회수된 사용자가 메시지를 받지 않게 한다.
         if (!(await this.ensureRoomsSweptAfterReadinessGap(io))) {
