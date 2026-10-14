@@ -1,6 +1,6 @@
 {
   "name": "cowork-chat",
-  "version": "20261012.0.0",
+  "version": "20261014.0.0",
   "description": "채팅 서비스.",
   "main": "index.js",
   "scripts": {
@@ -71,6 +71,10 @@
     "typescript": "^6.0.3",
     "xo": "5.0.1"
   },
+  "//": [
+    "TODO: micromark-extension-math의 KaTeX ^0.16.0 의존성에 GHSA-238p-pmpm-9mq7 취약점이 있어 0.18.2로 고정합니다.",
+    "상위 의존성 갱신 후 override 없이도 KaTeX 0.18.2 이상이 설치되는 것을 확인하면 KaTeX override와 이 TODO를 제거합니다."
+  ],
   "overrides": {
     "@nestjs/graphql": {
       "ws": "8.21.3"
@@ -92,6 +96,9 @@
     },
     "@nestjs/platform-socket.io": {
       "socket.io": "$socket.io"
+    },
+    "micromark-extension-math": {
+      "katex": "0.18.2"
     }
   },
   "engines": {
