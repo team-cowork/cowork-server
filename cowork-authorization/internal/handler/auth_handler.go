@@ -33,12 +33,12 @@ func NewAuthHandler(authSvc *service.AuthService) *AuthHandler {
 // setWsCookie는 access token을 웹소켓 전용 httpOnly 쿠키로도 내려준다.
 // REST 인증에 쓰는 응답 본문의 access_token과 동일한 값·수명을 그대로 재사용한다.
 func setWsCookie(c *gin.Context, pair *service.TokenPair) {
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie(wsCookieName, pair.AccessToken, pair.ExpiresIn, wsCookiePath, "", true, true)
 }
 
 func clearWsCookie(c *gin.Context) {
-	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie(wsCookieName, "", -1, wsCookiePath, "", true, true)
 }
 
