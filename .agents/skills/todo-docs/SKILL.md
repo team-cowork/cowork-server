@@ -97,9 +97,9 @@ Add progress without rewriting the doc — either a quote block right under the 
 ```markdown
 # {점검 주제}
 
-{YYYY-MM-DD} 기준으로 {점검 대상}을 점검한 결과, 후속 작업이 필요한 항목입니다.
+{YYYY-MM-DD} 기준으로 {점검 대상}을 점검한 결과, 후속 작업이 필요한 항목이다.
 
-세부 사항은 [`docs/todo/items/`](./items/) 디렉터리의 하위 문서를 참고하세요.
+세부 사항은 [`docs/todo/items/`](./items/) 디렉터리의 하위 문서를 참고한다.
 
 ---
 

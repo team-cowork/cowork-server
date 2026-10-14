@@ -62,9 +62,9 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	kafkaBrokers := getEnv("KAFKA_BOOTSTRAP_SERVERS", getEnv("KAFKA_BROKERS", lookup(flatMap, "KAFKA_BROKERS", "")))
+	kafkaBrokers := getEnv("KAFKA_BOOTSTRAP_SERVERS", lookup(flatMap, "KAFKA_BOOTSTRAP_SERVERS", ""))
 	if kafkaBrokers == "" {
-		return nil, fmt.Errorf("required configuration KAFKA_BOOTSTRAP_SERVERS or KAFKA_BROKERS is not set")
+		return nil, fmt.Errorf("required configuration KAFKA_BOOTSTRAP_SERVERS is not set")
 	}
 	kafkaTopic, err := requireConfig(flatMap, "KAFKA_TOPIC_VOICE_EVENT")
 	if err != nil {
@@ -80,8 +80,8 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_MESSAGE_TIMEOUT_MS: %w", err)
 	}
 
-	eurekaPortValue := getEnv("PORT", lookup(flatMap, "EUREKA_INSTANCE_PORT", lookup(flatMap, "PORT", "8089")))
-	eurekaPortValue = getEnv("APP_ADVERTISE_PORT", getEnv("EUREKA_INSTANCE_PORT", eurekaPortValue))
+	eurekaPortValue := getEnv("PORT", lookup(flatMap, "APP_ADVERTISE_PORT", lookup(flatMap, "PORT", "8089")))
+	eurekaPortValue = getEnv("APP_ADVERTISE_PORT", eurekaPortValue)
 	eurekaPort, err := strconv.Atoi(eurekaPortValue)
 	if err != nil {
 		return nil, fmt.Errorf("invalid Eureka advertised port")
@@ -109,7 +109,7 @@ func Load() (*AppConfig, error) {
 		EurekaEnabled:               lookup(flatMap, "EUREKA_ENABLED", "true") != "false",
 		EurekaServerURL:             lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
 		EurekaAppName:               lookup(flatMap, "EUREKA_APP_NAME", "cowork-voice"),
-		EurekaInstanceHost:          lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
+		EurekaInstanceHost:          lookup(flatMap, "APP_ADVERTISE_ADDRESS", "localhost"),
 		EurekaInstancePort:          eurekaPort,
 		EurekaHeartbeatIntervalSecs: heartbeatIntervalSecs,
 	}
@@ -122,12 +122,12 @@ func Load() (*AppConfig, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := getEnv("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
+	configURL := os.Getenv("CONFIG_SERVER_URL")
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnv("APP_CONFIG_PROFILE", getEnv("APP_PROFILE", "local"))
+	profile := getEnv("APP_CONFIG_PROFILE", "local")
 	client := springconfig.NewClient(configURL, "cowork-voice", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -184,7 +184,7 @@ func overrideFromEnv(cfg *AppConfig) {
 			cfg.LiveKitTokenTTLSecs = parsed
 		}
 	}
-	if v := getEnv("KAFKA_BOOTSTRAP_SERVERS", os.Getenv("KAFKA_BROKERS")); v != "" {
+	if v := os.Getenv("KAFKA_BOOTSTRAP_SERVERS"); v != "" {
 		cfg.KafkaBrokers = v
 	}
 	if v := os.Getenv("KAFKA_TOPIC_VOICE_EVENT"); v != "" {
@@ -210,7 +210,7 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
+	if v := os.Getenv("APP_ADVERTISE_ADDRESS"); v != "" {
 		cfg.EurekaInstanceHost = v
 	}
 	if v := os.Getenv("EUREKA_HEARTBEAT_INTERVAL_SECS"); v != "" {
@@ -232,7 +232,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
+		if explicitHost := os.Getenv("APP_ADVERTISE_ADDRESS"); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address

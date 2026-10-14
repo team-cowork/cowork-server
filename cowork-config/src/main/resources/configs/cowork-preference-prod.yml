@@ -3,12 +3,12 @@ server:
 
 preference:
   db:
-    host: ${POSTGRES_HOST:postgres}
-    port: ${POSTGRES_PORT:5432}
-    database: ${POSTGRES_DATABASE:cowork_preference}
+    host: ${DB_HOST:postgres}
+    port: ${DB_PORT:5432}
+    database: ${DB_NAME:cowork_preference}
     schema: preference
-    username: ${POSTGRES_USER}
-    password: ${POSTGRES_PASSWORD}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     pool-size: 10
   redis:
     host: ${REDIS_HOST:redis}
@@ -27,4 +27,4 @@ eureka:
   url: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
   app-name: ${EUREKA_APP_NAME:cowork-preference}
   instance:
-    host: ${EUREKA_INSTANCE_HOST:cowork-preference}
+    host: ${APP_ADVERTISE_ADDRESS:cowork-preference}

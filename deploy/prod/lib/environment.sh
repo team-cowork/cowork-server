@@ -3,11 +3,11 @@
 load_deploy_environment() {
   [ -n "${DEPLOY_SETTINGS_DIR:-}" ] || fail 'Use the deployment workflow to load a release slot and Vault secrets'
   set -a
-  # shellcheck source=../defaults.sh
-  source "${PROD_DIR}/defaults.sh"
+  # shellcheck source=defaults.sh
+  source "${PROD_DIR}/lib/defaults.sh"
   set +a
   case "$SERVICE" in
-    vault|monitoring|datastores|storage|log-agent) ;;
+    vault|monitoring|log-agent|node-agent) ;;
     *) require_env APP_CONFIG_PROFILE SLOT_KIND
        case "$APP_CONFIG_PROFILE" in local|prod) ;; *) fail 'APP_CONFIG_PROFILE must be local or prod' ;; esac ;;
   esac
@@ -26,6 +26,6 @@ require_env() {
 control_plane_environment() {
   require_env CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_CLIENT_USERNAME CONFIG_CLIENT_PASSWORD
   if [ "$APP_CONFIG_PROFILE" = prod ]; then
-    python3 "${PROD_DIR}/config-access.py"
+    python3 "${PROD_DIR}/config/config-access.py"
   fi
 }
