@@ -1,34 +1,24 @@
 # TODO
 
-미완료 작업의 상세 문서와 점검 스냅샷을 연결한다. 구현이 완료된 항목은 상세 문서와 인덱스·스냅샷의 참조를 폐기한다.
-병합·로컬 동기화·`main` 반영·배포·검증 대기만으로 구현 TODO를 유지하지 않는다.
-운영 자료를 확인하지 못했다는 이유로 완료 항목에 후속 범위를 덧붙이지 않는다.
-코드·스크립트·Git·PR 이력에서 확인할 수 있는 설명과 일반적인 점검 절차는 삭제할 때 다른 문서로 옮기지 않는다.
-문서에는 구현에서 드러나지 않는 결정 배경·운영 제약 등 프로젝트 고유 정보만 남긴다.
-정책 결정·자격 증명 폐기는 별도 요청이나 관측 기록으로 남은 대상·범위가 확인된 독립 작업만 유지한다.
-운영 승인·적용 기록의 부재나 일반적인 전환·폐기 절차만으로 독립 작업으로 분류하지 않는다.
+미완료 작업의 상세 문서와 발견 당시의 점검 스냅샷을 연결한다. 상세 문서에는 남은 범위·결정 이유·완료 조건을 둔다.
+완료한 항목과 참조는 삭제한다. 코드·설정·Git 이력의 복제본은 남기지 않는다.
 
 ## 진행 중
 
-2026-10-13 기준 미완료 상세 문서는 **13건**이다.
-기존 구현 항목의 대조 기준은 2026-10-12 원격 `develop`의 `5a534586`, `main`의 `f68758e2`다.
-2026-10-08 점검 이후 병합된 PR 중 관련 PR(#472·#473·#474·#475)의 변경과 해당 항목의 현재 코드를 대조했고,
-나머지 항목은 당시 코드와 대조해 변동이 없음을 확인했다.
-항목별 현재 상태·남은 범위·근거는 각 상세 문서에 반영한다.
+미완료 상세 문서는 **12건**이다.
 
-### 구현·설계 보완 필요 (13)
+### 구현·설계 보완 필요 (12)
 
-- monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — Gateway를 경유하는 비파괴 API probe와 별도 알림
-- monitoring: [메트릭 수집 장애 분석과 임시 Health Dashboard 제거](./items/11-monitoring/metrics-collection-recovery-and-health-dashboard-removal.md) — 실제 수집 복구 판정과 임시 화면·공개 matcher 제거
+- monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — 인증을 포함한 업무 API별 비파괴 probe와 알림
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md) — data-only 메시지와 클라이언트 표시 정책의 동시 전환
 - performance: [외부 I/O와 DB transaction 경계 분리](./items/21-performance/external-io-transaction-boundary.md) — project 외부 대기 분리와 OAuth 저장 시점 재인가
 - correctness: [정렬 position 동시성 보장](./items/22-correctness/ordered-position-concurrency.md) — 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약
 - reliability: [채팅 알림 전달의 종단간 멱등성 보장](./items/30-reliability/notification-delivery-idempotency.md) — 전체 fan-out·unread 멱등성과 수신 측 eventId 계약
 - performance: [채팅 projection 증분 재개와 재구축 모드 분리](./items/31-performance/projection-incremental-resume.md) — broker identity 확보와 부분 데이터 유실·source 교체의 복구 기준
-- deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md) — Actions용 단기 인증 또는 만료·교체 자동화
-- monitoring: [서비스 로그 수집 경로와 필드 정규화](./items/43-monitoring/log-collection-contract.md) — 서비스별 필드·timestamp 정규화와 전 서비스 로그 도착 확인
+- deployment: [배포 Vault 인증 자동화](./items/42-deployment/vault-auth-automation.md) — 앱 CD·설정 변경의 단기 인증과 복구 인증 수명 관리
+- monitoring: [서비스 로그 시각과 수집 누락 식별](./items/43-monitoring/log-collection-contract.md) — local·prod 시각 정책과 파싱 실패·수집 누락 지표
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md) — 참조 기반 보존 정책·미리보기·적용 명령
-- monitoring: [서비스 장기 중단 감지와 알림](./items/57-monitoring/service-outage-alerting.md) — 기대 서비스 집합과 Vault seal·디스크 부족 알림
+- monitoring: [Vault 봉인과 호스트 디스크 부족 감지](./items/57-monitoring/service-outage-alerting.md) — Vault seal·디스크 수집과 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
 - security: [소유 서비스 이벤트의 프로젝트 역할·채널 생성자 정보 부재 해소](./items/69-security/owner-event-manager-role-gap.md) — 프로젝트 멤버 역할·채널 생성자 필드 추가와 Preference 수정 권한 확장
 

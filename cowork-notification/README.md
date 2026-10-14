@@ -23,14 +23,11 @@
 
 ## 환경변수
 
-아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
+아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다.
 
-| 변수             | 기본값                      | 설명                                                      |
-|------------------|-----------------------------|-----------------------------------------------------------|
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결                                   |
-| `APP_PROFILE`    | `local`                     | 설정 프로파일. Compose의 `SPRING_PROFILES_ACTIVE` 값 사용 |
-
-- Config Server: 포트, Kafka topic·group, Eureka.
-- Vault: `db.dsn`, 프로파일별 `fcm.credentials-json`.
-
-Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `APP_PROFILE` | `local` | Compose의 `SPRING_PROFILES_ACTIVE`에서 전달 |
+| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
+| `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_NOTIFICATION_USERNAME`에서 전달 |
+| `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_NOTIFICATION_PASSWORD`에서 전달 |
