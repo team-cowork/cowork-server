@@ -9,8 +9,8 @@ module.exports = async function publishCoverageComment({ github, context, core, 
     core.warning('Coverage comment skipped: the event has no PR head/base SHA.');
     return { status: 'skipped' };
   }
-  if (typeof body !== 'string' || !body.trim()) {
-    throw new Error('Coverage comment body must not be empty.');
+  if (typeof body !== 'string') {
+    throw new Error('Coverage comment body must be a string.');
   }
   const { owner, repo } = context.repo;
   const number = pullRequest.number ?? context.issue.number;
@@ -65,6 +65,12 @@ module.exports = async function publishCoverageComment({ github, context, core, 
     // Pagination can take time. Check again immediately before writing.
     const currentPullRequest = await getCurrentPullRequest();
     if (!currentPullRequest) return { status: 'stale', ...snapshot };
+    if (!body.trim()) {
+      for (const comment of existing) {
+        await github.rest.issues.deleteComment({ ...parameters, comment_id: comment.id });
+      }
+      return { status: existing.length ? 'deleted' : 'skipped', ...snapshot };
+    }
     const published = publication(currentPullRequest);
     let response;
     let status;
@@ -97,7 +103,7 @@ module.exports = async function publishCoverageComment({ github, context, core, 
     };
   } catch (error) {
     if (error.status !== 403) throw error;
-    core.warning('Coverage comment could not be published (403). Fork PR tokens may be read-only; see the job summary and coverage artifacts.');
+    core.warning('Coverage comment could not be updated (403). Fork PR tokens may be read-only; see the job summary and coverage artifacts.');
     return { status: 'forbidden', ...snapshot };
   }
 };
