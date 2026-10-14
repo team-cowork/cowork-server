@@ -55,7 +55,11 @@ groups:
       # 하드코딩된 서비스 목록으로 중복 감시하지 않는다.
 
       # 대상이 하나도 없으면 서비스별 규칙은 아무것도 평가되지 않아 모든 알림이 조용해진다.
-      # discovery나 Config 인증이 통째로 실패한 상태를 이 규칙으로 잡는다.
+      # eureka_sd는 갱신에 실패해도 직전 target group을 유지하므로, Prometheus가 떠 있는 동안
+      # Eureka가 죽거나 인증에 실패하는 것만으로는 이 규칙이 울리지 않는다. 실제로 걸리는 경우는
+      # Eureka가 정상 응답했는데 등록된 인스턴스가 없을 때, 또는 Eureka가 죽은 상태에서 Prometheus가
+      # (재)시작돼 처음부터 target을 하나도 못 받아온 때다. 대상이 0개가 되면 render-prometheus.py가
+      # slot마다 생성한 coworkServiceMissing(3m)도 뒤이어 함께 울린다.
       - alert: coworkServiceDiscoveryEmpty
         expr: absent(up{job="cowork-services"})
         for: 5m
@@ -63,19 +67,7 @@ groups:
           severity: critical
         annotations:
           summary: "No cowork service discovery targets"
-          description: "Prometheus has no cowork-services target for 5 minutes; Eureka discovery or its Config Server authentication is failing."
-
-      # cowork-external-services는 eureka_sd가 아니라 고정 static_configs 대상이므로, coworkServiceDiscoveryEmpty와
-      # 달리 Eureka SD 자체의 장애(서버 다운, 인증 실패)에 영향받지 않는다. 이 타깃이 함께 사라진다면 원인은
-      # Eureka SD가 아니라 scrape config 렌더링(render-prometheus.py) 자체의 실패일 가능성이 높다.
-      - alert: coworkConfigMetricsMissing
-        expr: absent(up{job="cowork-external-services"})
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Config Server metrics target missing"
-          description: "The cowork-external-services target is absent for 5 minutes; Config Server metrics are not being collected."
+          description: "Prometheus has no cowork-services target for 5 minutes; Eureka returned no registered instances, or Prometheus (re)started while Eureka was unreachable."
 
   - name: cowork-jvm
     rules:
