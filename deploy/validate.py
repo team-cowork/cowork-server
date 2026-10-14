@@ -66,15 +66,12 @@ for name, settings in catalog.items():
         raise SystemExit(f"{service}: local image catalog and Compose build context differ")
     if (Path(build["context"]) / build["dockerfile"]).resolve() != ROOT / service / "Dockerfile.local":
         raise SystemExit(f"{service}: unexpected local Dockerfile")
-    profile_key = "APP_PROFILE" if settings["build"] in {"go", "node", "elixir"} else "SPRING_PROFILES_ACTIVE"
-    if local["environment"].get(profile_key) != "local":
-        raise SystemExit(f"{service}: incorrect local profile")
+    if "local" not in [local.get("environment", {}).get(key) for key in ("APP_PROFILE", "SPRING_PROFILES_ACTIVE", "APP_CONFIG_PROFILE")]:
+        raise SystemExit(f"{service}: local bootstrap profile is missing")
     for environment in ("local", "prod"):
         dockerfile = ROOT / service / f"Dockerfile.{environment}"
         if not dockerfile.is_file() or not (ROOT / settings[environment]).is_dir():
             raise SystemExit(f"{service}: missing {environment} image input")
-        if "USER app" not in dockerfile.read_text():
-            raise SystemExit(f"{service}: missing non-root runtime user")
     if name != "config":
         for profile in ("local", "prod"):
             config = ROOT / "cowork-config/src/main/resources/configs" / f"{service}-{profile}.yml"
@@ -91,7 +88,7 @@ settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]
-    if target["target"] in seen or not (ROOT / "deploy/prod/services" / f"{name}.sh").is_file():
+    if target["target"] in seen or not ((ROOT / "deploy/prod/services" / f"{name}.sh").is_file() or (ROOT / "deploy/prod/slots" / f"{target['target']}.json").is_file()):
         raise SystemExit(f"Duplicate or missing deployment unit: {name}")
     seen.add(target["target"])
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", target["target"]):

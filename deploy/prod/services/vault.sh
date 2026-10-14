@@ -30,7 +30,7 @@ done
 [ "$status_ready" = true ] || fail 'Vault did not return a valid status'
 initialized=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["initialized"]).lower())' "$status_file")
 sealed=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["sealed"]).lower())' "$status_file")
-[ "$initialized" = true ] || fail 'Initialize Vault interactively and securely retain its unseal keys; see docs/deployment.md'
+[ "$initialized" = true ] || fail 'Initialize Vault interactively and securely retain its unseal keys'
 if [ "$sealed" = true ]; then
   require_env VAULT_UNSEAL_KEY
   docker exec cowork-vault-prod vault operator unseal "$VAULT_UNSEAL_KEY" >/dev/null
