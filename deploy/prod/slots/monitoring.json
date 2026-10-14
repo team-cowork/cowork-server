@@ -9,7 +9,7 @@
     "MONITORING_ADMIN_BIND_IP": "127.0.0.1",
     "MONITORING_VOLUME_PREFIX": "cowork_monitoring",
     "MONITORING_COMPOSE_PROJECT": "cowork-monitoring",
-    "GRAFANA_ROOT_URL": "https://monitoring.https.gsmsv.site/",
+    "GRAFANA_ROOT_URL": "https://cowork-monitoring.https.gsmsv.site/",
     "MYSQL_HOST": "10.0.0.93",
     "MYSQL_EXPORTER_USER": "cowork_monitoring",
     "REDIS_HOST": "10.0.0.93",
