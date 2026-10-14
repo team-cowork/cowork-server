@@ -1,6 +1,6 @@
 ---
 name: todo-docs
-description: Author and maintain docs/todo — items/ detail specs, {YYYYMMDD}_TODO.md session snapshots, and the README index. Covers directory numbering, the Korean document template, writing style, and the completion lifecycle (delete completed details and references immediately; remove a snapshot once it has no unfinished items).
+description: Author and maintain cowork-promotion/data/todo — items/ detail specs, {YYYYMMDD}_TODO.md session snapshots, and the README index. Covers directory numbering, the Korean document template, writing style, and the completion lifecycle (delete completed details and references immediately; remove a snapshot once it has no unfinished items).
 allowed-tools: Bash, Read, Write, Edit
 ---
 
@@ -9,7 +9,7 @@ allowed-tools: Bash, Read, Write, Edit
 ## Layout
 
 ```text
-docs/todo/
+cowork-promotion/data/todo/
 ├── README.md                       # index: 진행 중 list, 점검 스냅샷 list, 작성 규칙
 ├── {YYYYMMDD}_TODO.md              # snapshot of one review session — summary table only
 └── items/{순번}-{범주}/{작업명}.md   # the actual work spec
@@ -39,7 +39,7 @@ directories are deleted, so gaps are normal and numbers are never reused.
 Find the next number from history, not from `ls`:
 
 ```bash
-git log --all --diff-filter=A --name-only --format='' -- 'docs/todo/items/*' \
+git log --all --diff-filter=A --name-only --format='' -- 'cowork-promotion/data/todo/items/*' 'docs/todo/items/*' \
   | grep -o 'items/[0-9]*-[a-z]*' | sort -u
 ```
 
@@ -99,7 +99,7 @@ Add progress without rewriting the doc — either a quote block right under the 
 
 {YYYY-MM-DD} 기준으로 {점검 대상}을 점검한 결과, 후속 작업이 필요한 항목이다.
 
-세부 사항은 [`docs/todo/items/`](./items/) 디렉터리의 하위 문서를 참고한다.
+세부 사항은 [`cowork-promotion/data/todo/items/`](./items/) 디렉터리의 하위 문서를 참고한다.
 
 ---
 
@@ -156,7 +156,7 @@ work with its own scope. Missing deployment approval or a routine check alone do
 Find inbound references before deleting:
 
 ```bash
-grep -rn "{삭제할-파일명}" docs/
+grep -rn "{삭제할-파일명}" cowork-promotion/data/todo/
 ```
 
 ## Creating a new item — checklist
