@@ -4,6 +4,9 @@ inputs:
   module:
     required: true
     description: Module directory, including the cowork prefix
+  environment:
+    required: true
+    description: Dockerfile environment, local or prod
   source:
     default: '.'
     description: Source checkout path
@@ -34,18 +37,18 @@ runs:
       uses: actions/cache@v6
       id: cache
       with:
-        path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.snapshot }}
-        key: ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.snapshot }}-${{ github.sha }}
+        path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
+        key: ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}-${{ github.sha }}
         restore-keys: |
-          ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.snapshot }}-
+          ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}-
     - name: Inject and extract verification cache mounts
       if: inputs.contract == 'true'
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
         builder: ${{ steps.builder.outputs.name }}
-        dockerfile: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.prod
-        cache-dir: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.snapshot }}
-        scratch-dir: ${{ runner.temp }}/verify-cache-dance-${{ inputs.module }}-${{ inputs.snapshot }}
+        dockerfile: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.${{ inputs.environment }}
+        cache-dir: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
+        scratch-dir: ${{ runner.temp }}/verify-cache-dance-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
         skip-extraction: ${{ steps.cache.outputs.cache-hit }}
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
     - name: Verify source and export coverage
@@ -53,15 +56,15 @@ runs:
       uses: docker/build-push-action@v7
       with:
         context: ${{ inputs.source }}
-        file: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.prod
+        file: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.${{ inputs.environment }}
         target: verify
         build-args: SOURCE_REVISION=${{ steps.source.outputs.sha }}
         platforms: linux/amd64
         outputs: type=local,dest=${{ inputs.output }}/export
         provenance: false
         sbom: false
-        cache-from: type=gha,scope=verify-${{ inputs.module }}-${{ inputs.snapshot }}
-        cache-to: type=gha,mode=max,scope=verify-${{ inputs.module }}-${{ inputs.snapshot }}
+        cache-from: type=gha,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
+        cache-to: type=gha,mode=max,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
     - name: Validate verification result
       if: always()
       shell: bash
@@ -70,6 +73,7 @@ runs:
         SNAPSHOT: ${{ inputs.snapshot }}
         SOURCE: ${{ inputs.source }}
         OUTPUT: ${{ inputs.output }}
+        ENVIRONMENT: ${{ inputs.environment }}
       run: |
         python3 deploy/images/ci/run.py collect --module "$MODULE" --snapshot "$SNAPSHOT" \
-          --source "$SOURCE" --artifact "$OUTPUT/export" --output "$OUTPUT/result.json"
+          --source "$SOURCE" --artifact "$OUTPUT/export" --output "$OUTPUT/result.json" --environment "$ENVIRONMENT"
