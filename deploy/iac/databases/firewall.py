@@ -88,12 +88,19 @@ def restore(value):
                 if port == value['exporter_port']:
                     rules.append(f'-A {chain} -s {value["monitoring_ip"]}/32 -j RETURN')
             rules.append(f'-A {chain} -j DROP')
+            if tool != 'iptables':
+                continue
             marker = f'-m comment --comment {MARK}'
             direction = '-m conntrack --ctdir ORIGINAL'
-            rules.append(f'-I INPUT 1 ! -i lo -p tcp --dport {port} {direction} {marker} -j {chain}')
-            forward = 'DOCKER-USER' if tool == 'iptables' else 'FORWARD'
-            for interface in ('br+', 'docker+'):
-                rules.append(f'-I {forward} 1 -o {interface} -p tcp --dport {port} {direction} {marker} -j {chain}')
+            forward = f'-I DOCKER-USER 1 -o {value["bridge"]} -p tcp --dport {port} {direction}'
+            if port == value['exporter_port']:
+                endpoint = f'--ctorigdst {value["bind_ip"]} --ctorigdstport {port}'
+                rules.append(f'{forward} {endpoint} {marker} -j {chain}')
+                rules.append(f'-I INPUT 1 ! -i lo -d {value["bind_ip"]} -p tcp --dport {port} {direction} {marker} -j {chain}')
+            else:
+                # These ports are not published. Do not intercept other apps' DNAT bindings.
+                rules.append(f'{forward} ! --ctstate DNAT {marker} -j {chain}')
+        # The runtime bridge is IPv4-only; old IPv6 hooks are removed above.
         rules.append('COMMIT')
         run(tool + '-restore', '--wait', '10', '--noflush', content='\n'.join(rules) + '\n')
 
