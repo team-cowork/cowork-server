@@ -44,7 +44,8 @@ func (c *Client) Register(cfg *config.AppConfig) error {
 	instance.VipAddress = cfg.EurekaAppName
 	instance.SecureVipAddress = cfg.EurekaAppName
 	instance.InstanceID = cfg.EurekaInstanceID
-	// 운영 Blackbox Exporter는 Eureka의 healthCheckUrl이 있는 인스턴스만 probe 대상으로 유지한다.
+	// chat/notification/preference/user/voice는 모두 이 표준 Eureka 등록 필드를 채우는데 authorization만 비어 있었다.
+	// Prometheus의 blackbox probe 대상은 이 값이 아니라 slot에 선언된 readiness 경로(render-prometheus.py)로 결정된다.
 	instance.HealthCheckUrl = fmt.Sprintf("http://%s:%d/health", cfg.EurekaInstanceHost, cfg.EurekaInstancePort)
 	instance.Metadata = &eureka.MetaData{
 		Map: map[string]string{
