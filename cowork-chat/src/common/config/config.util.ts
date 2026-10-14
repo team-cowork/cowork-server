@@ -19,6 +19,20 @@ export function getOptionalConfig(configService: ConfigService, keys: ConfigKey)
     return getConfigValue(configService, keys);
 }
 
+export function getMongoDbUri(configService: ConfigService): string {
+    const host = getOptionalConfig(configService, 'DB_HOST');
+    if (host === undefined) {
+        return getRequiredConfig(configService, 'MONGODB_URI');
+    }
+
+    // Slot DB inputs take precedence over a URI returned by Config Server.
+    const port = getRequiredConfig(configService, 'DB_PORT');
+    const database = encodeURIComponent(getRequiredConfig(configService, 'DB_NAME'));
+    const username = encodeURIComponent(getRequiredConfig(configService, 'DB_USERNAME'));
+    const password = encodeURIComponent(getRequiredConfig(configService, 'DB_PASSWORD'));
+    return `mongodb://${username}:${password}@${host}:${port}/${database}?authSource=admin`;
+}
+
 export function getRequiredCsvConfig(configService: ConfigService, keys: ConfigKey): string[] {
     const values = getRequiredConfig(configService, keys)
         .split(',')

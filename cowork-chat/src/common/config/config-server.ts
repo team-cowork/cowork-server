@@ -16,11 +16,11 @@ const DEFAULT_PROFILE = 'local';
 const APP_NAME = 'cowork-chat';
 
 export function activeProfile(): string {
-    return process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? DEFAULT_PROFILE;
+    return process.env.APP_CONFIG_PROFILE ?? process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? DEFAULT_PROFILE;
 }
 
 export async function loadConfigServerEnv(): Promise<void> {
-    const baseUrl = process.env.APP_CONFIG_URL ?? DEFAULT_CONFIG_SERVER_URL;
+    const baseUrl = process.env.CONFIG_SERVER_URL ?? process.env.APP_CONFIG_URL ?? DEFAULT_CONFIG_SERVER_URL;
     const profile = activeProfile();
     const url = `${baseUrl.replace(/\/$/u, '')}/${APP_NAME}/${profile}`;
 

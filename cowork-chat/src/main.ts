@@ -68,7 +68,7 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
-    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready'] });
+    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready', 'metrics'] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));

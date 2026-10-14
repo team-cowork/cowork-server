@@ -1,11 +1,11 @@
 server:
-  port: 9001
+  port: ${PORT:9001}
 
 preference:
   db:
     host: ${POSTGRES_HOST:postgres}
     port: ${POSTGRES_PORT:5432}
-    database: cowork_preference
+    database: ${POSTGRES_DATABASE:cowork_preference}
     schema: preference
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
