@@ -28,6 +28,12 @@ def catalog():
     demand(set(values) == set(REPOSITORIES), 'Declare Redis, Kafka and LiveKit as dedicated services')
     network = json.loads((ROOT / 'deploy/prod/network/host-network.json').read_text())['name']
     for service, value in values.items():
+        demand(isinstance(value['secrets'], dict), 'Shared service secret references must be an object')
+        for key, ref in value['secrets'].items():
+            demand(re.fullmatch(r'[A-Z][A-Z0-9_]*', key) and isinstance(ref, dict)
+                   and set(ref) == {'path', 'key'}, 'A shared service secret reference requires path and key')
+            demand(all(isinstance(item, str) and item and not any(c in item for c in '\r\n\0')
+                       for item in ref.values()), 'Shared service secret paths and keys must be nonempty single-line strings')
         demand(re.fullmatch(re.escape(REPOSITORIES[service]) + r':[A-Za-z0-9_.-]+@sha256:[0-9a-f]{64}', value['image']),
                'Shared service images require official versioned digest pins')
         demand(re.fullmatch(r'[1-9][0-9]*[mg]', value['memory']) and type(value['cpus']) in {int, float}
@@ -45,8 +51,8 @@ def catalog():
     return values, network
 
 
-def credentials(service, value):
-    expected = {'redis': set(), 'kafka': {'KAFKA_CLUSTER_ID'}, 'livekit': {'LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET'}}[service]
+def credentials(service, specification, value):
+    expected = set(specification['secrets'])
     demand(isinstance(value, dict) and set(value) == expected, 'Invalid shared service credential fields')
     demand(all(isinstance(v, str) and v and not any(c in v for c in '\r\n\0') for v in value.values()),
            'Shared service credentials must be nonempty single-line strings')
@@ -181,7 +187,7 @@ def provision_topics(policies):
 def apply(service, value, network, directory):
     demand(os.geteuid() == 0, 'Dedicated shared service apply requires root')
     os.umask(0o077)
-    secrets = credentials(service, json.load(sys.stdin))
+    secrets = credentials(service, value, json.load(sys.stdin))
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(directory, 0o700)
     with (directory / '.lock').open('w') as lock:
