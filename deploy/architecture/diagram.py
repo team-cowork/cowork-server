@@ -20,6 +20,7 @@ from diagrams.saas.chat import Discord
 HERE = Path(__file__).resolve().parent
 OUTPUT = HERE / "out"
 SEAWEEDFS_ICON = str(HERE / "icons" / "seaweedfs.png")
+LIVEKIT_ICON = str(HERE / "icons" / "livekit.png")
 FONT = "Apple SD Gothic Neo"
 GRAPH = {
     "fontname": FONT, "fontsize": "24", "pad": "0.8",
@@ -102,7 +103,7 @@ def overview():
                 with Cluster("10.0.0.145:6379"):
                     redis = Redis("Redis")
                 with Cluster("10.0.0.172:7880"):
-                    livekit = Docker("LiveKit SFU")
+                    livekit = Custom("LiveKit SFU", LIVEKIT_ICON)
                 with Cluster("10.0.0.150:3000"):
                     github_app = service("github-app")
 
