@@ -1,11 +1,11 @@
 server:
-  port: 8084
+  port: ${PORT:8084}
 
 spring:
   datasource:
-    url: jdbc:mysql://mysql:3306/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-    username: ${MYSQL_USER}
-    password: ${MYSQL_PASSWORD}
+    url: jdbc:mysql://${DB_HOST:${MYSQL_HOST:mysql}}:${DB_PORT:${MYSQL_PORT:3306}}/${DB_NAME:cowork_project}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: ${DB_USERNAME:${MYSQL_USER}}
+    password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
     bootstrap-servers: kafka:9092
 
@@ -16,6 +16,10 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
   instance:
+    hostname: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.hostname}}
+    ip-address: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.ip-address}}
+    non-secure-port: ${APP_ADVERTISE_PORT:${server.port}}
+    prefer-ip-address: true
     initial-status: STARTING
 
 management:
