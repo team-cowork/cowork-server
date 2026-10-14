@@ -20,7 +20,7 @@ on:
       service:
         description: Deployment unit (redeploy only)
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault, datastores, storage]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault]
       sha:
         description: Optional full commit SHA for a previous version; defaults to the selected branch
         type: string
@@ -231,7 +231,7 @@ jobs:
           from pathlib import Path
           catalog = json.loads(Path('deploy/images/catalog.json').read_text())
           selected = {unit['service'] for unit in json.loads(os.environ['DEPLOY_MATRIX'])['include']}
-          infrastructure = {'vault', 'datastores', 'storage', 'monitoring', 'log-agent'}
+          infrastructure = {'vault', 'monitoring', 'log-agent'}
           unknown = selected - set(catalog) - infrastructure
           if unknown:
               raise SystemExit('Selected services have no image contract: ' + ', '.join(sorted(unknown)))
@@ -375,12 +375,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       vault: ${{ steps.waves.outputs.vault }}
-      datastores: ${{ steps.waves.outputs.datastores }}
-      storage: ${{ steps.waves.outputs.storage }}
       config: ${{ steps.waves.outputs.config }}
       applications: ${{ steps.waves.outputs.applications }}
     steps:
-      - name: Order Vault, Datastores, Storage, Config Server And Remaining Services
+      - name: Order Vault, Config Server And Remaining Services
         id: waves
         env:
           DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
@@ -388,12 +386,12 @@ jobs:
           python3 - <<'PYTHON'
           import json, os
           units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
-          waves = {'vault': [], 'datastores': [], 'storage': [], 'config': [], 'applications': []}
+          waves = {'vault': [], 'config': [], 'applications': []}
           for unit in units:
               # IaC owns these lifecycles and records their deployment status.
               if unit['service'] in {'monitoring', 'log-agent'}:
                   continue
-              wave = unit['service'] if unit['service'] in {'vault', 'datastores', 'storage', 'config'} else 'applications'
+              wave = unit['service'] if unit['service'] in {'vault', 'config'} else 'applications'
               waves[wave].append(unit)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               for wave, units in waves.items():
@@ -436,86 +434,15 @@ jobs:
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
-  deploy-datastores:
-    name: Deploy Datastores
-    needs: [deployment-plan, deploy-vault]
-    if: >
-      always() && needs.deployment-plan.result == 'success' &&
-      needs.deployment-plan.outputs.datastores != '{"include":[]}' &&
-      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped')
-    permissions:
-      contents: read
-      deployments: write
-    runs-on: ubuntu-latest
-    environment: Prod-CD(${{ matrix.target }})
-    concurrency:
-      group: deploy-${{ matrix.target }}
-      cancel-in-progress: false
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.deployment-plan.outputs.datastores) }}
-    steps:
-      - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.workflow_sha }}
-      - name: Deploy Target
-        uses: ./.github/actions/deploy-target
-        with:
-          service: ${{ matrix.service }}
-          target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-          configuration_version: ${{ inputs.configuration_version || '0' }}
-          vault_addr: ${{ vars.VAULT_ADDR }}
-          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
-
-  deploy-storage:
-    name: Deploy Storage
-    needs: [deployment-plan, deploy-vault, deploy-datastores]
-    if: >
-      always() && needs.deployment-plan.result == 'success' &&
-      needs.deployment-plan.outputs.storage != '{"include":[]}' &&
-      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
-      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped')
-    permissions:
-      contents: read
-      deployments: write
-    runs-on: ubuntu-latest
-    environment: Prod-CD(${{ matrix.target }})
-    concurrency:
-      group: deploy-${{ matrix.target }}
-      cancel-in-progress: false
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.deployment-plan.outputs.storage) }}
-    steps:
-      - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.workflow_sha }}
-      - name: Deploy Target
-        uses: ./.github/actions/deploy-target
-        with:
-          service: ${{ matrix.service }}
-          target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-          check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-          configuration_version: ${{ inputs.configuration_version || '0' }}
-          vault_addr: ${{ vars.VAULT_ADDR }}
-          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
-
   apply-infrastructure:
     name: Apply Infrastructure
-    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage]
+    needs: [deployment-plan, deploy-vault]
     if: >
       !cancelled() && needs.deployment-plan.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
-      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
-      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
-      !(github.event_name == 'workflow_dispatch' && inputs.service == 'vault' && inputs.vault_recovery)
+      (github.event_name == 'workflow_run' ||
+       (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
+        inputs.service == 'infrastructure'))
     permissions:
       contents: write
       deployments: write
@@ -553,7 +480,7 @@ jobs:
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
           DISCORD_MONITORING_ALERT_WEBHOOK: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
-          # Manual replay executes the selected release's IaC, including older input names.
+          # Explicit infrastructure replay uses the selected release's input names.
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -603,7 +530,7 @@ jobs:
               echo "Automatic IaC apply skipped at $RELEASE_SHA. The selected source does not require an infrastructure apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
               ;;
             applied)
-              echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
+              echo "Host configuration, module stores, shared services and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
               echo 'Infrastructure execution did not report a result' >&2
@@ -613,14 +540,14 @@ jobs:
 
   deploy-config:
     name: Deploy Config Server
-    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure]
+    needs: [deployment-plan, deploy-vault, apply-infrastructure]
     if: >
-      always() && needs.deployment-plan.result == 'success' &&
+      !cancelled() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.config != '{"include":[]}' &&
-      needs.apply-infrastructure.result == 'success' &&
-      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
-      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
-      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped')
+      (needs.apply-infrastructure.result == 'success' ||
+       (needs.apply-infrastructure.result == 'skipped' && github.event_name == 'workflow_dispatch' &&
+        inputs.operation == 'redeploy' && inputs.service != 'infrastructure')) &&
+      (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped')
     permissions:
       contents: read
       deployments: write
@@ -654,14 +581,14 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.target }})
-    needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure, deploy-config]
+    needs: [deployment-plan, deploy-vault, apply-infrastructure, deploy-config]
     if: >
-      always() && needs.deployment-plan.result == 'success' &&
+      !cancelled() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.applications != '{"include":[]}' &&
-      needs.apply-infrastructure.result == 'success' &&
+      (needs.apply-infrastructure.result == 'success' ||
+       (needs.apply-infrastructure.result == 'skipped' && github.event_name == 'workflow_dispatch' &&
+        inputs.operation == 'redeploy' && inputs.service != 'infrastructure')) &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
-      (needs.deploy-datastores.result == 'success' || needs.deploy-datastores.result == 'skipped') &&
-      (needs.deploy-storage.result == 'success' || needs.deploy-storage.result == 'skipped') &&
       (needs.deploy-config.result == 'success' || needs.deploy-config.result == 'skipped')
     permissions:
       contents: read
@@ -732,8 +659,6 @@ jobs:
       - detect-changes
       - deployment-plan
       - deploy-vault
-      - deploy-datastores
-      - deploy-storage
       - apply-infrastructure
       - deploy-config
       - deploy
@@ -758,7 +683,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.deploy-datastores.result }} ${{ needs.deploy-storage.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -818,8 +743,6 @@ jobs:
             **Detect Changes:** ${{ needs.detect-changes.result }}
             **Deployment Plan:** ${{ needs.deployment-plan.result }}
             **Vault:** ${{ needs.deploy-vault.result }}
-            **Datastores:** ${{ needs.deploy-datastores.result }}
-            **Storage:** ${{ needs.deploy-storage.result }}
             **Infrastructure:** ${{ needs.apply-infrastructure.result }}
             **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
