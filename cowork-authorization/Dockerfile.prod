@@ -33,8 +33,7 @@ RUN apk --no-cache add ca-certificates tzdata \
 WORKDIR /app
 COPY --chown=app:app --from=builder /out/cowork-authorization /usr/local/bin/cowork-authorization
 COPY --chown=app:app cowork-authorization/src/main/resources/db/migration ./db/migration
-COPY --chmod=0755 cowork-authorization/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test -n "$(find /app/db/migration -name 'V*__*.sql' -print -quit)"
 USER app
 EXPOSE 8081
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "cowork-authorization"]
+ENTRYPOINT ["cowork-authorization"]

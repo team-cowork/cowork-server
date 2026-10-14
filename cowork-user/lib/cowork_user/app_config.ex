@@ -71,7 +71,11 @@ defmodule CoworkUser.AppConfig do
     app_name = lookup(remote, ["EUREKA_APP_NAME", "eureka_app_name"], "cowork-user")
 
     instance_port =
-      lookup(remote, ["EUREKA_INSTANCE_PORT", "eureka_instance_port"], Integer.to_string(port))
+      lookup(
+        remote,
+        ["APP_ADVERTISE_PORT", "EUREKA_INSTANCE_PORT", "eureka_instance_port"],
+        Integer.to_string(port)
+      )
       |> String.to_integer()
 
     {instance_host, instance_id} = eureka_identity(remote, app_name, instance_port)
@@ -92,8 +96,8 @@ defmodule CoworkUser.AppConfig do
       eureka_instance_host: instance_host,
       eureka_instance_id: instance_id,
       eureka_instance_port: instance_port,
-      config_server_url: System.get_env("APP_CONFIG_URL"),
-      config_profile: System.get_env("APP_PROFILE", "local"),
+      config_server_url: config_server_url(),
+      config_profile: config_profile(),
       kafka_bootstrap_servers:
         lookup(remote, ["KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"], "localhost:9094"),
       kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC", "kafka_topic"], "user.data.sync"),
@@ -201,10 +205,18 @@ defmodule CoworkUser.AppConfig do
     }
   end
 
+  defp config_server_url do
+    lookup(%{}, ["CONFIG_SERVER_URL", "APP_CONFIG_URL"], nil)
+  end
+
+  defp config_profile do
+    lookup(%{}, ["APP_CONFIG_PROFILE", "APP_PROFILE"], "local")
+  end
+
   defp fetch_from_config_server do
-    case System.get_env("APP_CONFIG_URL") do
+    case config_server_url() do
       url when is_binary(url) and url != "" ->
-        profile = System.get_env("APP_PROFILE", "local")
+        profile = config_profile()
 
         options =
           CoworkUser.ControlPlane.options(
@@ -318,6 +330,25 @@ defmodule CoworkUser.AppConfig do
           Keyword.merge(defaults, parse_database_url!(url))
       end
 
+    # Slot inputs remain authoritative even when Config Server supplies a database URL.
+    options =
+      Enum.reduce(
+        [
+          hostname: "DB_HOST",
+          port: "DB_PORT",
+          database: "DB_NAME",
+          username: "DB_USERNAME",
+          password: "DB_PASSWORD"
+        ],
+        options,
+        fn {key, environment_key}, acc ->
+          case nonempty(System.get_env(environment_key)) do
+            nil -> acc
+            value -> Keyword.put(acc, key, value)
+          end
+        end
+      )
+
     options
     |> Keyword.update!(:port, &positive_integer!(&1, "DB_PORT", 65_535))
     |> Keyword.update!(:pool_size, &positive_integer!(&1, "DB_POOL_SIZE"))
@@ -373,13 +404,18 @@ defmodule CoworkUser.AppConfig do
 
   defp eureka_identity(remote, app_name, instance_port) do
     configured_host =
-      lookup(remote, ["EUREKA_INSTANCE_HOST", "eureka_instance_host"], "localhost")
+      lookup(
+        remote,
+        ["APP_ADVERTISE_ADDRESS", "EUREKA_INSTANCE_HOST", "eureka_instance_host"],
+        "localhost"
+      )
 
     if System.get_env("EUREKA_USE_RUNTIME_HOSTNAME") == "true" do
       runtime_hostname = runtime_hostname!()
 
       advertised_host =
-        System.get_env("EUREKA_INSTANCE_HOST") ||
+        nonempty(System.get_env("APP_ADVERTISE_ADDRESS")) ||
+          nonempty(System.get_env("EUREKA_INSTANCE_HOST")) ||
           non_loopback_ipv4!()
 
       instance_id =

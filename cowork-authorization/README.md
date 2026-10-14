@@ -36,6 +36,5 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 앱 비밀 값은 Vault에서 공급합니다.
 
 운영 포트·프로파일·환경변수·비밀 참조는 [authorization 슬롯](../deploy/prod/slots/authorization.json)에서 관리합니다.
-[이미지 bootstrap](deploy/bootstrap.sh)이 공통 입력을 이 런타임의 환경변수로 변환합니다.
 
 [로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md) · [Config 접근 보호](../docs/config-server-access.md)

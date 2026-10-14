@@ -59,8 +59,7 @@ COPY --chown=app:app --from=builder /workspace/extracted/snapshot-dependencies/ 
 COPY --chown=app:app --from=builder /workspace/extracted/application/ ./
 ENV COWORK_LOG_DIR=/var/log/cowork
 RUN mkdir -p /var/log/cowork && chown app:app /var/log/cowork
-COPY --chmod=0755 cowork-roadmap/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 8088
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]
