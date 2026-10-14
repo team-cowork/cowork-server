@@ -1,30 +1,54 @@
-<section id="features" class="showcase showcase--features bg-gray-950" style="--showcase-count: {{features:count}}">
-  <div class="showcase-viewport text-white">
-    <div class="showcase-background" aria-hidden="true">
-      <!-- data:features-background:start -->
-      <!-- data:features-background:end -->
-    </div>
-    <div class="showcase-toolbar ui-container">
-      <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Features</span>
-      <span data-showcase-counter class="text-xs text-gray-400 tabular-nums">
-        <!-- data:features-counter:start -->
-        <!-- data:features-counter:end -->
-      </span>
-    </div>
-    <div class="showcase-content" tabindex="0" role="region" aria-label="기능 상세 소개">
-      <div data-showcase-scene class="showcase-scene ui-container">
-        <!-- data:features-initial:start -->
-        <!-- data:features-initial:end -->
-      </div>
-    </div>
-    <div class="showcase-controls ui-container">
-      <div class="showcase-progress-track" aria-hidden="true">
-        <div data-showcase-progress class="showcase-progress" style="background-color: {{features:color}}"></div>
-      </div>
-      <div class="showcase-dots" role="group" aria-label="기능 선택">
-        <!-- data:features-dots:start -->
-        <!-- data:features-dots:end -->
-      </div>
-    </div>
-  </div>
+<section
+	id="features"
+	class="showcase showcase--features bg-gray-950"
+>
+	<style>
+		#features {
+			--showcase-count: {{features:count}};
+		}
+
+		#features .showcase-progress {
+			background-color: {{features:color}};
+		}
+	</style>
+	<div class="showcase-viewport text-white">
+		<div class="showcase-background" aria-hidden="true">
+			<!-- data:features-background:start -->
+			<!-- data:features-background:end -->
+		</div>
+		<div class="showcase-toolbar ui-container">
+			<span class="text-xs font-semibold uppercase tracking-widest text-gray-400">Features</span>
+			<span class="text-xs text-gray-400 tabular-nums" data-showcase-counter>
+				<!-- data:features-counter:start -->
+				<!-- data:features-counter:end -->
+			</span>
+		</div>
+		<div
+			class="showcase-content"
+			aria-label="기능 상세 소개"
+			role="region"
+			tabindex="0"
+		>
+			<div class="showcase-scene ui-container" data-showcase-scene>
+				<!-- data:features-initial:start -->
+				<!-- data:features-initial:end -->
+			</div>
+		</div>
+		<div class="showcase-controls ui-container">
+			<div class="showcase-progress-track" aria-hidden="true">
+				<div
+					class="showcase-progress"
+					data-showcase-progress
+				></div>
+			</div>
+			<div
+				class="showcase-dots"
+				aria-label="기능 선택"
+				role="group"
+			>
+				<!-- data:features-dots:start -->
+				<!-- data:features-dots:end -->
+			</div>
+		</div>
+	</div>
 </section>
