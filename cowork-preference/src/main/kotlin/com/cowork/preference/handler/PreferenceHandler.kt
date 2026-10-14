@@ -2,23 +2,27 @@ package com.cowork.preference.handler
 
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.security.RequesterContext
-import com.cowork.preference.service.AccountOwnershipDeniedException
 import com.cowork.preference.service.AccountOwnershipGuard
+import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.PreferenceService
-import com.cowork.preference.service.TeamMembershipDeniedException
+import com.cowork.preference.service.ProjectAccessGuard
+import com.cowork.preference.service.ResourceAccessDeniedException
 import com.cowork.preference.service.TeamMembershipGuard
-import com.cowork.preference.service.TeamMembershipProjectionNotReadyException
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.slf4j.LoggerFactory
 
 class PreferenceHandler(
     private val service: PreferenceService,
     private val scope: CoroutineScope,
     private val teamMembershipGuard: TeamMembershipGuard,
+    private val projectAccessGuard: ProjectAccessGuard,
+    private val channelAccessGuard: ChannelAccessGuard,
 ) {
+    private val log = LoggerFactory.getLogger(PreferenceHandler::class.java)
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val resourceId = ctx.pathParam("id")?.toLongOrNull()
@@ -26,28 +30,19 @@ class PreferenceHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
-        val requester = if (resourceType == ResourceType.ACCOUNT || resourceType == ResourceType.TEAM) {
-            RequesterContext.from(ctx) ?: run {
-                ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
-                return@handler
-            }
-        } else {
-            null
+        val requester = RequesterContext.from(ctx) ?: run {
+            ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+            return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching {
-                if (resourceType == ResourceType.ACCOUNT) {
-                    AccountOwnershipGuard.requireOwner(resourceId, requireNotNull(requester))
-                }
-                if (resourceType == ResourceType.TEAM) {
-                    teamMembershipGuard.requireMember(resourceId, requireNotNull(requester))
-                }
+                requireReadAccess(resourceType, resourceId, requester)
                 service.getSettings(resourceType, resourceId)
             }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
-                .onFailure { e -> ctx.response().setStatusCode(authorizationAwareStatus(e)).end(errorBody(e.message)) }
+                .onFailure { e -> respondFailure(ctx, e, 500, resourceType, resourceId, requester) }
         }
     }
 
@@ -75,13 +70,9 @@ class PreferenceHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid resource id"))
             return@handler
         }
-        val requester = if (resourceType == ResourceType.ACCOUNT || resourceType == ResourceType.TEAM) {
-            RequesterContext.from(ctx) ?: run {
-                ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
-                return@handler
-            }
-        } else {
-            null
+        val requester = RequesterContext.from(ctx) ?: run {
+            ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+            return@handler
         }
         val body = runCatching { ctx.body().asJsonObject() }.getOrNull()
         if (body == null) {
@@ -90,29 +81,55 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching {
-                if (resourceType == ResourceType.ACCOUNT) {
-                    AccountOwnershipGuard.requireOwner(resourceId, requireNotNull(requester))
-                }
-                if (resourceType == ResourceType.TEAM) {
-                    teamMembershipGuard.requireSettingsManager(resourceId, requireNotNull(requester))
-                }
+                requireWriteAccess(resourceType, resourceId, requester)
                 service.updateSettings(resourceType, resourceId, body).getOrThrow()
             }
                 .onSuccess {
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
                 .onFailure { e ->
-                    val status = if (e is IllegalArgumentException) 400 else authorizationAwareStatus(e)
-                    ctx.response().setStatusCode(status).end(errorBody(e.message))
+                    val fallback = if (e is IllegalArgumentException) 400 else 500
+                    respondFailure(ctx, e, fallback, resourceType, resourceId, requester)
                 }
         }
     }
 
-    private fun authorizationAwareStatus(e: Throwable): Int = when (e) {
-        is AccountOwnershipDeniedException -> 403
-        is TeamMembershipDeniedException -> 403
-        is TeamMembershipProjectionNotReadyException -> 503
-        else -> 500
+    /** 공개 라우트에 없는 GITHUB_REPO는 허용 규칙이 없으므로 거부한다. */
+    private suspend fun requireReadAccess(resourceType: ResourceType, resourceId: Long, requester: RequesterContext) {
+        when (resourceType) {
+            ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+            ResourceType.TEAM -> teamMembershipGuard.requireMember(resourceId, requester)
+            ResourceType.PROJECT -> projectAccessGuard.requireMember(resourceId, requester)
+            ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
+                channelAccessGuard.requireChannelAccess(resourceId, requester.userId)
+            ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
+        }
+    }
+
+    private suspend fun requireWriteAccess(resourceType: ResourceType, resourceId: Long, requester: RequesterContext) {
+        when (resourceType) {
+            ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+            ResourceType.TEAM -> teamMembershipGuard.requireSettingsManager(resourceId, requester)
+            ResourceType.PROJECT -> projectAccessGuard.requireManager(resourceId, requester)
+            ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
+                channelAccessGuard.requireSettingsManager(resourceId, requester)
+            ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
+        }
+    }
+
+    private fun respondFailure(
+        ctx: RoutingContext,
+        e: Throwable,
+        fallbackStatus: Int,
+        resourceType: ResourceType,
+        resourceId: Long,
+        requester: RequesterContext,
+    ) {
+        val authorizationStatus = authorizationStatus(e)
+        if (authorizationStatus != null) {
+            auditAuthorizationFailure(log, authorizationStatus, requester.userId, resourceType.name, resourceId)
+        }
+        ctx.response().setStatusCode(authorizationStatus ?: fallbackStatus).end(errorBody(e.message))
     }
 
     private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()
