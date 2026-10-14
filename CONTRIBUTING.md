@@ -253,7 +253,7 @@ val count = teams.size
 
 ## Code Formatting
 
-`.editorconfig` is the source of truth for editor settings. It specifies four spaces and, for Kotlin, a 120-character limit and the `intellij_idea` KtLint style. Kotlin import layout follows that style; do not add arbitrary blank groups. Wildcard-import and property-naming checks are disabled in the current KtLint configuration. Import types instead of writing fully qualified type names inline, as required by `.claude/rules/fail-safe.md`.
+`.editorconfig` is the source of truth for editor settings. It specifies four spaces and, for Kotlin, a 120-character limit and the `intellij_idea` KtLint style. Kotlin import layout follows that style; do not add arbitrary blank groups. Wildcard-import and property-naming checks are disabled in the current KtLint configuration. Import types instead of writing fully qualified type names inline, as required by `.claude/rules/jvm-conventions.md`.
 
 Run commands from the repository root:
 
