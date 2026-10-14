@@ -9,7 +9,7 @@ from pathlib import Path
 from deployment_state import SHA, successful_sha
 
 ROOT = Path.cwd()
-IMAGE_INPUTS = runpy.run_path(str(Path(__file__).resolve().parents[1] / "images/build-matrix.py"))
+IMAGE_INPUTS = runpy.run_path(str(Path(__file__).resolve().parents[2] / "images/build-matrix.py"))
 
 
 def ancestor(base, head):
@@ -22,24 +22,26 @@ def ancestor(base, head):
 def affected(service, paths, target=None):
     # Prose and examples cannot alter a running container. Slot JSON is executable desired state.
     paths = [path for path in paths if not path.endswith((".md", ".rst", ".txt")) and not path.startswith("docs/")]
-    if "deploy/prod/host-network.json" in paths and service in IMAGE_INPUTS["CATALOG"]:
+    if "deploy/prod/network/host-network.json" in paths and service in IMAGE_INPUTS["CATALOG"]:
         return True
     if f"deploy/prod/slots/{target or service}.json" in paths:
         return True
     if service == "monitoring" and any(path.startswith("deploy/prod/slots/") for path in paths):
         return True
-    config_firewall = {"deploy/prod/config-firewall.py", "deploy/prod/config-firewall.service",
-                       "deploy/prod/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
-    shared = {"deploy/prod/deploy.sh", "deploy/prod/defaults.sh", "deploy/prod/inventory.json",
+    config_firewall = {"deploy/prod/network/config-firewall.py", "deploy/prod/network/config-firewall.service",
+                       "deploy/prod/network/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
+    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json",
               ".github/workflows/cowork-prod-cd.yml"}
     if any(path not in config_firewall and (
         path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
-        or (path.startswith("deploy/prod/") and path.count("/") == 2 and path.endswith(".py"))
+        or path.startswith(("deploy/prod/cd/", "deploy/prod/config/"))
+        or (path.startswith("deploy/prod/network/") and path.endswith(".py"))
+        or path == "deploy/prod/slots.py"
     ) for path in paths):
         return True
     if f"deploy/prod/services/{service}.sh" in paths:
         return True
-    if service == "config" and any(path in config_firewall for path in paths):
+    if service == "config" and any(path in config_firewall or path == "deploy/prod/storage/settings.py" for path in paths):
         return True
     if service in IMAGE_INPUTS["CATALOG"]:
         # Custom clients load configuration at startup and do not all refresh.
