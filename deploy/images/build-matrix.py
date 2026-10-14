@@ -24,7 +24,7 @@ def documentation_path(path):
 def affected(service, paths):
     for path in paths:
         # The promotion site consumes TODO prose as its content, even though it has no deployment image.
-        if service == "promotion" and path.startswith("docs/todo/"):
+        if service == "promotion" and path.startswith("cowork-promotion/data/todo/"):
             return True
         if documentation_path(path):
             continue
