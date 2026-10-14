@@ -9,7 +9,7 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:?DISCORD_WEBHOOK_URL is required}
+      DISCORD_MONITORING_ALERT_WEBHOOK: ${DISCORD_MONITORING_ALERT_WEBHOOK:?DISCORD_MONITORING_ALERT_WEBHOOK is required}
     volumes:
       - ./deploy/prod/monitoring/prepare-configs.sh:/prepare-configs.sh:ro
       - ./deploy/config/monitoring:/source:ro
