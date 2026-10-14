@@ -105,6 +105,16 @@
     "exporter": {
       "image": "percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1",
       "port": 9216
+    },
+    "search": {
+      "username": "cowork_chat",
+      "memory": "1024m",
+      "cpus": 1,
+      "heap": "512m",
+      "indices": [
+        "chat_messages",
+        "chat_messages-*"
+      ]
     }
   },
   "voice": {

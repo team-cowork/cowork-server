@@ -5,6 +5,7 @@ import ipaddress
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import stat
 import subprocess
@@ -36,18 +37,20 @@ def load_policy():
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o077:
         raise ValueError("Storage firewall policy must be root-owned and mode 0600")
     value = json.loads(POLICY.read_text())
-    if set(value) != {"bind_ip", "allowed_cidrs"}:
+    if set(value) != {"bind_ip", "allowed_cidrs", "bridge", "subnet"}:
         raise ValueError("Invalid storage firewall policy")
     address = str(ipaddress.IPv4Address(value["bind_ip"]))
     network(address)
     if not isinstance(value["allowed_cidrs"], list) or not 1 <= len(value["allowed_cidrs"]) <= 32:
         raise ValueError("Invalid storage firewall peers")
     peers = sorted({network(peer) for peer in value["allowed_cidrs"]})
-    return address, peers
+    if not re.fullmatch(r'[A-Za-z0-9_.-]{1,15}', value['bridge']):
+        raise ValueError('Invalid module storage bridge')
+    return address, peers, value['bridge'], network(value['subnet'])
 
 
 def restore():
-    address, peers = load_policy()
+    address, peers, bridge, subnet = load_policy()
     for tool in ("iptables", "ip6tables"):
         saved_lines = run(tool, "-w", "10", "-S").splitlines()
         current = [shlex.split(line) for line in saved_lines]
@@ -57,20 +60,20 @@ def restore():
         for saved_line, line in zip(saved_lines, current):
             if line[:1] != ["-A"] or "-j" not in line or line[line.index("-j") + 1] != CHAIN:
                 continue
-            if MARK not in line or line[1] not in ("INPUT", "DOCKER-USER"):
+            if MARK not in line or line[1] not in ("INPUT", "DOCKER-USER", "FORWARD"):
                 raise ValueError("Storage firewall chain has an unrecognized reference")
             # iptables-restore parses its own format, not shell quoting. Keep
             # the canonical -S spelling so an inversion token remains `!`.
             rules.append(saved_line.replace("-A ", "-D ", 1))
         if tool == "iptables":
+            rules.append(f'-A {CHAIN} -i {bridge} -s {subnet} -j RETURN')
             rules.extend(f"-A {CHAIN} -p tcp --dport 9000 -s {peer} -j RETURN" for peer in peers)
-            rules.extend([
-                f"-I DOCKER-USER 1 -o br-cowork-s3 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}",
-                f"-I DOCKER-USER 1 -p tcp -m conntrack --ctdir ORIGINAL --ctorigdst {address} --ctorigdstport 9000 -m comment --comment {MARK} -j {CHAIN}",
-            ])
+        forward = 'DOCKER-USER' if tool == 'iptables' else 'FORWARD'
+        for interface in ('docker+', 'br+'):
+            rules.append(f'-I {forward} 1 -o {interface} -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}')
         rules.extend([
             f"-A {CHAIN} -j DROP",
-            f"-I INPUT 1 ! -i lo -p tcp --dport 9000 -m comment --comment {MARK} -j {CHAIN}",
+            f"-I INPUT 1 ! -i lo -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}",
             "COMMIT",
         ])
         # --noflush preserves all other application and Docker firewall rules.
@@ -82,23 +85,6 @@ if __name__ == "__main__":
         raise SystemExit("Run the storage firewall helper as root")
     with open("/run/cowork-storage-firewall.lock", "a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        if sys.argv[1:] == ["check-binding"]:
-            document = sys.stdin.read(1025)
-            if len(document) > 1024:
-                raise SystemExit("Storage binding input is too large")
-            supplied = json.loads(document)
-            if not isinstance(supplied, dict) or set(supplied) != {"bind_ip", "allowed_cidrs"}:
-                raise SystemExit("Supply only the storage binding and peer addresses")
-            if not isinstance(supplied["allowed_cidrs"], list) or not 1 <= len(supplied["allowed_cidrs"]) <= 32:
-                raise SystemExit("Invalid storage firewall peers")
-            address, peers = load_policy()
-            supplied_peers = sorted({network(peer) for peer in supplied["allowed_cidrs"]})
-            if str(ipaddress.IPv4Address(supplied["bind_ip"])) != address or supplied_peers != peers:
-                raise SystemExit("Storage binding or peers differ from the root-managed firewall policy")
-            if run("systemctl", "is-enabled", "cowork-storage-firewall.service").strip() != "enabled":
-                raise SystemExit("The storage firewall must be persistently enabled")
-            if run("systemctl", "is-active", "cowork-storage-firewall.service").strip() != "active":
-                raise SystemExit("The storage firewall must be active")
-        elif sys.argv[1:]:
+        if sys.argv[1:]:
             raise SystemExit("Unsupported storage firewall operation")
         restore()
