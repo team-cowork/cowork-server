@@ -56,11 +56,14 @@
     - name: Apply host ingress policy from its slot
       ansible.builtin.include_tasks: tasks/firewall.yml
       when: cowork_firewall_target is defined or cowork_firewall_policy is defined
-    - name: Apply the dedicated datastore ingress policy
-      ansible.builtin.include_tasks: tasks/datastore-firewall.yml
-      when: cowork_datastore_firewall | default(false) | bool
+    - name: Reconcile The Dedicated Shared Service
+      ansible.builtin.include_tasks: tasks/shared.yml
+      when: cowork_shared_service is defined
     - name: Reconcile The Module Database Independently Of The Application
       ansible.builtin.include_tasks: tasks/database.yml
       when: cowork_database_module is defined
+    - name: Reconcile The Module Object Storage Independently Of The Application
+      ansible.builtin.include_tasks: tasks/storage.yml
+      when: cowork_storage_module is defined
     - name: Apply each deployment unit
       ansible.builtin.include_tasks: tasks/unit.yml

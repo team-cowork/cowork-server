@@ -6,7 +6,7 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "DB_HOST": "cowork-notification-db",
     "DB_PORT": "3306",
     "DB_USERNAME": "cowork_notification",

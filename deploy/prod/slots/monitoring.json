@@ -10,9 +10,9 @@
     "MONITORING_VOLUME_PREFIX": "cowork_monitoring",
     "MONITORING_COMPOSE_PROJECT": "cowork-monitoring",
     "GRAFANA_ROOT_URL": "https://cowork-monitoring.https.gsmsv.site/",
-    "REDIS_HOST": "10.0.0.93",
-    "KAFKA_EXPORTER_SERVER": "10.0.0.93:9094",
-    "MONITORING_ADDITIONAL_LOG_PEERS": "10.0.0.93/32,10.0.0.91/32,10.0.0.150/32"
+    "REDIS_HOST": "10.0.0.145",
+    "KAFKA_EXPORTER_SERVER": "10.0.0.167:9094",
+    "MONITORING_ADDITIONAL_LOG_PEERS": "10.0.0.91/32,10.0.0.145/32,10.0.0.150/32,10.0.0.167/32,10.0.0.172/32"
   },
   "secrets": {
     "runtime": {
