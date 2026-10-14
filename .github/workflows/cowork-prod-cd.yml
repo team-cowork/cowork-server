@@ -437,7 +437,7 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy-datastores:
-    name: Deploy Datastores
+    name: Deploy Shared Datastores
     needs: [deployment-plan, deploy-vault]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -603,7 +603,7 @@ jobs:
               echo "Automatic IaC apply skipped at $RELEASE_SHA. The selected source does not require an infrastructure apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
               ;;
             applied)
-              echo "Host configuration and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
+              echo "Host configuration, module databases and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
               ;;
             *)
               echo 'Infrastructure execution did not report a result' >&2
