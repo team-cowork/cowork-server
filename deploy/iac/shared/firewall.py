@@ -80,7 +80,7 @@ def network(value):
 
 
 def restore(value):
-    entries = value['bindings'] + [{'host_port': p['port'], 'container_port': p['port'],
+    entries = value['bindings'] + [{'container_port': p['port'],
                                     'protocol': p['protocol'], 'peers': []} for p in value['internal_ports']]
     chains = {f'{e["protocol"]}_{e["container_port"]}': e for e in entries}
     for tool in ('iptables', 'ip6tables'):
@@ -107,11 +107,19 @@ def restore(value):
                 for peer in entry['peers']:
                     rules.append(f'-A {chain} -s {peer} -j RETURN')
             rules.append(f'-A {chain} -j DROP')
-            marker = f'-m conntrack --ctdir ORIGINAL -m comment --comment {MARK}'
-            rules.append(f'-I INPUT 1 ! -i lo -p {entry["protocol"]} --dport {entry["host_port"]} {marker} -j {chain}')
-            forward = 'DOCKER-USER' if tool == 'iptables' else 'FORWARD'
-            for interface in ('br+', 'docker+'):
-                rules.append(f'-I {forward} 1 -o {interface} -p {entry["protocol"]} --dport {entry["container_port"]} {marker} -j {chain}')
+            if tool != 'iptables':
+                continue
+            marker = f'-m comment --comment {MARK}'
+            direction = '-m conntrack --ctdir ORIGINAL'
+            forward = f'-I DOCKER-USER 1 -o {value["bridge"]} -p {entry["protocol"]} --dport {entry["container_port"]} {direction}'
+            if 'host_port' in entry:
+                endpoint = f'--ctorigdst {value["bind_ip"]} --ctorigdstport {entry["host_port"]}'
+                rules.append(f'{forward} {endpoint} {marker} -j {chain}')
+                rules.append(f'-I INPUT 1 ! -i lo -d {value["bind_ip"]} -p {entry["protocol"]} --dport {entry["host_port"]} {direction} {marker} -j {chain}')
+            else:
+                # Internal listeners must not claim another app's published container port.
+                rules.append(f'{forward} ! --ctstate DNAT {marker} -j {chain}')
+        # The runtime bridge is IPv4-only; old IPv6 hooks are removed above.
         rules.append('COMMIT')
         run(tool + '-restore', '--wait', '10', '--noflush', content='\n'.join(rules) + '\n')
 
