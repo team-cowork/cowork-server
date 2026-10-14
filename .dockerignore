@@ -36,3 +36,14 @@ docs
 .run
 .worktrees
 **/__pycache__
+
+# IaC state and local Terraform working directories never enter image contexts.
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfvars.json
+
+**/coverage
+**/cover
+**/.elixir_ls

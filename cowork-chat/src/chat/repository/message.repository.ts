@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, PipelineStage, Types } from 'mongoose';
+import { ConfirmedAttachment } from '../../storage/attachment-upload.schema';
 import { Message, MessageDocument } from '../schema';
 import { isSearchIndexed } from '../search/message-index-scope';
 
@@ -46,7 +47,7 @@ export type FileAttachmentRow = {
     messageId: string;
     fileName: string;
     fileSize: number;
-    fileUrl: string;
+    objectKey?: string;
     mimeType: string;
     /** 파일을 업로드한 메시지 작성자의 사용자 ID */
     uploaderId: number;
@@ -62,7 +63,7 @@ type FileAttachmentAggregateRow = {
     authorId: number;
     createdAt: Date;
     attachmentIndex?: number;
-    attachment: { name: string; url: string; size: number; mimeType: string };
+    attachment: { name: string; objectKey?: string; url?: string; size: number; mimeType: string };
 };
 
 /**
@@ -77,12 +78,7 @@ export type CreateMessageInput = {
     authorId: number;
     content: string;
     type: string;
-    attachments: Array<{
-        name: string;
-        url: string;
-        size: number;
-        mimeType: string;
-    }>;
+    attachments: ConfirmedAttachment[];
     parentMessageId: Types.ObjectId | null;
     clientMessageId?: string;
     mentions: number[];
@@ -119,7 +115,7 @@ export type MessageRow = {
     authorId: number;
     content: string;
     type: string;
-    attachments: Array<{ name: string; url: string; size: number; mimeType: string }>;
+    attachments: Array<{ name: string; objectKey?: string; url?: string; size: number; mimeType: string }>;
     parentMessageId: Types.ObjectId | null;
     isEdited: boolean;
     isPinned: boolean;
@@ -155,9 +151,16 @@ export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcas
     } = doc.toObject();
     return {
         _id, teamId, projectId, channelId, authorId, content, type,
-        attachments, parentMessageId, isEdited, isPinned, clientMessageId,
+        attachments: publicAttachments(attachments), parentMessageId, isEdited, isPinned, clientMessageId,
         mentions, reactions, createdAt, updatedAt,
     };
+}
+
+/** Never return persisted legacy object URLs to API or WebSocket clients. */
+export function publicAttachments(attachments: MessageRow['attachments']): MessageRow['attachments'] {
+    return attachments.map(({ name, size, mimeType, objectKey }) => ({
+        name, size, mimeType, objectKey,
+    }));
 }
 
 /** `addReaction` / `removeReaction` 내부에서 reactions 배열만 추출하기 위한 타입 */
@@ -481,7 +484,7 @@ export class MessageRepository {
                 messageId: row._id.toString(),
                 fileName: row.attachment.name,
                 fileSize: row.attachment.size,
-                fileUrl: row.attachment.url,
+                objectKey: row.attachment.objectKey,
                 mimeType: row.attachment.mimeType,
                 uploaderId: row.authorId,
                 uploadedAt: row.createdAt.toISOString(),

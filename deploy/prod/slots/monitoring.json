@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "service": "monitoring",
+  "kind": "infrastructure",
+  "runtime": {
+    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "MONITORING_BIND_IP": "10.0.0.137",
+    "MONITORING_ADMIN_BIND_IP": "127.0.0.1",
+    "MONITORING_VOLUME_PREFIX": "cowork_monitoring",
+    "MONITORING_COMPOSE_PROJECT": "cowork-monitoring",
+    "MYSQL_HOST": "10.0.0.93",
+    "MYSQL_EXPORTER_USER": "cowork_monitoring",
+    "REDIS_HOST": "10.0.0.93",
+    "KAFKA_EXPORTER_SERVER": "10.0.0.93:9094",
+    "MONITORING_ADDITIONAL_LOG_PEERS": "10.0.0.93/32,10.0.0.91/32,10.0.0.150/32"
+  },
+  "secrets": {
+    "runtime": {
+      "CONFIG_CLIENT_PASSWORD": {
+        "path": "slot-secrets/monitoring",
+        "key": "CONFIG_CLIENT_PASSWORD"
+      },
+      "CONFIG_CLIENT_USERNAME": {
+        "path": "slot-secrets/monitoring",
+        "key": "CONFIG_CLIENT_USERNAME"
+      },
+      "GRAFANA_ADMIN_PASSWORD": {
+        "path": "slot-secrets/monitoring",
+        "key": "GRAFANA_ADMIN_PASSWORD"
+      },
+      "MONGO_EXPORTER_URI": {
+        "path": "slot-secrets/monitoring",
+        "key": "MONGO_EXPORTER_URI"
+      },
+      "MYSQL_EXPORTER_PASSWORD": {
+        "path": "slot-secrets/monitoring",
+        "key": "MYSQL_EXPORTER_PASSWORD"
+      },
+      "POSTGRES_EXPORTER_DSN": {
+        "path": "slot-secrets/monitoring",
+        "key": "POSTGRES_EXPORTER_DSN"
+      }
+    }
+  },
+  "github_secrets": {
+    "DISCORD_WEBHOOK_URL": "DISCORD_MONITORING_ALERT_WEBHOOK"
+  }
+}

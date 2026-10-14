@@ -1,7 +1,8 @@
 import { Types } from 'mongoose';
 import { type ChatMessageEvent } from './chat-message.event';
 
-export const CHAT_MESSAGE_CONTRACT_VERSION = 1 as const;
+export const CHAT_MESSAGE_TOPIC = 'chat.message.v2';
+export const CHAT_MESSAGE_CONTRACT_VERSION = 2 as const;
 export const CHAT_MESSAGE_MAX_CONTENT_LENGTH = 25_000;
 
 export class ChatMessageContractError extends Error {
@@ -16,14 +17,14 @@ export class ChatMessageContractError extends Error {
 
 /**
  * Kafka의 untrusted payload를 ChatMessageEvent로 검증·정규화한다.
- * 버전 필드가 없는 배포 이전 레코드는 v1으로 호환한다.
+ * object key를 사용하는 v2만 허용한다. 구 토픽의 URL 기반 레코드는 혼합하지 않는다.
  */
 export function validateChatMessageEvent(payload: unknown, eventKey: string | null): ChatMessageEvent {
     if (!isRecord(payload)) {
         throw contractError('INVALID_PAYLOAD', 'payload must be an object');
     }
 
-    const contractVersion = payload.contractVersion ?? CHAT_MESSAGE_CONTRACT_VERSION;
+    const { contractVersion } = payload;
     if (contractVersion !== CHAT_MESSAGE_CONTRACT_VERSION) {
         throw contractError('UNSUPPORTED_CONTRACT_VERSION', 'contractVersion is not supported');
     }
@@ -128,12 +129,13 @@ function validateAttachments(value: unknown): ChatMessageEvent['attachments'] {
 function isAttachment(value: unknown): value is NonNullable<ChatMessageEvent['attachments']>[number] {
     return isRecord(value)
         && typeof value.name === 'string'
-        && typeof value.url === 'string'
+        && typeof value.objectKey === 'string'
+        && /^chat-files\/[1-9]\d*\/[1-9]\d*\/[\w-]+\.[\da-z]+$/iu.test(value.objectKey)
         && typeof value.mimeType === 'string'
         && typeof value.size === 'number'
-        && Number.isFinite(value.size)
-        // eslint-disable-next-line unicorn/no-impossible-length-comparison -- size is an untrusted numeric payload field.
-        && value.size >= 0;
+        && Number.isSafeInteger(value.size)
+
+        && value.size > 0;
 }
 
 function isRfc3339(value: string): boolean {
