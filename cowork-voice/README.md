@@ -32,12 +32,4 @@ LiveKit 기반 음성 채널과 1:N 라이브 룸을 관리합니다.
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_VOICE_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_VOICE_PASSWORD`에서 전달 |
 
-기동 시 인증된 Config 조회가 필요합니다. 일반 설정은 [서비스별 설정](../cowork-config/src/main/resources/configs/),
-앱 비밀 값은 Vault에서 공급합니다.
-
-운영 포트·프로파일·환경변수·비밀 참조는 [voice 슬롯](../deploy/prod/slots/voice.json)에서 관리합니다.
-
-[로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md) · [Config 접근 보호](../docs/config-server-access.md)
-
 LiveKit 미디어 서버의 포트는 이 서비스의 HTTP 포트와 별개입니다.
-외부 포트와 TURN 제약은 [LiveKit 운영 문서](../deploy/config/livekit/README.md)를 따릅니다.

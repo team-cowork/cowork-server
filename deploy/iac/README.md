@@ -26,8 +26,7 @@ MySQL·PostgreSQL·MongoDB exporter 계정은 첫 적용과 비밀번호 교체 
 DB 계정과 Vault의 모니터링 비밀을 맞춘 뒤 IaC를 적용한다. CI에는 DB 관리자 자료를 전달하지 않는다.
 
 인프라만 재적용할 때는 운영 CD에서 `operation=redeploy`, `service=infrastructure`를 선택한다.
-첫 state 생성은 같은 수동 실행의 `initialize_state`로 명시한다. 기존 Grafana 객체는 import하거나
-이번 전환에서 승인된 초기화를 수행한다. state를 읽을 수 없다는 이유로 새 state를 만들지 않는다.
+첫 state 생성은 같은 수동 실행의 `initialize_state`로 명시한다. 기존 state를 읽을 수 없다는 이유로 새 state를 만들지 않는다.
 로컬 적용도 워크플로와 같은 `infra-state` 브랜치와 `infra-state-lock` 잠금을 사용한다.
 
 state 저장이 실패하면 잠금과 암호화된 복구 파일을 보존한다. 실패한 실행과 Terraform 프로세스가
@@ -35,7 +34,6 @@ state 저장이 실패하면 잠금과 암호화된 복구 파일을 보존한�
 복구한 state를 다시 암호화해 `infra-state`에 저장한 뒤 해당 실행이 소유한 잠금만 해제한다.
 실행이 살아 있거나 state 일치 여부가 불명확하면 잠금을 해제하지 않는다.
 
-자원 소유권, 비밀 교체, 실패 복구의 제약은 [운영 문서](../../docs/deployment.md)를 따른다.
 `check_only` 성공은 실제 SSH 연결·수집·대시보드 동작의 확인을 대신하지 않는다.
 자동 실행은 마지막 성공 적용 이후 IaC 소스가 변경된 경우에만 적용한다. 이 판단은 서버 drift를
 검사하지 않는다. 비밀 교체나 서버 상태 복구 후 재적용은 수동 실행으로 수행한다.
