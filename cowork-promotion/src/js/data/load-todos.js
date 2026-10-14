@@ -1,4 +1,5 @@
 import {document, location} from '../core/browser.js';
+import {serializeChildren} from '../core/dom.js';
 
 const PRIORITY_LABELS = Object.freeze({
 	high: '높음', medium: '중간', low: '낮음', unknown: '미지정',
@@ -165,13 +166,13 @@ export async function loadTodoRegistry() {
 		const metadata = Array.from(article.querySelectorAll(':scope .todo-document__metadata > div'), row => {
 			const value = row.querySelector('dd').cloneNode(true);
 			value.querySelector('.todo-priority-marker')?.remove();
-			return {label: row.querySelector('dt').textContent, text: value.textContent.trim(), html: value.getHTML().trim()};
+			return {label: row.querySelector('dt').textContent, text: value.textContent.trim(), html: serializeChildren(value).trim()};
 		});
 		const toc = Array.from(body.querySelectorAll('h2[id], h3[id]'), heading => ({
 			id: heading.id, depth: Number(heading.tagName.slice(1)), text: heading.textContent,
 		}));
 		contentCache.set(initial.id, {
-			...initial, metadata, toc, bodyHtml: body.getHTML(),
+			...initial, metadata, toc, bodyHtml: serializeChildren(body),
 		});
 	}
 
