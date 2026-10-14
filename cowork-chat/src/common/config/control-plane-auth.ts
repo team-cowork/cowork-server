@@ -3,7 +3,7 @@ import { isIPv4 } from 'node:net';
 /** Bootstrap credentials must come from the process environment, before fetching configuration. */
 const username = process.env.CONFIG_CLIENT_USERNAME;
 const password = process.env.CONFIG_CLIENT_PASSWORD;
-const profile = process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? 'local';
+const profile = process.env.APP_CONFIG_PROFILE ?? process.env.APP_PROFILE ?? process.env.SPRING_PROFILES_ACTIVE ?? 'local';
 
 export function controlPlaneAuthorization(url: string): string {
     const endpoint = new URL(url);
