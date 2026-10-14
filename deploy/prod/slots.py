@@ -38,6 +38,17 @@ def private(value):
     return str(network)
 
 
+def validate_variables(values):
+    demand(isinstance(values, dict), "Runtime variables must be an object")
+    for key, value in values.items():
+        demand(environment_key(key), "Invalid or reserved runtime variable name")
+        demand(isinstance(value, str) and "\0" not in value, "Runtime variables must be strings without NUL")
+        demand(not SECRET_NAME.search(key), "Secret values must not be supplied as runtime variables")
+    if "APP_CONFIG_PROFILE" in values:
+        demand(values["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
+    return values
+
+
 def validate(value, target):
     demand(NAME.fullmatch(target), "Invalid slot target")
     demand(isinstance(value, dict) and set(value) <= {"schema_version", "service", "kind", "runtime", "secrets", "github_secrets", "container", "peers"}, "Invalid slot sections")
@@ -116,8 +127,19 @@ def load(target, directory=None):
     return validate(json.loads(path.read_text(), object_pairs_hook=pairs), target)
 
 
-def environment(slot):
+def environment(slot, variables=None):
     result = dict(slot.get("runtime", {}))
+    if variables is not None:
+        # Keep code-owned placement/volume inputs, but never fall back to Git for
+        # declared GitHub variables after a target has a managed Vault snapshot.
+        catalog_path = Path(__file__).with_name("configuration.json")
+        managed = set(variables)
+        if catalog_path.is_file():
+            catalog = json.loads(catalog_path.read_text(), object_pairs_hook=pairs)
+            managed.update(name for name, spec in catalog.get("shared", {}).items() if spec["kind"] == "variable")
+            managed.update(name for target in catalog.get("targets", {}).values() for name in target.get("variables", {}))
+        result = {key: value for key, value in result.items() if key not in managed}
+        result.update(validate_variables(variables))
     result["SLOT_KIND"] = slot["kind"]
     if slot["kind"] == "infrastructure":
         return result
