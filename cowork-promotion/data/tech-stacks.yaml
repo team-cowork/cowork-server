@@ -7,6 +7,7 @@ categories:
       - { name: JavaScript, color: "#f7df1e" }
       - { name: Go, color: "#00add8" }
       - { name: Elixir, color: "#4b275f" }
+      - { name: Python, color: "#3776ab" }
       - { name: Dart, color: "#0175c2" }
 
   - name: Frontend
@@ -23,6 +24,7 @@ categories:
     items:
       - { name: Spring Boot, color: "#6db33f" }
       - { name: Spring Cloud Gateway, color: "#6db33f" }
+      - { name: Spring Cloud Config, color: "#6db33f" }
       - { name: Eureka, color: "#6db33f" }
       - { name: OpenFeign, color: "#6db33f" }
       - { name: Vert.x, color: "#2c3e50" }
@@ -30,16 +32,19 @@ categories:
       - { name: NestJS, color: "#e0234e" }
       - { name: Gin, color: "#00add8" }
       - { name: Chi, color: "#00add8" }
-      - { name: Phoenix, color: "#fd4f00" }
+      - { name: Plug / Cowboy, color: "#4b275f" }
+      - { name: Socket.IO, color: "#010101" }
+      - { name: GraphQL / Apollo, color: "#e10098" }
       - { name: LiveKit, color: "#ff5c93" }
 
-  - name: Database
+  - name: Data & Storage
     items:
       - { name: MySQL, color: "#4479a1" }
       - { name: PostgreSQL, color: "#336791" }
       - { name: MongoDB, color: "#47a248" }
       - { name: Redis, color: "#dc382d" }
       - { name: Elasticsearch, color: "#005571" }
+      - { name: SeaweedFS, color: "#2e7d32" }
       - { name: Flyway, color: "#cc0200" }
 
   - name: Messaging
@@ -49,9 +54,20 @@ categories:
   - name: Infrastructure
     items:
       - { name: Docker, color: "#2496ed" }
+      - { name: Docker Compose, color: "#2496ed" }
+      - { name: Ansible, color: "#ee0000" }
+      - { name: GitHub Actions, color: "#2088ff" }
+      - { name: Vault, color: "#0fc75e" }
+      - { name: NGINX, color: "#009639" }
+      - { name: Vercel, color: "#000000" }
+
+  - name: Monitoring
+    items:
       - { name: Grafana, color: "#f46800" }
       - { name: Prometheus, color: "#e6522c" }
-      - { name: Vault, color: "#0fc75e" }
+      - { name: Loki, color: "#f2cc0c" }
+      - { name: Grafana Alloy, color: "#f46800" }
+      - { name: Alertmanager, color: "#e6522c" }
 
   - name: Design
     items:
@@ -62,11 +78,14 @@ categories:
       - { name: Maven, color: "#c71c36" }
       - { name: Gradle, color: "#02303a" }
       - { name: Kotlin Toolchain, color: "#1f6feb" }
+      - { name: npm, color: "#cb3837" }
+      - { name: Go modules, color: "#00add8" }
+      - { name: Mix, color: "#4b275f" }
 
 positions:
   Server:
     color: "#8b5cf6"
-    description: 서비스의 핵심 비즈니스 로직과 API를 설계하고 구현합니다. MSA 구조 위에서 각 도메인 서비스를 담당합니다.
+    description: 도메인별 비즈니스 로직과 API, 실시간 기능을 구현합니다. Kafka 이벤트로 서비스 간 데이터를 연동합니다.
     technologies:
       - Kotlin
       - Java
@@ -75,6 +94,7 @@ positions:
       - Elixir
       - Spring Boot
       - Spring Cloud Gateway
+      - Spring Cloud Config
       - Eureka
       - OpenFeign
       - Vert.x
@@ -82,18 +102,24 @@ positions:
       - NestJS
       - Gin
       - Chi
-      - Phoenix
+      - Plug / Cowboy
+      - Socket.IO
+      - GraphQL / Apollo
       - LiveKit
       - MySQL
       - PostgreSQL
       - MongoDB
       - Redis
       - Elasticsearch
+      - SeaweedFS
       - Flyway
       - Apache Kafka
       - Maven
       - Gradle
       - Kotlin Toolchain
+      - npm
+      - Go modules
+      - Mix
   Web Client:
     color: "#eab308"
     description: Next.js 기반 협업 웹 클라이언트를 개발합니다. FSD(Feature-Sliced Design) 구조로 기능별 코드를 구성합니다.
@@ -118,12 +144,22 @@ positions:
       - Flutter
   Cloud:
     color: "#f97316"
-    description: 서비스 인프라를 설계하고 운영합니다. 안정적인 배포 파이프라인과 모니터링 체계를 구축합니다.
+    description: GitHub Actions·Ansible·Docker Compose로 VM 배포를 자동화합니다. Vault로 설정을 관리하고, 메트릭·로그·알림을 수집하고 확인할 수 있도록 구성합니다.
     technologies:
+      - Python
       - Docker
+      - Docker Compose
+      - Ansible
+      - GitHub Actions
+      - Vault
+      - NGINX
+      - Vercel
+      - SeaweedFS
       - Grafana
       - Prometheus
-      - Vault
+      - Loki
+      - Grafana Alloy
+      - Alertmanager
   Design:
     color: "#14b8a6"
     description: cowork의 시각적 아이덴티티를 정의합니다. 사용자 중심의 UI/UX 디자인으로 직관적인 경험을 만듭니다.
