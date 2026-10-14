@@ -83,7 +83,6 @@ class ProjectionStateConsumer(
             consumer.pause()
             scope.launch(vertx.dispatcher()) {
                 processBatchWithRetry(records, generation)
-                refreshReadiness()
                 if (isCurrentAssignment(generation)) {
                     consumer.resume()
                 }
@@ -200,7 +199,7 @@ class ProjectionStateConsumer(
         while (!closed && generation == assignmentGeneration.get()) {
             val checkpoint = checkpoint(record.partition(), record.offset() + 1)
             try {
-                processRecord(checkpoint, record)
+                processRecord(checkpoint, record, generation)
                 retry("align consumer position with database checkpoint", generation) {
                     consumer.seek(partition, checkpoint.nextOffset).coAwait()
                 }
@@ -228,7 +227,11 @@ class ProjectionStateConsumer(
         throw CancellationException("$topic assignment changed while applying a record")
     }
 
-    private suspend fun processRecord(checkpoint: ProjectionCheckpoint, record: KafkaConsumerRecord<String, String>) {
+    private suspend fun processRecord(
+        checkpoint: ProjectionCheckpoint,
+        record: KafkaConsumerRecord<String, String>,
+        generation: Long,
+    ) {
         if (ProjectionSnapshotCompletion.isReserved(record.key())) {
             val violation = ProjectionSnapshotCompletion.violation(
                 record.key(),
@@ -240,12 +243,12 @@ class ProjectionStateConsumer(
             if (violation == null) {
                 checkpointRepository.completeSnapshot(checkpoint, record.offset())
             } else {
-                quarantine(checkpoint, record, violation)
+                quarantine(checkpoint, record, violation, generation)
             }
             return
         }
         handler.apply(checkpoint, record.key(), record.value())?.let { reason ->
-            quarantine(checkpoint, record, reason)
+            quarantine(checkpoint, record, reason, generation)
         }
     }
 
@@ -253,11 +256,17 @@ class ProjectionStateConsumer(
         checkpoint: ProjectionCheckpoint,
         record: KafkaConsumerRecord<String, String>,
         reason: String,
+        generation: Long,
     ) {
+        ensureCurrentAssignment(generation)
         checkpointRepository.quarantineAndAdvance(
             checkpoint,
             QuarantinedProjectionRecord(record.key(), record.value(), reason),
         )
+        ensureCurrentAssignment(generation)
+        checkpointRangeBlocked.set(true)
+        readiness.markUnavailable("$topic invalid projection record requires manual rebuild")
+        pauseAssignedPartitions(generation)
         log.error(
             "Quarantined invalid projection record topic={} partition={} offset={} reason={}",
             record.topic(),
