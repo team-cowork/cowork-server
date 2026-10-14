@@ -1,27 +1,44 @@
-<section id="positions" class="showcase showcase--positions" style="--showcase-count: {{positions:count}}">
-  <div class="showcase-viewport bg-white">
-    <div class="showcase-background" aria-hidden="true">
-      <!-- data:positions-background:start -->
-      <!-- data:positions-background:end -->
-    </div>
-    <div class="showcase-toolbar ui-container">
-      <span class="text-xs font-semibold uppercase tracking-widest text-gray-500">Position</span>
-      <span data-showcase-counter class="text-xs text-gray-500 tabular-nums">
-        <!-- data:positions-counter:start -->
-        <!-- data:positions-counter:end -->
-      </span>
-    </div>
-    <div class="showcase-content" tabindex="0" role="region" aria-label="포지션 상세 소개">
-      <div data-showcase-scene class="showcase-scene ui-container">
-        <!-- data:positions-initial:start -->
-        <!-- data:positions-initial:end -->
-      </div>
-    </div>
-    <div class="showcase-controls ui-container">
-      <div class="showcase-dots" role="group" aria-label="포지션 선택">
-        <!-- data:positions-dots:start -->
-        <!-- data:positions-dots:end -->
-      </div>
-    </div>
-  </div>
+<section
+	id="positions"
+	class="showcase showcase--positions"
+>
+	<style>
+		#positions {
+			--showcase-count: {{positions:count}};
+		}
+	</style>
+	<div class="showcase-viewport bg-white">
+		<div class="showcase-background" aria-hidden="true">
+			<!-- data:positions-background:start -->
+			<!-- data:positions-background:end -->
+		</div>
+		<div class="showcase-toolbar ui-container">
+			<span class="text-xs font-semibold uppercase tracking-widest text-gray-500">Position</span>
+			<span class="text-xs text-gray-500 tabular-nums" data-showcase-counter>
+				<!-- data:positions-counter:start -->
+				<!-- data:positions-counter:end -->
+			</span>
+		</div>
+		<div
+			class="showcase-content"
+			aria-label="포지션 상세 소개"
+			role="region"
+			tabindex="0"
+		>
+			<div class="showcase-scene ui-container" data-showcase-scene>
+				<!-- data:positions-initial:start -->
+				<!-- data:positions-initial:end -->
+			</div>
+		</div>
+		<div class="showcase-controls ui-container">
+			<div
+				class="showcase-dots"
+				aria-label="포지션 선택"
+				role="group"
+			>
+				<!-- data:positions-dots:start -->
+				<!-- data:positions-dots:end -->
+			</div>
+		</div>
+	</div>
 </section>
