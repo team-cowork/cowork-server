@@ -59,5 +59,8 @@
     - name: Apply the dedicated datastore ingress policy
       ansible.builtin.include_tasks: tasks/datastore-firewall.yml
       when: cowork_datastore_firewall | default(false) | bool
+    - name: Reconcile The Module Database Independently Of The Application
+      ansible.builtin.include_tasks: tasks/database.yml
+      when: cowork_database_module is defined
     - name: Apply each deployment unit
       ansible.builtin.include_tasks: tasks/unit.yml
