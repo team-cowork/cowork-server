@@ -12,7 +12,8 @@ RUN apk --no-cache add bash python3
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=npm-promotion,target=/root/.npm \
     npm run lint -- --max-warnings=0 \
-    && python3 /ci/untested.py /coverage/coverage.json "Static documentation rendering has no core-business unit tests."
+    && bash /ci/run-native.sh node cowork-promotion /workspace /coverage \
+    && python3 /ci/report.py collect --module cowork-promotion --snapshot pr --format istanbul --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
 COPY --from=verification /coverage /
