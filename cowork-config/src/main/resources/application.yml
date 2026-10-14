@@ -48,6 +48,14 @@ management:
     tags:
       application: ${spring.application.name}
 
+# HTTP debug/trace logging can include AppRole credentials and Vault responses.
+logging:
+  level:
+    org.springframework.vault: INFO
+    org.springframework.web: INFO
+    org.apache.hc.client5.http: WARN
+    org.apache.hc.core5.http: WARN
+
 ---
 spring:
   config:
@@ -66,11 +74,15 @@ spring:
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:ws://localhost:7880}
         composite:
           - type: vault
-            host: ${VAULT_HOST:localhost}
+            host: ${VAULT_EXTERNAL_HOST:${VAULT_HOST:localhost}}
             port: ${VAULT_PORT:8200}
             scheme: ${VAULT_SCHEME:http}
-            authentication: TOKEN
+            authentication: ${VAULT_AUTHENTICATION:TOKEN}
             token: ${VAULT_TOKEN:dev-root-token}
+            app-role:
+              app-role-path: ${VAULT_APP_ROLE_PATH:approle}
+              role-id: ${VAULT_ROLE_ID:}
+              secret-id: ${VAULT_SECRET_ID:}
             kv-version: 2
             backend: ${VAULT_BACKEND:secret}
             profile-separator: "/"
@@ -91,7 +103,7 @@ spring:
           S3_REGION: ${S3_REGION:us-east-1}
           PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS}
           PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
-          GITHUB_APP_SERVICE_URL: ${GITHUB_APP_SERVICE_URL}
+          COWORK_GITHUB_APP_SERVICE_URL: ${COWORK_GITHUB_APP_SERVICE_URL}
           LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
         composite:
@@ -110,11 +122,3 @@ spring:
             default-key: ""
           - type: native
             search-locations: classpath:/configs/
-
-# HTTP debug/trace logging can include AppRole credentials and Vault responses.
-logging:
-  level:
-    org.springframework.vault: INFO
-    org.springframework.web: INFO
-    org.apache.hc.client5.http: WARN
-    org.apache.hc.core5.http: WARN
