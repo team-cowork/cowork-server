@@ -1,32 +1,39 @@
 export function createApp(components) {
-    const mountedComponents = [];
-    let mounted = false;
+	const mountedComponents = [];
+	let isMounted = false;
 
-    async function mount() {
-        if (mounted) {
-            return;
-        }
+	async function mountFrom(index) {
+		if (index >= components.length) {
+			return;
+		}
 
-        try {
-            for (const component of components) {
-                await component.mount();
-                mountedComponents.push(component);
-            }
+		await components[index].mount();
+		mountedComponents.push(components[index]);
+		await mountFrom(index + 1);
+	}
 
-            mounted = true;
-        } catch (error) {
-            unmount();
-            throw error;
-        }
-    }
+	async function mount() {
+		if (isMounted) {
+			return;
+		}
 
-    function unmount() {
-        while (mountedComponents.length > 0) {
-            mountedComponents.pop().unmount();
-        }
+		try {
+			await mountFrom(0);
 
-        mounted = false;
-    }
+			isMounted = true;
+		} catch (error) {
+			unmount();
+			throw error;
+		}
+	}
 
-    return { mount, unmount };
+	function unmount() {
+		while (mountedComponents.length > 0) {
+			mountedComponents.pop().unmount();
+		}
+
+		isMounted = false;
+	}
+
+	return {mount, unmount};
 }
