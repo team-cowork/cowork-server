@@ -231,7 +231,7 @@ jobs:
           from pathlib import Path
           catalog = json.loads(Path('deploy/images/catalog.json').read_text())
           selected = {unit['service'] for unit in json.loads(os.environ['DEPLOY_MATRIX'])['include']}
-          infrastructure = {'vault', 'monitoring', 'log-agent'}
+          infrastructure = {'vault', 'monitoring', 'log-agent', 'node-agent'}
           unknown = selected - set(catalog) - infrastructure
           if unknown:
               raise SystemExit('Selected services have no image contract: ' + ', '.join(sorted(unknown)))
