@@ -69,7 +69,7 @@ private fun requireDbCredentials(appConfig: AppConfig) {
 
 private fun loadConfig(): JsonObject {
     val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
-    val profile = System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
+    val profile = System.getenv("APP_CONFIG_PROFILE") ?: System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
 
     log.info("Fetch configuration for profile={}", profile)
     val serverConfig = fetchFromConfigServer(configServerUrl, profile)
@@ -104,6 +104,13 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "EUREKA_APP_NAME" to "eureka.app-name",
             "EUREKA_INSTANCE_HOST" to "eureka.instance.host",
             "EUREKA_INSTANCE_ID" to "eureka.instance.id",
+            // Slot inputs take precedence over legacy environment names and Config Server values.
+            "DB_HOST" to "preference.db.host",
+            "DB_PORT" to "preference.db.port",
+            "DB_NAME" to "preference.db.database",
+            "DB_USERNAME" to "preference.db.username",
+            "DB_PASSWORD" to "preference.db.password",
+            "APP_ADVERTISE_ADDRESS" to "eureka.instance.host",
         )
 
     mappings.forEach { (environmentKey, configKey) ->
