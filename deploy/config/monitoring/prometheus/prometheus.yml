@@ -81,6 +81,9 @@ scrape_configs:
   # ── 인프라 Exporter (Docker 내부 고정 서비스) ──
   - job_name: infrastructure
     static_configs:
+      - targets: ['node_exporter:9100']
+        labels:
+          service: host
       - targets: ['mysqld_exporter:9104']
         labels:
           service: mysql

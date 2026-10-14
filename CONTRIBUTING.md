@@ -253,7 +253,7 @@ val count = teams.size
 
 ## Code Formatting
 
-`.editorconfig` is the source of truth for editor settings. It specifies four spaces and, for Kotlin, a 120-character limit and the `intellij_idea` KtLint style. Kotlin import layout follows that style; do not add arbitrary blank groups. Wildcard-import and property-naming checks are disabled in the current KtLint configuration. Import types instead of writing fully qualified type names inline, as required by `.claude/rules/fail-safe.md`.
+`.editorconfig` is the source of truth for editor settings. It specifies four spaces and, for Kotlin, a 120-character limit and the `intellij_idea` KtLint style. Kotlin import layout follows that style; do not add arbitrary blank groups. Wildcard-import and property-naming checks are disabled in the current KtLint configuration. Import types instead of writing fully qualified type names inline, as required by `.claude/rules/jvm-conventions.md`.
 
 Run commands from the repository root:
 
@@ -265,7 +265,7 @@ Run commands from the repository root:
 | Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Java roadmap                                                     | `./gradlew :cowork-roadmap:spotlessCheck`                    | `./gradlew :cowork-roadmap:spotlessApply`    |
 
-Node modules use XO with four-space indentation and module-specific settings in `xo.config.mjs`. The ESLint adapter reads that same configuration for editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
+`cowork-promotion` runs XO with its default configuration: no `xo.config.mjs`, no inline `eslint-disable` comments, and the default file discovery. `cowork-chat` still carries module-specific settings in `xo.config.mjs`. In both modules the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 

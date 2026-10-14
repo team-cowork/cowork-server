@@ -6,16 +6,16 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
-    "REDIS_HOST": "10.0.0.93",
+    "REDIS_HOST": "10.0.0.145",
     "REDIS_PORT": "6379",
     "S3_BUCKET": "cowork-bucket",
-    "S3_INTERNAL_ENDPOINT": "http://10.0.0.93:9000",
+    "S3_INTERNAL_ENDPOINT": "http://cowork-user-storage:9000",
     "S3_REGION": "us-east-1",
-    "DB_HOST": "10.0.0.93",
+    "DB_HOST": "cowork-user-db",
     "DB_PORT": "3306",
-    "DB_USERNAME": "cowork",
+    "DB_USERNAME": "cowork_user",
     "DB_NAME": "cowork_user"
   },
   "secrets": {
@@ -31,6 +31,14 @@
       "DB_PASSWORD": {
         "path": "slot-secrets/user",
         "key": "DB_PASSWORD"
+      },
+      "S3_ACCESS_KEY": {
+        "path": "slot-secrets/user",
+        "key": "S3_ACCESS_KEY"
+      },
+      "S3_SECRET_KEY": {
+        "path": "slot-secrets/user",
+        "key": "S3_SECRET_KEY"
       }
     }
   },

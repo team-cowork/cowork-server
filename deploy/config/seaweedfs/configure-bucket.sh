@@ -8,10 +8,14 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 sh "$script_dir/render-cors.sh" > "$work_dir/cors.json"
+if [ -n "${S3_BUCKET_POLICY_FILE:-}" ]; then
+    cp "$S3_BUCKET_POLICY_FILE" "$work_dir/policy.json"
+    cp "${S3_BUCKET_LIFECYCLE_FILE:?S3_BUCKET_LIFECYCLE_FILE is required}" "$work_dir/lifecycle.json"
+else
 cat > "$work_dir/policy.json" <<POLICY
 {"Version":"2012-10-17","Statement":[
   {"Sid":"PublicTeamIconRead","Effect":"Allow","Principal":"*","Action":"s3:GetObject","Resource":"arn:aws:s3:::$S3_BUCKET/team-icons/*"},
-  {"Sid":"DenyServiceAclChanges","Effect":"Deny","Principal":{"AWS":["arn:aws:iam::cowork-team:user/cowork-team","arn:aws:iam::cowork-user:user/cowork-user","arn:aws:iam::cowork-chat:user/cowork-chat"]},"Action":["s3:PutObjectAcl","s3:PutBucketAcl"],"Resource":["arn:aws:s3:::$S3_BUCKET","arn:aws:s3:::$S3_BUCKET/*"]}
+  {"Sid":"DenyServiceAclChanges","Effect":"Deny","Principal":{"AWS":["arn:aws:iam::000000000000:user/cowork-team","arn:aws:iam::000000000000:user/cowork-user","arn:aws:iam::000000000000:user/cowork-chat"]},"Action":["s3:PutObjectAcl","s3:PutBucketAcl"],"Resource":["arn:aws:s3:::$S3_BUCKET","arn:aws:s3:::$S3_BUCKET/*"]}
 ]}
 POLICY
 cat > "$work_dir/lifecycle.json" <<'LIFECYCLE'
@@ -21,6 +25,7 @@ cat > "$work_dir/lifecycle.json" <<'LIFECYCLE'
   {"ID":"ExpireTemporaryChatAttachments","Status":"Enabled","Filter":{"Prefix":"chat-uploads/"},"Expiration":{"Days":1}}
 ]}
 LIFECYCLE
+fi
 s3api() { aws --endpoint-url "$S3_INTERNAL_ENDPOINT" s3api "$@"; }
 if ! s3api head-bucket --bucket "$S3_BUCKET" >/dev/null 2>&1; then
     s3api create-bucket --bucket "$S3_BUCKET"
