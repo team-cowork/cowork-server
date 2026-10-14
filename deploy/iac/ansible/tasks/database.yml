@@ -1,0 +1,76 @@
+---
+- name: Manage The Module Database As An Independent Infrastructure Unit
+  become: true
+  vars:
+    database_source: /root/cowork-iac/database-source
+    database_catalog: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/iac/databases/catalog.json') | from_json }}"
+    database_slot: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/prod/slots/' ~ cowork_database_module ~ '.json') | from_json }}"
+    database_network: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/prod/network/host-network.json') | from_json }}"
+    database_monitoring: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/prod/slots/monitoring.json') | from_json }}"
+  block:
+    - name: Create The Administrator Source Directories
+      ansible.builtin.file:
+        path: "{{ database_source }}/{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      loop:
+        - deploy/iac/databases
+        - deploy/prod/slots
+        - deploy/prod/network
+    - name: Install The Reviewed Database Implementation
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/iac/databases/"
+        dest: "{{ database_source }}/deploy/iac/databases/"
+        owner: root
+        group: root
+        mode: '0600'
+        directory_mode: '0700'
+    - name: Install The Database Network And Slot Inputs
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/prod/{{ item }}"
+        dest: "{{ database_source }}/deploy/prod/{{ item }}"
+        owner: root
+        group: root
+        mode: '0600'
+      loop:
+        - slots.py
+        - "slots/{{ cowork_database_module }}.json"
+        - slots/monitoring.json
+        - network/host-network.json
+    - name: Install The Persistent Database Firewall
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/iac/databases/{{ item.source }}"
+        dest: "{{ item.destination }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop:
+        - source: firewall.py
+          destination: /usr/local/libexec/cowork-module-database-firewall.py
+        - source: firewall.service
+          destination: /etc/systemd/system/cowork-module-database-firewall.service
+    - name: Restrict Database Traffic To The Local Bridge And Metrics To Monitoring
+      ansible.builtin.command:
+        argv: [/usr/bin/python3, -I, /usr/local/libexec/cowork-module-database-firewall.py, apply]
+        stdin: "{{ {'network': database_network.name, 'bind_ip': database_slot.container.advertise_address, 'monitoring_ip': database_monitoring.runtime.MONITORING_BIND_IP, 'database_port': database_slot.runtime.DB_PORT | int, 'exporter_port': database_catalog[cowork_database_module].exporter.port} | to_json }}"
+      changed_when: true
+    - name: Enable Database Firewall Restoration Before Docker
+      ansible.builtin.systemd_service:
+        name: cowork-module-database-firewall.service
+        daemon_reload: true
+        enabled: true
+        state: started
+    - name: Reconcile The Database Volume And Accounts Without Resetting Data
+      ansible.builtin.command:
+        argv:
+          - /usr/bin/python3
+          - "{{ database_source }}/deploy/iac/databases/runtime.py"
+          - apply
+          - "{{ cowork_database_module }}"
+          - --directory
+          - "/root/cowork-iac/databases/{{ cowork_database_module }}"
+        stdin: "{{ lookup('ansible.builtin.file', cowork_database_settings_file) }}"
+      no_log: true
+      changed_when: true
