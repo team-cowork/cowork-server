@@ -80,6 +80,41 @@ for slot in application_slots:
         "targets": [f'http://{address}:{container["host_port"]}{container["readiness"]["path"]}'],
         "labels": {"service": slot["service"]},
     })
+shared_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/shared/catalog.json").read_text()
+)
+livekit_address = shared_catalog["livekit"]["bind_ip"]
+if not private_ipv4(livekit_address):
+    raise ValueError("LiveKit monitoring must use its private VM address")
+probe_targets.append({
+    "targets": [f"http://{livekit_address}:7880/"],
+    "labels": {"service": "livekit"},
+})
+storage_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/storage/catalog.json").read_text()
+)
+for module in sorted(storage_catalog):
+    slot = json.loads((slots_directory / f"{module}.json").read_text())
+    address = slot["container"]["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Storage monitoring must use its module's private VM address")
+    probe_targets.append({
+        "targets": [f"http://{address}:9000/readyz"],
+        "labels": {"service": "storage", "module": module},
+    })
+database_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/databases/catalog.json").read_text()
+)
+database_targets = []
+for module, database in sorted(database_catalog.items()):
+    slot = json.loads((slots_directory / f"{module}.json").read_text())
+    address = slot["container"]["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Database exporter targets must use private IPv4 addresses")
+    database_targets.append({
+        "targets": [f'{address}:{database["exporter"]["port"]}'],
+        "labels": {"service": database["engine"], "module": module},
+    })
 service_labels = [
     {"source_labels": ["__meta_eureka_app_name"], "target_label": "service", "regex": "COWORK-(.*)", "replacement": "${1}"},
     {"source_labels": ["service"], "target_label": "service", "action": "lowercase"},
@@ -134,12 +169,10 @@ scrape_configs = [
     }] if host_target_configs else []),
     {
         "job_name": "infrastructure",
-        "static_configs": [
+        "static_configs": database_targets + [
             {"targets": [target], "labels": {"service": service}}
             for service, target in [
-                ("mysql", "mysqld_exporter:9104"), ("redis", "redis_exporter:9121"),
-                ("kafka", "kafka_exporter:9308"), ("postgres", "postgres_exporter:9187"),
-                ("mongodb", "mongodb_exporter:9216"),
+                ("redis", "redis_exporter:9121"), ("kafka", "kafka_exporter:9308"),
             ]
         ],
     },
@@ -174,4 +207,24 @@ expected_rules = {
         for slot in application_slots
     ]}]
 }
+health_metrics = {"mysql": "mysql_up", "postgres": "pg_up", "mongodb": "mongodb_up"}
+database_rules = []
+for module, database in sorted(database_catalog.items()):
+    engine = database["engine"]
+    selector = f'{{job="infrastructure",service="{engine}",module="{module}"}}'
+    database_rules.append({
+        "alert": "coworkDatabaseMetricsMissing",
+        "expr": (
+            f'absent(up{selector}) or '
+            f'(up{selector} == 1 unless on (instance, job, service, module) '
+            f'{health_metrics[engine]}{selector})'
+        ),
+        "for": "3m",
+        "labels": {"severity": "critical", "service": engine, "module": module},
+        "annotations": {
+            "summary": "Declared module database metrics are missing",
+            "description": f"Module {module} has no {engine} exporter target or database health metric.",
+        },
+    })
+expected_rules["groups"].append({"name": "cowork-expected-databases", "rules": database_rules})
 Path(sys.argv[1] + ".rules.json").write_text(json.dumps(expected_rules, indent=2) + "\n")

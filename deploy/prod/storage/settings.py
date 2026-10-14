@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the shared storage routing contract without making network requests."""
+"""Validate public storage routing settings without making network requests."""
 import ipaddress
 import os
 import re
@@ -31,7 +31,6 @@ def origin(name, public=False):
 
 
 def main():
-    origin("S3_INTERNAL_ENDPOINT")
     origin("PUBLIC_API_BASE_URL", public=True)
     bucket = os.environ["S3_BUCKET"]
     if not re.fullmatch(r"[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]", bucket):
