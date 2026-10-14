@@ -1,20 +1,13 @@
 ---
 paths:
-  - "**/*.kt"
-  - "**/*.java"
-  - "**/*.go"
-  - "**/*.ts"
-  - "**/*.ex"
-  - "**/*.exs"
-  - "docker-compose*.yml"
+  - "cowork-*/**/*.{kt,java,go,ts,ex,exs}"
   - "deploy/compose/*.yaml"
-  - "deploy/prod/**/*.yaml"
+  - "deploy/prod/{slots/**,network/**,storage/firewall*,**/compose.yaml}"
+  - "deploy/iac/{ansible/**,policy/**}"
 ---
 
-# Security Rules
+# Security
 
-- Never parse or validate JWT outside `cowork-gateway`. Read the caller's identity from the Gateway-forwarded `X-User-Id` (Long) and `X-User-Role` (`ADMIN` | `MEMBER`) headers instead.
-  - The one documented exception is `cowork-chat`'s WebSocket handshake (`src/chat/chat.gateway.ts`); do not extend it to HTTP routes.
-- Treat those headers as authenticated input, but still authorize: having a valid `X-User-Id` does not mean that user may touch the requested team, project, or channel.
-- Don't add per-service HTTP CORS configuration — CORS is handled at the Gateway. The documented `cowork-chat` WebSocket handshake also owns its CORS configuration; do not extend that exception to HTTP routes.
-- Production deployments bind downstream ports to the VM's private address and restrict access to the Gateway and trusted operational peers with host/cloud firewall rules. External application HTTP traffic enters through the Gateway.
+- Validate Cowork access JWTs at Gateway. Downstream HTTP handlers use its `X-User-Id` and `X-User-Role` headers and enforce resource-level authorization. Chat's WebSocket handshake is the only access-JWT validation exception; do not extend it to HTTP routes.
+- Gateway owns HTTP CORS; Chat owns WebSocket CORS.
+- Public application APIs enter through Gateway. Bind downstream ports to private VM addresses and restrict peers with firewalls. Preserve explicitly configured ingress for signed external webhooks.
