@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Create least-privilege exporter accounts on the DB VM from a private stdin document."""
+import ipaddress
 import json
 import os
 import re
@@ -20,16 +21,17 @@ def execute(engine, args, content, environment=None):
 def main():
     settings = json.load(sys.stdin)
     admin, monitoring = settings['datastores'], settings['monitoring']
+    monitoring_ip = ipaddress.IPv4Address(monitoring['MONITORING_BIND_IP'])
     passwords = {'mysql': monitoring['MYSQL_EXPORTER_PASSWORD'],
                  'postgres': urlsplit(monitoring['POSTGRES_EXPORTER_DSN']).password,
                  'mongodb': urlsplit(monitoring['MONGO_EXPORTER_URI']).password}
     if not all(isinstance(value, str) and re.fullmatch(r'[a-f0-9]{48}', value) for value in passwords.values()):
         raise ValueError('Bootstrap exporter passwords must be 24-byte hexadecimal values')
     password = passwords['mysql']
-    sql = f"""CREATE USER IF NOT EXISTS 'cowork_monitoring'@'10.0.0.137' IDENTIFIED BY '{password}';
-ALTER USER 'cowork_monitoring'@'10.0.0.137' IDENTIFIED BY '{password}' WITH MAX_USER_CONNECTIONS 3;
-REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'cowork_monitoring'@'10.0.0.137';
-GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'cowork_monitoring'@'10.0.0.137';
+    sql = f"""CREATE USER IF NOT EXISTS 'cowork_monitoring'@'{monitoring_ip}' IDENTIFIED BY '{password}';
+ALTER USER 'cowork_monitoring'@'{monitoring_ip}' IDENTIFIED BY '{password}' WITH MAX_USER_CONNECTIONS 3;
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'cowork_monitoring'@'{monitoring_ip}';
+GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'cowork_monitoring'@'{monitoring_ip}';
 """
     execute('MySQL', ['docker', 'exec', '-i', '--env', 'MYSQL_PWD', 'cowork-mysql', 'mysql', '-u', 'root'],
             sql, {'MYSQL_PWD': admin['mysql']['root_password']})
