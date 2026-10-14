@@ -32,7 +32,7 @@ class ControlPlaneAccounts(environment: Environment) {
         require(
             parsed.all {
                 USERNAME.matches(it.username) && HASH.matches(it.passwordHash) &&
-                    it.application in APPLICATIONS && it.profile == profiles.single()
+                    it.application in APPLICATIONS && it.profile in setOf("local", "prod")
             },
         ) { "Invalid Config Server account, hash, application or profile" }
         require(parsed.map { it.username }.distinct().size == parsed.size) { "Duplicate Config Server username" }

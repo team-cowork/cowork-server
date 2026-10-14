@@ -19,6 +19,7 @@ def main():
     for name in ("service", "target", "sha", "owner", "action"):
         parser.add_argument(name)
     parser.add_argument("--release-directory", type=Path)
+    parser.add_argument("--image-sha", help="Reuse an existing image with the selected release configuration")
     args = parser.parse_args()
     service, target, sha, owner, action = args.service, args.target, args.sha, args.owner, args.action
     tools_directory = Path(__file__).resolve().parent
@@ -26,6 +27,8 @@ def main():
     demand = schema["demand"]
     demand(schema["NAME"].fullmatch(target), "Invalid deployment target")
     demand(re.fullmatch(r"[0-9a-f]{40}", sha), "Invalid release SHA")
+    image_sha = args.image_sha or sha
+    demand(re.fullmatch(r"[0-9a-f]{40}", image_sha), "Invalid image SHA")
     demand(re.fullmatch(r"[a-z0-9][a-z0-9-]*", owner), "Invalid image owner")
     home = Path.home()
     release_directory = args.release_directory or tools_directory.parents[2]
@@ -89,18 +92,19 @@ def main():
         env["DOCKER_CONFIG"] = str(auth_directory)
     runtime = data.get("runtime", {})
     application = data.get("application", {})
+    variables = data.get("variables")
     if slot is not None:
         for section, values in (("runtime", runtime), ("application", application)):
             required = set(slot.get("secrets", {}).get(section, {}))
             if section == "runtime":
                 required.update(slot.get("github_secrets", {}))
-            demand(set(values) == required,
+            demand(required.issubset(values) if variables is not None and section == "application" else set(values) == required,
                    "The snapshot must contain exactly the secret fields declared by this slot")
         demand(not set(runtime).intersection(application), "Duplicate container environment input")
-    desired_environment = slots["environment"](slot) if slot is not None else {}
+    desired_environment = slots["environment"](slot, variables) if slot is not None else {}
     env.update(desired_environment)
     env.update(runtime)
-    env.update(DEPLOY_SHA=sha, DEPLOY_IMAGE_OWNER=owner, DEPLOY_IMAGE_TAG=f"sha-{sha}",
+    env.update(DEPLOY_SHA=sha, DEPLOY_IMAGE_OWNER=owner, DEPLOY_IMAGE_TAG=f"sha-{image_sha}",
                DEPLOY_SETTINGS_DIR=str(snapshot), DEPLOY_TARGET=target,
                DEPLOY_STATE_DIR=str(state))
     with (snapshot / "application.env0").open("xb") as stream:
@@ -121,7 +125,7 @@ def main():
             os.chmod(stream.name, 0o600)
             for argument in slots["container_arguments"](slot, directory):
                 stream.write(argument.encode() + b"\0")
-    (snapshot / "source.json").write_text(json.dumps({"sha": sha, "vault_version": version, "slot_digest": digest,
+    (snapshot / "source.json").write_text(json.dumps({"sha": sha, "image_sha": image_sha, "vault_version": version, "slot_digest": digest,
                                                     "secret_versions": secret_versions}))
     print(f"[deploy] {target}: Vault version {version}", flush=True)
     try:

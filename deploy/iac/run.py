@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import shutil
 import signal
 import subprocess
@@ -12,7 +13,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[2]
 IAC = ROOT / 'deploy/iac'
@@ -80,7 +81,7 @@ def infrastructure_source(path):
                         'deploy/prod/network/', 'deploy/prod/config/', 'deploy/config/monitoring/',
                         'deploy/prod/storage/', 'deploy/config/seaweedfs/', 'deploy/images/elasticsearch/')):
         return True
-    if path in {'deploy/prod/inventory.json', 'deploy/prod/network/host-network.json', 'deploy/prod/services/monitoring.sh',
+    if path in {'deploy/prod/inventory.json', 'deploy/prod/configuration.json', 'deploy/prod/network/host-network.json', 'deploy/prod/services/monitoring.sh',
                 'deploy/prod/services/log-agent.sh', 'deploy/prod/services/node-agent.sh', 'deploy/prod/services/config.sh', 'deploy/compose/stack.yaml'}:
         return True
     return value.parent == Path('deploy/prod') and value.suffix in {'.py', '.sh', '.service'}
@@ -126,44 +127,8 @@ def result_output(value):
 
 
 def vault_identity(env):
-    if env.get('GITHUB_ACTIONS') != 'true':
-        demand(bool(env.get('VAULT_TOKEN')), 'Local apply requires an explicit VAULT_TOKEN')
-        return env
-    address = urlsplit(env['VAULT_ADDR'])
-    demand(address.scheme == 'https' and address.hostname and not address.username and not address.password
-           and not address.query and not address.fragment, 'Vault OIDC requires its canonical HTTPS address')
-    request_url = urlsplit(env.get('ACTIONS_ID_TOKEN_REQUEST_URL', ''))
-    demand(request_url.scheme == 'https' and request_url.hostname and not request_url.username
-           and not request_url.password and not request_url.fragment
-           and bool(env.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN')), 'GitHub OIDC request credentials are unavailable')
-    audience = env['VAULT_ADDR'].rstrip('/')
-    query = [(key, value) for key, value in parse_qsl(request_url.query, keep_blank_values=True) if key != 'audience']
-    query.append(('audience', audience))
-    url = urlunsplit(request_url._replace(query=urlencode(query)))
-
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, req, fp, code, msg, headers, newurl):
-            raise ValueError('Authentication redirects are not allowed')
-
-    opener = urllib.request.build_opener(NoRedirect())
-    try:
-        request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + env['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
-        with opener.open(request, timeout=30) as response:
-            jwt = json.load(response)['value']
-        request = urllib.request.Request(audience + '/v1/auth/github-actions/login',
-                                         data=json.dumps({'role': 'prod-iac', 'jwt': jwt}).encode(),
-                                         headers={'Content-Type': 'application/json'})
-        with opener.open(request, timeout=30) as response:
-            token = json.load(response)['auth']['client_token']
-        demand(isinstance(token, str) and token, 'Vault did not issue an IaC token')
-    except (OSError, ValueError, KeyError, urllib.error.URLError):
-        raise RuntimeError('GitHub OIDC authentication to Vault failed; response bodies were withheld') from None
-    print('::add-mask::' + token.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A'), flush=True)
-    result = {**env, 'VAULT_TOKEN': token}
-    result.pop('ACTIONS_ID_TOKEN_REQUEST_TOKEN', None)
-    result.pop('ACTIONS_ID_TOKEN_REQUEST_URL', None)
-    print('[iac] Authenticated to Vault with the GitHub workload identity')
-    return result
+    authentication = runpy.run_path(str(ROOT / 'deploy/prod/cd/vault-auth.py'))
+    return authentication['authenticate'](env, 'prod-iac')
 
 
 def grafana_environment(path):
@@ -227,16 +192,19 @@ def main():
     parser.add_argument('--check-only', action='store_true')
     parser.add_argument('--automatic', action='store_true')
     parser.add_argument('--initialize-state', action='store_true')
+    parser.add_argument('--settings-targets', help='Apply only these comma-separated infrastructure selectors')
     args = parser.parse_args()
     demand(re.fullmatch(r'[0-9a-f]{40}', args.sha), 'A full release commit is required')
     head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     demand(head == args.sha, 'Checkout must match the exact release SHA')
     demand(not args.initialize_state or not (args.automatic or args.check_only),
            'State initialization is only available to an explicit manual apply')
+    demand(args.settings_targets is None or not (args.automatic or args.initialize_state),
+           'A settings apply cannot request a full automatic apply or Terraform state initialization')
     work = args.work_directory
     demand(work.is_absolute() and not work.is_symlink() and not work.exists() and not work.resolve().is_relative_to(ROOT),
            'The private work directory must be a new absolute path outside the checkout')
-    if not args.check_only:
+    if not args.check_only and args.settings_targets is None:
         demand(args.recovery_file is not None and args.recovery_file.is_absolute()
                and not args.recovery_file.resolve().is_relative_to(ROOT)
                and not args.recovery_file.resolve().is_relative_to(work.resolve()),
@@ -255,21 +223,33 @@ def main():
         for source in ('databases/runtime.py', 'databases/search.py', 'shared/runtime.py', 'storage/runtime.py'):
             execute([sys.executable, IAC / source, 'check'], env)
         execute(['ansible-playbook', '-i', IAC / 'inventory.example.yml', IAC / 'ansible/site.yml', '--syntax-check'], env)
-        validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
-        execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)
-        execute(['terraform', f'-chdir={IAC / "terraform"}', 'init', '-backend=false', '-input=false', '-lockfile=readonly'], validation_env)
-        execute(['terraform', f'-chdir={IAC / "terraform"}', 'validate'], validation_env)
+        if args.settings_targets is None:
+            validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
+            execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)
+            execute(['terraform', f'-chdir={IAC / "terraform"}', 'init', '-backend=false', '-input=false', '-lockfile=readonly'], validation_env)
+            execute(['terraform', f'-chdir={IAC / "terraform"}', 'validate'], validation_env)
         if args.check_only:
             print('[iac] Static validation passed. No Vault read, SSH connection, host apply, Terraform plan or deployment occurred.')
             result_output('checked')
             return
-        for key in ('VAULT_ADDR', 'DISCORD_MONITORING_ALERT_WEBHOOK', 'IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'):
+        required = ['VAULT_ADDR']
+        if args.settings_targets is None:
+            required.extend(('IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'))
+        for key in required:
             demand(bool(env.get(key)), f'{key} is required for an infrastructure apply')
         env = vault_identity(env)
         inputs = work / 'inputs'
-        execute([sys.executable, IAC / 'scripts/prepare.py', '--sha', args.sha, '--output', inputs], env)
-        execute([IAC / 'apply.sh', 'hosts'], {**env, 'IAC_INVENTORY': str(inputs / 'inventory.json')})
+        command = [sys.executable, IAC / 'scripts/prepare.py', '--sha', args.sha, '--output', inputs]
+        if args.settings_targets is not None:
+            command.extend(('--settings-targets', args.settings_targets))
+        execute(command, env)
         metadata = json.loads((inputs / 'metadata.json').read_text())
+        if metadata['host_count']:
+            execute([IAC / 'apply.sh', 'hosts'], {**env, 'IAC_INVENTORY': str(inputs / 'inventory.json')})
+        if args.settings_targets is not None:
+            print(f'[iac] Applied selected settings on {metadata["host_count"]} hosts; persistent data retained')
+            result_output('applied')
+            return
         alias = metadata['monitoring_ssh_alias']
         demand(re.fullmatch(r'cowork-iac-[a-z][a-z0-9-]*', alias), 'Invalid monitoring SSH alias')
         tunnel = subprocess.Popen([
