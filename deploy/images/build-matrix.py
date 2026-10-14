@@ -32,7 +32,7 @@ def affected(service, paths):
             return True
         if path.startswith(f"cowork-{service}/"):
             return True
-        # All production Dockerfiles have a root context. Shared build input changes
+        # All Dockerfiles have a root context. Shared build input changes
         # conservatively select every image; the selected Dockerfile owns its toolchain.
         if "/" not in path or path in SHARED_FILES or path.startswith(("gradle/", "build-logic/", "scripts/")) or (
             path.startswith("cowork-") and path.endswith(("/build.gradle.kts", "/build.gradle"))
@@ -50,10 +50,12 @@ def matrix(environments, paths=None):
     ]}
 
 
-def verification_matrix(paths=None):
+def verification_matrix(environments, paths=None):
     return {"include": [
-        {"service": dockerfile.parent.name.removeprefix("cowork-"), "dockerfile": str(dockerfile.relative_to(ROOT))}
-        for dockerfile in sorted(ROOT.glob("cowork-*/Dockerfile.prod"))
+        {"service": dockerfile.parent.name.removeprefix("cowork-"), "environment": environment,
+         "dockerfile": str(dockerfile.relative_to(ROOT))}
+        for environment in environments
+        for dockerfile in sorted(ROOT.glob(f"cowork-*/Dockerfile.{environment}"))
         if paths is None or affected(dockerfile.parent.name.removeprefix("cowork-"), paths)
     ]}
 
@@ -71,7 +73,7 @@ def main():
             ["git", "diff", "--name-only", "--no-renames", "-z", f"{args.base}...{args.head}"],
         ).decode().rstrip("\0").split("\0")
     environments = ("local", "prod") if args.environment == "all" else (args.environment,)
-    selected = verification_matrix(paths) if args.verify else matrix(environments, paths)
+    selected = verification_matrix(environments, paths) if args.verify else matrix(environments, paths)
     result = json.dumps(selected, separators=(",", ":"))
     print(result)
     if "GITHUB_OUTPUT" in os.environ:
