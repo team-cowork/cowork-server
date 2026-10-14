@@ -127,7 +127,9 @@ scrape_configs = [
         ],
     },
     *([{
-        "job_name": "cowork-hosts",
+        # Not prefixed "cowork-": coworkServiceDown already matches up{job=~"cowork-.*"} == 0, and
+        # a dead node_exporter isn't a cowork service outage — it's covered by coworkInfrastructureScrapeFailed instead.
+        "job_name": "hosts",
         "static_configs": host_target_configs,
     }] if host_target_configs else []),
     {
