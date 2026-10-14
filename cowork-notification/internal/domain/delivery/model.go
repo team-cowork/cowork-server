@@ -1,7 +1,6 @@
 // Package delivery tracks the durable, per-(event, installation) FCM delivery
 // ledger that lets a retryable individual send failure be retried without
-// resending to installations that already reached a terminal outcome. See
-// docs/todo/items/33-reliability/fcm-partial-failure-retry.md for the contract.
+// resending to installations that already reached a terminal outcome.
 package delivery
 
 import "time"
