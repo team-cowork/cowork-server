@@ -32,7 +32,7 @@ JWT_SECRET JWT_ACCESS_EXPIRE JWT_REFRESH_EXPIRE
 VAULT_EXTERNAL_HOST VAULT_PORT VAULT_BACKEND VAULT_TOKEN VAULT_BIND_IP VAULT_DATA_VOLUME VAULT_COMPOSE_PROJECT VAULT_UNSEAL_KEY
 VAULT_APP_ROLE_PATH VAULT_ROLE_ID VAULT_SECRET_ID
 MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORING_VOLUME_PREFIX
-GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
+GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
 KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
 DB_PASSWORD GITHUB_APP_INTERNAL_API_KEY
@@ -158,7 +158,7 @@ def main():
     parser.add_argument("--profile", choices=("base", "local", "prod"), default="base")
     parser.add_argument("--version", type=int, default=0)
     parser.add_argument("--expected-version", type=int)
-    parser.add_argument("--slot-directory", type=Path, default=Path(__file__).with_name("slots"))
+    parser.add_argument("--slot-directory", type=Path, default=Path(__file__).resolve().parents[1] / "slots")
     args = parser.parse_args()
     demand(NAME.fullmatch(args.target), "Invalid target name")
     mount = os.environ.get("VAULT_KV_MOUNT", "secret")
@@ -172,15 +172,15 @@ def main():
         demand(args.action == "update", "Slot secrets are resolved through their declared deployment slot")
         path = f"slot-secrets/{args.target}"
     else:
-        services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")} | {
-            json.loads(p.read_text())["service"] for p in Path(__file__).with_name("slots").glob("*.json")}
+        services = {p.stem for p in (Path(__file__).resolve().parents[1] / "services").glob("*.sh")} | {
+            json.loads(p.read_text())["service"] for p in (Path(__file__).resolve().parents[1] / "slots").glob("*.json")}
         demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
     api_path = f"{mount}/data/{path}"
     slot_path = args.slot_directory / f"{args.target}.json"
-    slot = runpy.run_path(str(Path(__file__).with_name("slots.py")))["load"](args.target, args.slot_directory) if slot_path.is_file() else None
+    slot = runpy.run_path(str(Path(__file__).resolve().parents[1] / "slots.py"))["load"](args.target, args.slot_directory) if slot_path.is_file() else None
     if args.action == "update":
         demand(args.expected_version is not None and args.expected_version >= 0, "Expected KV version is required (0 creates only)")
         data = parse_json(os.environ["VAULT_UPDATE_JSON"])
