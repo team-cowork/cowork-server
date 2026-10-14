@@ -351,7 +351,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: python3 .deployment-tools/deploy/prod/build-matrix.py
+        run: python3 .deployment-tools/deploy/prod/cd/build-matrix.py
 
   deployment-plan:
     needs: [prepare, build-images, release, detect-changes, manual-request]
@@ -536,6 +536,8 @@ jobs:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
+          DISCORD_MONITORING_ALERT_WEBHOOK: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
+          # Manual replay executes the selected release's IaC, including older input names.
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -695,7 +697,7 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
         run: |
           set -euo pipefail
-          python3 deploy/prod/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
+          python3 deploy/prod/cd/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
             --profile "$PROFILE" --expected-version "$EXPECTED_VERSION"
 
   notify:
