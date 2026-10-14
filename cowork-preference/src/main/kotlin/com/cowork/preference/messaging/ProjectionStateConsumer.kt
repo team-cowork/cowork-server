@@ -52,7 +52,7 @@ class ProjectionStateConsumer(
     private val assignmentBlocked = AtomicBoolean(true)
     private val applyBlocked = AtomicBoolean(false)
     private val checkpointRangeBlocked = AtomicBoolean(false)
-    private var assignmentScope: CoroutineScope? = null
+    private var assignment: Assignment? = null
 
     @Volatile
     private var assignedTopicId: String? = null
@@ -93,7 +93,7 @@ class ProjectionStateConsumer(
         }
         consumer.partitionsRevokedHandler { partitions ->
             if (closed || !consumerJob.isActive) return@partitionsRevokedHandler
-            assignmentScope?.coroutineContext?.get(Job)?.cancel()
+            assignment?.scope?.coroutineContext?.get(Job)?.cancel()
             assignmentBlocked.set(true)
             assignedTopicId = null
             readiness.markInitializing("Kafka partition rebalance in progress")
@@ -105,12 +105,21 @@ class ProjectionStateConsumer(
         consumer.batchHandler { records ->
             // Initialization seeks back to the database checkpoint, so pre-seek batches must be discarded.
             if (closed || assignmentBlocked.get() || checkpointRangeBlocked.get()) return@batchHandler
-            val assignedScope = assignmentScope?.takeIf { it.isActive } ?: return@batchHandler
-            consumer.pause()
-            assignedScope.launch {
+            val currentAssignment = assignment?.takeIf { it.scope.isActive } ?: return@batchHandler
+            if (!currentAssignment.acceptingBatches) {
+                // Leave checkpoints unchanged and recover these prefetched records by seeking before resume.
+                currentAssignment.replayRequired = true
+                return@batchHandler
+            }
+            currentAssignment.acceptingBatches = false
+            currentAssignment.scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                retry("pause assigned Kafka partitions while applying records") {
+                    awaitConsumerOperation { consumer.pause(currentAssignment.partitions) }
+                }
+                if (checkpointRangeBlocked.get()) return@launch
                 processBatchWithRetry(records)
-                currentCoroutineContext().ensureActive()
-                consumer.resume()
+                if (checkpointRangeBlocked.get()) return@launch
+                resumeAssignment(currentAssignment)
             }
         }
 
@@ -141,16 +150,19 @@ class ProjectionStateConsumer(
 
     private fun initializeAssignedPartitions(partitions: Set<TopicPartition>) {
         if (closed || !consumerJob.isActive) return
-        val previousJob = assignmentScope?.coroutineContext?.get(Job)
+        val previousJob = assignment?.scope?.coroutineContext?.get(Job)
         previousJob?.cancel()
-        val assignedScope = CoroutineScope(consumerScope.coroutineContext + Job(consumerJob))
-        assignmentScope = assignedScope
+        val currentAssignment = Assignment(
+            partitions.toSet(),
+            CoroutineScope(consumerScope.coroutineContext + Job(consumerJob)),
+        )
+        assignment = currentAssignment
         assignmentBlocked.set(true)
         applyBlocked.set(false)
         assignedTopicId = null
         readiness.markInitializing("initializing Kafka partition checkpoints")
         consumer.resume()
-        assignedScope.launch(start = CoroutineStart.UNDISPATCHED) {
+        currentAssignment.scope.launch(start = CoroutineStart.UNDISPATCHED) {
             // Enter the drain before dispatch so successive reassignments cannot skip an older worker's cleanup.
             withContext(NonCancellable) { previousJob?.join() }
             currentCoroutineContext().ensureActive()
@@ -159,11 +171,7 @@ class ProjectionStateConsumer(
             assignmentBlocked.set(false)
             readiness.markInitialized()
             refreshReadiness()
-            if (!checkpointRangeBlocked.get()) {
-                retry("resume initialized Kafka projection partitions") {
-                    awaitConsumerOperation { consumer.resume(partitions) }
-                }
-            }
+            resumeAssignment(currentAssignment)
             while (true) {
                 delay(READINESS_REFRESH_INTERVAL_MS)
                 refreshReadiness()
@@ -208,6 +216,7 @@ class ProjectionStateConsumer(
         }
         if (!rangeIsValid) return
         for (index in 0 until records.size()) {
+            if (checkpointRangeBlocked.get()) return
             processWithRetry(records.recordAt(index))
         }
     }
@@ -233,11 +242,15 @@ class ProjectionStateConsumer(
         val partition = TopicPartition(record.topic(), record.partition())
         while (true) {
             currentCoroutineContext().ensureActive()
+            if (checkpointRangeBlocked.get()) return
             val checkpoint = checkpoint(record.partition(), record.offset() + 1)
             try {
                 processRecord(checkpoint, record)
+                if (checkpointRangeBlocked.get()) return
                 retry("align consumer position with database checkpoint") {
+                    if (checkpointRangeBlocked.get()) return@retry
                     awaitConsumerOperation { consumer.seek(partition, checkpoint.nextOffset) }
+                    Unit
                 }
                 applyBlocked.set(false)
                 return
@@ -245,6 +258,7 @@ class ProjectionStateConsumer(
                 throw error
             } catch (error: Throwable) {
                 currentCoroutineContext().ensureActive()
+                if (checkpointRangeBlocked.get()) return
                 applyBlocked.set(true)
                 readiness.markUnavailable("$topic projection apply failed")
                 log.error(
@@ -255,8 +269,11 @@ class ProjectionStateConsumer(
                     error,
                 )
                 retry("rewind consumer position after failed projection apply") {
+                    if (checkpointRangeBlocked.get()) return@retry
                     awaitConsumerOperation { consumer.seek(partition, record.offset()) }
+                    Unit
                 }
+                if (checkpointRangeBlocked.get()) return
                 delay(RETRY_DELAY_MS)
             }
         }
@@ -341,6 +358,52 @@ class ProjectionStateConsumer(
         if (assignments.isNotEmpty()) awaitConsumerOperation { consumer.pause(assignments) }
     }
 
+    private suspend fun restoreCheckpointPositions(currentAssignment: Assignment) {
+        retry("restore prefetched Kafka records from database checkpoints") {
+            val checkpoints = checkpointRepository.load(groupId, topic)
+            currentCoroutineContext().ensureActive()
+            val topicState = topicIdentity.topicState(topic)
+            currentCoroutineContext().ensureActive()
+            if (checkpointRangeBlocked.get()) return@retry
+            if (topicState.topicId != assignedTopicId || hasRangeViolation(checkpoints, topicState)) {
+                checkpointRangeBlocked.set(true)
+                readiness.markUnavailable("database checkpoint is outside the retained Kafka range")
+                return@retry
+            }
+            for (partition in currentAssignment.partitions.sortedBy(TopicPartition::getPartition)) {
+                if (checkpointRangeBlocked.get()) return@retry
+                val checkpoint = requireNotNull(checkpoints[partition.partition])
+                awaitConsumerOperation { consumer.seek(partition, checkpoint.nextOffset) }
+            }
+            currentAssignment.replayRequired = false
+        }
+    }
+
+    private suspend fun resumeAssignment(currentAssignment: Assignment) {
+        var pauseBeforeResume = false
+        retry("resume assigned Kafka projection partitions") {
+            if (pauseBeforeResume) {
+                awaitConsumerOperation { consumer.pause(currentAssignment.partitions) }
+            }
+            if (checkpointRangeBlocked.get()) return@retry
+            if (currentAssignment.replayRequired) restoreCheckpointPositions(currentAssignment)
+            if (checkpointRangeBlocked.get()) return@retry
+            pauseBeforeResume = true
+            awaitConsumerOperation {
+                consumer.resume(currentAssignment.partitions).onSuccess {
+                    // Native resume completion runs before the same worker's next poll delivers a batch.
+                    if (
+                        assignment === currentAssignment &&
+                        currentAssignment.scope.isActive &&
+                        !checkpointRangeBlocked.get()
+                    ) {
+                        currentAssignment.acceptingBatches = true
+                    }
+                }
+            }
+        }
+    }
+
     private fun hasRangeViolation(
         checkpoints: Map<Int, ProjectionCheckpoint>,
         topicState: ProjectionTopicState,
@@ -389,5 +452,10 @@ class ProjectionStateConsumer(
     private companion object {
         const val RETRY_DELAY_MS = 1_000L
         const val READINESS_REFRESH_INTERVAL_MS = 1_000L
+    }
+
+    private class Assignment(val partitions: Set<TopicPartition>, val scope: CoroutineScope) {
+        var acceptingBatches = false
+        var replayRequired = false
     }
 }
