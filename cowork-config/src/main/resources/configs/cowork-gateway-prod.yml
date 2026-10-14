@@ -417,8 +417,11 @@ spring:
             - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
 # jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
+# app.dev-origin.credential도 Vault secret/cowork-gateway 에서 주입됨
 
 app:
+  dev-origin:
+    enforce: true
   ws:
     allowed-origins: "${PUBLIC_WEB_ORIGINS}"
 
