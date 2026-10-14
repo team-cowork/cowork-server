@@ -11,9 +11,8 @@ if (gradle.parent != null) {
 }
 def coverageProjectDir = gradle.startParameter.projectProperties['coverageProjectDir']
 def coverageOutput = gradle.startParameter.projectProperties['coverageOutput']
-def coverageTestClasses = gradle.startParameter.projectProperties['coverageTestClasses']
-if (!coverageProjectDir || !coverageOutput || !coverageTestClasses) {
-    throw new GradleException('coverageProjectDir, coverageOutput and coverageTestClasses are required')
+if (!coverageProjectDir || !coverageOutput) {
+    throw new GradleException('coverageProjectDir and coverageOutput are required')
 }
 
 gradle.beforeProject { project ->
@@ -35,10 +34,6 @@ gradle.beforeProject { project ->
         }
         def executionFile = new File(coverageOutput, 'jacoco.exec')
         def testTask = project.tasks.named('test', Test) { test ->
-            test.filter { filter ->
-                coverageTestClasses.split(',').each { filter.includeTestsMatching(it) }
-                filter.failOnNoMatchingTests = true
-            }
             test.ignoreFailures = false
             test.outputs.upToDateWhen { false }
             test.outputs.cacheIf { false }

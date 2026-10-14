@@ -26,7 +26,8 @@ COPY .editorconfig /workspace/.editorconfig
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-config:check -x test --no-daemon --build-cache \
-    && python3 /ci/untested.py /coverage/coverage.json "Control-plane configuration has no selected core-business unit tests."
+    && bash /ci/run-jvm.sh gradle cowork-config /workspace /coverage \
+    && python3 /ci/report.py collect --module cowork-config --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
 COPY --from=verification /coverage /

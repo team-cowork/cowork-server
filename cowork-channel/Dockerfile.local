@@ -27,50 +27,6 @@ COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-channel:check -x test --no-daemon --build-cache \
     && bash /ci/run-jvm.sh gradle cowork-channel /workspace /coverage \
-        com.cowork.channel.domain.channel.service.impl.AddChannelMemberServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.CreateChannelServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.CreateDmServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.DeleteChannelServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.ListProjectChannelsServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.ListTeamChannelsServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.QueryChannelServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.RemoveChannelMemberServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.ReorderTeamChannelsServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.SearchChannelsServiceImplTest \
-        com.cowork.channel.domain.channel.service.impl.UpdateChannelServiceImplTest \
-        com.cowork.channel.domain.channel.service.support.ChannelPermissionSupportTest \
-        com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluatorTest \
-        com.cowork.channel.domain.channelRolePolicy.service.impl.QueryChannelRolePoliciesServiceImplTest \
-        com.cowork.channel.domain.channelRolePolicy.service.impl.UpsertChannelRolePolicyServiceImplTest \
-        com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyAccessSupportTest \
-        com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchemaTest \
-        com.cowork.channel.domain.meetingNote.service.impl.ActivateMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.AddTemplateSectionServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.CreateDefaultMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.CreateMeetingNoteServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.CreateMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.DeleteMeetingNoteServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.DeleteMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.DeleteTemplateSectionServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.GetMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.ListMeetingNoteTemplatesServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.UpdateMeetingNoteServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.UpdateMeetingNoteTemplateServiceImplTest \
-        com.cowork.channel.domain.meetingNote.service.impl.UpdateTemplateSectionServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.BuildOAuthAuthorizeUrlServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.CopySharedAccountCredentialServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.CreateSharedAccountServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.DeleteSharedAccountServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.GetSharedAccountServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.HandleOAuthCallbackServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.ListSharedAccountsServiceImplTest \
-        com.cowork.channel.domain.sharedAccount.service.impl.UpdateSharedAccountServiceImplTest \
-        com.cowork.channel.domain.thread.service.impl.CreateThreadServiceImplTest \
-        com.cowork.channel.domain.thread.service.impl.UpdateThreadServiceImplTest \
-        com.cowork.channel.domain.webhook.service.WebhookAccessGuardTest \
-        com.cowork.channel.domain.webhook.service.impl.CreateWebhookServiceImplTest \
-        com.cowork.channel.domain.webhook.service.impl.DeleteWebhookServiceImplTest \
-        com.cowork.channel.domain.webhook.service.impl.UpdateWebhookServiceImplTest \
     && python3 /ci/report.py collect --module cowork-channel --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify

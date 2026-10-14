@@ -22,16 +22,6 @@ COPY .editorconfig /workspace/.editorconfig
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
-        com.cowork.preference.domain.SettingDefaultsResolverTest \
-        com.cowork.preference.service.AccountOwnershipGuardTest \
-        com.cowork.preference.service.ChannelLifecycleServiceTest \
-        com.cowork.preference.service.ChannelRolePolicyCommandProcessorTest \
-        com.cowork.preference.service.NotificationServiceTest \
-        com.cowork.preference.service.PreferenceServiceTest \
-        com.cowork.preference.service.ProjectRoleServiceTest \
-        com.cowork.preference.service.TeamMembershipGuardTest \
-        com.cowork.preference.service.TeamRoleCommandProcessorTest \
-        com.cowork.preference.service.TeamRoleServiceTest \
     && python3 /ci/report.py collect --module cowork-preference --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify

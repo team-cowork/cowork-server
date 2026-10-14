@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ $# -lt 5 ]]; then
-  echo 'Usage: run-jvm.sh <gradle|maven|kotlin-toolchain> <module> <absolute-source-root> <absolute-output-dir> <core-test-class>...' >&2
+if [[ $# -ne 4 ]]; then
+  echo 'Usage: run-jvm.sh <gradle|maven|kotlin-toolchain> <module> <absolute-source-root> <absolute-output-dir>' >&2
   exit 2
 fi
 
@@ -13,13 +13,6 @@ source_root=$(cd "$3" && pwd -P)
 mkdir -p "$4"
 output=$(cd "$4" && pwd -P)
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
-shift 4
-test_classes=("$@")
-# Exact class identities are supplied by the module Dockerfile, never inferred centrally.
-for test_class in "${test_classes[@]}"; do
-  [[ "$test_class" =~ ^[A-Za-z_][A-Za-z0-9_.]*$ ]] || { echo "Invalid core test class." >&2; exit 2; }
-done
-test_selection=$(IFS=,; printf '%s' "${test_classes[*]}")
 
 case "$runner" in
   gradle|maven|kotlin-toolchain) ;;
@@ -116,7 +109,7 @@ case "$runner" in
     gradle_args=(--no-daemon --console=plain --no-build-cache --no-configuration-cache
       --project-dir "$module_dir"
       --init-script "$script_dir/jacoco.init.gradle"
-      "-PcoverageProjectDir=$module_dir" "-PcoverageOutput=$output" "-PcoverageTestClasses=$test_selection"
+      "-PcoverageProjectDir=$module_dir" "-PcoverageOutput=$output"
       clean coworkCoverageReport)
     bash "$gradle_wrapper" "${gradle_args[@]}"
     validate_tests "$module_dir/build/test-results/test"
@@ -133,7 +126,7 @@ case "$runner" in
     "${maven_command[@]}" --batch-mode --no-transfer-progress \
       -Dmaven.test.skip=false -DskipTests=false -Dmaven.test.failure.ignore=false -DfailIfNoTests=true \
       "-Djacoco.destFile=$output/jacoco.exec" "-Djacoco.dataFile=$output/jacoco.exec" \
-      -Djacoco.append=true "-Dtest=$test_selection" \
+      -Djacoco.append=true \
       clean org.jacoco:jacoco-maven-plugin:0.8.15:prepare-agent \
       test org.jacoco:jacoco-maven-plugin:0.8.15:report
     validate_tests "$module_dir/target/surefire-reports"
@@ -158,11 +151,7 @@ case "$runner" in
       d2b74b20b415163c1f53261e7c5ef4445b788327094208ff821e0c2baf9bc8f1 "$cli"
     cd "$module_dir"
     "$kotlin_cli" clean
-    test_args=()
-    for test_class in "${test_classes[@]}"; do
-      test_args+=("--include-classes=$test_class" "--include-classes=$test_class/*")
-    done
-    "$kotlin_cli" test "${test_args[@]}" --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
+    "$kotlin_cli" test --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
     validate_tests "$module_dir/build/reports"
     # Artifact names use Kotlin Toolchain's module identity, which need not match the directory.
     # The pinned JVM layout gives production artifacts a jvm suffix and tests jvmTest.
