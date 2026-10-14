@@ -16,6 +16,7 @@ SOURCE = Path(__file__).resolve().parent
 DEPLOY = SOURCE.parents[1]
 PROD = DEPLOY / 'prod'
 SECRET_KEYS = {'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_ADMIN_ACCESS_KEY', 'S3_ADMIN_SECRET_KEY'}
+SETTING_KEYS = {'S3_BUCKET', 'S3_REGION', 'PUBLIC_WEB_ORIGINS'}
 DATA_DIRECTORIES = {'seaweedfs': 'data', 'seaweedfs-admin': 'admin-data', 'seaweedfs-lifecycle': 'lifecycle-data'}
 
 
@@ -118,13 +119,20 @@ def apply(module, specification, directory):
     if os.geteuid() != 0:
         raise ValueError('Module storage apply requires root')
     os.umask(0o077)
-    secrets = credentials(json.load(sys.stdin))
+    supplied = json.load(sys.stdin)
+    settings = {key: supplied.pop(key) for key in SETTING_KEYS if key in supplied}
+    if any(not isinstance(value, str) or not value or any(char in value for char in '\r\n\0') for value in settings.values()):
+        raise ValueError('Storage settings must be nonempty single-line strings')
+    secrets = credentials(supplied)
     directory.mkdir(parents=True, exist_ok=True, mode=0o700)
     os.chmod(directory, 0o700)
     with (directory / '.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         slots = runpy.run_path(str(PROD / 'slots.py'))
         slot, gateway, config, monitoring = (slots['load'](name, PROD / 'slots') for name in (module, 'gateway', 'config', 'monitoring'))
+        slot['runtime'].update({key: settings[key] for key in ('S3_BUCKET', 'S3_REGION') if key in settings})
+        if 'PUBLIC_WEB_ORIGINS' in settings:
+            config['runtime']['PUBLIC_WEB_ORIGINS'] = settings['PUBLIC_WEB_ORIGINS']
         network = slots['host_network'](PROD)['name']
         topology = json.loads(run('docker', 'network', 'inspect', network))[0]
         if topology['Driver'] != 'bridge' or topology.get('EnableIPv6') or len(topology['IPAM']['Config']) != 1:
