@@ -2,6 +2,8 @@ server:
   port: 8084
 
 spring:
+  profiles:
+    active: ${APP_CONFIG_PROFILE:${SPRING_PROFILES_ACTIVE:local}}
   cloud:
     config:
       username: ${CONFIG_CLIENT_USERNAME}
