@@ -113,7 +113,8 @@
         "S3_USER_INTERNAL_ENDPOINT": {}
       },
       "secrets": {
-        "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/gateway"}]}
+        "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/gateway"}]},
+        "DEV_ORIGIN_CREDENTIAL": {"writes": [{"path": "cowork-gateway/{profile}", "key": "app.dev-origin.credential"}]}
       }
     },
     "monitoring": {
