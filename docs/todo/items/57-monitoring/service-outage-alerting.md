@@ -1,47 +1,29 @@
-# 서비스 장기 중단 감지와 알림
+# Vault 봉인과 호스트 디스크 부족 감지
 
-- **서비스**: 모니터링, GitHub Actions, 모든 운영 서비스
+- **서비스**: Vault, 모든 운영 VM, monitoring
 - **우선순위**: 🟠 중간
-- **현재 상태**: 등록된 target의 down·5xx·adapter 장애 알림, CD job 결과·상위 CI 결론 표시, 호스트 디스크 부족 감지는 구현되어 있고, 서비스 소실 감지와 Vault seal 관측은 남아 있다.
-- **관련 작업**: [실행 중 릴리스를 보존하는 디스크 정리](../44-deployment/release-retention.md), [서비스 로그 수집 경로와 필드 정규화](../43-monitoring/log-collection-contract.md)
+- **현재 상태**: 슬롯의 서비스 소실 감지와 호스트 디스크 부족 알림은 구현되어 있으며 Vault seal 수집과 알림은 없다.
+- **관련 작업**: [실행 중 릴리스를 보존하는 디스크 정리](../44-deployment/release-retention.md)
 
 ## 문제
 
-기존 `coworkServiceDown`은 `up{job=~"cowork-.*"} == 0`을 검사한다. Eureka에서 제거되어 target 자체가
-사라진 서비스는 이 조건에 걸리지 않는다. 기대 서비스 목록과 실제 발견 목록의 차이를 감지해야 한다.
-Vault seal 전용 관측도 현재 운영 설정에서 확인되지 않는다.
+서비스의 readiness와 기대 target 소실은 슬롯을 기준으로 감지한다. 이 신호만으로 Vault의 봉인이나
+호스트 디스크 부족을 구분할 수는 없다.
 
-CD는 배포 job의 실패·취소를 집계하고, job이 하나도 실행되지 않으면 `cancelled`와 상위 CI 결론을 알린다.
-
-2026-10-02에 기록한 서비스 중단 기간과 디스크 여유 5%는 과거 관측치다.
-이번 점검에서 현재 VM의 가용성과 디스크 사용량은 직접 확인하지 않았다.
-
-## 코드 근거
-
-- [알림 규칙](../../../../deploy/config/monitoring/prometheus/rules/application-alerts.yml): down·5xx·adapter·Kafka lag·DB pool·호스트 filesystem 규칙은 있으나 기대 집합·seal 규칙은 없다.
-- [수집 대상 생성](../../../../deploy/prod/monitoring/render-prometheus.py): 앱 target과 health probe가 Eureka discovery에 의존한다.
-- [CD 결과 집계](../../../../.github/workflows/cowork-prod-cd.yml): `needs.*.result`를 순회하고 전부 `skipped`이면 미실행으로 표시하며 상위 CI 결론을 함께 싣는다.
+호스트 디스크는 VM마다 배포하는 `node-agent`의 node_exporter와 `cowork-host` 알림 규칙으로 감지한다.
+monitoring의 `NODE_EXPORTER_TARGETS`가 비어 있으면 호스트 지표를 수집하지 않고 `coworkHostMetricsMissing`이
+계속 발화한다. Vault seal 감지 경로는 아직 없다.
 
 ## 할 일
 
-- 기대 서비스 집합과 discovery 차이를 감지하고 장기 미등록 상태를 알린다.
-- Vault seal·Config 장애의 수집·알림 경로를 마련한다.
-- ~~상위 CI 실패·취소·배포 미실행을 CD 알림에 명시한다.~~ (job이 하나도 실행되지 않으면 `cancelled`와 상위 CI 결론을 표시)
+- Vault seal의 수집·알림 경로를 마련한다.
 - 현재 디스크 여유를 측정하고 필요한 정리는 릴리스 보존 작업과 함께 수행한다.
 
 ## 검증
 
-- 등록 제거된 서비스도 정해진 시간 안에 알림이 오는지 수동 확인한다.
-- 상위 CI 실패와 배포 job 실패가 각각 정확한 상태로 표시되는지 확인한다.
-- 과거 중단·디스크 수치를 현재 관측 결과로 갱신한다.
+- Vault seal·디스크 부족이 정한 시간과 경로로 감지되는지 수동 확인한다.
+- 과거 장애 수치를 재사용하지 않고 실제 서비스·호스트의 관측값을 확인한다.
 
 ## 완료 조건
 
-- target이 사라진 서비스, Vault seal, 디스크 부족을 감지한다.
-- CD 알림이 상위 CI 결과와 실제 배포 실행 여부를 구분한다.
-
-## 점검 근거 (2026-10-12)
-
-- 관련 PR: [#348](https://github.com/team-cowork/cowork-server/pull/348) · [#349](https://github.com/team-cowork/cowork-server/pull/349) · [#449](https://github.com/team-cowork/cowork-server/pull/449) · [#473](https://github.com/team-cowork/cowork-server/pull/473).
-- [대조 코드](../../../../.github/workflows/cowork-prod-cd.yml#L457): 배포 job 결과를 집계해 모든 job이 `skipped`이면 `cancelled`와 상위 CI 결론을 표시한다. [알림 규칙](../../../../deploy/config/monitoring/prometheus/rules/application-alerts.yml)에는 down·5xx·adapter·Kafka lag·DB pool 규칙만 있고 기대 서비스 집합·Vault seal·filesystem 규칙은 없다.
-- 판정: **부분 구현**. 기대 서비스 집합과 Vault seal·디스크 부족 알림을 남은 범위로 유지한다.
+- Vault seal과 호스트 디스크 부족을 구분하여 감지하고 알린다.
