@@ -18,7 +18,7 @@ groups:
           severity: critical
         annotations:
           summary: "Declared service readiness failed"
-          description: "Service {{ $labels.service }} did not pass its declared readiness check for 2 minutes."
+          description: "Service {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} did not pass its declared readiness check for 2 minutes."
 
       - alert: coworkInfrastructureScrapeFailed
         expr: up{job=~"infrastructure|monitoring"} == 0
@@ -27,7 +27,7 @@ groups:
           severity: critical
         annotations:
           summary: "Infrastructure metrics are unavailable"
-          description: "Metrics for {{ $labels.service }} have been unavailable for 2 minutes."
+          description: "Metrics for {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} have been unavailable for 2 minutes."
 
       - alert: coworkDatastoreUnavailable
         expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
@@ -36,7 +36,7 @@ groups:
           severity: critical
         annotations:
           summary: "Datastore is unavailable to its exporter"
-          description: "Exporter {{ $labels.service }} cannot reach or authenticate to its datastore."
+          description: "Exporter {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} cannot reach or authenticate to its datastore."
 
       - alert: coworkServiceDown
         expr: up{job=~"cowork-.*"} == 0
