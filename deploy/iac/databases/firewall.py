@@ -28,12 +28,14 @@ def policy(value, stored=False):
     keys = {'network', 'bind_ip', 'monitoring_ip', 'database_port', 'exporter_port'}
     if stored:
         keys |= {'bridge', 'subnet'}
-    if set(value) != keys or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}', value['network']):
+    if set(value) - {'local_ports'} != keys or not re.fullmatch(r'[a-zA-Z0-9][a-zA-Z0-9_.-]{0,62}', value['network']):
         raise ValueError('Invalid module database firewall policy')
     for key in ('bind_ip', 'monitoring_ip'):
         private(str(ipaddress.IPv4Address(value[key])))
     if (value['database_port'], value['exporter_port']) not in {(3306, 9104), (5432, 9187), (27017, 9216)}:
         raise ValueError('Invalid database and exporter ports')
+    if value.get('local_ports', []) not in ([], [9200, 9300]):
+        raise ValueError('Additional module-local ports must match the search service')
     if stored:
         if not re.fullmatch(r'[a-zA-Z0-9_.-]{1,15}', value['bridge']):
             raise ValueError('Invalid module Docker bridge')
@@ -60,7 +62,7 @@ def network(value):
 def restore(value):
     # MySQL X Protocol is disabled at startup and blocked here as well.
     db_ports = [value['database_port']] + ([33060] if value['database_port'] == 3306 else [])
-    ports = db_ports + [value['exporter_port']]
+    ports = db_ports + value.get('local_ports', []) + [value['exporter_port']]
     chains = {port: PREFIX + str(port) for port in ports}
     for tool in ('iptables', 'ip6tables'):
         previous = run(tool, '-w', '10', '-S').splitlines()

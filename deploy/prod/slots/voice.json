@@ -6,9 +6,9 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
-    "LIVEKIT_URL": "http://10.0.0.93:7880",
-    "LIVEKIT_WS_URL": "wss://chcowork.https.gsmsv.site/livekit/",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
+    "LIVEKIT_URL": "http://10.0.0.172:7880",
+    "LIVEKIT_WS_URL": "wss://cowork-livekit.https.gsmsv.site",
     "DB_HOST": "cowork-voice-db",
     "DB_PORT": "27017",
     "DB_USERNAME": "cowork_voice",
@@ -59,6 +59,6 @@
   "peers": [
     "10.0.0.127/32",
     "10.0.0.137/32",
-    "10.0.0.93/32"
+    "10.0.0.172/32"
   ]
 }

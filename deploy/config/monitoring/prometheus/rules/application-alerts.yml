@@ -18,7 +18,7 @@ groups:
           severity: critical
         annotations:
           summary: "Declared service readiness failed"
-          description: "Service {{ $labels.service }} did not pass its declared readiness check for 2 minutes."
+          description: "Service {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} did not pass its declared readiness check for 2 minutes."
 
       - alert: coworkInfrastructureScrapeFailed
         expr: up{job=~"infrastructure|monitoring"} == 0
