@@ -5,9 +5,9 @@
 
 ## 진행 중
 
-미완료 상세 문서는 **12건**이다.
+미완료 상세 문서는 **13건**이다.
 
-### 구현·설계 보완 필요 (12)
+### 구현·설계 보완 필요 (13)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — 인증을 포함한 업무 API별 비파괴 probe와 알림
 - security: [Preference 리소스별 권한 검증](./items/15-security/preference-resource-authorization.md) — 프로젝트·채널 멤버 projection 기반 인가와 notification의 채널 멤버십 검증
@@ -21,9 +21,11 @@
 - deployment: [실행 중 릴리스를 보존하는 디스크 정리](./items/44-deployment/release-retention.md) — 참조 기반 보존 정책·미리보기·적용 명령
 - monitoring: [Vault 봉인과 호스트 디스크 부족 감지](./items/57-monitoring/service-outage-alerting.md) — Vault seal·디스크 수집과 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
+- monitoring: [전체 소실과 개별 서비스 소실 알림의 중복 제거](./items/70-monitoring/service-missing-alert-inhibition.md) — discovery 전체 소실 시 critical 알림 12건 동시 전송 정리
 
 ## 점검 스냅샷
 
+- [20261014](./20261014_TODO.md) — 수집 대상 소실 감지 추가 후속 항목
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 운영 장애 복구·CD 배포 실패 점검
 - [20260910](./20260910_TODO.md) — 분산 배포 인증·로그·디스크 관리
