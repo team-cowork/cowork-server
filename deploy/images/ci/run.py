@@ -29,7 +29,8 @@ def collect(module, snapshot, source, artifact, output, environment):
     if not (source / module).is_dir():
         result.update(status="absent", reason="Module does not exist at this revision")
     elif not has_contract(source, module, environment):
-        result.update(reason=f"This revision has no Dockerfile.{environment} verify contract; coverage was not measured")
+        revision = "기준 커밋" if snapshot == "base" else "현재 커밋"
+        result.update(reason=f"{revision}의 Dockerfile.{environment}에 verify 단계가 없어 커버리지를 측정하지 않았습니다.")
     else:
         try:
             raw = json.loads((artifact / "coverage.json").read_text())
