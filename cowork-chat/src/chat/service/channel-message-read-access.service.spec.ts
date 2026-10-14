@@ -278,6 +278,60 @@ describe('ChannelMessageReadAccessService', () => {
             expect(emit).toHaveBeenCalledWith('message', { value: 1 });
         });
 
+        it('projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed)', async () => {
+            projectionReadiness.isReady.mockReturnValue(false);
+            const emit = jest.fn();
+            const to = jest.fn().mockReturnValue({ emit });
+
+            await service.emitToReadableChannelUsers({ to } as never, 10, 'message', { value: 1 });
+
+            expect(to).not.toHaveBeenCalled();
+            expect(emit).not.toHaveBeenCalled();
+        });
+
+        it('닫혀 있던 구간 뒤 첫 전송 전에 로컬 room을 재검증하고, 그 뒤에 전송한다', async () => {
+            const order: string[] = [];
+            const sockets = [{ id: 's1' }];
+            const evict = jest.spyOn(service, 'evictUnauthorizedRooms').mockImplementation(async () => {
+                order.push('sweep');
+                return 1;
+            });
+            const emit = jest.fn(() => { order.push('emit'); });
+            const io = { local: { fetchSockets: jest.fn().mockResolvedValue(sockets) }, to: jest.fn().mockReturnValue({ emit }) };
+
+            projectionReadiness.isReady.mockReturnValue(false);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+            projectionReadiness.isReady.mockReturnValue(true);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 2 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 3 });
+
+            expect(order).toEqual(['sweep', 'emit', 'emit']);
+            expect(evict).toHaveBeenCalledTimes(1);
+            expect(evict).toHaveBeenCalledWith(sockets);
+        });
+
+        it('재검증 도중 readiness가 다시 닫히면 전송하지 않고 다음 전송에서 재검증한다', async () => {
+            const evict = jest.spyOn(service, 'evictUnauthorizedRooms').mockImplementation(async () => {
+                projectionReadiness.isReady.mockReturnValue(false);
+                return 0;
+            });
+            const emit = jest.fn();
+            const io = { local: { fetchSockets: jest.fn().mockResolvedValue([]) }, to: jest.fn().mockReturnValue({ emit }) };
+
+            projectionReadiness.isReady.mockReturnValue(false);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+            projectionReadiness.isReady.mockReturnValue(true);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 2 });
+            expect(emit).not.toHaveBeenCalled();
+
+            evict.mockImplementation(async () => 0);
+            projectionReadiness.isReady.mockReturnValue(true);
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 3 });
+
+            expect(evict).toHaveBeenCalledTimes(2);
+            expect(emit).toHaveBeenCalledTimes(1);
+        });
+
         it('보낸 사람의 socket은 제외한다', async () => {
             const emit = jest.fn();
             const except = jest.fn().mockReturnValue({ emit });
