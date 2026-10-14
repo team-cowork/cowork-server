@@ -62,6 +62,7 @@ export async function build(options = {}) {
 		input.stylesheetSources.shared,
 	);
 	const logoUrl = assets.add('logo', 'svg', input.logoSource);
+	const socialImageUrl = assets.add('social-card', 'png', input.socialImageSource);
 	const homeHtml = renderHomePage({
 		template: input.homeTemplate,
 		repositories,
@@ -80,6 +81,7 @@ export async function build(options = {}) {
 		],
 		script: assets.add('home', 'js', input.homeScriptBundle),
 		logoUrl,
+		socialImageUrl,
 		siteUrl: config.siteUrl,
 	});
 
@@ -104,6 +106,7 @@ export async function build(options = {}) {
 		stateData: `<link rel="preload" href="${registryUrl}" as="fetch" crossorigin="anonymous" data-todo-registry />`,
 		script: assets.add('todo', 'js', input.todoScriptBundle),
 		logoUrl,
+		socialImageUrl,
 		siteUrl: config.siteUrl,
 	};
 	const outputFiles = createOutputFiles(
