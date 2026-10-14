@@ -1,14 +1,16 @@
+import {document, window} from '../js/core/browser.js';
+
 export function readDesignToken(name, element = document.documentElement) {
-    return getComputedStyle(element).getPropertyValue(name).trim();
+	return window.getComputedStyle(element).getPropertyValue(name).trim();
 }
 
 export function readMotionDuration(name, element) {
-    const value = readDesignToken(name, element);
-    // eslint-disable-next-line unicorn/prefer-number-coercion -- CSS values include units such as px and ms.
-    const duration = Number.parseFloat(value);
-    if (!Number.isFinite(duration) || !/m?s$/u.test(value)) {
-        throw new Error(`Invalid motion token: ${name}`);
-    }
+	const value = readDesignToken(name, element);
+	const match = /^(?<amount>\d+(?:\.\d+)?|\.\d+)(?<unit>m?s)$/v.exec(value);
+	if (!match) {
+		throw new Error(`Invalid motion token: ${name}`);
+	}
 
-    return value.endsWith('ms') ? duration : duration * 1000;
+	const duration = Number(match.groups.amount);
+	return match.groups.unit === 'ms' ? duration : duration * 1000;
 }
