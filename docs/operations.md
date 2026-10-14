@@ -11,9 +11,9 @@ GSM SV의 VM 생성·사양·공개 포트 전달은 패널에서 관리한다. 
   컨테이너 초기화 환경변수만 바꾸어서는 갱신되지 않는다.
 - `Prod-IaC`의 `IAC_STATE_ENCRYPTION_KEY` 복구 사본은 VM·Vault 밖에 보관한다. 이 키를 잃으면
   `infra-state`의 암호화된 Terraform state를 읽을 수 없다.
-- state 저장 실패 시 실행이 남긴 암호화 복구 파일과 `infra-state-lock`을 보존한다. 실행과 Terraform이
-  종료된 후 복구 state를 실제 Grafana 상태와 대조하고 `infra-state`에 저장한 뒤 해당 잠금만 해제한다.
-  기존 state를 읽을 수 없다는 이유로 새 state를 초기화하지 않는다.
+- CD의 `cowork-production` 동시 실행 제한이 IaC 적용을 직렬화한다. 로컬 IaC 적용은 CD와 겹치지 않게 실행한다.
+- state 저장 실패 후에는 다음 적용 전에 암호화 복구 파일을 실제 Grafana 상태와 대조하고 `infra-state`에 저장한다.
+  후속 실행은 자동 차단되지 않는다. 기존 state를 읽을 수 없다는 이유로 새 state를 초기화하지 않는다.
 
 ## GSM 연결과 별도 서비스
 
