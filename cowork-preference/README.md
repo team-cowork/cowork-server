@@ -24,44 +24,11 @@
 
 ## 환경변수
 
-아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
+아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다.
 
-| 변수                     | 기본값                      | 설명                                |
-|--------------------------|-----------------------------|-------------------------------------|
-| `SPRING_PROFILES_ACTIVE` | `local`                     | 설정 프로파일 (`local` 또는 `prod`) |
-| `CONFIG_SERVER_URL`      | `http://cowork-config:8761` | 필수 Config Server 연결             |
-
-- Config Server: 포트, PostgreSQL host·DB·schema·pool, Redis, Kafka, Eureka.
-- Vault: `preference.db.username`, `preference.db.password`.
-
-Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
-
-Config Server를 3회 조회하지 못하면 종료합니다. Preference command·state·result 토픽 이름은 서비스 간 계약이므로 환경별 override를 허용하지 않습니다.
-
-## Kafka 계약
-
-| 소비 토픽                                | Consumer group                                   | 용도                                               |
-|------------------------------------------|--------------------------------------------------|----------------------------------------------------|
-| `team.member.event`                      | `cowork-preference-team-member-projection`       | 팀 멤버 projection, 팀 삭제·멤버 탈퇴 시 역할 정리 |
-| `channel.event.v2`                       | `cowork-preference-channel-lifecycle-projection` | 채널 소속 팀·공개 여부, 삭제 fence, 역할 정책 정리 |
-| `project.event.v2`                       | `cowork-preference-project-lifecycle-projection` | 프로젝트 소속 팀·삭제 상태 권한 검증               |
-| `channel.member.event.v2`                | `cowork-preference-channel-member-projection`    | 비공개 채널·DM 멤버십 권한 검증                    |
-| `preference.team-role.command`           | `cowork-preference-team-role-command`            | 사용자 정의 팀 역할·할당 command                   |
-| `preference.channel-role-policy.command` | `cowork-preference-channel-role-policy-command`  | 채널별 역할 정책 command                           |
-| `preference.github-repo.setting.command` | `cowork-preference-github-repo-setting-command`  | GitHub 저장소 설정 command                         |
-
-- `/health/ready`와 Eureka 등록은 `team.member.event` projection이 현재 generation의 snapshot 완료 marker와
-  시작 시 high-watermark까지 따라잡은 뒤에 열립니다. `channel.event.v2`, `project.event.v2`,
-  `channel.member.event.v2` projection은 소유 서비스 장애가 전체 트래픽 차단으로 번지지 않도록 트래픽 readiness에 포함하지 않습니다.
-- 프로젝트 설정·역할 API는 `project.event.v2`와 `team.member.event`, 채널 설정 조회와 채널 알림은 `channel.event.v2`,
-  `channel.member.event.v2`, `team.member.event`, 채널 설정 수정은 `channel.event.v2`와 `team.member.event` projection이
-  준비되어야 판단합니다. 준비되기 전에는 해당 API만 `503`으로 응답합니다.
-- 팀 멤버이지만 채널 멤버가 아닌 요청자가 공개 여부(`isPrivate`)를 아직 확인하지 못한 채널에 접근하면 공개로 가정하지 않고 `503`으로
-  응답합니다. `V24` 이전에 저장된 `tb_channel_lifecycle_projections` 행은 소유 서비스가 5분마다 다시 발행하는
-  `channel.event.v2` snapshot으로 채워집니다.
-- 채널 역할 정책 command는 `team.member.event`, `channel.event.v2` projection이 모두 준비되어야 처리합니다.
-- 채널 역할 정책 command는 채널 projection row를 잠근 뒤 처리합니다. 채널 삭제가 먼저 반영됐으면 `UPSERT`와
-  `DELETE` 모두 `CHANNEL_DELETED`, 채널이 요청 팀에 속하지 않으면 `CHANNEL_TEAM_MISMATCH` 실패 결과로
-  종료합니다. 채널 projection이 아직 없으면 결과를 남기지 않고 재시도합니다.
-- `preference.channel-role-policy.changed` snapshot은 두 upstream projection이 준비된 뒤, 나머지 state snapshot은
-  `team.member.event` projection이 준비된 뒤 발행합니다.
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 |
+| `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
+| `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_PREFERENCE_USERNAME`에서 전달 |
+| `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_PREFERENCE_PASSWORD`에서 전달 |

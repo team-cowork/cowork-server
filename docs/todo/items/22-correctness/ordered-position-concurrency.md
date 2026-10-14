@@ -2,59 +2,32 @@
 
 - **서비스**: cowork-channel, cowork-project, cowork-roadmap
 - **우선순위**: 🟠 중간
-- **현재 상태**: roadmap node·reference는 로드맵 행 잠금 아래 `MAX(position) + 1`로 할당하고 node 수정·reorder·삭제와 과제 생성도 같은 잠금을 먼저 잡는다. 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈 모두의 기존 중복 정리·유일성 제약은 남아 있다.
-
-> **2026-10-10 진척:** 로드맵 잠금 전에 노드를 먼저 읽는 reference 생성·node 수정은 REPEATABLE READ snapshot 때문에 잠금 이후 조회가
-> 이전 값을 볼 수 있어 `READ COMMITTED`로 실행하고 잠금 이후 노드를 다시 읽는다. 다음 position 조회에 `FOR SHARE`를 붙이는 방식은
-> 빈 scope의 gap lock이 서로 다른 로드맵의 insert와 교착되어 쓰지 않는다. 실제 경합 결과는 아직 수동 확인하지 않았다.
+- **현재 상태**: 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약이 남아 있다.
 
 ## 문제
 
-같은 scope에서 동시에 생성하면 동일 position을 선택할 수 있다. 채널·프로젝트 reorder의 기존 행
-잠금만으로 신규 생성의 `MAX(position) + 1`과 같은 직렬화 경계가 보장되지는 않는다.
-roadmap은 `tb_roadmaps` 행 잠금으로 생성·reorder를 직렬화하고 기존 최댓값 다음 값을 할당하지만,
-이미 저장된 중복 position은 정리하지 않았고 유일성 제약도 없다.
+기존 행의 reorder 잠금만으로 신규 생성의 `MAX(position) + 1`과 같은 직렬화 경계를 보장할 수 없다.
+유일성 제약만 추가해도 다건 reorder의 중간 상태에서 충돌할 수 있으므로 할당·재정렬 정책을 함께 정한다.
 
-unique만 추가하면 여러 행을 재정렬하는 중간 상태에서 충돌할 수 있다.
-생성·reorder를 함께 직렬화할 정책과 기존 중복·gap 처리 방침이 필요하다.
-
-## 선택할 전략
-
-| 전략 | 결정할 제약 |
-|---|---|
-| scope row·allocator 잠금 | scope별 잠금 소유권과 생성·reorder 직렬화 |
-| sequence·allocator table | 삭제 후 gap과 재정렬 정책 |
-| sparse rank | key 재균형과 클라이언트 계약 변경 |
-
-## 코드 근거
-
-- [Channel reorder](../../../../cowork-channel/src/main/kotlin/com/cowork/channel/domain/channel/service/impl/ReorderTeamChannelsServiceImpl.kt#L34): 기존 행을 잠그고 읽을 수 있는 채널의 position slot을 보존한다. MAX 기반 생성과 공유하는 scope 잠금은 없다.
-- [Project 생성](../../../../cowork-project/src/main/kotlin/com/cowork/project/domain/project/service/impl/CreateProjectServiceImpl.kt#L35): MAX(position) + 1을 사용하며 scope별 unique 제약·allocator가 없다.
-- [로드맵 잠금](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/roadmap/repository/RoadmapRepository.java#L26): node 생성·수정·reorder·삭제, reference·과제 생성이 로드맵 행을 노드 행보다 먼저 잠근다. 기존 중복 정리와 유일성 제약은 없다.
+roadmap은 로드맵 → 노드 잠금 순서를 유지한다. 잠금 전 조회의 오래된 snapshot을 피하도록
+`READ COMMITTED`에서 잠금 후 다시 읽으며, 빈 scope의 gap lock이 다른 로드맵 insert와 교착하는 `FOR SHARE` 방식은 사용하지 않는다.
+실제 경합 결과는 아직 수동 확인하지 않았다.
 
 ## 할 일
 
-- 채널·프로젝트의 팀 scope, node의 `(roadmapId, parentId)`, reference의 `nodeId` scope에 적용할 전략을 정한다.
-- ~~node·reference의 개수 기반 할당을 제거하고 생성·reorder가 같은 직렬화 경계를 사용하게 한다.~~ (`tb_roadmaps` 행 `FOR UPDATE`, 잠금 순서는 로드맵 → 노드)
-- 기존 채널·프로젝트 reorder의 잠금과 보이지 않는 채널의 position 보존 정책을 유지한다.
+- 채널·프로젝트의 팀 scope, node의 `(roadmapId, parentId)`, reference의 `nodeId` scope별 직렬화·할당 전략을 확정한다.
+- 채널·프로젝트의 생성·reorder가 같은 경계를 사용하게 하고 보이지 않는 채널의 position 보존 정책을 유지한다.
 - 기존 중복은 안정적인 `(position, id)` 순서로 정리한다.
-- 유일성 제약을 적용할 때 nullable parent와 다건 reorder의 중간 충돌을 처리한다.
+- nullable parent, 삭제 후 gap, 다건 reorder의 중간 충돌을 처리한 유일성 제약을 적용한다.
 - 동시 reorder의 승자·충돌 응답과 최종 event 값을 확정한다.
 
 ## 검증
 
-- 잘못된 순열·다른 scope·중복 ID 거부와 gap의 다음 값 정책을 서비스·순수 정책 단위 테스트로 확인한다.
-- 잠금·migration·event 값은 정적으로 점검한다.
-- 실제 생성·reorder 경합과 migration 결과는 수동 데이터 점검으로 확인한다.
+- 잘못된 순열·다른 scope·중복 ID 거부와 gap의 다음 값 정책을 핵심 단위 테스트로 확인한다.
+- 잠금·마이그레이션·event 값은 정적으로, 실제 생성·reorder 경합과 기존 데이터 정리는 수동 확인한다.
 
 ## 완료 조건
 
 - 같은 scope의 최종 position이 중복되지 않는다.
 - 생성·reorder 경합과 gap 처리 결과가 결정적이다.
 - 저장값과 projection event가 같은 최종 순서를 표현한다.
-
-## 점검 근거 (2026-10-12)
-
-- 관련 PR: [#102](https://github.com/team-cowork/cowork-server/pull/102) · [#419](https://github.com/team-cowork/cowork-server/pull/419) · [#475](https://github.com/team-cowork/cowork-server/pull/475).
-- [대조 코드](../../../../cowork-roadmap/src/main/java/com/cowork/roadmap/domain/roadmap/repository/RoadmapRepository.java#L25): roadmap node·reference는 `COALESCE(MAX(position) + 1, 0)`로 할당하고 로드맵 행 `FOR UPDATE` 잠금 아래에서 생성·수정·reorder·삭제를 직렬화한다. channel·project는 `findMaxPositionByTeamId` + 1 생성과 기존 행 reorder 잠금만 유지하며 둘 사이의 공통 직렬화는 없다.
-- 판정: **부분 구현**. 채널·프로젝트의 생성·reorder 공통 직렬화와 세 모듈의 기존 중복 정리·유일성 제약을 남은 범위로 유지한다.
