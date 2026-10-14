@@ -198,12 +198,8 @@ def prepare(args):
                 host['cowork_storage_module'] = host_id
                 host['cowork_storage_settings_file'] = str(settings_file)
             if host_id in shared:
-                settings = {}
-                if host_id == 'kafka':
-                    settings['KAFKA_CLUSTER_ID'] = secrets('iac/shared/kafka')['KAFKA_CLUSTER_ID']
-                elif host_id == 'livekit':
-                    voice = secrets('slot-secrets/voice')
-                    settings = {key: voice[key] for key in ('LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')}
+                settings = {key: secrets(ref['path'])[ref['key']]
+                            for key, ref in shared[host_id]['secrets'].items()}
                 settings_file = output / 'settings' / f'shared-{host_id}.json'
                 write_private(settings_file, json.dumps(settings))
                 host['cowork_shared_service'] = host_id
