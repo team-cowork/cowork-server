@@ -3,7 +3,7 @@
   "service": "node-agent",
   "kind": "infrastructure",
   "runtime": {
-    "NODE_EXPORTER_BIND_IP": "10.0.0.98"
+    "NODE_EXPORTER_BIND_IP": "10.0.0.174"
   },
   "secrets": {}
 }
