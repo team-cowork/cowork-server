@@ -298,7 +298,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         const { userId } = client.data;
         const room = `chat:${payload.channelId}`;
-        // room 멤버십이 곧 message_read 판정 결과이므로(브로드캐스트는 전송 시점에 다시 인가하지 않는다)
+        // 채팅방 멤버십이 곧 message_read 판정 결과이므로(브로드캐스트는 전송 시점에 다시 인가하지 않는다)
         // 인가를 통과하기 전에는 room에 넣지 않는다.
         const canRead = await this.chatService.isMember(payload.channelId, userId);
         if (!canRead) {
