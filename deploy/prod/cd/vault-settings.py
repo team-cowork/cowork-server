@@ -61,19 +61,31 @@ def parse_json(value):
 
 
 def validate_deployment(data, target, slot=None):
-    demand(isinstance(data, dict) and set(data) <= {"ssh", "runtime", "application", "runtime_refs", "application_refs"}, "Invalid deployment sections")
+    demand(isinstance(data, dict) and set(data) <= {"ssh", "variables", "runtime", "application", "runtime_refs", "application_refs"}, "Invalid deployment sections")
     ssh = data.get("ssh", {})
     demand(isinstance(ssh, dict) and set(ssh) == {"host", "port", "user", "key", "fingerprint"}, "ssh requires host, port, user, key, fingerprint")
     for key in ("host", "user", "key", "fingerprint"):
         demand(isinstance(ssh[key], str) and ssh[key].strip() and "\0" not in ssh[key], "Invalid SSH field")
     demand(isinstance(ssh["port"], int) and not isinstance(ssh["port"], bool) and 1 <= ssh["port"] <= 65535, "Invalid SSH port")
     demand(ssh["fingerprint"].startswith("SHA256:"), "An SSH SHA256 host fingerprint is required")
+    if "variables" in data:
+        demand(slot is not None and isinstance(data["variables"], dict), "Managed variables require a slot")
+        slots = runpy.run_path(str(Path(__file__).resolve().parents[1] / "slots.py"))
+        slots["validate_variables"](data["variables"])
+        if slot["kind"] != "infrastructure":
+            demand(data["variables"].get("APP_CONFIG_PROFILE") in {"local", "prod"},
+                   "An application snapshot requires APP_CONFIG_PROFILE")
+        demand(not set(data["variables"]).intersection(data.get("runtime", {}))
+               and not set(data["variables"]).intersection(data.get("application", {})),
+               "Variable and secret environment names must not overlap")
     for section in ("runtime", "application"):
         values = data.get(section, {})
         demand(isinstance(values, dict), "Environment section must be an object")
         for key, value in values.items():
             demand(ENV_NAME.fullmatch(key), "Invalid environment key")
             demand(isinstance(value, str) and "\0" not in value, "Environment values must be strings without NUL")
+            if section == "application" and "variables" in data:
+                demand(slots["environment_key"](key), "Invalid or reserved application environment key")
             if section == "runtime":
                 allowed = (set(slot.get("secrets", {}).get("runtime", {})) | set(slot.get("github_secrets", {}))) if slot else RUNTIME_KEYS
                 demand(key in allowed, f"Unsupported runtime key: {key}")
@@ -98,12 +110,18 @@ def validate_deployment(data, target, slot=None):
     return data
 
 
+class VaultHTTPError(ValueError):
+    def __init__(self, status):
+        self.status = status
+        super().__init__(f"Vault request failed (HTTP {status}); check policy, path and CAS version")
+
+
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise ValueError("Vault redirects are not allowed; use its canonical HTTPS address")
 
 
-def vault_request(path, body=None):
+def vault_request(path, body=None, *, allow_missing=False, method=None):
     address = os.environ["VAULT_ADDR"].rstrip("/")
     parsed = urlsplit(address)
     demand(parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.query and not parsed.fragment,
@@ -111,17 +129,96 @@ def vault_request(path, body=None):
     token = os.environ["VAULT_TOKEN"]
     demand(bool(token), "VAULT_TOKEN is required")
     headers = {"X-Vault-Token": token, "Content-Type": "application/json"}
-    request = urllib.request.Request(address + "/v1/" + path, headers=headers,
+    request = urllib.request.Request(address + "/v1/" + path, headers=headers, method=method,
                                      data=None if body is None else json.dumps(body).encode())
     # Never print response bodies: Vault errors may include sensitive configuration.
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
-            return json.load(response)
+            return json.load(response) if response.status != 204 else None
     except urllib.error.HTTPError as error:
-        raise ValueError(f"Vault request failed (HTTP {error.code}); check policy, path and CAS version") from None
+        if allow_missing and error.code == 404:
+            return None
+        raise VaultHTTPError(error.code) from None
+
+
+def read_document(path, version=0, allow_missing=False, mount=None):
+    demand(isinstance(path, str) and all(NAME.fullmatch(part) for part in path.split("/")), "Invalid Vault document path")
+    demand(type(version) is int and version >= 0, "Invalid Vault document version")
+    mount = mount or os.environ.get("VAULT_KV_MOUNT", "secret")
+    demand(NAME.fullmatch(mount), "Invalid KV mount")
+    suffix = f"?version={version}" if version else ""
+    result = vault_request(f"{mount}/data/{path}{suffix}", allow_missing=allow_missing)
+    return result["data"] if result is not None else None
+
+
+def validate_versions(versions):
+    demand(isinstance(versions, dict) and all(
+        isinstance(path, str) and all(NAME.fullmatch(part) for part in path.split("/"))
+        and type(version) is int and version > 0 for path, version in versions.items()),
+        "Invalid pinned Vault reference versions")
+    return versions
+
+
+def resolved_snapshot(target, slot, mount=None, reference_versions=None, require_variables=False, configuration=None):
+    """Resolve variables and secrets once, retaining the exact KV versions used."""
+    pinned = validate_versions(reference_versions or {})
+    result = {"runtime": {}, "application": {}}
+    versions = {}
+    configuration = configuration or Path(__file__).resolve().parents[1] / "configuration.json"
+    catalog = parse_json(configuration.read_text()) if configuration.is_file() else None
+    runtime_path = f"runtime/{target}"
+    managed = catalog is not None and target in catalog.get("targets", {})
+    runtime = None
+    if managed or (catalog is None and slot["kind"] in {"application", "config"}):
+        runtime = read_document(runtime_path, pinned.get(runtime_path, 0),
+                                allow_missing=not require_variables and runtime_path not in pinned, mount=mount)
+    if runtime is not None:
+        variables = runtime["data"]
+        slots = runpy.run_path(str(Path(__file__).resolve().parents[1] / "slots.py"))
+        slots["validate_variables"](variables)
+        if catalog is not None and target in catalog.get("targets", {}):
+            declared = set(catalog["targets"][target].get("variables", {}))
+            declared.update(key for key, spec in catalog.get("shared", {}).items()
+                            if spec["kind"] == "variable" and target in spec["targets"])
+            demand(set(variables) == declared, "The runtime snapshot must contain exactly its declared GitHub variables")
+        # Legacy slots classify the Config username as a reference. The referenced value
+        # remains authoritative in that release; do not inject it twice.
+        secret_names = {key for section in slot.get("secrets", {}).values() for key in section}
+        result["variables"] = {key: value for key, value in variables.items() if key not in secret_names}
+        versions[runtime_path] = runtime["metadata"]["version"]
+    references = {}
+    for section in ("runtime", "application"):
+        for key, ref in slot.get("secrets", {}).get(section, {}).items():
+            path = ref["path"]
+            if path not in references:
+                references[path] = read_document(path, pinned.get(path, 0), mount=mount)
+            document = references[path]
+            result[section][key] = document["data"][ref["key"]]
+            versions[path] = document["metadata"]["version"]
+    if catalog is not None and runtime is not None:
+        declarations = list(catalog.get("targets", {}).get(target, {}).get("secrets", {}).items())
+        declarations.extend((key, spec) for key, spec in catalog.get("shared", {}).items()
+                            if spec["kind"] == "secret" and target in spec["targets"])
+        profile = runtime["data"].get("APP_CONFIG_PROFILE", "prod")
+        for key, spec in declarations:
+            if not spec.get("environment") or key in result["runtime"] or key in result["application"]:
+                continue
+            refs = [ref for ref in spec["writes"] if ref.get("target", target) == target]
+            demand(refs, "An application secret requires a matching Vault write")
+            ref = refs[0]
+            path = ref["path"].replace("{profile}", profile)
+            if path not in references:
+                references[path] = read_document(path, pinned.get(path, 0), mount=mount)
+            document = references[path]
+            result["application"][key] = document["data"][ref["key"]]
+            versions[path] = document["metadata"]["version"]
+    result["secret_versions"] = versions
+    return result
 
 
 def mask(value):
+    if os.environ.get("GITHUB_ACTIONS") != "true":
+        return
     if isinstance(value, dict):
         for child in value.values():
             mask(child)
@@ -148,7 +245,9 @@ def main():
     parser.add_argument("--version", type=int, default=0)
     parser.add_argument("--expected-version", type=int)
     parser.add_argument("--slot-directory", type=Path, default=Path(__file__).resolve().parents[1] / "slots")
+    parser.add_argument("--reference-versions", default="{}", help="JSON map of pinned referenced Vault document versions")
     args = parser.parse_args()
+    pinned = validate_versions(parse_json(args.reference_versions))
     demand(NAME.fullmatch(args.target), "Invalid target name")
     mount = os.environ.get("VAULT_KV_MOUNT", "secret")
     demand(NAME.fullmatch(mount), "Invalid KV mount")
@@ -209,19 +308,24 @@ def main():
             demand(not slot.get("github_secrets"), "This slot requires the IaC workflow to resolve its GitHub secret source")
             demand(not any(data.get(key) for key in ("runtime", "application", "runtime_refs", "application_refs")),
                    "A versioned slot requires a deployment document containing SSH credentials only")
-            for section in ("runtime", "application"):
-                data[section + "_refs"] = slot.get("secrets", {}).get(section, {})
+            configuration = args.slot_directory.parent / "configuration.json"
+            managed = configuration.is_file() and args.target in parse_json(configuration.read_text()).get("targets", {})
+            snapshot = resolved_snapshot(args.target, slot, mount, pinned, require_variables=managed,
+                                         configuration=configuration)
+            reference_versions = snapshot.pop("secret_versions")
+            data.update(snapshot)
         references = {}
         for section in ("runtime", "application"):
             values = data.setdefault(section, {})
             for key, reference in data.pop(section + "_refs", {}).items():
                 path = reference["path"]
                 if path not in references:
-                    references[path] = vault_request(f"{mount}/data/{path}")["data"]
+                    references[path] = read_document(path, pinned.get(path, 0), mount=mount)
                     print(f"Loaded referenced configuration {path}, Vault version {references[path]['metadata']['version']}")
                 values[key] = references[path]["data"][reference["key"]]
         validate_deployment(data, args.target, slot)
-        reference_versions = {path: value["metadata"]["version"] for path, value in references.items()}
+        if slot is None:
+            reference_versions = {path: value["metadata"]["version"] for path, value in references.items()}
     mask(data)
     for key, value in data.pop("ssh").items():
         output("ssh_" + key, value, secret=True)
