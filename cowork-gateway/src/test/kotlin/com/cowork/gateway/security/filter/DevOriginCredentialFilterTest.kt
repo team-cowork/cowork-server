@@ -1,0 +1,136 @@
+package com.cowork.gateway.security.filter
+
+import com.cowork.gateway.security.config.DevOriginProperties
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
+import io.mockk.CapturingSlot
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import io.mockk.verify
+import org.springframework.http.HttpMethod
+import org.springframework.http.HttpStatus
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest
+import org.springframework.mock.web.server.MockServerWebExchange
+import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilterChain
+import reactor.core.publisher.Mono
+import java.net.URI
+
+class DevOriginCredentialFilterTest :
+    DescribeSpec({
+
+        val filter = DevOriginCredentialFilter(DevOriginProperties(enforce = true, credential = "secret"))
+
+        fun forwardingChain(): Pair<WebFilterChain, CapturingSlot<ServerWebExchange>> {
+            val chain = mockk<WebFilterChain>()
+            val captured = slot<ServerWebExchange>()
+            every { chain.filter(capture(captured)) } returns Mono.empty()
+            return chain to captured
+        }
+
+        describe("DevOriginCredentialFilter 클래스의 filter 메서드는") {
+            context("loopback HTTP origin 요청에 자격증명이 없으면") {
+                it("FORBIDDEN으로 거부한다") {
+                    val chain = mockk<WebFilterChain>()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.get("/api/users/me").header("Origin", "http://localhost:3000"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { chain.filter(any()) }
+                }
+            }
+
+            context("loopback HTTP origin 요청의 자격증명이 다르면") {
+                it("FORBIDDEN으로 거부한다") {
+                    val chain = mockk<WebFilterChain>()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.get(
+                            "/ws/chat?dev_credential=wrong",
+                        ).header("Origin", "http://127.0.0.1:5173"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { chain.filter(any()) }
+                }
+            }
+
+            context("loopback HTTP origin 요청의 자격증명이 일치하면") {
+                it("자격증명 query만 제거하고 나머지 query는 원문 그대로 전달한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest
+                            .method(
+                                HttpMethod.PUT,
+                                URI.create(
+                                    "/api/storage/bucket/key?X-Amz-Signature=a%2Fb&dev_credential=secret&X-Amz-Date=1",
+                                ),
+                            )
+                            .header("Origin", "http://localhost:3000"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    captured.captured.request.uri.rawQuery shouldBe "X-Amz-Signature=a%2Fb&X-Amz-Date=1"
+                }
+            }
+
+            context("CORS preflight 요청이면") {
+                it("자격증명 없이 전달한다") {
+                    val (chain, _) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.options("/api/users/me").header("Origin", "http://localhost:3000"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    verify(exactly = 1) { chain.filter(exchange) }
+                }
+            }
+
+            context("운영 HTTPS origin이나 Origin이 없는 요청이면") {
+                it("자격증명 없이 전달한다") {
+                    listOf(
+                        MockServerHttpRequest.get("/api/users/me").header("Origin", "https://service.example"),
+                        MockServerHttpRequest.get("/ws/chat"),
+                    ).forEach { request ->
+                        val (chain, _) = forwardingChain()
+                        val exchange = MockServerWebExchange.from(request)
+
+                        filter.filter(exchange, chain).block()
+
+                        verify(exactly = 1) { chain.filter(exchange) }
+                    }
+                }
+            }
+
+            context("검증을 끈 상태에서 자격증명 query가 오면") {
+                it("검증 없이 query만 제거한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.get(
+                            "/api/users/me?dev_credential=any",
+                        ).header("Origin", "http://localhost:3000"),
+                    )
+
+                    DevOriginCredentialFilter(DevOriginProperties()).filter(exchange, chain).block()
+
+                    captured.captured.request.uri.rawQuery shouldBe null
+                }
+            }
+        }
+
+        describe("DevOriginProperties 클래스는") {
+            context("검증을 켰는데 자격증명이 비어 있으면") {
+                it("생성에 실패한다") {
+                    shouldThrow<IllegalArgumentException> { DevOriginProperties(enforce = true, credential = " ") }
+                }
+            }
+        }
+    })
