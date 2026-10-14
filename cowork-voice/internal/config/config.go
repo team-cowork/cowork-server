@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
@@ -41,11 +42,7 @@ func Load() (*AppConfig, error) {
 		return nil, err
 	}
 
-	mongoURI, err := requireConfig(flatMap, "MONGODB_URI")
-	if err != nil {
-		return nil, err
-	}
-	mongoDB, err := requireConfig(flatMap, "MONGODB_DB")
+	mongoURI, mongoDB, err := mongoConfig(flatMap)
 	if err != nil {
 		return nil, err
 	}
@@ -65,9 +62,9 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	kafkaBrokers, err := requireConfig(flatMap, "KAFKA_BROKERS")
-	if err != nil {
-		return nil, err
+	kafkaBrokers := getEnv("KAFKA_BOOTSTRAP_SERVERS", getEnv("KAFKA_BROKERS", lookup(flatMap, "KAFKA_BROKERS", "")))
+	if kafkaBrokers == "" {
+		return nil, fmt.Errorf("required configuration KAFKA_BOOTSTRAP_SERVERS or KAFKA_BROKERS is not set")
 	}
 	kafkaTopic, err := requireConfig(flatMap, "KAFKA_TOPIC_VOICE_EVENT")
 	if err != nil {
@@ -83,9 +80,11 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_MESSAGE_TIMEOUT_MS: %w", err)
 	}
 
-	eurekaPort, err := strconv.Atoi(lookup(flatMap, "EUREKA_INSTANCE_PORT", lookup(flatMap, "PORT", "8089")))
+	eurekaPortValue := getEnv("PORT", lookup(flatMap, "EUREKA_INSTANCE_PORT", lookup(flatMap, "PORT", "8089")))
+	eurekaPortValue = getEnv("APP_ADVERTISE_PORT", getEnv("EUREKA_INSTANCE_PORT", eurekaPortValue))
+	eurekaPort, err := strconv.Atoi(eurekaPortValue)
 	if err != nil {
-		return nil, fmt.Errorf("invalid EUREKA_INSTANCE_PORT: %w", err)
+		return nil, fmt.Errorf("invalid Eureka advertised port")
 	}
 
 	heartbeatIntervalSecs, err := strconv.Atoi(lookup(flatMap, "EUREKA_HEARTBEAT_INTERVAL_SECS", "10"))
@@ -123,12 +122,12 @@ func Load() (*AppConfig, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := os.Getenv("APP_CONFIG_URL")
+	configURL := getEnv("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnv("APP_PROFILE", "local")
+	profile := getEnv("APP_CONFIG_PROFILE", getEnv("APP_PROFILE", "local"))
 	client := springconfig.NewClient(configURL, "cowork-voice", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -158,10 +157,7 @@ func lookup(flatMap map[string]string, key, fallback string) string {
 }
 
 func requireConfig(flatMap map[string]string, key string) (string, error) {
-	if v := lookup(flatMap, key, ""); v != "" {
-		return v, nil
-	}
-	if v := os.Getenv(key); v != "" {
+	if v := getEnv(key, lookup(flatMap, key, "")); v != "" {
 		return v, nil
 	}
 	return "", fmt.Errorf("required configuration %q is not set", key)
@@ -170,12 +166,6 @@ func requireConfig(flatMap map[string]string, key string) (string, error) {
 func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
-	}
-	if v := os.Getenv("MONGODB_URI"); v != "" {
-		cfg.MongoDBURI = v
-	}
-	if v := os.Getenv("MONGODB_DB"); v != "" {
-		cfg.MongoDBDB = v
 	}
 	if v := os.Getenv("LIVEKIT_URL"); v != "" {
 		cfg.LiveKitURL = v
@@ -194,7 +184,7 @@ func overrideFromEnv(cfg *AppConfig) {
 			cfg.LiveKitTokenTTLSecs = parsed
 		}
 	}
-	if v := os.Getenv("KAFKA_BROKERS"); v != "" {
+	if v := getEnv("KAFKA_BOOTSTRAP_SERVERS", os.Getenv("KAFKA_BROKERS")); v != "" {
 		cfg.KafkaBrokers = v
 	}
 	if v := os.Getenv("KAFKA_TOPIC_VOICE_EVENT"); v != "" {
@@ -220,19 +210,8 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := os.Getenv("EUREKA_INSTANCE_HOST"); v != "" {
+	if v := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
 		cfg.EurekaInstanceHost = v
-	}
-	if v := os.Getenv("EUREKA_INSTANCE_PORT"); v != "" {
-		if parsed, err := strconv.Atoi(v); err == nil {
-			cfg.EurekaInstancePort = parsed
-		}
-	} else if v := os.Getenv("PORT"); v != "" {
-		// EUREKA_INSTANCE_PORT가 별도 지정되지 않으면 서버 리슨 포트(PORT)를 따라가
-		// Eureka 등록 포트와 실제 포트가 어긋나지 않게 한다.
-		if parsed, err := strconv.Atoi(v); err == nil {
-			cfg.EurekaInstancePort = parsed
-		}
 	}
 	if v := os.Getenv("EUREKA_HEARTBEAT_INTERVAL_SECS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil {
@@ -253,7 +232,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := os.Getenv("EUREKA_INSTANCE_HOST"); explicitHost != "" {
+		if explicitHost := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address
@@ -281,4 +260,39 @@ func firstNonLoopbackIPv4() string {
 		}
 	}
 	return ""
+}
+
+// Individual database inputs replace the entire stored URI, including its credentials.
+func mongoConfig(flatMap map[string]string) (string, string, error) {
+	keys := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"}
+	configured := false
+	for _, key := range keys {
+		if _, present := os.LookupEnv(key); present {
+			configured = true
+			break
+		}
+	}
+	if !configured {
+		uri, err := requireConfig(flatMap, "MONGODB_URI")
+		if err != nil {
+			return "", "", err
+		}
+		database, err := requireConfig(flatMap, "MONGODB_DB")
+		return uri, database, err
+	}
+	for _, key := range keys {
+		if os.Getenv(key) == "" {
+			return "", "", fmt.Errorf("required configuration %q is not set", key)
+		}
+	}
+	database := os.Getenv("DB_NAME")
+	uri := url.URL{
+		Scheme:   "mongodb",
+		User:     url.UserPassword(os.Getenv("DB_USERNAME"), os.Getenv("DB_PASSWORD")),
+		Host:     net.JoinHostPort(os.Getenv("DB_HOST"), os.Getenv("DB_PORT")),
+		Path:     "/" + database,
+		RawPath:  "/" + url.PathEscape(database),
+		RawQuery: "authSource=admin",
+	}
+	return uri.String(), database, nil
 }
