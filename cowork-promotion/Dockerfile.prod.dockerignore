@@ -1,0 +1,47 @@
+.git
+.gradle
+.gradle-local
+.idea
+*.iml
+node_modules
+build
+**/build
+dist
+**/dist
+.env
+**/*.env
+.env.*
+!.env.example
+# Exclude both current and legacy local credential locations.
+docker/secrets/
+deploy/local/secrets/
+screenlog.*
+!**/src
+
+# Nested module caches and local-only runtime settings are not image inputs.
+**/.gradle
+**/.gradle-local
+**/.kotlin
+**/node_modules
+**/target
+**/_build
+**/deps
+**/.env
+**/.env.*
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+.run
+.worktrees
+**/__pycache__
+
+# IaC state and local Terraform working directories never enter image contexts.
+**/.terraform
+**/*.tfstate
+**/*.tfstate.*
+**/*.tfvars
+**/*.tfvars.json
+
+**/coverage
+**/cover
+**/.elixir_ls

@@ -3,6 +3,7 @@ local.file_match "docker_logs" {
     "__path__" = "/var/lib/docker/containers/*/*-json.log",
     "env"      = "prod",
     "host"     = sys.env("LOG_HOST"),
+    "service"  = sys.env("LOG_SERVICE"),
   }]
 }
 
@@ -12,12 +13,38 @@ loki.source.file "docker_logs" {
 }
 
 loki.process "docker_logs" {
+  stage.json {
+    expressions = { docker_service = "attrs.\"cowork.service\"" }
+  }
   stage.docker {}
   stage.json {
-    expressions = { level = "level", service = "service" }
+    expressions = {
+      json_level  = "level",
+      ecs_level   = "\"log.level\"",
+      json_service = "service",
+      ecs_service = "\"service.name\"",
+    }
+  }
+  stage.regex {
+    expression = "(?i)\\[(?P<plain_level>trace|debug|info|warn|warning|error|fatal)\\]"
+  }
+  stage.template {
+    source = "level"
+    template = "{{ if .json_level }}{{ ToUpper .json_level }}{{ else if .ecs_level }}{{ ToUpper .ecs_level }}{{ else if .plain_level }}{{ ToUpper .plain_level }}{{ else }}UNKNOWN{{ end }}"
+  }
+  stage.template {
+    source = "level"
+    template = "{{ if eq .Value \"WARNING\" }}WARN{{ else }}{{ .Value }}{{ end }}"
+  }
+  stage.template {
+    source = "service"
+    template = "{{ if .docker_service }}{{ .docker_service }}{{ else if .ecs_service }}{{ TrimPrefix .ecs_service \"cowork-\" }}{{ else if .json_service }}{{ TrimPrefix .json_service \"cowork-\" }}{{ else }}" + sys.env("LOG_SERVICE") + "{{ end }}"
   }
   stage.labels {
     values = { level = "", service = "" }
+  }
+  stage.label_drop {
+    values = ["filename"]
   }
   forward_to = [loki.write.central.receiver]
 }
