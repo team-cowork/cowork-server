@@ -8,12 +8,16 @@ SERVICE_NAME="cowork-authorization"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-authorization"
 SERVICE_COMMAND=(
   bash -lc
-  'export APP_CONFIG_URL="${APP_CONFIG_URL:-http://localhost:8761}"
-   export APP_PROFILE="${APP_PROFILE:-local}"
-   export DB_DSN="${DB_DSN:-${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(localhost:3306)/cowork_authorization?charset=utf8mb4&parseTime=true&loc=UTC&time_zone=%27%2B00%3A00%27}"
+  'export DB_HOST="${DB_HOST:-localhost}"
+   export DB_PORT="${DB_PORT:-3306}"
+   export DB_NAME="${DB_NAME:-cowork_authorization}"
+   export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
+   export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
+   export CONFIG_SERVER_URL="${CONFIG_SERVER_URL:-http://localhost:8761}"
+   export APP_CONFIG_PROFILE="${APP_CONFIG_PROFILE:-local}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
-   export EUREKA_INSTANCE_HOST="${EUREKA_INSTANCE_HOST:-localhost}"
+   export APP_ADVERTISE_ADDRESS="${APP_ADVERTISE_ADDRESS:-localhost}"
    go run ./cmd'
 )
 
