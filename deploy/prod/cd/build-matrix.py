@@ -6,7 +6,7 @@ import runpy
 import subprocess
 from pathlib import Path
 
-from deployment_state import SHA, successful_sha
+from deployment_state import SHA, successful_deployment
 
 ROOT = Path.cwd()
 IMAGE_INPUTS = runpy.run_path(str(Path(__file__).resolve().parents[2] / "images/build-matrix.py"))
@@ -30,7 +30,7 @@ def affected(service, paths, target=None):
         return True
     config_firewall = {"deploy/prod/network/config-firewall.py", "deploy/prod/network/config-firewall.service",
                        "deploy/prod/network/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
-    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json",
+    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json", "deploy/prod/configuration.json",
               ".github/workflows/cowork-prod-cd.yml"}
     if any(path not in config_firewall and (
         path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
@@ -74,23 +74,38 @@ def main():
         if name in seen or not known:
             raise ValueError("Duplicate or unknown deployment target")
         seen.add(name)
-        base = successful_sha(service, name)
-        if base == sha:
+        deployment = successful_deployment(service, name)
+        base = deployment["image_sha"] if deployment else None
+        source = deployment["source_sha"] if deployment else None
+        if base == sha and source == sha:
+            continue
+        if source and subprocess.run(
+            ["git", "cat-file", "-e", f"{source}^{{commit}}"], capture_output=True,
+        ).returncode != 0:
+            print(f"{name}: previous deployment source is unavailable; deploy the selected source")
+            source = None
+        if source and source != sha and ancestor(sha, source):
+            print(f"{name}: skip stale automatic rollout; a newer deployment source is already applied")
             continue
         if base and subprocess.run(
             ["git", "cat-file", "-e", f"{base}^{{commit}}"], capture_output=True,
         ).returncode != 0:
-            print(f"{name}: previous source is unavailable; deploy the selected source")
+            print(f"{name}: previous image source is unavailable; deploy the selected source")
             base = None
-        if base:
-            if ancestor(sha, base):
-                print(f"{name}: skip stale automatic rollout; a newer SHA is deployed")
-                continue
-            if base not in changes:
-                changes[base] = subprocess.check_output(
-                    ["git", "diff", "--name-only", "--no-renames", "-z", base, sha],
-                ).decode().rstrip("\0").split("\0")
-            if not affected(service, changes[base], name):
+        if base and base != sha and ancestor(sha, base):
+            print(f"{name}: skip stale automatic rollout; a newer image SHA is deployed")
+            continue
+        if base and source:
+            paths = set()
+            # Recreating an existing image can advance the slot source without
+            # deploying its application code, or apply a newer image to an older slot.
+            for previous in {base, source} - {sha}:
+                if previous not in changes:
+                    changes[previous] = subprocess.check_output(
+                        ["git", "diff", "--name-only", "--no-renames", "-z", previous, sha],
+                    ).decode().rstrip("\0").split("\0")
+                paths.update(changes[previous])
+            if not affected(service, paths, name):
                 continue
         # A new target or a pre-tracking deployment has no trustworthy baseline.
         include.append({"service": service, "target": name})
