@@ -28,25 +28,6 @@ COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-team:check -x test --no-daemon --build-cache \
     && bash /ci/run-jvm.sh gradle cowork-team /workspace /coverage \
-        com.cowork.team.domain.team.service.S3ServiceTest \
-        com.cowork.team.domain.team.service.TeamIconOwnershipServiceTest \
-        com.cowork.team.domain.team.service.impl.CreateTeamServiceImplTest \
-        com.cowork.team.domain.team.service.impl.DeleteTeamIconServiceImplTest \
-        com.cowork.team.domain.team.service.impl.DeleteTeamServiceImplTest \
-        com.cowork.team.domain.team.service.impl.DisconnectGithubServiceImplTest \
-        com.cowork.team.domain.team.service.impl.GenerateGithubInstallUrlServiceImplTest \
-        com.cowork.team.domain.team.service.impl.UpdateTeamIconServiceImplTest \
-        com.cowork.team.domain.team.service.impl.UpdateTeamServiceImplTest \
-        com.cowork.team.domain.team.service.support.TeamGithubStateSupportTest \
-        com.cowork.team.domain.teamInvite.service.impl.CreateInviteServiceImplTest \
-        com.cowork.team.domain.teamInvite.service.impl.DeleteInviteServiceImplTest \
-        com.cowork.team.domain.teamInvite.service.impl.JoinTeamServiceImplTest \
-        com.cowork.team.domain.teamInvite.service.impl.QueryInvitesServiceImplTest \
-        com.cowork.team.domain.teamMember.service.impl.ChangeTeamMemberRoleServiceImplTest \
-        com.cowork.team.domain.teamMember.service.impl.InviteTeamMembersServiceImplTest \
-        com.cowork.team.domain.teamMember.service.impl.RemoveTeamMemberServiceImplTest \
-        com.cowork.team.domain.teamRole.service.TeamRoleAccessGuardTest \
-        com.cowork.team.domain.teamRole.service.impl.CreateTeamRoleServiceImplTest \
     && python3 /ci/report.py collect --module cowork-team --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
