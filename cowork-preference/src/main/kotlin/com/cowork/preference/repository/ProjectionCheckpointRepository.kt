@@ -6,6 +6,10 @@ import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Tuple
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 
 data class ProjectionCheckpoint(
     val consumerGroup: String,
@@ -264,22 +268,53 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
     }
 
     private suspend fun <T> withTransaction(serializeOutboxWrites: Boolean, block: suspend (SqlConnection) -> T): T {
-        val connection = pool.connection.coAwait()
-        try {
-            val transaction = connection.begin().coAwait()
+        val callerContext = currentCoroutineContext()
+        callerContext.ensureActive()
+        // Await resource creation without losing its result when the caller is cancelled.
+        val connection = withContext(NonCancellable) { pool.connection.coAwait() }
+        var failure: Throwable? = null
+        val result = try {
+            callerContext.ensureActive()
+            val transaction = withContext(NonCancellable) { connection.begin().coAwait() }
+            var commitStarted = false
             try {
+                callerContext.ensureActive()
                 if (serializeOutboxWrites) PreferenceOutboxOrdering.acquireForWrite(connection)
-                val result = block(connection)
-                transaction.commit().coAwait()
-                return result
+                val value = block(connection)
+                withContext(NonCancellable) {
+                    callerContext.ensureActive()
+                    // Once COMMIT is sent, rollback cannot guarantee that it did not commit.
+                    commitStarted = true
+                    transaction.commit().coAwait()
+                }
+                callerContext.ensureActive()
+                value
             } catch (error: Throwable) {
-                runCatching { transaction.rollback().coAwait() }
-                    .onFailure(error::addSuppressed)
+                if (!commitStarted) {
+                    withContext(NonCancellable) {
+                        runCatching { transaction.rollback().coAwait() }
+                            .onFailure { rollbackError ->
+                                if (rollbackError !== error) error.addSuppressed(rollbackError)
+                            }
+                    }
+                }
                 throw error
             }
+        } catch (error: Throwable) {
+            failure = error
+            throw error
         } finally {
-            connection.close().coAwait()
+            withContext(NonCancellable) {
+                try {
+                    connection.close().coAwait()
+                } catch (closeError: Throwable) {
+                    val originalFailure = failure ?: throw closeError
+                    if (closeError !== originalFailure) originalFailure.addSuppressed(closeError)
+                }
+            }
         }
+        callerContext.ensureActive()
+        return result
     }
 
     private fun ProjectionCheckpoint.parameters(): Tuple = Tuple.of(
