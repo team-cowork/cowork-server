@@ -11,7 +11,7 @@ SERVICE_COMMAND=(
   'export CONFIG_SERVER_URL="${CONFIG_SERVER_URL:-http://localhost:8761}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export REDIS_HOST="${REDIS_HOST:-localhost}"
-   export EUREKA_CLIENT_SERVICEURL_DEFAULTZONE="${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://localhost:8761/eureka/}"
+   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
    exec ./gradlew :cowork-gateway:bootRun'
 )
 

@@ -19,7 +19,7 @@
   ansible.builtin.command:
     argv:
       - python3
-      - "{{ cowork_release_directory }}/deploy/prod/apply-settings.py"
+      - "{{ cowork_release_directory }}/deploy/prod/cd/apply-settings.py"
       - "{{ cowork_unit.service }}"
       - "{{ cowork_unit.target }}"
       - "{{ cowork_release_sha }}"

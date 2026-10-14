@@ -1,10 +1,10 @@
 #!/bin/bash
-require_env CONFIG_SERVER_URL EUREKA_SERVER_URL MYSQL_HOST REDIS_HOST DEPLOY_SHA MONITORING_BIND_IP MONITORING_VOLUME_PREFIX GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL \
+require_env CONFIG_SERVER_URL EUREKA_SERVER_URL MYSQL_HOST REDIS_HOST DEPLOY_SHA MONITORING_BIND_IP MONITORING_VOLUME_PREFIX GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK \
   MYSQL_EXPORTER_PASSWORD KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 require_env CONFIG_CLIENT_USERNAME CONFIG_CLIENT_PASSWORD
 # This validates URL shape and private addressing only; it does not contact Config.
 # Authenticated discovery retries after Config's later deployment activates its peer policy.
-python3 "${PROD_DIR}/config-access.py"
+python3 "${PROD_DIR}/config/config-access.py"
 # Generated runtime configuration stays outside the immutable source bundle.
 export MONITORING_PROMETHEUS_CONFIG="${DEPLOY_SETTINGS_DIR}/prometheus.json"
 if [ "$ACTION" = deploy ]; then

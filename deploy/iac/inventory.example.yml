@@ -9,7 +9,7 @@ all:
   hosts:
     monitoring:
       ansible_host: ssh.gsmsv.site
-      ansible_port: 27123
+      ansible_port: 21111
       cowork_firewall_target: monitoring
       cowork_disabled_services: [caddy]
       cowork_units:

@@ -1,8 +1,8 @@
-name: cowork prod CD Workflow
+name: Cowork Prod CD Workflow
 
 on:
   workflow_run:
-    workflows: ["cowork prod CI Workflow"]
+    workflows: ["Cowork Prod CI Workflow"]
     types: [completed]
     branches: [main]
 
@@ -63,6 +63,7 @@ concurrency:
 
 jobs:
   manual-request:
+    name: Validate Manual Request
     if: >
       github.event_name == 'workflow_dispatch' &&
       github.repository == 'team-cowork/cowork-server' &&
@@ -74,11 +75,12 @@ jobs:
       matrix: ${{ steps.request.outputs.matrix }}
       services-list: ${{ steps.request.outputs.services-list }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout Code
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.operation == 'redeploy' && inputs.sha || github.sha }}
           fetch-depth: 0
-      - name: Validate manual request
+      - name: Validate Manual Request
         id: request
         env:
           OPERATION: ${{ inputs.operation }}
@@ -174,6 +176,7 @@ jobs:
           PYTHON
 
   prepare:
+    name: Prepare Deployment
     needs: [manual-request, detect-changes]
     runs-on: ubuntu-latest
     if: >
@@ -197,7 +200,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           fetch-depth: 0
 
-      - name: Resolve release version
+      - name: Resolve Release Version
         id: release
         shell: bash
         run: |
@@ -218,7 +221,7 @@ jobs:
             echo "should_release=false" >> "${GITHUB_OUTPUT}"
           fi
 
-      - name: Resolve selected deployment image inputs
+      - name: Resolve Selected Deployment Image Inputs
         id: images
         env:
           DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
@@ -243,7 +246,7 @@ jobs:
           PYTHON
 
   build-images:
-    name: Build and push cowork-${{ matrix.service }}
+    name: Build And Push cowork-${{ matrix.service }}
     needs: prepare
     # Release tags and deployment images have separate lifecycles. A selected
     # deployment always gets sha-<sha>, even when VERSION did not change.
@@ -266,14 +269,14 @@ jobs:
         with:
           ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
 
-      - name: Log in to GitHub Container Registry
+      - name: Log In To GitHub Container Registry
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push image
+      - name: Build And Push Image
         uses: ./.github/actions/build-image
         with:
           service: ${{ matrix.service }}
@@ -293,6 +296,7 @@ jobs:
             org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
 
   release:
+    name: Create Release
     needs:
       - prepare
       - build-images
@@ -312,7 +316,7 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Create release and tag
+      - name: Create Release And Tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ needs.prepare.outputs.version }}
@@ -323,6 +327,7 @@ jobs:
             --generate-notes
 
   detect-changes:
+    name: Detect Deployment Changes
     runs-on: ubuntu-latest
     if: >
       github.event.workflow_run.conclusion == 'success' &&
@@ -336,24 +341,26 @@ jobs:
       matrix: ${{ steps.build-matrix.outputs.matrix }}
       services-list: ${{ steps.build-matrix.outputs.services-list }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Checkout Code
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
-      - name: Checkout deployment tracking tools
+      - name: Checkout Deployment Tracking Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
           path: .deployment-tools
-      - name: Compare each target with its last successful deployment
+      - name: Compare Each Target With Its Last Successful Deployment
         id: build-matrix
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: python3 .deployment-tools/deploy/prod/build-matrix.py
+        run: python3 .deployment-tools/deploy/prod/cd/build-matrix.py
 
   deployment-plan:
+    name: Plan Deployment
     needs: [prepare, build-images, release, detect-changes, manual-request]
     if: >
       !cancelled() && needs.prepare.result == 'success' && (
@@ -373,7 +380,7 @@ jobs:
       config: ${{ steps.waves.outputs.config }}
       applications: ${{ steps.waves.outputs.applications }}
     steps:
-      - name: Order Vault, datastores, storage, Config Server and remaining services
+      - name: Order Vault, Datastores, Storage, Config Server And Remaining Services
         id: waves
         env:
           DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
@@ -394,6 +401,7 @@ jobs:
           PYTHON
 
   deploy-vault:
+    name: Deploy Vault
     needs: [deployment-plan]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -410,11 +418,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.vault) }}
     steps:
-      - name: Checkout deployment tools
+      - name: Checkout Deployment Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
-      - uses: ./.github/actions/deploy-target
+      - name: Deploy Target
+        uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
@@ -428,6 +437,7 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy-datastores:
+    name: Deploy Datastores
     needs: [deployment-plan, deploy-vault]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -445,11 +455,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.datastores) }}
     steps:
-      - name: Checkout deployment tools
+      - name: Checkout Deployment Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
-      - uses: ./.github/actions/deploy-target
+      - name: Deploy Target
+        uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
@@ -461,6 +472,7 @@ jobs:
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
 
   deploy-storage:
+    name: Deploy Storage
     needs: [deployment-plan, deploy-vault, deploy-datastores]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -479,11 +491,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.storage) }}
     steps:
-      - name: Checkout deployment tools
+      - name: Checkout Deployment Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
-      - uses: ./.github/actions/deploy-target
+      - name: Deploy Target
+        uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
@@ -495,6 +508,7 @@ jobs:
           vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
 
   apply-infrastructure:
+    name: Apply Infrastructure
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage]
     if: >
       !cancelled() && needs.deployment-plan.result == 'success' &&
@@ -511,22 +525,24 @@ jobs:
     timeout-minutes: 60
     environment: Prod-IaC
     steps:
-      - name: Read the selected infrastructure source
+      - name: Read The Selected Infrastructure Source
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: actions/setup-python@v7
+      - name: Set Up Python
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
-      - uses: hashicorp/setup-terraform@v4
+      - name: Set Up Terraform
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.14.0'
           terraform_wrapper: false
-      - name: Install pinned IaC tools
+      - name: Install Pinned IaC Tools
         run: python -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
-      - name: Validate or apply infrastructure
+      - name: Validate Or Apply Infrastructure
         id: apply
         env:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
@@ -536,6 +552,8 @@ jobs:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
+          DISCORD_MONITORING_ALERT_WEBHOOK: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
+          # Manual replay executes the selected release's IaC, including older input names.
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -548,7 +566,7 @@ jobs:
           [ "$AUTOMATIC" != true ] || options+=(--automatic)
           [ "$INITIALIZE_STATE" != true ] || options+=(--initialize-state)
           python deploy/iac/run.py "${options[@]}"
-      - name: Preserve encrypted state if persistence failed
+      - name: Preserve Encrypted State If Persistence Failed
         if: always() && (failure() || cancelled())
         uses: actions/upload-artifact@v7
         with:
@@ -556,7 +574,7 @@ jobs:
           path: ${{ runner.temp }}/cowork-iac-recovery/grafana.tfstate.aesgcm
           if-no-files-found: ignore
           retention-days: 30
-      - name: Remove any remaining plaintext inputs
+      - name: Remove Any Remaining Plaintext Inputs
         if: always()
         env:
           PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-iac-${{ github.run_id }}-${{ github.run_attempt }}
@@ -571,7 +589,7 @@ jobs:
           if directory.exists():
               shutil.rmtree(directory)
           PYTHON
-      - name: Summarize the scope actually executed
+      - name: Summarize The Scope Actually Executed
         if: success()
         env:
           IAC_RESULT: ${{ steps.apply.outputs.result }}
@@ -594,6 +612,7 @@ jobs:
           esac
 
   deploy-config:
+    name: Deploy Config Server
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -615,11 +634,12 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.config) }}
     steps:
-      - name: Checkout deployment tools
+      - name: Checkout Deployment Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
-      - uses: ./.github/actions/deploy-target
+      - name: Deploy Target
+        uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
@@ -633,6 +653,7 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
+    name: Deploy (${{ matrix.target }})
     needs: [deployment-plan, deploy-vault, deploy-datastores, deploy-storage, apply-infrastructure, deploy-config]
     if: >
       always() && needs.deployment-plan.result == 'success' &&
@@ -657,11 +678,12 @@ jobs:
       # Let all selected application jobs start; do not cap this matrix's parallelism.
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.applications) }}
     steps:
-      - name: Checkout deployment tools
+      - name: Checkout Deployment Tools
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
-      - uses: ./.github/actions/deploy-target
+      - name: Deploy Target
+        uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
@@ -675,6 +697,7 @@ jobs:
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   update-config:
+    name: Update Vault Configuration
     needs: manual-request
     if: inputs.operation == 'update-config'
     runs-on: ubuntu-latest
@@ -682,8 +705,9 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
-      - name: Replace Vault document with CAS protection
+      - name: Checkout Code
+        uses: actions/checkout@v7
+      - name: Replace Vault Document With CAS Protection
         env:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
@@ -695,10 +719,11 @@ jobs:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
         run: |
           set -euo pipefail
-          python3 deploy/prod/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
+          python3 deploy/prod/cd/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
             --profile "$PROFILE" --expected-version "$EXPECTED_VERSION"
 
   notify:
+    name: Send Deployment Notification
     runs-on: ubuntu-latest
     needs:
       - prepare

@@ -6,7 +6,7 @@ import runpy
 import subprocess
 import sys
 
-SLOTS = runpy.run_path(str(Path(__file__).with_name('slots.py')))
+SLOTS = runpy.run_path(str(Path(__file__).resolve().parents[1] / 'slots.py'))
 demand = SLOTS['demand']
 
 
