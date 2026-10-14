@@ -1,11 +1,11 @@
 server:
-  port: 8085
+  port: ${PORT:8085}
 
 spring:
   datasource:
-    url: jdbc:mysql://${MYSQL_HOST:mysql}:${MYSQL_PORT:3306}/cowork_team?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-    username: ${MYSQL_USER}
-    password: ${MYSQL_PASSWORD}
+    url: jdbc:mysql://${DB_HOST:${MYSQL_HOST:mysql}}:${DB_PORT:${MYSQL_PORT:3306}}/${DB_NAME:cowork_team}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: ${DB_USERNAME:${MYSQL_USER}}
+    password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
   cloud:
@@ -26,6 +26,10 @@ eureka:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
   instance:
+    hostname: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.hostname}}
+    ip-address: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.ip-address}}
+    non-secure-port: ${APP_ADVERTISE_PORT:${server.port}}
+    prefer-ip-address: true
     initial-status: STARTING
 
 management:
@@ -49,5 +53,5 @@ KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE: cowork-team.team-role-projection
 KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT: cowork-team.team-role-command-result
 
 object-storage:
-  public-endpoint: ${S3_PUBLIC_ENDPOINT}
-  public-base-url: ${S3_PUBLIC_BASE_URL}
+  bucket: ${S3_BUCKET:cowork-bucket}
+  public-api-base-url: ${PUBLIC_API_BASE_URL}
