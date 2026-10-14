@@ -20,6 +20,7 @@ services:
       - prometheus_config:/generated/prometheus
       - alertmanager_config:/generated/alertmanager
       - grafana_proxy_config:/generated/grafana-proxy
+      - grafana_config:/generated/grafana
     entrypoint: [/bin/sh, /prepare-configs.sh]
   loki:
     image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
@@ -125,6 +126,7 @@ services:
       - ${MONITORING_ADMIN_BIND_IP:-127.0.0.1}:3001:3000
     volumes:
       - grafana_data:/var/lib/grafana
+      - grafana_config:/etc/grafana/managed:ro
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD is required}
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:?GRAFANA_ROOT_URL is required}
@@ -132,11 +134,17 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_PATHS_PROVISIONING: /etc/grafana/managed/provisioning
     depends_on:
       monitoring-config-init:
         condition: service_completed_successfully
       prometheus:
         condition: service_healthy
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://127.0.0.1:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 12
   grafana_proxy:
     image: nginxinc/nginx-unprivileged:1.30.5-alpine@sha256:56b8272e43a0525f67aed68d1e0794a712d10e3e45a563e118e9a77c817e6f86
     user: '101:101'
@@ -167,7 +175,7 @@ services:
       monitoring-config-init:
         condition: service_completed_successfully
       grafana:
-        condition: service_started
+        condition: service_healthy
   redis_exporter:
     image: oliver006/redis_exporter:v1.91.1@sha256:c67a432dba6b4ae30f471e3c77cf14a289133bbeeb89abb0bb03e6092efb2836
     restart: unless-stopped
@@ -212,3 +220,4 @@ volumes:
   blackbox_config: {}
   prometheus_config: {}
   grafana_proxy_config: {}
+  grafana_config: {}
