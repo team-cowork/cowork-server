@@ -1,17 +1,17 @@
-import { escapeHtml } from './validation.mjs';
+import {escapeHtml} from './validation.mjs';
 
 const priorityClasses = new Set(['high', 'medium', 'low', 'unknown']);
 
 function priorityClass(priority) {
-    return priorityClasses.has(priority) ? priority : 'unknown';
+	return priorityClasses.has(priority) ? priority : 'unknown';
 }
 
 export function renderTodoItem(item) {
-    const route = escapeHtml(item.route);
-    const id = escapeHtml(item.id);
-    const priority = priorityClass(item.priority);
+	const route = escapeHtml(item.route);
+	const id = escapeHtml(item.id);
+	const priority = priorityClass(item.priority);
 
-    return `      <li class="todo-list__item" data-todo-id="${id}">
+	return `      <li class="todo-list__item" data-todo-id="${id}">
         <a class="todo-list__link" href="${route}" data-todo-route="${route}">
           <span class="todo-list__title">${escapeHtml(item.title)}</span>
           <span class="todo-list__priority todo-list__priority--${priority}">${escapeHtml(item.priorityLabel)}</span>
@@ -20,17 +20,17 @@ export function renderTodoItem(item) {
 }
 
 export function renderTodoItems(items) {
-    return items.map(item => renderTodoItem(item)).join('\n');
+	return items.map(item => renderTodoItem(item)).join('\n');
 }
 
 export function renderTodoHistoryItem(snapshot) {
-    const route = escapeHtml(snapshot.route);
-    const id = escapeHtml(snapshot.id);
-    const label = snapshot.description
-        ? `${snapshot.displayDate} — ${snapshot.description}`
-        : snapshot.displayDate || snapshot.title;
+	const route = escapeHtml(snapshot.route);
+	const id = escapeHtml(snapshot.id);
+	const label = snapshot.description
+		? `${snapshot.displayDate} — ${snapshot.description}`
+		: snapshot.displayDate || snapshot.title;
 
-    return `      <li class="todo-list__item" data-todo-id="${id}">
+	return `      <li class="todo-list__item" data-todo-id="${id}">
         <a class="todo-list__link" href="${route}" data-todo-route="${route}">
           <span class="todo-list__title">${escapeHtml(label)}</span>
         </a>
@@ -38,37 +38,37 @@ export function renderTodoHistoryItem(snapshot) {
 }
 
 export function renderTodoHistory(snapshots) {
-    return snapshots.map(snapshot => renderTodoHistoryItem(snapshot)).join('\n');
+	return snapshots.map(snapshot => renderTodoHistoryItem(snapshot)).join('\n');
 }
 
 function renderPriorityMarker(priority) {
-    const value = priorityClass(priority);
-    return `<span class="todo-priority-marker todo-priority-marker--${value}" aria-hidden="true"></span> `;
+	const value = priorityClass(priority);
+	return `<span class="todo-priority-marker todo-priority-marker--${value}" aria-hidden="true"></span> `;
 }
 
 function renderMetadata(metadata, documentPriority) {
-    if (!Array.isArray(metadata) || metadata.length === 0) {
-        return '';
-    }
+	if (!Array.isArray(metadata) || metadata.length === 0) {
+		return '';
+	}
 
-    const entries = metadata
-        .map(
-            entry => `        <div>
+	const entries = metadata
+		.map(
+			entry => `        <div>
           <dt>${escapeHtml(entry.label)}</dt>
           <dd>${entry.label === '우선순위' ? renderPriorityMarker(documentPriority) : ''}${entry.html}</dd>
         </div>`,
-        )
-        .join('\n');
+		)
+		.join('\n');
 
-    return `      <dl class="todo-document__metadata">
+	return `      <dl class="todo-document__metadata">
 ${entries}
       </dl>`;
 }
 
 export function renderTodoDocument(document) {
-    const metadata = renderMetadata(document.metadata, document.priority);
+	const metadata = renderMetadata(document.metadata, document.priority);
 
-    return `    <header class="todo-document__header">
+	return `    <header class="todo-document__header">
       <h1 id="todo-document-title" class="todo-document__title" tabindex="-1">${escapeHtml(document.title)}</h1>
 ${metadata}
     </header>
@@ -76,14 +76,14 @@ ${metadata}
 }
 
 export function renderTodoToc(toc) {
-    return toc
-        .map(entry => {
-            const depth = entry.depth === 3 ? 3 : 2;
-            const href = `#${encodeURIComponent(entry.id)}`;
+	return toc
+		.map(entry => {
+			const depth = entry.depth === 3 ? 3 : 2;
+			const href = `#${encodeURIComponent(entry.id)}`;
 
-            return `              <li class="todo-toc__item todo-toc__item--depth-${depth}">
+			return `              <li class="todo-toc__item todo-toc__item--depth-${depth}">
                 <a class="todo-toc__link" href="${escapeHtml(href)}">${escapeHtml(entry.text)}</a>
               </li>`;
-        })
-        .join('\n');
+		})
+		.join('\n');
 }
