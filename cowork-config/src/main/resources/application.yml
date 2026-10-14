@@ -5,7 +5,7 @@ spring:
   application:
     name: cowork-config
   profiles:
-    active: ${APP_CONFIG_PROFILE:${SPRING_PROFILES_ACTIVE:local}}
+    active: ${APP_CONFIG_PROFILE:local}
     group:
       local: composite
       prod: composite

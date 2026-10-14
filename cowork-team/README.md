@@ -29,7 +29,7 @@
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 |
+| `APP_CONFIG_PROFILE` | `local` | 설정 프로파일 |
 | `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_TEAM_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_TEAM_PASSWORD`에서 전달 |

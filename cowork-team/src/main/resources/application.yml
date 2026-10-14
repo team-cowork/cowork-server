@@ -3,7 +3,7 @@ server:
 
 spring:
   profiles:
-    active: ${APP_CONFIG_PROFILE:${SPRING_PROFILES_ACTIVE:local}}
+    active: ${APP_CONFIG_PROFILE:local}
   cloud:
     config:
       username: ${CONFIG_CLIENT_USERNAME}
