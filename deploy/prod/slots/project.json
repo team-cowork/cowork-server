@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "service": "project",
+  "kind": "application",
+  "runtime": {
+    "APP_CONFIG_PROFILE": "prod",
+    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "DB_HOST": "10.0.0.93",
+    "DB_PORT": "3306",
+    "DB_USERNAME": "cowork",
+    "DB_NAME": "cowork_project"
+  },
+  "secrets": {
+    "runtime": {
+      "CONFIG_CLIENT_PASSWORD": {
+        "key": "CONFIG_CLIENT_PASSWORD",
+        "path": "control-plane/prod/project"
+      },
+      "CONFIG_CLIENT_USERNAME": {
+        "key": "CONFIG_CLIENT_USERNAME",
+        "path": "control-plane/prod/project"
+      },
+      "DB_PASSWORD": {
+        "path": "slot-secrets/project",
+        "key": "DB_PASSWORD"
+      },
+      "GITHUB_APP_INTERNAL_API_KEY": {
+        "path": "slot-secrets/project",
+        "key": "GITHUB_APP_INTERNAL_API_KEY"
+      }
+    }
+  },
+  "container": {
+    "port": 8084,
+    "host_port": 8089,
+    "bind_address": "10.0.0.88",
+    "advertise_address": "10.0.0.88",
+    "readiness": {
+      "path": "/actuator/health/readiness",
+      "timeout_seconds": 420
+    },
+    "metrics_path": "/actuator/prometheus",
+    "limits": {
+      "memory": "2048m",
+      "cpus": 2,
+      "pids": 512
+    },
+    "stop_timeout_seconds": 30,
+    "mounts": []
+  },
+  "peers": [
+    "10.0.0.127/32",
+    "10.0.0.137/32"
+  ]
+}
