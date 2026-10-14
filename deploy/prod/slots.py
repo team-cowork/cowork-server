@@ -63,7 +63,7 @@ def validate(value, target):
     demand(isinstance(github_secrets, dict), "GitHub secret references must be an object")
     if github_secrets:
         demand(value["kind"] == "infrastructure" and value["service"] == "monitoring"
-               and github_secrets == {"DISCORD_WEBHOOK_URL": "DISCORD_MONITORING_ALERT_WEBHOOK"},
+               and github_secrets == {"DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK"},
                "Only monitoring can consume its GitHub monitoring webhook")
         demand(not set(github_secrets).intersection(value.get("runtime", {}))
                and not set(github_secrets).intersection(secrets.get("runtime", {}))
@@ -134,7 +134,11 @@ def environment(slot):
 
 
 def host_network(directory=None):
-    path = (directory or Path(__file__).parent) / "host-network.json"
+    base = directory or Path(__file__).parent
+    path = base / "network/host-network.json"
+    if directory is not None and not path.exists():
+        # Replay can read releases from before the network directory was introduced.
+        path = base / "host-network.json"
     demand(path.is_file() and not path.is_symlink(), "Missing regular host network contract")
     value = json.loads(path.read_text(), object_pairs_hook=pairs)
     demand(isinstance(value, dict) and set(value) == {"name", "mtu"}, "Invalid host network contract")
@@ -156,7 +160,16 @@ def firewall(slot):
     c = slot["container"]
     if slot["kind"] == "config":
         return {"bindings": [{"address": c["bind_address"], "port": c["host_port"]}], "cidrs": slot["peers"]}
-    return {"bindings": [{"address": c["bind_address"], "host_port": c["host_port"], "container_port": c["port"]}], "peers": slot["peers"]}
+    # node-agent's node_exporter runs alongside every application container on the same VM and is
+    # scraped by the same peers that already reach this slot's own port (ansible firewall.yml applies
+    # this output for every IaC-managed application host except gateway, which isn't a firewall target
+    # here and needs its own ingress fix — same for config, whose firewall is rendered separately by
+    # config-firewall.py and does not read this function's output at all).
+    bindings = [
+        {"address": c["bind_address"], "host_port": c["host_port"], "container_port": c["port"]},
+        {"address": c["bind_address"], "host_port": 9100, "container_port": 9100},
+    ]
+    return {"bindings": bindings, "peers": slot["peers"]}
 
 
 def main():

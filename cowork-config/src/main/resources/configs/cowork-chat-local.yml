@@ -13,7 +13,7 @@ REDIS_PORT: 6379
 EUREKA_ENABLED: true
 EUREKA_SERVER_URL: http://cowork-config:8761/eureka
 EUREKA_APP_NAME: cowork-chat
-EUREKA_INSTANCE_HOST: cowork-chat
+APP_ADVERTISE_ADDRESS: cowork-chat
 EUREKA_LEASE_RENEWAL_SECONDS: 30
 S3_INTERNAL_ENDPOINT: http://seaweedfs:9000
 S3_BUCKET: cowork-bucket

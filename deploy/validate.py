@@ -13,6 +13,8 @@ for path in sorted((ROOT / "deploy").rglob("*.sh")):
     subprocess.run(["bash", "-n", str(path)], check=True)
 for path in sorted((ROOT / "deploy").rglob("*.py")):
     ast.parse(path.read_text(), filename=str(path))
+for source in ("databases/runtime.py", "databases/search.py", "shared/runtime.py", "storage/runtime.py"):
+    subprocess.run(["python3", str(ROOT / "deploy/iac" / source), "check"], check=True)
 
 # No real .env values are emitted or required. Override every Compose placeholder.
 env = {key: value for key, value in os.environ.items() if not key.startswith("COMPOSE_")}
@@ -21,9 +23,10 @@ for name in set(re.findall(r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)", compose_text)
     env[name] = "validation-only"
 env.update(
     MYSQL_HOST_PORT="3306", KAFKA_EXTERNAL_HOST_PORT="9094", COWORK_CONFIG_HOST_PORT="8761",
-    COWORK_PROJECT_HOST_PORT="8084", LIVEKIT_CONFIG_FILE="livekit.yaml", SPRING_PROFILES_ACTIVE="local",
+    COWORK_PROJECT_HOST_PORT="8084", LIVEKIT_CONFIG_FILE="livekit.yaml", APP_CONFIG_PROFILE="local",
     VAULT_PORT="8200", MYSQL_PORT="3306", REDIS_PORT="6379", VAULT_HOST_PORT="8200",
     MONITORING_BIND_IP="127.0.0.1", VAULT_BIND_IP="127.0.0.1", MONITORING_ADMIN_BIND_IP="127.0.0.1",
+    NODE_EXPORTER_BIND_IP="127.0.0.1",
     DOCKER_CONTAINER_LOG_DIR="/var/lib/docker/containers", MONITORING_PROMETHEUS_CONFIG="/tmp/cowork-validation-prometheus.json",
 )
 models = {
@@ -31,6 +34,7 @@ models = {
     "monitoring": ["deploy/prod/monitoring/compose.yaml"],
     "vault": ["deploy/prod/vault/compose.yaml"],
     "log-agent": ["deploy/prod/log-agent/compose.yaml"],
+    "node-agent": ["deploy/prod/node-agent/compose.yaml"],
 }
 resolved = {}
 for name, files in models.items():
@@ -64,7 +68,7 @@ for name, settings in catalog.items():
         raise SystemExit(f"{service}: local image catalog and Compose build context differ")
     if (Path(build["context"]) / build["dockerfile"]).resolve() != ROOT / service / "Dockerfile.local":
         raise SystemExit(f"{service}: unexpected local Dockerfile")
-    if "local" not in [local.get("environment", {}).get(key) for key in ("APP_PROFILE", "SPRING_PROFILES_ACTIVE", "APP_CONFIG_PROFILE")]:
+    if local.get("environment", {}).get("APP_CONFIG_PROFILE") != "local":
         raise SystemExit(f"{service}: local bootstrap profile is missing")
     for environment in ("local", "prod"):
         dockerfile = ROOT / service / f"Dockerfile.{environment}"
@@ -81,7 +85,7 @@ for name, settings in catalog.items():
 print(f"{len(catalog) * 2} local/prod image inputs and Config Server profiles valid; local startup configuration valid")
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
-settings_schema = runpy.run_path(str(ROOT / "deploy/prod/vault-settings.py"))
+settings_schema = runpy.run_path(str(ROOT / "deploy/prod/cd/vault-settings.py"))
 settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()), "voice")
 seen = set()
 for target in inventory["targets"]:
