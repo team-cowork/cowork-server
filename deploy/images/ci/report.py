@@ -260,23 +260,26 @@ def normalize_result(raw: Any, module: str, snapshot: str, metric: str) -> Resul
     return Result(module, snapshot, metric, status, covered, total, reason)
 
 
-def load_results(artifacts: Path, modules: list[dict[str, Any]]) -> tuple[dict[tuple[str, str], Result], list[str]]:
+def load_results(artifacts: Path, modules: list[dict[str, Any]]) -> tuple[dict[tuple[str, str], Result], list[tuple[str | None, str]]]:
     expected = {module["module"]: module for module in modules}
     candidates: dict[tuple[str, str], list[Any]] = {}
     diagnostics = []
     for path in sorted(artifacts.rglob("result.json")):
+        diagnostic_snapshot = None
         try:
             raw = read_json(path)
             if not isinstance(raw, dict):
                 raise CoverageError("result must be a JSON object")
             module, snapshot = raw.get("module"), raw.get("snapshot")
+            if isinstance(snapshot, str) and snapshot in SNAPSHOTS:
+                diagnostic_snapshot = snapshot
             if not isinstance(module, str) or not isinstance(snapshot, str):
                 raise CoverageError("result is missing module or snapshot")
             if module not in expected or snapshot not in SNAPSHOTS:
                 raise CoverageError("result has an unknown module or snapshot")
             candidates.setdefault((module, snapshot), []).append(raw)
         except (CoverageError, OSError, UnicodeError, json.JSONDecodeError) as error:
-            diagnostics.append(f"{path.relative_to(artifacts)}: {error}")
+            diagnostics.append((diagnostic_snapshot, f"{path.relative_to(artifacts)}: {error}"))
 
     results = {}
     for module, entry in expected.items():
@@ -343,13 +346,14 @@ def code_text(value: Any) -> str:
 def measurement_status(base: Result, pr: Result) -> str:
     problems = []
     for result in (base, pr):
+        snapshot = "기준 커밋" if result.snapshot == "base" else "현재 PR"
         if result.status in {"failed", "missing"}:
-            label = "실패" if result.status == "failed" else "누락"
-            problems.append(f"{result.snapshot}: {label} — {code_text(result.reason[:500])}")
+            label = "실패" if result.status == "failed" else "미측정"
+            problems.append(f"{snapshot}: {label} — {code_text(result.reason[:500])}")
         elif result.status in {"excluded", "untested"}:
-            problems.append(f"{result.snapshot}: {code_text(result.reason)}")
+            problems.append(f"{snapshot}: {code_text(result.reason)}")
         elif result.status == "ok" and result.total == 0:
-            problems.append(f"{result.snapshot}: 측정 항목 없음")
+            problems.append(f"{snapshot}: 측정 항목 없음")
     if problems:
         return "; ".join(problems)
     if base.status == "absent" and pr.status == "absent":
@@ -428,7 +432,8 @@ def render(args: argparse.Namespace) -> str:
     results, diagnostics = load_results(args.artifacts, modules)
     base = aggregate([results[(module["module"], "base")] for module in modules], "base")
     pr = aggregate([results[(module["module"], "pr")] for module in modules], "pr")
-    complete = base.status == pr.status == "ok" and not diagnostics
+    base_complete = base.status == "ok" and not any(snapshot in {None, "base"} for snapshot, _ in diagnostics)
+    pr_complete = pr.status == "ok" and not any(snapshot in {None, "pr"} for snapshot, _ in diagnostics)
     unit_changed = any(
         results[(module["module"], "base")].status == results[(module["module"], "pr")].status == "ok"
         and results[(module["module"], "base")].metric != results[(module["module"], "pr")].metric
@@ -445,12 +450,12 @@ def render(args: argparse.Namespace) -> str:
         for module in modules
     )
     scope_changed = module_scope_changed or test_scope_changed
-    overall_change = delta(base, pr) if complete and not unit_changed and not scope_changed else None
+    overall_change = delta(base, pr) if base_complete and pr_complete and not unit_changed and not scope_changed else None
     lines = [MARKER, "## 테스트 커버리지", ""]
-    if complete and pr.total:
+    if pr_complete and pr.total:
         lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="영향 모듈 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
 
-    lines += ["```diff", coverage_line("영향 모듈 합계", pr.percent if complete else None, overall_change)]
+    lines += ["```diff", coverage_line("영향 모듈 합계", pr.percent if pr_complete else None, overall_change)]
     for module in modules:
         name = module["module"]
         previous, current = results[(name, "base")], results[(name, "pr")]
@@ -460,14 +465,23 @@ def render(args: argparse.Namespace) -> str:
         lines.append(coverage_line(module["module"], None, None, module["reason"]))
 
     lines += ["```", ""]
-    if not complete:
-        lines += ["일부 측정이 실패하거나 누락되어 전체 수치·증감·도넛 차트를 표시하지 않았습니다.", ""]
+    if not pr_complete:
+        lines += ["현재 PR의 일부 측정이 실패하거나 누락되어 현재 합계와 도넛 차트를 표시하지 않았습니다. 전체 증감은 N/A입니다.", ""]
+    if not base_complete:
+        message = "기준 커밋의 일부 커버리지가 측정되지 않았거나 측정에 실패하여 전체 증감은 N/A입니다."
+        if pr_complete:
+            message += " 현재 PR의 합계와 도넛 차트는 표시합니다."
+        lines += [message, ""]
     if unit_changed:
         lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
     if module_scope_changed:
         lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 개별 증감과 전체 증감은 N/A입니다.", ""]
     if diagnostics:
-        lines += ["보고서 검증 오류:", ""] + [f"- {text(message[:500])}" for message in diagnostics] + [""]
+        lines += ["보고서 검증 오류:", ""]
+        for snapshot, message in diagnostics:
+            label = "기준 커밋" if snapshot == "base" else "현재 PR" if snapshot == "pr" else "대상 불명"
+            lines.append(f"- {label}: {text(message[:500])}")
+        lines.append("")
     body = "\n".join(lines)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
