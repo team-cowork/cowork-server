@@ -26,10 +26,10 @@ def main():
         except urllib.error.HTTPError as error:
             raise RuntimeError(f'Vault bootstrap failed: {path} (HTTP {error.code})') from None
 
-    spec = json.loads(Path(__file__).with_name('vault-auth.json').read_text())
+    spec = json.loads((Path(__file__).resolve().parents[1] / 'policy/vault-auth.json').read_text())
     # Git declares each slot's secret dependencies. Runtime and update tokens
     # receive only their own exact paths; the IaC runner cannot change policies.
-    slots = Path(__file__).resolve().parents[1] / 'prod/slots'
+    slots = Path(__file__).resolve().parents[2] / 'prod/slots'
     for path in sorted(slots.glob('*.json')):
         slot = json.loads(path.read_text())
         if slot['kind'] not in {'application', 'config'}:

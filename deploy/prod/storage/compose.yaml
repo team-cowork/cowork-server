@@ -65,7 +65,7 @@ services:
       AWS_EC2_METADATA_DISABLED: "true"
       AWS_PAGER: ""
       HOME: /tmp
-      APP_PROFILE: prod
+      APP_CONFIG_PROFILE: prod
       S3_INTERNAL_ENDPOINT: http://127.0.0.1:9000
       S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is required}
       PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS:?PUBLIC_WEB_ORIGINS is required}

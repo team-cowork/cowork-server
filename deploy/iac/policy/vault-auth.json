@@ -8,7 +8,7 @@
   "role": {
     "role_type": "jwt",
     "user_claim": "repository_id",
-    "bound_audiences": ["https://vault.https.gsmsv.site"],
+    "bound_audiences": ["https://cowork-vault.https.gsmsv.site"],
     "bound_subject": "repo:team-cowork/cowork-server:environment:Prod-IaC",
     "bound_claims": {
       "repository_id": "1208653612",
