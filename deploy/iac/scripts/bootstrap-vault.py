@@ -27,6 +27,10 @@ def main():
             raise RuntimeError(f'Vault bootstrap failed: {path} (HTTP {error.code})') from None
 
     spec = json.loads((Path(__file__).resolve().parents[1] / 'policy/vault-auth.json').read_text())
+    databases = json.loads((Path(__file__).resolve().parents[1] / 'databases/catalog.json').read_text())
+    for module in databases:
+        spec['policies']['cowork-iac-read']['secret/data/iac/databases/' + module] = ['read']
+        spec['policies']['cowork-iac-read']['secret/data/slot-secrets/' + module] = ['read']
     # Git declares each slot's secret dependencies. Runtime and update tokens
     # receive only their own exact paths; the IaC runner cannot change policies.
     slots = Path(__file__).resolve().parents[2] / 'prod/slots'
