@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/config/springconfig"
+	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 type AppConfig struct {
@@ -55,6 +56,10 @@ func Load() (*AppConfig, error) {
 	portStr := lookup(flatMap, "eureka.instance.port", "8086")
 
 	overrideFromEnv(cfg, &portStr)
+	cfg.DBDSN, err = mysqlDSN(cfg.DBDSN)
+	if err != nil {
+		return nil, err
+	}
 
 	eurekaPort, err := strconv.Atoi(portStr)
 	if err != nil {
@@ -69,12 +74,12 @@ func Load() (*AppConfig, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := os.Getenv("APP_CONFIG_URL")
+	configURL := getEnv("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnv("APP_PROFILE", "local")
+	profile := getEnv("APP_CONFIG_PROFILE", getEnv("APP_PROFILE", "local"))
 	client := springconfig.NewClient(configURL, "cowork-notification", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -93,10 +98,7 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
 	}
-	if v := os.Getenv("DB_DSN"); v != "" {
-		cfg.DBDSN = v
-	}
-	if v := os.Getenv("KAFKA_BROKERS"); v != "" {
+	if v := getEnv("KAFKA_BOOTSTRAP_SERVERS", os.Getenv("KAFKA_BROKERS")); v != "" {
 		cfg.KafkaBrokers = v
 	}
 	if v := os.Getenv("KAFKA_TOPIC_NOTIFICATION"); v != "" {
@@ -123,10 +125,10 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := os.Getenv("EUREKA_INSTANCE_HOST"); v != "" {
+	if v := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
 		cfg.EurekaInstanceHost = v
 	}
-	if v := os.Getenv("EUREKA_INSTANCE_PORT"); v != "" {
+	if v := getEnv("APP_ADVERTISE_PORT", os.Getenv("EUREKA_INSTANCE_PORT")); v != "" {
 		*eurekaPortStr = v
 	}
 }
@@ -143,7 +145,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := os.Getenv("EUREKA_INSTANCE_HOST"); explicitHost != "" {
+		if explicitHost := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address
@@ -203,4 +205,34 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// Individual database inputs define one connection and take precedence over a stored DSN.
+func mysqlDSN(fallback string) (string, error) {
+	keys := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"}
+	configured := false
+	for _, key := range keys {
+		if _, present := os.LookupEnv(key); present {
+			configured = true
+			break
+		}
+	}
+	if !configured {
+		return getEnv("DB_DSN", fallback), nil
+	}
+	for _, key := range keys {
+		if os.Getenv(key) == "" {
+			return "", fmt.Errorf("required configuration %q is not set", key)
+		}
+	}
+	cfg := mysqlDriver.NewConfig()
+	cfg.User = os.Getenv("DB_USERNAME")
+	cfg.Passwd = os.Getenv("DB_PASSWORD")
+	cfg.Net = "tcp"
+	cfg.Addr = net.JoinHostPort(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"))
+	cfg.DBName = os.Getenv("DB_NAME")
+	cfg.ParseTime = true
+	cfg.Loc = time.Local
+	cfg.Params = map[string]string{"charset": "utf8mb4"}
+	return cfg.FormatDSN(), nil
 }

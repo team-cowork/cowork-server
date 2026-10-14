@@ -7,7 +7,8 @@ finalize_container_cutover() { :; }
 
 wait_for_health() {
   # Snapshot republication alone can take 300s; allow a VM-specific readiness budget.
-  local url="$1" deadline=$((SECONDS + HEALTH_TIMEOUT_SECONDS)) remaining request_timeout
+  local url="$1" timeout="${2:-$HEALTH_TIMEOUT_SECONDS}" remaining request_timeout
+  local deadline=$((SECONDS + timeout))
   while ((SECONDS < deadline)); do
     remaining=$((deadline - SECONDS))
     request_timeout=$((remaining < 5 ? remaining : 5))
@@ -28,7 +29,7 @@ deploy_container_safely() (
   if [ "${1:-}" = -- ]; then shift; fi
   local candidate="${container}-candidate" previous="${container}-previous"
   local old_exists=false old_was_healthy=false swapping=false candidate_ready=false complete=false candidate_id old_id
-  local previous_health_base capture_pid startup_log
+  local previous_health_base previous_health_path previous_health_timeout previous_stop_timeout capture_pid startup_log
   local log_dir="${DEPLOY_STATE_DIR:-${HOME}/.local/state/cowork}/logs"
   local health_host="$BIND_IP"
   [ "$health_host" != 0.0.0.0 ] || health_host=127.0.0.1
@@ -44,8 +45,14 @@ deploy_container_safely() (
     old_exists=true
     previous_health_base=$(docker container inspect -f '{{index .Config.Labels "cowork.health-base-url"}}' "$container")
     [ -n "$previous_health_base" ] || previous_health_base="http://${health_host}:${host_port}"
+    previous_health_path=$(docker container inspect -f '{{index .Config.Labels "cowork.health-path"}}' "$container")
+    [ -n "$previous_health_path" ] || previous_health_path="$health_path"
+    previous_health_timeout=$(docker container inspect -f '{{index .Config.Labels "cowork.health-timeout-seconds"}}' "$container")
+    [[ "$previous_health_timeout" =~ ^[1-9][0-9]{0,3}$ ]] || previous_health_timeout="$HEALTH_TIMEOUT_SECONDS"
+    previous_stop_timeout=$(docker container inspect -f '{{index .Config.Labels "cowork.stop-timeout-seconds"}}' "$container")
+    [[ "$previous_stop_timeout" =~ ^[1-9][0-9]{0,2}$ ]] || previous_stop_timeout=30
     # 배포 전부터 비정상인 컨테이너는 롤백 때 readiness를 기다려도 회복되지 않는다.
-    if curl --fail --silent --connect-timeout 2 --max-time 5 "${previous_health_base}${health_path}" >/dev/null 2>&1; then
+    if curl --fail --silent --connect-timeout 2 --max-time 5 "${previous_health_base}${previous_health_path}" >/dev/null 2>&1; then
       old_was_healthy=true
     fi
   fi
@@ -78,7 +85,7 @@ deploy_container_safely() (
         firewall_restored=false
         status=1
         # Fail closed if the previous ingress policy cannot be recovered.
-        if [ "$old_exists" = true ]; then docker stop --time 30 "$old_id" >/dev/null || true; fi
+        if [ "$old_exists" = true ]; then docker stop --time "$previous_stop_timeout" "$old_id" >/dev/null || true; fi
         echo '[deploy] Host policy restoration failed; previous container will not be started' >&2
       fi
       if [ "$swapping" = true ] && [ "$old_exists" = true ]; then
@@ -88,7 +95,7 @@ deploy_container_safely() (
         if [ "$firewall_restored" = false ]; then
           echo '[deploy] Previous container retained; firewall restoration needs operator attention' >&2
         elif [ "$old_was_healthy" = true ]; then
-          if docker start "$old_id" >/dev/null && wait_for_health "${previous_health_base}${health_path}"; then
+          if docker start "$old_id" >/dev/null && wait_for_health "${previous_health_base}${previous_health_path}" "$previous_health_timeout"; then
             echo "[deploy] Previous container restored" >&2
           else
             echo "[deploy] Previous container retained but restoration needs operator attention" >&2
@@ -115,11 +122,16 @@ deploy_container_safely() (
   # a candidate in Eureka under the old instance's address.
   candidate_id=$(docker create --name "$candidate" --restart unless-stopped \
     --label "cowork.health-base-url=${HEALTH_BASE_URL:-http://${health_host}:${host_port}}" \
+    --label "cowork.health-path=${health_path}" \
+    --label "cowork.health-timeout-seconds=${HEALTH_TIMEOUT_SECONDS}" \
+    --label "cowork.stop-timeout-seconds=${STOP_TIMEOUT_SECONDS:-30}" \
+    --label "cowork.release-sha=${DEPLOY_SHA}" \
+    --label "cowork.image-digest=${image}" \
     -p "${BIND_IP}:${host_port}:${container_port}" "$@" "$image")
   before_container_cutover
   swapping=true
   if [ "$old_exists" = true ]; then
-    docker stop --time 30 "$old_id" >/dev/null
+    docker stop --time "$previous_stop_timeout" "$old_id" >/dev/null
     docker rename "$old_id" "$previous"
   fi
   docker rename "$candidate_id" "$container"
@@ -135,6 +147,24 @@ deploy_container_safely() (
   # Only retire the old container after the new instance passes readiness.
   if [ "$old_exists" = true ]; then docker rm "$old_id" >/dev/null; fi
   finalize_container_cutover
+  # Record the digest and the exact slot/secret snapshot metadata, never secret values.
+  python3 - "$DEPLOY_SETTINGS_DIR/source.json" "$DEPLOY_STATE_DIR/${DEPLOY_TARGET}-runtime.json" "$image" "$candidate_id" <<'PY'
+import json, os, sys, tempfile
+from pathlib import Path
+source, target = Path(sys.argv[1]), Path(sys.argv[2])
+record = json.loads(source.read_text())
+record.update(image_digest=sys.argv[3], container_id=sys.argv[4])
+descriptor, temporary = tempfile.mkstemp(prefix='.runtime-', dir=target.parent)
+try:
+    with os.fdopen(descriptor, 'w') as output:
+        os.fchmod(output.fileno(), 0o600)
+        json.dump(record, output)
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(temporary, target)
+finally:
+    if os.path.exists(temporary): os.unlink(temporary)
+PY
   complete=true
   echo "[deploy] ${container} healthy on ${BIND_IP}:${host_port}"
 )

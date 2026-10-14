@@ -13,7 +13,8 @@ object ControlPlaneAuthentication {
         require(endpoint.userInfo == null && endpoint.host != null && endpoint.scheme in setOf("http", "https")) {
             "Use a Config/Eureka HTTP(S) URL without credentials"
         }
-        val production = System.getenv("SPRING_PROFILES_ACTIVE") == "prod"
+        val profile = System.getenv("APP_CONFIG_PROFILE") ?: System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
+        val production = profile == "prod"
         require(!production || endpoint.scheme == "https" || isPrivateIpv4(endpoint.host)) {
             "Use HTTPS or a private IPv4 HTTP URL for production Config/Eureka"
         }
