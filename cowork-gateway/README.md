@@ -32,10 +32,3 @@
 | `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GATEWAY_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GATEWAY_PASSWORD`에서 전달 |
-
-기동 시 인증된 Config 조회가 필요합니다. 일반 설정은 [서비스별 설정](../cowork-config/src/main/resources/configs/),
-앱 비밀 값은 Vault에서 공급합니다.
-
-운영 포트·프로파일·환경변수·비밀 참조는 [gateway 슬롯](../deploy/prod/slots/gateway.json)에서 관리합니다.
-
-[로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md) · [Config 접근 보호](../docs/config-server-access.md)

@@ -33,12 +33,4 @@
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_USER_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_USER_PASSWORD`에서 전달 |
 
-기동 시 인증된 Config 조회가 필요합니다. 일반 설정은 [서비스별 설정](../cowork-config/src/main/resources/configs/),
-앱 비밀 값은 Vault에서 공급합니다.
-
-운영 포트·프로파일·환경변수·비밀 참조는 [user 슬롯](../deploy/prod/slots/user.json)에서 관리합니다.
-
-[로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md) · [Config 접근 보호](../docs/config-server-access.md)
-
 운영 검색은 `utf8mb4_unicode_ci`와 `NO_BACKSLASH_ESCAPES`가 없는 세션에 의존합니다.
-Docker stdout 회전은 컨테이너 내부 파일 로그에 적용되지 않습니다. 파일 회전은 [Logger 설정](config/config.exs)에서 관리합니다.
