@@ -1,5 +1,6 @@
 {
   "redis": {
+    "secrets": {},
     "image": "redis:8.10.1-alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576",
     "bind_ip": "10.0.0.145",
     "memory": "512m",
@@ -22,6 +23,12 @@
     "internal_ports": []
   },
   "kafka": {
+    "secrets": {
+      "KAFKA_CLUSTER_ID": {
+        "path": "iac/shared/kafka",
+        "key": "KAFKA_CLUSTER_ID"
+      }
+    },
     "image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
     "bind_ip": "10.0.0.167",
     "memory": "2048m",
@@ -61,6 +68,16 @@
     ]
   },
   "livekit": {
+    "secrets": {
+      "LIVEKIT_API_KEY": {
+        "path": "slot-secrets/voice",
+        "key": "LIVEKIT_API_KEY"
+      },
+      "LIVEKIT_API_SECRET": {
+        "path": "slot-secrets/voice",
+        "key": "LIVEKIT_API_SECRET"
+      }
+    },
     "image": "livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3",
     "bind_ip": "10.0.0.172",
     "memory": "1024m",
