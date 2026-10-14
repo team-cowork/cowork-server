@@ -68,14 +68,15 @@ def restore():
         if tool == "iptables":
             rules.append(f'-A {CHAIN} -i {bridge} -s {subnet} -j RETURN')
             rules.extend(f"-A {CHAIN} -p tcp --dport 9000 -s {peer} -j RETURN" for peer in peers)
-        forward = 'DOCKER-USER' if tool == 'iptables' else 'FORWARD'
-        for interface in ('docker+', 'br+'):
-            rules.append(f'-I {forward} 1 -o {interface} -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}')
-        rules.extend([
-            f"-A {CHAIN} -j DROP",
-            f"-I INPUT 1 ! -i lo -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}",
-            "COMMIT",
-        ])
+        rules.append(f"-A {CHAIN} -j DROP")
+        if tool == "iptables":
+            # Match the published S3 endpoint before DNAT, not unrelated containers on port 9000.
+            rules.extend([
+                f"-I DOCKER-USER 1 -o {bridge} -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL --ctorigdst {address} --ctorigdstport 9000 -m comment --comment {MARK} -j {CHAIN}",
+                f"-I INPUT 1 ! -i lo -d {address} -p tcp --dport 9000 -m conntrack --ctdir ORIGINAL -m comment --comment {MARK} -j {CHAIN}",
+            ])
+        # S3 publishes IPv4 only. Remove old IPv6 hooks without claiming other IPv6 listeners.
+        rules.append("COMMIT")
         # --noflush preserves all other application and Docker firewall rules.
         run(tool + "-restore", "--wait", "10", "--noflush", input_text="\n".join(rules) + "\n")
 
