@@ -1,6 +1,6 @@
 ---
 name: todo-docs
-description: Author and maintain docs/todo — items/ detail specs, {YYYYMMDD}_TODO.md session snapshots, and the README index. Covers directory numbering, the Korean document template, writing style, and the completion lifecycle (strike through on completion; delete only once a whole snapshot is done).
+description: Author and maintain docs/todo — items/ detail specs, {YYYYMMDD}_TODO.md session snapshots, and the README index. Covers directory numbering, the Korean document template, writing style, and the completion lifecycle (delete completed details and references immediately; remove a snapshot once it has no unfinished items).
 allowed-tools: Bash, Read, Write, Edit
 ---
 
@@ -29,8 +29,7 @@ snapshot is keyed by the date the item was raised:
   for a single item.
 
 Never backdate an item into an older snapshot to avoid creating a new file. A snapshot's date is
-when that review happened, and the completion lifecycle below deletes items per snapshot — mixing
-dates would tie an item's cleanup to a session it did not belong to.
+when that review happened; completion removes only the finished item and its references.
 
 ## Choosing the directory number
 
@@ -98,9 +97,9 @@ Add progress without rewriting the doc — either a quote block right under the 
 ```markdown
 # {점검 주제}
 
-{YYYY-MM-DD} 기준으로 {점검 대상}을 점검한 결과, 후속 작업이 필요한 항목입니다.
+{YYYY-MM-DD} 기준으로 {점검 대상}을 점검한 결과, 후속 작업이 필요한 항목이다.
 
-세부 사항은 [`docs/todo/items/`](./items/) 디렉터리의 하위 문서를 참고하세요.
+세부 사항은 [`docs/todo/items/`](./items/) 디렉터리의 하위 문서를 참고한다.
 
 ---
 
@@ -133,52 +132,32 @@ Register a new snapshot in README `## 점검 스냅샷`, newest first:
 
 ## Completion lifecycle
 
-Detail docs are **kept** until the snapshot they belong to is entirely finished. Never delete an
-item doc just because that one item shipped.
+Delete a completed item's detail document and references as soon as its implementation is complete.
+Do not retain completed items because a PR is unmerged, a branch is not synchronized, or deployment
+and routine operational verification have not happened yet.
 
 ### An item is completed
 
-1. In the snapshot's summary table, strike through the **항목** and **서비스** cells only:
+1. Delete `items/{순번}-{범주}/{작업명}.md` and its line in README `## 진행 중`.
+2. Remove its row from every snapshot that references it. Keep other unfinished rows and update counts.
+3. Remove inbound links and resolve completed `선행 작업` references in remaining items. Do not keep a
+   completed detail document solely to preserve a link.
+4. Delete the empty item directory. If a snapshot has no unfinished items left, delete that snapshot
+   and its README `## 점검 스냅샷` entry as well.
 
-   ```markdown
-   | 1 | ~~외부 API 모듈 네임스페이스 통일~~ | ~~Gateway, 외부 HTTP API 10개~~ | 🟠 | [바로가기](./items/10-api/public-route-namespace-migration.md) |
-   ```
+Do not leave struck-through completion entries, tombstone snapshots, or an `unmerged` TODO status.
+Git and PR history retain completed work. Do not copy code, configuration, scripts, or generic
+verification instructions into another document when deleting the TODO. Keep only project-specific
+decision rationale or operational constraints that the implementation cannot express.
 
-   The 우선순위 emoji and the `[바로가기]` link stay live.
-2. Strike through the matching line in README `## 진행 중`, keeping the link:
+Only keep a separate follow-up when an explicit request or observed evidence identifies unfinished
+work with its own scope. Missing deployment approval or a routine check alone does not create one.
 
-   ```markdown
-   - ~~api: [외부 API 모듈 네임스페이스 통일](./items/10-api/public-route-namespace-migration.md)~~
-   ```
-
-3. Leave `items/{순번}-{범주}/{작업명}.md` on disk, untouched or with a progress note appended.
-
-Nothing is deleted at this stage, so no cross-reference can break.
-
-### Every item in a snapshot is completed
-
-Only now, delete:
-
-- every `items/` doc that snapshot owns,
-- the `{YYYYMMDD}_TODO.md` file itself,
-- its line in README `## 점검 스냅샷`,
-- its lines in README `## 진행 중`.
-
-Do **not** add a `# 전체 완료됨.` marker or leave a tombstone snapshot behind — remove the files.
-
-Before deleting, find every inbound reference and rewrite it to plain text so no link dangles:
+Find inbound references before deleting:
 
 ```bash
-grep -rn "{삭제할-파일명}" docs/
+rg -n "{삭제할-파일명}" docs/
 ```
-
-```diff
--- **파생 원본**: [외부 API 모듈 네임스페이스 통일](../10-api/public-route-namespace-migration.md)
-+- **파생 원본**: 외부 API 모듈 네임스페이스 통일 (완료·문서 제거)
-```
-
-An item that other live items still list as `선행 작업` cannot be deleted yet, even if its own
-snapshot is finished. Resolve the dependency first.
 
 ## Creating a new item — checklist
 

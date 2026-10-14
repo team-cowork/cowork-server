@@ -15,8 +15,11 @@ class Attachment {
     /** 첨부 파일의 원본 파일명 */
     @Prop({ required: true }) name!: string;
 
-    /** 파일에 접근 가능한 URL (오브젝트 스토리지 경로 등) */
-    @Prop({ required: true }) url!: string;
+    /** 업로드 완료 확인에서 확정된 오브젝트 키 */
+    @Prop({ type: String }) objectKey?: string;
+
+    /** 이전 메시지 읽기 전용 호환 필드. 새 메시지에는 저장하지 않는다. */
+    @Prop({ type: String }) url?: string;
 
     /** 파일 크기 (바이트 단위) */
     @Prop({ required: true }) size!: number;

@@ -48,19 +48,25 @@ class TeamController(
         ApiResponse(responseCode = "400", description = "허용되지 않는 파일 형식"),
     )
     @PostMapping("/icon/presigned")
-    fun generateIconPresignedUrl(@RequestBody request: IconPresignedUrlRequest): IconPresignedUrlResponse =
-        generateIconPresignedUrlService.execute(request.contentType)
+    fun generateIconPresignedUrl(
+        @RequestHeader("X-User-Id") userId: Long,
+        @RequestBody request: IconPresignedUrlRequest,
+    ): IconPresignedUrlResponse = generateIconPresignedUrlService.execute(userId, request.contentType)
 
     @Operation(summary = "팀 아이콘 업로드 확인", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "확인 성공"),
         ApiResponse(responseCode = "400", description = "유효하지 않은 objectKey"),
+        ApiResponse(responseCode = "403", description = "다른 사용자의 업로드 또는 폐기된 업로드"),
+        ApiResponse(responseCode = "404", description = "발급된 아이콘 업로드 없음"),
         ApiResponse(responseCode = "409", description = "S3에 파일 없음 (업로드 미완료)"),
         ApiResponse(responseCode = "413", description = "파일 크기 초과"),
     )
     @PostMapping("/icon/confirm")
-    fun confirmIconUpload(@RequestBody request: IconConfirmRequest): IconConfirmResponse =
-        confirmIconUploadService.execute(request.objectKey)
+    fun confirmIconUpload(
+        @RequestHeader("X-User-Id") userId: Long,
+        @RequestBody request: IconConfirmRequest,
+    ): IconConfirmResponse = confirmIconUploadService.execute(userId, request.objectKey)
 
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

@@ -1,0 +1,40 @@
+---
+- name: Validate the dedicated datastore policy schema
+  ansible.builtin.command:
+    argv: [python3, "{{ cowork_repository }}/deploy/prod/datastore-firewall.py", validate]
+    stdin: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/iac/datastore-policy.json') }}"
+  delegate_to: localhost
+  become: false
+  changed_when: false
+- name: Install the datastore policy independently of application ingress
+  become: true
+  block:
+    - name: Create root-owned datastore staging
+      ansible.builtin.file:
+        path: /root/cowork-iac/datastore
+        state: directory
+        mode: '0700'
+        owner: root
+        group: root
+    - name: Stage the reviewed datastore firewall implementation
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/prod/{{ item }}"
+        dest: "/root/cowork-iac/datastore/{{ item }}"
+        mode: '0600'
+        owner: root
+        group: root
+      loop:
+        - bootstrap-datastore-firewall.sh
+        - datastore-firewall.py
+        - datastore-firewall.service
+    - name: Stage the Git datastore policy
+      ansible.builtin.copy:
+        src: "{{ cowork_repository }}/deploy/iac/datastore-policy.json"
+        dest: /root/cowork-iac/datastore/policy.json
+        mode: '0600'
+        owner: root
+        group: root
+    - name: Apply datastore firewall without restarting containers
+      ansible.builtin.command:
+        argv: [/bin/bash, /root/cowork-iac/datastore/bootstrap-datastore-firewall.sh]
+      changed_when: true

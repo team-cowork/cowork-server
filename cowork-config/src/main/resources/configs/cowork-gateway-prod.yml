@@ -1,7 +1,15 @@
+server:
+  port: ${PORT:8080}
+
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    hostname: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.hostname}}
+    ip-address: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.ip-address}}
+    non-secure-port: ${APP_ADVERTISE_PORT:${server.port}}
+    prefer-ip-address: true
 
 gateway:
   response-wrapper:
@@ -47,12 +55,22 @@ spring:
         cors-configurations:
           '[/**]':
             allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
-            allowedMethods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+            allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag
             allowCredentials: true
             maxAge: 3600
 
       routes:
+        - id: object-storage
+          uri: ${S3_INTERNAL_ENDPOINT}
+          predicates:
+            - Path=/api/storage/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
         - id: authorization-service
           uri: lb://cowork-authorization
           predicates:
@@ -61,7 +79,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: authorizationCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -395,3 +413,14 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+      authorizationCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    instances:
+      # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.
+      authorizationCB:
+        timeoutDuration: 6s

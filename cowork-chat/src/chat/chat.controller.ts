@@ -10,6 +10,8 @@ import {
     Query,
     HttpCode,
     HttpStatus,
+    Header,
+    ParseIntPipe,
 } from '@nestjs/common';
 import {
     ApiHeader,
@@ -22,6 +24,8 @@ import { UserId, UserRole } from '../common/decorator/user.decorator';
 import { Throttle } from '../common/decorator/throttle.decorator';
 import { SafePositiveIntPipe } from '../common/pipe/safe-positive-int.pipe';
 import { ChatService } from './chat.service';
+import { AttachmentDownloadService } from './service/attachment-download.service';
+import { AttachmentDownloadResponseDto } from './dto/attachment-download.dto';
 import {
     SendMessageDto,
     EditMessageDto,
@@ -55,7 +59,26 @@ import { EMOJI_REGEX } from './util';
 @ApiHeader({ name: 'X-User-Role', description: 'Gateway 자동 주입 (ADMIN | MEMBER)', required: false })
 @Controller('channels/:channelId')
 export class ChatController {
-    constructor(private readonly chatService: ChatService) {}
+    constructor(
+        private readonly chatService: ChatService,
+        private readonly attachmentDownloadService: AttachmentDownloadService,
+    ) {}
+
+    @Get('messages/:messageId/attachments/:attachmentIndex/download-url')
+    @Header('Cache-Control', 'private, no-store')
+    @ApiOperation({ summary: '메시지 첨부파일의 60초 다운로드 URL 발급' })
+    @ApiResponse({ status: 200, type: AttachmentDownloadResponseDto })
+    @ApiResponse({ status: 403, description: '메시지 읽기 권한 없음' })
+    @ApiResponse({ status: 404, description: '메시지 또는 첨부파일 없음' })
+    @ApiResponse({ status: 503, description: '권한 projection 동기화 중' })
+    async getAttachmentDownloadUrl(
+        @Param('channelId', SafePositiveIntPipe) channelId: number,
+        @Param('messageId') messageId: string,
+        @Param('attachmentIndex', ParseIntPipe) attachmentIndex: number,
+        @UserId() userId: number,
+    ): Promise<AttachmentDownloadResponseDto> {
+        return this.attachmentDownloadService.execute(channelId, userId, messageId, attachmentIndex);
+    }
 
     /**
      * 채팅 첨부파일을 업로드하기 위한 오브젝트 스토리지 presigned URL을 발급한다.
@@ -64,7 +87,7 @@ export class ChatController {
      * @param channelId - 업로드 대상 채널 ID
      * @param dto - 파일명, MIME 타입, 크기
      * @param userId - Gateway가 주입한 요청자 ID
-     * @returns presigned URL, objectKey, fileUrl, 만료 시간(초), 필수 헤더
+     * @returns presigned URL, 임시 objectKey, 만료 시간(초), 필수 헤더
      */
     @Post('files/presigned-url')
     @HttpCode(HttpStatus.CREATED)
@@ -86,7 +109,7 @@ export class ChatController {
      * @param channelId - 채널 ID
      * @param dto - 검증할 objectKey
      * @param userId - Gateway가 주입한 요청자 ID
-     * @returns 메시지 attachments.url에 사용할 파일 URL
+     * @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
     @Post('files/confirm')
     @HttpCode(HttpStatus.OK)
@@ -101,8 +124,7 @@ export class ChatController {
         @Body() dto: ConfirmFileUploadRequestDto,
         @UserId() userId: number,
     ): Promise<ConfirmFileUploadResponseDto> {
-        const fileUrl = await this.chatService.confirmFileUpload({ channelId, userId }, dto);
-        return { fileUrl };
+        return this.chatService.confirmFileUpload({ channelId, userId }, dto);
     }
 
     /**
@@ -130,7 +152,7 @@ export class ChatController {
     }
 
     /**
-     * 메시지를 Kafka `chat.message` 토픽으로 비동기 발행한다.
+     * 메시지를 Kafka `chat.message.v2` 토픽으로 비동기 발행한다.
      * 실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
      *
      * @param channelId - 채널 ID
