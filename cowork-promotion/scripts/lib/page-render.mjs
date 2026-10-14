@@ -31,17 +31,18 @@ function bundlePage({html, styles, stateData, script, logoUrl}) {
 	return withScript.replace('href="/logo.svg"', () => `href="${logoUrl}"`);
 }
 
-function renderPageMetadata(html, metadata, {siteUrl, logoUrl}) {
+function renderPageMetadata(html, metadata, {siteUrl, socialImageUrl}) {
 	const absoluteUrl = route => (siteUrl ? new URL(route, siteUrl).href : route);
 	const values = {
 		title: metadata.title,
 		description: metadata.description,
 		type: metadata.type,
 		url: absoluteUrl(metadata.route),
-		image: absoluteUrl(logoUrl),
+		image: siteUrl ? absoluteUrl(socialImageUrl) : '',
 	};
 
-	let result = html;
+	// Og:image must be an absolute URL, so the tag is omitted when no site origin is known.
+	let result = siteUrl ? html : html.replaceAll(/^[\t ]*<meta[^>]*\{\{metadata:image\}\}[^>]*>\n?/gmv, '');
 	for (const [name, value] of Object.entries(values)) {
 		result = result.replaceAll(`{{metadata:${name}}}`, () => escapeHtml(value));
 	}
@@ -59,6 +60,7 @@ export function renderHomePage({
 	styles,
 	script,
 	logoUrl,
+	socialImageUrl,
 	siteUrl,
 }) {
 	const repositoryCards = repositories.map(repository => renderRepositoryCard(repository)).join('\n');
@@ -101,7 +103,7 @@ export function renderHomePage({
 			route: '/',
 			type: 'website',
 		},
-		{siteUrl, logoUrl},
+		{siteUrl, socialImageUrl},
 	);
 }
 
@@ -169,6 +171,7 @@ export function renderTodoPage({
 	stateData,
 	script,
 	logoUrl,
+	socialImageUrl,
 	siteUrl,
 }) {
 	let html = replaceGeneratedRegion(
@@ -221,6 +224,6 @@ export function renderTodoPage({
 			html, styles, stateData, script, logoUrl,
 		}),
 		todoPageMetadata(initialDocument),
-		{siteUrl, logoUrl},
+		{siteUrl, socialImageUrl},
 	);
 }
