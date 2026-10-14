@@ -5,9 +5,9 @@
 
 ## 진행 중
 
-미완료 상세 문서는 **12건**이다.
+미완료 상세 문서는 **13건**이다.
 
-### 구현·설계 보완 필요 (12)
+### 구현·설계 보완 필요 (13)
 
 - monitoring: [Gateway canonical API 계약 모니터링](./items/11-monitoring/gateway-canonical-api-monitoring.md) — 인증을 포함한 업무 API별 비파괴 probe와 알림
 - security: [FCM device token 단일 계정 소유권 보장](./items/17-security/fcm-token-single-owner.md) — data-only 메시지와 클라이언트 표시 정책의 동시 전환
@@ -21,9 +21,11 @@
 - monitoring: [Vault 봉인과 호스트 디스크 부족 감지](./items/57-monitoring/service-outage-alerting.md) — Vault seal·디스크 수집과 알림
 - configuration: [JS·TS 모듈 XO 기본 설정 전면 적용](./items/59-configuration/xo-zero-config.md) — 기본 규칙·기본 탐색 범위로 코드·빌드 구조 정리
 - security: [소유 서비스 이벤트의 프로젝트 역할·채널 생성자 정보 부재 해소](./items/69-security/owner-event-manager-role-gap.md) — 프로젝트 멤버 역할·채널 생성자 필드 추가와 Preference 수정 권한 확장
+- monitoring: [전체 소실과 개별 서비스 소실 알림의 중복 제거](./items/70-monitoring/service-missing-alert-inhibition.md) — discovery 전체 소실 시 critical 알림 12건 동시 전송 정리
 
 ## 점검 스냅샷
 
+- [20261014](./20261014_TODO.md) — 수집 대상 소실 감지 추가 후속 항목
 - [20261013](./20261013_TODO.md) — Preference 소유 서비스 접근 모델 정렬 후속 이벤트 계약 점검
 - [20261005](./20261005_TODO.md) — XO 기본 설정 전면 적용 후속 작업
 - [20261002](./20261002_TODO.md) — 운영 장애 복구·CD 배포 실패 점검

@@ -47,6 +47,28 @@ groups:
           summary: "cowork service down"
           description: "Service {{ $labels.service }} is unreachable for more than 2 minutes."
 
+  - name: cowork-discovery
+    rules:
+      # 서비스 하나가 통째로 discovery에서 빠지는 경우는 deploy/prod/monitoring/render-prometheus.py가
+      # application slot 목록으로부터 생성하는 coworkServiceMissing(3m, critical, rules.json)이 이미 감시한다.
+      # 그 규칙은 slot 파일을 단일 출처로 삼아 서비스 목록 드리프트가 생기지 않으므로, 여기서는 같은 조건을
+      # 하드코딩된 서비스 목록으로 중복 감시하지 않는다.
+
+      # 대상이 하나도 없으면 서비스별 규칙은 아무것도 평가되지 않아 모든 알림이 조용해진다.
+      # eureka_sd는 갱신에 실패해도 직전 target group을 유지하므로, Prometheus가 떠 있는 동안
+      # Eureka가 죽거나 인증에 실패하는 것만으로는 이 규칙이 울리지 않는다. 실제로 걸리는 경우는
+      # Eureka가 정상 응답했는데 등록된 인스턴스가 없을 때, 또는 Eureka가 죽은 상태에서 Prometheus가
+      # (재)시작돼 처음부터 target을 하나도 못 받아온 때다. 대상이 0개가 되면 render-prometheus.py가
+      # slot마다 생성한 coworkServiceMissing(3m)도 뒤이어 함께 울린다.
+      - alert: coworkServiceDiscoveryEmpty
+        expr: absent(up{job="cowork-services"})
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No cowork service discovery targets"
+          description: "Prometheus has no cowork-services target for 5 minutes; Eureka returned no registered instances, or Prometheus (re)started while Eureka was unreachable."
+
   - name: cowork-host
     rules:
       # node_exporter는 --path.rootfs 접두어를 떼고 마운트 경로를 보고하므로 경로를 고정하지 않고,
