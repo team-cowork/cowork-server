@@ -97,6 +97,8 @@ def prepare(args):
     demand(isinstance(hosts_document, dict) and set(hosts_document) == {'hosts'}
            and isinstance(hosts_document['hosts'], dict) and hosts_document['hosts'], 'Invalid IaC host inventory')
     hosts = hosts_document['hosts']
+    databases = json.loads((ROOT / 'deploy/iac/databases/catalog.json').read_text())
+    demand(set(databases).issubset(hosts), 'Each database needs its module VM in the IaC inventory')
     demand(len(hosts) <= 128, 'IaC host inventory exceeds the supported budget')
     expected_hosts = {path.stem.removeprefix('log-agent-') for path in (ROOT / 'deploy/prod/slots').glob('log-agent-*.json')}
     demand(set(hosts) == expected_hosts, 'IaC hosts must cover exactly the log-agent slots declared in Git')
@@ -159,6 +161,17 @@ def prepare(args):
                 host['cowork_source_repository'] = entry['source_repository']
             if entry['service'] == 'db':
                 host['cowork_datastore_firewall'] = True
+            if host_id in databases:
+                app = VAULT['vault_request'](f'{mount}/data/slot-secrets/{host_id}')['data']['data']
+                admin = VAULT['vault_request'](f'{mount}/data/iac/databases/{host_id}')['data']['data']
+                settings_file = output / 'settings' / f'database-{host_id}.json'
+                write_private(settings_file, json.dumps({
+                    'DB_PASSWORD': app['DB_PASSWORD'],
+                    'DB_ADMIN_PASSWORD': admin['DB_ADMIN_PASSWORD'],
+                    'DB_MONITORING_PASSWORD': admin['DB_MONITORING_PASSWORD'],
+                }))
+                host['cowork_database_module'] = host_id
+                host['cowork_database_settings_file'] = str(settings_file)
             if host_id == monitoring_host:
                 host['cowork_disabled_services'] = ['caddy']
                 settings_file = output / 'settings/monitoring.json'

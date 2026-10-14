@@ -208,12 +208,12 @@ def record_success(sha, host_count, env):
     deployment = github_api('deployments', env, {
         'ref': sha, 'task': 'cowork-infrastructure', 'environment': 'Prod-IaC',
         'auto_merge': False, 'required_contexts': [], 'production_environment': True,
-        'payload': {'host_count': host_count, 'scope': 'hosts-and-monitoring'},
-        'description': 'Host configuration applied and Grafana state persisted',
+        'payload': {'host_count': host_count, 'scope': 'hosts-databases-and-monitoring'},
+        'description': 'Host and database configuration applied; Grafana state persisted',
     })
     github_api(f'deployments/{deployment["id"]}/statuses', env, {
         'state': 'success', 'auto_inactive': False,
-        'description': 'Host configuration applied and Grafana state persisted',
+        'description': 'Host and database configuration applied; Grafana state persisted',
         'log_url': f'{env.get("GITHUB_SERVER_URL", "https://github.com")}/{repository}/actions/runs/{env["GITHUB_RUN_ID"]}',
     })
 
@@ -251,6 +251,7 @@ def main():
                 result_output('skipped')
                 return
         execute([sys.executable, ROOT / 'deploy/prod/slots.py', 'validate'], env)
+        execute([sys.executable, IAC / 'databases/runtime.py', 'check'], env)
         execute(['ansible-playbook', '-i', IAC / 'inventory.example.yml', IAC / 'ansible/site.yml', '--syntax-check'], env)
         validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
         execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)
