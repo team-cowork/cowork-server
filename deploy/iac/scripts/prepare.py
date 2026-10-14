@@ -98,7 +98,10 @@ def prepare(args):
            and isinstance(hosts_document['hosts'], dict) and hosts_document['hosts'], 'Invalid IaC host inventory')
     hosts = hosts_document['hosts']
     databases = json.loads((ROOT / 'deploy/iac/databases/catalog.json').read_text())
-    demand(set(databases).issubset(hosts), 'Each database needs its module VM in the IaC inventory')
+    storage = json.loads((ROOT / 'deploy/iac/storage/catalog.json').read_text())
+    shared = json.loads((ROOT / 'deploy/iac/shared/catalog.json').read_text())
+    demand((set(databases) | set(storage) | set(shared)).issubset(hosts),
+           'Each declared infrastructure service needs its VM in the IaC inventory')
     demand(len(hosts) <= 128, 'IaC host inventory exceeds the supported budget')
     expected_hosts = {path.stem.removeprefix('log-agent-') for path in (ROOT / 'deploy/prod/slots').glob('log-agent-*.json')}
     demand(set(hosts) == expected_hosts, 'IaC hosts must cover exactly the log-agent slots declared in Git')
@@ -112,8 +115,8 @@ def prepare(args):
         direct_slot_path = ROOT / 'deploy/prod/slots' / f'{host_id}.json'
         if direct_slot_path.is_file() and SLOTS['load'](host_id)['kind'] in {'application', 'config'}:
             demand(entry.get('slot') == host_id, 'Application and Config hosts require their explicit firewall slot')
-        if entry['service'] == 'db':
-            demand((ROOT / 'deploy/iac/policy/datastore-policy.json').is_file(), 'DB infrastructure requires its reviewed Git firewall policy')
+        if host_id in shared:
+            demand(entry['service'] == host_id, 'Dedicated infrastructure hosts must match their declared service')
     monitoring_hosts = [host for host, entry in hosts.items() if entry.get('slot') == 'monitoring']
     demand(len(monitoring_hosts) == 1, 'Exactly one monitoring host is required')
     monitoring_host = monitoring_hosts[0]
@@ -125,6 +128,13 @@ def prepare(args):
     webhook = os.environ.get('DISCORD_MONITORING_ALERT_WEBHOOK', '')
     demand(bool(webhook) and '\0' not in webhook, 'The declared GitHub monitoring webhook is required')
     monitoring_settings['runtime']['DISCORD_MONITORING_ALERT_WEBHOOK'] = webhook
+    secret_documents = {}
+
+    def secrets(path):
+        if path not in secret_documents:
+            secret_documents[path] = VAULT['vault_request'](f'{mount}/data/{path}')['data']['data']
+        return secret_documents[path]
+
     created = not output.exists()
     try:
         output.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -153,17 +163,15 @@ def prepare(args):
                     'ansible_ssh_private_key_file': str(key_path),
                     'ansible_ssh_common_args': f'-o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -o GlobalKnownHostsFile=/dev/null -o UserKnownHostsFile={known_hosts_arg}',
                     'cowork_units': []}
-            if 'slot' in entry and SLOTS['load'](entry['slot'])['kind'] in {'application', 'config'}:
+            if host_id in shared or ('slot' in entry and SLOTS['load'](entry['slot'])['kind'] in {'application', 'config'}):
                 host['cowork_runtime_network'] = True
-            if 'slot' in entry and entry['service'] not in {'gateway', 'vault', 'datastores', 'storage'}:
+            if 'slot' in entry and entry['service'] not in {'gateway', 'vault'}:
                 host['cowork_firewall_target'] = entry['slot']
             if 'source_repository' in entry:
                 host['cowork_source_repository'] = entry['source_repository']
-            if entry['service'] == 'db':
-                host['cowork_datastore_firewall'] = True
             if host_id in databases:
-                app = VAULT['vault_request'](f'{mount}/data/slot-secrets/{host_id}')['data']['data']
-                admin = VAULT['vault_request'](f'{mount}/data/iac/databases/{host_id}')['data']['data']
+                app = secrets(f'slot-secrets/{host_id}')
+                admin = secrets(f'iac/databases/{host_id}')
                 settings_file = output / 'settings' / f'database-{host_id}.json'
                 write_private(settings_file, json.dumps({
                     'DB_PASSWORD': app['DB_PASSWORD'],
@@ -172,6 +180,34 @@ def prepare(args):
                 }))
                 host['cowork_database_module'] = host_id
                 host['cowork_database_settings_file'] = str(settings_file)
+                if 'search' in databases[host_id]:
+                    search_file = output / 'settings' / f'search-{host_id}.json'
+                    write_private(search_file, json.dumps({
+                        'ELASTICSEARCH_URL': app['ELASTICSEARCH_URL'],
+                        'ELASTICSEARCH_ADMIN_PASSWORD': admin['ELASTICSEARCH_ADMIN_PASSWORD'],
+                    }))
+                    host['cowork_search_settings_file'] = str(search_file)
+            if host_id in storage:
+                app = secrets(f'slot-secrets/{host_id}')
+                admin = secrets(f'iac/storage/{host_id}')
+                settings_file = output / 'settings' / f'storage-{host_id}.json'
+                write_private(settings_file, json.dumps({
+                    **{key: app[key] for key in ('S3_ACCESS_KEY', 'S3_SECRET_KEY')},
+                    **{key: admin[key] for key in ('S3_ADMIN_ACCESS_KEY', 'S3_ADMIN_SECRET_KEY')},
+                }))
+                host['cowork_storage_module'] = host_id
+                host['cowork_storage_settings_file'] = str(settings_file)
+            if host_id in shared:
+                settings = {}
+                if host_id == 'kafka':
+                    settings['KAFKA_CLUSTER_ID'] = secrets('iac/shared/kafka')['KAFKA_CLUSTER_ID']
+                elif host_id == 'livekit':
+                    voice = secrets('slot-secrets/voice')
+                    settings = {key: voice[key] for key in ('LIVEKIT_API_KEY', 'LIVEKIT_API_SECRET')}
+                settings_file = output / 'settings' / f'shared-{host_id}.json'
+                write_private(settings_file, json.dumps(settings))
+                host['cowork_shared_service'] = host_id
+                host['cowork_shared_settings_file'] = str(settings_file)
             if host_id == monitoring_host:
                 host['cowork_disabled_services'] = ['caddy']
                 settings_file = output / 'settings/monitoring.json'
