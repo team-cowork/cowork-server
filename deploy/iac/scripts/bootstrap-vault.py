@@ -6,24 +6,39 @@ from pathlib import Path
 import ssl
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError('Vault bootstrap redirects are not allowed')
 
 
 def main():
     address = os.environ['VAULT_ADDR'].rstrip('/')
-    if not address.startswith('https://'):
-        raise ValueError('Vault bootstrap requires authenticated HTTPS')
+    endpoint = urlsplit(address)
+    if (endpoint.scheme != 'https' or not endpoint.hostname or endpoint.username is not None
+            or endpoint.password is not None or endpoint.path or endpoint.query or endpoint.fragment):
+        raise ValueError('Vault bootstrap requires a canonical HTTPS address without credentials')
     token = os.environ['VAULT_TOKEN']
+    if not token or any(character in token for character in '\r\n\0'):
+        raise ValueError('Vault bootstrap requires an administrator token')
     context = ssl.create_default_context()
+    opener = urllib.request.build_opener(NoRedirect(), urllib.request.HTTPSHandler(context=context))
 
-    def request(path, value=None):
+    def request(path, value=None, *, method=None, allow_missing=False):
         req = urllib.request.Request(address + '/v1/' + path,
             data=json.dumps(value).encode() if value is not None else None,
-            headers={'X-Vault-Token': token, 'Content-Type': 'application/json'})
+            method=method,
+            headers={'X-Vault-Token': token, 'Content-Type':
+                     'application/merge-patch+json' if method == 'PATCH' else 'application/json'})
         try:
-            with urllib.request.urlopen(req, context=context, timeout=30) as response:
+            with opener.open(req, timeout=30) as response:
                 content = response.read()
                 return json.loads(content) if content else {}
         except urllib.error.HTTPError as error:
+            if allow_missing and error.code == 404:
+                return None
             raise RuntimeError(f'Vault bootstrap failed: {path} (HTTP {error.code})') from None
 
     iac = Path(__file__).resolve().parents[1]
@@ -40,6 +55,70 @@ def main():
     # Git declares each slot's secret dependencies. Runtime and update tokens
     # receive only their own exact paths; the IaC runner cannot change policies.
     slots = Path(__file__).resolve().parents[2] / 'prod/slots'
+    catalog = json.loads((slots.parent / 'configuration.json').read_text())
+    # Every client may update this derived document during one serialized sync.
+    # Retain its pre-run version until the combined rollback can restore it.
+    backend_versions = request('secret/config')['data'].get('max_versions', 0)
+    account_metadata_path = 'secret/metadata/control-plane/prod/server'
+    account_metadata = request(account_metadata_path, allow_missing=True)
+    account_versions = account_metadata['data'].get('max_versions', 0) if account_metadata else 0
+    if any(type(value) is not int or value < 0 for value in (backend_versions, account_versions)):
+        raise ValueError('Invalid Vault secret version retention')
+    # A key's zero value inherits the backend; backend zero means ten versions.
+    retained_versions = account_versions or backend_versions or 10
+    required_versions = len(catalog['targets']) + 1
+    if retained_versions < required_versions:
+        request(account_metadata_path, {'max_versions': required_versions},
+                method='PATCH' if account_metadata else 'POST')
+    managed_paths = set()
+    roles = {}
+
+    def input_paths(target):
+        config = catalog['targets'][target]
+        entries = list(config.get('variables', {}).values()) + list(config.get('secrets', {}).values())
+        entries += [value for value in catalog['shared'].values() if target in value['targets']]
+        paths = {'runtime/' + target}
+        for entry in entries:
+            for reference in entry.get('writes', []):
+                if reference.get('target', target) == target:
+                    paths.update(reference['path'].replace('{profile}', profile) for profile in ('local', 'prod'))
+        if target != 'config':
+            paths.add('control-plane/prod/server')
+        return paths
+
+    def settings_policy(paths, writable):
+        result = {}
+        for name in sorted(paths):
+            result['secret/data/' + name] = ['read', 'create', 'update'] if name in writable else ['read']
+            result['secret/metadata/' + name] = ['read']
+            if name in writable:
+                result['secret/delete/' + name] = ['update']
+        return result
+
+    def settings_role(name, environment=None):
+        role = dict(spec['role'], token_policies=[name])
+        role['bound_subject'] = ('repo:team-cowork/cowork-server:environment:' + environment
+                                 if environment else 'repo:team-cowork/cowork-server:ref:refs/heads/main')
+        role['bound_claims'] = {**role['bound_claims'],
+            'workflow_ref': 'team-cowork/cowork-server/.github/workflows/cowork-prod-cd.yml@refs/heads/main'}
+        return role
+
+    for target in catalog['targets']:
+        writable = input_paths(target)
+        managed_paths.update(writable)
+        readable = writable | {'deploy/' + target}
+        slot = json.loads((slots / (target + '.json')).read_text())
+        readable.update(ref['path'] for values in slot.get('secrets', {}).values() for ref in values.values())
+        name = 'prod-settings-' + target
+        spec['policies'][name] = settings_policy(readable, writable)
+        roles[name] = settings_role(name, 'Prod-CD(' + target + ')')
+        # IaC consumes applied GitHub inputs through Vault, not another job's environment.
+        for path in readable:
+            policy['secret/data/' + path] = ['read']
+    spec['policies']['prod-settings-plan'] = settings_policy(managed_paths, set())
+    roles['prod-settings-plan'] = settings_role('prod-settings-plan')
+    spec['policies']['prod-settings-recovery'] = settings_policy(managed_paths, managed_paths)
+    roles['prod-settings-recovery'] = settings_role('prod-settings-recovery', 'Prod-IaC')
     for path in sorted(slots.glob('*.json')):
         slot = json.loads(path.read_text())
         if slot['kind'] not in {'application', 'config'}:
@@ -68,8 +147,27 @@ def main():
         request('sys/policies/acl/' + name, {'policy': policy})
     request('auth/' + mount + '/config', spec['config'])
     request('auth/' + mount + '/role/' + spec['role_name'], spec['role'])
-    print('Applied GitHub OIDC trust and the scoped IaC read policy')
+    for name, role in roles.items():
+        request('auth/' + mount + '/role/' + name, role)
+    # A production Config backend may serve either declared client profile.
+    config_policy = {}
+    for target in catalog['targets']:
+        if target in {'config', 'monitoring'}:
+            continue
+        for suffix in ('', '/local', '/prod'):
+            config_policy['secret/data/cowork-' + target + suffix] = ['read']
+    config_policy.update({'auth/token/lookup-self': ['read'], 'auth/token/renew-self': ['update'],
+                          'auth/token/revoke-self': ['update']})
+    request('sys/policies/acl/cowork-config-prod', {'policy': '\n'.join(
+        f'path {json.dumps(path)} {{ capabilities = {json.dumps(capabilities)} }}'
+        for path, capabilities in config_policy.items())})
+    print('Applied scoped GitHub deployment, settings and IaC workload policies')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except RuntimeError as error:
+        raise SystemExit(str(error)) from None
+    except (ValueError, OSError, KeyError, TypeError):
+        raise SystemExit('Vault bootstrap failed; inspect the declared endpoint, credentials and policies') from None
