@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "service": "log-agent",
+  "kind": "infrastructure",
+  "runtime": {
+    "LOG_HOST": "vault",
+    "LOG_SERVICE": "vault",
+    "LOKI_PUSH_URL": "http://10.0.0.137:3100/loki/api/v1/push"
+  },
+  "secrets": {}
+}
