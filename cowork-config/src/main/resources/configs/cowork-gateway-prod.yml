@@ -79,7 +79,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: authorizationCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -413,3 +413,14 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+      authorizationCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    instances:
+      # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.
+      authorizationCB:
+        timeoutDuration: 6s
