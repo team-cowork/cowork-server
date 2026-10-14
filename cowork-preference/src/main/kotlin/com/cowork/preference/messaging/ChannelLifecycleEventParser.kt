@@ -8,6 +8,8 @@ data class ChannelLifecycleEvent(
     val teamId: Long?,
     val deleted: Boolean,
     val occurredAt: Instant,
+    /** null이면 이벤트에 값이 없는 것이며 공개로 가정하지 않는다. */
+    val isPrivate: Boolean? = null,
 )
 
 sealed interface ChannelLifecycleRecordDecision {
@@ -32,7 +34,13 @@ object ChannelLifecycleEventParser {
         val occurredAt = runCatching { Instant.parse(occurredAtValue) }
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
-        val event = ChannelLifecycleEvent(channelId, teamId, eventType == "DELETED", occurredAt)
+        val isPrivate = when (val value = payload.getValue("isPrivate")) {
+            null -> null
+            is Boolean -> value
+            else -> error("isPrivate must be a boolean")
+        }
+
+        val event = ChannelLifecycleEvent(channelId, teamId, eventType == "DELETED", occurredAt, isPrivate)
         ChannelLifecycleRecordDecision.Apply(event)
     }.getOrElse { error ->
         ChannelLifecycleRecordDecision.Quarantine(error.message ?: "invalid channel lifecycle record")
