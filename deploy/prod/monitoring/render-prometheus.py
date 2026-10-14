@@ -33,6 +33,7 @@ def http_url(name):
     return value
 
 
+# Prometheus는 server 뒤에 "/apps"를 그대로 붙인다. 배포 문서의 끝 슬래시 형식("/eureka/")이 "//apps"가 되지 않도록 제거한다.
 eureka = http_url("EUREKA_SERVER_URL").rstrip("/")
 config_server = urlsplit(http_url("CONFIG_SERVER_URL"))
 basic_auth = {"username": os.environ["CONFIG_CLIENT_USERNAME"], "password": os.environ["CONFIG_CLIENT_PASSWORD"]}
