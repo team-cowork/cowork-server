@@ -38,9 +38,6 @@ func privateIPv4(host string) bool {
 
 func NewClient() *http.Client {
 	profile := os.Getenv("APP_CONFIG_PROFILE")
-	if profile == "" {
-		profile = os.Getenv("APP_PROFILE")
-	}
 	return &http.Client{
 		Timeout: 8 * time.Second,
 		Transport: transport{base: http.DefaultTransport.(*http.Transport).Clone(),

@@ -447,7 +447,7 @@ services:
     container_name: cowork-alloy
     restart: unless-stopped
     environment:
-      ENV: ${SPRING_PROFILES_ACTIVE:-local}
+      ENV: ${APP_CONFIG_PROFILE:-local}
     volumes:
       - ./deploy/config/monitoring/alloy/config.alloy:/etc/alloy/config.alloy:ro
       - cowork_logs:/var/log/cowork:ro
@@ -513,8 +513,8 @@ services:
     container_name: cowork-alertmanager-config-init
     restart: "no"
     environment:
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      DISCORD_MONITORING_ALERT_WEBHOOK: ${DISCORD_MONITORING_ALERT_WEBHOOK:-}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     volumes:
       - ./deploy/config/monitoring/alertmanager/alertmanager.yml:/source/alertmanager.yml:ro
       - ./deploy/config/monitoring/alertmanager/alertmanager-noop.yml:/source/alertmanager-noop.yml:ro
@@ -526,15 +526,15 @@ services:
         umask 077
         rm -f /generated/alertmanager.yml /generated/discord-webhook-url
 
-        if [ -n "$${DISCORD_WEBHOOK_URL}" ]; then
+        if [ -n "$${DISCORD_MONITORING_ALERT_WEBHOOK}" ]; then
           cp /source/alertmanager.yml /generated/alertmanager.yml
-          printf '%s' "$${DISCORD_WEBHOOK_URL}" > /generated/discord-webhook-url
+          printf '%s' "$${DISCORD_MONITORING_ALERT_WEBHOOK}" > /generated/discord-webhook-url
           chown 65534:65534 /generated/discord-webhook-url
           chmod 0400 /generated/discord-webhook-url
-        elif [ "$${SPRING_PROFILES_ACTIVE}" = "local" ]; then
+        elif [ "$${APP_CONFIG_PROFILE}" = "local" ]; then
           cp /source/alertmanager-noop.yml /generated/alertmanager.yml
         else
-          echo "DISCORD_WEBHOOK_URL is required outside the local profile" >&2
+          echo "DISCORD_MONITORING_ALERT_WEBHOOK is required outside the local profile" >&2
           exit 1
         fi
 
@@ -680,7 +680,7 @@ services:
         condition: service_completed_successfully
     environment:
       CONFIG_SERVER_ACCOUNTS_JSON: ${CONFIG_SERVER_ACCOUNTS_JSON:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
       S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
@@ -715,7 +715,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GATEWAY_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GATEWAY_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8080:8080"
@@ -744,8 +744,8 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_AUTHORIZATION_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_AUTHORIZATION_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8081:8081"
     healthcheck:
@@ -775,7 +775,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PREFERENCE_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PREFERENCE_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "9001:9001"
@@ -810,8 +810,8 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_USER_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_USER_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8082:8082"
     volumes:
@@ -841,7 +841,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_TEAM_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_TEAM_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8085:8085"
@@ -870,7 +870,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHANNEL_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHANNEL_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8083:8083"
@@ -899,7 +899,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PROJECT_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PROJECT_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "${COWORK_PROJECT_HOST_PORT:-8084}:8084"
@@ -930,7 +930,7 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_ROADMAP_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_ROADMAP_PASSWORD:?Generate Config Server credentials}
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-local}
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "8088:8088"
@@ -961,8 +961,8 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_NOTIFICATION_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_NOTIFICATION_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8086:8086"
     volumes:
@@ -998,8 +998,8 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHAT_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHAT_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8087:8087"
     volumes:
@@ -1031,8 +1031,8 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_VOICE_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_VOICE_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_URL: http://cowork-config:8761
-      APP_PROFILE: ${SPRING_PROFILES_ACTIVE:-local}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8089:8089"
     volumes:
