@@ -114,10 +114,6 @@ describe('ChannelMessageReadAccessService', () => {
         ]);
     });
 
-    afterEach(() => {
-        service.onModuleDestroy();
-    });
-
     describe('canReadChannel', () => {
         it('가장 높은 priority의 명시값을 적용하고 낮은 priority deny는 무시한다', async () => {
             await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
@@ -271,26 +267,28 @@ describe('ChannelMessageReadAccessService', () => {
     });
 
     describe('emitToReadableChannelUsers', () => {
-        it('room 단위 단일 emit을 사용하되, 읽기 가능한 socket ID만 명시적으로 대상 지정한다(allow-list)', async () => {
-            const sender = { id: 'sender', data: { userId: 2 } };
-            const otherAllowed = { id: 'allowed', data: { userId: 2 } };
-            const denied = { id: 'denied', data: { userId: 3 } };
-            const toEmit = jest.fn();
-            const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
-            const io = {
-                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([sender, otherAllowed, denied]) }),
-                to,
-            };
+        it('채널 room에 그대로 보낸다 — room 멤버십이 곧 판정 결과이므로 전송 시점에 다시 평가하지 않는다', async () => {
+            const emit = jest.fn();
+            const to = jest.fn().mockReturnValue({ emit });
+            const io = { to };
+
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+
+            expect(to).toHaveBeenCalledWith('chat:10');
+            expect(emit).toHaveBeenCalledWith('message', { value: 1 });
+        });
+
+        it('보낸 사람의 socket은 제외한다', async () => {
+            const emit = jest.fn();
+            const except = jest.fn().mockReturnValue({ emit });
+            const to = jest.fn().mockReturnValue({ except });
+            const io = { to };
 
             await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
 
-            // Room 이름이 아니라 스냅샷에서 얻은 소켓 ID를 직접 대상으로 지정한다(allow-list).
-            // fetchSockets() 스냅샷 이후 emit 전에 room에 새로 합류하는 소켓이 있어도, 그 소켓은
-            // 이 배열에 없으므로 이번 emit의 대상이 되지 않는다 — room 이름을 대상으로 except(...)를
-            // 쓰는 deny-list 방식이었다면, emit 시점에 room 멤버십을 다시 읽어 그 소켓도 받았을 것이다.
-            expect(to).toHaveBeenCalledTimes(1);
-            expect(to.mock.calls[0][0]).toEqual(['allowed']);
-            expect(toEmit).toHaveBeenCalledWith('typing', { value: true });
+            expect(to).toHaveBeenCalledWith('chat:10');
+            expect(except).toHaveBeenCalledWith('sender');
+            expect(emit).toHaveBeenCalledWith('typing', { value: true });
         });
     });
 
@@ -315,73 +313,4 @@ describe('ChannelMessageReadAccessService', () => {
         });
     });
 
-    describe('emitToReadableChannelUsers 캐싱', () => {
-        const makeIo = (sockets: Array<{ id: string; data: { userId: number } }>) => {
-            const toEmit = jest.fn();
-            const to = jest.fn<{ emit: jest.Mock }, [string[]]>().mockReturnValue({ emit: toEmit });
-            const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue(sockets) }), to };
-            return { io, to, toEmit };
-        };
-
-        it('TTL 내 같은 채널·같은 접속자 조합은 저장소를 다시 조회하지 않는다', async () => {
-            const sockets = [{ id: 's2', data: { userId: 2 } }, { id: 's3', data: { userId: 3 } }];
-            const { io, to } = makeIo(sockets);
-
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 1 });
-            expect(to).toHaveBeenCalledWith(['s2']);
-            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-
-            to.mockClear();
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { n: 2 });
-
-            expect(to).toHaveBeenCalledWith(['s2']);
-            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-        });
-
-        it('접속자 구성이 바뀌면 캐시에 없는 사용자만 저장소에서 다시 조회한다(부분 캐시 히트)', async () => {
-            const first = makeIo([{ id: 's2', data: { userId: 2 } }]);
-            await service.emitToReadableChannelUsers(first.io as never, 10, 'message', {});
-            channelMemberRepository.findByChannelIdsAndUserIds.mockClear();
-
-            const second = makeIo([{ id: 's2', data: { userId: 2 } }, { id: 's4', data: { userId: 4 } }]);
-            await service.emitToReadableChannelUsers(second.io as never, 10, 'message', {});
-
-            expect(second.to).toHaveBeenCalledWith(['s2']);
-            expect(channelMemberRepository.findByChannelIdsAndUserIds).toHaveBeenCalledWith([10], [4]);
-        });
-
-        it('단건 권한 검증(canReadChannel)은 브로드캐스트 캐시를 사용하지 않고 항상 새로 조회한다', async () => {
-            const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-            channelRepository.findByIds.mockClear();
-
-            await service.canReadChannel(10, 2);
-
-            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-        });
-
-        it('알림·시스템 메시지 경로(filterReadableUsersByChannel)는 브로드캐스트 캐시를 사용하지 않는다', async () => {
-            const { io } = makeIo([{ id: 's2', data: { userId: 2 } }]);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-            channelRepository.findByIds.mockClear();
-
-            const result = await service.filterReadableUsersByChannel(new Map([[10, [2]]]));
-
-            expect(result.get(10)).toEqual([2]);
-            expect(channelRepository.findByIds).toHaveBeenCalledTimes(1);
-        });
-
-        it('projectionReadiness가 준비되지 않은 동안의 판정은 캐시에 쓰지 않는다', async () => {
-            projectionReadiness.isReady.mockReturnValue(false);
-            const { io, to } = makeIo([{ id: 's2', data: { userId: 2 } }]);
-
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-            expect(to).not.toHaveBeenCalled();
-
-            projectionReadiness.isReady.mockReturnValue(true);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', {});
-
-            expect(to).toHaveBeenCalledWith(['s2']);
-        });
-    });
 });
