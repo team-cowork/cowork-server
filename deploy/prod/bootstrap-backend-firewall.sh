@@ -10,13 +10,18 @@ fi
 source_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
 /usr/bin/python3 -I - "$source_dir" <<'PY'
 import os
+import fcntl
 from pathlib import Path
+import re
 import stat
 import subprocess
 import sys
 import tempfile
 
 source = Path(sys.argv[1])
+policy_mode = os.environ.get("COWORK_BACKEND_POLICY_MODE", "stage")
+if policy_mode not in {"apply", "stage"}:
+    raise SystemExit("[backend-firewall] Expected an apply or stage bootstrap mode")
 names = ("bootstrap-backend-firewall.sh", "backend-firewall.py", "backend-firewall.service", "policy.json")
 
 
@@ -37,11 +42,31 @@ for name in names:
 with (source / "policy.json").open() as policy_file:
     subprocess.run([sys.executable, "-I", str(source / "backend-firewall.py"), "validate"], stdin=policy_file, check=True)
 
-for name, target, mode in (
+state_directory = Path("/etc/cowork/backend-firewall")
+state_directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+for directory in (state_directory, *state_directory.parents):
+    check(directory, True, private=directory == state_directory)
+lock = (state_directory / ".lock").open("a")
+os.chmod(lock.name, 0o600)
+fcntl.flock(lock, fcntl.LOCK_EX)
+if (state_directory / "transaction.json").exists():
+    raise SystemExit("[backend-firewall] Resolve the retained deployment transaction before changing desired policy")
+active_exists = (state_directory / "policy.json").exists()
+if policy_mode == "stage" and not active_exists:
+    service = os.environ.get("COWORK_BACKEND_SERVICE", "")
+    if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", service):
+        raise SystemExit("[backend-firewall] First staged installation requires the backend service identity")
+    containers = subprocess.check_output(["docker", "container", "ls", "--all", "--format", "{{.Names}}"], text=True).splitlines()
+    if "cowork-" + service in containers:
+        raise SystemExit("[backend-firewall] A running or retained backend needs an initial reviewed active policy before transactional staging")
+entries = [
     ("backend-firewall.py", Path("/usr/local/libexec/cowork-backend-firewall.py"), 0o755),
     ("backend-firewall.service", Path("/etc/systemd/system/cowork-backend-firewall.service"), 0o644),
-    ("policy.json", Path("/etc/cowork/backend-firewall/policy.json"), 0o600),
-):
+    ("policy.json", state_directory / "desired.json", 0o600),
+]
+if policy_mode == "apply" or not active_exists:
+    entries.append(("policy.json", state_directory / "policy.json", 0o600))
+for name, target, mode in entries:
     for directory in target.parent.parents:
         if directory.exists():
             check(directory, True)
@@ -72,4 +97,4 @@ systemctl daemon-reload
 /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py restore
 systemctl enable cowork-backend-firewall.service
 systemctl start cowork-backend-firewall.service
-echo '[backend-firewall] Policy applied and Docker prerequisite enabled; Docker was not restarted'
+echo '[backend-firewall] Reviewed desired policy staged; active protection restored without restarting Docker'

@@ -13,8 +13,8 @@ services:
 
   cowork-authorization:
     build:
-      context: cowork-authorization
-      dockerfile: Dockerfile.local
+      context: .
+      dockerfile: cowork-authorization/Dockerfile.local
 
   cowork-preference:
     build:
@@ -48,15 +48,15 @@ services:
 
   cowork-notification:
     build:
-      context: cowork-notification
-      dockerfile: Dockerfile.local
+      context: .
+      dockerfile: cowork-notification/Dockerfile.local
 
   cowork-chat:
     build:
-      context: cowork-chat
-      dockerfile: Dockerfile.local
+      context: .
+      dockerfile: cowork-chat/Dockerfile.local
 
   cowork-voice:
     build:
-      context: cowork-voice
-      dockerfile: Dockerfile.local
+      context: .
+      dockerfile: cowork-voice/Dockerfile.local
