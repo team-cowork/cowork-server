@@ -168,19 +168,6 @@ services:
         condition: service_completed_successfully
       grafana:
         condition: service_started
-  mysqld_exporter:
-    image: prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: 20m
-        max-file: '3'
-    environment:
-      MYSQLD_EXPORTER_PASSWORD: ${MYSQL_EXPORTER_PASSWORD:?MYSQL_EXPORTER_PASSWORD is required}
-    command:
-      - --mysqld.address=${MYSQL_HOST:?MYSQL_HOST is required}:${MYSQL_PORT:-3306}
-      - --mysqld.username=${MYSQL_EXPORTER_USER:?MYSQL_EXPORTER_USER is required}
   redis_exporter:
     image: oliver006/redis_exporter:v1.91.1@sha256:c67a432dba6b4ae30f471e3c77cf14a289133bbeeb89abb0bb03e6092efb2836
     restart: unless-stopped
@@ -203,27 +190,6 @@ services:
         max-file: '3'
     command:
       - --kafka.server=${KAFKA_EXPORTER_SERVER:?Set one reachable broker host:port}
-  postgres_exporter:
-    image: prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: 20m
-        max-file: '3'
-    environment:
-      DATA_SOURCE_NAME: ${POSTGRES_EXPORTER_DSN:?POSTGRES_EXPORTER_DSN is required}
-  mongodb_exporter:
-    image: percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1
-    restart: unless-stopped
-    logging:
-      driver: json-file
-      options:
-        max-size: 20m
-        max-file: '3'
-    environment:
-      MONGODB_URI: ${MONGO_EXPORTER_URI:?MONGO_EXPORTER_URI is required}
-    command: [--compatible-mode]
 networks:
   default:
     name: ${COMPOSE_PROJECT_NAME:?Compose project name is required}-mtu1400
