@@ -89,9 +89,9 @@ def render(module, specification, secrets, slot, config, network, directory, dat
     origins = config['runtime']['PUBLIC_WEB_ORIGINS']
     for raw in origins.split(','):
         origin = urlsplit(raw)
-        if (origin.scheme != 'https' or not origin.hostname or origin.username or origin.password or
-                origin.path or origin.query or origin.fragment or not re.fullmatch(r'https://[A-Za-z0-9.-]+(?::[0-9]{1,5})?', raw)):
-            raise ValueError('Storage web origins must be explicit HTTPS origins')
+        if (origin.scheme not in ('http', 'https') or not origin.hostname or origin.username or origin.password or
+                origin.path or origin.query or origin.fragment or not re.fullmatch(r'https?://[A-Za-z0-9.-]+(?::[0-9]{1,5})?', raw)):
+            raise ValueError('Storage web origins must be explicit HTTP(S) origins')
     iam, policy, lifecycle = documents(module, specification, bucket, secrets)
     iam_json = json.dumps(iam, indent=2) + '\n'
     for name, mode in (('config', 0o700), ('scripts', 0o755)):
