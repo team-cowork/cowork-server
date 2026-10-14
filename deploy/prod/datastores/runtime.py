@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deploy existing production datastores without initializing or deleting data."""
+"""Deploy shared Redis, Elasticsearch and Kafka without replacing their data."""
 import hashlib
 import ipaddress
 import json
@@ -16,16 +16,13 @@ BOOTSTRAP = Path('/etc/cowork/datastores-bootstrap.json')
 NETWORK = 'cowork-server_default'
 PROJECT = 'cowork-datastores'
 ACCOUNT_ID = 10002
-PORTS = {'mysql': 3306, 'postgres': 5432, 'mongodb': 27017, 'redis': 6379, 'elasticsearch': 9200, 'kafka': 9094}
+PORTS = {'redis': 6379, 'elasticsearch': 9200, 'kafka': 9094}
 VOLUMES = {
-    'mysql': {'cowork-prod-mysql-data': '/var/lib/mysql'},
-    'postgres': {'cowork-prod-postgres-data': '/var/lib/postgresql'},
-    'mongodb': {'cowork-prod-mongo-data': '/data/db', 'cowork-prod-mongo-configdb': '/data/configdb'},
     'redis': {'cowork-prod-redis-data': '/data'},
     'elasticsearch': {'cowork-prod-elasticsearch-data': '/usr/share/elasticsearch/data'},
     'kafka': {'cowork-kafka-data-20261013-fresh': '/var/lib/kafka/data'},
 }
-REPOSITORIES = {'mysql': 'mysql', 'postgres': 'postgres', 'mongodb': 'mongo', 'redis': 'redis', 'kafka': 'apache/kafka'}
+REPOSITORIES = {'redis': 'redis', 'kafka': 'apache/kafka'}
 SNAPSHOT = None
 COMMAND_ENV = None
 PHASE = 'argument-validation'
@@ -72,21 +69,13 @@ def run(*args, input_text=None, timeout=600):
 
 def settings():
     value = json.loads(os.environ['DATASTORE_SETTINGS_JSON'], object_pairs_hook=unique_object)
-    exact_keys(value, ('bind_ip', 'mysql', 'postgres', 'mongodb', 'kafka'), 'Unexpected datastore settings fields')
+    exact_keys(value, ('bind_ip', 'kafka'), 'Unexpected shared datastore settings fields')
     demand(isinstance(value['bind_ip'], str), 'Private binding must be an IPv4 string')
     address = ipaddress.ip_address(value['bind_ip'])
     demand(address.version == 4 and any(address in ipaddress.ip_network(n) for n in
                                        ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16')),
            'Datastores must bind a private IPv4 address')
     value['bind_ip'] = str(address)
-    for name in ('mysql', 'postgres', 'mongodb'):
-        keys = ('user', 'password', 'root_password') if name == 'mysql' else ('user', 'password')
-        exact_keys(value[name], keys, 'Unexpected database credential fields')
-        for secret in value[name].values():
-            demand(isinstance(secret, str) and 0 < len(secret) <= 4096 and
-                   all(ord(c) >= 32 and ord(c) != 127 for c in secret), 'Invalid database credential value')
-        demand(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]{0,31}', value[name]['user']), 'Invalid database username')
-    demand(value['mysql']['user'] != 'root', 'MySQL requires a separate application account')
     exact_keys(value['kafka'], ('cluster_id',), 'Unexpected Kafka settings fields')
     demand(isinstance(value['kafka']['cluster_id'], str) and
            re.fullmatch(r'[A-Za-z0-9_-]{22}', value['kafka']['cluster_id']), 'Invalid Kafka cluster ID')
@@ -155,14 +144,17 @@ def bootstrap_state(value, majors):
     demand(bootstrap['network']['name'] == NETWORK and re.fullmatch(r'[0-9a-f]{64}', bootstrap['network']['id']),
            'Unexpected bootstrap network')
     demand(bootstrap['kafka_cluster_id'] == value['kafka']['cluster_id'], 'Kafka cluster ID differs from initialized data')
-    exact_keys(bootstrap['engines'], PORTS, 'Unexpected bootstrap engine list')
-    for name, engine in bootstrap['engines'].items():
+    demand(isinstance(bootstrap['engines'], dict) and set(PORTS) <= set(bootstrap['engines']),
+           'A shared engine is missing from the bootstrap manifest')
+    for name in PORTS:
+        engine = bootstrap['engines'][name]
         exact_keys(engine, ('major', 'bootstrap_container_id', 'bootstrap_image_id'), 'Invalid bootstrap engine identity')
         demand(engine['major'] == majors[name], 'Engine major change requires an operator data-compatibility review')
         demand(re.fullmatch(r'[0-9a-f]{64}', engine['bootstrap_container_id']) and
                re.fullmatch(r'sha256:[0-9a-f]{64}', engine['bootstrap_image_id']), 'Invalid bootstrap container identity')
     expected_volumes = {volume for volumes in VOLUMES.values() for volume in volumes}
-    exact_keys(bootstrap['volumes'], expected_volumes, 'Unexpected bootstrap volume list')
+    demand(isinstance(bootstrap['volumes'], dict) and expected_volumes <= set(bootstrap['volumes']),
+           'A shared data volume is missing from the bootstrap manifest')
     live = json.loads(run('docker', 'volume', 'inspect', *sorted(expected_volumes)))
     demand(len(live) == len(expected_volumes), 'A required initialized data volume is missing')
     for volume in live:
@@ -191,12 +183,6 @@ def render(value, images):
     # raw env_file (Compose >=2.30) preserves $, quotes, # and spaces in secrets.
     # There are no init-script mounts. Initialization remains an operator task.
     environment = {
-        'mysql': {'MYSQL_ROOT_PASSWORD': value['mysql']['root_password'], 'MYSQL_USER': value['mysql']['user'],
-                  'MYSQL_PASSWORD': value['mysql']['password']},
-        'postgres': {'POSTGRES_USER': value['postgres']['user'], 'POSTGRES_PASSWORD': value['postgres']['password'],
-                     'POSTGRES_DB': 'postgres'},
-        'mongodb': {'MONGO_INITDB_ROOT_USERNAME': value['mongodb']['user'],
-                    'MONGO_INITDB_ROOT_PASSWORD': value['mongodb']['password']},
         'kafka': {'KAFKA_NODE_ID': '1', 'KAFKA_PROCESS_ROLES': 'broker,controller',
                   'KAFKA_LISTENERS': 'PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094',
                   'KAFKA_ADVERTISED_LISTENERS': 'PLAINTEXT://kafka:9092,EXTERNAL://' + value['bind_ip'] + ':9094',
@@ -371,7 +357,7 @@ def main():
     verify_runtime(bootstrap, value, images)
     PHASE = 'topic-provisioning'
     provision_topics(policies)
-    print('[datastores] Six engines passed readiness; initialized volumes and Kafka cluster identity were retained')
+    print('[datastores] Shared engines passed readiness; initialized volumes and Kafka cluster identity were retained')
 
 
 if __name__ == '__main__':

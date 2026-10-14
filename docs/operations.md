@@ -6,9 +6,8 @@ GSM SV의 VM 생성·사양·공개 포트 전달은 패널에서 관리한다. 
 ## 인증과 state 복구
 
 - 최초 Vault 신뢰 설정은 외부 관리자 토큰으로 [bootstrap-vault.py](../deploy/iac/scripts/bootstrap-vault.py)를
-  실행한다. DB exporter 계정은 [bootstrap-exporters.py](../deploy/iac/scripts/bootstrap-exporters.py)로
-  구성한다. DB 계정의 비밀번호를 바꾸면 Vault의 해당 값도 함께 교체한다. 기존 DB 사용자의 비밀번호는
-  컨테이너 초기화 환경변수만 바꾸어서는 갱신되지 않는다.
+  실행한다. 모듈 DB의 관리자·수집 계정은 Vault `secret/iac/databases/<module>`에,
+  앱 계정 비밀번호는 `secret/slot-secrets/<module>`에 보관한다. 변경 후 IaC와 앱 배포를 순서대로 적용한다.
 - `Prod-IaC`의 `IAC_STATE_ENCRYPTION_KEY` 복구 사본은 VM·Vault 밖에 보관한다. 이 키를 잃으면
   `infra-state`의 암호화된 Terraform state를 읽을 수 없다.
 - CD의 `cowork-production` 동시 실행 제한이 IaC 적용을 직렬화한다. 로컬 IaC 적용은 CD와 겹치지 않게 실행한다.
