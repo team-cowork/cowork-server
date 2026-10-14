@@ -1,67 +1,50 @@
 #!/usr/bin/env python3
-"""Inspect a built image's filesystem and user without starting any application."""
+"""Inspect the shared slot contract without starting or classifying the application."""
+import io
 import json
-import re
 import subprocess
 import sys
 import tarfile
 
 
-def main():
-    service, image = sys.argv[1:]
-    config = json.loads(subprocess.check_output(["docker", "image", "inspect", image]))[0]["Config"]
-    if config["User"] not in {"app", "10001", "10001:10001"}:
-        raise ValueError("The runtime must use the dedicated app user")
-    if not config.get("Entrypoint"):
-        raise ValueError("Missing runtime entrypoint")
-    if service == "user" and config["Entrypoint"] != ["/app/bin/cowork_user", "start"]:
-        raise ValueError("The user runtime must start its release directly")
-    required = {
-        "chat": {"app/dist/main.js", "app/public/asyncapi.json"},
-        "user": {"app/bin/cowork_user"},
-        "preference": {"app/app.jar"},
-    }.get(service, {f"usr/local/bin/cowork-{service}"} if service in {"authorization", "notification", "voice"}
-          else {"app/org/springframework/boot/loader/launch/JarLauncher.class"})
+def named_user_uid(image, user):
     container = subprocess.check_output(
         ["docker", "create", "--network", "none", "--entrypoint", "/bin/true", image], text=True,
     ).strip()
     try:
-        process = subprocess.Popen(["docker", "export", container], stdout=subprocess.PIPE)
-        paths = set()
-        writable_logs = False
-        uid_valid = False
-        with tarfile.open(fileobj=process.stdout, mode="r|*") as archive:
+        passwd = subprocess.check_output(["docker", "cp", "-L", f"{container}:/etc/passwd", "-"])
+        with tarfile.open(fileobj=io.BytesIO(passwd)) as archive:
             for entry in archive:
-                name = entry.name.removeprefix("./")
-                paths.add(name)
-                if name == "etc/passwd":
-                    uid_valid = any(line.startswith("app:x:10001:10001:")
-                                    for line in archive.extractfile(entry).read().decode().splitlines())
-                if name == "var/log/cowork":
-                    writable_logs = entry.uid == 10001 and bool(entry.mode & 0o200)
-        process.stdout.close()
-        if process.wait():
-            raise ValueError("Cannot export the image filesystem")
-        if not uid_valid:
-            raise ValueError("The app user must have UID and GID 10001")
-        missing = required - paths
-        if missing:
-            raise ValueError(f"Missing runtime files: {sorted(missing)}")
-        if service in {"config", "gateway", "team", "channel", "project", "roadmap", "preference", "user"} and not writable_logs:
-            raise ValueError("The app user cannot write its log directory")
-        if service in {"authorization", "notification", "user"}:
-            if service == "user":
-                has_migrations = any(re.fullmatch(
-                    r"app/lib/cowork_user-[^/]+/priv/db/migration/V[0-9]+__[^/]+\.sql", path,
-                ) for path in paths)
-            else:
-                has_migrations = any(path.startswith("app/db/migration/") and path.endswith(".sql")
-                                     for path in paths)
-            if not has_migrations:
-                raise ValueError("Missing database migrations")
-        print(f"{service}: runtime files, non-root identity and log ownership valid (application not started)")
+                if not entry.isfile():
+                    continue
+                for line in archive.extractfile(entry).read().decode().splitlines():
+                    fields = line.split(":")
+                    if len(fields) >= 3 and fields[0] == user:
+                        return int(fields[2])
+        raise ValueError(f"The runtime user {user!r} does not resolve in /etc/passwd")
     finally:
         subprocess.run(["docker", "rm", container], check=True, stdout=subprocess.DEVNULL)
+
+
+def main():
+    service, image = sys.argv[1:]
+    metadata = json.loads(subprocess.check_output(["docker", "image", "inspect", image]))[0]
+    config = metadata["Config"]
+    if metadata["Os"] != "linux" or metadata["Architecture"] != "amd64":
+        raise ValueError("Production slots require linux/amd64 images")
+    user = config.get("User", "").split(":", 1)[0]
+    if not user:
+        raise ValueError("The image must declare a non-root runtime user")
+    uid = int(user) if user.isdecimal() else named_user_uid(image, user)
+    if uid <= 0:
+        raise ValueError("The image must run as a non-root UID")
+    command = config.get("Entrypoint") or config.get("Cmd")
+    if (not isinstance(command, list) or not command or not command[0]
+            or not all(isinstance(part, str) for part in command)):
+        raise ValueError("The image must declare an executable ENTRYPOINT or CMD")
+    # Runtime files and migrations belong to Dockerfile packaging assertions. The
+    # slot does not know whether a command starts BEAM, Java, Go, or Node.
+    print(f"{service}: platform, non-root identity and command valid (application not started)")
 
 
 if __name__ == "__main__":

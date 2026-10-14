@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """기존 팀의 채널 역할 정책 운영 전환 도구.
 
-절차와 export SQL은 docs/channel-role-policy-transition.md를 따른다.
 plan은 아무 상태도 바꾸지 않고, apply는 같은 manifest와 export로 계산한 operation만 제출한다.
 """
 import argparse

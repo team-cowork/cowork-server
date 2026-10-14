@@ -1,6 +1,43 @@
 groups:
   - name: cowork-availability
     rules:
+      - alert: coworkPublicGatewayUnavailable
+        expr: probe_success{job="public-gateway"} == 0 or up{job="public-gateway"} == 0 or absent(probe_success{job="public-gateway"})
+        for: 2m
+        labels:
+          severity: critical
+          service: gateway
+        annotations:
+          summary: "Public Gateway JSON API is unavailable"
+          description: "The public HTTPS /api/health path or its probe has failed for 2 minutes. Check DNS, TLS, proxy routing and the Gateway response."
+
+      - alert: coworkReadinessFailed
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Declared service readiness failed"
+          description: "Service {{ $labels.service }} did not pass its declared readiness check for 2 minutes."
+
+      - alert: coworkInfrastructureScrapeFailed
+        expr: up{job=~"infrastructure|monitoring"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Infrastructure metrics are unavailable"
+          description: "Metrics for {{ $labels.service }} have been unavailable for 2 minutes."
+
+      - alert: coworkDatastoreUnavailable
+        expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Datastore is unavailable to its exporter"
+          description: "Exporter {{ $labels.service }} cannot reach or authenticate to its datastore."
+
       - alert: coworkServiceDown
         expr: up{job=~"cowork-.*"} == 0
         for: 2m
