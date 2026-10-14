@@ -8,10 +8,14 @@ SERVICE_NAME="cowork-team"
 SERVICE_WORKDIR="$PROJECT_ROOT"
 SERVICE_COMMAND=(
   bash -lc
-  'export SPRING_DATASOURCE_URL="${SPRING_DATASOURCE_URL:-jdbc:mysql://localhost:3306/cowork_team?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}"
-   export SPRING_KAFKA_BOOTSTRAP_SERVERS="${SPRING_KAFKA_BOOTSTRAP_SERVERS:-${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}}"
+  'export DB_HOST="${DB_HOST:-localhost}"
+   export DB_PORT="${DB_PORT:-3306}"
+   export DB_NAME="${DB_NAME:-cowork_team}"
+   export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
+   export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
+   export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export S3_INTERNAL_ENDPOINT="${S3_INTERNAL_ENDPOINT:-http://localhost:9000}"
-   export EUREKA_CLIENT_SERVICEURL_DEFAULTZONE="${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:-http://localhost:8761/eureka/}"
+   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
    exec ./gradlew :cowork-team:bootRun'
 )
 
