@@ -8,10 +8,12 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.springframework.cloud.gateway.config.GlobalCorsProperties
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
+import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
@@ -20,7 +22,13 @@ import java.net.URI
 class DevOriginCredentialFilterTest :
     DescribeSpec({
 
-        val filter = DevOriginCredentialFilter(DevOriginProperties("secret"))
+        val cors = GlobalCorsProperties().apply {
+            corsConfigurations["/**"] = CorsConfiguration().apply {
+                allowedOrigins = listOf("http://localhost:3000")
+                allowCredentials = true
+            }
+        }
+        val filter = DevOriginCredentialFilter(DevOriginProperties("secret"), cors)
 
         fun forwardingChain(): Pair<WebFilterChain, CapturingSlot<ServerWebExchange>> {
             val chain = mockk<WebFilterChain>()
@@ -30,8 +38,8 @@ class DevOriginCredentialFilterTest :
         }
 
         describe("DevOriginCredentialFilter 클래스의 filter 메서드는") {
-            context("loopback HTTP origin 요청에 자격증명이 없으면") {
-                it("FORBIDDEN으로 거부한다") {
+            context("CORS 허용 origin의 요청에 자격증명이 없으면") {
+                it("브라우저가 읽을 수 있는 FORBIDDEN으로 거부한다") {
                     val chain = mockk<WebFilterChain>()
                     val exchange = MockServerWebExchange.from(
                         MockServerHttpRequest.get("/api/users/me").header("Origin", "http://localhost:3000"),
@@ -40,7 +48,24 @@ class DevOriginCredentialFilterTest :
                     filter.filter(exchange, chain).block()
 
                     exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    exchange.response.headers.accessControlAllowOrigin shouldBe "http://localhost:3000"
+                    exchange.response.headers.accessControlAllowCredentials shouldBe true
                     verify(exactly = 0) { chain.filter(any()) }
+                }
+            }
+
+            context("Gateway가 서빙한 같은 출처 페이지의 요청이면") {
+                it("자격증명 없이 전달한다") {
+                    val (chain, _) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest
+                            .method(HttpMethod.POST, URI.create("http://localhost:8080/api/users"))
+                            .header("Origin", "http://localhost:8080"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    verify(exactly = 1) { chain.filter(exchange) }
                 }
             }
 
@@ -56,6 +81,7 @@ class DevOriginCredentialFilterTest :
                     filter.filter(exchange, chain).block()
 
                     exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    exchange.response.headers.accessControlAllowOrigin shouldBe null
                     verify(exactly = 0) { chain.filter(any()) }
                 }
             }
@@ -77,6 +103,21 @@ class DevOriginCredentialFilterTest :
                     filter.filter(exchange, chain).block()
 
                     captured.captured.request.uri.rawQuery shouldBe "X-Amz-Signature=a%2Fb&X-Amz-Date=1"
+                }
+            }
+
+            context("다른 query 값에 인코딩되지 않은 '='가 있으면") {
+                it("원문을 유지한 채 자격증명 query만 제거한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest
+                            .method(HttpMethod.GET, URI.create("/api/files?token=YWJj==&dev_credential=secret"))
+                            .header("Origin", "http://localhost:3000"),
+                    )
+
+                    filter.filter(exchange, chain).block()
+
+                    captured.captured.request.uri.rawQuery shouldBe "token=YWJj=="
                 }
             }
 
