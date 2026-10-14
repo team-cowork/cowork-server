@@ -77,27 +77,35 @@ def main():
         deployment = successful_deployment(service, name)
         base = deployment["image_sha"] if deployment else None
         source = deployment["source_sha"] if deployment else None
+        if base == sha and source == sha:
+            continue
         if source and subprocess.run(
             ["git", "cat-file", "-e", f"{source}^{{commit}}"], capture_output=True,
-        ).returncode == 0 and ancestor(sha, source):
-            print(f"{name}: this source or a newer source is already deployed")
-            continue
-        if base == sha:
+        ).returncode != 0:
+            print(f"{name}: previous deployment source is unavailable; deploy the selected source")
+            source = None
+        if source and source != sha and ancestor(sha, source):
+            print(f"{name}: skip stale automatic rollout; a newer deployment source is already applied")
             continue
         if base and subprocess.run(
             ["git", "cat-file", "-e", f"{base}^{{commit}}"], capture_output=True,
         ).returncode != 0:
-            print(f"{name}: previous source is unavailable; deploy the selected source")
+            print(f"{name}: previous image source is unavailable; deploy the selected source")
             base = None
-        if base:
-            if ancestor(sha, base):
-                print(f"{name}: skip stale automatic rollout; a newer SHA is deployed")
-                continue
-            if base not in changes:
-                changes[base] = subprocess.check_output(
-                    ["git", "diff", "--name-only", "--no-renames", "-z", base, sha],
-                ).decode().rstrip("\0").split("\0")
-            if not affected(service, changes[base], name):
+        if base and base != sha and ancestor(sha, base):
+            print(f"{name}: skip stale automatic rollout; a newer image SHA is deployed")
+            continue
+        if base and source:
+            paths = set()
+            # Recreating an existing image can advance the slot source without
+            # deploying its application code, or apply a newer image to an older slot.
+            for previous in {base, source} - {sha}:
+                if previous not in changes:
+                    changes[previous] = subprocess.check_output(
+                        ["git", "diff", "--name-only", "--no-renames", "-z", previous, sha],
+                    ).decode().rstrip("\0").split("\0")
+                paths.update(changes[previous])
+            if not affected(service, paths, name):
                 continue
         # A new target or a pre-tracking deployment has no trustworthy baseline.
         include.append({"service": service, "target": name})
