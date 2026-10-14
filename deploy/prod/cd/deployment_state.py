@@ -35,7 +35,7 @@ def pages(path, query=None):
         page += 1
 
 
-def successful_sha(service, target):
+def successful_deployment(service, target):
     if not NAME.fullmatch(service) or not NAME.fullmatch(target):
         raise ValueError("Invalid deployment unit")
     # Only explicit post-readiness records count, never check-only Actions jobs.
@@ -49,17 +49,27 @@ def successful_sha(service, target):
             sha = deployment["sha"]
             if not SHA.fullmatch(sha):
                 raise ValueError("Invalid recorded deployment SHA")
-            return sha
+            source_sha = payload.get("source_sha", sha)
+            if not isinstance(source_sha, str) or not SHA.fullmatch(source_sha):
+                raise ValueError("Invalid recorded deployment source SHA")
+            return {"image_sha": sha, "source_sha": source_sha}
     return None
 
 
-def record(service, target, sha):
-    if not NAME.fullmatch(service) or not NAME.fullmatch(target) or not SHA.fullmatch(sha):
+def successful_sha(service, target):
+    deployment = successful_deployment(service, target)
+    return deployment["image_sha"] if deployment else None
+
+
+def record(service, target, sha, source_sha=None):
+    source_sha = source_sha or sha
+    if (not NAME.fullmatch(service) or not NAME.fullmatch(target) or
+            not SHA.fullmatch(sha) or not SHA.fullmatch(source_sha)):
         raise ValueError("Invalid successful deployment")
     deployment = api("deployments", {
         "ref": sha, "task": TASK, "environment": f"Prod-CD({target})",
         "auto_merge": False, "required_contexts": [], "production_environment": True,
-        "payload": {"service": service, "target": target},
+        "payload": {"service": service, "target": target, "source_sha": source_sha},
         "description": "Runtime applied and readiness passed",
     })
     api(f"deployments/{deployment['id']}/statuses", {
@@ -75,5 +85,6 @@ if __name__ == "__main__":
     parser.add_argument("service")
     parser.add_argument("target")
     parser.add_argument("sha")
+    parser.add_argument("--source-sha", help="Deployment configuration source; defaults to the image SHA")
     args = parser.parse_args()
-    record(args.service, args.target, args.sha)
+    record(args.service, args.target, args.sha, args.source_sha)
