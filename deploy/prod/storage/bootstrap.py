@@ -110,7 +110,7 @@ def prepare(settings_path, directory):
     secure_directory(directory / "scripts", mode=0o755)
     for name in ("data", "admin-data", "lifecycle-data"):
         secure_directory(directory / name, uid=10001, mode=0o750)
-    variables = {"APP_PROFILE": "prod", "S3_BUCKET": value["bucket"], "PATH": os.environ["PATH"]}
+    variables = {"APP_CONFIG_PROFILE": "prod", "S3_BUCKET": value["bucket"], "PATH": os.environ["PATH"]}
     for role, identity in value["identities"].items():
         prefix = "S3" if role == "admin" else "S3_" + role.upper()
         variables[prefix + "_ACCESS_KEY"] = identity["access_key"]
