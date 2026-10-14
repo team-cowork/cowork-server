@@ -29,8 +29,8 @@
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `APP_PROFILE` | `local` | Compose의 `SPRING_PROFILES_ACTIVE`에서 전달 |
-| `APP_CONFIG_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
+| `APP_CONFIG_PROFILE` | `local` | 설정 프로파일 |
+| `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_CHAT_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_CHAT_PASSWORD`에서 전달 |
 
