@@ -128,7 +128,7 @@ function shouldRebuild(filename) {
 	}
 
 	const normalized = path.normalize(String(filename));
-	return normalized === 'logo.svg' || normalized.startsWith(`src${path.sep}`) || normalized.startsWith(`data${path.sep}`);
+	return normalized === 'logo.svg' || normalized === 'social-card.png' || normalized.startsWith(`src${path.sep}`) || normalized.startsWith(`data${path.sep}`);
 }
 
 async function rebuild() {
