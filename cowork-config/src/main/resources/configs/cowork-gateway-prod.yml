@@ -1,7 +1,15 @@
+server:
+  port: ${PORT:8080}
+
 eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    hostname: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.hostname}}
+    ip-address: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.ip-address}}
+    non-secure-port: ${APP_ADVERTISE_PORT:${server.port}}
+    prefer-ip-address: true
 
 gateway:
   response-wrapper:
