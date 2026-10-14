@@ -13,7 +13,7 @@ import { ChatModule } from './chat/chat.module';
 import { HealthController } from './health.controller';
 import { AuthGuard } from './common/guard/auth.guard';
 import { HttpLoggingInterceptor } from './common/interceptor/http-logging.interceptor';
-import { getOptionalConfig, getRequiredConfig } from './common/config/config.util';
+import { getMongoDbUri, getOptionalConfig } from './common/config/config.util';
 import { ProjectionReadinessModule } from './common/kafka/projection-readiness.module';
 import { SearchModule } from './search/search.module';
 
@@ -28,7 +28,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
         MongooseModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
-                uri: getRequiredConfig(configService, 'MONGODB_URI'),
+                uri: getMongoDbUri(configService),
                 serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
                 connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
                 directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',

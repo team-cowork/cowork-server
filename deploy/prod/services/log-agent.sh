@@ -1,5 +1,5 @@
 #!/bin/bash
-require_env LOG_HOST LOKI_PUSH_URL
+require_env LOG_HOST LOG_SERVICE LOKI_PUSH_URL
 COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
   -p cowork-log-agent -f "${PROD_DIR}/log-agent/compose.yaml")
 "${COMPOSE[@]}" config --quiet
