@@ -47,7 +47,7 @@ projection:
 
 team-github:
   state-secret: ${TEAM_GITHUB_STATE_SECRET}
-  app-slug: ${GITHUB_APP_SLUG}
+  app-slug: ${COWORK_GITHUB_APP_SLUG}
 
 KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE: cowork-team.team-role-projection
 KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT: cowork-team.team-role-command-result
