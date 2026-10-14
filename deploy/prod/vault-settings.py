@@ -3,8 +3,10 @@
 import argparse
 import base64
 import json
+import hashlib
 import os
 import re
+import runpy
 import sys
 import urllib.error
 import urllib.request
@@ -23,7 +25,7 @@ MYSQL_HOST MYSQL_PORT MYSQL_USER COWORK_MYSQL_PASSWORD
 POSTGRES_HOST POSTGRES_PORT POSTGRES_USER COWORK_POSTGRES_PASSWORD
 MONGO_HOST MONGO_PORT MONGO_USER COWORK_MONGO_PASSWORD
 REDIS_HOST REDIS_PORT ELASTICSEARCH_URL
-S3_INTERNAL_ENDPOINT S3_PUBLIC_ENDPOINT S3_PUBLIC_BASE_URL S3_BUCKET S3_ACCESS_KEY S3_SECRET_KEY
+S3_INTERNAL_ENDPOINT S3_BUCKET S3_REGION
 LIVEKIT_URL LIVEKIT_WS_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET
 GITHUB_APP_SERVICE_URL COWORK_GITHUB_APP_INTERNAL_API_KEY PUBLIC_WEB_ORIGINS PUBLIC_API_BASE_URL
 JWT_SECRET JWT_ACCESS_EXPIRE JWT_REFRESH_EXPIRE
@@ -33,7 +35,10 @@ MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORIN
 GRAFANA_ADMIN_PASSWORD DISCORD_WEBHOOK_URL MYSQL_EXPORTER_USER MYSQL_EXPORTER_PASSWORD
 KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
 LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
+DB_PASSWORD GITHUB_APP_INTERNAL_API_KEY
+STORAGE_SETTINGS_JSON DATASTORE_SETTINGS_JSON
 """.split())
+ISOLATED_RUNTIME_SETTINGS = {"storage": "STORAGE_SETTINGS_JSON", "datastores": "DATASTORE_SETTINGS_JSON"}
 # deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
 # container, inside one SSH session limited by command_timeout (45m) in .github/actions/deploy-target/action.yml.
 # Keep both in sync. 600s remains for the two 120s lock waits, the 30s container stop, source fetch and image pull.
@@ -57,7 +62,7 @@ def parse_json(value):
     return json.loads(value, object_pairs_hook=object_pairs)
 
 
-def validate_deployment(data):
+def validate_deployment(data, target, slot=None):
     demand(isinstance(data, dict) and set(data) <= {"ssh", "runtime", "application", "runtime_refs", "application_refs"}, "Invalid deployment sections")
     ssh = data.get("ssh", {})
     demand(isinstance(ssh, dict) and set(ssh) == {"host", "port", "user", "key", "fingerprint"}, "ssh requires host, port, user, key, fingerprint")
@@ -72,17 +77,28 @@ def validate_deployment(data):
             demand(ENV_NAME.fullmatch(key), "Invalid environment key")
             demand(isinstance(value, str) and "\0" not in value, "Environment values must be strings without NUL")
             if section == "runtime":
-                demand(key in RUNTIME_KEYS, f"Unsupported runtime key: {key}")
+                allowed = (set(slot.get("secrets", {}).get("runtime", {})) | set(slot.get("github_secrets", {}))) if slot else RUNTIME_KEYS
+                demand(key in allowed, f"Unsupported runtime key: {key}")
         references = data.get(section + "_refs", {})
         demand(isinstance(references, dict), "References must be an object")
         for key, reference in references.items():
             demand(ENV_NAME.fullmatch(key) and key not in values, "Invalid or duplicate referenced environment key")
             if section == "runtime":
-                demand(key in RUNTIME_KEYS, f"Unsupported runtime key: {key}")
+                allowed = (set(slot.get("secrets", {}).get("runtime", {})) | set(slot.get("github_secrets", {}))) if slot else RUNTIME_KEYS
+                demand(key in allowed, f"Unsupported runtime key: {key}")
             demand(isinstance(reference, dict) and set(reference) == {"path", "key"}, "A reference requires path and key")
             demand(isinstance(reference["path"], str) and all(NAME.fullmatch(part) for part in reference["path"].split("/")), "Invalid reference path")
             demand(isinstance(reference["key"], str) and reference["key"], "Invalid reference key")
     runtime = data.get("runtime", {})
+    runtime_keys = set(runtime) | set(data.get("runtime_refs", {}))
+    if target in ISOLATED_RUNTIME_SETTINGS:
+        setting = ISOLATED_RUNTIME_SETTINGS[target]
+        demand(runtime_keys == {setting}, f"{target} requires only its isolated {setting} runtime setting")
+        demand(not data.get("application") and not data.get("application_refs"), "Isolated infrastructure cannot contain application settings")
+    else:
+        demand(not runtime_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings are restricted to their own targets")
+    application_keys = set(data.get("application", {})) | set(data.get("application_refs", {}))
+    demand(not application_keys.intersection(ISOLATED_RUNTIME_SETTINGS.values()), "Infrastructure settings cannot be forwarded to applications")
     if "APP_CONFIG_PROFILE" in runtime:
         demand(runtime["APP_CONFIG_PROFILE"] in {"local", "prod"}, "Profile must be local or prod")
     if "HEALTH_TIMEOUT_SECONDS" in runtime:
@@ -138,10 +154,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("read", "update", "bootstrap"))
     parser.add_argument("--target", required=True)
-    parser.add_argument("--scope", choices=("deployment", "application"), default="deployment")
+    parser.add_argument("--scope", choices=("deployment", "application", "slot-secrets"), default="deployment")
     parser.add_argument("--profile", choices=("base", "local", "prod"), default="base")
     parser.add_argument("--version", type=int, default=0)
     parser.add_argument("--expected-version", type=int)
+    parser.add_argument("--slot-directory", type=Path, default=Path(__file__).with_name("slots"))
     args = parser.parse_args()
     demand(NAME.fullmatch(args.target), "Invalid target name")
     mount = os.environ.get("VAULT_KV_MOUNT", "secret")
@@ -150,22 +167,40 @@ def main():
     if args.scope == "deployment":
         demand(args.profile == "base", "Deployment documents have no profile suffix")
         path = f"deploy/{args.target}"
+    elif args.scope == "slot-secrets":
+        demand(args.profile == "base", "Slot secrets have no profile suffix")
+        demand(args.action == "update", "Slot secrets are resolved through their declared deployment slot")
+        path = f"slot-secrets/{args.target}"
     else:
-        services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "log-agent"}, "Invalid Config Server application")
+        services = {p.stem for p in Path(__file__).with_name("services").glob("*.sh")} | {
+            json.loads(p.read_text())["service"] for p in Path(__file__).with_name("slots").glob("*.json")}
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "storage", "datastores", "log-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
     api_path = f"{mount}/data/{path}"
+    slot_path = args.slot_directory / f"{args.target}.json"
+    slot = runpy.run_path(str(Path(__file__).with_name("slots.py")))["load"](args.target, args.slot_directory) if slot_path.is_file() else None
     if args.action == "update":
         demand(args.expected_version is not None and args.expected_version >= 0, "Expected KV version is required (0 creates only)")
         data = parse_json(os.environ["VAULT_UPDATE_JSON"])
         if args.scope == "deployment":
-            validate_deployment(data)
+            validate_deployment(data, args.target, slot)
+            if slot is not None:
+                demand(set(data) == {"ssh"}, "Versioned slots keep only SSH credentials in a deployment document")
+        elif args.scope == "slot-secrets":
+            demand(slot is not None, "Slot secret updates require a Git slot")
+            keys = {ref["key"] for section in slot.get("secrets", {}).values()
+                    for ref in section.values() if ref["path"] == path}
+            demand(keys and isinstance(data, dict) and set(data) == keys,
+                   "Replace exactly the secret keys declared for this slot path")
+            demand(all(isinstance(value, str) and value and "\0" not in value for value in data.values()),
+                   "Slot secret values must be nonempty strings without NUL")
         else:
             demand(isinstance(data, dict), "Application properties must be a flat JSON object")
             for key, value in data.items():
                 demand(bool(re.fullmatch(r"[A-Za-z0-9_.\[\]-]+", key)), "Invalid application property key")
+                demand(key not in ISOLATED_RUNTIME_SETTINGS.values(), "Infrastructure settings cannot be stored as application properties")
                 demand(isinstance(value, (str, int, float, bool)), "Application properties must be scalar values")
         result = vault_request(api_path, {"options": {"cas": args.expected_version}, "data": data})
         print(f"Updated {path}, Vault version {result['data']['version']}")
@@ -173,14 +208,21 @@ def main():
     demand(args.scope == "deployment", "Only deployment documents are sent to a VM")
     if args.action == "bootstrap":
         demand(args.target == "vault", "Bootstrap bypass is restricted to Vault recovery")
-        data = validate_deployment(parse_json(os.environ["VAULT_BOOTSTRAP_JSON"]))
+        data = validate_deployment(parse_json(os.environ["VAULT_BOOTSTRAP_JSON"]), args.target)
         demand(not data.get("runtime_refs") and not data.get("application_refs"), "Vault recovery cannot depend on Vault references")
         version = "bootstrap"
+        reference_versions = {}
     else:
         suffix = f"?version={args.version}" if args.version else ""
         result = vault_request(api_path + suffix)["data"]
-        data = validate_deployment(result["data"])
+        data = validate_deployment(result["data"], args.target, slot)
         version = result["metadata"]["version"]
+        if slot is not None:
+            demand(not slot.get("github_secrets"), "This slot requires the IaC workflow to resolve its GitHub secret source")
+            demand(not any(data.get(key) for key in ("runtime", "application", "runtime_refs", "application_refs")),
+                   "A versioned slot requires a deployment document containing SSH credentials only")
+            for section in ("runtime", "application"):
+                data[section + "_refs"] = slot.get("secrets", {}).get(section, {})
         references = {}
         for section in ("runtime", "application"):
             values = data.setdefault(section, {})
@@ -190,11 +232,15 @@ def main():
                     references[path] = vault_request(f"{mount}/data/{path}")["data"]
                     print(f"Loaded referenced configuration {path}, Vault version {references[path]['metadata']['version']}")
                 values[key] = references[path]["data"][reference["key"]]
-        validate_deployment(data)
+        validate_deployment(data, args.target, slot)
+        reference_versions = {path: value["metadata"]["version"] for path, value in references.items()}
     mask(data)
     for key, value in data.pop("ssh").items():
         output("ssh_" + key, value, secret=True)
     data["vault_version"] = version
+    data["secret_versions"] = reference_versions
+    if slot is not None:
+        data["slot_digest"] = hashlib.sha256(slot_path.read_bytes()).hexdigest()
     encoded = json.dumps(data).encode()
     demand(len(encoded) <= 65536, "Deployment snapshot exceeds the SSH environment size budget")
     output("payload", base64.b64encode(encoded).decode(), secret=True)

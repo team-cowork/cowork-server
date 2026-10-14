@@ -10,7 +10,7 @@
 
 ## 스택
 
-- Kotlin / Java 25 / Spring Boot
+- Kotlin / Java 26 / Spring Boot
 - Gradle
 - Spring Cloud Config Server / Eureka Server
 - Spring Cloud Bus (Kafka) / Spring Vault
@@ -21,33 +21,18 @@
 |------------------------|---------------|--------------------------|
 | Config Server / Eureka | `8761`        | `8761`                   |
 
-호스트 포트는 `COWORK_CONFIG_HOST_PORT`로 변경할 수 있습니다.
-
 ## 환경변수
 
-아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
+아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml) 기준입니다.
 
-| 변수                      | 기본값                                | 설명                                                                       |
-|---------------------------|---------------------------------------|----------------------------------------------------------------------------|
-| `SPRING_PROFILES_ACTIVE`  | `local`                               | 설정 프로파일 (`local` 또는 `prod`)                                        |
-| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092`                          | Config Bus Kafka 브로커                                                    |
-| `VAULT_HOST`              | `cowork-vault`                        | Vault 호스트. 운영에서는 외부 Vault 주소 필수                              |
-| `VAULT_PORT`              | `8200` (앱 기본값)                    | Vault 포트                                                                 |
-| `VAULT_SCHEME`            | `http` (local 앱 기본값)              | local에서만 변경 가능. prod는 `https` 고정                                 |
-| `VAULT_TOKEN`             | 로컬 개발 토큰 (앱 기본값)            | local 전용. prod는 AppRole로 로그인·갱신                                   |
-| `VAULT_APP_ROLE_PATH`     | `approle`                             | prod AppRole mount 경로. `auth/` 접두어 제외                               |
-| `VAULT_ROLE_ID`           | 없음                                  | prod 필수. Config 전용 Role ID                                             |
-| `VAULT_SECRET_ID`         | 없음                                  | prod 필수. 재로그인에 사용하는 재사용 가능한 Secret ID                     |
-| `COWORK_CONFIG_HOST_PORT` | `8761`                                | Compose 호스트 공개 포트                                                   |
-| `S3_INTERNAL_ENDPOINT`    | `http://seaweedfs:9000`               | 서비스 내부 S3 endpoint                                                    |
-| `S3_PUBLIC_ENDPOINT`      | `http://localhost:9000`               | 클라이언트가 접근하는 S3 endpoint. 운영 주소 지정 필요                     |
-| `S3_PUBLIC_BASE_URL`      | `http://localhost:9000/cowork-bucket` | 공개 파일 URL 기준 주소. 운영 주소 지정 필요                               |
-| `LIVEKIT_URL`             | `http://cowork-livekit:7880`          | 서비스 내부 LiveKit API endpoint                                           |
-| `LIVEKIT_WS_URL`          | `ws://localhost:7880`                 | 클라이언트 LiveKit WebSocket 주소. 운영 주소 지정 필요                     |
-| `PUBLIC_WEB_ORIGINS`      | 없음                                  | prod 필수. HTTP CORS·WebSocket·채널 OAuth 복귀에 사용하는 공통 Origin 목록 |
-| `PUBLIC_API_BASE_URL`     | 없음                                  | prod에서 필수. Config Server 컨테이너에 별도 주입                          |
-| `GITHUB_APP_SERVICE_URL`  | 없음                                  | prod에서 필수. Config Server 컨테이너에 별도 주입                          |
-
-일반 설정은 [configs/](src/main/resources/configs/), 시크릿은 Vault에서 공급합니다. 로컬 `vault-init`은 `.env`의 시크릿을 Vault에 적재하며, 운영에서는 외부 Vault를 미리 준비해야 합니다.
-
-위 표는 local Compose 기준입니다. 분산 운영의 Config bootstrap 값은 Vault `secret/deploy/config`에서 공급합니다. VM별 설정과 최초 전환은 [배포 절차](../docs/deployment.md), 설정 우선순위와 프로파일 규칙은 [설정 규칙](../.claude/rules/config.md)을 참고합니다.
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 |
+| `CONFIG_SERVER_ACCOUNTS_JSON` | 없음 | 필수. 서비스별 Config/Eureka 계정 목록 |
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:9092` | Config Bus 브로커 |
+| `VAULT_HOST` | `cowork-vault` | 로컬 Vault 호스트 |
+| `S3_INTERNAL_ENDPOINT` | `http://seaweedfs:9000` | 서비스 내부 S3 endpoint |
+| `PUBLIC_API_BASE_URL` | `http://localhost:8080` | 외부 API 기준 주소 |
+| `PUBLIC_WEB_ORIGINS` | `http://localhost:3000,http://localhost:3001,http://localhost:5173` | CORS·WebSocket·OAuth 복귀 origin 목록 |
+| `LIVEKIT_URL` | `http://cowork-livekit:7880` | 내부 LiveKit API 주소 |
+| `LIVEKIT_WS_URL` | `ws://localhost:7880` | 클라이언트 LiveKit WebSocket 주소 |
