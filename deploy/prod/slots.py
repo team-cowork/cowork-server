@@ -160,7 +160,16 @@ def firewall(slot):
     c = slot["container"]
     if slot["kind"] == "config":
         return {"bindings": [{"address": c["bind_address"], "port": c["host_port"]}], "cidrs": slot["peers"]}
-    return {"bindings": [{"address": c["bind_address"], "host_port": c["host_port"], "container_port": c["port"]}], "peers": slot["peers"]}
+    # node-agent's node_exporter runs alongside every application container on the same VM and is
+    # scraped by the same peers that already reach this slot's own port (ansible firewall.yml applies
+    # this output for every IaC-managed application host except gateway, which isn't a firewall target
+    # here and needs its own ingress fix — same for config, whose firewall is rendered separately by
+    # config-firewall.py and does not read this function's output at all).
+    bindings = [
+        {"address": c["bind_address"], "host_port": c["host_port"], "container_port": c["port"]},
+        {"address": c["bind_address"], "host_port": 9100, "container_port": 9100},
+    ]
+    return {"bindings": bindings, "peers": slot["peers"]}
 
 
 def main():
