@@ -27,7 +27,7 @@ def http_url(name):
     url = urlsplit(value)
     if not url.hostname or url.username is not None or url.query or url.fragment:
         raise ValueError(f"{name} must be a URL without credentials")
-    # Config Server는 TLS 없이 사설 IPv4 주소 리터럴로만 접근한다(deploy/prod/config-access.py와 같은 규칙).
+    # Config Server는 TLS 없이 사설 IPv4 주소 리터럴로만 접근한다(deploy/prod/config/config-access.py와 같은 규칙).
     if url.scheme != "http" or not private_ipv4(url.hostname):
         raise ValueError(f"{name} must be an HTTP URL with a private IPv4 address")
     return value

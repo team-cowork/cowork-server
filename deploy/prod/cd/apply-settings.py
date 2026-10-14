@@ -28,7 +28,7 @@ def main():
     demand(re.fullmatch(r"[0-9a-f]{40}", sha), "Invalid release SHA")
     demand(re.fullmatch(r"[a-z0-9][a-z0-9-]*", owner), "Invalid image owner")
     home = Path.home()
-    release_directory = args.release_directory or tools_directory.parents[1]
+    release_directory = args.release_directory or tools_directory.parents[2]
     if args.release_directory is not None:
         expected = home / ".local/share/cowork/releases" / sha
         demand(release_directory.is_absolute() and release_directory == expected,
@@ -42,7 +42,7 @@ def main():
     demand(directory.resolve() == release_directory.resolve() / "deploy/prod",
            "Deployment scripts must remain inside the release directory")
     slot_path = directory / "slots" / f"{target}.json"
-    slots = runpy.run_path(str(tools_directory / "slots.py"))
+    slots = runpy.run_path(str(tools_directory.parent / "slots.py"))
     slot = slots["load"](target, directory / "slots") if slot_path.is_file() else None
     demand(schema["NAME"].fullmatch(service) and
            ((slot is not None and slot["service"] == service) or
