@@ -39,7 +39,7 @@ spring:
 
 team-github:
   state-secret: ${TEAM_GITHUB_STATE_SECRET}
-  app-slug: ${GITHUB_APP_SLUG}
+  app-slug: ${COWORK_GITHUB_APP_SLUG}
 
 eureka:
   client:

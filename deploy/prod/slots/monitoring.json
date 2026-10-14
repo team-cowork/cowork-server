@@ -27,10 +27,11 @@
       "GRAFANA_ADMIN_PASSWORD": {
         "path": "slot-secrets/monitoring",
         "key": "GRAFANA_ADMIN_PASSWORD"
+      },
+      "DISCORD_MONITORING_ALERT_WEBHOOK": {
+        "path": "slot-secrets/monitoring",
+        "key": "DISCORD_MONITORING_ALERT_WEBHOOK"
       }
     }
-  },
-  "github_secrets": {
-    "DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK"
   }
 }

@@ -36,4 +36,4 @@ projection:
     poll-interval-ms: 1000
 
 github-app:
-  service-url: ${GITHUB_APP_SERVICE_URL}
+  service-url: ${COWORK_GITHUB_APP_SERVICE_URL}

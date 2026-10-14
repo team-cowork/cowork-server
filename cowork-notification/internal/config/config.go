@@ -95,6 +95,9 @@ func fetchFromConfigServer() (map[string]string, error) {
 }
 
 func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
+	if v := os.Getenv("FCM_CREDENTIALS_JSON"); v != "" {
+		cfg.FCMCredentialsJSON = v
+	}
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
 	}
@@ -182,7 +185,7 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":                cfg.KafkaTopicNotify,
 		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                       cfg.KafkaGroupID,
 		"KAFKA_PROJECTION_GROUP_ID (or kafka.projection-group-id from config server)": cfg.KafkaProjectionGroupID,
-		"fcm.credentials-json from config server":                                     cfg.FCMCredentialsJSON,
+		"FCM_CREDENTIALS_JSON (or fcm.credentials-json from config server)":           cfg.FCMCredentialsJSON,
 	}
 	for name, val := range required {
 		if val == "" {
