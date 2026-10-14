@@ -1,8 +1,8 @@
 ---
 - name: Validate the dedicated datastore policy schema
   ansible.builtin.command:
-    argv: [python3, "{{ cowork_repository }}/deploy/prod/datastore-firewall.py", validate]
-    stdin: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/iac/datastore-policy.json') }}"
+    argv: [python3, "{{ cowork_repository }}/deploy/prod/network/datastore-firewall.py", validate]
+    stdin: "{{ lookup('ansible.builtin.file', cowork_repository ~ '/deploy/iac/policy/datastore-policy.json') }}"
   delegate_to: localhost
   become: false
   changed_when: false
@@ -18,7 +18,7 @@
         group: root
     - name: Stage the reviewed datastore firewall implementation
       ansible.builtin.copy:
-        src: "{{ cowork_repository }}/deploy/prod/{{ item }}"
+        src: "{{ cowork_repository }}/deploy/prod/network/{{ item }}"
         dest: "/root/cowork-iac/datastore/{{ item }}"
         mode: '0600'
         owner: root
@@ -29,7 +29,7 @@
         - datastore-firewall.service
     - name: Stage the Git datastore policy
       ansible.builtin.copy:
-        src: "{{ cowork_repository }}/deploy/iac/datastore-policy.json"
+        src: "{{ cowork_repository }}/deploy/iac/policy/datastore-policy.json"
         dest: /root/cowork-iac/datastore/policy.json
         mode: '0600'
         owner: root
