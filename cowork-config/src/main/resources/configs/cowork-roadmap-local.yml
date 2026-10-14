@@ -1,15 +1,15 @@
 server:
-  port: 8088
+  port: ${PORT:8088}
 
 spring:
   r2dbc:
-    url: r2dbc:mysql://mysql:3306/cowork_roadmap?serverZoneId=Asia/Seoul
-    username: ${MYSQL_USER}
-    password: ${MYSQL_PASSWORD}
+    url: r2dbc:mysql://${DB_HOST:${MYSQL_HOST:mysql}}:${DB_PORT:${MYSQL_PORT:3306}}/${DB_NAME:cowork_roadmap}?serverZoneId=Asia/Seoul
+    username: ${DB_USERNAME:${MYSQL_USER}}
+    password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   flyway:
-    url: jdbc:mysql://mysql:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-    user: ${MYSQL_USER}
-    password: ${MYSQL_PASSWORD}
+    url: jdbc:mysql://${DB_HOST:${MYSQL_HOST:mysql}}:${DB_PORT:${MYSQL_PORT:3306}}/${DB_NAME:cowork_roadmap}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    user: ${DB_USERNAME:${MYSQL_USER}}
+    password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
     bootstrap-servers: kafka:9092
 
@@ -17,6 +17,11 @@ eureka:
   client:
     service-url:
       defaultZone: ${EUREKA_SERVER_URL:http://cowork-config:8761/eureka/}
+  instance:
+    hostname: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.hostname}}
+    ip-address: ${APP_ADVERTISE_ADDRESS:${spring.cloud.client.ip-address}}
+    non-secure-port: ${APP_ADVERTISE_PORT:${server.port}}
+    prefer-ip-address: true
 
 KAFKA_TOPIC_TEAM_MEMBER: team.member.event
 KAFKA_GROUP_ID_TEAM_MEMBER: cowork-roadmap.team-member

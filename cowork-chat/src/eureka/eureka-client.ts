@@ -30,16 +30,16 @@ export class EurekaClient {
 
     static fromEnv(port: number): EurekaClient {
         const appName = process.env.EUREKA_APP_NAME ?? 'cowork-chat';
-        const advertisedPort = Number(process.env.EUREKA_INSTANCE_PORT ?? port);
+        const advertisedPort = Number(process.env.APP_ADVERTISE_PORT ?? process.env.EUREKA_INSTANCE_PORT ?? port);
         if (!Number.isSafeInteger(advertisedPort) || advertisedPort < 1 || advertisedPort > 65_535) {
             throw new Error('Invalid Eureka advertised port');
         }
 
         const runtimeIdentity = os.hostname();
         const useRuntimeIdentity = process.env.EUREKA_USE_RUNTIME_HOSTNAME === 'true';
-        const host = useRuntimeIdentity
+        const host = process.env.APP_ADVERTISE_ADDRESS ?? (useRuntimeIdentity
             ? (process.env.EUREKA_ADVERTISE_HOST ?? resolveIpAddress())
-            : requireEnv('EUREKA_INSTANCE_HOST');
+            : requireEnv('EUREKA_INSTANCE_HOST'));
         const instanceId = process.env.EUREKA_INSTANCE_ID
             ?? `${useRuntimeIdentity ? runtimeIdentity : host}:${appName}:${advertisedPort}`;
 

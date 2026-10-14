@@ -37,10 +37,14 @@ func privateIPv4(host string) bool {
 }
 
 func NewClient() *http.Client {
+	profile := os.Getenv("APP_CONFIG_PROFILE")
+	if profile == "" {
+		profile = os.Getenv("APP_PROFILE")
+	}
 	return &http.Client{
 		Timeout: 8 * time.Second,
 		Transport: transport{base: http.DefaultTransport.(*http.Transport).Clone(),
-			username: os.Getenv("CONFIG_CLIENT_USERNAME"), password: os.Getenv("CONFIG_CLIENT_PASSWORD"), profile: os.Getenv("APP_PROFILE")},
+			username: os.Getenv("CONFIG_CLIENT_USERNAME"), password: os.Getenv("CONFIG_CLIENT_PASSWORD"), profile: profile},
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
