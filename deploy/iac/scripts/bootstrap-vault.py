@@ -34,10 +34,9 @@ def main():
             policy[f'secret/data/iac/{category}/{module}'] = ['read']
             policy['secret/data/slot-secrets/' + module] = ['read']
     shared = json.loads((iac / 'shared/catalog.json').read_text())
-    if 'kafka' in shared:
-        policy['secret/data/iac/shared/kafka'] = ['read']
-    if 'livekit' in shared:
-        policy['secret/data/slot-secrets/voice'] = ['read']
+    for service in shared.values():
+        for reference in service['secrets'].values():
+            policy['secret/data/' + reference['path']] = ['read']
     # Git declares each slot's secret dependencies. Runtime and update tokens
     # receive only their own exact paths; the IaC runner cannot change policies.
     slots = Path(__file__).resolve().parents[2] / 'prod/slots'
