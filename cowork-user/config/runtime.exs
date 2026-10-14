@@ -1,6 +1,6 @@
 import Config
 
-profile = System.get_env("APP_CONFIG_PROFILE") || System.get_env("APP_PROFILE", "local")
+profile = System.get_env("APP_CONFIG_PROFILE", "local")
 
 if profile == "prod" do
   config :logger, level: :info

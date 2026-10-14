@@ -17,7 +17,7 @@
     "S3_REGION": "us-east-1",
     "VAULT_APP_ROLE_PATH": "approle",
     "VAULT_BACKEND": "secret",
-    "VAULT_EXTERNAL_HOST": "vault.https.gsmsv.site",
+    "VAULT_EXTERNAL_HOST": "cowork-vault.https.gsmsv.site",
     "VAULT_PORT": "443"
   },
   "secrets": {
