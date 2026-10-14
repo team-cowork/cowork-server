@@ -1,5 +1,5 @@
 // @title          cowork-notification API
-// @version        20261014.0
+// @version        20261014.1
 // @description    Firebase 설치(FID) 관리 및 푸시 알림 서비스
 // @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
