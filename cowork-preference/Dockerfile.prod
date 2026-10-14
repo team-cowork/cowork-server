@@ -43,8 +43,7 @@ WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
 ENV PREFERENCE_LOG_DIR=/var/log/cowork/preference
 RUN mkdir -p /var/log/cowork/preference && chown -R app:app /var/log/cowork
-COPY --chmod=0755 cowork-preference/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 9001
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

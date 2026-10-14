@@ -43,7 +43,6 @@
 로컬 `vault-init`은 `.env`의 비밀 값을 적재합니다.
 
 운영 주소·프로파일·비밀 참조는 [Config 슬롯](../deploy/prod/slots/config.json)에서 관리합니다.
-[이미지 bootstrap](deploy/bootstrap.sh)이 공통 입력을 Spring 환경변수로 변환합니다.
 운영 Vault는 HTTPS·AppRole을 사용하며, 계정과 AppRole 자격 증명은 Vault `secret/control-plane/prod/`에서 참조합니다.
 
 [로컬 실행](../docs/local-run-guide.md) · [운영 배포](../docs/deployment.md) · [Config 접근 보호](../docs/config-server-access.md)
