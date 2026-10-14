@@ -289,13 +289,8 @@ def prepare(args):
             inventory['all']['hosts'][host_id] = host
         write_private(output / 'inventory.json', json.dumps(inventory, indent=2) + '\n')
         write_private(output / 'ssh-config', '\n'.join(ssh_config) + '\n')
-        if monitoring_settings is not None:
-            grafana = {'GRAFANA_URL': 'http://127.0.0.1:43001',
-                       'GRAFANA_AUTH': 'admin:' + monitoring_settings['runtime']['GRAFANA_ADMIN_PASSWORD']}
-            write_private(output / 'grafana.env0', b''.join(f'{key}={value}\0'.encode() for key, value in grafana.items()), binary=True)
         write_private(output / 'metadata.json', json.dumps({'sha': args.sha, 'hosts_version': host_version,
-                       'monitoring_ssh_alias': f'cowork-iac-{monitoring_host}', 'grafana_local_port': 43001,
-                       'grafana_remote_port': 3001, 'host_count': len(hosts),
+                       'host_count': len(hosts),
                        'github_secret_sources': github_secret_sources}, indent=2) + '\n')
     except BaseException:
         # Never remove a concurrent user's files, even if the directory was initially empty.
