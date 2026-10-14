@@ -10,7 +10,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261014.2"
+version = "20261015.0"
 
 val isWindows = System.getProperty("os.name").lowercase().contains("win")
 val kotlinCli: String = providers.environmentVariable("KOTLIN_CLI")

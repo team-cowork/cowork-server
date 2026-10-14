@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// Repository persists the (eventId, installationId) delivery ledger described in
-// docs/todo/items/33-reliability/fcm-partial-failure-retry.md.
+// Repository persists the (eventId, installationId) delivery ledger.
 type Repository interface {
 	// ResumeOrCreate durably claims every target installation under eventID before the
 	// first FCM call, then returns only the subset that still needs an attempt: newly

@@ -5,7 +5,7 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 
 const defaultOutputDirectory = new URL('../../public/', import.meta.url);
 const defaultTodoDirectory = fileURLToPath(
-	new URL('../../../docs/todo/', import.meta.url),
+	new URL('../../data/todo/', import.meta.url),
 );
 const defaultRepositoryDirectory = fileURLToPath(
 	new URL('../../../', import.meta.url),
