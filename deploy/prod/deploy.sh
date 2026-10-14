@@ -7,7 +7,7 @@ export RELEASE_ROOT
 SERVICE="${1:-}"
 ACTION="${2:-deploy}"
 case "$SERVICE" in
-  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|log-agent) ;;
+  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|datastores|storage|log-agent) ;;
   *) echo "Usage: $0 <service> [check|deploy]" >&2; exit 1 ;;
 esac
 case "$ACTION" in check|deploy) ;; *) echo 'Action must be check or deploy' >&2; exit 1 ;; esac
@@ -26,7 +26,7 @@ if [ "$ACTION" = deploy ]; then
 fi
 
 case "$SERVICE" in
-  vault|monitoring|log-agent)
+  vault|monitoring|datastores|storage|log-agent)
     # These deployment units have their own lifecycle; none starts the application stack.
     # shellcheck source=/dev/null
     source "${PROD_DIR}/services/${SERVICE}.sh"
@@ -37,23 +37,34 @@ esac
 require_env DEPLOY_IMAGE_OWNER DEPLOY_IMAGE_TAG
 CONTAINER="cowork-${SERVICE}"
 IMAGE="${DEPLOY_REGISTRY:-ghcr.io/${DEPLOY_IMAGE_OWNER}}/${CONTAINER}:${DEPLOY_IMAGE_TAG}"
-require_env ADVERTISE_IP
-# By default only the gateway listens on all host interfaces.
-if [ "$SERVICE" = gateway ]; then
-  BIND_IP="${BIND_IP:-0.0.0.0}"
+require_env ADVERTISE_IP BIND_IP HOST_PORT CONTAINER_PORT HEALTH_PATH SLOT_KIND STOP_TIMEOUT_SECONDS
+RUN_ARGS=(--log-driver json-file --log-opt max-size=20m --log-opt max-file=5 --log-opt labels=cowork.service --label "cowork.service=${SERVICE}")
+while IFS= read -r -d '' argument; do
+  RUN_ARGS+=("$argument")
+done < "${DEPLOY_SETTINGS_DIR}/container.args0"
+if [ "$SLOT_KIND" = config ]; then
+  source "${PROD_DIR}/services/config.sh"
 else
-  BIND_IP="${BIND_IP:-${ADVERTISE_IP}}"
+  [ "$SLOT_KIND" = application ] || fail 'Invalid application slot kind'
+  control_plane_environment
 fi
-HEALTH_PATH=
-RUN_ARGS=(--log-driver json-file --log-opt max-size=20m --log-opt max-file=5)
-# shellcheck source=/dev/null
-source "${PROD_DIR}/services/${SERVICE}.sh"
-require_env HOST_PORT CONTAINER_PORT HEALTH_PATH
 
-# Explicit container-only overrides support application values without shell evaluation.
+case "$SERVICE" in
+  authorization|user|team|channel|project|roadmap|notification|preference|chat|voice)
+    # The operator must stage the exact desired policy. The active old policy
+    # remains until the protected container cutover; release code never runs as root.
+    python3 "${PROD_DIR}/slots.py" firewall "$DEPLOY_TARGET" |
+      sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-policy ||
+      fail 'Backend ingress policy is missing, inactive, or differs from this slot; apply the reviewed VM policy first'
+    source "${PROD_DIR}/lib/backend-firewall.sh"
+    prepare_backend_firewall
+    ;;
+esac
+
+# The image owns translation from canonical fields to framework-specific settings.
 while IFS= read -r -d '' entry; do
   RUN_ARGS+=(-e "$entry")
-done < "${DEPLOY_SETTINGS_DIR}/application.env0"
+done < "${DEPLOY_SETTINGS_DIR}/container.env0"
 
 if [ "$ACTION" = check ]; then
   printf '[deploy] %s: image=%s profile=%s bind=%s:%s container-port=%s advertise=%s:%s health=%s timeout=%ss\n' \
@@ -63,4 +74,11 @@ fi
 
 ghcr_login_if_needed
 docker pull "$IMAGE"
+# Tags are discovery inputs only. Run the digest that was actually fetched.
+IMAGE=$(docker image inspect "$IMAGE" --format '{{json .RepoDigests}}' | python3 -c '
+import json,sys
+prefix=sys.argv[1].rsplit(":",1)[0] + "@sha256:"
+matches=[value for value in json.load(sys.stdin) if value.startswith(prefix)]
+if len(matches) != 1: raise SystemExit("Expected exactly one fetched repository digest")
+print(matches[0])' "$IMAGE")
 deploy_container_safely "$CONTAINER" "$HOST_PORT" "$CONTAINER_PORT" "$HEALTH_PATH" "$IMAGE" -- "${RUN_ARGS[@]}"

@@ -68,7 +68,8 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
-    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready'] });
+    // Eureka metadata(prometheus.path), AuthGuard, projection 미들웨어가 모두 접두사 없는 /metrics를 전제로 한다.
+    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready', 'metrics'] });
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
@@ -90,7 +91,7 @@ async function bootstrap() {
             + '| `message` | S→C | 새 메시지 수신 |\n'
             + '| `message:*` | S→C | 수정·삭제·고정·반응 변경 |\n'
             + '| `member:*` / `channel:*` / `project:*` | S→C | 멤버십·채널·프로젝트 변경 |\n\n'
-            + '메시지 작성은 REST 요청 후 `chat.message` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n'
+            + '메시지 작성은 REST 요청 후 `chat.message.v2` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n'
             + '## 메시지 검색\n'
             + '`GET /api/chat/chat/projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n'
             + '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n'

@@ -5,6 +5,7 @@ import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -23,6 +24,7 @@ class DeleteTeamServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
+        lateinit var iconOwnership: TeamIconOwnershipService
         lateinit var service: DeleteTeamServiceImpl
 
         val team = Team(id = 10L, name = "team", description = null, iconUrl = null, ownerId = 1L)
@@ -30,12 +32,14 @@ class DeleteTeamServiceImplTest :
         beforeEach {
             teamRepository = mockk()
             memberRepository = mockk()
+            iconOwnership = mockk(relaxed = true)
             service = DeleteTeamServiceImpl(
                 teamRepository,
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
                 TeamAccessGuard(teamRepository, memberRepository),
+                iconOwnership,
             )
         }
 
@@ -48,6 +52,7 @@ class DeleteTeamServiceImplTest :
 
                     error.statusCode shouldBe HttpStatus.NOT_FOUND
                     verify(exactly = 0) { teamRepository.delete(any()) }
+                    verify(exactly = 0) { iconOwnership.clear(any()) }
                 }
             }
 
@@ -62,11 +67,12 @@ class DeleteTeamServiceImplTest :
 
                     error.statusCode shouldBe HttpStatus.FORBIDDEN
                     verify(exactly = 0) { teamRepository.delete(any()) }
+                    verify(exactly = 0) { iconOwnership.clear(any()) }
                 }
             }
 
             context("요청자가 OWNER이면") {
-                it("모든 멤버와 팀을 삭제한다") {
+                it("소유 아이콘을 폐기하고 모든 멤버와 팀을 삭제한다") {
                     val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
                     val member = TeamMember(team = team, userId = 2L)
                     val members = listOf(owner, member)
@@ -81,6 +87,7 @@ class DeleteTeamServiceImplTest :
                     service.execute(1L, 10L)
 
                     verify(exactly = 1) { memberRepository.deleteAll(members) }
+                    verify(exactly = 1) { iconOwnership.clear(team) }
                     verify(exactly = 1) { teamRepository.delete(team) }
                 }
             }
