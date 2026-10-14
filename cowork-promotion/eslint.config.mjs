@@ -1,1 +1,1 @@
-export { default } from 'xo/eslint-adapter';
+export {default} from 'xo/eslint-adapter';
