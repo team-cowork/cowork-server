@@ -298,14 +298,22 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
         const { userId } = client.data;
         const room = `chat:${payload.channelId}`;
-        // 권한 확인보다 먼저 가입해야 확인 도중 처리된 회수 이벤트의 room 해제가 이 소켓에도 적용된다.
-        // room 전달은 emitToReadableChannelUsers가 전송 시점에 다시 인가하므로 잠깐의 선가입으로 이벤트가 새지 않는다.
+        // room 멤버십이 곧 message_read 판정 결과이므로(브로드캐스트는 전송 시점에 다시 인가하지 않는다)
+        // 인가를 통과하기 전에는 room에 넣지 않는다.
+        const canRead = await this.chatService.isMember(payload.channelId, userId);
+        if (!canRead) {
+            client.emit('error', { message: '채널 접근 권한이 없습니다' });
+            return;
+        }
+
         this.joinRoom(client, room);
-        const isMember = await this.chatService.isMember(payload.channelId, userId).catch((error: unknown) => {
+        // 가입 직전에 처리된 회수 이벤트는 아직 room에 없던 이 소켓을 해제 대상으로 삼지 못했다.
+        // 가입 뒤 한 번 더 확인해 그 구간에 회수된 권한이 room 멤버십으로 남지 않게 한다.
+        const stillAllowed = await this.chatService.isMember(payload.channelId, userId).catch((error: unknown) => {
             this.leaveRoom(client, room);
             throw error;
         });
-        if (!isMember) {
+        if (!stillAllowed) {
             this.leaveRoom(client, room);
             client.emit('error', { message: '채널 접근 권한이 없습니다' });
             return;
