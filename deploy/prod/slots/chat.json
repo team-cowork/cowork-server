@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "service": "chat",
+  "kind": "application",
+  "runtime": {
+    "APP_CONFIG_PROFILE": "prod",
+    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
+    "ELASTICSEARCH_URL": "http://10.0.0.93:9200",
+    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
+    "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
+    "REDIS_HOST": "10.0.0.93",
+    "REDIS_PORT": "6379",
+    "S3_BUCKET": "cowork-bucket",
+    "S3_INTERNAL_ENDPOINT": "http://10.0.0.93:9000",
+    "S3_REGION": "us-east-1",
+    "DB_HOST": "10.0.0.93",
+    "DB_PORT": "27017",
+    "DB_USERNAME": "root",
+    "DB_NAME": "cowork_chat"
+  },
+  "secrets": {
+    "runtime": {
+      "CONFIG_CLIENT_PASSWORD": {
+        "key": "CONFIG_CLIENT_PASSWORD",
+        "path": "control-plane/prod/chat"
+      },
+      "CONFIG_CLIENT_USERNAME": {
+        "key": "CONFIG_CLIENT_USERNAME",
+        "path": "control-plane/prod/chat"
+      },
+      "JWT_SECRET": {
+        "path": "slot-secrets/chat",
+        "key": "JWT_SECRET"
+      },
+      "DB_PASSWORD": {
+        "path": "slot-secrets/chat",
+        "key": "DB_PASSWORD"
+      }
+    }
+  },
+  "container": {
+    "port": 8087,
+    "host_port": 8087,
+    "bind_address": "10.0.0.98",
+    "advertise_address": "10.0.0.98",
+    "readiness": {
+      "path": "/health/ready",
+      "timeout_seconds": 420
+    },
+    "metrics_path": "/metrics",
+    "limits": {
+      "memory": "1024m",
+      "cpus": 2,
+      "pids": 512
+    },
+    "stop_timeout_seconds": 30,
+    "mounts": []
+  },
+  "peers": [
+    "10.0.0.127/32",
+    "10.0.0.137/32"
+  ]
+}

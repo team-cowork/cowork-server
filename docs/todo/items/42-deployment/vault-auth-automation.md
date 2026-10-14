@@ -1,41 +1,27 @@
 # 배포 Vault 인증 자동화
 
-- **서비스**: GitHub Actions, Vault
+- **서비스**: 앱 CD, 설정 변경 워크플로, Vault
 - **우선순위**: 🟡 낮음
-- **현재 상태**: Environment Secret의 수동 발급 토큰을 사용하며 만료 알림·교체 자동화는 없다.
+- **현재 상태**: IaC는 OIDC 단기 인증을 사용하도록 구현되어 있으며 앱 CD·설정 변경의 고정 토큰 교체 자동화는 없다.
 
 ## 문제
 
-현재 배포 토큰의 만료 확인·교체는 수동 운영 작업이다. 만료 때 배포·설정 변경이 막히지 않도록
-인증 수명과 권한을 자동 관리할 방식이 필요하다.
-
-수동 등록·복구는 [배포 절차](../../../deployment.md)를 유지한다.
-인증 자동화는 최초 배포의 선행 조건이 아니다.
-
-## 코드 근거
-
-- [배포 인증](../../../../.github/workflows/cowork-prod-cd.yml#L325): Environment Secret의 읽기·쓰기 token을 공급한다. Vault OIDC 로그인·토큰 만료 알림·교체 job은 없다.
-- [Vault 읽기](../../../../.github/actions/deploy-target/action.yml#L62): 입력 token을 VAULT_TOKEN으로 전달한다. bootstrap 복구는 별도 입력으로 유지한다.
+앱 CD와 설정 변경에 사용하는 수동 발급 토큰의 만료는 배포·설정 변경을 막는다.
+IaC의 OIDC 인증과 Config AppRole이 이 두 경로의 토큰 수명을 관리하지는 않는다.
 
 ## 할 일
 
-- GitHub Actions OIDC 기반 Vault 단기 인증의 적용 가능성을 확인한다.
+- 앱 CD와 설정 변경에 GitHub Actions OIDC 기반 Vault 단기 인증을 적용한다.
 - 저장소·브랜치·Environment 제한과 배포 읽기·설정 쓰기 권한을 분리한다.
-- 단기 인증을 적용할 수 없으면 만료 알림·교체 자동화 방식을 정한다.
-- 새 인증의 운영 확인 뒤 기존 토큰을 폐기할 순서와 외부 복구 자료를 준비한다.
+- 단기 인증을 적용할 수 없는 복구 경로에는 만료 알림·교체를 자동화한다.
+- 새 인증 확인 뒤 기존 토큰을 폐기할 순서와 외부 복구 자료를 준비한다.
 
 ## 검증
 
-- 인증 조건·최소 권한·만료·폐기 결과와 교체 후 작업 재개를 수동 확인한다.
-- Vault 중단 때 기존 외부 bootstrap 복구가 가능한지 확인한다.
+- 인증 조건·최소 권한·만료·폐기 및 교체 후 배포 재개를 수동 확인한다.
+- Vault 중단 때 외부 bootstrap 복구가 가능한지 확인한다.
 
 ## 완료 조건
 
 - 배포 인증의 수명·교체 시점을 자동 관리한다.
-- 읽기·쓰기 권한이 분리되어 있고 기존 운영 복구 경로가 유지되어 있다.
-
-## 점검 근거 (2026-10-08)
-
-- 관련 PR: [#366](https://github.com/team-cowork/cowork-server/pull/366) · [#453](https://github.com/team-cowork/cowork-server/pull/453).
-- [대조 코드](../../../../.github/workflows/cowork-prod-cd.yml): Actions는 `VAULT_DEPLOY_READ_TOKEN`·`VAULT_CONFIG_WRITE_TOKEN`을 계속 사용한다. Config AppRole PR #453은 이 토큰을 교체하지 않는다.
-- 판정: **미구현**. Actions용 단기 인증 또는 만료·교체 자동화를 남은 범위로 유지한다.
+- 읽기·쓰기 권한이 분리되어 있고 기존 복구 경로가 유지되어 있다.
