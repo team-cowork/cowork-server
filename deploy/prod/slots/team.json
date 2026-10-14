@@ -11,9 +11,9 @@
     "S3_BUCKET": "cowork-bucket",
     "S3_INTERNAL_ENDPOINT": "http://10.0.0.93:9000",
     "S3_REGION": "us-east-1",
-    "DB_HOST": "10.0.0.93",
+    "DB_HOST": "cowork-team-db",
     "DB_PORT": "3306",
-    "DB_USERNAME": "cowork",
+    "DB_USERNAME": "cowork_team",
     "DB_NAME": "cowork_team"
   },
   "secrets": {

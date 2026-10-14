@@ -8,9 +8,9 @@
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
     "GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
-    "DB_HOST": "10.0.0.93",
+    "DB_HOST": "cowork-project-db",
     "DB_PORT": "3306",
-    "DB_USERNAME": "cowork",
+    "DB_USERNAME": "cowork_project",
     "DB_NAME": "cowork_project"
   },
   "secrets": {

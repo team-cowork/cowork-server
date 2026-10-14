@@ -9,9 +9,9 @@
     "JWT_ACCESS_EXPIRE": "30m",
     "JWT_REFRESH_EXPIRE": "2160h",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
-    "DB_HOST": "10.0.0.93",
+    "DB_HOST": "cowork-authorization-db",
     "DB_PORT": "3306",
-    "DB_USERNAME": "cowork",
+    "DB_USERNAME": "cowork_authorization",
     "DB_NAME": "cowork_authorization"
   },
   "secrets": {

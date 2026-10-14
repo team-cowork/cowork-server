@@ -9,9 +9,9 @@
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.93:9094",
     "LIVEKIT_URL": "http://10.0.0.93:7880",
     "LIVEKIT_WS_URL": "wss://chcowork.https.gsmsv.site/livekit/",
-    "DB_HOST": "10.0.0.93",
+    "DB_HOST": "cowork-voice-db",
     "DB_PORT": "27017",
-    "DB_USERNAME": "root",
+    "DB_USERNAME": "cowork_voice",
     "DB_NAME": "cowork_voice"
   },
   "secrets": {
