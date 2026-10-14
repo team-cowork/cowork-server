@@ -1,49 +1,17 @@
 ---
 paths:
-  - "**/application*.yml"
-  - "**/application*.yaml"
-  - "**/bootstrap*.yml"
-  - "**/bootstrap*.yaml"
-  - "cowork-config/src/main/resources/configs/**/*.yml"
+  - "**/{application,bootstrap}*.{yml,yaml}"
+  - "cowork-config/src/main/resources/configs/**"
+  - "cowork-*/internal/{config,controlplane}/**"
+  - "cowork-chat/src/common/config/**"
+  - "cowork-preference/src/main/kotlin/com/cowork/preference/{config/**,CoworkPreferenceMain.kt,ControlPlaneAuthentication.kt}"
+  - "cowork-user/{config/**,lib/cowork_user/app_config.ex,lib/cowork_user/control_plane.ex}"
+  - "deploy/{config/vault/**,local/services/**,compose/**,prod/slots/**,prod/slots.py}"
 ---
 
-# Configuration Rules
+# Configuration
 
-- Sensitive values (DB credentials, JWT secrets, API keys): inject via environment variables or GitHub Secrets — never inline.
-
-  ```yaml
-  # correct
-  password: ${DB_PASSWORD}
-  ```
-
-- General service config belongs in the `cowork-config` Config Server, not in the service's own resources.
-- Local-only overrides go in `application-local.yml`, which is gitignored.
-
-## Profiles
-
-The supported deployment profiles are `local` and `prod`. Gateway and every backend business service need both `configs/cowork-{service}-local.yml` and `configs/cowork-{service}-prod.yml`; Config Server itself uses its bootstrap `application.yml`. Monitoring and the static promotion site are not Config clients. Do not assume an unsupported profile returns an empty response: common Vault properties and server overrides are not proof that a service profile exists.
-
-## `${VAR}` Placeholders in `configs/*.yml`
-
-The Config Server serves raw strings — it does not resolve placeholders. Only the client resolves them, and not every client can:
-
-| Client                                                                                                             | Resolves `${VAR}`?                 | How to supply a value                                            |
-|--------------------------------------------------------------------------------------------------------------------|------------------------------------|------------------------------------------------------------------|
-| Spring services (`gateway`, `team`, `project`, `roadmap`, `channel`)                                               | yes                                | `${VAR}` or Vault                                                |
-| `cowork-preference` (Vert.x)                                                                                       | yes, against its own container env | `${VAR}` or Vault                                                |
-| `cowork-authorization`, `cowork-notification`, `cowork-voice` (Go), `cowork-chat` (NestJS), `cowork-user` (Elixir) | **no**                             | literal value + Vault, or `spring.cloud.config.server.overrides` |
-
-For a non-resolving client, a `${VAR}` that nothing overrides reaches the app as the literal string `"${VAR}"`. Write a literal default and let Vault or `overrides` take precedence instead.
-
-Precedence in the served response is `overrides` > Vault > native `configs/`. Custom clients merge the flat keys in `propertySources`; replacements must match the exact key the client reads. Do not pass a nested YAML object as if it were a scalar override. Production slots supply canonical environment inputs; the application reads them directly in its existing configuration or startup code, with explicit precedence over corresponding remote values. Do not require a framework-specific Config key when the image explicitly overrides it from the slot input.
-
-## Required Flyway Config for Relational Spring Business Services
-
-Apply this to channel/team/project/roadmap, not to Gateway or Config Server. Roadmap additionally configures a JDBC Flyway URL alongside its runtime R2DBC connection.
-
-```yaml
-spring:
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-```
+- Keep shared service settings in Config Server. A new Config client needs both `local` and `prod` profiles.
+- Supply application secrets through Vault. GitHub Secrets hold deployment credentials; do not duplicate application secrets there.
+- Use the same slot environment names across runtimes. Explicit slot inputs override the corresponding remote settings. Keep driver-specific conversion in the app's existing configuration code, not in CD or a bootstrap wrapper.
+- Config clients do not all resolve `${VAR}`. Check the receiving loader before adding placeholders; provide a resolved value for clients that only merge property sources.

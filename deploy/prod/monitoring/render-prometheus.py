@@ -20,6 +20,20 @@ def private_ipv4(host):
     return address.version == 4 and any(address in network for network in RFC1918)
 
 
+def host_targets(directory):
+    # node-agent는 log-agent와 같은 방식으로 VM마다 node-agent-<host>.json slot을 하나씩 선언한다.
+    # 이 목록이 유일한 출처이므로(coworkServiceMissing과 같은 원칙), 별도 CSV 환경변수로 중복 유지하지 않는다.
+    targets = []
+    for path in sorted(directory.glob("node-agent-*.json")):
+        slot = json.loads(path.read_text())
+        host = path.stem.removeprefix("node-agent-")
+        address = slot["runtime"]["NODE_EXPORTER_BIND_IP"]
+        if not private_ipv4(address):
+            raise ValueError(f"{path.name} NODE_EXPORTER_BIND_IP must be a private IPv4 address")
+        targets.append({"targets": [f"{address}:9100"], "labels": {"service": "host", "host": host}})
+    return targets
+
+
 def http_url(name):
     value = os.environ[name]
     if "," in value or any(char.isspace() for char in value):
@@ -27,7 +41,7 @@ def http_url(name):
     url = urlsplit(value)
     if not url.hostname or url.username is not None or url.query or url.fragment:
         raise ValueError(f"{name} must be a URL without credentials")
-    # Config Server는 TLS 없이 사설 IPv4 주소 리터럴로만 접근한다(deploy/prod/config-access.py와 같은 규칙).
+    # Config Server는 TLS 없이 사설 IPv4 주소 리터럴로만 접근한다(deploy/prod/config/config-access.py와 같은 규칙).
     if url.scheme != "http" or not private_ipv4(url.hostname):
         raise ValueError(f"{name} must be an HTTP URL with a private IPv4 address")
     return value
@@ -55,6 +69,7 @@ if (public_api.scheme != "https" or not public_api.hostname or public_api.userna
         or any(char.isspace() for char in public_api_url)):
     raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
 public_health_url = f"https://{public_api.netloc}/api/health"
+host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
     container = slot["container"]
@@ -64,6 +79,41 @@ for slot in application_slots:
     probe_targets.append({
         "targets": [f'http://{address}:{container["host_port"]}{container["readiness"]["path"]}'],
         "labels": {"service": slot["service"]},
+    })
+shared_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/shared/catalog.json").read_text()
+)
+livekit_address = shared_catalog["livekit"]["bind_ip"]
+if not private_ipv4(livekit_address):
+    raise ValueError("LiveKit monitoring must use its private VM address")
+probe_targets.append({
+    "targets": [f"http://{livekit_address}:7880/"],
+    "labels": {"service": "livekit"},
+})
+storage_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/storage/catalog.json").read_text()
+)
+for module in sorted(storage_catalog):
+    slot = json.loads((slots_directory / f"{module}.json").read_text())
+    address = slot["container"]["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Storage monitoring must use its module's private VM address")
+    probe_targets.append({
+        "targets": [f"http://{address}:9000/readyz"],
+        "labels": {"service": "storage", "module": module},
+    })
+database_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/databases/catalog.json").read_text()
+)
+database_targets = []
+for module, database in sorted(database_catalog.items()):
+    slot = json.loads((slots_directory / f"{module}.json").read_text())
+    address = slot["container"]["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Database exporter targets must use private IPv4 addresses")
+    database_targets.append({
+        "targets": [f'{address}:{database["exporter"]["port"]}'],
+        "labels": {"service": database["engine"], "module": module},
     })
 service_labels = [
     {"source_labels": ["__meta_eureka_app_name"], "target_label": "service", "regex": "COWORK-(.*)", "replacement": "${1}"},
@@ -111,14 +161,18 @@ scrape_configs = [
             {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
         ],
     },
+    *([{
+        # Not prefixed "cowork-": coworkServiceDown already matches up{job=~"cowork-.*"} == 0, and
+        # a dead node_exporter isn't a cowork service outage — it's covered by coworkInfrastructureScrapeFailed instead.
+        "job_name": "hosts",
+        "static_configs": host_target_configs,
+    }] if host_target_configs else []),
     {
         "job_name": "infrastructure",
-        "static_configs": [
+        "static_configs": database_targets + [
             {"targets": [target], "labels": {"service": service}}
             for service, target in [
-                ("mysql", "mysqld_exporter:9104"), ("redis", "redis_exporter:9121"),
-                ("kafka", "kafka_exporter:9308"), ("postgres", "postgres_exporter:9187"),
-                ("mongodb", "mongodb_exporter:9216"),
+                ("redis", "redis_exporter:9121"), ("kafka", "kafka_exporter:9308"),
             ]
         ],
     },
@@ -153,4 +207,24 @@ expected_rules = {
         for slot in application_slots
     ]}]
 }
+health_metrics = {"mysql": "mysql_up", "postgres": "pg_up", "mongodb": "mongodb_up"}
+database_rules = []
+for module, database in sorted(database_catalog.items()):
+    engine = database["engine"]
+    selector = f'{{job="infrastructure",service="{engine}",module="{module}"}}'
+    database_rules.append({
+        "alert": "coworkDatabaseMetricsMissing",
+        "expr": (
+            f'absent(up{selector}) or '
+            f'(up{selector} == 1 unless on (instance, job, service, module) '
+            f'{health_metrics[engine]}{selector})'
+        ),
+        "for": "3m",
+        "labels": {"severity": "critical", "service": engine, "module": module},
+        "annotations": {
+            "summary": "Declared module database metrics are missing",
+            "description": f"Module {module} has no {engine} exporter target or database health metric.",
+        },
+    })
+expected_rules["groups"].append({"name": "cowork-expected-databases", "rules": database_rules})
 Path(sys.argv[1] + ".rules.json").write_text(json.dumps(expected_rules, indent=2) + "\n")

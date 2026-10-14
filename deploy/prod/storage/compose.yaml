@@ -1,4 +1,4 @@
-name: cowork-storage
+name: ${STORAGE_PROJECT:?STORAGE_PROJECT is required}
 
 x-seaweed: &seaweed
   image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
@@ -15,7 +15,7 @@ x-seaweed: &seaweed
 services:
   seaweedfs:
     <<: *seaweed
-    container_name: cowork-seaweedfs
+    container_name: ${STORAGE_PROJECT}
     command:
       - server
       - -dir=/data
@@ -39,7 +39,12 @@ services:
       - -s3.autoCreateBucket=false
     ports:
       - "${STORAGE_BIND_IP:?STORAGE_BIND_IP is required}:9000:9000"
-    networks: [storage]
+    networks: [runtime]
+    mem_limit: ${STORAGE_MEMORY:?STORAGE_MEMORY is required}
+    cpus: ${STORAGE_CPUS:?STORAGE_CPUS is required}
+    pids_limit: 256
+    labels:
+      cowork.iam-digest: ${STORAGE_IAM_DIGEST:?STORAGE_IAM_DIGEST is required}
     volumes:
       - ./data:/data
       - ./config/s3-config.json:/etc/seaweedfs/s3-config.json:ro
@@ -65,9 +70,11 @@ services:
       AWS_EC2_METADATA_DISABLED: "true"
       AWS_PAGER: ""
       HOME: /tmp
-      APP_PROFILE: prod
+      APP_CONFIG_PROFILE: prod
       S3_INTERNAL_ENDPOINT: http://127.0.0.1:9000
       S3_BUCKET: ${S3_BUCKET:?S3_BUCKET is required}
+      S3_BUCKET_POLICY_FILE: /storage-config/bucket-policy.json
+      S3_BUCKET_LIFECYCLE_FILE: /storage-config/bucket-lifecycle.json
       PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS:?PUBLIC_WEB_ORIGINS is required}
     volumes:
       - ./scripts:/storage-config:ro
@@ -75,7 +82,10 @@ services:
 
   seaweedfs-admin:
     <<: *seaweed
-    container_name: cowork-seaweedfs-admin
+    container_name: ${STORAGE_PROJECT}-admin
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 128
     network_mode: service:seaweedfs
     command: [admin, -master=127.0.0.1:9333, -ip=127.0.0.1, -dataDir=/data]
     volumes:
@@ -83,7 +93,10 @@ services:
 
   seaweedfs-lifecycle:
     <<: *seaweed
-    container_name: cowork-seaweedfs-lifecycle
+    container_name: ${STORAGE_PROJECT}-lifecycle
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 128
     network_mode: service:seaweedfs
     command: [worker, -admin=127.0.0.1:23646, -jobType=s3_lifecycle, -workingDir=/data, -metricsPort=9327, -metricsIp=127.0.0.1]
     volumes:
@@ -96,9 +109,6 @@ services:
       start_period: 30s
 
 networks:
-  storage:
-    name: cowork-storage
-    driver: bridge
-    enable_ipv6: false
-    driver_opts:
-      com.docker.network.bridge.name: br-cowork-s3
+  runtime:
+    external: true
+    name: ${STORAGE_RUNTIME_NETWORK:?STORAGE_RUNTIME_NETWORK is required}
