@@ -11,13 +11,14 @@
         that:
           - cowork_release_sha is match('^[0-9a-f]{40}$')
           - cowork_source_archive is match('^/')
-          - cowork_units | length > 0
+          - cowork_units | length > 0 or cowork_database_module is defined or cowork_storage_module is defined or cowork_shared_service is defined
           - cowork_image_owner is match('^[a-z0-9][a-z0-9-]*$')
     - name: Require the existing Docker Engine and CLI
       ansible.builtin.command: docker version
       changed_when: false
     - name: Reconcile the reviewed Compose CLI plugin
       ansible.builtin.include_tasks: tasks/container-tools.yml
+      when: not (cowork_settings_only | default(false) | bool)
   tasks:
     - name: Validate explicitly retired monitoring proxies
       ansible.builtin.assert:
@@ -67,3 +68,4 @@
       when: cowork_storage_module is defined
     - name: Apply each deployment unit
       ansible.builtin.include_tasks: tasks/unit.yml
+      when: cowork_units | length > 0

@@ -74,8 +74,9 @@
         stdin: "{{ lookup('ansible.builtin.file', cowork_database_settings_file) }}"
       no_log: true
       changed_when: true
+      when: cowork_database_settings_file is defined
     - name: Reconcile The Module Search Service Independently
-      when: "'search' in database_catalog[cowork_database_module]"
+      when: cowork_search_settings_file is defined
       block:
         - name: Install The Reviewed Search Image Build Context
           ansible.builtin.copy:
