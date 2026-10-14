@@ -19,6 +19,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+networks:
+  default:
+    name: ${COMPOSE_PROJECT_NAME:?Compose project name is required}-mtu1400
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: '1400'
 volumes:
   vault-data:
     external: true

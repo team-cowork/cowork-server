@@ -9,13 +9,18 @@ import shlex
 import stat
 import subprocess
 import sys
+import tempfile
+import uuid
 
 
 STATE_DIR = Path("/etc/cowork/backend-firewall")
 POLICY_FILE = STATE_DIR / "policy.json"
+DESIRED_FILE = STATE_DIR / "desired.json"
+TRANSACTION_FILE = STATE_DIR / "transaction.json"
 CHAIN = "COWORK_BACKEND"
 UNIT_NAME = "cowork-backend-firewall.service"
 PRIVATE_NETWORKS = [ipaddress.ip_network(cidr) for cidr in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")]
+MONITORING_BRIDGE_PEERS = {("br-cowork-mon", "br-cowork-mon"), ("br-cowork-log", "br-cowork-mon")}
 
 
 def private_network(value):
@@ -41,7 +46,7 @@ def normalize_binding(value):
 
 
 def policy(value):
-    if not isinstance(value, dict) or set(value) != {"bindings", "peers"}:
+    if not isinstance(value, dict) or set(value) not in ({"bindings", "peers"}, {"bindings", "peers", "bridge_peers"}):
         raise ValueError("Invalid backend firewall policy")
     bindings, peers = value["bindings"], value["peers"]
     if not isinstance(bindings, list) or not 1 <= len(bindings) <= 16:
@@ -53,7 +58,24 @@ def policy(value):
         normalized = normalize_binding(binding)
         if normalized not in normalized_bindings:
             normalized_bindings.append(normalized)
-    return {"bindings": normalized_bindings, "peers": sorted({str(private_network(peer)) for peer in peers})}
+    result = {"bindings": normalized_bindings, "peers": sorted({str(private_network(peer)) for peer in peers})}
+    bridge_peers = value.get("bridge_peers", [])
+    if not isinstance(bridge_peers, list) or len(bridge_peers) > 2:
+        raise ValueError("Invalid monitoring bridge peers")
+    normalized_bridges = set()
+    for pair in bridge_peers:
+        if not isinstance(pair, dict) or set(pair) != {"source", "destination"}:
+            raise ValueError("Invalid monitoring bridge pair")
+        names = (pair["source"], pair["destination"])
+        if not all(isinstance(name, str) for name in names) or names not in MONITORING_BRIDGE_PEERS:
+            raise ValueError("Only the declared monitoring and local log-agent bridges may reach Loki")
+        normalized_bridges.add(names)
+    if normalized_bridges:
+        if any(binding["host_port"] != 3100 or binding["container_port"] != 3100 for binding in normalized_bindings):
+            raise ValueError("Local monitoring bridge access is restricted to the Loki binding")
+        result["bridge_peers"] = [{"source": source, "destination": destination}
+                                  for source, destination in sorted(normalized_bridges)]
+    return result
 
 
 def parse_document(content):
@@ -90,6 +112,10 @@ def apply_policy(value):
     if ["-N", "DOCKER-USER"] not in lines:
         rules.append(":DOCKER-USER - [0:0]")
     rules.extend([f":{CHAIN} - [0:0]", f"-F {CHAIN}"])
+    # A bridge name alone never trusts a routed external packet. Both ingress
+    # and egress must match the reviewed local monitoring topology.
+    rules.extend(f"-A {CHAIN} -i {pair['source']} -o {pair['destination']} -j RETURN"
+                 for pair in value.get("bridge_peers", []))
     rules.extend(f"-A {CHAIN} -s {peer} -j RETURN" for peer in value["peers"])
     rules.append(f"-A {CHAIN} -j DROP")
     # Only this helper's chain and ingress jumps are replaced. A single filter
@@ -123,10 +149,79 @@ def apply_policy(value):
     command("iptables-restore", "--wait", "10", "--noflush", input_text="\n".join(rules) + "\n")
 
 
+def read_policy(path):
+    check_owned(path, private=True)
+    return policy(parse_document(path.read_text()))
+
+
+def atomic_json(path, value):
+    descriptor, temporary = tempfile.mkstemp(prefix=".backend-firewall-", dir=STATE_DIR)
+    try:
+        with os.fdopen(descriptor, "w") as output:
+            os.fchmod(output.fileno(), 0o600)
+            json.dump(value, output, sort_keys=True)
+            output.write("\n")
+            output.flush()
+            os.fsync(output.fileno())
+        os.replace(temporary, path)
+        sync_directory()
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+def sync_directory():
+    directory = os.open(STATE_DIR, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+def read_transaction(transaction):
+    check_owned(TRANSACTION_FILE, private=True)
+    value = parse_document(TRANSACTION_FILE.read_text())
+    if not isinstance(value, dict) or set(value) != {"transaction", "previous", "candidate", "requested"}:
+        raise ValueError("Invalid backend firewall transaction")
+    if str(uuid.UUID(value["transaction"])) != transaction:
+        raise ValueError("Backend firewall transaction changed")
+    for key in ("previous", "candidate", "requested"):
+        value[key] = policy(value[key])
+    return value
+
+
+def finish_transaction():
+    TRANSACTION_FILE.unlink()
+    sync_directory()
+
+
+def prepare(transaction, installed):
+    if TRANSACTION_FILE.exists():
+        raise ValueError("Resolve the retained backend firewall transaction before redeploying")
+    requested = read_policy(DESIRED_FILE)
+    if policy(parse_document(sys.stdin.read(65537))) != requested:
+        raise ValueError("Reviewed backend desired policy changed after deployment validation")
+    candidate_bridges = installed.get("bridge_peers", []) + requested.get("bridge_peers", [])
+    candidate = policy({"bindings": installed["bindings"] + requested["bindings"],
+                        "peers": installed["peers"] + requested["peers"],
+                        "bridge_peers": [dict(pair) for pair in {
+                            tuple(sorted(pair.items())) for pair in candidate_bridges}]})
+    # The caller cannot submit a new policy through sudo. Only the administrator's
+    # reviewed desired.json is eligible for this transaction.
+    atomic_json(TRANSACTION_FILE, {"transaction": transaction, "previous": installed,
+                                  "candidate": candidate, "requested": requested})
+
+
 def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in {"validate", "restore", "check-binding"}:
-        raise ValueError("Expected a backend firewall validate, restore or check-binding operation")
-    if sys.argv[1] == "validate":
+    simple = {"validate", "restore", "check-binding", "check-policy"}
+    transactional = {"prepare", "activate", "rollback", "finalize"}
+    if len(sys.argv) < 2 or sys.argv[1] not in simple | transactional:
+        raise ValueError("Invalid backend firewall operation")
+    action = sys.argv[1]
+    if len(sys.argv) != (3 if action in transactional else 2):
+        raise ValueError("Invalid backend firewall arguments")
+    transaction = str(uuid.UUID(sys.argv[2])) if action in transactional else None
+    if action == "validate":
         policy(parse_document(sys.stdin.read(65537)))
         print("[backend-firewall] Policy is valid")
         return
@@ -135,21 +230,46 @@ def main():
     os.environ["PATH"] = "/usr/sbin:/usr/bin:/sbin:/bin"
     for directory in (STATE_DIR, *STATE_DIR.parents):
         check_owned(directory, directory=True, private=directory == STATE_DIR)
-    check_owned(POLICY_FILE, private=True)
     with (STATE_DIR / ".lock").open("a") as lock:
         os.chmod(lock.name, 0o600)
         fcntl.flock(lock, fcntl.LOCK_EX)
-        with POLICY_FILE.open() as source:
-            installed = policy(parse_document(source.read(65537)))
-        if sys.argv[1] == "check-binding":
-            requested = normalize_binding(parse_document(sys.stdin.read(65537)))
-            if requested not in installed["bindings"]:
-                raise ValueError("Deployment binding is not covered by the installed backend firewall policy")
+        installed = read_policy(POLICY_FILE)
+        if action in {"check-binding", "check-policy"}:
+            if TRANSACTION_FILE.exists():
+                raise ValueError("Resolve the retained backend firewall transaction before redeploying")
+            if action == "check-policy":
+                requested = policy(parse_document(sys.stdin.read(65537)))
+                if requested != read_policy(DESIRED_FILE):
+                    raise ValueError("Reviewed backend desired policy does not match the release slot")
+            else:
+                requested = normalize_binding(parse_document(sys.stdin.read(65537)))
+                if requested not in installed["bindings"]:
+                    raise ValueError("Deployment binding is not covered by the installed backend firewall policy")
             if command("systemctl", "is-enabled", UNIT_NAME).strip() != "enabled":
                 raise ValueError("Backend firewall boot restoration is not enabled")
             command("systemctl", "is-active", "--quiet", UNIT_NAME)
-        # check-binding restores the installed policy only. It cannot change
-        # peers, add a port, write the policy file or select another file path.
+        if action == "prepare":
+            prepare(transaction, installed)
+            return
+        if action in {"activate", "rollback", "finalize"}:
+            state = read_transaction(transaction)
+            if action == "finalize" and installed != state["candidate"]:
+                raise ValueError("Backend firewall candidate has not been activated")
+            selected = state[{"activate": "candidate", "rollback": "previous", "finalize": "requested"}[action]]
+            # Boot restores exactly the policy selected for this cutover phase.
+            atomic_json(POLICY_FILE, selected)
+            try:
+                apply_policy(selected)
+            except (OSError, ValueError, KeyError, IndexError, TypeError, RuntimeError, subprocess.TimeoutExpired):
+                if action == "finalize":
+                    # Keep the healthy candidate protected if retiring old rules fails.
+                    atomic_json(POLICY_FILE, state["candidate"])
+                    apply_policy(state["candidate"])
+                raise
+            if action in {"rollback", "finalize"}:
+                finish_transaction()
+            return
+        # Checks never install caller-supplied data. Restore also runs before Docker.
         apply_policy(installed)
 
 
