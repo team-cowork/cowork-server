@@ -54,7 +54,7 @@
     - name: Restrict Database Traffic To The Local Bridge And Metrics To Monitoring
       ansible.builtin.command:
         argv: [/usr/bin/python3, -I, /usr/local/libexec/cowork-module-database-firewall.py, apply]
-        stdin: "{{ {'network': database_network.name, 'bind_ip': database_slot.container.advertise_address, 'monitoring_ip': database_monitoring.runtime.MONITORING_BIND_IP, 'database_port': database_slot.runtime.DB_PORT | int, 'exporter_port': database_catalog[cowork_database_module].exporter.port} | to_json }}"
+        stdin: "{{ {'network': database_network.name, 'bind_ip': database_slot.container.advertise_address, 'monitoring_ip': database_monitoring.runtime.MONITORING_BIND_IP, 'database_port': database_slot.runtime.DB_PORT | int, 'exporter_port': database_catalog[cowork_database_module].exporter.port, 'local_ports': [9200, 9300] if 'search' in database_catalog[cowork_database_module] else []} | to_json }}"
       changed_when: true
     - name: Enable Database Firewall Restoration Before Docker
       ansible.builtin.systemd_service:
@@ -74,3 +74,43 @@
         stdin: "{{ lookup('ansible.builtin.file', cowork_database_settings_file) }}"
       no_log: true
       changed_when: true
+    - name: Reconcile The Module Search Service Independently
+      when: "'search' in database_catalog[cowork_database_module]"
+      block:
+        - name: Install The Reviewed Search Image Build Context
+          ansible.builtin.copy:
+            src: "{{ cowork_repository }}/deploy/images/elasticsearch/"
+            dest: "{{ database_source }}/deploy/images/elasticsearch/"
+            owner: root
+            group: root
+            mode: '0600'
+            directory_mode: '0700'
+        - name: Persist The Elasticsearch Virtual Memory Requirement
+          ansible.builtin.copy:
+            content: "vm.max_map_count = 1048576\n"
+            dest: /etc/sysctl.d/60-cowork-search.conf
+            owner: root
+            group: root
+            mode: '0644'
+        - name: Read The Current Virtual Memory Limit
+          ansible.builtin.command:
+            argv: [/usr/sbin/sysctl, -n, vm.max_map_count]
+          register: cowork_search_map_count
+          changed_when: false
+        - name: Apply The Elasticsearch Virtual Memory Requirement
+          ansible.builtin.command:
+            argv: [/usr/sbin/sysctl, -p, /etc/sysctl.d/60-cowork-search.conf]
+          when: cowork_search_map_count.stdout | int != 1048576
+          changed_when: true
+        - name: Reconcile Search Storage And The Application Index Role
+          ansible.builtin.command:
+            argv:
+              - /usr/bin/python3
+              - "{{ database_source }}/deploy/iac/databases/search.py"
+              - apply
+              - "{{ cowork_database_module }}"
+              - --directory
+              - "/root/cowork-iac/search/{{ cowork_database_module }}"
+            stdin: "{{ lookup('ansible.builtin.file', cowork_search_settings_file) }}"
+          no_log: true
+          changed_when: true
