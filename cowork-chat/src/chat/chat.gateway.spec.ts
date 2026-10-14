@@ -163,29 +163,41 @@ describe('ChatGateway', () => {
             expect(client.emit).not.toHaveBeenCalledWith('error', expect.anything());
         });
 
-        it('채널 멤버가 아니면 room에서 제거하고 error 이벤트를 emit한다', async () => {
+        it('읽기 권한이 없으면 room에 가입하지 않고 error 이벤트를 emit한다', async () => {
             mockChatService.isMember.mockResolvedValue(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(client.leave).toHaveBeenCalledWith('chat:1');
+            expect(client.join).not.toHaveBeenCalled();
             expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
         });
 
-        it('권한 확인 전에 room에 가입해 확인 도중 처리된 회수가 이 소켓을 놓치지 않게 한다', async () => {
+        it('인가를 통과하기 전에는 room에 가입하지 않는다 — room 멤버십이 곧 판정 결과이기 때문이다', async () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
             await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
 
-            expect(client.join.mock.invocationCallOrder[0])
-                .toBeLessThan(mockChatService.isMember.mock.invocationCallOrder[0]);
+            expect(mockChatService.isMember.mock.invocationCallOrder[0])
+                .toBeLessThan(client.join.mock.invocationCallOrder[0]);
         });
 
-        it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
-            mockChatService.isMember.mockRejectedValueOnce(new Error('mongo down'));
+        it('가입 직후 재확인에서 권한이 사라졌으면 room에서 제거한다', async () => {
+            mockChatService.isMember.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
+
+            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+
+            expect(client.join).toHaveBeenCalledWith('chat:1');
+            expect(client.leave).toHaveBeenCalledWith('chat:1');
+            expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
+        });
+
+        it('가입 뒤 재확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
+            mockChatService.isMember.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('mongo down'));
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 

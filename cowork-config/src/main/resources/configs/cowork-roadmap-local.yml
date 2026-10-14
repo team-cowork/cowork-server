@@ -11,7 +11,7 @@ spring:
     user: ${DB_USERNAME:${MYSQL_USER}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
 eureka:
   client:

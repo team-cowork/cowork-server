@@ -26,9 +26,17 @@ class ControlPlaneAccountsTest :
                 val invalid = environment("prod", json = accountsJson("zz"))
                 shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(invalid) }
             }
-            it("배포 프로파일과 다른 profile의 계정이 있으면 거부한다") {
-                val mismatched = environment("prod", json = accountsJson("a".repeat(64), profile = "local"))
-                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(mismatched) }
+            it("서버 배포 프로파일과 독립적으로 클라이언트 프로파일을 선택한다") {
+                listOf("prod" to "local", "local" to "prod").forEach { (serverProfile, clientProfile) ->
+                    val json = accountsJson("a".repeat(64), profile = clientProfile)
+                    val configured = environment(serverProfile, json = json)
+                    val accounts = ControlPlaneAccounts(configured)
+                    accounts.accounts.getValue("chat-prod").profile shouldBe clientProfile
+                }
+            }
+            it("지원하지 않는 클라이언트 프로파일은 거부한다") {
+                val invalid = environment("prod", json = accountsJson("a".repeat(64), profile = "staging"))
+                shouldThrow<IllegalArgumentException> { ControlPlaneAccounts(invalid) }
             }
         }
         describe("배포 프로파일 선택") {

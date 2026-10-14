@@ -42,11 +42,11 @@ cowork:
 
 spring:
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
   data:
     redis:
-      host: redis
-      port: 6379
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
 
   cloud:
     gateway.server.webflux:
@@ -62,10 +62,28 @@ spring:
             maxAge: 3600
 
       routes:
-        - id: object-storage
-          uri: ${S3_INTERNAL_ENDPOINT}
+        - id: team-object-storage
+          uri: ${S3_TEAM_INTERNAL_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}}
           predicates:
-            - Path=/api/storage/**
+            - Path=/api/storage/${S3_BUCKET}/team-icons/**,/api/storage/${S3_BUCKET}/team-icon-uploads/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
+        - id: user-object-storage
+          uri: ${S3_USER_INTERNAL_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}}
+          predicates:
+            - Path=/api/storage/${S3_BUCKET}/profiles/**,/api/storage/${S3_BUCKET}/profile-uploads/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
+        - id: chat-object-storage
+          uri: ${S3_CHAT_INTERNAL_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}}
+          predicates:
+            - Path=/api/storage/${S3_BUCKET}/chat-files/**,/api/storage/${S3_BUCKET}/chat-uploads/**
             - Method=GET,HEAD,PUT
           filters:
             - StorageRelay
@@ -337,6 +355,8 @@ spring:
 # jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
 
 app:
+  dev-origin:
+    credential: ${DEV_ORIGIN_CREDENTIAL:local-dev-credential}
   ws:
     allowed-origins:
       - "http://localhost:3000"

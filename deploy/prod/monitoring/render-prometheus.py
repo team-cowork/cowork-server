@@ -61,7 +61,7 @@ if not application_slots:
 gateway_slots = [slot for slot in application_slots if slot["service"] == "gateway"]
 if len(gateway_slots) != 1:
     raise ValueError("Public monitoring requires exactly one Gateway slot")
-public_api_url = gateway_slots[0]["runtime"]["PUBLIC_API_BASE_URL"]
+public_api_url = os.environ.get("PUBLIC_API_BASE_URL", gateway_slots[0]["runtime"]["PUBLIC_API_BASE_URL"])
 public_api = urlsplit(public_api_url)
 if (public_api.scheme != "https" or not public_api.hostname or public_api.username is not None
         or public_api.password is not None or public_api.path not in {"", "/"}

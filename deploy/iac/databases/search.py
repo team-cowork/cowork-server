@@ -87,6 +87,8 @@ def apply(module, value, directory):
         run('systemctl', 'is-enabled', '--quiet', 'cowork-module-database-firewall.service')
         run('/usr/bin/python3', '-I', '/usr/local/libexec/cowork-module-database-firewall.py', 'restore')
         previous = json.loads((directory / 'credentials.json').read_text()) if (directory / 'credentials.json').exists() else {}
+        admins, pending_admin_file = RUNTIME['administrator_candidates'](
+            directory, secrets['ELASTICSEARCH_ADMIN_PASSWORD'], previous.get('ELASTICSEARCH_ADMIN_PASSWORD'))
         dockerfile, reference = image()
         run('docker', 'build', '--file', str(dockerfile), '--tag', reference, str(dockerfile.parent))
         name = f'cowork-{module}-search'
@@ -120,10 +122,6 @@ def apply(module, value, directory):
         command = ['docker', 'compose', '--env-file', '/dev/null', '-f', str(directory / 'compose.json')]
         run(*command, 'config', '--quiet')
         run(*command, 'up', '-d', '--wait', '--wait-timeout', '300')
-        admins = [secrets['ELASTICSEARCH_ADMIN_PASSWORD']]
-        old = previous.get('ELASTICSEARCH_ADMIN_PASSWORD')
-        if old and old not in admins:
-            admins.append(old)
         for index, admin in enumerate(admins):
             try:
                 reconcile(name, value, app_password, admin, secrets['ELASTICSEARCH_ADMIN_PASSWORD'])
@@ -132,6 +130,7 @@ def apply(module, value, directory):
                 if index == len(admins) - 1:
                     raise
         write(directory / 'credentials.json', json.dumps(secrets) + '\n')
+        pending_admin_file.unlink()
         request(name, app_password, '/_security/_authenticate', username=value['username'])
         print(f'{module}: authenticated search account applied; durable volume retained')
 
