@@ -19,7 +19,15 @@ def ancestor(base, head):
     return result.returncode == 0
 
 
-def affected(service, paths):
+def affected(service, paths, target=None):
+    # Prose and examples cannot alter a running container. Slot JSON is executable desired state.
+    paths = [path for path in paths if not path.endswith((".md", ".rst", ".txt")) and not path.startswith("docs/")]
+    if "deploy/prod/host-network.json" in paths and service in IMAGE_INPUTS["CATALOG"]:
+        return True
+    if f"deploy/prod/slots/{target or service}.json" in paths:
+        return True
+    if service == "monitoring" and any(path.startswith("deploy/prod/slots/") for path in paths):
+        return True
     config_firewall = {"deploy/prod/config-firewall.py", "deploy/prod/config-firewall.service",
                        "deploy/prod/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
     shared = {"deploy/prod/deploy.sh", "deploy/prod/defaults.sh", "deploy/prod/inventory.json",
@@ -61,24 +69,29 @@ def main():
     include, seen, changes = [], set(), {}
     for target in inventory["targets"]:
         service, name = target["service"], target["target"]
-        if name in seen or not (ROOT / "deploy/prod/services" / f"{service}.sh").is_file():
+        slot = ROOT / "deploy/prod/slots" / f"{name}.json"
+        known = ((slot.is_file() and json.loads(slot.read_text())["service"] == service)
+                 or (ROOT / "deploy/prod/services" / f"{service}.sh").is_file())
+        if name in seen or not known:
             raise ValueError("Duplicate or unknown deployment target")
         seen.add(name)
         base = successful_sha(service, name)
         if base == sha:
             continue
+        if base and subprocess.run(
+            ["git", "cat-file", "-e", f"{base}^{{commit}}"], capture_output=True,
+        ).returncode != 0:
+            print(f"{name}: previous source is unavailable; deploy the selected source")
+            base = None
         if base:
-            subprocess.run(["git", "cat-file", "-e", f"{base}^{{commit}}"], check=True)
             if ancestor(sha, base):
                 print(f"{name}: skip stale automatic rollout; a newer SHA is deployed")
                 continue
-            if not ancestor(base, sha):
-                raise ValueError(f"{name}: divergent deployment history; use an explicit manual redeploy")
             if base not in changes:
                 changes[base] = subprocess.check_output(
                     ["git", "diff", "--name-only", "--no-renames", "-z", base, sha],
                 ).decode().rstrip("\0").split("\0")
-            if not affected(service, changes[base]):
+            if not affected(service, changes[base], name):
                 continue
         # A new target or a pre-tracking deployment has no trustworthy baseline.
         include.append({"service": service, "target": name})
