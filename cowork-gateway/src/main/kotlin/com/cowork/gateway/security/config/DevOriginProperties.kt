@@ -1,12 +1,9 @@
 package com.cowork.gateway.security.config
 
+import jakarta.validation.constraints.NotBlank
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.validation.annotation.Validated
 
+@Validated
 @ConfigurationProperties(prefix = "app.dev-origin")
-data class DevOriginProperties(val enforce: Boolean = false, val credential: String = "") {
-    init {
-        require(!enforce || credential.isNotBlank()) {
-            "app.dev-origin.credential is required when app.dev-origin.enforce is true"
-        }
-    }
-}
+data class DevOriginProperties(@field:NotBlank val credential: String)

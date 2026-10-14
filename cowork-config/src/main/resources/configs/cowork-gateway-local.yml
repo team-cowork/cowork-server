@@ -355,6 +355,8 @@ spring:
 # jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
 
 app:
+  dev-origin:
+    credential: ${DEV_ORIGIN_CREDENTIAL:local-dev-credential}
   ws:
     allowed-origins:
       - "http://localhost:3000"
