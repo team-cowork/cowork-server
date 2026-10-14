@@ -22,7 +22,7 @@ import java.security.MessageDigest
  */
 @Component
 @EnableConfigurationProperties(DevOriginProperties::class)
-class DevOriginCredentialFilter(private val properties: DevOriginProperties) :
+class DevOriginCredentialFilter(properties: DevOriginProperties) :
     WebFilter,
     Ordered {
 
@@ -35,7 +35,7 @@ class DevOriginCredentialFilter(private val properties: DevOriginProperties) :
         val request = exchange.request
         val provided = request.queryParams.getFirst(CREDENTIAL_QUERY)
 
-        if (properties.enforce && request.method != HttpMethod.OPTIONS && isLoopbackHttp(request.headers.origin)) {
+        if (request.method != HttpMethod.OPTIONS && isLoopbackHttp(request.headers.origin)) {
             if (provided == null || !MessageDigest.isEqual(provided.toByteArray(Charsets.UTF_8), expected)) {
                 log.warn("Reject loopback origin request without a valid developer credential")
                 exchange.response.statusCode = HttpStatus.FORBIDDEN

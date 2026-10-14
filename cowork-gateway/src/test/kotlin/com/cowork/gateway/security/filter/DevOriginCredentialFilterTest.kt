@@ -1,7 +1,6 @@
 package com.cowork.gateway.security.filter
 
 import com.cowork.gateway.security.config.DevOriginProperties
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.CapturingSlot
@@ -21,7 +20,7 @@ import java.net.URI
 class DevOriginCredentialFilterTest :
     DescribeSpec({
 
-        val filter = DevOriginCredentialFilter(DevOriginProperties(enforce = true, credential = "secret"))
+        val filter = DevOriginCredentialFilter(DevOriginProperties("secret"))
 
         fun forwardingChain(): Pair<WebFilterChain, CapturingSlot<ServerWebExchange>> {
             val chain = mockk<WebFilterChain>()
@@ -110,26 +109,18 @@ class DevOriginCredentialFilterTest :
                 }
             }
 
-            context("검증을 끈 상태에서 자격증명 query가 오면") {
+            context("loopback이 아닌 origin에서 자격증명 query가 오면") {
                 it("검증 없이 query만 제거한다") {
                     val (chain, captured) = forwardingChain()
                     val exchange = MockServerWebExchange.from(
                         MockServerHttpRequest.get(
                             "/api/users/me?dev_credential=any",
-                        ).header("Origin", "http://localhost:3000"),
+                        ).header("Origin", "https://service.example"),
                     )
 
-                    DevOriginCredentialFilter(DevOriginProperties()).filter(exchange, chain).block()
+                    filter.filter(exchange, chain).block()
 
                     captured.captured.request.uri.rawQuery shouldBe null
-                }
-            }
-        }
-
-        describe("DevOriginProperties 클래스는") {
-            context("검증을 켰는데 자격증명이 비어 있으면") {
-                it("생성에 실패한다") {
-                    shouldThrow<IllegalArgumentException> { DevOriginProperties(enforce = true, credential = " ") }
                 }
             }
         }
