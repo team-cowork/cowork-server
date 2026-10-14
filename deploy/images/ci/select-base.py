@@ -40,20 +40,6 @@ def successful_push_base():
 
 def main():
     event = os.environ.get("GITHUB_EVENT_NAME")
-    with open(os.environ["GITHUB_EVENT_PATH"]) as event_file:
-        payload = json.load(event_file)
-    pr = payload.get("pull_request", {})
-    print("CI trigger diagnosis: " + json.dumps({
-        "event": event,
-        "action": payload.get("action"),
-        "pr": payload.get("number"),
-        "base_ref": pr.get("base", {}).get("ref"),
-        "base_sha": pr.get("base", {}).get("sha"),
-        "head_ref": pr.get("head", {}).get("ref"),
-        "head_sha": pr.get("head", {}).get("sha"),
-        "workflow_ref": os.environ.get("GITHUB_WORKFLOW_REF"),
-        "workflow_sha": os.environ.get("GITHUB_WORKFLOW_SHA"),
-    }, sort_keys=True))
     base = os.environ.get("PR_BASE_SHA", "") if event == "pull_request" else ""
     if event == "push":
         try:
