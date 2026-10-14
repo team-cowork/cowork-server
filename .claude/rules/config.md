@@ -35,7 +35,7 @@ The Config Server serves raw strings — it does not resolve placeholders. Only 
 
 For a non-resolving client, a `${VAR}` that nothing overrides reaches the app as the literal string `"${VAR}"`. Write a literal default and let Vault or `overrides` take precedence instead.
 
-Precedence in the served response is `overrides` > Vault > native `configs/`. Custom clients merge the flat keys in `propertySources`; replacements must match the exact key the client reads. Do not pass a nested YAML object as if it were a scalar override. For the existing notification `db.dsn` and preference `preference.db.*` secrets, use their exact dotted Vault keys as documented in `docs/deployment.md`.
+Precedence in the served response is `overrides` > Vault > native `configs/`. Custom clients merge the flat keys in `propertySources`; replacements must match the exact key the client reads. Do not pass a nested YAML object as if it were a scalar override. Production slots supply canonical environment inputs; the application reads them directly in its existing configuration or startup code, with explicit precedence over corresponding remote values. Do not require a framework-specific Config key when the image explicitly overrides it from the slot input.
 
 ## Required Flyway Config for Relational Spring Business Services
 
