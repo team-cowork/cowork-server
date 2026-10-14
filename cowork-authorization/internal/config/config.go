@@ -73,7 +73,7 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_IDENTITY_COMMAND_TIMEOUT")
 	}
 
-	eurekaPortValue := getEnvOrDefault("EUREKA_INSTANCE_PORT", lookup(flatMap, "EUREKA_INSTANCE_PORT", "8081"))
+	eurekaPortValue := lookup(flatMap, "APP_ADVERTISE_PORT", "8081")
 	eurekaPort, err := strconv.Atoi(getEnvOrDefault("APP_ADVERTISE_PORT", eurekaPortValue))
 	if err != nil {
 		return nil, fmt.Errorf("invalid Eureka advertised port")
@@ -103,7 +103,7 @@ func Load() (*AppConfig, error) {
 
 		EurekaServerURL:    lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
 		EurekaAppName:      lookup(flatMap, "EUREKA_APP_NAME", "cowork-authorization"),
-		EurekaInstanceHost: lookup(flatMap, "EUREKA_INSTANCE_HOST", "localhost"),
+		EurekaInstanceHost: lookup(flatMap, "APP_ADVERTISE_ADDRESS", "localhost"),
 		EurekaInstancePort: eurekaPort,
 	}
 
@@ -146,12 +146,12 @@ func normalizeMySQLDSNUTC(dsn string) (string, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := getEnvOrDefault("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
+	configURL := os.Getenv("CONFIG_SERVER_URL")
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnvOrDefault("APP_CONFIG_PROFILE", getEnvOrDefault("APP_PROFILE", "local"))
+	profile := getEnvOrDefault("APP_CONFIG_PROFILE", "local")
 	client := springconfig.NewClient(configURL, "cowork-authorization", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -212,7 +212,7 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := getEnvOrDefault("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
+	if v := os.Getenv("APP_ADVERTISE_ADDRESS"); v != "" {
 		cfg.EurekaInstanceHost = v
 	}
 }
@@ -229,7 +229,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := getEnvOrDefault("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
+		if explicitHost := os.Getenv("APP_ADVERTISE_ADDRESS"); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address

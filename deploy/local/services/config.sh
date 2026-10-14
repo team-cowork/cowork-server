@@ -8,7 +8,7 @@ SERVICE_NAME="cowork-config"
 SERVICE_WORKDIR="$PROJECT_ROOT"
 SERVICE_COMMAND=(
   bash -lc
-  'export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-local}"
+  'export APP_CONFIG_PROFILE="${APP_CONFIG_PROFILE:-local}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    exec ./gradlew :cowork-config:bootRun'
 )

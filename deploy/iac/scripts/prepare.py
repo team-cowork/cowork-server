@@ -11,8 +11,8 @@ import shlex
 import subprocess
 import sys
 
-ROOT = Path(__file__).resolve().parents[2]
-VAULT = runpy.run_path(str(ROOT / 'deploy/prod/vault-settings.py'))
+ROOT = Path(__file__).resolve().parents[3]
+VAULT = runpy.run_path(str(ROOT / 'deploy/prod/cd/vault-settings.py'))
 SLOTS = runpy.run_path(str(ROOT / 'deploy/prod/slots.py'))
 demand = VAULT['demand']
 NAME = VAULT['NAME']
@@ -111,18 +111,18 @@ def prepare(args):
         if direct_slot_path.is_file() and SLOTS['load'](host_id)['kind'] in {'application', 'config'}:
             demand(entry.get('slot') == host_id, 'Application and Config hosts require their explicit firewall slot')
         if entry['service'] == 'db':
-            demand((ROOT / 'deploy/iac/datastore-policy.json').is_file(), 'DB infrastructure requires its reviewed Git firewall policy')
+            demand((ROOT / 'deploy/iac/policy/datastore-policy.json').is_file(), 'DB infrastructure requires its reviewed Git firewall policy')
     monitoring_hosts = [host for host, entry in hosts.items() if entry.get('slot') == 'monitoring']
     demand(len(monitoring_hosts) == 1, 'Exactly one monitoring host is required')
     monitoring_host = monitoring_hosts[0]
     monitoring_settings = snapshot('monitoring', mount)
     demand('GRAFANA_ADMIN_PASSWORD' in monitoring_settings['runtime'], 'Monitoring requires Grafana bootstrap credentials')
     github_secret_sources = SLOTS['load']('monitoring').get('github_secrets', {})
-    demand(github_secret_sources == {'DISCORD_WEBHOOK_URL': 'DISCORD_MONITORING_ALERT_WEBHOOK'},
+    demand(github_secret_sources == {'DISCORD_MONITORING_ALERT_WEBHOOK': 'DISCORD_MONITORING_ALERT_WEBHOOK'},
            'Monitoring must declare its GitHub monitoring webhook source')
-    webhook = os.environ.get('DISCORD_WEBHOOK_URL', '')
+    webhook = os.environ.get('DISCORD_MONITORING_ALERT_WEBHOOK', '')
     demand(bool(webhook) and '\0' not in webhook, 'The declared GitHub monitoring webhook is required')
-    monitoring_settings['runtime']['DISCORD_WEBHOOK_URL'] = webhook
+    monitoring_settings['runtime']['DISCORD_MONITORING_ALERT_WEBHOOK'] = webhook
     created = not output.exists()
     try:
         output.mkdir(mode=0o700, parents=True, exist_ok=True)
