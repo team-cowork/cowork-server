@@ -10,11 +10,9 @@
     "MONITORING_VOLUME_PREFIX": "cowork_monitoring",
     "MONITORING_COMPOSE_PROJECT": "cowork-monitoring",
     "GRAFANA_ROOT_URL": "https://cowork-monitoring.https.gsmsv.site/",
-    "MYSQL_HOST": "10.0.0.93",
-    "MYSQL_EXPORTER_USER": "cowork_monitoring",
-    "REDIS_HOST": "10.0.0.93",
-    "KAFKA_EXPORTER_SERVER": "10.0.0.93:9094",
-    "MONITORING_ADDITIONAL_LOG_PEERS": "10.0.0.93/32,10.0.0.91/32,10.0.0.150/32"
+    "REDIS_HOST": "10.0.0.145",
+    "KAFKA_EXPORTER_SERVER": "10.0.0.167:9094",
+    "MONITORING_ADDITIONAL_LOG_PEERS": "10.0.0.91/32,10.0.0.145/32,10.0.0.150/32,10.0.0.167/32,10.0.0.172/32"
   },
   "secrets": {
     "runtime": {
@@ -29,18 +27,6 @@
       "GRAFANA_ADMIN_PASSWORD": {
         "path": "slot-secrets/monitoring",
         "key": "GRAFANA_ADMIN_PASSWORD"
-      },
-      "MONGO_EXPORTER_URI": {
-        "path": "slot-secrets/monitoring",
-        "key": "MONGO_EXPORTER_URI"
-      },
-      "MYSQL_EXPORTER_PASSWORD": {
-        "path": "slot-secrets/monitoring",
-        "key": "MYSQL_EXPORTER_PASSWORD"
-      },
-      "POSTGRES_EXPORTER_DSN": {
-        "path": "slot-secrets/monitoring",
-        "key": "POSTGRES_EXPORTER_DSN"
       }
     }
   },

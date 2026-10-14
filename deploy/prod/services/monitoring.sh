@@ -1,6 +1,6 @@
 #!/bin/bash
-require_env CONFIG_SERVER_URL EUREKA_SERVER_URL MYSQL_HOST REDIS_HOST DEPLOY_SHA MONITORING_BIND_IP MONITORING_VOLUME_PREFIX GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK \
-  MYSQL_EXPORTER_PASSWORD KAFKA_EXPORTER_SERVER POSTGRES_EXPORTER_DSN MONGO_EXPORTER_URI
+require_env CONFIG_SERVER_URL EUREKA_SERVER_URL REDIS_HOST DEPLOY_SHA MONITORING_BIND_IP MONITORING_VOLUME_PREFIX GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK \
+  KAFKA_EXPORTER_SERVER
 require_env CONFIG_CLIENT_USERNAME CONFIG_CLIENT_PASSWORD
 # This validates URL shape and private addressing only; it does not contact Config.
 # Authenticated discovery retries after Config's later deployment activates its peer policy.
@@ -17,7 +17,7 @@ COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
 [ "$ACTION" = deploy ] || { echo '[monitoring] Configuration valid'; return; }
 "${COMPOSE[@]}" pull
 # up applies changed mounts/env/settings and waits for the init service; restart does not.
-"${COMPOSE[@]}" up -d --force-recreate --wait --wait-timeout 180
+"${COMPOSE[@]}" up -d --force-recreate --remove-orphans --wait --wait-timeout 180
 health_host="${MONITORING_ADMIN_BIND_IP:-127.0.0.1}"
 [ "$health_host" != 0.0.0.0 ] || health_host=127.0.0.1
 wait_for_health "http://${health_host}:9090/-/ready" || fail 'Prometheus is not ready'

@@ -1,0 +1,118 @@
+{
+  "redis": {
+    "secrets": {},
+    "image": "redis:8.10.1-alpine@sha256:becdda6c7f4b3fb42e42fd7f120bbf5c54c4caaaf16f26da24e4563d2c1f0576",
+    "bind_ip": "10.0.0.145",
+    "memory": "512m",
+    "cpus": 1,
+    "bindings": [
+      {
+        "host_port": 6379,
+        "container_port": 6379,
+        "protocol": "tcp",
+        "peers": [
+          "10.0.0.127/32",
+          "10.0.0.137/32",
+          "10.0.0.144/32",
+          "10.0.0.150/32",
+          "10.0.0.89/32",
+          "10.0.0.174/32"
+        ]
+      }
+    ],
+    "internal_ports": []
+  },
+  "kafka": {
+    "secrets": {
+      "KAFKA_CLUSTER_ID": {
+        "path": "iac/shared/kafka",
+        "key": "KAFKA_CLUSTER_ID"
+      }
+    },
+    "image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
+    "bind_ip": "10.0.0.167",
+    "memory": "2048m",
+    "cpus": 2,
+    "bindings": [
+      {
+        "host_port": 9094,
+        "container_port": 9094,
+        "protocol": "tcp",
+        "peers": [
+          "10.0.0.127/32",
+          "10.0.0.131/32",
+          "10.0.0.132/32",
+          "10.0.0.137/32",
+          "10.0.0.140/32",
+          "10.0.0.144/32",
+          "10.0.0.150/32",
+          "10.0.0.169/32",
+          "10.0.0.74/32",
+          "10.0.0.88/32",
+          "10.0.0.89/32",
+          "10.0.0.90/32",
+          "10.0.0.97/32",
+          "10.0.0.174/32"
+        ]
+      }
+    ],
+    "internal_ports": [
+      {
+        "port": 9092,
+        "protocol": "tcp"
+      },
+      {
+        "port": 9093,
+        "protocol": "tcp"
+      }
+    ]
+  },
+  "livekit": {
+    "secrets": {
+      "LIVEKIT_API_KEY": {
+        "path": "slot-secrets/voice",
+        "key": "LIVEKIT_API_KEY"
+      },
+      "LIVEKIT_API_SECRET": {
+        "path": "slot-secrets/voice",
+        "key": "LIVEKIT_API_SECRET"
+      }
+    },
+    "image": "livekit/livekit-server:v1.13.7@sha256:6fd3b7088874c4d119160dd688798dfec852bc014786d392caad15f6f63912a3",
+    "bind_ip": "10.0.0.172",
+    "memory": "1024m",
+    "cpus": 2,
+    "bindings": [
+      {
+        "host_port": 7880,
+        "container_port": 7880,
+        "protocol": "tcp",
+        "peers": [
+          "0.0.0.0/0"
+        ]
+      },
+      {
+        "host_port": 7881,
+        "container_port": 38970,
+        "protocol": "tcp",
+        "peers": [
+          "0.0.0.0/0"
+        ]
+      },
+      {
+        "host_port": 7882,
+        "container_port": 35268,
+        "protocol": "udp",
+        "peers": [
+          "0.0.0.0/0"
+        ]
+      }
+    ],
+    "internal_ports": [],
+    "rtc": {
+      "public_ip": "158.247.251.109",
+      "tcp_port": 38970,
+      "udp_port": 35268
+    }
+  }
+}
