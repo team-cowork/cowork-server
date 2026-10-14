@@ -56,7 +56,6 @@ def affected(service, paths, target=None):
         "datastores": ("deploy/prod/datastores/", "deploy/images/elasticsearch/", "deploy/compose/stack.yaml"),
         "storage": ("deploy/prod/storage/", "deploy/config/seaweedfs/"),
         "log-agent": ("deploy/prod/log-agent/",),
-        "node-agent": ("deploy/prod/node-agent/",),
     }
     return any(path.startswith(prefixes[service]) for path in paths)
 
