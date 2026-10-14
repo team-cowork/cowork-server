@@ -54,7 +54,7 @@ const collectMarkdownFiles = async (directory, relativeDirectory = '') => {
 		const relativePath = asPosixPath(path.join(relativeDirectory, entry.name));
 
 		if (entry.isSymbolicLink()) {
-			throw new Error(`docs/todo must not contain symbolic links: ${relativePath}`);
+			throw new Error(`TODO directory must not contain symbolic links: ${relativePath}`);
 		}
 
 		if (entry.isDirectory()) {
@@ -357,7 +357,7 @@ export const loadTodoContent = async ({
 	const routes = routesBySource.values().toArray();
 
 	if (new Set(routes).size !== routes.length) {
-		throw new Error('docs/todo contains duplicate canonical routes');
+		throw new Error('TODO directory contains duplicate canonical routes');
 	}
 
 	const resolveRegistryLink = createTodoLinkResolver(routesBySource);

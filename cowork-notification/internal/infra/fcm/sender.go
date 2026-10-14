@@ -77,8 +77,7 @@ func (s *Sender) checkUnregistered(err error) bool {
 
 // classify maps an FCM SDK error to an Outcome. This mapping mirrors the official
 // Admin SDK error taxonomy (firebase.google.com/go/v4/messaging's Is* predicates) and
-// is verified by code review against that contract rather than by unit test, per
-// docs/todo/items/33-reliability/fcm-partial-failure-retry.md's test-scope note: the
+// is verified by code review against that contract rather than by unit test: the
 // SDK's own error classification is not this repository's business logic to freeze.
 func (s *Sender) classify(err error) Outcome {
 	switch {
