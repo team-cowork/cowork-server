@@ -416,8 +416,8 @@ spring:
           filters:
             - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
 
-# jwt.secret은 Vault secret/cowork-gateway 에서 주입됨 (여기서 정의하지 않음)
-# app.dev-origin.credential은 GitHub Secret DEV_ORIGIN_CREDENTIAL을 CD가 Vault secret/cowork-gateway 로 동기화함
+# jwt.secret, app.dev-origin.credential은 Vault secret/cowork-gateway/prod 에서 주입됨 (여기서 정의하지 않음)
+# 원본은 GitHub Secret JWT_SECRET, DEV_ORIGIN_CREDENTIAL이며 CD가 Vault로 동기화함
 
 app:
   ws:
