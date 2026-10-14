@@ -1,4 +1,4 @@
-name: Deploy a cowork target
+name: Deploy A Cowork Target
 description: Apply an immutable release with Vault settings and record successful runtime deployment
 inputs:
   service:
@@ -34,12 +34,13 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v7
+    - name: Checkout Release Source
+      uses: actions/checkout@v7
       with:
         ref: ${{ inputs.sha }}
         fetch-depth: 0
         path: release-source
-    - name: Validate release and target
+    - name: Validate Release And Target
       working-directory: release-source
       env:
         RELEASE_SHA: ${{ inputs.sha }}
@@ -57,7 +58,7 @@ runs:
           test -f "deploy/prod/services/$SERVICE.sh"
         fi
         test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-    - name: Load Vault deployment snapshot
+    - name: Load Vault Deployment Snapshot
       id: settings
       env:
         VAULT_ADDR: ${{ inputs.vault_addr }}
@@ -77,9 +78,9 @@ runs:
           test "$TARGET" = vault
           mode=bootstrap
         fi
-        python3 deploy/prod/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION" \
+        python3 deploy/prod/cd/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION" \
           --slot-directory release-source/deploy/prod/slots
-    - name: Apply immutable release and Vault settings
+    - name: Apply Immutable Release And Vault Settings
       uses: appleboy/ssh-action@v1
       env:
         DEPLOY_PAYLOAD: ${{ steps.settings.outputs.payload }}
@@ -165,10 +166,10 @@ runs:
               --username "$DEPLOY_GHCR_USER" --password-stdin
           fi
           unset DEPLOY_GHCR_TOKEN DEPLOY_GHCR_USER
-          printf '%s' "$DEPLOY_PAYLOAD" | python3 "$tools_release/deploy/prod/apply-settings.py" \
+          printf '%s' "$DEPLOY_PAYLOAD" | python3 "$tools_release/deploy/prod/cd/apply-settings.py" \
             "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
             --release-directory "$release"
-    - name: Record successful runtime deployment
+    - name: Record Successful Runtime Deployment
       if: ${{ inputs.check_only != 'true' }}
       env:
         GH_TOKEN: ${{ github.token }}
@@ -176,4 +177,4 @@ runs:
         TARGET: ${{ inputs.target }}
         RELEASE_SHA: ${{ inputs.sha }}
       shell: bash
-      run: python3 deploy/prod/deployment_state.py "$SERVICE" "$TARGET" "$RELEASE_SHA"
+      run: python3 deploy/prod/cd/deployment_state.py "$SERVICE" "$TARGET" "$RELEASE_SHA"

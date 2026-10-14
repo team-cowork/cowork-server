@@ -1,4 +1,4 @@
-name: cowork PR Cleanup Workflow
+name: Cowork PR Cleanup Workflow
 
 on:
   pull_request:
@@ -6,13 +6,14 @@ on:
 
 jobs:
   remove-label-on-merge:
+    name: Remove Review Label
     if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
 
     steps:
-      - name: Remove Waiting for Review Label
+      - name: Remove Waiting For Review Label
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
