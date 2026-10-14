@@ -35,3 +35,9 @@
   # The snapshot includes credentials; Ansible must not log the invocation or result.
   no_log: true
   changed_when: true
+- name: Apply And Verify The Existing Grafana Administrator Password
+  ansible.builtin.include_tasks: grafana-password.yml
+  loop: "{{ cowork_units | selectattr('service', 'equalto', 'monitoring') | list }}"
+  loop_control:
+    loop_var: cowork_monitoring_unit
+    label: monitoring
