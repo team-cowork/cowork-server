@@ -13,7 +13,7 @@ import uuid
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 BRANCH = "infra-state"
 LOCK = "infra-state-lock"
 STATE_FILE = "grafana.tfstate.aesgcm"
