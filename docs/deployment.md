@@ -22,6 +22,10 @@ Vault policy·인증 role의 초기 신뢰 구성과 복구는 관리자 bootstr
 `Dockerfile.prod`에서 런타임, 설정 변환과 검증 명령을 소유한다. 런타임 변경이 비밀 참조나 포트,
 자원 요구량도 바꾸면 슬롯을 함께 수정한다. 컨테이너 한도 변경으로 VM의 CPU·RAM이 늘어나지는 않는다.
 
+Stage CI(`develop` push·`main` 이외 대상 PR)는 `Dockerfile.local`을 사용한다.
+Prod CI(`main` push·`main` 대상 PR)는 `Dockerfile.prod`를 사용한다. 이미지 빌드와 `verify` 단계,
+PR 기준·현재 소스의 커버리지 수집에 같은 파일 구분을 적용한다. 런타임을 교체할 때는 두 파일을 함께 갱신한다.
+
 ## 배치와 비밀 값
 
 MySQL·PostgreSQL·MongoDB·Redis·Elasticsearch·Kafka와 SeaweedFS는 `cowork-db` 한 VM에 둔다.

@@ -8,7 +8,7 @@
     "prod": "."
   },
   "authorization": {
-    "local": "cowork-authorization",
+    "local": ".",
     "prod": "."
   },
   "preference": {
@@ -28,15 +28,15 @@
     "prod": "."
   },
   "notification": {
-    "local": "cowork-notification",
+    "local": ".",
     "prod": "."
   },
   "chat": {
-    "local": "cowork-chat",
+    "local": ".",
     "prod": "."
   },
   "voice": {
-    "local": "cowork-voice",
+    "local": ".",
     "prod": "."
   },
   "project": {
