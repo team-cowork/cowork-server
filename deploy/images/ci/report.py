@@ -430,6 +430,10 @@ def read_manifest(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]
 def render(args: argparse.Namespace) -> str:
     modules, excluded = read_manifest(args.manifest)
     results, diagnostics = load_results(args.artifacts, modules)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if not any(result.status == "ok" and result.total > 0 for result in results.values()):
+        args.output.write_text("", encoding="utf-8")
+        return ""
     base = aggregate([results[(module["module"], "base")] for module in modules], "base")
     pr = aggregate([results[(module["module"], "pr")] for module in modules], "pr")
     base_complete = base.status == "ok" and not any(snapshot in {None, "base"} for snapshot, _ in diagnostics)
@@ -473,7 +477,6 @@ def render(args: argparse.Namespace) -> str:
             lines.append(f"- {label}: {text(message[:500])}")
         lines.append("")
     body = "\n".join(lines)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
     return body
 
