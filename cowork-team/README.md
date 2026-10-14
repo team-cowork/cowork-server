@@ -11,7 +11,7 @@
 
 ## 스택
 
-- Kotlin / Java 25 / Spring Boot
+- Kotlin / Java 26 / Spring Boot
 - Gradle
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka / Eureka / Config Client
@@ -25,14 +25,11 @@
 
 ## 환경변수
 
-아래 값은 [Docker Compose](../docker-compose.yml) 기준입니다.
+아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다.
 
-| 변수                     | 기본값                                   | 설명                                |
-|--------------------------|------------------------------------------|-------------------------------------|
-| `SPRING_PROFILES_ACTIVE` | `local`                                  | 설정 프로파일 (`local` 또는 `prod`) |
-| `SPRING_CONFIG_IMPORT`   | `configserver:http://cowork-config:8761` | 필수 Config Server 연결             |
-
-- Config Server: 포트, MySQL URL, Kafka, Eureka, S3 endpoint·region, GitHub App 연결 설정.
-- Vault: MySQL 계정, S3 access·secret key, GitHub 연동 state secret.
-
-Compose 기동 시 Config Server 조회가 필수입니다. 일반 설정은 [서비스별 설정 파일](../cowork-config/src/main/resources/configs/), 시크릿 공급은 [설정 변경 절차](../docs/deployment.md#설정-변경과-재배포)를 참고합니다.
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `SPRING_PROFILES_ACTIVE` | `local` | 설정 프로파일 |
+| `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
+| `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_TEAM_USERNAME`에서 전달 |
+| `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_TEAM_PASSWORD`에서 전달 |

@@ -6,7 +6,7 @@ defmodule CoworkUser.AppConfig do
     :eureka_instance_host,
     :eureka_instance_id
   ]
-  @derive {Inspect, except: [:repo_options]}
+  @derive {Inspect, except: [:repo_options, :s3_access_key, :s3_secret_key]}
   defstruct [
     :port,
     :repo_options,
@@ -32,7 +32,7 @@ defmodule CoworkUser.AppConfig do
     :kafka_enabled,
     :s3_region,
     :s3_internal_endpoint,
-    :s3_public_endpoint,
+    :public_api_base_url,
     :s3_access_key,
     :s3_secret_key,
     :s3_bucket,
@@ -51,7 +51,7 @@ defmodule CoworkUser.AppConfig do
     case :persistent_term.get(@persistent_key, :undefined) do
       :undefined ->
         remote = fetch_from_config_server()
-        config = build(remote)
+        config = build(remote) |> validate_storage!()
         :persistent_term.put(@persistent_key, config)
         config
 
@@ -61,7 +61,7 @@ defmodule CoworkUser.AppConfig do
   end
 
   def refresh! do
-    config = build(fetch_from_config_server())
+    config = build(fetch_from_config_server()) |> validate_storage!()
     :persistent_term.put(@persistent_key, config)
     config
   end
@@ -71,7 +71,11 @@ defmodule CoworkUser.AppConfig do
     app_name = lookup(remote, ["EUREKA_APP_NAME", "eureka_app_name"], "cowork-user")
 
     instance_port =
-      lookup(remote, ["EUREKA_INSTANCE_PORT", "eureka_instance_port"], Integer.to_string(port))
+      lookup(
+        remote,
+        ["APP_ADVERTISE_PORT", "EUREKA_INSTANCE_PORT", "eureka_instance_port"],
+        Integer.to_string(port)
+      )
       |> String.to_integer()
 
     {instance_host, instance_id} = eureka_identity(remote, app_name, instance_port)
@@ -92,8 +96,8 @@ defmodule CoworkUser.AppConfig do
       eureka_instance_host: instance_host,
       eureka_instance_id: instance_id,
       eureka_instance_port: instance_port,
-      config_server_url: System.get_env("APP_CONFIG_URL"),
-      config_profile: System.get_env("APP_PROFILE", "local"),
+      config_server_url: config_server_url(),
+      config_profile: config_profile(),
       kafka_bootstrap_servers:
         lookup(remote, ["KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"], "localhost:9094"),
       kafka_topic: lookup(remote, ["KAFKA_TOPIC_USER_SYNC", "kafka_topic"], "user.data.sync"),
@@ -160,11 +164,11 @@ defmodule CoworkUser.AppConfig do
           ["S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"],
           "http://localhost:9000"
         ),
-      s3_public_endpoint:
+      public_api_base_url:
         lookup(
           remote,
-          ["S3_PUBLIC_ENDPOINT", "s3_public_endpoint"],
-          "http://localhost:9000"
+          ["PUBLIC_API_BASE_URL", "public_api_base_url"],
+          "http://localhost:8080"
         ),
       s3_access_key: lookup(remote, ["S3_ACCESS_KEY", "s3_access_key"], ""),
       s3_secret_key: lookup(remote, ["S3_SECRET_KEY", "s3_secret_key"], ""),
@@ -201,12 +205,23 @@ defmodule CoworkUser.AppConfig do
     }
   end
 
-  defp fetch_from_config_server do
-    case System.get_env("APP_CONFIG_URL") do
-      url when is_binary(url) and url != "" ->
-        profile = System.get_env("APP_PROFILE", "local")
+  defp config_server_url do
+    lookup(%{}, ["CONFIG_SERVER_URL", "APP_CONFIG_URL"], nil)
+  end
 
-        options = CoworkUser.ControlPlane.options("#{String.trim_trailing(url, "/")}/cowork-user/#{profile}")
+  defp config_profile do
+    lookup(%{}, ["APP_CONFIG_PROFILE", "APP_PROFILE"], "local")
+  end
+
+  defp fetch_from_config_server do
+    case config_server_url() do
+      url when is_binary(url) and url != "" ->
+        profile = config_profile()
+
+        options =
+          CoworkUser.ControlPlane.options(
+            "#{String.trim_trailing(url, "/")}/cowork-user/#{profile}"
+          )
 
         case Req.get(options) do
           {:ok, %{status: 200, body: body}} ->
@@ -225,6 +240,32 @@ defmodule CoworkUser.AppConfig do
       _ ->
         %{}
     end
+  end
+
+  defp validate_storage!(config) do
+    for {endpoint, public?} <- [
+          {config.s3_internal_endpoint, false},
+          {config.public_api_base_url, true}
+        ] do
+      uri = URI.parse(endpoint)
+
+      unless uri.scheme in ["http", "https"] and is_binary(uri.host) and uri.host != "" and
+               uri.path in [nil, "", "/"] and is_nil(uri.userinfo) and is_nil(uri.query) and
+               is_nil(uri.fragment) do
+        raise "Storage and API endpoints must be an HTTP(S) origin"
+      end
+
+      if public? and config.config_profile == "prod" and
+           (uri.scheme != "https" or uri.host in ["localhost", "127.0.0.1", "::1"]) do
+        raise "Production API endpoint requires HTTPS and a non-local host"
+      end
+    end
+
+    if config.s3_access_key == "" or config.s3_secret_key == "" or config.s3_bucket == "" do
+      raise "S3 bucket and service credentials are required"
+    end
+
+    config
   end
 
   defp merge_property_sources(%{"propertySources" => property_sources})
@@ -289,6 +330,25 @@ defmodule CoworkUser.AppConfig do
           Keyword.merge(defaults, parse_database_url!(url))
       end
 
+    # Slot inputs remain authoritative even when Config Server supplies a database URL.
+    options =
+      Enum.reduce(
+        [
+          hostname: "DB_HOST",
+          port: "DB_PORT",
+          database: "DB_NAME",
+          username: "DB_USERNAME",
+          password: "DB_PASSWORD"
+        ],
+        options,
+        fn {key, environment_key}, acc ->
+          case nonempty(System.get_env(environment_key)) do
+            nil -> acc
+            value -> Keyword.put(acc, key, value)
+          end
+        end
+      )
+
     options
     |> Keyword.update!(:port, &positive_integer!(&1, "DB_PORT", 65_535))
     |> Keyword.update!(:pool_size, &positive_integer!(&1, "DB_POOL_SIZE"))
@@ -344,13 +404,18 @@ defmodule CoworkUser.AppConfig do
 
   defp eureka_identity(remote, app_name, instance_port) do
     configured_host =
-      lookup(remote, ["EUREKA_INSTANCE_HOST", "eureka_instance_host"], "localhost")
+      lookup(
+        remote,
+        ["APP_ADVERTISE_ADDRESS", "EUREKA_INSTANCE_HOST", "eureka_instance_host"],
+        "localhost"
+      )
 
     if System.get_env("EUREKA_USE_RUNTIME_HOSTNAME") == "true" do
       runtime_hostname = runtime_hostname!()
 
       advertised_host =
-        System.get_env("EUREKA_INSTANCE_HOST") ||
+        nonempty(System.get_env("APP_ADVERTISE_ADDRESS")) ||
+          nonempty(System.get_env("EUREKA_INSTANCE_HOST")) ||
           non_loopback_ipv4!()
 
       instance_id =

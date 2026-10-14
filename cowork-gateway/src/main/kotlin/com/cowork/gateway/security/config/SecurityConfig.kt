@@ -83,10 +83,12 @@ class SecurityConfig(
                         "/api/authorization/auth/token",
                         "/api/authorization/auth/refresh",
                     ).permitAll()
+                    // 파일 요청은 S3 서명으로 인증하고 공개 아이콘은 익명 읽기를 허용한다.
+                    .pathMatchers(HttpMethod.GET, "/api/storage/**").permitAll()
+                    .pathMatchers(HttpMethod.HEAD, "/api/storage/**").permitAll()
+                    .pathMatchers(HttpMethod.PUT, "/api/storage/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
                     .pathMatchers("/api/health").permitAll()
-                    // TODO(temporary health dashboard): Remove this matcher with the temporary /health dashboard.
-                    .pathMatchers(HttpMethod.GET, "/health", "/health/**").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()

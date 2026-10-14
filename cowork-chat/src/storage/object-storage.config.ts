@@ -7,9 +7,9 @@ const DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS = 20;
 
 export type ObjectStorageConfig = {
-    endPoint: string;
-    port?: number;
-    useSSL: boolean;
+    internalEndpoint: string;
+    publicApiBaseUrl: string;
+    region: string;
     accessKey: string;
     secretKey: string;
     bucket: string;
@@ -27,22 +27,23 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
         'S3_ENDPOINT',
         'S3_INTERNAL_ENDPOINT',
     ]);
-    const endpointUrl = new URL(internalEndpoint);
+    const publicApiBaseUrl = getRequiredConfig(configService, 'PUBLIC_API_BASE_URL').replace(/\/$/u, '');
+    const profile = getOptionalConfig(configService, ['APP_CONFIG_PROFILE', 'APP_PROFILE', 'SPRING_PROFILES_ACTIVE']) ?? 'local';
+    const production = profile === 'prod';
+    validateEndpoint(internalEndpoint, false);
+    validateEndpoint(publicApiBaseUrl, production);
     const accessKey = getRequiredConfig(configService, ['object-storage.accessKey', 'S3_ACCESS_KEY']);
     const secretKey = getRequiredConfig(configService, ['object-storage.secretKey', 'S3_SECRET_KEY']);
     const bucket = getRequiredConfig(configService, ['object-storage.bucket', 'S3_BUCKET']);
 
     return {
-        endPoint: endpointUrl.hostname,
-        port: endpointUrl.port ? Number(endpointUrl.port) : undefined,
-        useSSL: (getOptionalConfig(configService, ['object-storage.useSSL', 'S3_USE_SSL']) ?? String(endpointUrl.protocol === 'https:')) === 'true',
+        internalEndpoint,
+        publicApiBaseUrl,
+        region: getOptionalConfig(configService, ['object-storage.region', 'S3_REGION']) ?? 'us-east-1',
         accessKey,
         secretKey,
         bucket,
-        publicBaseUrl: (
-            getOptionalConfig(configService, ['object-storage.publicBaseUrl', 'S3_PUBLIC_BASE_URL'])
-            ?? `${getOptionalConfig(configService, ['object-storage.publicEndpoint', 'S3_PUBLIC_ENDPOINT']) ?? internalEndpoint}/${bucket}`
-        ).replace(/\/$/u, ''),
+        publicBaseUrl: `${publicApiBaseUrl}/api/storage/${bucket}`,
         presignedPutExpirySeconds: Number(getOptionalConfig(
             configService,
             ['object-storage.presignedPutExpirySeconds', 'S3_PRESIGNED_PUT_EXPIRY_SECONDS'],
@@ -81,4 +82,13 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
             ['object-storage.chatUploadRateLimitMaxRequests', 'S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS'],
         ) ?? DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS),
     };
+}
+
+function validateEndpoint(endpoint: string, production: boolean): void {
+    const url = new URL(endpoint);
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
+        || url.pathname !== '/' || url.search || url.hash
+        || (production && (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
+        throw new Error('Storage and API endpoints must be HTTP(S) origins; production API requires HTTPS and a non-local host');
+    }
 }

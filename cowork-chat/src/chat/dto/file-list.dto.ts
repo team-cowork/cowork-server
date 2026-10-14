@@ -28,7 +28,8 @@ export class FileListItemDto {
     @ApiProperty() messageId!: string;
     @ApiProperty() fileName!: string;
     @ApiProperty() fileSize!: number;
-    @ApiProperty() fileUrl!: string;
+    @ApiProperty() attachmentIndex!: number;
+    @ApiPropertyOptional() objectKey?: string;
     @ApiProperty() mimeType!: string;
     @ApiProperty() uploaderId!: number;
     @ApiProperty() uploaderName!: string;
