@@ -18,7 +18,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && golangci-lint run \
     && go vet ./... \
     && bash /ci/run-native.sh go cowork-notification /workspace /coverage \
-        ./internal/domain/installation \
     && python3 /ci/report.py collect --module cowork-notification --snapshot pr --format go --metric statement --input /coverage/report.out --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify

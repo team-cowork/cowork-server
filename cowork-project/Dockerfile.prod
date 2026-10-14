@@ -21,31 +21,6 @@ COPY .editorconfig /workspace/.editorconfig
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
     bash /ci/run-jvm.sh maven cowork-project /workspace /coverage \
-        com.cowork.project.domain.github.service.ChatGithubIssueCommandProcessorTest \
-        com.cowork.project.domain.github.service.GithubCommentAuthorizationSupportTest \
-        com.cowork.project.domain.github.service.GithubIssueWriteResultHandlerTest \
-        com.cowork.project.domain.github.service.GithubLabelPolicyReaderTest \
-        com.cowork.project.domain.github.service.GithubRepoAccessResolverTest \
-        com.cowork.project.domain.github.service.GithubRepoUrlParserTest \
-        com.cowork.project.domain.github.service.UpdateGithubLabelPolicyServiceImplTest \
-        com.cowork.project.domain.github.service.impl.AddProjectGithubRepoServiceImplTest \
-        com.cowork.project.domain.github.service.impl.CreateGithubCommentServiceImplTest \
-        com.cowork.project.domain.github.service.impl.DeleteGithubCommentServiceImplTest \
-        com.cowork.project.domain.github.service.impl.QueryProjectGithubReposServiceImplTest \
-        com.cowork.project.domain.github.service.impl.QueryPullRequestBoardServiceImplTest \
-        com.cowork.project.domain.github.service.impl.RemoveProjectGithubRepoServiceImplTest \
-        com.cowork.project.domain.github.service.impl.UpdateGithubCommentServiceImplTest \
-        com.cowork.project.domain.github.service.impl.UpdateGithubIssueLabelsServiceImplTest \
-        com.cowork.project.domain.project.service.ProjectAccessGuardTest \
-        com.cowork.project.domain.project.service.impl.AddProjectMemberServiceImplTest \
-        com.cowork.project.domain.project.service.impl.ClearProjectGithubWebhookChannelServiceImplTest \
-        com.cowork.project.domain.project.service.impl.CreateProjectServiceImplTest \
-        com.cowork.project.domain.project.service.impl.DeleteProjectServiceImplTest \
-        com.cowork.project.domain.project.service.impl.RemoveProjectMemberServiceImplTest \
-        com.cowork.project.domain.project.service.impl.ReorderTeamProjectsServiceImplTest \
-        com.cowork.project.domain.project.service.impl.SetProjectGithubWebhookChannelServiceImplTest \
-        com.cowork.project.domain.project.service.impl.UpdateProjectMemberRoleServiceImplTest \
-        com.cowork.project.domain.project.service.impl.UpdateProjectServiceImplTest \
     && python3 /ci/report.py collect --module cowork-project --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify

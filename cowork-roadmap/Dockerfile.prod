@@ -29,22 +29,6 @@ COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-roadmap:check -x test --no-daemon --build-cache \
     && bash /ci/run-jvm.sh gradle cowork-roadmap /workspace /coverage \
-        com.cowork.roadmap.domain.assignment.service.CreateRoadmapAssignmentServiceTest \
-        com.cowork.roadmap.domain.assignment.service.DeleteRoadmapAssignmentServiceTest \
-        com.cowork.roadmap.domain.assignment.service.ListRoadmapAssignmentsServiceTest \
-        com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusServiceTest \
-        com.cowork.roadmap.domain.node.service.CreateNodeReferenceServiceTest \
-        com.cowork.roadmap.domain.node.service.CreateRoadmapNodeServiceTest \
-        com.cowork.roadmap.domain.node.service.DeleteNodeReferenceServiceTest \
-        com.cowork.roadmap.domain.node.service.DeleteRoadmapNodeServiceTest \
-        com.cowork.roadmap.domain.node.service.ModifyNodeReferenceServiceTest \
-        com.cowork.roadmap.domain.node.service.ModifyRoadmapNodeServiceTest \
-        com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesServiceTest \
-        com.cowork.roadmap.domain.roadmap.service.CreateRoadmapServiceTest \
-        com.cowork.roadmap.domain.roadmap.service.DeleteRoadmapServiceTest \
-        com.cowork.roadmap.domain.roadmap.service.ModifyRoadmapServiceTest \
-        com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeServiceTest \
-        com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuardTest \
     && python3 /ci/report.py collect --module cowork-roadmap --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
