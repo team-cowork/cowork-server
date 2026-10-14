@@ -77,10 +77,11 @@ def infrastructure_source(path):
         return True
     if path.startswith(('deploy/iac/', 'deploy/prod/slots/', 'deploy/prod/monitoring/',
                         'deploy/prod/log-agent/', 'deploy/prod/lib/', 'deploy/prod/cd/',
-                        'deploy/prod/network/', 'deploy/prod/config/', 'deploy/config/monitoring/')):
+                        'deploy/prod/network/', 'deploy/prod/config/', 'deploy/config/monitoring/',
+                        'deploy/prod/storage/', 'deploy/config/seaweedfs/', 'deploy/images/elasticsearch/')):
         return True
     if path in {'deploy/prod/inventory.json', 'deploy/prod/network/host-network.json', 'deploy/prod/services/monitoring.sh',
-                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/config.sh', 'deploy/prod/storage/settings.py'}:
+                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/config.sh', 'deploy/compose/stack.yaml'}:
         return True
     return value.parent == Path('deploy/prod') and value.suffix in {'.py', '.sh', '.service'}
 
@@ -208,12 +209,12 @@ def record_success(sha, host_count, env):
     deployment = github_api('deployments', env, {
         'ref': sha, 'task': 'cowork-infrastructure', 'environment': 'Prod-IaC',
         'auto_merge': False, 'required_contexts': [], 'production_environment': True,
-        'payload': {'host_count': host_count, 'scope': 'hosts-databases-and-monitoring'},
-        'description': 'Host and database configuration applied; Grafana state persisted',
+        'payload': {'host_count': host_count, 'scope': 'hosts-persistent-services-and-monitoring'},
+        'description': 'Host and persistent service configuration applied; Grafana state persisted',
     })
     github_api(f'deployments/{deployment["id"]}/statuses', env, {
         'state': 'success', 'auto_inactive': False,
-        'description': 'Host and database configuration applied; Grafana state persisted',
+        'description': 'Host and persistent service configuration applied; Grafana state persisted',
         'log_url': f'{env.get("GITHUB_SERVER_URL", "https://github.com")}/{repository}/actions/runs/{env["GITHUB_RUN_ID"]}',
     })
 
@@ -251,7 +252,8 @@ def main():
                 result_output('skipped')
                 return
         execute([sys.executable, ROOT / 'deploy/prod/slots.py', 'validate'], env)
-        execute([sys.executable, IAC / 'databases/runtime.py', 'check'], env)
+        for source in ('databases/runtime.py', 'databases/search.py', 'shared/runtime.py', 'storage/runtime.py'):
+            execute([sys.executable, IAC / source, 'check'], env)
         execute(['ansible-playbook', '-i', IAC / 'inventory.example.yml', IAC / 'ansible/site.yml', '--syntax-check'], env)
         validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
         execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)

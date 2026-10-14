@@ -65,6 +65,28 @@ for slot in application_slots:
         "targets": [f'http://{address}:{container["host_port"]}{container["readiness"]["path"]}'],
         "labels": {"service": slot["service"]},
     })
+shared_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/shared/catalog.json").read_text()
+)
+livekit_address = shared_catalog["livekit"]["bind_ip"]
+if not private_ipv4(livekit_address):
+    raise ValueError("LiveKit monitoring must use its private VM address")
+probe_targets.append({
+    "targets": [f"http://{livekit_address}:7880/"],
+    "labels": {"service": "livekit"},
+})
+storage_catalog = json.loads(
+    (Path(__file__).resolve().parents[2] / "iac/storage/catalog.json").read_text()
+)
+for module in sorted(storage_catalog):
+    slot = json.loads((slots_directory / f"{module}.json").read_text())
+    address = slot["container"]["advertise_address"]
+    if not private_ipv4(address):
+        raise ValueError("Storage monitoring must use its module's private VM address")
+    probe_targets.append({
+        "targets": [f"http://{address}:9000/readyz"],
+        "labels": {"service": "storage", "module": module},
+    })
 database_catalog = json.loads(
     (Path(__file__).resolve().parents[2] / "iac/databases/catalog.json").read_text()
 )

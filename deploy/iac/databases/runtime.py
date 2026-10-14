@@ -32,6 +32,13 @@ def catalog():
             raise ValueError('Invalid database resource limits')
         if value['exporter']['port'] != {'mysql': 9104, 'postgres': 9187, 'mongodb': 9216}[value['engine']]:
             raise ValueError('Invalid database exporter port')
+        if 'search' in value:
+            search = value['search']
+            if (search['username'] != 'cowork_' + module or
+                    not re.fullmatch(r'[1-9][0-9]*[mg]', search['memory']) or
+                    not re.fullmatch(r'[1-9][0-9]*[mg]', search['heap']) or not 0 < search['cpus'] <= 16 or
+                    not search['indices'] or not all(re.fullmatch(r'[a-z][a-z0-9_-]*\*?', item) for item in search['indices'])):
+                raise ValueError('Invalid module search definition')
     return result
 
 

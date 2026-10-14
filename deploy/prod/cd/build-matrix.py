@@ -55,8 +55,6 @@ def affected(service, paths, target=None):
     prefixes = {
         "monitoring": ("deploy/config/monitoring/", "deploy/prod/monitoring/"),
         "vault": ("deploy/prod/vault/", "deploy/config/vault/server.hcl"),
-        "datastores": ("deploy/prod/datastores/", "deploy/images/elasticsearch/", "deploy/compose/stack.yaml"),
-        "storage": ("deploy/prod/storage/", "deploy/config/seaweedfs/"),
         "log-agent": ("deploy/prod/log-agent/",),
     }
     return any(path.startswith(prefixes[service]) for path in paths)
