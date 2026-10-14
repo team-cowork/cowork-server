@@ -73,7 +73,7 @@ defmodule CoworkUser.AppConfig do
     instance_port =
       lookup(
         remote,
-        ["APP_ADVERTISE_PORT", "EUREKA_INSTANCE_PORT", "eureka_instance_port"],
+        ["APP_ADVERTISE_PORT"],
         Integer.to_string(port)
       )
       |> String.to_integer()
@@ -206,11 +206,11 @@ defmodule CoworkUser.AppConfig do
   end
 
   defp config_server_url do
-    lookup(%{}, ["CONFIG_SERVER_URL", "APP_CONFIG_URL"], nil)
+    lookup(%{}, ["CONFIG_SERVER_URL"], nil)
   end
 
   defp config_profile do
-    lookup(%{}, ["APP_CONFIG_PROFILE", "APP_PROFILE"], "local")
+    lookup(%{}, ["APP_CONFIG_PROFILE"], "local")
   end
 
   defp fetch_from_config_server do
@@ -406,7 +406,7 @@ defmodule CoworkUser.AppConfig do
     configured_host =
       lookup(
         remote,
-        ["APP_ADVERTISE_ADDRESS", "EUREKA_INSTANCE_HOST", "eureka_instance_host"],
+        ["APP_ADVERTISE_ADDRESS"],
         "localhost"
       )
 
@@ -415,7 +415,6 @@ defmodule CoworkUser.AppConfig do
 
       advertised_host =
         nonempty(System.get_env("APP_ADVERTISE_ADDRESS")) ||
-          nonempty(System.get_env("EUREKA_INSTANCE_HOST")) ||
           non_loopback_ipv4!()
 
       instance_id =
