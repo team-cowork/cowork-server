@@ -12,6 +12,8 @@ class ControlPlaneAccessPolicyTest :
             it("자기 서비스의 배포 프로필과 Spring 초기 default 조회를 허용한다") {
                 policy.allows(application, "prod", "GET", "/cowork-chat/prod") shouldBe true
                 policy.allows(application, "prod", "GET", "/cowork-chat/default") shouldBe true
+                policy.allows(application, "local", "GET", "/cowork-chat/local") shouldBe true
+                policy.allows(application, "local", "GET", "/cowork-chat/default") shouldBe true
             }
             it("다른 서비스, 환경, 공통 설정과 우회 조회 형식을 거부한다") {
                 listOf(
@@ -21,6 +23,7 @@ class ControlPlaneAccessPolicyTest :
                     "/cowork-chat/../cowork-user/prod", "/cowork-chat%2Fcowork-user/prod", "/encrypt", "/decrypt",
                 ).forEach { policy.allows(application, "prod", "GET", it) shouldBe false }
                 policy.allows(application, "prod", "POST", "/cowork-chat/prod") shouldBe false
+                policy.allows(application, "local", "GET", "/cowork-chat/prod") shouldBe false
             }
         }
         describe("Eureka 접근 정책") {

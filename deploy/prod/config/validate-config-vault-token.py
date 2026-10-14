@@ -39,8 +39,8 @@ def main():
     probe_token = None
     failed = False
     try:
-        if os.environ["APP_CONFIG_PROFILE"] != "prod":
-            raise ValueError("Only production AppRole credentials can be validated")
+        if os.environ.get("VAULT_AUTHENTICATION") != "APPROLE" or os.environ.get("VAULT_SCHEME") != "https":
+            raise ValueError("Production Config requires HTTPS AppRole authentication")
         host = os.environ["VAULT_EXTERNAL_HOST"]
         port = int(os.environ.get("VAULT_PORT", "443"))
         mount = os.environ.get("VAULT_APP_ROLE_PATH") or "approle"

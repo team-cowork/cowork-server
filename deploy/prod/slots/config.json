@@ -6,18 +6,20 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
+    "COWORK_GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "LIVEKIT_URL": "http://10.0.0.172:7880",
     "LIVEKIT_WS_URL": "wss://cowork-livekit.https.gsmsv.site",
     "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
-    "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118",
+    "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118,http://localhost:3000",
     "S3_BUCKET": "cowork-bucket",
     "S3_REGION": "us-east-1",
     "VAULT_APP_ROLE_PATH": "approle",
+    "VAULT_AUTHENTICATION": "APPROLE",
     "VAULT_BACKEND": "secret",
     "VAULT_EXTERNAL_HOST": "cowork-vault.https.gsmsv.site",
-    "VAULT_PORT": "443"
+    "VAULT_PORT": "443",
+    "VAULT_SCHEME": "https"
   },
   "secrets": {
     "runtime": {

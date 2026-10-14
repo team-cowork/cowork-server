@@ -7,7 +7,7 @@ spring:
     username: ${DB_USERNAME:${MYSQL_USER}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
 
 eureka:
   client:
@@ -36,4 +36,4 @@ projection:
     poll-interval-ms: 1000
 
 github-app:
-  service-url: http://host.docker.internal:3000
+  service-url: ${COWORK_GITHUB_APP_SERVICE_URL:http://host.docker.internal:3000}
