@@ -35,6 +35,13 @@
         - prod/network/host-network.json
         - prod/slots/voice.json
         - compose/stack.yaml
+    - name: Create The Administrator Helper Directory
+      ansible.builtin.file:
+        path: /usr/local/libexec
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
     - name: Install The Persistent Shared Service Firewall
       ansible.builtin.copy:
         src: "{{ cowork_repository }}/deploy/iac/shared/{{ item.source }}"
