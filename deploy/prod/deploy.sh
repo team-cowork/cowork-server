@@ -7,7 +7,7 @@ export RELEASE_ROOT
 SERVICE="${1:-}"
 ACTION="${2:-deploy}"
 case "$SERVICE" in
-  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|datastores|storage|log-agent|node-agent) ;;
+  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|log-agent|node-agent) ;;
   *) echo "Usage: $0 <service> [check|deploy]" >&2; exit 1 ;;
 esac
 case "$ACTION" in check|deploy) ;; *) echo 'Action must be check or deploy' >&2; exit 1 ;; esac
@@ -26,7 +26,7 @@ if [ "$ACTION" = deploy ]; then
 fi
 
 case "$SERVICE" in
-  vault|monitoring|datastores|storage|log-agent|node-agent)
+  vault|monitoring|log-agent|node-agent)
     # These deployment units have their own lifecycle; none starts the application stack.
     # shellcheck source=/dev/null
     source "${PROD_DIR}/services/${SERVICE}.sh"

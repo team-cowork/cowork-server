@@ -7,7 +7,7 @@ load_deploy_environment() {
   source "${PROD_DIR}/lib/defaults.sh"
   set +a
   case "$SERVICE" in
-    vault|monitoring|datastores|storage|log-agent|node-agent) ;;
+    vault|monitoring|log-agent|node-agent) ;;
     *) require_env APP_CONFIG_PROFILE SLOT_KIND
        case "$APP_CONFIG_PROFILE" in local|prod) ;; *) fail 'APP_CONFIG_PROFILE must be local or prod' ;; esac ;;
   esac
