@@ -68,12 +68,14 @@ def overview():
             edge_proxy = ElbApplicationLoadBalancer("TLS 리버스 프록시")
 
         with Cluster("GSM SV 사설망  10.0.0.0/24"):
-            with Cluster("Gateway VM"):
-                gateway = service("gateway", "10.0.0.127:8080")
+            with Cluster("10.0.0.127:8080"):
+                gateway = service("gateway")
 
-            with Cluster("Control Plane"):
-                config = service("config", "Config + Eureka\n10.0.0.169:8761")
-                vault = Vault("Vault\n10.0.0.91:8200")
+            with Cluster("Control Plane VMs"):
+                with Cluster("10.0.0.169:8761"):
+                    config = service("config", "Config + Eureka")
+                with Cluster("10.0.0.91:8200"):
+                    vault = Vault("Vault")
 
             apps = {}
             rows = []
@@ -95,10 +97,14 @@ def overview():
                     rows.append((tops, bottoms))
 
             with Cluster("Shared Infra VMs"):
-                kafka = Kafka("Kafka\n10.0.0.167:9094")
-                redis = Redis("Redis\n10.0.0.145:6379")
-                livekit = Docker("LiveKit SFU\n10.0.0.172:7880")
-                github_app = service("github-app", "10.0.0.150:3000")
+                with Cluster("10.0.0.167:9094"):
+                    kafka = Kafka("Kafka")
+                with Cluster("10.0.0.145:6379"):
+                    redis = Redis("Redis")
+                with Cluster("10.0.0.172:7880"):
+                    livekit = Docker("LiveKit SFU")
+                with Cluster("10.0.0.150:3000"):
+                    github_app = service("github-app")
 
         with Cluster("External SaaS"):
             datagsm = InternetAlt1("DataGSM OAuth2")
