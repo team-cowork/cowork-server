@@ -20,19 +20,17 @@ def private_ipv4(host):
     return address.version == 4 and any(address in network for network in RFC1918)
 
 
-def host_targets():
-    # VM마다 도는 node_exporter 주소 목록. "10.0.0.1:9100,10.0.0.2:9100" 형식.
-    value = os.environ.get("NODE_EXPORTER_TARGETS", "").strip()
-    if not value:
-        return []
+def host_targets(directory):
+    # node-agent는 log-agent와 같은 방식으로 VM마다 node-agent-<host>.json slot을 하나씩 선언한다.
+    # 이 목록이 유일한 출처이므로(coworkServiceMissing과 같은 원칙), 별도 CSV 환경변수로 중복 유지하지 않는다.
     targets = []
-    for item in value.split(","):
-        item = item.strip()
-        host, _, port = item.rpartition(":")
-        # Config Server와 같은 규칙으로 사설 IPv4 주소 리터럴만 허용한다.
-        if not private_ipv4(host) or not port.isdigit():
-            raise ValueError("NODE_EXPORTER_TARGETS must be comma-separated private IPv4 host:port values")
-        targets.append({"targets": [item], "labels": {"service": "host", "host": host}})
+    for path in sorted(directory.glob("node-agent-*.json")):
+        slot = json.loads(path.read_text())
+        host = path.stem.removeprefix("node-agent-")
+        address = slot["runtime"]["NODE_EXPORTER_BIND_IP"]
+        if not private_ipv4(address):
+            raise ValueError(f"{path.name} NODE_EXPORTER_BIND_IP must be a private IPv4 address")
+        targets.append({"targets": [f"{address}:9100"], "labels": {"service": "host", "host": host}})
     return targets
 
 
@@ -71,6 +69,7 @@ if (public_api.scheme != "https" or not public_api.hostname or public_api.userna
         or any(char.isspace() for char in public_api_url)):
     raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
 public_health_url = f"https://{public_api.netloc}/api/health"
+host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
     container = slot["container"]
@@ -129,8 +128,8 @@ scrape_configs = [
     },
     *([{
         "job_name": "cowork-hosts",
-        "static_configs": host_targets(),
-    }] if host_targets() else []),
+        "static_configs": host_target_configs,
+    }] if host_target_configs else []),
     {
         "job_name": "infrastructure",
         "static_configs": [
