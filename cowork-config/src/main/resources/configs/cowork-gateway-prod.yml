@@ -62,10 +62,28 @@ spring:
             maxAge: 3600
 
       routes:
-        - id: object-storage
-          uri: ${S3_INTERNAL_ENDPOINT}
+        - id: team-object-storage
+          uri: ${S3_TEAM_INTERNAL_ENDPOINT}
           predicates:
-            - Path=/api/storage/**
+            - Path=/api/storage/${S3_BUCKET}/team-icons/**,/api/storage/${S3_BUCKET}/team-icon-uploads/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
+        - id: user-object-storage
+          uri: ${S3_USER_INTERNAL_ENDPOINT}
+          predicates:
+            - Path=/api/storage/${S3_BUCKET}/profiles/**,/api/storage/${S3_BUCKET}/profile-uploads/**
+            - Method=GET,HEAD,PUT
+          filters:
+            - StorageRelay
+            - StripPrefix=2
+
+        - id: chat-object-storage
+          uri: ${S3_CHAT_INTERNAL_ENDPOINT}
+          predicates:
+            - Path=/api/storage/${S3_BUCKET}/chat-files/**,/api/storage/${S3_BUCKET}/chat-uploads/**
             - Method=GET,HEAD,PUT
           filters:
             - StorageRelay
@@ -79,7 +97,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: authorizationCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -413,3 +431,14 @@ resilience4j:
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+      authorizationCB:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    instances:
+      # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.
+      authorizationCB:
+        timeoutDuration: 6s

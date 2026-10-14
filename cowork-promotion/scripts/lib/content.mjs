@@ -1,168 +1,168 @@
-import { XMLParser } from 'fast-xml-parser';
-import { parse as parseYaml } from 'yaml';
-import { expectArray, expectColor, expectString } from './validation.mjs';
+import {XMLParser} from 'fast-xml-parser';
+import {parse as parseYaml} from 'yaml';
+import {expectArray, expectColor, expectString} from './validation.mjs';
 
 export function parseFeatureStates(source) {
-    const mockups = new Set(['workspace', 'board', 'meeting', 'github', 'activity', 'search']);
-    const seen = new Set();
-    return expectArray(JSON.parse(source), 'feature-states').map((state, index) => {
-        const label = `feature-states[${index}]`;
-        const mockup = expectString(state?.mockup, `${label}.mockup`);
-        if (!mockups.has(mockup) || seen.has(mockup)) {
-            throw new Error(`Unknown or duplicate feature mockup: ${mockup}`);
-        }
+	const mockups = new Set(['workspace', 'board', 'meeting', 'github', 'activity', 'search']);
+	const seen = new Set();
+	return expectArray(JSON.parse(source), 'feature-states').map((state, index) => {
+		const label = `feature-states[${index}]`;
+		const mockup = expectString(state?.mockup, `${label}.mockup`);
+		if (!mockups.has(mockup) || seen.has(mockup)) {
+			throw new Error(`Unknown or duplicate feature mockup: ${mockup}`);
+		}
 
-        seen.add(mockup);
-        return {
-            color: expectColor(state?.color, `${label}.color`),
-            label: expectString(state?.label, `${label}.label`),
-            title: expectString(state?.title, `${label}.title`),
-            description: expectString(state?.description, `${label}.description`),
-            tags: expectArray(state?.tags, `${label}.tags`).map((tag, tagIndex) => expectString(tag, `${label}.tags[${tagIndex}]`)),
-            mockup,
-        };
-    });
+		seen.add(mockup);
+		return {
+			color: expectColor(state?.color, `${label}.color`),
+			label: expectString(state?.label, `${label}.label`),
+			title: expectString(state?.title, `${label}.title`),
+			description: expectString(state?.description, `${label}.description`),
+			tags: expectArray(state?.tags, `${label}.tags`).map((tag, tagIndex) => expectString(tag, `${label}.tags[${tagIndex}]`)),
+			mockup,
+		};
+	});
 }
 
 export function parseRepositories(source) {
-    const names = new Set();
-    return expectArray(JSON.parse(source), 'repositories').map((repository, index) => {
-        const name = expectString(repository?.name, `repositories[${index}].name`);
-        if (!/^[\w\-.]+$/u.test(name) || names.has(name)) {
-            throw new Error(`Invalid or duplicate repository name: ${name}`);
-        }
+	const names = new Set();
+	return expectArray(JSON.parse(source), 'repositories').map((repository, index) => {
+		const name = expectString(repository?.name, `repositories[${index}].name`);
+		if (!/^[\w\-.]+$/v.test(name) || names.has(name)) {
+			throw new Error(`Invalid or duplicate repository name: ${name}`);
+		}
 
-        names.add(name);
-        if (!Number.isSafeInteger(repository.graphHeight) || repository.graphHeight <= 0) {
-            throw new Error(`Invalid repository graph height: ${name}`);
-        }
+		names.add(name);
+		if (!Number.isSafeInteger(repository.graphHeight) || repository.graphHeight <= 0) {
+			throw new Error(`Invalid repository graph height: ${name}`);
+		}
 
-        return {
-            name,
-            label: expectString(repository.label, `repositories[${index}].label`),
-            description: expectString(repository.description, `repositories[${index}].description`),
-            graphHeight: repository.graphHeight,
-            centered: repository.centered === true,
-        };
-    });
+		return {
+			name,
+			label: expectString(repository.label, `repositories[${index}].label`),
+			description: expectString(repository.description, `repositories[${index}].description`),
+			graphHeight: repository.graphHeight,
+			centered: repository.centered === true,
+		};
+	});
 }
 
 function normalizeTechStacks(rawData) {
-    const categories = expectArray(rawData?.categories, 'tech-stacks.categories').map(
-        (category, categoryIndex) => ({
-            name: expectString(category?.name, `categories[${categoryIndex}].name`),
-            items: expectArray(
-                category?.items,
-                `categories[${categoryIndex}].items`,
-            ).map((item, itemIndex) => ({
-                name: expectString(
-                    item?.name,
-                    `categories[${categoryIndex}].items[${itemIndex}].name`,
-                ),
-                color: expectColor(
-                    item?.color,
-                    `categories[${categoryIndex}].items[${itemIndex}].color`,
-                ),
-            })),
-        }),
-    );
-    const technologyNames = new Set(
-        categories.flatMap(category => category.items.map(item => item.name)),
-    );
-    const rawPositions = rawData?.positions;
+	const categories = expectArray(rawData?.categories, 'tech-stacks.categories').map(
+		(category, categoryIndex) => ({
+			name: expectString(category?.name, `categories[${categoryIndex}].name`),
+			items: expectArray(
+				category?.items,
+				`categories[${categoryIndex}].items`,
+			).map((item, itemIndex) => ({
+				name: expectString(
+					item?.name,
+					`categories[${categoryIndex}].items[${itemIndex}].name`,
+				),
+				color: expectColor(
+					item?.color,
+					`categories[${categoryIndex}].items[${itemIndex}].color`,
+				),
+			})),
+		}),
+	);
+	const technologyNames = new Set(
+		categories.flatMap(category => category.items.map(item => item.name)),
+	);
+	const rawPositions = rawData?.positions;
 
-    if (
-        !rawPositions
-        || typeof rawPositions !== 'object'
-        || Array.isArray(rawPositions)
-    ) {
-        throw new Error('tech-stacks.positions must be an object.');
-    }
+	if (
+		!rawPositions
+		|| typeof rawPositions !== 'object'
+		|| Array.isArray(rawPositions)
+	) {
+		throw new Error('tech-stacks.positions must be an object.');
+	}
 
-    const positions = Object.entries(rawPositions).map(
-        ([name, position], positionIndex) => {
-            const positionName = expectString(name, `positions[${positionIndex}].name`);
-            const technologies = expectArray(
-                position?.technologies,
-                `positions.${positionName}.technologies`,
-            );
+	const positions = Object.entries(rawPositions).map(
+		([name, position], positionIndex) => {
+			const positionName = expectString(name, `positions[${positionIndex}].name`);
+			const technologies = expectArray(
+				position?.technologies,
+				`positions.${positionName}.technologies`,
+			);
 
-            for (const technology of technologies) {
-                if (!technologyNames.has(technology)) {
-                    throw new Error(
-                        `positions.${positionName} references unknown technology: ${technology}`,
-                    );
-                }
-            }
+			for (const technology of technologies) {
+				if (!technologyNames.has(technology)) {
+					throw new Error(
+						`positions.${positionName} references unknown technology: ${technology}`,
+					);
+				}
+			}
 
-            return {
-                color: expectColor(position?.color, `positions.${positionName}.color`),
-                description: expectString(
-                    position?.description,
-                    `positions.${positionName}.description`,
-                ),
-                name: positionName,
-                technologies,
-            };
-        },
-    );
+			return {
+				color: expectColor(position?.color, `positions.${positionName}.color`),
+				description: expectString(
+					position?.description,
+					`positions.${positionName}.description`,
+				),
+				name: positionName,
+				technologies,
+			};
+		},
+	);
 
-    return { categories, positions };
+	return {categories, positions};
 }
 
 function normalizeTeam(rawData) {
-    const rawMembers = expectArray(rawData?.team?.member, 'team.member');
-    const githubHandles = new Set();
+	const rawMembers = expectArray(rawData?.team?.member, 'team.member');
+	const githubHandles = new Set();
 
-    return rawMembers.map((member, memberIndex) => {
-        const github = expectString(member?.github, `member[${memberIndex}].github`);
-        if (githubHandles.has(github.toLowerCase())) {
-            throw new Error(`Duplicate GitHub handle in team-members.xml: ${github}`);
-        }
+	return rawMembers.map((member, memberIndex) => {
+		const github = expectString(member?.github, `member[${memberIndex}].github`);
+		if (githubHandles.has(github.toLowerCase())) {
+			throw new Error(`Duplicate GitHub handle in team-members.xml: ${github}`);
+		}
 
-        githubHandles.add(github.toLowerCase());
+		githubHandles.add(github.toLowerCase());
 
-        const roles = (Array.isArray(member.role) ? member.role : [member.role]).map(
-            (role, roleIndex) =>
-                expectString(role, `member[${memberIndex}].role[${roleIndex}]`),
-        );
+		const roles = (Array.isArray(member.role) ? member.role : [member.role]).map(
+			(role, roleIndex) =>
+				expectString(role, `member[${memberIndex}].role[${roleIndex}]`),
+		);
 
-        return {
-            accent: expectColor(member?.accent, `member[${memberIndex}].accent`),
-            generation: expectString(
-                member?.generation,
-                `member[${memberIndex}].generation`,
-            ),
-            github,
-            name: expectString(member?.name, `member[${memberIndex}].name`),
-            roles,
-        };
-    });
+		return {
+			accent: expectColor(member?.accent, `member[${memberIndex}].accent`),
+			generation: expectString(
+				member?.generation,
+				`member[${memberIndex}].generation`,
+			),
+			github,
+			name: expectString(member?.name, `member[${memberIndex}].name`),
+			roles,
+		};
+	});
 }
 
 function validateTeamRoles(team, positions) {
-    const positionNames = new Set(positions.map(position => position.name));
+	const positionNames = new Set(positions.map(position => position.name));
 
-    for (const member of team) {
-        for (const role of member.roles) {
-            if (!positionNames.has(role)) {
-                throw new Error(`${member.github} references unknown position: ${role}`);
-            }
-        }
-    }
+	for (const member of team) {
+		for (const role of member.roles) {
+			if (!positionNames.has(role)) {
+				throw new Error(`${member.github} references unknown position: ${role}`);
+			}
+		}
+	}
 }
 
-export function parseContent({ teamXml, techStackYaml }) {
-    const techStacks = normalizeTechStacks(parseYaml(techStackYaml));
-    const team = normalizeTeam(
-        new XMLParser({
-            attributeNamePrefix: '',
-            ignoreAttributes: false,
-            parseAttributeValue: false,
-            trimValues: true,
-        }).parse(teamXml),
-    );
+export function parseContent({teamXml, techStackYaml}) {
+	const techStacks = normalizeTechStacks(parseYaml(techStackYaml));
+	const team = normalizeTeam(
+		new XMLParser({
+			attributeNamePrefix: '',
+			ignoreAttributes: false,
+			parseAttributeValue: false,
+			trimValues: true,
+		}).parse(teamXml),
+	);
 
-    validateTeamRoles(team, techStacks.positions);
-    return { team, techStacks };
+	validateTeamRoles(team, techStacks.positions);
+	return {team, techStacks};
 }
