@@ -19,6 +19,7 @@ services:
       - blackbox_config:/generated/blackbox
       - prometheus_config:/generated/prometheus
       - alertmanager_config:/generated/alertmanager
+      - grafana_proxy_config:/generated/grafana-proxy
     entrypoint: [/bin/sh, /prepare-configs.sh]
   loki:
     image: grafana/loki:3.7.7@sha256:d70e4659623f3e109af669cae76fe2a5dd5be54e2298fe8aed380d982fbc2500
@@ -154,10 +155,17 @@ services:
     ports:
       - ${MONITORING_BIND_IP:?MONITORING_BIND_IP is required}:8080:8080
     volumes:
-      - ./deploy/config/monitoring/grafana/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+      - grafana_proxy_config:/etc/nginx/conf.d:ro
     entrypoint: [nginx]
     command: [-g, 'daemon off;']
+    healthcheck:
+      test: [CMD, wget, -q, --spider, 'http://127.0.0.1:8080/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 6
     depends_on:
+      monitoring-config-init:
+        condition: service_completed_successfully
       grafana:
         condition: service_started
   mysqld_exporter:
@@ -237,3 +245,4 @@ volumes:
   loki_config: {}
   blackbox_config: {}
   prometheus_config: {}
+  grafana_proxy_config: {}
