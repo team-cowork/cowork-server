@@ -63,7 +63,7 @@ def validate(value, target):
     demand(isinstance(github_secrets, dict), "GitHub secret references must be an object")
     if github_secrets:
         demand(value["kind"] == "infrastructure" and value["service"] == "monitoring"
-               and github_secrets == {"DISCORD_WEBHOOK_URL": "DISCORD_MONITORING_ALERT_WEBHOOK"},
+               and github_secrets == {"DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK"},
                "Only monitoring can consume its GitHub monitoring webhook")
         demand(not set(github_secrets).intersection(value.get("runtime", {}))
                and not set(github_secrets).intersection(secrets.get("runtime", {}))
@@ -134,7 +134,11 @@ def environment(slot):
 
 
 def host_network(directory=None):
-    path = (directory or Path(__file__).parent) / "host-network.json"
+    base = directory or Path(__file__).parent
+    path = base / "network/host-network.json"
+    if directory is not None and not path.exists():
+        # Replay can read releases from before the network directory was introduced.
+        path = base / "host-network.json"
     demand(path.is_file() and not path.is_symlink(), "Missing regular host network contract")
     value = json.loads(path.read_text(), object_pairs_hook=pairs)
     demand(isinstance(value, dict) and set(value) == {"name", "mtu"}, "Invalid host network contract")

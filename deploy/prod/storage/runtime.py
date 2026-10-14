@@ -62,7 +62,7 @@ def prepare():
         settings.unlink()
     for name in ("config", "scripts"):
         (SNAPSHOT / name).mkdir(mode=0o700)
-    variables = {**COMMAND_ENV, "APP_PROFILE": "prod", "S3_BUCKET": value["bucket"]}
+    variables = {**COMMAND_ENV, "APP_CONFIG_PROFILE": "prod", "S3_BUCKET": value["bucket"]}
     for role, identity in value["identities"].items():
         prefix = "S3" if role == "admin" else "S3_" + role.upper()
         variables[prefix + "_ACCESS_KEY"] = identity["access_key"]

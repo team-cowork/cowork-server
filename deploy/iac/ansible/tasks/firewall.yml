@@ -1,7 +1,7 @@
 ---
 - name: Derive the ingress contract from the Git slot
   ansible.builtin.command:
-    argv: "{{ ['python3', cowork_repository ~ '/deploy/iac/monitoring-ingress.py'] if cowork_firewall_target == 'monitoring' else ['python3', cowork_repository ~ '/deploy/prod/slots.py', 'firewall', cowork_firewall_target] }}"
+    argv: "{{ ['python3', cowork_repository ~ '/deploy/iac/scripts/monitoring-ingress.py'] if cowork_firewall_target == 'monitoring' else ['python3', cowork_repository ~ '/deploy/prod/slots.py', 'firewall', cowork_firewall_target] }}"
   delegate_to: localhost
   become: false
   register: cowork_slot_policy
@@ -23,7 +23,7 @@
         group: root
     - name: Copy the reviewed bootstrap implementation
       ansible.builtin.copy:
-        src: "{{ cowork_repository }}/deploy/prod/{{ item }}"
+        src: "{{ cowork_repository }}/deploy/prod/network/{{ item }}"
         dest: "/root/cowork-iac/{{ cowork_policy_type }}/{{ item }}"
         mode: '0600'
         owner: root

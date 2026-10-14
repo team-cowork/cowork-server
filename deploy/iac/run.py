@@ -76,10 +76,12 @@ def infrastructure_source(path):
     if path == '.github/workflows/cowork-prod-cd.yml':
         return True
     if path.startswith(('deploy/iac/', 'deploy/prod/slots/', 'deploy/prod/monitoring/',
-                        'deploy/prod/log-agent/', 'deploy/prod/node-agent/', 'deploy/prod/lib/', 'deploy/config/monitoring/')):
+                        'deploy/prod/log-agent/', 'deploy/prod/node-agent/', 'deploy/prod/lib/', 'deploy/prod/cd/',
+                        'deploy/prod/network/', 'deploy/prod/config/', 'deploy/config/monitoring/')):
         return True
-    if path in {'deploy/prod/inventory.json', 'deploy/prod/host-network.json', 'deploy/prod/services/monitoring.sh',
-                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/node-agent.sh', 'deploy/prod/services/config.sh'}:
+    if path in {'deploy/prod/inventory.json', 'deploy/prod/network/host-network.json', 'deploy/prod/services/monitoring.sh',
+                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/node-agent.sh', 'deploy/prod/services/config.sh',
+                'deploy/prod/storage/settings.py'}:
         return True
     return value.parent == Path('deploy/prod') and value.suffix in {'.py', '.sh', '.service'}
 
@@ -259,11 +261,11 @@ def main():
             print('[iac] Static validation passed. No Vault read, SSH connection, host apply, Terraform plan or deployment occurred.')
             result_output('checked')
             return
-        for key in ('VAULT_ADDR', 'DISCORD_WEBHOOK_URL', 'IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'):
+        for key in ('VAULT_ADDR', 'DISCORD_MONITORING_ALERT_WEBHOOK', 'IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'):
             demand(bool(env.get(key)), f'{key} is required for an infrastructure apply')
         env = vault_identity(env)
         inputs = work / 'inputs'
-        execute([sys.executable, IAC / 'prepare.py', '--sha', args.sha, '--output', inputs], env)
+        execute([sys.executable, IAC / 'scripts/prepare.py', '--sha', args.sha, '--output', inputs], env)
         execute([IAC / 'apply.sh', 'hosts'], {**env, 'IAC_INVENTORY': str(inputs / 'inventory.json')})
         metadata = json.loads((inputs / 'metadata.json').read_text())
         alias = metadata['monitoring_ssh_alias']
@@ -276,7 +278,7 @@ def main():
         wait_for_grafana(tunnel)
         # state.py's temporary checkout and plaintext state are covered by this run's cleanup.
         grafana_env = {**env, **grafana_environment(inputs / 'grafana.env0'), 'TMPDIR': str(work)}
-        command = [sys.executable, IAC / 'state.py', '--recovery-file', args.recovery_file]
+        command = [sys.executable, IAC / 'scripts/state.py', '--recovery-file', args.recovery_file]
         if args.initialize_state:
             command.append('--initialize')
         command.extend(['--', IAC / 'apply.sh', 'grafana', 'apply'])
