@@ -5,54 +5,28 @@ on:
     workflows: ["Cowork Prod CI Workflow"]
     types: [completed]
     branches: [main]
-
   workflow_dispatch:
     inputs:
-      operation:
-        description: Manual operation (automatic CI completion keeps the normal release flow)
-        required: true
-        type: choice
-        options: [redeploy, update-config]
-      target:
-        description: Optional Vault target override; defaults to the selected service
-        required: false
-        type: string
       service:
-        description: Deployment unit (redeploy only)
+        description: Apply GitHub settings and recreate the selected service
+        required: true
         type: choice
         options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault]
       sha:
-        description: Optional full commit SHA for a previous version; defaults to the selected branch
-        type: string
-      configuration_version:
-        description: Vault deployment version (0 selects latest; redeploy only)
-        default: '0'
+        description: Optional existing image commit; blank keeps the currently deployed image
         type: string
       check_only:
-        description: Validate settings without starting containers (redeploy only)
+        description: Validate current applied settings without changing Vault or containers
         default: false
         type: boolean
       initialize_state:
-        description: Create the first Terraform state (service=infrastructure only)
+        description: Create the first Terraform state (infrastructure only)
         default: false
         type: boolean
       vault_recovery:
-        description: Use VAULT_BOOTSTRAP_JSON for Vault recovery (redeploy only)
+        description: Restore Vault using VAULT_BOOTSTRAP_JSON (vault only)
         default: false
         type: boolean
-      scope:
-        description: Vault document type (update-config only)
-        default: deployment
-        type: choice
-        options: [deployment, application, slot-secrets]
-      profile:
-        description: Application profile path (update-config only; deployment uses base)
-        default: base
-        type: choice
-        options: [base, local, prod]
-      expected_version:
-        description: Current KV version; 0 creates a new path (update-config only)
-        type: string
 
 permissions:
   contents: read
@@ -66,265 +40,46 @@ jobs:
     name: Validate Manual Request
     if: >
       github.event_name == 'workflow_dispatch' &&
-      github.repository == 'team-cowork/cowork-server' &&
-      github.ref == 'refs/heads/main'
+      github.repository == 'team-cowork/cowork-server' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       matrix: ${{ steps.request.outputs.matrix }}
       services-list: ${{ steps.request.outputs.services-list }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.operation == 'redeploy' && inputs.sha || github.sha }}
-          fetch-depth: 0
       - name: Validate Manual Request
         id: request
         env:
-          OPERATION: ${{ inputs.operation }}
-          TARGET: ${{ inputs.target || inputs.service }}
           SERVICE: ${{ inputs.service }}
-          RELEASE_SHA: ${{ inputs.sha || github.sha }}
-          CONFIGURATION_VERSION: ${{ inputs.configuration_version || '0' }}
-          INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
-          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
-          VAULT_RECOVERY: ${{ inputs.vault_recovery && 'true' || 'false' }}
+          IMAGE_SHA: ${{ inputs.sha }}
+          CHECK_ONLY: ${{ inputs.check_only }}
+          INITIALIZE_STATE: ${{ inputs.initialize_state }}
+          VAULT_RECOVERY: ${{ inputs.vault_recovery }}
         run: |
-          set -euo pipefail
-          [[ "$TARGET" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-          case "$OPERATION" in
-            redeploy)
-              [[ "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-              [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
-              if [ "$SERVICE" != applications ] && [ "$SERVICE" != infrastructure ]; then
-                test -f "deploy/prod/services/$SERVICE.sh" || test -f "deploy/prod/slots/$TARGET.json"
-              fi
-              test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-              ;;
-            update-config) ;;
-            *) echo 'Unknown manual operation' >&2; exit 1 ;;
-          esac
           python3 - <<'PYTHON'
           import json, os, re
           from pathlib import Path
-          target, service = os.environ["TARGET"], os.environ["SERVICE"]
-          deploy = os.environ["OPERATION"] == "redeploy"
-          group = service == "applications" or target == "applications"
-          if os.environ["VAULT_RECOVERY"] == "true" and (not deploy or service != "vault" or target != "vault"):
-              raise SystemExit("vault_recovery requires redeploy with service=target=vault")
-          if os.environ["INITIALIZE_STATE"] == "true" and (
-              not deploy or service != "infrastructure" or os.environ["CHECK_ONLY"] == "true"
-          ):
-              raise SystemExit("State initialization requires service=infrastructure and check_only=false")
-          if deploy and service in {"monitoring", "log-agent"}:
-              raise SystemExit("Select service=infrastructure to apply monitoring and log agents")
-          if service == "infrastructure":
-              if not deploy or target != "infrastructure":
-                  raise SystemExit("Infrastructure requires redeploy with service=target=infrastructure")
-              units, summary = [], "Infrastructure and monitoring"
-          elif group:
-              if not deploy or (service, target) != ("applications", "applications"):
-                  raise SystemExit("The applications selector requires redeploy with service=target=applications")
-              if os.environ["CONFIGURATION_VERSION"] != "0" or os.environ["VAULT_RECOVERY"] != "false":
-                  raise SystemExit("The applications group requires configuration_version=0 and vault_recovery=false")
-              # Read mappings from the selected release, including when an older
-              # main SHA has no knowledge of this workflow's group selector.
-              applications = ("gateway", "authorization", "user", "team", "channel", "project",
-                              "roadmap", "notification", "preference", "chat", "voice")
-              inventory = json.loads(Path("deploy/prod/inventory.json").read_text())
-              if not isinstance(inventory, dict) or not isinstance(inventory.get("targets"), list):
-                  raise SystemExit("The selected release has an invalid deployment inventory")
-              selected, targets = {}, set()
-              for unit in inventory["targets"]:
-                  if not isinstance(unit, dict) or set(unit) != {"service", "target"} or any(
-                      not isinstance(unit[key], str) or not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", unit[key])
-                      for key in ("service", "target")
-                  ):
-                      raise SystemExit("The selected release has an invalid inventory entry")
-                  if unit["target"] in targets:
-                      raise SystemExit("The selected release has duplicate deployment targets")
-                  targets.add(unit["target"])
-                  if unit["service"] not in applications:
-                      continue
-                  if unit["service"] in selected or unit["target"] == "applications":
-                      raise SystemExit("Each application must have one distinct deployment target")
-                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
-                  if slot.is_file():
-                      if json.loads(slot.read_text()).get("service") != unit["service"]:
-                          raise SystemExit("The application slot does not match its inventory service")
-                  elif not Path("deploy/prod/services", unit["service"] + ".sh").is_file():
-                      raise SystemExit("An application slot or deployment script is missing from the selected release")
-                  selected[unit["service"]] = unit
-              if set(selected) != set(applications):
-                  raise SystemExit("The applications group requires all eleven application services in the selected release")
-              units = [selected[name] for name in applications]
-              summary = "Applications (" + ", ".join(unit["target"] for unit in units) + ")"
+          service = os.environ['SERVICE']
+          units = json.loads(Path('deploy/prod/inventory.json').read_text())['targets']
+          if os.environ['IMAGE_SHA'] and not re.fullmatch('[0-9a-f]{40}', os.environ['IMAGE_SHA']):
+              raise SystemExit('Image SHA must identify an existing commit image')
+          if os.environ['VAULT_RECOVERY'] == 'true' and service != 'vault':
+              raise SystemExit('Vault recovery requires service=vault')
+          if os.environ['INITIALIZE_STATE'] == 'true' and (service != 'infrastructure' or os.environ['CHECK_ONLY'] == 'true'):
+              raise SystemExit('State initialization requires an infrastructure apply')
+          if service == 'infrastructure':
+              units = []
+          elif service == 'applications':
+              units = [unit for unit in units if unit['service'] not in {'config', 'vault'}]
           else:
-              units = [{"service": service, "target": target}] if deploy else []
-              summary = f"{service} ({target})" if deploy else f"Vault configuration ({target})"
-          if deploy:
-              for unit in units:
-                  slot = Path("deploy/prod/slots", unit["target"] + ".json")
-                  if slot.is_file() and json.loads(slot.read_text()).get("service") != unit["service"]:
-                      raise SystemExit("The requested target slot belongs to a different service")
-          matrix = {"include": units}
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write("matrix=" + json.dumps(matrix, separators=(",", ":")) + "\n")
-              output.write("services-list=" + summary + "\n")
-          PYTHON
-
-  prepare:
-    name: Prepare Deployment
-    needs: [manual-request, detect-changes]
-    runs-on: ubuntu-latest
-    if: >
-      !cancelled() && (
-        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
-        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
-         needs.manual-request.result == 'success')
-      )
-    permissions:
-      contents: read
-    outputs:
-      owner: ${{ steps.release.outputs.owner }}
-      should_release: ${{ steps.release.outputs.should_release }}
-      version: ${{ steps.release.outputs.version }}
-      image-matrix: ${{ steps.images.outputs.matrix }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-          fetch-depth: 0
-
-      - name: Resolve Release Version
-        id: release
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
-            echo "VERSION must contain a numeric dotted version, got '${version}'" >&2
-            exit 1
-          fi
-
-          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] &&
-             ! git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
-            echo "should_release=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "should_release=false" >> "${GITHUB_OUTPUT}"
-          fi
-
-      - name: Resolve Selected Deployment Image Inputs
-        id: images
-        env:
-          DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
-        run: |
-          python3 - <<'PYTHON'
-          import json, os
-          from pathlib import Path
-          catalog = json.loads(Path('deploy/images/catalog.json').read_text())
-          selected = {unit['service'] for unit in json.loads(os.environ['DEPLOY_MATRIX'])['include']}
-          infrastructure = {'vault', 'monitoring', 'log-agent', 'node-agent'}
-          unknown = selected - set(catalog) - infrastructure
-          if unknown:
-              raise SystemExit('Selected services have no image contract: ' + ', '.join(sorted(unknown)))
-          # Every selected app needs this release SHA, including deployments caused
-          # only by slot or shared configuration changes. Unselected apps keep their image.
-          matrix = {'include': [
-              {'service': service, 'context': settings['prod'], 'dockerfile': f'cowork-{service}/Dockerfile.prod'}
-              for service, settings in catalog.items() if service in selected
-          ]}
+              units = [unit for unit in units if unit['service'] == service]
+              if not units:
+                  raise SystemExit('Unknown deployment service')
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              output.write('matrix=' + json.dumps(matrix, separators=(',', ':')) + '\n')
+              output.write('matrix=' + json.dumps({'include': units}, separators=(',', ':')) + '\n')
+              output.write('services-list=' + service + '\n')
           PYTHON
-
-  build-images:
-    name: Build And Push cowork-${{ matrix.service }}
-    needs: prepare
-    # Release tags and deployment images have separate lifecycles. A selected
-    # deployment always gets sha-<sha>, even when VERSION did not change.
-    # One source-selection job is intentionally skipped for each trigger.
-    if: >
-      !cancelled() && !inputs.check_only && needs.prepare.result == 'success' &&
-      needs.prepare.outputs.image-matrix != '{"include":[]}'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    strategy:
-      fail-fast: false
-      max-parallel: 4
-      matrix: ${{ fromJSON(needs.prepare.outputs.image-matrix) }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-
-      - name: Log In To GitHub Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build And Push Image
-        uses: ./.github/actions/build-image
-        with:
-          service: ${{ matrix.service }}
-          environment: prod
-          context: ${{ matrix.context }}
-          dockerfile: ${{ matrix.dockerfile }}
-          push: 'true'
-          # sha-<sha> 태그는 deploy job이 항상 pull해야 하므로 매번 push한다.
-          # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
-          # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
-          tags: |
-            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
-          labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-            org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
-
-  release:
-    name: Create Release
-    needs:
-      - prepare
-      - build-images
-    if: >
-      !cancelled() && needs.prepare.result == 'success' &&
-      needs.prepare.outputs.should_release == 'true' &&
-      (needs.build-images.result == 'success' ||
-       (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped'))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-
-      - name: Create Release And Tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          gh release create "v${VERSION}" \
-            --target "${{ github.event.workflow_run.head_sha }}" \
-            --title "v${VERSION}" \
-            --generate-notes
 
   detect-changes:
     name: Detect Deployment Changes
@@ -359,44 +114,276 @@ jobs:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: python3 .deployment-tools/deploy/prod/cd/build-matrix.py
 
-  deployment-plan:
-    name: Plan Deployment
-    needs: [prepare, build-images, release, detect-changes, manual-request]
+  settings-plan:
+    name: Plan GitHub Settings
+    needs: [manual-request, detect-changes]
     if: >
-      !cancelled() && needs.prepare.result == 'success' && (
-        (github.event_name == 'workflow_run' && needs.detect-changes.result == 'success') ||
-        (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
-         needs.manual-request.result == 'success')
-      ) && (
-        needs.build-images.result == 'success' ||
-        (needs.build-images.result == 'skipped' &&
-         (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}'))
-      ) && (needs.release.result == 'success' || needs.release.result == 'skipped')
+      !cancelled() && (needs.manual-request.result == 'success' || needs.detect-changes.result == 'success')
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+      id-token: write
     outputs:
-      vault: ${{ steps.waves.outputs.vault }}
-      config: ${{ steps.waves.outputs.config }}
-      applications: ${{ steps.waves.outputs.applications }}
+      sync_matrix: ${{ steps.plan.outputs.sync_matrix }}
+      attempt: ${{ steps.plan.outputs.attempt }}
     steps:
-      - name: Order Vault, Config Server And Remaining Services
-        id: waves
+      - name: Checkout Deployment Source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Authenticate Settings Reader
+        if: ${{ !inputs.check_only && inputs.service != 'vault' }}
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-plan
+      - name: Select Settings And Save Previous Images
+        id: plan
         env:
           DEPLOY_MATRIX: ${{ needs.manual-request.outputs.matrix || needs.detect-changes.outputs.matrix }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          IMAGE_SHA: ${{ inputs.sha }}
+          AUTOMATIC: ${{ github.event_name == 'workflow_run' }}
+          INFRASTRUCTURE: ${{ inputs.service == 'infrastructure' }}
+          CHECK_ONLY: ${{ inputs.check_only || false }}
+          GH_VARIABLES_JSON: ${{ toJSON(vars) }}
+          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
+          GH_TOKEN: ${{ github.token }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+        run: python3 deploy/prod/cd/rollout-settings.py initial --directory "$RUNNER_TEMP/settings-plan"
+      - name: Preserve Rollout Metadata
+        uses: actions/upload-artifact@v7
+        with:
+          name: settings-${{ github.run_attempt }}-plan
+          path: ${{ runner.temp }}/settings-plan/*.json
+          retention-days: 30
+
+  sync-settings:
+    name: Sync Settings (${{ matrix.target }})
+    needs: settings-plan
+    if: >
+      !cancelled() && needs.settings-plan.result == 'success' &&
+      needs.settings-plan.outputs.sync_matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix: ${{ fromJSON(needs.settings-plan.outputs.sync_matrix) }}
+    steps:
+      - name: Checkout Deployment Source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
+      - name: Authenticate Settings Writer
+        env:
+          TARGET: ${{ matrix.target }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+        run: python3 deploy/prod/cd/vault-auth.py --role "prod-settings-$TARGET"
+      - name: Publish Declared GitHub Inputs To Vault
+        env:
+          TARGET: ${{ matrix.target }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          GH_VARIABLES_JSON: ${{ toJSON(vars) }}
+          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
         run: |
-          python3 - <<'PYTHON'
-          import json, os
-          units = json.loads(os.environ['DEPLOY_MATRIX'])['include']
-          waves = {'vault': [], 'config': [], 'applications': []}
-          for unit in units:
-              # IaC owns these lifecycles and records their deployment status.
-              if unit['service'] in {'monitoring', 'log-agent'}:
-                  continue
-              wave = unit['service'] if unit['service'] in {'vault', 'config'} else 'applications'
-              waves[wave].append(unit)
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
-              for wave, units in waves.items():
-                  output.write(wave + '=' + json.dumps({'include': units}, separators=(',', ':')) + '\n')
-          PYTHON
+          python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
+            --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \
+            --output "$RUNNER_TEMP/settings/summary-$TARGET.json"
+      - name: Preserve Settings Versions For Recovery
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: settings-${{ github.run_attempt }}-journal-${{ matrix.target }}
+          path: ${{ runner.temp }}/settings/*.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  finalize-settings:
+    name: Finalize Settings And Deployment Scope
+    needs: [settings-plan, sync-settings]
+    if: >
+      !cancelled() && needs.settings-plan.result == 'success' &&
+      (needs.sync-settings.result == 'success' || needs.sync-settings.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      attempt: ${{ needs.settings-plan.outputs.attempt }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      image_matrix: ${{ steps.plan.outputs.image_matrix }}
+      resources: ${{ steps.plan.outputs.resources }}
+      reference_versions: ${{ steps.plan.outputs.reference_versions }}
+      vault: ${{ steps.plan.outputs.vault }}
+      config: ${{ steps.plan.outputs.config }}
+      applications: ${{ steps.plan.outputs.applications }}
+    steps:
+      - name: Checkout Deployment Source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
+      - name: Read Rollout Metadata
+        uses: actions/download-artifact@v8
+        with:
+          pattern: settings-${{ github.run_attempt }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/settings
+      - name: Resolve Images And Required Infrastructure
+        id: plan
+        run: python3 deploy/prod/cd/rollout-settings.py finalize --directory "$RUNNER_TEMP/settings"
+
+  prepare:
+    name: Prepare Deployment
+    needs: [finalize-settings]
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.finalize-settings.result == 'success' }}
+    permissions:
+      contents: read
+    outputs:
+      owner: ${{ steps.release.outputs.owner }}
+      should_release: ${{ steps.release.outputs.should_release }}
+      version: ${{ steps.release.outputs.version }}
+      image-matrix: ${{ needs.finalize-settings.outputs.image_matrix }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+
+      - name: Resolve Release Version
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
+            echo "VERSION must contain a numeric dotted version, got '${version}'" >&2
+            exit 1
+          fi
+
+          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          if [ "$GITHUB_EVENT_NAME" = workflow_run ] &&
+             ! git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
+            echo "should_release=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "should_release=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  build-images:
+    name: Build And Push cowork-${{ matrix.service }}
+    needs: prepare
+    # Release tags and deployment images have separate lifecycles. A selected
+    # deployment always gets sha-<sha>, even when VERSION did not change.
+    # One source-selection job is intentionally skipped for each trigger.
+    if: >
+      !cancelled() && !inputs.check_only && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.image-matrix != '{"include":[]}'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.prepare.outputs.image-matrix) }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ matrix.image_sha }}
+
+      - name: Log In To GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build And Push Image
+        uses: ./.github/actions/build-image
+        with:
+          service: ${{ matrix.service }}
+          environment: prod
+          context: ${{ matrix.context }}
+          dockerfile: ${{ matrix.dockerfile }}
+          push: 'true'
+          # sha-<sha> 태그는 deploy job이 항상 pull해야 하므로 매번 push한다.
+          # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
+          # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
+          tags: |
+            ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ matrix.image_sha }}
+            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ matrix.image_sha }}
+            org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
+
+  release:
+    name: Create Release
+    needs:
+      - prepare
+      - build-images
+    if: >
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_release == 'true' &&
+      (needs.build-images.result == 'success' ||
+       (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Create Release And Tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            --target "${{ github.event.workflow_run.head_sha }}" \
+            --title "v${VERSION}" \
+            --generate-notes
+
+  deployment-plan:
+    name: Require All Selected Image Builds
+    needs: [prepare, build-images, release, finalize-settings]
+    if: >
+      !cancelled() && needs.prepare.result == 'success' &&
+      (needs.build-images.result == 'success' ||
+       (needs.build-images.result == 'skipped' &&
+        (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}'))) &&
+      (needs.release.result == 'success' || needs.release.result == 'skipped')
+    runs-on: ubuntu-latest
+    outputs:
+      attempt: ${{ needs.finalize-settings.outputs.attempt }}
+      vault: ${{ needs.finalize-settings.outputs.vault }}
+      config: ${{ needs.finalize-settings.outputs.config }}
+      applications: ${{ needs.finalize-settings.outputs.applications }}
+      reference_versions: ${{ needs.finalize-settings.outputs.reference_versions }}
+    steps:
+      - name: Confirm Deployment Inputs
+        run: echo 'Selected images and settings are ready'
 
   deploy-vault:
     name: Deploy Vault
@@ -420,14 +407,19 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Deploy Target
         uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || github.sha }}
+          image_sha: ${{ matrix.image_sha }}
+          reference_versions: ${{ needs.deployment-plan.outputs.reference_versions }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-          configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
@@ -436,13 +428,12 @@ jobs:
 
   apply-infrastructure:
     name: Apply Infrastructure
-    needs: [deployment-plan, deploy-vault]
+    needs: [deployment-plan, deploy-vault, finalize-settings]
     if: >
       !cancelled() && needs.deployment-plan.result == 'success' &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
-      (github.event_name == 'workflow_run' ||
-       (github.event_name == 'workflow_dispatch' && inputs.operation == 'redeploy' &&
-        inputs.service == 'infrastructure'))
+      (github.event_name == 'workflow_run' || inputs.service == 'infrastructure' ||
+       needs.finalize-settings.outputs.resources != '')
     permissions:
       contents: write
       deployments: write
@@ -455,33 +446,37 @@ jobs:
       - name: Read The Selected Infrastructure Source
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.finalize-settings.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Set Up Python
         uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Set Up Terraform
+        if: ${{ github.event_name == 'workflow_run' || inputs.service == 'infrastructure' }}
         uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.14.0'
           terraform_wrapper: false
       - name: Install Pinned IaC Tools
         run: python -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
-      - name: Validate Or Apply Infrastructure
-        id: apply
+      - name: Validate Or Apply The Infrastructure Source
+        id: full
+        if: ${{ github.event_name == 'workflow_run' || inputs.service == 'infrastructure' }}
         env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
           AUTOMATIC: ${{ github.event_name != 'workflow_dispatch' && 'true' || 'false' }}
           INITIALIZE_STATE: ${{ inputs.initialize_state && 'true' || 'false' }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           IAC_STATE_ENCRYPTION_KEY: ${{ secrets.IAC_STATE_ENCRYPTION_KEY }}
-          DISCORD_MONITORING_ALERT_WEBHOOK: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
-          # Explicit infrastructure replay uses the selected release's input names.
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_MONITORING_ALERT_WEBHOOK }}
+          VAULT_REFERENCE_VERSIONS: ${{ needs.finalize-settings.outputs.reference_versions }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -490,8 +485,27 @@ jobs:
             --work-directory "$RUNNER_TEMP/cowork-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
             --recovery-file "$RUNNER_TEMP/cowork-iac-recovery/grafana.tfstate.aesgcm")
           [ "$CHECK_ONLY" != true ] || options+=(--check-only)
-          [ "$AUTOMATIC" != true ] || options+=(--automatic)
           [ "$INITIALIZE_STATE" != true ] || options+=(--initialize-state)
+          [ "$AUTOMATIC" != true ] || options+=(--automatic)
+          python deploy/iac/run.py "${options[@]}"
+      - name: Validate Or Apply Changed Infrastructure Settings
+        if: >
+          needs.finalize-settings.outputs.resources != '' &&
+          steps.full.outputs.result != 'applied' && steps.full.outputs.result != 'checked'
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          CHECK_ONLY: ${{ inputs.check_only && 'true' || 'false' }}
+          SETTINGS_TARGETS: ${{ needs.finalize-settings.outputs.resources }}
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          VAULT_REFERENCE_VERSIONS: ${{ needs.finalize-settings.outputs.reference_versions }}
+        run: |
+          set -euo pipefail
+          # A full apply already includes these resources. Settings-only changes
+          # still require reconciliation when the infrastructure Git diff is empty.
+          options=(--sha "$RELEASE_SHA" --settings-targets "$SETTINGS_TARGETS"
+            --work-directory "$RUNNER_TEMP/cowork-settings-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
+          [ "$CHECK_ONLY" != true ] || options+=(--check-only)
           python deploy/iac/run.py "${options[@]}"
       - name: Preserve Encrypted State If Persistence Failed
         if: always() && (failure() || cancelled())
@@ -505,53 +519,32 @@ jobs:
         if: always()
         env:
           PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-iac-${{ github.run_id }}-${{ github.run_attempt }}
+          SETTINGS_DIRECTORY: ${{ runner.temp }}/cowork-settings-iac-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           python - <<'PYTHON'
           import os, shutil
           from pathlib import Path
-          directory = Path(os.environ['PRIVATE_DIRECTORY'])
           parent = Path(os.environ['RUNNER_TEMP']).resolve()
-          if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith('cowork-iac-'):
-              raise SystemExit('Invalid IaC cleanup path')
-          if directory.exists():
-              shutil.rmtree(directory)
+          for key, prefix in (('PRIVATE_DIRECTORY', 'cowork-iac-'), ('SETTINGS_DIRECTORY', 'cowork-settings-iac-')):
+              directory = Path(os.environ[key])
+              if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith(prefix):
+                  raise SystemExit('Invalid IaC cleanup path')
+              if directory.exists():
+                  shutil.rmtree(directory)
           PYTHON
-      - name: Summarize The Scope Actually Executed
-        if: success()
-        env:
-          IAC_RESULT: ${{ steps.apply.outputs.result }}
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
-        run: |
-          case "$IAC_RESULT" in
-            checked)
-              echo "Static IaC validation passed at $RELEASE_SHA. No Vault read, SSH connection, Terraform plan or infrastructure apply was performed." >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            skipped)
-              echo "Automatic IaC apply skipped at $RELEASE_SHA. The selected source does not require an infrastructure apply. Existing infrastructure and drift were not inspected." >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            applied)
-              echo "Host configuration, module stores, shared services and monitoring deployment completed at $RELEASE_SHA. Grafana Terraform state was persisted outside the managed VMs." >> "$GITHUB_STEP_SUMMARY"
-              ;;
-            *)
-              echo 'Infrastructure execution did not report a result' >&2
-              exit 1
-              ;;
-          esac
-
   deploy-config:
     name: Deploy Config Server
     needs: [deployment-plan, deploy-vault, apply-infrastructure]
     if: >
       !cancelled() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.config != '{"include":[]}' &&
-      (needs.apply-infrastructure.result == 'success' ||
-       (needs.apply-infrastructure.result == 'skipped' && github.event_name == 'workflow_dispatch' &&
-        inputs.operation == 'redeploy' && inputs.service != 'infrastructure')) &&
+      (needs.apply-infrastructure.result == 'success' || needs.apply-infrastructure.result == 'skipped') &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped')
     permissions:
       contents: read
       deployments: write
       packages: read
+      id-token: write
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -565,19 +558,22 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Deploy Target
         uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || github.sha }}
+          image_sha: ${{ matrix.image_sha }}
+          reference_versions: ${{ needs.deployment-plan.outputs.reference_versions }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-          configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
-          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   deploy:
     name: Deploy (${{ matrix.target }})
@@ -585,15 +581,14 @@ jobs:
     if: >
       !cancelled() && needs.deployment-plan.result == 'success' &&
       needs.deployment-plan.outputs.applications != '{"include":[]}' &&
-      (needs.apply-infrastructure.result == 'success' ||
-       (needs.apply-infrastructure.result == 'skipped' && github.event_name == 'workflow_dispatch' &&
-        inputs.operation == 'redeploy' && inputs.service != 'infrastructure')) &&
+      (needs.apply-infrastructure.result == 'success' || needs.apply-infrastructure.result == 'skipped') &&
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-config.result == 'success' || needs.deploy-config.result == 'skipped')
     permissions:
       contents: read
       deployments: write
       packages: read
+      id-token: write
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -609,45 +604,198 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.workflow_sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Deploy Target
         uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
           target: ${{ matrix.target }}
-          sha: ${{ github.event.workflow_run.head_sha || inputs.sha || github.sha }}
+          sha: ${{ github.event.workflow_run.head_sha || github.sha }}
+          image_sha: ${{ matrix.image_sha }}
+          reference_versions: ${{ needs.deployment-plan.outputs.reference_versions }}
           check_only: ${{ github.event_name == 'workflow_dispatch' && inputs.check_only || false }}
-          configuration_version: ${{ inputs.configuration_version || '0' }}
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
-          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
-  update-config:
-    name: Update Vault Configuration
-    needs: manual-request
-    if: inputs.operation == 'update-config'
+  restore-settings:
+    name: Restore Settings After Failure
+    needs: [settings-plan, sync-settings, finalize-settings, prepare, build-images, release, deployment-plan, deploy-vault, apply-infrastructure, deploy-config, deploy]
+    if: >
+      always() && !inputs.check_only && needs.settings-plan.result == 'success' &&
+      needs.sync-settings.result != 'skipped' &&
+      (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled'))
     runs-on: ubuntu-latest
-    environment: Config-Update(${{ inputs.target || inputs.service }})
+    timeout-minutes: 60
+    environment: Prod-IaC
     permissions:
       contents: read
+      packages: read
+      id-token: write
+    outputs:
+      attempt: ${{ needs.settings-plan.outputs.attempt }}
+      config: ${{ steps.plan.outputs.config }}
+      applications: ${{ steps.plan.outputs.applications }}
+      reference_versions: ${{ steps.restore.outputs.reference_versions }}
+      restoration: ${{ steps.restore.outcome }}
     steps:
-      - name: Checkout Code
+      - name: Checkout Deployment Source
         uses: actions/checkout@v7
-      - name: Replace Vault Document With CAS Protection
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
+      - name: Read Recovery Metadata
+        uses: actions/download-artifact@v8
+        with:
+          pattern: settings-${{ github.run_attempt }}-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/settings
+      - name: Inspect Recovery Metadata
+        id: scope
+        run: python3 deploy/prod/cd/rollout-settings.py recovery-scope --directory "$RUNNER_TEMP/settings"
+      - name: Authenticate Settings Recovery
+        if: ${{ steps.scope.outputs.has_journals == 'true' }}
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-recovery
+      - name: Restore Previous Vault Versions
+        if: ${{ steps.scope.outputs.has_journals == 'true' }}
+        id: restore
         env:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          VAULT_TOKEN: ${{ secrets.VAULT_CONFIG_WRITE_TOKEN }}
-          VAULT_UPDATE_JSON: ${{ secrets.VAULT_UPDATE_JSON }}
-          TARGET: ${{ inputs.target || inputs.service }}
-          SCOPE: ${{ inputs.scope }}
-          PROFILE: ${{ inputs.profile }}
-          EXPECTED_VERSION: ${{ inputs.expected_version }}
+        run: |
+          chmod 600 "$RUNNER_TEMP/settings/"*.json
+          python3 deploy/prod/cd/github-settings.py rollback --journal "$RUNNER_TEMP/settings" \
+            --output "$RUNNER_TEMP/restored-settings.json"
+      - name: Set Up Python For Infrastructure Recovery
+        if: ${{ steps.restore.outcome == 'success' && steps.restore.outputs.resource_targets != '[]' && needs.apply-infrastructure.result != 'skipped' }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install Infrastructure Recovery Dependencies
+        if: ${{ steps.restore.outcome == 'success' && steps.restore.outputs.resource_targets != '[]' && needs.apply-infrastructure.result != 'skipped' }}
+        run: python3 -m pip install --disable-pip-version-check -r deploy/iac/requirements.txt
+      - name: Reapply Previous Infrastructure Credentials
+        if: ${{ steps.restore.outcome == 'success' && steps.restore.outputs.resource_targets != '[]' && needs.apply-infrastructure.result != 'skipped' }}
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          VAULT_REFERENCE_VERSIONS: ${{ steps.restore.outputs.reference_versions }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          RESOURCE_TARGETS: ${{ steps.restore.outputs.resource_targets }}
         run: |
           set -euo pipefail
-          python3 deploy/prod/cd/vault-settings.py update --target "$TARGET" --scope "$SCOPE" \
-            --profile "$PROFILE" --expected-version "$EXPECTED_VERSION"
+          targets="$(python3 -c 'import json,os; print(",".join(json.loads(os.environ["RESOURCE_TARGETS"])))')"
+          # run.py authenticates a separate prod-iac token before reading inventory.
+          python3 deploy/iac/run.py --sha "$RELEASE_SHA" \
+            --work-directory "$RUNNER_TEMP/cowork-restore-iac-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+            --settings-targets "$targets"
+      - name: Select Previous Images
+        id: plan
+        run: python3 deploy/prod/cd/rollout-settings.py recovery --directory "$RUNNER_TEMP/settings"
+      - name: Preserve Recovery Results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: settings-${{ github.run_attempt }}-recovery
+          path: |
+            ${{ runner.temp }}/settings/*.json
+            ${{ runner.temp }}/restored-settings.json
+          retention-days: 30
+      - name: Remove Remaining Infrastructure Recovery Inputs
+        if: always()
+        env:
+          PRIVATE_DIRECTORY: ${{ runner.temp }}/cowork-restore-iac-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          python3 - <<'PYTHON'
+          import os, shutil
+          from pathlib import Path
+          directory = Path(os.environ['PRIVATE_DIRECTORY'])
+          parent = Path(os.environ['RUNNER_TEMP']).resolve()
+          if directory.is_symlink() or directory.parent.resolve() != parent or not directory.name.startswith('cowork-restore-iac-'):
+              raise SystemExit('Invalid infrastructure recovery cleanup path')
+          if directory.exists():
+              shutil.rmtree(directory)
+          PYTHON
+
+  restore-config:
+    name: Restore Previous Config Server
+    needs: [restore-settings]
+    if: >
+      always() && needs.restore-settings.result == 'success' &&
+      needs.restore-settings.outputs.config != '{"include":[]}'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      packages: read
+      id-token: write
+    environment: Prod-CD(${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.restore-settings.outputs.config) }}
+    steps:
+      - name: Checkout Deployment Tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.restore-settings.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
+      - name: Recreate With Previous Image And Restored Settings
+        uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ matrix.source_sha }}
+          image_sha: ${{ matrix.image_sha }}
+          reference_versions: ${{ needs.restore-settings.outputs.reference_versions }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+
+  restore-applications:
+    name: Restore Previous Application
+    needs: [restore-settings, restore-config]
+    if: >
+      always() && needs.restore-settings.result == 'success' &&
+      needs.restore-settings.outputs.applications != '{"include":[]}' && (needs.restore-config.result == 'success' || needs.restore-config.result == 'skipped')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      packages: read
+      id-token: write
+    environment: Prod-CD(${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.restore-settings.outputs.applications) }}
+    steps:
+      - name: Checkout Deployment Tools
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.workflow_sha }}
+      - name: Require This Attempt's Settings Plan
+        env:
+          SETTINGS_ATTEMPT: ${{ needs.restore-settings.outputs.attempt }}
+        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
+      - name: Recreate With Previous Image And Restored Settings
+        uses: ./.github/actions/deploy-target
+        with:
+          service: ${{ matrix.service }}
+          target: ${{ matrix.target }}
+          sha: ${{ matrix.source_sha }}
+          image_sha: ${{ matrix.image_sha }}
+          reference_versions: ${{ needs.restore-settings.outputs.reference_versions }}
+          vault_addr: ${{ vars.VAULT_ADDR }}
+          vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
 
   notify:
     name: Send Deployment Notification
@@ -663,7 +811,12 @@ jobs:
       - deploy-config
       - deploy
       - manual-request
-      - update-config
+      - settings-plan
+      - sync-settings
+      - finalize-settings
+      - restore-settings
+      - restore-config
+      - restore-applications
     if: >
       always() && github.repository == 'team-cowork/cowork-server' && (
         (github.event_name == 'workflow_run' &&
@@ -677,13 +830,13 @@ jobs:
       - name: Get Short SHA
         id: sha
         env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || (inputs.operation == 'redeploy' && inputs.sha) || github.sha }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: echo "short=${RELEASE_SHA:0:7}" >> "$GITHUB_OUTPUT"
 
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.update-config.result }}"
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.sync-settings.result }} ${{ needs.finalize-settings.result }} ${{ needs.settings-plan.result }} ${{ needs.restore-settings.result }} ${{ needs.restore-config.result }} ${{ needs.restore-applications.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
@@ -733,7 +886,7 @@ jobs:
           description: |
             `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
             **Release:** ${{ steps.status.outputs.release_desc }}
-            **Operation:** ${{ inputs.operation || 'release' }}
+            **Operation:** ${{ github.event_name == 'workflow_dispatch' && 'settings and redeploy' || 'release' }}
             **Upstream CI:** ${{ github.event.workflow_run.conclusion || 'n/a' }} · **Run:** ${{ steps.status.outputs.run_desc }}
             **Target:** ${{ needs.manual-request.outputs.services-list || needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
@@ -747,4 +900,7 @@ jobs:
             **Config Server:** ${{ needs.deploy-config.result }}
             **Deploy:** ${{ needs.deploy.result }}
             **Manual Request:** ${{ needs.manual-request.result }}
-            **Update Config:** ${{ needs.update-config.result }}
+            **Settings Sync:** ${{ needs.sync-settings.result }}
+            **Settings Recovery:** ${{ needs.restore-settings.outputs.restoration || needs.restore-settings.result }}
+            **Config Recovery:** ${{ needs.restore-config.result }}
+            **Application Recovery:** ${{ needs.restore-applications.result }}

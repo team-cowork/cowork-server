@@ -6,7 +6,7 @@ import runpy
 import subprocess
 from pathlib import Path
 
-from deployment_state import SHA, successful_sha
+from deployment_state import SHA, successful_deployment
 
 ROOT = Path.cwd()
 IMAGE_INPUTS = runpy.run_path(str(Path(__file__).resolve().parents[2] / "images/build-matrix.py"))
@@ -30,7 +30,7 @@ def affected(service, paths, target=None):
         return True
     config_firewall = {"deploy/prod/network/config-firewall.py", "deploy/prod/network/config-firewall.service",
                        "deploy/prod/network/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
-    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json",
+    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json", "deploy/prod/configuration.json",
               ".github/workflows/cowork-prod-cd.yml"}
     if any(path not in config_firewall and (
         path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))
@@ -74,7 +74,14 @@ def main():
         if name in seen or not known:
             raise ValueError("Duplicate or unknown deployment target")
         seen.add(name)
-        base = successful_sha(service, name)
+        deployment = successful_deployment(service, name)
+        base = deployment["image_sha"] if deployment else None
+        source = deployment["source_sha"] if deployment else None
+        if source and subprocess.run(
+            ["git", "cat-file", "-e", f"{source}^{{commit}}"], capture_output=True,
+        ).returncode == 0 and ancestor(sha, source):
+            print(f"{name}: this source or a newer source is already deployed")
+            continue
         if base == sha:
             continue
         if base and subprocess.run(
