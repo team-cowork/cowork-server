@@ -420,8 +420,6 @@ spring:
 # app.dev-origin.credential은 GitHub Secret DEV_ORIGIN_CREDENTIAL을 CD가 Vault secret/cowork-gateway 로 동기화함
 
 app:
-  dev-origin:
-    enforce: true
   ws:
     allowed-origins: "${PUBLIC_WEB_ORIGINS}"
 
