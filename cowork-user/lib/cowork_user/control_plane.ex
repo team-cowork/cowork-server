@@ -8,7 +8,8 @@ defmodule CoworkUser.ControlPlane do
       raise "Use a Config/Eureka HTTP(S) URL without credentials"
     end
 
-    production = System.get_env("APP_PROFILE", "local") == "prod"
+    profile = System.get_env("APP_CONFIG_PROFILE") || System.get_env("APP_PROFILE", "local")
+    production = profile == "prod"
 
     if production && endpoint.scheme != "https" && !private_ipv4?(endpoint.host) do
       raise "Use HTTPS or a private IPv4 HTTP URL for production Config/Eureka"
