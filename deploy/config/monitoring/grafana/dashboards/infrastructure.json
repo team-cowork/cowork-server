@@ -1,5 +1,5 @@
 {
-  "title": "cowork 인프라 (MySQL + Redis + Kafka + PostgreSQL)",
+  "title": "cowork 인프라 (모듈 DB + Redis + Kafka)",
   "uid": "cowork-infrastructure",
   "tags": ["cowork", "infrastructure"],
   "timezone": "browser",
@@ -15,7 +15,7 @@
       "targets": [
         {
           "expr": "rate(mysql_global_status_queries{service=\"mysql\"}[1m])",
-          "legendFormat": "QPS",
+          "legendFormat": "{{module}} QPS",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -28,12 +28,12 @@
       "targets": [
         {
           "expr": "mysql_global_status_threads_connected{service=\"mysql\"}",
-          "legendFormat": "Connected",
+          "legendFormat": "{{module}} Connected",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "mysql_global_status_threads_running{service=\"mysql\"}",
-          "legendFormat": "Running",
+          "legendFormat": "{{module}} Running",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -105,12 +105,12 @@
       "targets": [
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"active\"}",
-          "legendFormat": "Active",
+          "legendFormat": "{{module}} / {{datname}} Active",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"idle\"}",
-          "legendFormat": "Idle",
+          "legendFormat": "{{module}} / {{datname}} Idle",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -123,15 +123,43 @@
       "targets": [
         {
           "expr": "rate(pg_stat_database_xact_commit{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "Commits/s",
+          "legendFormat": "{{module}} Commits/s",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "rate(pg_stat_database_xact_rollback{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "Rollbacks/s",
+          "legendFormat": "{{module}} Rollbacks/s",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
+    },
+    {
+      "id": 9,
+      "title": "모듈 DB - Exporter 수집 상태",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "expr": "up{job=\"infrastructure\", module!=\"\"}",
+          "legendFormat": "{{module}} / {{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 } }
+    },
+    {
+      "id": 10,
+      "title": "모듈 DB - 연결 상태",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "expr": "mysql_up{job=\"infrastructure\", module!=\"\"} or pg_up{job=\"infrastructure\", module!=\"\"} or mongodb_up{job=\"infrastructure\", module!=\"\"}",
+          "legendFormat": "{{module}} / {{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        }
+      ],
+      "fieldConfig": { "defaults": { "min": 0, "max": 1 } }
     }
   ],
   "templating": {
