@@ -1,8 +1,2 @@
-.terraform/
-*.tfstate
-*.tfstate.*
-*.tfplan
-*.auto.tfvars*
-*.backend.hcl
 inventory*.yml
 !inventory.example.yml
