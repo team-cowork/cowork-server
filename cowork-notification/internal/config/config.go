@@ -74,12 +74,12 @@ func Load() (*AppConfig, error) {
 }
 
 func fetchFromConfigServer() (map[string]string, error) {
-	configURL := getEnv("CONFIG_SERVER_URL", os.Getenv("APP_CONFIG_URL"))
+	configURL := os.Getenv("CONFIG_SERVER_URL")
 	if configURL == "" {
 		return map[string]string{}, nil
 	}
 
-	profile := getEnv("APP_CONFIG_PROFILE", getEnv("APP_PROFILE", "local"))
+	profile := getEnv("APP_CONFIG_PROFILE", "local")
 	client := springconfig.NewClient(configURL, "cowork-notification", profile)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -98,7 +98,7 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
 	}
-	if v := getEnv("KAFKA_BOOTSTRAP_SERVERS", os.Getenv("KAFKA_BROKERS")); v != "" {
+	if v := os.Getenv("KAFKA_BOOTSTRAP_SERVERS"); v != "" {
 		cfg.KafkaBrokers = v
 	}
 	if v := os.Getenv("KAFKA_TOPIC_NOTIFICATION"); v != "" {
@@ -125,10 +125,10 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
 		cfg.EurekaAppName = v
 	}
-	if v := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); v != "" {
+	if v := os.Getenv("APP_ADVERTISE_ADDRESS"); v != "" {
 		cfg.EurekaInstanceHost = v
 	}
-	if v := getEnv("APP_ADVERTISE_PORT", os.Getenv("EUREKA_INSTANCE_PORT")); v != "" {
+	if v := os.Getenv("APP_ADVERTISE_PORT"); v != "" {
 		*eurekaPortStr = v
 	}
 }
@@ -145,7 +145,7 @@ func configureEurekaIdentity(cfg *AppConfig) error {
 			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
 		}
 		identityHost = hostname
-		if explicitHost := getEnv("APP_ADVERTISE_ADDRESS", os.Getenv("EUREKA_INSTANCE_HOST")); explicitHost != "" {
+		if explicitHost := os.Getenv("APP_ADVERTISE_ADDRESS"); explicitHost != "" {
 			cfg.EurekaInstanceHost = explicitHost
 		} else if address := firstNonLoopbackIPv4(); address != "" {
 			cfg.EurekaInstanceHost = address
@@ -178,7 +178,7 @@ func firstNonLoopbackIPv4() string {
 func validate(cfg *AppConfig) (*AppConfig, error) {
 	required := map[string]string{
 		"DB_DSN (or db.dsn from config server)":                                       cfg.DBDSN,
-		"KAFKA_BROKERS (or kafka.brokers from config server)":                         cfg.KafkaBrokers,
+		"KAFKA_BOOTSTRAP_SERVERS (or kafka.brokers from config server)":               cfg.KafkaBrokers,
 		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":                cfg.KafkaTopicNotify,
 		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                       cfg.KafkaGroupID,
 		"KAFKA_PROJECTION_GROUP_ID (or kafka.projection-group-id from config server)": cfg.KafkaProjectionGroupID,

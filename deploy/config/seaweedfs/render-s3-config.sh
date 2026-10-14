@@ -12,7 +12,7 @@ seen_keys='|'
 for name in S3_BUCKET S3_ACCESS_KEY S3_SECRET_KEY S3_TEAM_ACCESS_KEY S3_TEAM_SECRET_KEY S3_USER_ACCESS_KEY S3_USER_SECRET_KEY S3_CHAT_ACCESS_KEY S3_CHAT_SECRET_KEY; do
     value=$(printenv "$name")
     case "$value" in ''|*[!A-Za-z0-9_+=/.-]*) echo "Invalid or missing $name (use base64url credentials)" >&2; exit 1;; esac
-    if [ "${APP_PROFILE:-local}" = prod ]; then
+    if [ "${APP_CONFIG_PROFILE:-local}" = prod ]; then
         case "$value" in seaweedfs*|local-*) echo "Development credential is not allowed for $name" >&2; exit 1;; esac
     fi
     case "$name" in *_ACCESS_KEY)

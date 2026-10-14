@@ -7,7 +7,7 @@ old_ifs=$IFS
 IFS=,
 for origin in $PUBLIC_WEB_ORIGINS; do
     printf '%s' "$origin" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?$' || { echo 'Invalid CORS origin' >&2; exit 1; }
-    if [ "${APP_PROFILE:-local}" = prod ]; then
+    if [ "${APP_CONFIG_PROFILE:-local}" = prod ]; then
         case "$origin" in https://*) ;; *) echo 'Production CORS requires HTTPS' >&2; exit 1;; esac
     fi
     printf '%s"%s"' "$comma" "$origin"
