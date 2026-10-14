@@ -5,7 +5,7 @@ import json
 import runpy
 from pathlib import Path
 
-prod = Path(__file__).resolve().parents[1] / "prod"
+prod = Path(__file__).resolve().parents[2] / "prod"
 slots = runpy.run_path(str(prod / "slots.py"))
 monitoring = slots["load"]("monitoring")["runtime"]
 peers = set()

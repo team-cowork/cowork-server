@@ -1,7 +1,7 @@
 ---
 - name: Load the reviewed container CLI version and checksum
   ansible.builtin.include_vars:
-    file: "{{ cowork_repository }}/deploy/iac/container-tools.json"
+    file: "{{ cowork_repository }}/deploy/iac/policy/container-tools.json"
     name: cowork_container_tools
 - name: Validate the pinned Compose platform and release source
   ansible.builtin.assert:
