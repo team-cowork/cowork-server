@@ -69,21 +69,27 @@
       "get": {
         "tags": ["preference"],
         "summary": "프로젝트 설정 조회",
+        "description": "프로젝트가 속한 팀의 멤버만 조회할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "put": {
         "tags": ["preference"],
         "summary": "프로젝트 설정 수정",
+        "description": "프로젝트가 속한 팀의 OWNER·ADMIN만 수정할 수 있습니다. 프로젝트 OWNER·EDITOR 멤버의 수정 권한은 아직 반영하지 않았습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "object" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -92,21 +98,27 @@
       "get": {
         "tags": ["preference"],
         "summary": "음성 채널 설정 조회",
+        "description": "채널이 속한 팀의 멤버이면서 채널 메시지 읽기 권한이 있어야 조회할 수 있고, 비공개 채널과 DM은 채널 멤버여야 합니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "put": {
         "tags": ["preference"],
         "summary": "음성 채널 설정 수정",
+        "description": "채널이 속한 팀의 OWNER·ADMIN만 수정할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VoiceChannelSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -115,21 +127,27 @@
       "get": {
         "tags": ["preference"],
         "summary": "텍스트 채널 설정 조회",
+        "description": "채널이 속한 팀의 멤버이면서 채널 메시지 읽기 권한이 있어야 조회할 수 있고, 비공개 채널과 DM은 채널 멤버여야 합니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "put": {
         "tags": ["preference"],
         "summary": "텍스트 채널 설정 수정",
+        "description": "채널이 속한 팀의 OWNER·ADMIN만 수정할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TextChannelSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -138,22 +156,28 @@
       "get": {
         "tags": ["project-role"],
         "summary": "프로젝트 역할 목록 조회",
+        "description": "프로젝트가 속한 팀의 멤버만 조회할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ProjectRole" } } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "post": {
         "tags": ["project-role"],
         "summary": "프로젝트 역할 생성",
+        "description": "프로젝트가 속한 팀의 OWNER·ADMIN만 역할을 관리할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateRoleRequest" } } } },
         "responses": {
           "201": { "description": "Created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProjectRole" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "409": { "description": "역할 이름 중복", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -162,6 +186,7 @@
       "delete": {
         "tags": ["project-role"],
         "summary": "프로젝트 역할 삭제",
+        "description": "프로젝트가 속한 팀의 OWNER·ADMIN만 역할을 관리할 수 있습니다.",
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
           { "$ref": "#/components/parameters/RoleName" }
@@ -169,7 +194,9 @@
         "responses": {
           "204": { "description": "삭제 성공" },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -178,10 +205,13 @@
       "get": {
         "tags": ["project-role"],
         "summary": "프로젝트 멤버 역할 목록 조회",
+        "description": "프로젝트가 속한 팀의 멤버만 조회할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ProjectId" }],
         "responses": {
           "200": { "description": "OK", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/MemberRole" } } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -190,6 +220,7 @@
       "post": {
         "tags": ["project-role"],
         "summary": "멤버에게 역할 부여",
+        "description": "프로젝트가 속한 팀의 OWNER·ADMIN만 역할을 관리할 수 있습니다.",
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
           { "$ref": "#/components/parameters/RoleName" }
@@ -198,7 +229,9 @@
         "responses": {
           "204": { "description": "부여 성공" },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -207,6 +240,7 @@
       "delete": {
         "tags": ["project-role"],
         "summary": "멤버 역할 제거",
+        "description": "프로젝트가 속한 팀의 OWNER·ADMIN만 역할을 관리할 수 있습니다.",
         "parameters": [
           { "$ref": "#/components/parameters/ProjectId" },
           { "$ref": "#/components/parameters/RoleName" },
@@ -215,6 +249,8 @@
         "responses": {
           "204": { "description": "제거 성공" },
           "400": { "$ref": "#/components/responses/BadRequest" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -223,7 +259,7 @@
       "get": {
         "tags": ["notification"],
         "summary": "채널 알림 설정 조회",
-        "description": "본인 계정의 알림 설정만 조회할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
+        "description": "본인 계정이 채널 설정 조회와 같은 채널 접근 권한을 가져야 조회할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
         "parameters": [
           { "name": "accountId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "계정 ID" },
           { "name": "channelId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "채널 ID" }
@@ -232,13 +268,14 @@
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "put": {
         "tags": ["notification"],
         "summary": "채널 알림 설정 수정",
-        "description": "본인 계정의 알림 설정만 수정할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
+        "description": "본인 계정이 채널 설정 조회와 같은 채널 접근 권한을 가져야 수정할 수 있으며 전역 ADMIN도 타인 계정에는 접근할 수 없습니다.",
         "parameters": [
           { "name": "accountId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "계정 ID" },
           { "name": "channelId", "in": "path", "required": true, "schema": { "type": "integer", "format": "int64" }, "description": "채널 ID" }
@@ -248,6 +285,7 @@
           "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NotificationSettings" } } } },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "503": { "$ref": "#/components/responses/ServiceUnavailable" },
           "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
@@ -299,6 +337,10 @@
       },
       "NotFound": {
         "description": "리소스 없음",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
+      },
+      "ServiceUnavailable": {
+        "description": "권한 판단에 필요한 projection이 아직 준비되지 않음",
         "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
       },
       "InternalServerError": {

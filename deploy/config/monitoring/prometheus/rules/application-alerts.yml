@@ -18,16 +18,16 @@ groups:
           severity: critical
         annotations:
           summary: "Declared service readiness failed"
-          description: "Service {{ $labels.service }} did not pass its declared readiness check for 2 minutes."
+          description: "Service {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} did not pass its declared readiness check for 2 minutes."
 
       - alert: coworkInfrastructureScrapeFailed
-        expr: up{job=~"infrastructure|monitoring"} == 0
+        expr: up{job=~"infrastructure|monitoring|hosts"} == 0
         for: 2m
         labels:
           severity: critical
         annotations:
           summary: "Infrastructure metrics are unavailable"
-          description: "Metrics for {{ $labels.service }} have been unavailable for 2 minutes."
+          description: "Metrics for {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }}{{ if $labels.host }} on host {{ $labels.host }}{{ end }} have been unavailable for 2 minutes."
 
       - alert: coworkDatastoreUnavailable
         expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
@@ -36,7 +36,7 @@ groups:
           severity: critical
         annotations:
           summary: "Datastore is unavailable to its exporter"
-          description: "Exporter {{ $labels.service }} cannot reach or authenticate to its datastore."
+          description: "Exporter {{ $labels.service }}{{ if $labels.module }} in module {{ $labels.module }}{{ end }} cannot reach or authenticate to its datastore."
 
       - alert: coworkServiceDown
         expr: up{job=~"cowork-.*"} == 0
@@ -68,6 +68,53 @@ groups:
         annotations:
           summary: "No cowork service discovery targets"
           description: "Prometheus has no cowork-services target for 5 minutes; Eureka returned no registered instances, or Prometheus (re)started while Eureka was unreachable."
+
+  - name: cowork-host
+    rules:
+      # node_exporter는 --path.rootfs 접두어를 떼고 마운트 경로를 보고하므로 경로를 고정하지 않고,
+      # 수집 단계에서 걸러진 실제 파일시스템을 모두 본다. 어디가 찼는지는 mountpoint 라벨로 구분한다.
+      - alert: coworkHostDiskSpaceLow
+        expr: |
+          node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk space low"
+          description: "host={{ $labels.host }} {{ $labels.mountpoint }} has less than 15% free space for 10 minutes."
+
+      - alert: coworkHostDiskSpaceCritical
+        expr: |
+          node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.07
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host disk space critical"
+          description: "host={{ $labels.host }} {{ $labels.mountpoint }} has less than 7% free space for 5 minutes."
+
+      # 비율이 아직 여유로워도 차오르는 중이면 미리 알린다. 두 조건을 함께 걸어 일시적 변동을 거른다.
+      - alert: coworkHostDiskWillFill
+        expr: |
+          predict_linear(node_filesystem_avail_bytes[6h], 24 * 3600) < 0
+          and node_filesystem_avail_bytes / node_filesystem_size_bytes < 0.3
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host disk will fill within a day"
+          description: "host={{ $labels.host }} {{ $labels.mountpoint }} free space is trending to zero within 24 hours."
+
+      # absent() only sees "every host's exporter is gone", not one. A single dead node_exporter
+      # is caught per-instance by coworkInfrastructureScrapeFailed (job="hosts") instead.
+      - alert: coworkHostMetricsMissing
+        expr: absent(node_filesystem_avail_bytes)
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No host disk metrics from any VM"
+          description: "No host filesystem metrics from any VM for 10 minutes; node-agent may not be deployed or scrape config rendering may have failed."
 
   - name: cowork-jvm
     rules:

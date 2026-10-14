@@ -76,10 +76,12 @@ def infrastructure_source(path):
     if path == '.github/workflows/cowork-prod-cd.yml':
         return True
     if path.startswith(('deploy/iac/', 'deploy/prod/slots/', 'deploy/prod/monitoring/',
-                        'deploy/prod/log-agent/', 'deploy/prod/lib/', 'deploy/config/monitoring/')):
+                        'deploy/prod/log-agent/', 'deploy/prod/node-agent/', 'deploy/prod/lib/', 'deploy/prod/cd/',
+                        'deploy/prod/network/', 'deploy/prod/config/', 'deploy/config/monitoring/',
+                        'deploy/prod/storage/', 'deploy/config/seaweedfs/', 'deploy/images/elasticsearch/')):
         return True
-    if path in {'deploy/prod/inventory.json', 'deploy/prod/host-network.json', 'deploy/prod/services/monitoring.sh',
-                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/config.sh'}:
+    if path in {'deploy/prod/inventory.json', 'deploy/prod/network/host-network.json', 'deploy/prod/services/monitoring.sh',
+                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/node-agent.sh', 'deploy/prod/services/config.sh', 'deploy/compose/stack.yaml'}:
         return True
     return value.parent == Path('deploy/prod') and value.suffix in {'.py', '.sh', '.service'}
 
@@ -207,12 +209,12 @@ def record_success(sha, host_count, env):
     deployment = github_api('deployments', env, {
         'ref': sha, 'task': 'cowork-infrastructure', 'environment': 'Prod-IaC',
         'auto_merge': False, 'required_contexts': [], 'production_environment': True,
-        'payload': {'host_count': host_count, 'scope': 'hosts-and-monitoring'},
-        'description': 'Host configuration applied and Grafana state persisted',
+        'payload': {'host_count': host_count, 'scope': 'hosts-persistent-services-and-monitoring'},
+        'description': 'Host and persistent service configuration applied; Grafana state persisted',
     })
     github_api(f'deployments/{deployment["id"]}/statuses', env, {
         'state': 'success', 'auto_inactive': False,
-        'description': 'Host configuration applied and Grafana state persisted',
+        'description': 'Host and persistent service configuration applied; Grafana state persisted',
         'log_url': f'{env.get("GITHUB_SERVER_URL", "https://github.com")}/{repository}/actions/runs/{env["GITHUB_RUN_ID"]}',
     })
 
@@ -250,6 +252,8 @@ def main():
                 result_output('skipped')
                 return
         execute([sys.executable, ROOT / 'deploy/prod/slots.py', 'validate'], env)
+        for source in ('databases/runtime.py', 'databases/search.py', 'shared/runtime.py', 'storage/runtime.py'):
+            execute([sys.executable, IAC / source, 'check'], env)
         execute(['ansible-playbook', '-i', IAC / 'inventory.example.yml', IAC / 'ansible/site.yml', '--syntax-check'], env)
         validation_env = {**env, 'TF_DATA_DIR': str(work / 'terraform-validation')}
         execute(['terraform', f'-chdir={IAC / "terraform"}', 'fmt', '-check'], validation_env)
@@ -259,11 +263,11 @@ def main():
             print('[iac] Static validation passed. No Vault read, SSH connection, host apply, Terraform plan or deployment occurred.')
             result_output('checked')
             return
-        for key in ('VAULT_ADDR', 'DISCORD_WEBHOOK_URL', 'IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'):
+        for key in ('VAULT_ADDR', 'DISCORD_MONITORING_ALERT_WEBHOOK', 'IAC_STATE_ENCRYPTION_KEY', 'GITHUB_REPOSITORY'):
             demand(bool(env.get(key)), f'{key} is required for an infrastructure apply')
         env = vault_identity(env)
         inputs = work / 'inputs'
-        execute([sys.executable, IAC / 'prepare.py', '--sha', args.sha, '--output', inputs], env)
+        execute([sys.executable, IAC / 'scripts/prepare.py', '--sha', args.sha, '--output', inputs], env)
         execute([IAC / 'apply.sh', 'hosts'], {**env, 'IAC_INVENTORY': str(inputs / 'inventory.json')})
         metadata = json.loads((inputs / 'metadata.json').read_text())
         alias = metadata['monitoring_ssh_alias']
@@ -276,7 +280,7 @@ def main():
         wait_for_grafana(tunnel)
         # state.py's temporary checkout and plaintext state are covered by this run's cleanup.
         grafana_env = {**env, **grafana_environment(inputs / 'grafana.env0'), 'TMPDIR': str(work)}
-        command = [sys.executable, IAC / 'state.py', '--recovery-file', args.recovery_file]
+        command = [sys.executable, IAC / 'scripts/state.py', '--recovery-file', args.recovery_file]
         if args.initialize_state:
             command.append('--initialize')
         command.extend(['--', IAC / 'apply.sh', 'grafana', 'apply'])
