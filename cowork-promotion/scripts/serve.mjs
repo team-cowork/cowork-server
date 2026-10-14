@@ -6,7 +6,6 @@ import {fileURLToPath} from 'node:url';
 import {build} from './build.mjs';
 
 const projectDirectory = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
-const todoDirectory = path.resolve(projectDirectory, '../docs/todo');
 const rootDirectory = path.resolve(process.argv[2] ?? '.');
 const watchMode = process.argv.includes('--watch');
 const port = Number(process.env.PORT ?? 3000);
@@ -200,10 +199,7 @@ process.once('SIGTERM', shutdown);
 
 if (watchMode) {
 	try {
-		await Promise.all([
-			watchDirectory(projectDirectory, filename => (shouldRebuild(filename) ? filename : undefined)),
-			watchDirectory(todoDirectory, filename => (filename?.endsWith('.md') ? filename : undefined)),
-		]);
+		await watchDirectory(projectDirectory, filename => (shouldRebuild(filename) ? filename : undefined));
 	} catch (error) {
 		console.error('Source watcher failed.', error);
 		process.exitCode = 1;
