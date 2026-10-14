@@ -66,11 +66,9 @@ def main():
     if slot is not None:
         demand(set(slot.get("github_secrets", {})).issubset(data.get("runtime", {})),
                "A declared GitHub secret was not supplied by the IaC workflow")
-    for isolated in schema["ISOLATED_RUNTIME_SETTINGS"]:
-        demand((service == isolated) == (target == isolated), f"The {isolated} target requires the {isolated} service")
-    if service in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
+    if service in {"vault", "monitoring", "log-agent"}:
         demand(not data.get("application"), "Infrastructure units use runtime settings only")
-    if service not in {"vault", "monitoring", "storage", "datastores", "log-agent"}:
+    if service not in {"vault", "monitoring", "log-agent"}:
         demand(slot is not None, "Applications require a versioned slot")
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target

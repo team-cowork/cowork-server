@@ -26,11 +26,18 @@ def main():
         except urllib.error.HTTPError as error:
             raise RuntimeError(f'Vault bootstrap failed: {path} (HTTP {error.code})') from None
 
-    spec = json.loads((Path(__file__).resolve().parents[1] / 'policy/vault-auth.json').read_text())
-    databases = json.loads((Path(__file__).resolve().parents[1] / 'databases/catalog.json').read_text())
-    for module in databases:
-        spec['policies']['cowork-iac-read']['secret/data/iac/databases/' + module] = ['read']
-        spec['policies']['cowork-iac-read']['secret/data/slot-secrets/' + module] = ['read']
+    iac = Path(__file__).resolve().parents[1]
+    spec = json.loads((iac / 'policy/vault-auth.json').read_text())
+    policy = spec['policies']['cowork-iac-read']
+    for category in ('databases', 'storage'):
+        for module in json.loads((iac / category / 'catalog.json').read_text()):
+            policy[f'secret/data/iac/{category}/{module}'] = ['read']
+            policy['secret/data/slot-secrets/' + module] = ['read']
+    shared = json.loads((iac / 'shared/catalog.json').read_text())
+    if 'kafka' in shared:
+        policy['secret/data/iac/shared/kafka'] = ['read']
+    if 'livekit' in shared:
+        policy['secret/data/slot-secrets/voice'] = ['read']
     # Git declares each slot's secret dependencies. Runtime and update tokens
     # receive only their own exact paths; the IaC runner cannot change policies.
     slots = Path(__file__).resolve().parents[2] / 'prod/slots'
