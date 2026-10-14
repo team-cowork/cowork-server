@@ -1,4 +1,4 @@
-# Local development entry point. Production VM deployment: docs/deployment.md.
+# Local development entry point.
 # Explicit paths keep build contexts and bind mounts relative to the repository.
 include:
   - path:
