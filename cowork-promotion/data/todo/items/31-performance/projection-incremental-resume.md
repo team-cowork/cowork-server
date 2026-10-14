@@ -11,7 +11,7 @@
 collection의 완전 소실 검사도 일부 문서 유실을 탐지하지 못한다.
 
 운영 source 세대를 broker UUID와 동등한 증거로 취급하지 않는다.
-공통 복구 계약은 [Kafka 규칙](../../../../.claude/rules/kafka-projections.md)을 따른다.
+공통 복구 계약은 [Kafka 규칙](../../../../../.claude/rules/kafka-projections.md)을 따른다.
 
 ## 할 일
 
