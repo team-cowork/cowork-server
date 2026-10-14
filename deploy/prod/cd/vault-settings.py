@@ -34,7 +34,7 @@ VAULT_APP_ROLE_PATH VAULT_ROLE_ID VAULT_SECRET_ID
 MONITORING_BIND_IP MONITORING_ADMIN_BIND_IP MONITORING_COMPOSE_PROJECT MONITORING_VOLUME_PREFIX
 GRAFANA_ADMIN_PASSWORD DISCORD_MONITORING_ALERT_WEBHOOK
 KAFKA_EXPORTER_SERVER
-LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR GHCR_READ_TOKEN
+LOG_HOST LOKI_PUSH_URL DOCKER_CONTAINER_LOG_DIR NODE_EXPORTER_BIND_IP GHCR_READ_TOKEN
 DB_PASSWORD GITHUB_APP_INTERNAL_API_KEY
 """.split())
 # deploy.sh waits up to HEALTH_TIMEOUT_SECONDS for the candidate and again while restoring the previous
@@ -163,7 +163,7 @@ def main():
     else:
         services = {p.stem for p in (Path(__file__).resolve().parents[1] / "services").glob("*.sh")} | {
             json.loads(p.read_text())["service"] for p in (Path(__file__).resolve().parents[1] / "slots").glob("*.json")}
-        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "log-agent"}, "Invalid Config Server application")
+        demand(args.target == "application" or args.target in services - {"config", "monitoring", "vault", "log-agent", "node-agent"}, "Invalid Config Server application")
         path = "application" if args.target == "application" else f"cowork-{args.target}"
         if args.profile != "base":
             path += "/" + args.profile
