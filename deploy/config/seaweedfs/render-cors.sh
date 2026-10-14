@@ -6,7 +6,7 @@ comma=''
 old_ifs=$IFS
 IFS=,
 for origin in $PUBLIC_WEB_ORIGINS; do
-    printf '%s' "$origin" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]+)?$' || { echo 'Invalid CORS origin' >&2; exit 1; }
+    printf '%s' "$origin" | grep -Eq '^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?$' || { echo 'Invalid CORS origin' >&2; exit 1; }
     printf '%s"%s"' "$comma" "$origin"
     comma=,
 done
