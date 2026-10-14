@@ -27,7 +27,8 @@ COPY .editorconfig /workspace/.editorconfig
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-gateway:check -x test --no-daemon --build-cache \
-    && python3 /ci/untested.py /coverage/coverage.json "Gateway transport and authentication filters have no selected core-business unit tests."
+    && bash /ci/run-jvm.sh gradle cowork-gateway /workspace /coverage \
+    && python3 /ci/report.py collect --module cowork-gateway --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
 COPY --from=verification /coverage /
