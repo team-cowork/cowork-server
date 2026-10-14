@@ -8,10 +8,14 @@ SERVICE_NAME="cowork-notification"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-notification"
 SERVICE_COMMAND=(
   bash -lc
-  'export APP_CONFIG_URL="http://localhost:8761"
-   export APP_PROFILE="local"
-   export DB_DSN="${DB_DSN:-${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(localhost:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local}"
-   export KAFKA_BROKERS="${KAFKA_BROKERS:-${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}}"
+  'export DB_HOST="${DB_HOST:-localhost}"
+   export DB_PORT="${DB_PORT:-3306}"
+   export DB_NAME="${DB_NAME:-cowork_notification}"
+   export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
+   export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
+   export CONFIG_SERVER_URL="http://localhost:8761"
+   export APP_CONFIG_PROFILE="local"
+   export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export KAFKA_TOPIC_NOTIFICATION="${KAFKA_TOPIC_NOTIFICATION:-notification.trigger}"
    export KAFKA_GROUP_ID="${KAFKA_GROUP_ID:-cowork-notification}"
    export KAFKA_PROJECTION_GROUP_ID="${KAFKA_PROJECTION_GROUP_ID:-cowork-notification-projections}"
@@ -19,7 +23,7 @@ SERVICE_COMMAND=(
    export KAFKA_TOPIC_USER_PROFILE="${KAFKA_TOPIC_USER_PROFILE:-user.profile.event}"
    export KAFKA_TOPIC_TEAM_LIFECYCLE="${KAFKA_TOPIC_TEAM_LIFECYCLE:-team.lifecycle}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
-   export EUREKA_INSTANCE_HOST="${EUREKA_INSTANCE_HOST:-localhost}"
+   export APP_ADVERTISE_ADDRESS="${APP_ADVERTISE_ADDRESS:-localhost}"
    exec go run ./cmd/server/'
 )
 

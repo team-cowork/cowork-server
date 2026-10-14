@@ -430,6 +430,10 @@ def read_manifest(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]
 def render(args: argparse.Namespace) -> str:
     modules, excluded = read_manifest(args.manifest)
     results, diagnostics = load_results(args.artifacts, modules)
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    if not any(result.status == "ok" and result.total > 0 for result in results.values()):
+        args.output.write_text("", encoding="utf-8")
+        return ""
     base = aggregate([results[(module["module"], "base")] for module in modules], "base")
     pr = aggregate([results[(module["module"], "pr")] for module in modules], "pr")
     base_complete = base.status == "ok" and not any(snapshot in {None, "base"} for snapshot, _ in diagnostics)
@@ -444,18 +448,11 @@ def render(args: argparse.Namespace) -> str:
         != (results[(module["module"], "pr")].status == "absent")
         for module in modules
     )
-    test_scope_changed = any(
-        (results[(module["module"], "base")].status == "untested")
-        != (results[(module["module"], "pr")].status == "untested")
-        for module in modules
-    )
-    scope_changed = module_scope_changed or test_scope_changed
-    overall_change = delta(base, pr) if base_complete and pr_complete and not unit_changed and not scope_changed else None
     lines = [MARKER, "## 테스트 커버리지", ""]
     if pr_complete and pr.total:
         lines += [f'<img src="{html.escape(donut_url(pr.covered, pr.total), quote=True)}" alt="영향 모듈 커버리지 {percentage(pr.percent)}" width="240" height="160">', ""]
 
-    lines += ["```diff", coverage_line("영향 모듈 합계", pr.percent if pr_complete else None, overall_change)]
+    lines.append("```diff")
     for module in modules:
         name = module["module"]
         previous, current = results[(name, "base")], results[(name, "pr")]
@@ -466,16 +463,13 @@ def render(args: argparse.Namespace) -> str:
 
     lines += ["```", ""]
     if not pr_complete:
-        lines += ["현재 PR의 일부 측정이 실패하거나 누락되어 현재 합계와 도넛 차트를 표시하지 않았습니다. 전체 증감은 N/A입니다.", ""]
+        lines += ["현재 PR의 일부 측정이 실패하거나 누락되어 도넛 차트를 표시하지 않았습니다.", ""]
     if not base_complete:
-        message = "기준 커밋의 일부 커버리지가 측정되지 않았거나 측정에 실패하여 전체 증감은 N/A입니다."
-        if pr_complete:
-            message += " 현재 PR의 합계와 도넛 차트는 표시합니다."
-        lines += [message, ""]
+        lines += ["기준 커밋의 일부 커버리지가 없거나 측정에 실패하여 해당 모듈의 증감은 N/A입니다.", ""]
     if unit_changed:
-        lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈이 있어 해당 모듈과 전체 증감은 N/A입니다.", ""]
+        lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈의 증감은 N/A입니다.", ""]
     if module_scope_changed:
-        lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 개별 증감과 전체 증감은 N/A입니다.", ""]
+        lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 증감은 N/A입니다.", ""]
     if diagnostics:
         lines += ["보고서 검증 오류:", ""]
         for snapshot, message in diagnostics:
@@ -483,7 +477,6 @@ def render(args: argparse.Namespace) -> str:
             lines.append(f"- {label}: {text(message[:500])}")
         lines.append("")
     body = "\n".join(lines)
-    args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(body, encoding="utf-8")
     return body
 

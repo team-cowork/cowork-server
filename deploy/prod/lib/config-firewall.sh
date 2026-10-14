@@ -2,8 +2,8 @@
 # Docker-published ports bypass ufw INPUT rules; filter their original destination.
 prepare_config_firewall() {
   export BIND_IP HOST_PORT CONFIG_ALLOWED_CIDRS
-  python3 "${PROD_DIR}/config-access.py" firewall >/dev/null || return 1
-  (umask 077 && python3 "${PROD_DIR}/config-firewall.py" render > "${DEPLOY_SETTINGS_DIR}/config-firewall.json") || return 1
+  python3 "${PROD_DIR}/config/config-access.py" firewall >/dev/null || return 1
+  (umask 077 && python3 "${PROD_DIR}/network/config-firewall.py" render > "${DEPLOY_SETTINGS_DIR}/config-firewall.json") || return 1
   CONFIG_FIREWALL_TRANSACTION=$(python3 -c 'import uuid; print(uuid.uuid4())')
 }
 

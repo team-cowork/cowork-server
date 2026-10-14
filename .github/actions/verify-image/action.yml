@@ -1,4 +1,4 @@
-name: Verify a cowork module
+name: Verify A Cowork Module
 description: Run the module-owned verify target and validate its coverage export
 inputs:
   module:
@@ -22,17 +22,18 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Read source revision
+    - name: Read Source Revision
       if: inputs.contract == 'true'
       id: source
       shell: bash
       env:
         SOURCE: ${{ inputs.source }}
       run: echo "sha=$(git -C "$SOURCE" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-    - uses: docker/setup-buildx-action@v4
+    - name: Set Up Docker Buildx
+      uses: docker/setup-buildx-action@v4
       if: inputs.contract == 'true'
       id: builder
-    - name: Restore verification dependency caches
+    - name: Restore Verification Dependency Caches
       if: inputs.contract == 'true'
       uses: actions/cache@v6
       id: cache
@@ -41,7 +42,7 @@ runs:
         key: ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}-${{ github.sha }}
         restore-keys: |
           ${{ runner.os }}-verify-mounts-v1-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}-
-    - name: Inject and extract verification cache mounts
+    - name: Inject And Extract Verification Cache Mounts
       if: inputs.contract == 'true'
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
@@ -51,7 +52,7 @@ runs:
         scratch-dir: ${{ runner.temp }}/verify-cache-dance-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
         skip-extraction: ${{ steps.cache.outputs.cache-hit }}
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
-    - name: Verify source and export coverage
+    - name: Verify Source And Export Coverage
       if: inputs.contract == 'true'
       uses: docker/build-push-action@v7
       with:
@@ -65,7 +66,7 @@ runs:
         sbom: false
         cache-from: type=gha,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
         cache-to: type=gha,mode=max,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
-    - name: Validate verification result
+    - name: Validate Verification Result
       if: always()
       shell: bash
       env:
