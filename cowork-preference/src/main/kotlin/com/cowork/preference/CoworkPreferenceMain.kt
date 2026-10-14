@@ -69,7 +69,7 @@ private fun requireDbCredentials(appConfig: AppConfig) {
 
 private fun loadConfig(): JsonObject {
     val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
-    val profile = System.getenv("APP_CONFIG_PROFILE") ?: System.getenv("SPRING_PROFILES_ACTIVE") ?: "local"
+    val profile = System.getenv("APP_CONFIG_PROFILE") ?: "local"
 
     log.info("Fetch configuration for profile={}", profile)
     val serverConfig = fetchFromConfigServer(configServerUrl, profile)
@@ -80,13 +80,13 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
     val mappings =
         mapOf(
             "PORT" to "server.port",
-            "POSTGRES_HOST" to "preference.db.host",
-            "POSTGRES_PORT" to "preference.db.port",
-            "POSTGRES_DATABASE" to "preference.db.database",
-            "POSTGRES_SCHEMA" to "preference.db.schema",
-            "POSTGRES_USER" to "preference.db.username",
-            "POSTGRES_PASSWORD" to "preference.db.password",
-            "POSTGRES_POOL_SIZE" to "preference.db.pool-size",
+            "DB_HOST" to "preference.db.host",
+            "DB_PORT" to "preference.db.port",
+            "DB_NAME" to "preference.db.database",
+            "DB_USERNAME" to "preference.db.username",
+            "DB_PASSWORD" to "preference.db.password",
+            "DB_SCHEMA" to "preference.db.schema",
+            "DB_POOL_SIZE" to "preference.db.pool-size",
             "REDIS_HOST" to "preference.redis.host",
             "REDIS_PORT" to "preference.redis.port",
             "KAFKA_BOOTSTRAP_SERVERS" to "preference.kafka.bootstrap-servers",
@@ -94,6 +94,10 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "KAFKA_TOPIC_TEAM_MEMBER_EVENT" to "preference.kafka.team-member-topic",
             "KAFKA_GROUP_ID_CHANNEL_LIFECYCLE_PROJECTION" to "preference.kafka.channel-lifecycle-consumer-group-id",
             "KAFKA_TOPIC_CHANNEL_EVENT" to "preference.kafka.channel-topic",
+            "KAFKA_GROUP_ID_PROJECT_LIFECYCLE_PROJECTION" to "preference.kafka.project-lifecycle-consumer-group-id",
+            "KAFKA_TOPIC_PROJECT_EVENT" to "preference.kafka.project-topic",
+            "KAFKA_GROUP_ID_CHANNEL_MEMBER_PROJECTION" to "preference.kafka.channel-member-consumer-group-id",
+            "KAFKA_TOPIC_CHANNEL_MEMBER_EVENT" to "preference.kafka.channel-member-topic",
             "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
             "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
                 "preference.kafka.github-repo-setting-command-consumer-group-id",
@@ -102,14 +106,7 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "EUREKA_SERVER_URL" to "eureka.url",
             "EUREKA_ENABLED" to "eureka.enabled",
             "EUREKA_APP_NAME" to "eureka.app-name",
-            "EUREKA_INSTANCE_HOST" to "eureka.instance.host",
             "EUREKA_INSTANCE_ID" to "eureka.instance.id",
-            // Slot inputs take precedence over legacy environment names and Config Server values.
-            "DB_HOST" to "preference.db.host",
-            "DB_PORT" to "preference.db.port",
-            "DB_NAME" to "preference.db.database",
-            "DB_USERNAME" to "preference.db.username",
-            "DB_PASSWORD" to "preference.db.password",
             "APP_ADVERTISE_ADDRESS" to "eureka.instance.host",
         )
 
