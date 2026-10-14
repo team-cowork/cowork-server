@@ -587,7 +587,10 @@ services:
     ports:
       - "9100:9100"
     volumes:
-      - /:/host:ro,rslave
+      # No ":rslave" here: Docker Desktop's VM doesn't mark its own root as a shared/slave mount, so
+      # the recursive propagation prod uses to pick up newly mounted filesystems fails locally with
+      # "path / is mounted on / but it is not a shared or slave mount" (confirmed on this machine).
+      - /:/host:ro
   mysqld_exporter:
     image: prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e
     container_name: cowork-mysqld-exporter

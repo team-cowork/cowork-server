@@ -76,10 +76,10 @@ def infrastructure_source(path):
     if path == '.github/workflows/cowork-prod-cd.yml':
         return True
     if path.startswith(('deploy/iac/', 'deploy/prod/slots/', 'deploy/prod/monitoring/',
-                        'deploy/prod/log-agent/', 'deploy/prod/lib/', 'deploy/config/monitoring/')):
+                        'deploy/prod/log-agent/', 'deploy/prod/node-agent/', 'deploy/prod/lib/', 'deploy/config/monitoring/')):
         return True
     if path in {'deploy/prod/inventory.json', 'deploy/prod/host-network.json', 'deploy/prod/services/monitoring.sh',
-                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/config.sh'}:
+                'deploy/prod/services/log-agent.sh', 'deploy/prod/services/node-agent.sh', 'deploy/prod/services/config.sh'}:
         return True
     return value.parent == Path('deploy/prod') and value.suffix in {'.py', '.sh', '.service'}
 
