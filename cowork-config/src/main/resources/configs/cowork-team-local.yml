@@ -7,11 +7,11 @@ spring:
     username: ${DB_USERNAME:${MYSQL_USER}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
-    bootstrap-servers: kafka:9092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
   cloud:
     aws:
       region:
-        static: us-east-1
+        static: ${S3_REGION:us-east-1}
       credentials:
         access-key: ${S3_ACCESS_KEY}
         secret-key: ${S3_SECRET_KEY}
@@ -47,7 +47,7 @@ projection:
 
 team-github:
   state-secret: ${TEAM_GITHUB_STATE_SECRET}
-  app-slug: ${GITHUB_APP_SLUG}
+  app-slug: ${COWORK_GITHUB_APP_SLUG}
 
 KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE: cowork-team.team-role-projection
 KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT: cowork-team.team-role-command-result
