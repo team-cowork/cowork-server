@@ -56,10 +56,9 @@ RUN apt-get update \
 COPY --chown=app:app --from=builder /workspace/cowork-user/_build/prod/rel/cowork_user ./
 ENV ELIXIR_ERL_OPTIONS="+fnu"
 RUN chown app:app /app
-COPY --chmod=0755 cowork-user/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test -x /app/bin/cowork_user \
     && test -n "$(find /app/lib -path '*/priv/db/migration/V*__*.sql' -print -quit)"
 RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 8082
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "/app/bin/cowork_user", "start"]
+ENTRYPOINT ["/app/bin/cowork_user", "start"]

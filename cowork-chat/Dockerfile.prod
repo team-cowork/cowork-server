@@ -35,10 +35,9 @@ RUN --mount=type=cache,id=npm-chat-runtime,target=/root/.npm \
     npm ci --omit=dev
 COPY --chown=app:app --from=builder /workspace/cowork-chat/dist ./dist
 COPY --chown=app:app cowork-chat/public ./public
-COPY --chmod=0755 cowork-chat/deploy/bootstrap.sh /usr/local/bin/cowork-bootstrap
 RUN test -s /app/dist/main.js && test -s /app/public/asyncapi.json
 USER app
 EXPOSE 8087
 ENV PORT=8087
 ENV NODE_ENV=production
-ENTRYPOINT ["/usr/local/bin/cowork-bootstrap", "node", "dist/main.js"]
+ENTRYPOINT ["node", "dist/main.js"]
