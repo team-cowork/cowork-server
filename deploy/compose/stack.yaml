@@ -568,7 +568,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
       - ./deploy/config/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./deploy/config/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deploy/config/monitoring/grafana/dashboards:/etc/grafana/managed/dashboards:ro
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
