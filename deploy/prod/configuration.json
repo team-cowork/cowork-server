@@ -1,20 +1,19 @@
 {
   "schema_version": 1,
   "shared": {
-    "CONFIG_SERVER_URL": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "monitoring", "notification", "preference", "project", "roadmap", "team", "user", "voice"], "resources": ["monitoring"]},
-    "EUREKA_SERVER_URL": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "monitoring", "notification", "preference", "project", "roadmap", "team", "user", "voice"], "resources": ["monitoring"]},
-    "COWORK_GITHUB_APP_INTERNAL_API_KEY": {"kind": "secret", "targets": ["project"], "writes": [{"path": "slot-secrets/project", "key": "GITHUB_APP_INTERNAL_API_KEY"}, {"path": "cowork-project/{profile}", "key": "github-app.internal-api-key", "target": "project"}], "environment": true},
-    "COWORK_GITHUB_APP_SERVICE_URL": {"kind": "variable", "targets": ["config", "project"]},
+    "CONFIG_SERVER_URL": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "github", "monitoring", "notification", "preference", "project", "roadmap", "team", "user", "voice"], "resources": ["monitoring"]},
+    "EUREKA_SERVER_URL": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "github", "monitoring", "notification", "preference", "project", "roadmap", "team", "user", "voice"], "resources": ["monitoring"]},
+    "COWORK_GITHUB_INTERNAL_API_KEY": {"kind": "secret", "targets": ["github", "project"], "writes": [{"path": "slot-secrets/project", "key": "GITHUB_INTERNAL_API_KEY", "target": "project"}, {"path": "cowork-project/{profile}", "key": "github.internal-api-key", "target": "project"}, {"path": "cowork-github/{profile}", "key": "INTERNAL_API_KEY", "target": "github"}], "environment": true},
     "JWT_SECRET": {"kind": "secret", "targets": ["authorization", "chat", "gateway"], "writes": [{"path": "cowork-authorization/{profile}", "key": "JWT_SECRET", "target": "authorization"}, {"path": "cowork-chat/{profile}", "key": "JWT_SECRET", "target": "chat"}, {"path": "slot-secrets/chat", "key": "JWT_SECRET", "target": "chat"}, {"path": "cowork-gateway/{profile}", "key": "jwt.secret", "target": "gateway"}], "environment": true},
-    "KAFKA_BOOTSTRAP_SERVERS": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "notification", "preference", "project", "roadmap", "team", "user", "voice"]},
+    "KAFKA_BOOTSTRAP_SERVERS": {"kind": "variable", "targets": ["authorization", "channel", "chat", "config", "gateway", "github", "notification", "preference", "project", "roadmap", "team", "user", "voice"]},
     "LIVEKIT_API_KEY": {"kind": "secret", "targets": ["voice"], "writes": [{"path": "slot-secrets/voice", "key": "LIVEKIT_API_KEY"}, {"path": "cowork-voice/{profile}", "key": "LIVEKIT_API_KEY", "target": "voice"}], "environment": true, "resources": ["shared:livekit"]},
     "LIVEKIT_API_SECRET": {"kind": "secret", "targets": ["voice"], "writes": [{"path": "slot-secrets/voice", "key": "LIVEKIT_API_SECRET"}, {"path": "cowork-voice/{profile}", "key": "LIVEKIT_API_SECRET", "target": "voice"}], "environment": true, "resources": ["shared:livekit"]},
     "LIVEKIT_URL": {"kind": "variable", "targets": ["config", "voice"]},
     "LIVEKIT_WS_URL": {"kind": "variable", "targets": ["config", "voice"]},
     "PUBLIC_API_BASE_URL": {"kind": "variable", "targets": ["channel", "chat", "config", "gateway", "monitoring", "team", "user"], "resources": ["monitoring"]},
     "PUBLIC_WEB_ORIGINS": {"kind": "variable", "targets": ["channel", "config", "gateway"], "resources": ["storage:chat", "storage:team", "storage:user"]},
-    "REDIS_HOST": {"kind": "variable", "targets": ["chat", "gateway", "monitoring", "preference", "user"], "resources": ["monitoring"]},
-    "REDIS_PORT": {"kind": "variable", "targets": ["chat", "gateway", "preference", "user"]},
+    "REDIS_HOST": {"kind": "variable", "targets": ["chat", "gateway", "github", "monitoring", "preference", "user"], "resources": ["monitoring"]},
+    "REDIS_PORT": {"kind": "variable", "targets": ["chat", "gateway", "github", "preference", "user"]},
     "S3_BUCKET": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]},
     "S3_REGION": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]}
   },
@@ -115,6 +114,18 @@
       "secrets": {
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/gateway"}]},
         "DEV_ORIGIN_CREDENTIAL": {"writes": [{"path": "cowork-gateway/{profile}", "key": "app.dev-origin.credential"}]}
+      }
+    },
+    "github": {
+      "variables": {
+        "APP_CONFIG_PROFILE": {},
+        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/github"}]},
+        "COWORK_GITHUB_APP_ID": {"writes": [{"path": "cowork-github/{profile}", "key": "GITHUB_APP_ID"}]}
+      },
+      "secrets": {
+        "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/github"}]},
+        "COWORK_GITHUB_PRIVATE_KEY": {"writes": [{"path": "cowork-github/{profile}", "key": "GITHUB_PRIVATE_KEY"}]},
+        "COWORK_GITHUB_WEBHOOK_SECRET": {"writes": [{"path": "cowork-github/{profile}", "key": "GITHUB_WEBHOOK_SECRET"}]}
       }
     },
     "monitoring": {

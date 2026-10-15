@@ -4,14 +4,14 @@ import {
     Logger,
     OnApplicationShutdown,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { IoAdapter } from '@nestjs/platform-socket.io';
-import { Server, ServerOptions } from 'socket.io';
-import { createAdapter } from '@socket.io/redis-adapter';
+import {ConfigService} from '@nestjs/config';
+import {IoAdapter} from '@nestjs/platform-socket.io';
+import {Server, ServerOptions} from 'socket.io';
+import {createAdapter} from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
-import { Counter, Gauge, register } from 'prom-client';
-import { getOptionalConfig, getRequiredConfig } from '../config/config.util';
-import { activeProfile } from '../config/config-server';
+import {Counter, Gauge, register} from 'prom-client';
+import {getOptionalConfig, getRequiredConfig} from '../config/config.util';
+import {activeProfile} from '../config/config-server';
 
 export type SocketIoAdapterState = 'CONNECTING' | 'READY' | 'DEGRADED' | 'IN_MEMORY' | 'STOPPED';
 
@@ -22,8 +22,8 @@ const ERROR_WARN_INTERVAL_MS = 60_000;
 type RedisClientName = 'pub' | 'sub';
 
 /**
- * Redis adapter 상태 판정. `READY`는 adapter가 서버에 설치되고 pub/sub이 모두 `ready`일 때만이며,
- * 한 번 `READY`가 된 뒤 조건이 깨지면 최초 연결 대기(`CONNECTING`)와 구분해 `DEGRADED`로 본다.
+ Redis adapter 상태 판정. `READY`는 adapter가 서버에 설치되고 pub/sub이 모두 `ready`일 때만이며,
+ 한 번 `READY`가 된 뒤 조건이 깨지면 최초 연결 대기(`CONNECTING`)와 구분해 `DEGRADED`로 본다.
  */
 export function nextRedisAdapterState(input: {
     stopping: boolean;
@@ -44,8 +44,8 @@ export function nextRedisAdapterState(input: {
 }
 
 /**
- * 명시적인 in-memory 모드는 단일 인스턴스 개발 전용이다. 운영 profile에서 요청되면 기동을 거부해
- * 다중 replica가 서로의 room 브로드캐스트를 받지 못하는 상태로 뜨지 않게 한다.
+ 명시적인 in-memory 모드는 단일 인스턴스 개발 전용이다. 운영 profile에서 요청되면 기동을 거부해
+ 다중 replica가 서로의 room 브로드캐스트를 받지 못하는 상태로 뜨지 않게 한다.
  */
 export function resolveAdapterMode(mode: string | undefined, profile: string): 'redis' | 'in-memory' {
     const resolved = mode ?? 'redis';
@@ -61,14 +61,14 @@ export function resolveAdapterMode(mode: string | undefined, profile: string): '
 }
 
 /**
- * Socket.IO Redis adapter의 pub/sub client를 소유하고 연결 상태를 추적한다.
- *
- * Socket.IO 기본(in-memory) adapter는 room 브로드캐스트를 단일 프로세스 범위로만 처리하므로, 여러 replica에서는
- * Redis pub/sub으로 인스턴스 간 브로드캐스트와 원격 room 해제를 동기화해야 한다.
- *
- * Redis 준비를 기다리지 않고 adapter를 서버 생성 시점에 바로 설치한다. ioredis는 연결 전 명령을 offline queue에
- * 보관했다가 연결되면 보내고, 재연결 때 기존 구독을 다시 등록하므로 Redis가 늦게 뜨거나 중간에 끊겨도 프로세스
- * 재시작 없이 같은 adapter가 복구된다. 대신 준비되지 않은 동안에는 readiness, Eureka 등록, WebSocket 가입을 막는다.
+ Socket.IO Redis adapter의 pub/sub client를 소유하고 연결 상태를 추적한다.
+
+ Socket.IO 기본(in-memory) adapter는 room 브로드캐스트를 단일 프로세스 범위로만 처리하므로, 여러 replica에서는
+ Redis pub/sub으로 인스턴스 간 브로드캐스트와 원격 room 해제를 동기화해야 한다.
+
+ Redis 준비를 기다리지 않고 adapter를 서버 생성 시점에 바로 설치한다. ioredis는 연결 전 명령을 offline queue에
+ 보관했다가 연결되면 보내고, 재연결 때 기존 구독을 다시 등록하므로 Redis가 늦게 뜨거나 중간에 끊겨도 프로세스
+ 재시작 없이 같은 adapter가 복구된다. 대신 준비되지 않은 동안에는 readiness, Eureka 등록, WebSocket 가입을 막는다.
  */
 @Injectable()
 export class SocketIoRedisConnection implements OnApplicationShutdown {
@@ -86,7 +86,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     private lastError?: string;
     private lastErrorWarnAt = 0;
     private readonly readyWaiters: Array<() => void> = [];
-    private readonly readinessListeners: Array<(ready: boolean) => void> = [];
+    private readonly readinessListeners: Array<(isReady: boolean) => void> = [];
     private readonly stateGauge: Gauge<'state'>;
     private readonly reconnects: Counter<'client'>;
     private readonly errors: Counter<'client'>;
@@ -109,7 +109,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             name: 'cowork_chat_socketio_adapter_degraded_seconds',
             help: 'Seconds since the Socket.IO Redis adapter became degraded (0 when not degraded).',
             collect: () => {
-                degradedSeconds.set(this.degradedSince ? (Date.now() - this.degradedSince) / 1000 : 0);
+                degradedSeconds.set(this.degradedSince === undefined ? 0 : (Date.now() - this.degradedSince) / 1000);
             },
         }));
         this.reconnects = this.metric('cowork_chat_socketio_redis_reconnects_total', () => new Counter({
@@ -126,7 +126,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     }
 
     /**
-     * Socket.IO 서버에 설치할 adapter를 만든다. in-memory 모드면 `undefined`를 반환해 기본 adapter를 쓰게 한다.
+     Socket.IO 서버에 설치할 adapter를 만든다. in-memory 모드면 `undefined`를 반환해 기본 adapter를 쓰게 한다.
      */
     createAdapter(): ReturnType<typeof createAdapter> | undefined {
         if (this.mode === 'in-memory') {
@@ -136,10 +136,10 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
 
         // Pub client는 기본 재시도 한도를 유지한다. `fetchSockets()`는 pub client의 `PUBSUB NUMSUB`을 기다린 뒤에야
         // `requestsTimeout`을 걸기 때문에, 한도가 없으면 Redis 장애 동안 HTTP 요청과 Kafka consumer가 무기한 멈춘다.
-        const pubClient = new Redis({ host: this.host, port: this.port });
+        const pubClient = new Redis({host: this.host, port: this.port});
         // 구독은 응답을 받은 뒤에만 재구독 대상으로 기록되므로, 연결 전 대기열의 SUBSCRIBE가 재시도 한도로 버려지면
         // 영구히 복구되지 않는다. sub client만 연결될 때까지 명령을 보관한다.
-        const subClient = pubClient.duplicate({ maxRetriesPerRequest: null });
+        const subClient = pubClient.duplicate({maxRetriesPerRequest: null});
         this.pubClient = pubClient;
         this.subClient = subClient;
         this.watch('pub', pubClient);
@@ -165,8 +165,10 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             });
     }
 
-    /** `isReady()` 값이 바뀔 때마다 호출된다. 최초 준비 전 대기는 `whenReady()`를 쓴다. */
-    onReadinessChange(listener: (ready: boolean) => void): void {
+    /**
+    `isReady()` 값이 바뀔 때마다 호출된다. 최초 준비 전 대기는 `whenReady()`를 쓴다.
+    */
+    onReadinessChange(listener: (isReady: boolean) => void): void {
         this.readinessListeners.push(listener);
     }
 
@@ -196,7 +198,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
             this.updateState();
         });
         client.on('reconnecting', () => {
-            this.reconnects.inc({ client: name });
+            this.reconnects.inc({client: name});
         });
         client.on('error', (error: unknown) => {
             this.recordError(name, error);
@@ -204,8 +206,8 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     }
 
     /**
-     * Adapter는 브로드캐스트·room 해제의 publish 결과를 버린다. 장애가 재시도 한도를 넘겨 publish가 거부되면
-     * unhandled rejection으로 프로세스가 종료되므로, 거부를 오류로 기록하고 해당 발행은 유실된 것으로 본다.
+     Adapter는 브로드캐스트·room 해제의 publish 결과를 버린다. 장애가 재시도 한도를 넘겨 publish가 거부되면
+     unhandled rejection으로 프로세스가 종료되므로, 거부를 오류로 기록하고 해당 발행은 유실된 것으로 본다.
      */
     private handlePublishRejection(pubClient: Redis): void {
         const publish = pubClient.publish.bind(pubClient) as (...args: unknown[]) => Promise<number>;
@@ -219,7 +221,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     }
 
     private recordError(name: RedisClientName, error: unknown): void {
-        this.errors.inc({ client: name });
+        this.errors.inc({client: name});
         this.lastError = `${name}: ${error instanceof Error ? error.message : String(error)}`;
         // 재연결마다 error가 발생하므로 경고는 간격을 두고 남긴다.
         const now = Date.now();
@@ -244,12 +246,12 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
         }
 
         const previous = this.state;
-        const readyBefore = this.isReady();
+        const isReadyBefore = this.isReady();
         this.state = next;
         this.recordState();
-        if (this.isReady() !== readyBefore) {
+        if (this.isReady() !== isReadyBefore) {
             for (const listener of this.readinessListeners) {
-                listener(!readyBefore);
+                listener(!isReadyBefore);
             }
         }
 
@@ -274,7 +276,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
 
     private recordState(): void {
         for (const state of ADAPTER_STATES) {
-            this.stateGauge.set({ state }, state === this.state ? 1 : 0);
+            this.stateGauge.set({state}, state === this.state ? 1 : 0);
         }
     }
 
