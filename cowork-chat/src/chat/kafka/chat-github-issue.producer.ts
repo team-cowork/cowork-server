@@ -4,19 +4,19 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Kafka, Producer } from 'kafkajs';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ChatGithubIssueCreateCommand } from './event/chat-github-issue.event';
+import {ConfigService} from '@nestjs/config';
+import {Kafka, Producer} from 'kafkajs';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {ChatGithubIssueCreateCommand} from './event/chat-github-issue.event';
 
 /**
- * 채팅발 GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행하는 프로듀서.
- *
- * **지연 연결 패턴(Lazy Connect)**:
- * `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
- * 실제 이벤트 발행 시점에 {@link ensureConnected}를 호출하여 연결 상태를 보장한다.
+ 채팅발 GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행하는 프로듀서.
+
+ 지연 연결 패턴(Lazy Connect)**:
+ `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
+ 실제 이벤트 발행 시점에 {@link ensureConnected}를 호출하여 연결 상태를 보장한다.
  */
 @Injectable()
 export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDestroy {
@@ -31,17 +31,17 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
     ) {}
 
     /**
-     * 모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
-     *
-     * 연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
-     * 실제 연결은 첫 번째 이벤트 발행 시 {@link ensureConnected}를 통해 재시도된다.
+     모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
+
+     연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
+     실제 연결은 첫 번째 이벤트 발행 시 {@link ensureConnected}를 통해 재시도된다.
      */
     onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-chat-github-issue-command',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer({ idempotent: true });
+        this.producer = kafka.producer({idempotent: true});
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`Chat GitHub issue command producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
@@ -49,7 +49,7 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
                 description: 'cowork-chat의 project.chat-github-issue.command producer가 부트스트랩 연결에 실패했습니다.',
                 color: 'danger',
                 fields: [
-                    { name: 'Topic', value: 'project.chat-github-issue.command', inline: true },
+                    {name: 'Topic', value: 'project.chat-github-issue.command', inline: true},
                     ...buildErrorFields(error),
                 ],
             }).catch(() => {/* Alert delivery is best-effort. */});
@@ -57,9 +57,9 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
     }
 
     /**
-     * 모듈 종료 시 Kafka 프로듀서 연결을 해제한다.
-     *
-     * 연결된 상태일 때만 disconnect를 호출한다.
+     모듈 종료 시 Kafka 프로듀서 연결을 해제한다.
+
+     연결된 상태일 때만 disconnect를 호출한다.
      */
     async onModuleDestroy() {
         if (this.isConnected) {
@@ -68,13 +68,13 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
     }
 
     /**
-     * GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
-     *
-     * 메시지 키는 `channelId`로 설정되어 같은 채널의 이슈 요청이 동일 파티션에 순서대로 전달된다.
-     * 발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
-     *
-     * @param command - 발행할 GitHub 이슈 생성 커맨드
-     * @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
+     GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
+
+     메시지 키는 `channelId`로 설정되어 같은 채널의 이슈 요청이 동일 파티션에 순서대로 전달된다.
+     발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
+
+     @param command - 발행할 GitHub 이슈 생성 커맨드
+     @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
     async send(command: ChatGithubIssueCreateCommand): Promise<void> {
         await this.ensureConnected();
@@ -90,14 +90,14 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
     }
 
     /**
-     * Kafka 프로듀서의 연결 상태를 보장한다.
-     *
-     * 이미 연결된 경우 즉시 반환한다.
-     * 연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
-     * 연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
-     *
-     * @returns 연결 완료 후 이행되는 Promise
-     * @throws {Error} Kafka 브로커 연결 실패 시
+     Kafka 프로듀서의 연결 상태를 보장한다.
+
+     이미 연결된 경우 즉시 반환한다.
+     연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
+     연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
+
+     @returns 연결 완료 후 이행되는 Promise
+     @throws {Error} Kafka 브로커 연결 실패 시
      */
     private async ensureConnected(): Promise<void> {
         if (this.isConnected) {

@@ -4,9 +4,9 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import {ConfigService} from '@nestjs/config';
 import Redis from 'ioredis';
-import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
+import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util';
 
 const BLOCK_KEY_PREFIX = 'dm:block:';
 
@@ -21,7 +21,7 @@ export class BlockRedis implements OnModuleInit, OnModuleDestroy {
         const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
         const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
 
-        this.client = new Redis({ host, port, lazyConnect: true });
+        this.client = new Redis({host, port, lazyConnect: true});
         void this.client.connect().catch((error: unknown) => {
             this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
         });
