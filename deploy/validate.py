@@ -38,7 +38,9 @@ models = {
 }
 resolved = {}
 for name, files in models.items():
-    command = ["docker", "compose", "--project-directory", str(ROOT), "--env-file", "/dev/null", "-p", "cowork-validation"]
+    # Validate opt-in services as well; they are excluded from the default profile.
+    command = ["docker", "compose", "--project-directory", str(ROOT), "--env-file", "/dev/null", "-p", "cowork-validation",
+               "--profile", "*"]
     for file in files:
         command.extend(["-f", str(ROOT / file)])
     result = subprocess.run(command + ["config", "--format", "json"], env=env, capture_output=True, text=True)
