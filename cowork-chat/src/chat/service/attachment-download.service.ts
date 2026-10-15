@@ -1,8 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ObjectStorageService } from '../../storage/object-storage.service';
-import { MessageRepository } from '../repository/message.repository';
-import { AttachmentDownloadResponseDto } from '../dto/attachment-download.dto';
-import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
+import {BadRequestException, Injectable, NotFoundException} from '@nestjs/common';
+import {ObjectStorageService} from '../../storage/object-storage.service';
+import {MessageRepository} from '../repository/message.repository';
+import {AttachmentDownloadResponseDto} from '../dto/attachment-download.dto';
+import {ChannelMessageReadAccessService} from './channel-message-read-access.service';
 
 @Injectable()
 export class AttachmentDownloadService {

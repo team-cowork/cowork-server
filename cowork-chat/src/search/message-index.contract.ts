@@ -1,26 +1,34 @@
-import { type estypes } from '@elastic/elasticsearch';
+import {type estypes} from '@elastic/elasticsearch';
 
-/** 검색 읽기·쓰기가 사용하는 alias. 전체 재구축은 이 alias만 원자적으로 교체한다. */
+/**
+검색 읽기·쓰기가 사용하는 alias. 전체 재구축은 이 alias만 원자적으로 교체한다.
+*/
 export const MESSAGE_SEARCH_ALIAS = 'chat_messages';
 
-/** 재구축이 만드는 물리 index 접두사. alias가 실제로 가리키는 index 이름이다. */
+/**
+재구축이 만드는 물리 index 접두사. alias가 실제로 가리키는 index 이름이다.
+*/
 export const MESSAGE_SEARCH_INDEX_PREFIX = 'chat_messages-';
 
 /**
- * 삭제 버전 tombstone 보존 기간(일수).
- *
- * 외부 버전(`version_type: 'external'`) 삭제는 이 기간 동안만 버전을 기억하므로,
- * 이 값이 outbox claim 타임아웃보다 짧으면 지연된 upsert가 삭제된 문서를 되살릴 수 있다.
- * `CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS`(MongoDB tombstone 보존 기간)가 이 값보다 짧으면
- * 재구축 catch-up이 삭제를 재생하기 전에 tombstone이 먼저 사라질 수 있으므로,
- * {@link MessageSearchDeletionService}가 부팅 시 두 값의 관계를 검증한다.
+ 삭제 버전 tombstone 보존 기간(일수).
+
+ 외부 버전(`version_type: 'external'`) 삭제는 이 기간 동안만 버전을 기억하므로,
+ 이 값이 outbox claim 타임아웃보다 짧으면 지연된 upsert가 삭제된 문서를 되살릴 수 있다.
+ `CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS`(MongoDB tombstone 보존 기간)가 이 값보다 짧으면
+ 재구축 catch-up이 삭제를 재생하기 전에 tombstone이 먼저 사라질 수 있으므로,
+ {@link MessageSearchDeletionService}가 부팅 시 두 값의 관계를 검증한다.
  */
 export const MESSAGE_INDEX_GC_DELETES_DAYS = 7;
 
-/** {@link MESSAGE_INDEX_GC_DELETES_DAYS}에서 파생된 Elasticsearch `index.gc_deletes` 설정 값. */
+/**
+{@link MESSAGE_INDEX_GC_DELETES_DAYS}에서 파생된 Elasticsearch `index.gc_deletes` 설정 값.
+*/
 export const MESSAGE_INDEX_GC_DELETES = `${MESSAGE_INDEX_GC_DELETES_DAYS}d`;
 
-/** Elasticsearch에 저장하는 메시지 색인 문서. MongoDB 메시지에서 파생된다. */
+/**
+Elasticsearch에 저장하는 메시지 색인 문서. MongoDB 메시지에서 파생된다.
+*/
 export type MessageIndexDoc = {
     messageId: string;
     teamId: number;
@@ -34,18 +42,20 @@ export type MessageIndexDoc = {
     createdAt: string;
 };
 
-/** 색인 문서에 반드시 존재해야 하는 필드. 재구축 검증이 표본 문서에서 확인한다. */
+/**
+색인 문서에 반드시 존재해야 하는 필드. 재구축 검증이 표본 문서에서 확인한다.
+*/
 export const MESSAGE_INDEX_REQUIRED_FIELDS: Array<keyof MessageIndexDoc> = [
     'messageId', 'teamId', 'projectId', 'channelId', 'authorId', 'content', 'type', 'createdAt',
 ];
 
 /**
- * 색인 쓰기 결과.
- *
- * - `APPLIED`: 요청한 버전이 색인에 반영되었다.
- * - `SUPERSEDED`: 색인에 더 최신 버전이 있어 이 쓰기는 버려졌다. 재시도할 필요가 없다.
- * - `RETRYABLE`: 일시적 오류다. 백오프 후 같은 버전으로 다시 시도해야 한다.
- * - `PERMANENT`: 문서·매핑 계약 위반이다. 재시도해도 같은 결과이므로 운영자 개입이 필요하다.
+ 색인 쓰기 결과.
+
+ - `APPLIED`: 요청한 버전이 색인에 반영되었다.
+ - `SUPERSEDED`: 색인에 더 최신 버전이 있어 이 쓰기는 버려졌다. 재시도할 필요가 없다.
+ - `RETRYABLE`: 일시적 오류다. 백오프 후 같은 버전으로 다시 시도해야 한다.
+ - `PERMANENT`: 문서·매핑 계약 위반이다. 재시도해도 같은 결과이므로 운영자 개입이 필요하다.
  */
 export type IndexWriteOutcome = 'APPLIED' | 'SUPERSEDED' | 'RETRYABLE' | 'PERMANENT';
 
@@ -69,39 +79,41 @@ export const MESSAGE_INDEX_SETTINGS: estypes.IndicesIndexSettings = {
 
 export const MESSAGE_INDEX_MAPPINGS: estypes.MappingTypeMapping = {
     properties: {
-        messageId: { type: 'keyword' },
-        teamId: { type: 'long' },
-        projectId: { type: 'long' },
-        channelId: { type: 'long' },
-        authorId: { type: 'long' },
-        content: { type: 'text', analyzer: 'nori_analyzer' },
-        type: { type: 'keyword' },
-        hasAttachments: { type: 'boolean' },
-        isPinned: { type: 'boolean' },
-        createdAt: { type: 'date' },
+        messageId: {type: 'keyword'},
+        teamId: {type: 'long'},
+        projectId: {type: 'long'},
+        channelId: {type: 'long'},
+        authorId: {type: 'long'},
+        content: {type: 'text', analyzer: 'nori_analyzer'},
+        type: {type: 'keyword'},
+        hasAttachments: {type: 'boolean'},
+        isPinned: {type: 'boolean'},
+        createdAt: {type: 'date'},
     },
 };
 
 /**
- * 재구축 대상 물리 index 이름을 만든다. alias 교체 전까지 검색 트래픽에 노출되지 않는다.
- *
- * 밀리초까지 쓰는 이유는 부트스트랩 직후 재구축이나 연속 재구축이 같은 초에 실행돼도
- * 이름이 충돌하지 않게 하기 위해서다.
+ 재구축 대상 물리 index 이름을 만든다. alias 교체 전까지 검색 트래픽에 노출되지 않는다.
+
+ 밀리초까지 쓰는 이유는 부트스트랩 직후 재구축이나 연속 재구축이 같은 초에 실행돼도
+ 이름이 충돌하지 않게 하기 위해서다.
  */
 export function buildMessageIndexName(now: Date): string {
     return `${MESSAGE_SEARCH_INDEX_PREFIX}${now.toISOString().replaceAll(/[-.:TZ]/gu, '').slice(0, 17)}`;
 }
 
 /**
- * 재구축이 만든 물리 index 이름 패턴.
- *
- * {@link buildMessageIndexName}이 항상 밀리초까지 포함한 17자리 타임스탬프를 쓰므로
- * 자릿수는 고정이다. 모듈 상수로 한 번만 컴파일해 `dropReplacedIndices`가 매 index마다
- * 새로 만들지 않게 한다.
+ 재구축이 만든 물리 index 이름 패턴.
+
+ {@link buildMessageIndexName}이 항상 밀리초까지 포함한 17자리 타임스탬프를 쓰므로
+ 자릿수는 고정이다. 모듈 상수로 한 번만 컴파일해 `dropReplacedIndices`가 매 index마다
+ 새로 만들지 않게 한다.
  */
 const MANAGED_MESSAGE_INDEX_PATTERN = new RegExp(String.raw`^${MESSAGE_SEARCH_INDEX_PREFIX}\d{17}$`, 'u');
 
-/** 재구축이 만든 물리 index인지 판별한다. 운영자가 만든 다른 index를 정리 대상으로 삼지 않는다. */
+/**
+재구축이 만든 물리 index인지 판별한다. 운영자가 만든 다른 index를 정리 대상으로 삼지 않는다.
+*/
 export function isManagedMessageIndex(name: string): boolean {
     return MANAGED_MESSAGE_INDEX_PATTERN.test(name);
 }
@@ -111,32 +123,38 @@ function statusCodeOf(error: unknown): number | undefined {
         return undefined;
     }
 
-    const direct = (error as { statusCode?: unknown }).statusCode;
+    const direct = (error as {statusCode?: unknown}).statusCode;
     if (typeof direct === 'number') {
         return direct;
     }
 
-    const meta = (error as { meta?: { statusCode?: unknown } }).meta?.statusCode;
+    const meta = (error as {meta?: {statusCode?: unknown}}).meta?.statusCode;
     return typeof meta === 'number' ? meta : undefined;
 }
 
-/** 대상이 없다는 응답인지 판별한다. 통신 오류를 "없음"으로 오인하지 않기 위해 상태 코드만 본다. */
+/**
+대상이 없다는 응답인지 판별한다. 통신 오류를 "없음"으로 오인하지 않기 위해 상태 코드만 본다.
+*/
 export function isElasticsearchNotFound(error: unknown): boolean {
     return statusCodeOf(error) === 404;
 }
 
-/** 요청 자체가 잘못됐다는 응답인지 판별한다(예: 손상된 `search_after` 커서). 재시도해도 같은 결과다. */
+/**
+요청 자체가 잘못됐다는 응답인지 판별한다(예: 손상된 `search_after` 커서). 재시도해도 같은 결과다.
+*/
 export function isElasticsearchBadRequest(error: unknown): boolean {
     return statusCodeOf(error) === 400;
 }
 
-/** Index 자체가 없어서 실패했는지 판별한다. 문서만 없는 `404`와 구분해야 한다. */
+/**
+Index 자체가 없어서 실패했는지 판별한다. 문서만 없는 `404`와 구분해야 한다.
+*/
 export function isIndexNotFound(error: unknown): boolean {
     if (!isElasticsearchNotFound(error)) {
         return false;
     }
 
-    const { body } = (error as { body?: { error?: { type?: unknown } } });
+    const {body} = (error as {body?: {error?: {type?: unknown}}});
     return body?.error?.type === 'index_not_found_exception';
 }
 
@@ -149,28 +167,28 @@ export function errorMessageOf(error: unknown): string {
 }
 
 /**
- * Elasticsearch 오류를 호출자가 구분할 수 있는 결과로 분류한다.
- *
- * 버전 충돌(409)은 더 최신 쓰기가 이미 반영되었다는 뜻이므로 실패가 아니라 `SUPERSEDED`다.
- * 요청 계약 오류(400)만 영구 실패로 보고, 나머지는 모두 재시도 가능으로 처리해
- * 일시적 장애가 색인 누락으로 굳지 않게 한다.
+ Elasticsearch 오류를 호출자가 구분할 수 있는 결과로 분류한다.
+
+ 버전 충돌(409)은 더 최신 쓰기가 이미 반영되었다는 뜻이므로 실패가 아니라 `SUPERSEDED`다.
+ 요청 계약 오류(400)만 영구 실패로 보고, 나머지는 모두 재시도 가능으로 처리해
+ 일시적 장애가 색인 누락으로 굳지 않게 한다.
  */
 export function classifyElasticsearchError(error: unknown): IndexWriteResult {
     const statusCode = statusCodeOf(error);
-    return statusCode === 409 ? { outcome: 'SUPERSEDED' } : { outcome: statusCode === 400 ? 'PERMANENT' : 'RETRYABLE', error: errorMessageOf(error) };
+    return statusCode === 409 ? {outcome: 'SUPERSEDED'} : {outcome: statusCode === 400 ? 'PERMANENT' : 'RETRYABLE', error: errorMessageOf(error)};
 }
 
 /**
- * `_bulk` 응답의 개별 항목을 {@link classifyElasticsearchError}와 같은 기준으로 분류한다.
- *
- * bulk 응답은 예외를 던지지 않고 항목마다 상태 코드와 오류 원인을 값으로 돌려주므로, 예외 기반인
- * {@link classifyElasticsearchError}를 그대로 재사용할 수 없다.
- *
- * 호출자(`ElasticsearchService.bulkDeleteForOutbox`)가 `error` 필드가 아예 없는 항목을 먼저
- * `APPLIED`로 처리하고 이 함수를 호출하지 않으므로, 외부 버전 삭제가 "문서가 이미 없어도
- * tombstone만 남기고 `404`를 error 없이 돌려주는" 흔한 경우는 이 함수에 도달하지 않는다.
- * 아래 delete-404 분기는 `error` 객체가 실려 온 드문 404(예: index 자체가 없는 경우와
- * 구분해야 하는 상황)만 다룬다.
+ `_bulk` 응답의 개별 항목을 {@link classifyElasticsearchError}와 같은 기준으로 분류한다.
+
+ bulk 응답은 예외를 던지지 않고 항목마다 상태 코드와 오류 원인을 값으로 돌려주므로, 예외 기반인
+ {@link classifyElasticsearchError}를 그대로 재사용할 수 없다.
+
+ 호출자(`ElasticsearchService.bulkDeleteForOutbox`)가 `error` 필드가 아예 없는 항목을 먼저
+ `APPLIED`로 처리하고 이 함수를 호출하지 않으므로, 외부 버전 삭제가 "문서가 이미 없어도
+ tombstone만 남기고 `404`를 error 없이 돌려주는" 흔한 경우는 이 함수에 도달하지 않는다.
+ 아래 delete-404 분기는 `error` 객체가 실려 온 드문 404(예: index 자체가 없는 경우와
+ 구분해야 하는 상황)만 다룬다.
  */
 export function classifyBulkItemResult(
     action: 'index' | 'delete',
@@ -178,12 +196,14 @@ export function classifyBulkItemResult(
     error: estypes.ErrorCause | null | undefined,
 ): IndexWriteResult {
     if (action === 'delete' && status === 404 && error?.type !== 'index_not_found_exception') {
-        return { outcome: 'APPLIED' };
+        return {outcome: 'APPLIED'};
     }
 
     if (status === 409) {
-        return { outcome: 'SUPERSEDED' };
+        return {outcome: 'SUPERSEDED'};
     }
 
-    return status === 400 ? { outcome: 'PERMANENT', error: error?.reason ?? error?.type ?? 'bad request' } : { outcome: 'RETRYABLE', error: error?.reason ?? error?.type ?? `bulk ${action} failed with status ${status ?? 'unknown'}` };
+    return status === 400
+        ? {outcome: 'PERMANENT', error: error?.reason ?? error?.type ?? 'bad request'}
+        : {outcome: 'RETRYABLE', error: error?.reason ?? error?.type ?? `bulk ${action} failed with status ${status ?? 'unknown'}`};
 }

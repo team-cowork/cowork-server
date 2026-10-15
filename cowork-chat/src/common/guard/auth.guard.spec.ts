@@ -1,10 +1,10 @@
-import { type ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
-import { UserRole } from '../enum/user-role.enum';
-import { AuthGuard } from './auth.guard';
+import {type ExecutionContext, ForbiddenException, UnauthorizedException} from '@nestjs/common';
+import {type Reflector} from '@nestjs/core';
+import {UserRole} from '../enum/user-role.enum';
+import {AuthGuard} from './auth.guard';
 
 const contextFor = (
-    headers: Record<string, string> = { 'x-user-id': '42', 'x-user-role': UserRole.USER },
+    headers: Record<string, string> = {'x-user-id': '42', 'x-user-role': UserRole.USER},
     path = '/chat',
     type = 'http',
 ): ExecutionContext =>
@@ -12,7 +12,7 @@ const contextFor = (
         getType: () => type,
         getHandler: jest.fn(),
         getClass: jest.fn(),
-        switchToHttp: () => ({ getRequest: () => ({ headers, path }) }),
+        switchToHttp: () => ({getRequest: () => ({headers, path})}),
     }) as unknown as ExecutionContext;
 
 const reflectorFor = (isPublic: boolean, roles?: UserRole[]): Reflector =>
@@ -50,7 +50,7 @@ describe('AuthGuard', () => {
         it('요구 역할과 사용자 역할이 같으면 접근을 허용한다', () => {
             const guard = new AuthGuard(reflectorFor(false, [UserRole.ADMIN]));
 
-            expect(guard.canActivate(contextFor({ 'x-user-id': '42', 'x-user-role': UserRole.ADMIN }))).toBe(true);
+            expect(guard.canActivate(contextFor({'x-user-id': '42', 'x-user-role': UserRole.ADMIN}))).toBe(true);
         });
 
         it('요구 역할과 사용자 역할이 다르면 접근을 거부한다', () => {

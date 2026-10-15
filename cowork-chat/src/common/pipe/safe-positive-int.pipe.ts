@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, PipeTransform } from '@nestjs/common';
-import { isSafePositiveInteger } from '../util/safe-integer.util';
+import {BadRequestException, Injectable, PipeTransform} from '@nestjs/common';
+import {isSafePositiveInteger} from '../util/safe-integer.util';
 
 @Injectable()
 export class SafePositiveIntPipe implements PipeTransform<string, number> {

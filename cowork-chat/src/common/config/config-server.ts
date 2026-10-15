@@ -1,4 +1,4 @@
-import { controlPlaneAuthorization } from './control-plane-auth';
+import {controlPlaneAuthorization} from './control-plane-auth';
 
 type PropertySource = {
     name: string;
@@ -25,7 +25,7 @@ export async function loadConfigServerEnv(): Promise<void> {
     const url = `${baseUrl.replace(/\/$/u, '')}/${APP_NAME}/${profile}`;
 
     const response = await fetch(url, {
-        headers: { Accept: 'application/json', Authorization: controlPlaneAuthorization(url) },
+        headers: {Accept: 'application/json', Authorization: controlPlaneAuthorization(url)},
         redirect: 'error',
         signal: AbortSignal.timeout(5000),
     });
