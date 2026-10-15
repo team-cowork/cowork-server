@@ -303,7 +303,7 @@ def sync(args, catalog, mount, variables, secrets):
 
 
 def derive_config_account(target, runtime, documents, document, effects):
-    if target in {'config', 'vault', 'github-app', 'redis', 'kafka', 'livekit'}:
+    if target in {'config', 'vault', 'redis', 'kafka', 'livekit'}:
         return
     username = runtime.get('CONFIG_CLIENT_USERNAME')
     if username is None:
