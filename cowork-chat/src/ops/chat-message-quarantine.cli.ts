@@ -9,17 +9,17 @@ const [command, id] = process.argv.slice(2);
 const uri = process.env.MONGODB_URI;
 
 type QuarantineSummaryRow = {
-    _id: { status: string; errorType: string; reasonCode: string };
+    _id: {status: string; errorType: string; reasonCode: string};
     count: number;
     lastOffset: string;
 };
 
 async function main(): Promise<void> {
-    if (!uri) {
+    if (uri === undefined) {
         throw new Error('MONGODB_URI is required');
     }
 
-    if (!command || !['list', 'show', 'reprocess', 'discard'].includes(command)) {
+    if (command === undefined || !['list', 'show', 'reprocess', 'discard'].includes(command)) {
         throw new Error('usage: chat-message-quarantine <list|show|reprocess|discard> [recordId]');
     }
 
@@ -28,15 +28,15 @@ async function main(): Promise<void> {
         ?? mongoose.model(ChatMessageQuarantineRecord.name, ChatMessageQuarantineRecordSchema)) as mongoose.Model<ChatMessageQuarantineRecord>;
     if (command === 'list') {
         const rows = await model.aggregate<QuarantineSummaryRow>([
-            { $group: { _id: { status: '$status', errorType: '$errorType', reasonCode: '$reasonCode' }, count: { $sum: 1 }, lastOffset: { $max: '$messageOffset' } } },
-            { $sort: { '_id.status': 1, '_id.errorType': 1, '_id.reasonCode': 1 } },
+            {$group: {_id: {status: '$status', errorType: '$errorType', reasonCode: '$reasonCode'}, count: {$sum: 1}, lastOffset: {$max: '$messageOffset'}}},
+            {$sort: {'_id.status': 1, '_id.errorType': 1, '_id.reasonCode': 1}},
         ]);
 
-        console.table(rows.map(row => ({ ...row._id, count: row.count, lastOffset: row.lastOffset })));
+        console.table(rows.map(row => ({...row._id, count: row.count, lastOffset: row.lastOffset})));
         return;
     }
 
-    if (!id) {
+    if (id === undefined) {
         throw new Error(`recordId is required for ${command}`);
     }
 
@@ -49,20 +49,20 @@ async function main(): Promise<void> {
 
         console.warn('WARNING: payload can contain message content and attachment URLs. Do not copy it to tickets or logs.');
 
-        console.dir(record, { depth: null });
+        console.dir(record, {depth: null});
         return;
     }
 
     const result = command === 'reprocess'
         ? await model.updateOne(
             {
-                _id: id, status: 'QUARANTINED', payloadTruncated: false, payload: { $type: 'string' as const },
+                _id: id, status: 'QUARANTINED', payloadTruncated: false, payload: {$type: 'string' as const},
             },
-            { $set: { status: 'REPROCESS_REQUESTED', reprocessRequestedAt: new Date(), lastReprocessError: null } },
+            {$set: {status: 'REPROCESS_REQUESTED', reprocessRequestedAt: new Date(), lastReprocessError: null}},
         )
         : await model.updateOne(
-            { _id: id, status: { $in: ['QUARANTINED', 'REPROCESS_REQUESTED'] as const } },
-            { $set: { status: 'DISCARDED', discardedAt: new Date() }, $unset: { payload: 1, eventKey: 1 } },
+            {_id: id, status: {$in: ['QUARANTINED', 'REPROCESS_REQUESTED'] as const}},
+            {$set: {status: 'DISCARDED', discardedAt: new Date()}, $unset: {payload: 1, eventKey: 1}},
         );
     if (result.modifiedCount !== 1) {
         throw new Error(`record cannot be ${command}ed in its current state`);

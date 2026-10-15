@@ -1,5 +1,5 @@
-import { type ConfigService } from '@nestjs/config';
-import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
+import {type ConfigService} from '@nestjs/config';
+import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util';
 
 const DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS = 600;
 const DEFAULT_MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024;
@@ -29,9 +29,9 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
     ]);
     const publicApiBaseUrl = getRequiredConfig(configService, 'PUBLIC_API_BASE_URL').replace(/\/$/u, '');
     const profile = getOptionalConfig(configService, 'APP_CONFIG_PROFILE') ?? 'local';
-    const production = profile === 'prod';
+    const isProduction = profile === 'prod';
     validateEndpoint(internalEndpoint, false);
-    validateEndpoint(publicApiBaseUrl, production);
+    validateEndpoint(publicApiBaseUrl, isProduction);
     const accessKey = getRequiredConfig(configService, ['object-storage.accessKey', 'S3_ACCESS_KEY']);
     const secretKey = getRequiredConfig(configService, ['object-storage.secretKey', 'S3_SECRET_KEY']);
     const bucket = getRequiredConfig(configService, ['object-storage.bucket', 'S3_BUCKET']);
@@ -84,11 +84,11 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
     };
 }
 
-function validateEndpoint(endpoint: string, production: boolean): void {
+function validateEndpoint(endpoint: string, isProduction: boolean): void {
     const url = new URL(endpoint);
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password
-        || url.pathname !== '/' || url.search || url.hash
-        || (production && (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
+    if (!['http:', 'https:'].includes(url.protocol) || url.username !== '' || url.password !== ''
+        || url.pathname !== '/' || url.search !== '' || url.hash !== ''
+        || (isProduction && (url.protocol !== 'https:' || ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))) {
         throw new Error('Storage and API endpoints must be HTTP(S) origins; production API requires HTTPS and a non-local host');
     }
 }

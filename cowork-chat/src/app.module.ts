@@ -1,21 +1,21 @@
-import { createWriteStream, mkdirSync } from 'node:fs';
-import { Module } from '@nestjs/common';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { MongooseModule } from '@nestjs/mongoose';
-import { GraphQLModule } from '@nestjs/graphql';
-import { ApolloDriver, ApolloDriverConfig } from '@nestjs/apollo';
-import { Request } from 'express';
-import { PrometheusModule } from '@willsoto/nestjs-prometheus';
-import { LoggerModule } from 'nestjs-pino';
-import { multistream } from 'pino';
-import { ChatModule } from './chat/chat.module';
-import { HealthController } from './health.controller';
-import { AuthGuard } from './common/guard/auth.guard';
-import { HttpLoggingInterceptor } from './common/interceptor/http-logging.interceptor';
-import { getMongoDbUri, getOptionalConfig } from './common/config/config.util';
-import { ProjectionReadinessModule } from './common/kafka/projection-readiness.module';
-import { SearchModule } from './search/search.module';
+import {createWriteStream, mkdirSync} from 'node:fs';
+import {Module} from '@nestjs/common';
+import {APP_GUARD, APP_INTERCEPTOR} from '@nestjs/core';
+import {ConfigModule, ConfigService} from '@nestjs/config';
+import {MongooseModule} from '@nestjs/mongoose';
+import {GraphQLModule} from '@nestjs/graphql';
+import {ApolloDriver, ApolloDriverConfig} from '@nestjs/apollo';
+import {Request} from 'express';
+import {PrometheusModule} from '@willsoto/nestjs-prometheus';
+import {LoggerModule} from 'nestjs-pino';
+import {multistream} from 'pino';
+import {ChatModule} from './chat/chat.module';
+import {HealthController} from './health.controller';
+import {AuthGuard} from './common/guard/auth.guard';
+import {HttpLoggingInterceptor} from './common/interceptor/http-logging.interceptor';
+import {getMongoDbUri, getOptionalConfig} from './common/config/config.util';
+import {ProjectionReadinessModule} from './common/kafka/projection-readiness.module';
+import {SearchModule} from './search/search.module';
 
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
@@ -24,7 +24,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
 
 @Module({
     imports: [
-        ConfigModule.forRoot({ isGlobal: true }),
+        ConfigModule.forRoot({isGlobal: true}),
         MongooseModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
@@ -38,31 +38,31 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
         LoggerModule.forRootAsync({
             inject: [ConfigService],
             useFactory(configService: ConfigService) {
-                const loggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
-                if (!loggerEnabled) {
-                    return { pinoHttp: { level: 'silent' } };
+                const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
+                if (!isLoggerEnabled) {
+                    return {pinoHttp: {level: 'silent'}};
                 }
                 const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
                 const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
                 const level = nodeEnv === 'production' ? 'info' : 'debug';
                 // 운영 수집기는 Docker stdout을 읽으므로 stdout은 항상 쓴다. 파일은 로그 디렉터리를 지정한 로컬 이미지에서만 함께 쓴다.
                 const createLogStream = () => {
-                    if (!logDir) {
+                    if (logDir === undefined || logDir === '') {
                         return process.stdout;
                     }
                     try {
-                        mkdirSync(logDir, { recursive: true });
+                        mkdirSync(logDir, {recursive: true});
                     } catch {
                         return process.stdout;
                     }
-                    const file = createWriteStream(`${logDir}/app.log`, { flags: 'a' });
+                    const file = createWriteStream(`${logDir}/app.log`, {flags: 'a'});
                     // 파일 쓰기 실패가 프로세스를 종료해 stdout 로그까지 끊기지 않게 한다.
                     file.on('error', error => {
                         process.stderr.write(`cowork-chat file log disabled: ${error.message}\n`);
                     });
                     return multistream([
-                        { level, stream: process.stdout },
-                        { level, stream: file },
+                        {level, stream: process.stdout},
+                        {level, stream: file},
                     ]);
                 };
                 return {
@@ -77,16 +77,16 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                         },
                         timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
                         formatters: {
-                            level: (label: string) => ({ level: label }),
+                            level: (label: string) => ({level: label}),
                         },
-                        base: { service: 'cowork-chat' },
+                        base: {service: 'cowork-chat'},
                         messageKey: 'message',
                     },
                 };
             },
         }),
         PrometheusModule.register({
-            defaultMetrics: { enabled: true },
+            defaultMetrics: {enabled: true},
             path: '/metrics',
         }),
         GraphQLModule.forRoot<ApolloDriverConfig>({
@@ -94,15 +94,15 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
             autoSchemaFile: true,
             playground: false,
             graphiql: process.env.NODE_ENV !== 'production',
-            context: ({ req }: { req: Request }) => ({ req }),
+            context: ({req}: {req: Request}) => ({req}),
         }),
         ChatModule,
         SearchModule,
     ],
     controllers: [HealthController],
     providers: [
-        { provide: APP_GUARD, useClass: AuthGuard },
-        { provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor },
+        {provide: APP_GUARD, useClass: AuthGuard},
+        {provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor},
     ],
 })
 export class AppModule {}
