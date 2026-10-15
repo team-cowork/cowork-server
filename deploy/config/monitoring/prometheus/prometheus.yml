@@ -70,6 +70,7 @@ scrape_configs:
           - http://cowork-roadmap:8088/actuator/health
           - http://cowork-voice:8089/health
           - http://cowork-preference:9001/health
+          - http://cowork-github:8090/health
     relabel_configs:
       - source_labels: [__address__]
         target_label: __param_target

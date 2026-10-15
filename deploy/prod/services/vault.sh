@@ -1,7 +1,7 @@
 #!/bin/bash
-require_env VAULT_EXTERNAL_HOST VAULT_BIND_IP VAULT_DATA_VOLUME
+require_env VAULT_EXTERNAL_HOST VAULT_BIND_IP VAULT_HOST_PORT VAULT_DATA_VOLUME VAULT_COMPOSE_PROJECT
 COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
-  -p "${VAULT_COMPOSE_PROJECT:-vault}" -f "${PROD_DIR}/vault/compose.yaml")
+  -p "$VAULT_COMPOSE_PROJECT" -f "${PROD_DIR}/vault/compose.yaml")
 vault_config_file="${RELEASE_ROOT}/deploy/config/vault/server.hcl"
 [ -f "$vault_config_file" ] && [ ! -L "$vault_config_file" ] ||
   fail 'Vault configuration must be a regular non-symlink file'
