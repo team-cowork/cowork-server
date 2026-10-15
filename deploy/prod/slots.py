@@ -51,7 +51,7 @@ def validate_variables(values):
 
 def validate(value, target):
     demand(NAME.fullmatch(target), "Invalid slot target")
-    demand(isinstance(value, dict) and set(value) <= {"schema_version", "service", "kind", "runtime", "secrets", "github_secrets", "container", "peers"}, "Invalid slot sections")
+    demand(isinstance(value, dict) and set(value) <= {"schema_version", "service", "kind", "runtime", "secrets", "container", "peers"}, "Invalid slot sections")
     demand(value.get("schema_version") == 1, "Unsupported slot schema")
     demand(isinstance(value.get("service"), str) and NAME.fullmatch(value["service"]), "Invalid slot service")
     demand(value.get("kind") in {"application", "config", "infrastructure"}, "Invalid slot kind")
@@ -70,16 +70,6 @@ def validate(value, target):
             demand(isinstance(ref["path"], str) and all(NAME.fullmatch(p) for p in ref["path"].split("/")), "Invalid Vault secret path")
             demand(isinstance(ref["key"], str) and ref["key"], "Invalid Vault secret key")
     demand(not set(secrets.get("runtime", {})).intersection(secrets.get("application", {})), "Duplicate secret environment key")
-    github_secrets = value.get("github_secrets", {})
-    demand(isinstance(github_secrets, dict), "GitHub secret references must be an object")
-    if github_secrets:
-        demand(value["kind"] == "infrastructure" and value["service"] == "monitoring"
-               and github_secrets == {"DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK"},
-               "Only monitoring can consume its GitHub monitoring webhook")
-        demand(not set(github_secrets).intersection(value.get("runtime", {}))
-               and not set(github_secrets).intersection(secrets.get("runtime", {}))
-               and not set(github_secrets).intersection(secrets.get("application", {})),
-               "Secret source declarations must not overlap")
     if value["kind"] == "infrastructure":
         demand("container" not in value and "peers" not in value, "Infrastructure lifecycle owns its containers and ingress")
         return value
