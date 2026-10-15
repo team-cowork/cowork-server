@@ -260,6 +260,13 @@ spring:
             - Method=GET
           filters:
             - StripPrefix=2
+            # 인증 없이 GitHub App API를 호출하는 콜백이므로 반복 호출로 App 한도가 소진되지 않게 제한한다
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 10
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
 
         - id: voice-service-webhook
           order: -1
