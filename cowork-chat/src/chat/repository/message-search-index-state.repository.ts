@@ -1,9 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { MESSAGE_SEARCH_INDEX_STATE_ID, MessageSearchIndexState } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model} from 'mongoose';
+import {MESSAGE_SEARCH_INDEX_STATE_ID, MessageSearchIndexState} from '../schema';
 
-/** 재구축 결과와 백필 진행 상태를 replica 간에 공유하는 단일 도큐먼트 저장소. */
+/**
+재구축 결과와 백필 진행 상태를 replica 간에 공유하는 단일 도큐먼트 저장소.
+*/
 @Injectable()
 export class MessageSearchIndexStateRepository {
     constructor(
@@ -15,7 +17,7 @@ export class MessageSearchIndexStateRepository {
     }
 
     private async patch(fields: Partial<MessageSearchIndexState>): Promise<void> {
-        await this.model.updateOne({ _id: MESSAGE_SEARCH_INDEX_STATE_ID }, { $set: fields }, { upsert: true });
+        await this.model.updateOne({_id: MESSAGE_SEARCH_INDEX_STATE_ID}, {$set: fields}, {upsert: true});
     }
 
     async markRebuildStarted(index: string, startedAt: Date, scanCursor: string | null): Promise<void> {
@@ -27,9 +29,11 @@ export class MessageSearchIndexStateRepository {
         });
     }
 
-    /** Snapshot scan 진행 위치를 남겨 중단된 재구축을 이어서 재개할 수 있게 한다. */
+    /**
+    Snapshot scan 진행 위치를 남겨 중단된 재구축을 이어서 재개할 수 있게 한다.
+    */
     async saveRebuildScanCursor(scanCursor: string | null): Promise<void> {
-        return this.patch({ lastRebuildScanCursor: scanCursor });
+        return this.patch({lastRebuildScanCursor: scanCursor});
     }
 
     async markRebuildSucceeded(index: string, documentCount: number): Promise<void> {
@@ -43,19 +47,19 @@ export class MessageSearchIndexStateRepository {
     }
 
     async markRebuildFailed(error: string): Promise<void> {
-        return this.patch({ lastRebuildFailedAt: new Date(), lastRebuildError: error });
+        return this.patch({lastRebuildFailedAt: new Date(), lastRebuildError: error});
     }
 
     async markLegacyBackfillCompleted(): Promise<void> {
-        return this.patch({ legacyBackfillCompletedAt: new Date() });
+        return this.patch({legacyBackfillCompletedAt: new Date()});
     }
 
     /**
-     * 재구축 락을 점유한다.
-     *
-     * 락이 비어 있거나, 이 `lockId`가 이미 쥐고 있거나, 마지막 점유가 `staleThresholdMs`보다
-     * 오래됐으면(죽은 프로세스로 간주) 점유에 성공한다. 그 외에는 다른 replica가 실행 중인
-     * 것이므로 실패한다.
+     재구축 락을 점유한다.
+
+     락이 비어 있거나, 이 `lockId`가 이미 쥐고 있거나, 마지막 점유가 `staleThresholdMs`보다
+     오래됐으면(죽은 프로세스로 간주) 점유에 성공한다. 그 외에는 다른 replica가 실행 중인
+     것이므로 실패한다.
      */
     async tryAcquireRebuildLock(lockId: string, staleThresholdMs: number): Promise<boolean> {
         const now = new Date();
@@ -64,22 +68,24 @@ export class MessageSearchIndexStateRepository {
             {
                 _id: MESSAGE_SEARCH_INDEX_STATE_ID,
                 $or: [
-                    { rebuildLockedAt: null },
-                    { rebuildLockedAt: { $lt: staleBefore } },
-                    { rebuildLockId: lockId },
+                    {rebuildLockedAt: null},
+                    {rebuildLockedAt: {$lt: staleBefore}},
+                    {rebuildLockId: lockId},
                 ],
             },
-            { $set: { rebuildLockedAt: now, rebuildLockId: lockId } },
-            { upsert: true },
+            {$set: {rebuildLockedAt: now, rebuildLockId: lockId}},
+            {upsert: true},
         );
         return result.matchedCount > 0 || result.upsertedCount > 0;
     }
 
-    /** 이 `lockId`가 쥔 재구축 락을 해제한다. 이미 다른 락으로 넘어갔다면 아무것도 하지 않는다. */
+    /**
+    이 `lockId`가 쥔 재구축 락을 해제한다. 이미 다른 락으로 넘어갔다면 아무것도 하지 않는다.
+    */
     async releaseRebuildLock(lockId: string): Promise<void> {
         await this.model.updateOne(
-            { _id: MESSAGE_SEARCH_INDEX_STATE_ID, rebuildLockId: lockId },
-            { $set: { rebuildLockedAt: null, rebuildLockId: null } },
+            {_id: MESSAGE_SEARCH_INDEX_STATE_ID, rebuildLockId: lockId},
+            {$set: {rebuildLockedAt: null, rebuildLockId: null}},
         );
     }
 }
