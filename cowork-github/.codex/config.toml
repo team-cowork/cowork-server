@@ -1,0 +1,8 @@
+developer_instructions = """
+Write responses in Korean.
+Only include Git-related guidance when the user explicitly asks for it.
+"""
+
+model_reasoning_effort = "medium"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
