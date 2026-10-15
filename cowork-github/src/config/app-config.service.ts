@@ -17,7 +17,7 @@ export class AppConfigService {
 
     get kafkaBrokers(): string[] {
         return this.configService
-            .getOrThrow<string>('KAFKA_BROKERS')
+            .getOrThrow<string>('KAFKA_BOOTSTRAP_SERVERS')
             .split(',')
             .map(broker => broker.trim())
             .filter(Boolean);
@@ -79,6 +79,30 @@ export class AppConfigService {
 
     get githubWebhookSecret(): string {
         return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
+    }
+
+    get eurekaEnabled(): boolean {
+        return this.configService.getOrThrow<boolean>('EUREKA_ENABLED');
+    }
+
+    get eurekaServerUrl(): string {
+        return this.configService.getOrThrow<string>('EUREKA_SERVER_URL');
+    }
+
+    get eurekaAppName(): string {
+        return this.configService.getOrThrow<string>('EUREKA_APP_NAME');
+    }
+
+    get eurekaLeaseRenewalSeconds(): number {
+        return this.configService.getOrThrow<number>('EUREKA_LEASE_RENEWAL_SECONDS');
+    }
+
+    get advertiseAddress(): string {
+        return this.configService.getOrThrow<string>('APP_ADVERTISE_ADDRESS');
+    }
+
+    get advertisePort(): number {
+        return this.configService.get<number>('APP_ADVERTISE_PORT') ?? this.port;
     }
 
     private getNumber(key: string, fallback: number): number {

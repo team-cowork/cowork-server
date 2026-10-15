@@ -1,6 +1,6 @@
 export const TEST_ENV: Record<string, string> = {
     PORT: '3000',
-    KAFKA_BROKERS: 'localhost:9092',
+    KAFKA_BOOTSTRAP_SERVERS: 'localhost:9092',
     KAFKA_GROUP_ID: 'cowork-github-test',
     GITHUB_APP_ID: '123456',
     GITHUB_PRIVATE_KEY: Buffer.from('test-private-key').toString('base64'),
@@ -8,6 +8,7 @@ export const TEST_ENV: Record<string, string> = {
     REDIS_PORT: '6379',
     INTERNAL_API_KEY: 'test-internal-api-key',
     GITHUB_WEBHOOK_SECRET: 'test-github-webhook-secret',
+    EUREKA_ENABLED: 'false',
 };
 
 export function applyTestEnv(): NodeJS.ProcessEnv {
