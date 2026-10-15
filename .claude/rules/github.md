@@ -5,7 +5,7 @@ paths:
 
 # GitHub App
 
-- Read environment variables only through `AppConfigService`; do not read `process.env` directly.
+- Read environment variables only through `AppConfigService`. Only the Config Server bootstrap in `src/config/` reads `process.env` directly, because it runs before Nest creates the module.
 - Register each new feature as its own Nest module imported by `GithubModule`.
 - Supply `GITHUB_PRIVATE_KEY` as a base64-encoded PEM string. Never commit `.pem` files or keep a decoded key after local testing.
 - Kafka consumers commit and skip invalid payloads and GitHub 4xx (`GithubClientError`) failures. Other failures exit the process so the container restarts and the uncommitted message is retried.
