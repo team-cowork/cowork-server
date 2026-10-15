@@ -202,7 +202,7 @@ def full():
         o["grafana"] >> edge(DATA, style="dashed") >> o["prometheus"]
         o["grafana"] >> edge(DATA, style="dashed") >> o["loki"]
         nodes["config"] >> edge(OBS, "eureka_sd", "dashed", constraint="false") >> o["prometheus"]
-        o["prometheus"] >> edge(OBS, "scrape /metrics", lhead=service_vms, constraint="false") >> nodes["apps"]["authorization"]
+        o["prometheus"] >> edge(OBS, "scrape\n/metrics, /actuator/prometheus", lhead=service_vms, constraint="false") >> nodes["apps"]["authorization"]
         o["prometheus"] >> edge(OBS) >> o["node_agent"]
         o["prometheus"] >> edge(OBS) >> o["db_exporter"]
         o["prometheus"] >> edge(OBS) >> o["exporters"]
@@ -259,7 +259,7 @@ def monitoring():
         eureka = service("config", "Eureka")
 
         with Cluster("각 VM"):
-            app = service("{service}", "/metrics")
+            app = service("{service}", "/metrics\n/actuator/prometheus")
             db_exporter = Prometheus("DB exporter")
             node_agent = Prometheus("node-exporter")
             log_agent = Docker("Grafana Alloy\nlog-agent")
