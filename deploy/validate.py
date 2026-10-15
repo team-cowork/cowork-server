@@ -101,3 +101,25 @@ for target in inventory["targets"]:
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", target["target"]):
         raise SystemExit(f"Invalid deployment target: {name}")
 print(f"Shell/Python syntax and {len(seen)} inventory targets valid")
+
+# CD passes GitHub secrets one binding at a time, so every catalog secret needs a workflow binding.
+settings = runpy.run_path(str(ROOT / "deploy/prod/cd/github-settings.py"))
+settings_catalog = settings["load_catalog"](ROOT / "deploy/prod/configuration.json")
+plan_bindings, sync_bindings = set(), set()
+workflow = (ROOT / ".github/workflows/cowork-prod-cd.yml").read_text()
+for name, expression in re.findall(r"^\s*GH_SECRET_(\w+): \$\{\{ (.+) \}\}$", workflow, re.MULTILINE):
+    if f"secrets.{name} " not in expression:
+        raise SystemExit(f"GH_SECRET_{name} must bind secrets.{name}")
+    if "matrix.secret_names" not in expression:
+        plan_bindings.add(name)
+    elif f"contains(matrix.secret_names, '{name}')" in expression:
+        sync_bindings.add(name)
+    else:
+        raise SystemExit(f"GH_SECRET_{name} must be selected by its own name in matrix.secret_names")
+expected_plan = {name for name, spec in settings_catalog["shared"].items() if spec["kind"] == "secret"}
+expected_sync = {name for target in settings_catalog["targets"] for name in settings["secret_names"](settings_catalog, target)}
+for step, actual, expected in (("plan", plan_bindings, expected_plan), ("sync", sync_bindings, expected_sync)):
+    if actual != expected:
+        raise SystemExit(f"Prod CD {step} secret bindings differ from configuration.json: "
+                         f"missing {sorted(expected - actual)}, unused {sorted(actual - expected)}")
+print(f"{len(expected_sync)} Prod CD secret bindings match the settings catalog")
