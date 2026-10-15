@@ -621,7 +621,7 @@ jobs:
               const bcc = btC[a] || 0, acc = atC[a] || 0;
               const bll = btL[a] || 0, aLines = atL[a] || 0;
               const rbV = rB[a], raV = rA[a];
-              const move = rbV ? `${rbV} -> ${raV}` : `new -> ${raV}`;
+              const move = rbV ? `${rbV} -> ${raV}` : `신규 -> ${raV}`;
               return {
                 changed: (acc - bcc) > 0 || (aLines - bll) > 0,
                 a,
@@ -630,13 +630,14 @@ jobs:
                 m: move,
               };
             });
-            const pad = (s, w) => s.padEnd(w);
-            const wa = Math.max('AUTHOR'.length, ...lbRows.map(r => r.a.length));
-            const wc = Math.max('COMMITS'.length, ...lbRows.map(r => r.c.length));
-            const wl = Math.max('LINES'.length, ...lbRows.map(r => r.l.length));
+            const displayWidth = (s) => [...s].reduce((width, char) => width + (/[가-힣ㄱ-ㅎㅏ-ㅣ]/u.test(char) ? 2 : 1), 0);
+            const pad = (s, w) => s + ' '.repeat(Math.max(0, w - displayWidth(s)));
+            const wa = Math.max(displayWidth('기여자'), ...lbRows.map(r => displayWidth(r.a)));
+            const wc = Math.max(displayWidth('커밋'), ...lbRows.map(r => r.c.length));
+            const wl = Math.max(displayWidth('라인'), ...lbRows.map(r => r.l.length));
             out.push('### 전체 기여자 리더보드 (병합 후 기준)',
               '이번 PR로 기여가 증가한 사람은 초록색으로 강조됩니다.', '', '```diff',
-              `  ${pad('AUTHOR', wa)}  ${pad('COMMITS', wc)}  ${pad('LINES', wl)}  RANK`);
+              `  ${pad('기여자', wa)}  ${pad('커밋', wc)}  ${pad('라인', wl)}  순위`);
             for (const r of lbRows) {
               out.push(`${r.changed ? '+' : ' '} ${pad(r.a, wa)}  ${pad(r.c, wc)}  ${pad(r.l, wl)}  ${r.m}`);
             }
@@ -666,7 +667,7 @@ jobs:
                 data: { labels, datasets: [{ data, backgroundColor: data.map(colorFor) }] },
                 options: {
                   legend: { display: false },
-                  title: { display: true, fontSize: 16, text: 'Commits added by this PR (per module)' },
+                  title: { display: true, fontSize: 16, fontFamily: 'Noto Sans CJK KR', text: '이 PR에서 추가한 모듈별 커밋 수' },
                   plugins: { datalabels: { anchor: 'end', align: 'right', color: '#444', formatter: '__FMT__' } },
                   scales: { xAxes: [{ ticks: { beginAtZero: true, suggestedMax: Math.ceil(vmax * 1.25) } }] },
                 },
@@ -674,7 +675,7 @@ jobs:
               let cfgStr = JSON.stringify(cfg).replace('"__FMT__"', 'function(v){return "+"+v;}');
               const h = Math.max(180, 46 * labels.length + 90);
               const chartUrl = `https://quickchart.io/chart?bkg=white&w=820&h=${h}&c=${encodeURIComponent(cfgStr)}`;
-              out.push('### 이 PR이 추가하는 모듈별 커밋', `![module delta](${chartUrl})`, '');
+              out.push('### 이 PR이 추가하는 모듈별 커밋', `![모듈별 커밋 변화](${chartUrl})`, '');
             }
 
             const mdRows = fullCats.map(c => {
@@ -683,16 +684,16 @@ jobs:
               return { changed: dc > 0 || dl > 0, name: c, dc, dl,
                 cc: cell(aModC[c], dc), lc: cell(aModL[c], dl) };
             }).sort((x, y) => (y.dc - x.dc) || (y.dl - x.dl));
-            const wm = Math.max('MODULE'.length, ...mdRows.map(r => r.name.length));
-            const wcc = Math.max('COMMITS'.length, ...mdRows.map(r => r.cc.length));
-            const wll = Math.max('LINES'.length, ...mdRows.map(r => r.lc.length));
+            const wm = Math.max(displayWidth('모듈'), ...mdRows.map(r => displayWidth(r.name)));
+            const wcc = Math.max(displayWidth('커밋'), ...mdRows.map(r => r.cc.length));
+            const wll = Math.max(displayWidth('라인'), ...mdRows.map(r => r.lc.length));
             out.push('### 모듈별 변화 상세 (전체 모듈)',
               '이번 PR이 커밋을 추가한 모듈은 초록색으로 강조됩니다.', '', '```diff',
-              `  ${pad('MODULE', wm)}  ${pad('COMMITS', wcc)}  ${pad('LINES', wll)}`);
+              `  ${pad('모듈', wm)}  ${pad('커밋', wcc)}  ${pad('라인', wll)}`);
             for (const r of mdRows) {
               out.push(`${r.changed ? '+' : ' '} ${pad(r.name, wm)}  ${pad(r.cc, wcc)}  ${pad(r.lc, wll)}`);
             }
             out.push('```', '');
-            out.push(`<sub>base <code>${baseSha.slice(0, 8)}</code> 기준 · 머지 커밋 제외</sub>`);
+            out.push(`<sub>기준 커밋 <code>${baseSha.slice(0, 8)}</code> · 머지 커밋 제외</sub>`);
 
             await postComment(out.join('\n'));
