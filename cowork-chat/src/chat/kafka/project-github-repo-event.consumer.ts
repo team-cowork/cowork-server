@@ -4,16 +4,16 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectGithubRepoProjectionRepository } from '../repository';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {ProjectGithubRepoProjectionRepository} from '../repository';
 
 type ProjectGithubRepoEvent = {
     schemaVersion: 1;
@@ -47,13 +47,13 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.projectGithubRepo;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                     stream,
                     partition,
@@ -69,7 +69,7 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
                 description: 'cowork-chat의 project.github-repo.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
                 fields: [
-                    { name: 'Topic', value: stream.topic, inline: true },
+                    {name: 'Topic', value: stream.topic, inline: true},
                     ...buildErrorFields(error),
                 ],
             }).catch(() => {/* Alert delivery is best-effort. */});
@@ -98,13 +98,15 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
             throw new ProjectionContractError('project GitHub repo occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
+        const {occurredAt, sourceVersion} = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.repository.remove(payload.repoId, occurredAt, sourceVersion);
             return;
         }
 
-        if (!payload.githubRepoUrl || !payload.owner || !payload.repo) {
+        if (payload.githubRepoUrl == null || payload.githubRepoUrl === ''
+            || payload.owner == null || payload.owner === ''
+            || payload.repo == null || payload.repo === '') {
             throw new ProjectionContractError('project GitHub repo UPSERT requires URL, owner, and repo');
         }
 

@@ -4,24 +4,26 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ChannelProjectionEvent, ChannelProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {ChannelProjectionEvent, ChannelProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
 
 type ChannelEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
     channelId: number;
     teamId: number | null;
-    /** 팀 채널은 null, 프로젝트 채널은 해당 project ID. legacy 이벤트는 누락될 수 있다. */
+    /**
+    팀 채널은 null, 프로젝트 채널은 해당 project ID. legacy 이벤트는 누락될 수 있다.
+    */
     projectId?: number | null;
     name: string;
     type: string;
@@ -29,9 +31,13 @@ type ChannelEvent = {
     description: string | null;
     isPrivate: boolean;
     occurredAt: string;
-    /** 주기/startup state replay이면 변경 알림 부수효과를 억제한다. */
+    /**
+    주기/startup state replay이면 변경 알림 부수효과를 억제한다.
+    */
     snapshot?: boolean;
-    /** 이전 producer 이벤트와의 호환을 위해 선택값이며, 누락 시 0으로 저장한다. */
+    /**
+    이전 producer 이벤트와의 호환을 위해 선택값이며, 누락 시 0으로 저장한다.
+    */
     position?: number;
 };
 
@@ -59,13 +65,13 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.channel;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                     stream,
                     partition,
@@ -80,7 +86,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 title: '🔴 Kafka Consumer 중단',
                 description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: stream.topic, inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
@@ -108,7 +114,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('channel event occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
+        const {occurredAt, sourceVersion} = eventTime;
         const deletionRecipientSocketIds = event.eventType === 'DELETED'
             && event.snapshot !== true
             && event.teamId !== null
@@ -119,9 +125,9 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 event.channelId,
             )
             : [];
-        let applied: boolean;
+        let isApplied: boolean;
         if (event.eventType === 'DELETED') {
-            applied = await this.channelRepository.remove(event.channelId, occurredAt, sourceVersion);
+            isApplied = await this.channelRepository.remove(event.channelId, occurredAt, sourceVersion);
         } else {
             const projectionEvent: ChannelProjectionEvent = {
                 eventType: event.eventType,
@@ -137,7 +143,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 occurredAt,
                 sourceVersion,
             };
-            applied = await this.channelRepository.upsert(projectionEvent);
+            isApplied = await this.channelRepository.upsert(projectionEvent);
         }
 
         // Replay로 다시 적용되는 과거 레코드는 소켓 이벤트나 접근 취소를 만들지 않는다.
@@ -151,21 +157,21 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         if (event.snapshot === true) {
             if (event.eventType === 'DELETED'
-                && (applied || await this.channelRepository.findById(event.channelId) === null)) {
+                && (isApplied || await this.channelRepository.findById(event.channelId) === null)) {
                 this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
             }
 
             return;
         }
 
-        const { eventType, snapshot, ...projectionPayload } = event;
+        const {eventType, snapshot, ...projectionPayload} = event;
         if (eventType === 'DELETED') {
-            if (!applied && await this.channelRepository.findById(event.channelId) !== null) {
+            if (!isApplied && await this.channelRepository.findById(event.channelId) !== null) {
                 return;
             }
 
             for (const socketId of deletionRecipientSocketIds) {
-                this.io.to(socketId).emit('channel:deleted', { channelId: event.channelId, teamId: event.teamId });
+                this.io.to(socketId).emit('channel:deleted', {channelId: event.channelId, teamId: event.teamId});
             }
 
             this.io.in(`chat:${event.channelId}`).socketsLeave(`chat:${event.channelId}`);
@@ -177,7 +183,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         if (eventType === 'CREATED') {
-            if (!applied) {
+            if (!isApplied) {
                 return;
             }
 
@@ -189,7 +195,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
                 projectionPayload,
             );
         } else if (eventType === 'UPDATED') {
-            if (!applied) {
+            if (!isApplied) {
                 return;
             }
 
