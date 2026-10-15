@@ -4,22 +4,22 @@ import {
     NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
-import { AttachmentDownloadService } from './attachment-download.service';
+import {AttachmentDownloadService} from './attachment-download.service';
 
 const messageId = '123456789012345678901234';
-const attachment = { objectKey: 'chat-files/1/42/file.png' };
+const attachment = {objectKey: 'chat-files/1/42/file.png'};
 
 describe('AttachmentDownloadService', () => {
-    const messages = { findByIdAndChannelId: jest.fn() };
-    const readAccess = { requireCanRead: jest.fn() };
-    const storage = { createPresignedDownload: jest.fn() };
+    const messages = {findByIdAndChannelId: jest.fn()};
+    const readAccess = {requireCanRead: jest.fn()};
+    const storage = {createPresignedDownload: jest.fn()};
     const service = new AttachmentDownloadService(messages as never, readAccess as never, storage as never);
 
     beforeEach(() => {
         jest.resetAllMocks();
         readAccess.requireCanRead.mockResolvedValue(undefined);
-        messages.findByIdAndChannelId.mockResolvedValue({ authorId: 42, attachments: [attachment], searchIndexStatus: 'SYNCED' });
-        storage.createPresignedDownload.mockResolvedValue({ downloadUrl: 'signed', expiresInSeconds: 60, expiresAt: '2026-10-13T00:01:00.000Z' });
+        messages.findByIdAndChannelId.mockResolvedValue({authorId: 42, attachments: [attachment], searchIndexStatus: 'SYNCED'});
+        storage.createPresignedDownload.mockResolvedValue({downloadUrl: 'signed', expiresInSeconds: 60, expiresAt: '2026-10-13T00:01:00.000Z'});
     });
 
     it('메시지를 읽을 수 있는 사용자는 다른 작성자의 첨부를 내려받는다', async () => {
@@ -44,7 +44,7 @@ describe('AttachmentDownloadService', () => {
         expect(storage.createPresignedDownload).toHaveBeenCalledTimes(1);
     });
 
-    it.each([null, { authorId: 42, attachments: [attachment], searchIndexStatus: 'DELETING' }])('삭제되거나 요청 채널에 없는 메시지는 발급하지 않는다', async message => {
+    it.each([null, {authorId: 42, attachments: [attachment], searchIndexStatus: 'DELETING'}])('삭제되거나 요청 채널에 없는 메시지는 발급하지 않는다', async message => {
         messages.findByIdAndChannelId.mockResolvedValue(message);
         await expect(service.execute(1, 7, messageId, 0)).rejects.toBeInstanceOf(NotFoundException);
         expect(storage.createPresignedDownload).not.toHaveBeenCalled();
