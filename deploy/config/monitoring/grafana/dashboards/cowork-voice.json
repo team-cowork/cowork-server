@@ -1,5 +1,5 @@
 {
-  "title": "cowork-voice",
+  "title": "cowork 음성",
   "uid": "cowork-voice",
   "tags": ["cowork", "service", "voice"],
   "timezone": "browser",
@@ -23,7 +23,7 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            { "type": "value", "options": { "0": { "text": "응답 없음", "color": "red" }, "1": { "text": "정상", "color": "green" } } }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
         }
@@ -31,7 +31,7 @@
     },
     {
       "id": 2,
-      "title": "API 요청 Rate (req/s)",
+      "title": "초당 API 요청 수 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -44,7 +44,7 @@
     },
     {
       "id": 3,
-      "title": "API 4xx/5xx 응답 수 (req/s)",
+      "title": "초당 API 4xx/5xx 응답 수 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
@@ -95,12 +95,12 @@
       "targets": [
         {
           "expr": "go_memstats_heap_inuse_bytes{service=\"voice\"}",
-          "legendFormat": "Heap InUse",
+          "legendFormat": "사용 중인 힙 영역",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "go_memstats_heap_alloc_bytes{service=\"voice\"}",
-          "legendFormat": "Heap Alloc",
+          "legendFormat": "객체에 할당된 힙 메모리",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -108,18 +108,18 @@
     },
     {
       "id": 7,
-      "title": "Go Goroutine 수 / GC 빈도",
+      "title": "Go 고루틴 수 / GC 빈도",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
           "expr": "go_goroutines{service=\"voice\"}",
-          "legendFormat": "goroutines",
+          "legendFormat": "고루틴 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "rate(go_gc_duration_seconds_count{service=\"voice\"}[1m]) * 60",
-          "legendFormat": "GC/min",
+          "legendFormat": "분당 GC 횟수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -132,7 +132,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }
