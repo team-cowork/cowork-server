@@ -33,7 +33,7 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 | `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GITHUB_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GITHUB_PASSWORD`에서 전달 |
 
-GitHub Webhook은 Gateway를 거치지 않고 [Webhook 프록시](../deploy/config/github/webhook-nginx.conf)로만 들어옵니다.
+GitHub Webhook(`POST /api/github/github/webhooks`)과 App setup 콜백(`GET /api/github/github/setup`)만 Gateway로 공개합니다. 내부 HTTP API는 공개하지 않습니다.
 
 ## 개발
 
