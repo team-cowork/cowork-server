@@ -1,0 +1,75 @@
+name: cowork prod CD Workflow
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npx eslint "{src,apps,libs,test}/**/*.ts"
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit Test
+        run: npm test -- --runInBand
+
+      - name: E2E Test
+        run: npm run test:e2e
+
+      - name: Calculate Version
+        id: version
+        run: |
+          DATE=$(date -u +"%Y%m%d")
+          EXISTING=$(git tag -l "v${DATE}.*" | wc -l | tr -d ' ')
+          VERSION="v${DATE}.${EXISTING}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Tag
+        run: git tag "${{ steps.version.outputs.version }}"
+
+      - name: Push Tag
+        run: git push origin "${{ steps.version.outputs.version }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.version }}" \
+            --title "${{ steps.version.outputs.version }}" \
+            --notes $'## 수정내역\n\n- main 브랜치 배포 기준 자동 릴리스'
+
+      - name: Notify Discord
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          status: ${{ job.status }}
+          title: "Cowork GitHub Prod CD"
+          description: |
+            Released `${{ steps.version.outputs.version }}` · by **${{ github.actor }}**
