@@ -1,6 +1,6 @@
 {
   "uid": "cowork-service-slots",
-  "title": "cowork Service Slots",
+  "title": "cowork 서비스 운영 현황",
   "schemaVersion": 39,
   "version": 1,
   "editable": false,
@@ -18,6 +18,7 @@
     "list": [
       {
         "name": "service",
+        "label": "서비스",
         "type": "query",
         "datasource": {
           "type": "prometheus",
@@ -39,7 +40,7 @@
     {
       "id": 1,
       "type": "timeseries",
-      "title": "Readiness",
+      "title": "서비스 준비 상태",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -61,7 +62,7 @@
     {
       "id": 2,
       "type": "timeseries",
-      "title": "Metrics collection",
+      "title": "메트릭 수집 상태",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -83,7 +84,7 @@
     {
       "id": 3,
       "type": "timeseries",
-      "title": "Readiness response time",
+      "title": "서비스 준비 상태 확인 응답 시간",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -105,7 +106,7 @@
     {
       "id": 4,
       "type": "timeseries",
-      "title": "Active alerts",
+      "title": "조치가 필요한 알림",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -127,8 +128,8 @@
     {
       "id": 5,
       "type": "timeseries",
-      "title": "Public Gateway HTTPS API",
-      "description": "Public /api/health reachability and JSON response identity. Downstream readiness is shown separately.",
+      "title": "외부 공개 게이트웨이 HTTPS API",
+      "description": "외부에서 /api/health에 접속할 수 있는지와 JSON 응답이 올바른지 확인합니다. 내부 서비스의 준비 상태는 별도로 표시합니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -143,12 +144,12 @@
         {
           "expr": "probe_success{job=\"public-gateway\"}",
           "refId": "A",
-          "legendFormat": "Public JSON API"
+          "legendFormat": "외부 공개 JSON API"
         },
         {
           "expr": "up{job=\"public-gateway\"}",
           "refId": "B",
-          "legendFormat": "Probe collection"
+          "legendFormat": "상태 점검 결과 수집"
         }
       ],
       "fieldConfig": {
