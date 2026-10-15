@@ -24,8 +24,8 @@ import {
     ProjectionDatasetState,
     ProjectionStreamName,
 } from './projection-dataset.repository';
-import { ProjectionDatasetStatus, ProjectionRunMode } from './projection-dataset.schema';
-import { ProjectionMetricsService } from './projection-metrics.service';
+import {ProjectionDatasetStatus, ProjectionRunMode} from './projection-dataset.schema';
+import {ProjectionMetricsService} from './projection-metrics.service';
 
 export type ProjectionStream = {
     name: string;
@@ -175,23 +175,25 @@ type ProjectionAdminConnection = {
 
 const POLL_INTERVAL_MS = 1000;
 /**
- * Kafkajs RequestQueue는 broker throttling 등으로 pending queue에 남은 요청에는 requestTimeout을
- * 적용하지 않아(inflight 요청만 sweep한다) 한 번 막힌 admin 커넥션이 영원히 응답하지 않을 수 있다.
- * 상한을 넘긴 요청은 실패시키고 커넥션을 폐기해 다음 호출이 새 커넥션을 쓰게 한다.
+ Kafkajs RequestQueue는 broker throttling 등으로 pending queue에 남은 요청에는 requestTimeout을
+ 적용하지 않아(inflight 요청만 sweep한다) 한 번 막힌 admin 커넥션이 영원히 응답하지 않을 수 있다.
+ 상한을 넘긴 요청은 실패시키고 커넥션을 폐기해 다음 호출이 새 커넥션을 쓰게 한다.
  */
 const ADMIN_REQUEST_TIMEOUT_MS = 15_000;
 /**
- * 막힌 커넥션의 disconnect도 응답하지 않을 수 있으므로 종료 대기에 상한을 둔다. 상한이 없으면
- * graceful shutdown이 termination grace period 만료(SIGKILL)까지 밀린다.
+ 막힌 커넥션의 disconnect도 응답하지 않을 수 있으므로 종료 대기에 상한을 둔다. 상한이 없으면
+ graceful shutdown이 termination grace period 만료(SIGKILL)까지 밀린다.
  */
 const ADMIN_DISCONNECT_TIMEOUT_MS = 2000;
 
-/** 상한을 넘긴 작업을 나머지 실패와 구분한다. */
+/**
+상한을 넘긴 작업을 나머지 실패와 구분한다.
+*/
 class ProjectionOperationTimeoutError extends Error {}
 
 /**
- * 응답하지 않을 수 있는 작업에 상한을 둔다. 상한을 넘겨도 원본 작업은 계속 pending일 수 있으므로,
- * 자원을 폐기할 책임은 호출자에게 있다.
+ 응답하지 않을 수 있는 작업에 상한을 둔다. 상한을 넘겨도 원본 작업은 계속 pending일 수 있으므로,
+ 자원을 폐기할 책임은 호출자에게 있다.
  */
 async function withTimeout<T>(work: Promise<T>, timeoutMs: number, message: string): Promise<T> {
     let timer: NodeJS.Timeout | undefined;
@@ -219,7 +221,9 @@ function isSameLease(
         && checkpoint.assignmentGenerationId === lease.groupGenerationId;
 }
 
-/** Kafka offset은 JavaScript 안전 정수 범위를 넘을 수 있으므로 항상 BigInt로 비교한다. */
+/**
+Kafka offset은 JavaScript 안전 정수 범위를 넘을 수 있으므로 항상 BigInt로 비교한다.
+*/
 function compareOffsets(left: string, right: string): number {
     const leftOffset = BigInt(left);
     const rightOffset = BigInt(right);
@@ -230,7 +234,9 @@ function compareOffsets(left: string, right: string): number {
     return leftOffset > rightOffset ? 1 : -1;
 }
 
-/** 저장된 checkpoint가 Kafka에 남아 있는 replay 가능 범위 안인지 판정한다. */
+/**
+저장된 checkpoint가 Kafka에 남아 있는 replay 가능 범위 안인지 판정한다.
+*/
 export function isCheckpointWithinRetainedRange(
     checkpoint: string,
     target: StartupPartitionOffset,
@@ -239,13 +245,15 @@ export function isCheckpointWithinRetainedRange(
         && compareOffsets(checkpoint, target.high) <= 0;
 }
 
-/** 시작 시 캡처한 파티션별 high-watermark까지 shared checkpoint가 도달했는지 판정한다. */
+/**
+시작 시 캡처한 파티션별 high-watermark까지 shared checkpoint가 도달했는지 판정한다.
+*/
 export function hasReachedStartupOffsets(
     targets: StartupPartitionOffset[],
     checkpoints: PartitionOffset[],
 ): boolean {
     const checkpointByPartition = new Map(
-        checkpoints.map(({ partition, offset }) => [partition, offset]),
+        checkpoints.map(({partition, offset}) => [partition, offset]),
     );
 
     return targets.every(target => {
@@ -262,18 +270,20 @@ export function hasReachedStartupOffsets(
     });
 }
 
-/** 모든 partition에서 full snapshot marker까지 checkpoint가 전진했는지 판정한다. */
+/**
+모든 partition에서 full snapshot marker까지 checkpoint가 전진했는지 판정한다.
+*/
 export function hasCompletedSnapshotBarriers(
     targets: StartupPartitionOffset[],
     checkpoints: ProjectionCheckpointOffset[],
 ): boolean {
     const checkpointByPartition = new Map(checkpoints.map(checkpoint => [checkpoint.partition, checkpoint]));
-    return targets.every(({ partition }) => {
+    return targets.every(({partition}) => {
         const checkpoint = checkpointByPartition.get(partition);
-        if (!checkpoint?.assignmentEpoch
-            || !checkpoint.assignmentMemberId
+        if (checkpoint?.assignmentEpoch === undefined
+            || checkpoint.assignmentMemberId === undefined
             || checkpoint.assignmentGenerationId === undefined
-            || !checkpoint.snapshotCompletedOffset
+            || checkpoint.snapshotCompletedOffset === undefined
             || checkpoint.invalidRecordOffset !== undefined) {
             return false;
         }
@@ -290,12 +300,12 @@ export function hasCompletedSnapshotBarriers(
 }
 
 /**
- * Kafka projection consumer들의 shared Mongo replay barrier.
- *
- * consumer가 실행되기 직전에 토픽의 high-watermark와 Mongo checkpoint를 캡처하고, group
- * assignment 때 broker group offset 대신 checkpoint(없으면 earliest)로 seek한다. projection
- * 반영 뒤 checkpoint를 저장하므로 Mongo가 초기화된 환경에서도 기존 broker group commit이
- * 이벤트 replay를 건너뛰지 못한다.
+ Kafka projection consumer들의 shared Mongo replay barrier.
+
+ consumer가 실행되기 직전에 토픽의 high-watermark와 Mongo checkpoint를 캡처하고, group
+ assignment 때 broker group offset 대신 checkpoint(없으면 earliest)로 seek한다. projection
+ 반영 뒤 checkpoint를 저장하므로 Mongo가 초기화된 환경에서도 기존 broker group commit이
+ 이벤트 replay를 건너뛰지 못한다.
  */
 @Injectable()
 export class ProjectionReadinessService implements OnModuleDestroy {
@@ -324,7 +334,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             return existing;
         }
 
-        this.admins.set(name, { kafka });
+        this.admins.set(name, {kafka});
         const registration = this.captureStartupState(consumer, name, stream).catch((error: unknown) => {
             this.registrations.delete(name);
             this.resetAdmin(name);
@@ -334,12 +344,14 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         return registration;
     }
 
-    /** Projection 처리 성공 뒤 next offset을 shared Mongo에 기록한다. */
+    /**
+    Projection 처리 성공 뒤 next offset을 shared Mongo에 기록한다.
+    */
     async processMessage(
         stream: ProjectionStream,
         partition: number,
         offset: string,
-        applyProjection: () => Promise<void | { snapshotBarrier?: SnapshotBarrierReceipt }>,
+        applyProjection: () => Promise<void | {snapshotBarrier?: SnapshotBarrierReceipt}>,
     ): Promise<void> {
         const name = this.validateStream(stream);
         const state = this.states.get(name);
@@ -412,7 +424,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         this.schedulePoll(name);
     }
 
-    /** Malformed record 원문을 먼저 영속화한다. 실패하면 processMessage도 실패해 offset이 유지된다. */
+    /**
+    Malformed record 원문을 먼저 영속화한다. 실패하면 processMessage도 실패해 offset이 유지된다.
+    */
     async quarantine(
         stream: ProjectionStream,
         partition: number,
@@ -490,9 +504,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     /**
-     * 이 stream이 live mutation을 전달하는 중인지 판정한다.
-     * bootstrap catch-up과 rebuild replay 중에는 projection이 아직 권위가 없으므로,
-     * 과거 레코드를 다시 적용하면서 소켓 이벤트나 접근 취소를 내보내면 안 된다.
+     이 stream이 live mutation을 전달하는 중인지 판정한다.
+     bootstrap catch-up과 rebuild replay 중에는 projection이 아직 권위가 없으므로,
+     과거 레코드를 다시 적용하면서 소켓 이벤트나 접근 취소를 내보내면 안 된다.
      */
     isStreamLive(name: ProjectionName): boolean {
         return this.states.get(name)?.ready === true;
@@ -500,7 +514,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
     onFatalInvariantViolation(listener: (reason: string) => void): () => void {
         this.fatalInvariantListeners.add(listener);
-        if (this.fatalInvariantReason) {
+        if (this.fatalInvariantReason !== undefined) {
             listener(this.fatalInvariantReason);
         }
 
@@ -522,7 +536,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             status: state.dataset.status,
             datasetGeneration: state.dataset.datasetGeneration,
             sourceGeneration: state.dataset.sourceGeneration,
-            ...(state.dataset.reason && { reason: state.dataset.reason }),
+            ...(state.dataset.reason !== undefined && {reason: state.dataset.reason}),
             partitions: state.targets.map(target => {
                 const currentOffset = state.checkpoints.get(target.partition);
                 return {
@@ -542,7 +556,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     async requestRebuild(streamName: string, reason: string): Promise<ProjectionDatasetState> {
-        if (!(streamName in PROJECTION_STREAMS)) {
+        if (!Object.hasOwn(PROJECTION_STREAMS, streamName)) {
             throw new BadRequestException(`Unknown projection stream: ${streamName}`);
         }
 
@@ -560,8 +574,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         const dataset = await this.datasets.requestRebuild(
             state.stream,
             reason,
-            offsets.map(({ partition, low }) => ({ partition, offset: low })),
-            offsets.map(({ partition, high }) => ({ partition, offset: high })),
+            offsets.map(({partition, low}) => ({partition, offset: low})),
+            offsets.map(({partition, high}) => ({partition, offset: high})),
         );
         state.dataset = dataset;
         state.ready = false;
@@ -574,9 +588,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     /**
-     * Shared checkpoint를 즉시 다시 읽어 다중 replica의 진행 상황을 반영한다.
-     * stream마다 독립적으로 검사하고 각자 다음 poll을 예약하므로, 한 stream이 admin 요청 상한을
-     * 다 써도 다른 stream의 poll 주기가 그만큼 밀리지 않는다.
+     Shared checkpoint를 즉시 다시 읽어 다중 replica의 진행 상황을 반영한다.
+     stream마다 독립적으로 검사하고 각자 다음 poll을 예약하므로, 한 stream이 admin 요청 상한을
+     다 써도 다른 stream의 poll 주기가 그만큼 밀리지 않는다.
      */
     async checkCatchup(): Promise<void> {
         if (this.stopped) {
@@ -586,7 +600,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         await Promise.all([...this.states.keys()].map(async name => this.checkStream(name)));
     }
 
-    /** 한 stream의 검사만 중복 없이 실행하고, 끝나면 그 stream의 다음 poll을 예약한다. */
+    /**
+    한 stream의 검사만 중복 없이 실행하고, 끝나면 그 stream의 다음 poll을 예약한다.
+    */
     private async checkStream(name: ProjectionName): Promise<void> {
         if (this.stopped) {
             return;
@@ -633,7 +649,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         // Pending connectPromise는 connect 재시도 백오프를 그대로 기다리게 되므로 await하지 않는다.
         // disconnect도 응답하지 않을 수 있어(resetAdmin과 같은 판단) 상한을 두고 기다린다.
         await Promise.all([...this.admins.values()].map(async connection => {
-            const { admin } = connection;
+            const {admin} = connection;
             connection.admin = undefined;
             connection.connectPromise = undefined;
             if (!admin) {
@@ -670,8 +686,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
             return this.datasets.createBootstrap(
                 stream,
-                targets.map(({ partition, low }) => ({ partition, offset: low })),
-                targets.map(({ partition, high }) => ({ partition, offset: high })),
+                targets.map(({partition, low}) => ({partition, offset: low})),
+                targets.map(({partition, high}) => ({partition, offset: high})),
             );
         }
 
@@ -722,8 +738,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
 
         if (dataset.status === 'ACTIVE') {
-            const partitions = checkpoints.map(({ partition }) => partition).toSorted((a, b) => a - b);
-            const expected = targets.map(({ partition }) => partition).toSorted((a, b) => a - b);
+            const partitions = checkpoints.map(({partition}) => partition).toSorted((a, b) => a - b);
+            const expected = targets.map(({partition}) => partition).toSorted((a, b) => a - b);
             if (partitions.join(',') !== expected.join(',')) {
                 return this.datasets.markRebuildRequired(
                     stream,
@@ -785,7 +801,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         this.attachAssignmentFence(consumer, name, state);
         this.logger.log(
             `Projection startup offsets captured: ${stream.topic} mode=${dataset.mode} status=${dataset.status} `
-            + `[${targets.map(({ partition, low, high }) => `${partition}:${low}-${high}`).join(', ')}]`,
+            + `[${targets.map(({partition, low, high}) => `${partition}:${low}-${high}`).join(', ')}]`,
         );
         this.schedulePoll(name);
     }
@@ -829,7 +845,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
             try {
                 if (assignedPartitions.length > 0) {
-                    consumer.pause([{ topic: state.stream.topic, partitions: assignedPartitions }]);
+                    consumer.pause([{topic: state.stream.topic, partitions: assignedPartitions}]);
                 }
             } catch (error) {
                 this.markFatalInvariantViolation(
@@ -875,7 +891,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
 
         state.heartbeatSequence += 1;
-        const { heartbeatSequence } = state;
+        const {heartbeatSequence} = state;
         const pending = state.pendingAssignment;
         if (pending) {
             if (heartbeatSequence <= pending.afterHeartbeatSequence
@@ -968,7 +984,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             const partitions = [...state.localAssignmentLeases.keys()];
             try {
                 if (partitions.length > 0) {
-                    state.consumer.pause([{ topic: state.stream.topic, partitions }]);
+                    state.consumer.pause([{topic: state.stream.topic, partitions}]);
                     state.leaseRenewalPaused = true;
                 }
             } catch (pauseError) {
@@ -1031,8 +1047,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             return;
         }
 
-        const startupPartitions = state.targets.map(({ partition }) => partition).toSorted((a, b) => a - b);
-        const currentPartitions = currentOffsets.map(({ partition }) => partition).toSorted((a, b) => a - b);
+        const startupPartitions = state.targets.map(({partition}) => partition).toSorted((a, b) => a - b);
+        const currentPartitions = currentOffsets.map(({partition}) => partition).toSorted((a, b) => a - b);
         if (startupPartitions.join(',') !== currentPartitions.join(',')) {
             throw new Error(
                 `partition topology changed: startup=${startupPartitions.join(',')} `
@@ -1048,11 +1064,12 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             checkpoint: ProjectionCheckpointOffset;
         }> = [];
         try {
+            /* eslint-disable no-await-in-loop -- sequential lease claim depends on the previous partition's result */
             for (const partition of pending.assignedPartitions) {
                 if (state.pendingAssignment !== pending || pending.revision !== state.assignmentRevision) {
                     await this.releaseAssignments(
                         state,
-                        claimed.map(({ partition: claimedPartition, lease }) => [claimedPartition, lease]),
+                        claimed.map(({partition: claimedPartition, lease}) => [claimedPartition, lease]),
                     );
                     return;
                 }
@@ -1075,7 +1092,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 if (!claim) {
                     await this.releaseAssignments(
                         state,
-                        claimed.map(({ partition: claimedPartition, lease: claimedLease }) => (
+                        claimed.map(({partition: claimedPartition, lease: claimedLease}) => (
                             [claimedPartition, claimedLease]
                         )),
                     );
@@ -1106,10 +1123,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     partition, target, lease: claim.lease, checkpoint: claim.checkpoint,
                 });
             }
+            /* eslint-enable no-await-in-loop -- sequential lease claim depends on the previous partition's result */
         } catch (error) {
             await this.releaseAssignments(
                 state,
-                claimed.map(({ partition, lease }) => [partition, lease]),
+                claimed.map(({partition, lease}) => [partition, lease]),
             ).catch(() => undefined);
             throw error;
         }
@@ -1117,7 +1135,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         if (state.pendingAssignment !== pending || pending.revision !== state.assignmentRevision) {
             await this.releaseAssignments(
                 state,
-                claimed.map(({ partition, lease }) => [partition, lease]),
+                claimed.map(({partition, lease}) => [partition, lease]),
             );
             return;
         }
@@ -1126,15 +1144,15 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         state.assignmentObserved = true;
         state.pendingAssignment = undefined;
         try {
-            for (const { partition, lease, checkpoint } of claimed) {
+            for (const {partition, lease, checkpoint} of claimed) {
                 state.localAssignmentLeases.set(partition, lease);
                 state.checkpoints.set(partition, checkpoint.offset);
                 state.startOffsets.set(partition, checkpoint.offset);
                 state.checkpointLeases.set(partition, lease);
-                if (checkpoint.snapshotCompletedOffset) {
-                    state.snapshotBarriers.set(partition, checkpoint.snapshotCompletedOffset);
-                } else {
+                if (checkpoint.snapshotCompletedOffset === undefined) {
                     state.snapshotBarriers.delete(partition);
+                } else {
+                    state.snapshotBarriers.set(partition, checkpoint.snapshotCompletedOffset);
                 }
 
                 if (checkpoint.snapshotOccurredAt) {
@@ -1143,13 +1161,13 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     state.snapshotOccurredAt.delete(partition);
                 }
 
-                if (checkpoint.invalidRecordOffset) {
-                    state.invalidRecordOffsets.set(partition, checkpoint.invalidRecordOffset);
-                } else {
+                if (checkpoint.invalidRecordOffset === undefined) {
                     state.invalidRecordOffsets.delete(partition);
+                } else {
+                    state.invalidRecordOffsets.set(partition, checkpoint.invalidRecordOffset);
                 }
 
-                state.consumer.seek({ topic: state.stream.topic, partition, offset: checkpoint.offset });
+                state.consumer.seek({topic: state.stream.topic, partition, offset: checkpoint.offset});
                 this.logger.log(
                     `Projection assignment fenced and resumed: ${state.stream.topic}[${partition}] `
                     + `mode=${dataset.mode} offset=${checkpoint.offset}`,
@@ -1157,11 +1175,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             }
 
             if (pending.assignedPartitions.length > 0) {
-                state.consumer.resume([{ topic: state.stream.topic, partitions: pending.assignedPartitions }]);
+                state.consumer.resume([{topic: state.stream.topic, partitions: pending.assignedPartitions}]);
             }
         } catch (error) {
             state.assignmentObserved = false;
-            for (const { partition } of claimed) {
+            for (const {partition} of claimed) {
                 state.localAssignmentLeases.delete(partition);
                 state.checkpoints.delete(partition);
                 state.checkpointLeases.delete(partition);
@@ -1172,11 +1190,11 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
             await this.releaseAssignments(
                 state,
-                claimed.map(({ partition, lease }) => [partition, lease]),
+                claimed.map(({partition, lease}) => [partition, lease]),
             ).catch(() => undefined);
             throw new Error(
                 `assignment activation failed: ${error instanceof Error ? error.message : String(error)}`,
-                { cause: error },
+                {cause: error},
             );
         }
 
@@ -1237,9 +1255,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     /**
-     * Projection마다 전용 admin 커넥션을 쓴다. 하나를 공유하면 backlog가 큰 stream이
-     * 커넥션을 점유하는 동안 다른 stream의 등록/poll이 같은 커넥션 뒤에 head-of-line
-     * blocking으로 묶인다.
+     Projection마다 전용 admin 커넥션을 쓴다. 하나를 공유하면 backlog가 큰 stream이
+     커넥션을 점유하는 동안 다른 stream의 등록/poll이 같은 커넥션 뒤에 head-of-line
+     blocking으로 묶인다.
      */
     private async getAdmin(name: ProjectionName): Promise<Admin> {
         const connection = this.admins.get(name);
@@ -1273,10 +1291,10 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     /**
-     * Admin 요청에 상한을 두고, 상한을 넘기면 해당 커넥션을 폐기해 다음 호출이 재연결하게 한다.
-     * connect도 같은 상한 안에 둔다. 응답하지 않는 connect를 상한 밖에 두면 memoize된
-     * connectPromise가 남아 같은 stream의 이후 호출이 전부 그 뒤에 묶이고, 폐기 경로도 돌지 않아
-     * 복구할 수 없다.
+     Admin 요청에 상한을 두고, 상한을 넘기면 해당 커넥션을 폐기해 다음 호출이 재연결하게 한다.
+     connect도 같은 상한 안에 둔다. 응답하지 않는 connect를 상한 밖에 두면 memoize된
+     connectPromise가 남아 같은 stream의 이후 호출이 전부 그 뒤에 묶이고, 폐기 경로도 돌지 않아
+     복구할 수 없다.
      */
     private async withAdmin<T>(
         name: ProjectionName,
@@ -1300,14 +1318,16 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
     }
 
-    /** 막힌 admin 커넥션을 등록에서 떼어낸다. disconnect 자체도 응답하지 않을 수 있어 대기하지 않는다. */
+    /**
+    막힌 admin 커넥션을 등록에서 떼어낸다. disconnect 자체도 응답하지 않을 수 있어 대기하지 않는다.
+    */
     private resetAdmin(name: ProjectionName, staleConnectPromise?: Promise<Admin>): void {
         const connection = this.admins.get(name);
         if (!connection || (staleConnectPromise && connection.connectPromise !== staleConnectPromise)) {
             return;
         }
 
-        const { admin } = connection;
+        const {admin} = connection;
         connection.admin = undefined;
         connection.connectPromise = undefined;
         if (!admin) {
@@ -1318,7 +1338,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         void admin.disconnect().catch(() => undefined);
     }
 
-    /** 한 stream의 dataset/checkpoint/high-watermark를 다시 읽어 그 stream의 readiness만 갱신한다. */
+    /**
+    한 stream의 dataset/checkpoint/high-watermark를 다시 읽어 그 stream의 readiness만 갱신한다.
+    */
     private async doCheckStream(name: ProjectionName, state: ProjectionCatchupState): Promise<void> {
         try {
             const dataset = await this.datasets.find(name);
@@ -1345,7 +1367,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return;
             }
 
-            const { assignmentRevision } = state;
+            const {assignmentRevision} = state;
             await state.assignmentTask;
             if (assignmentRevision !== state.assignmentRevision) {
                 return;
@@ -1366,6 +1388,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             }
 
             const currentByPartition = new Map(currentOffsets.map(offset => [offset.partition, offset]));
+            /* eslint-disable no-await-in-loop -- stop at the first unrecoverable checkpoint instead of marking it multiple times */
             for (const checkpoint of storedCheckpoints) {
                 const current = currentByPartition.get(checkpoint.partition);
                 if (!current || !isCheckpointWithinRetainedRange(checkpoint.offset, current)) {
@@ -1390,6 +1413,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     return;
                 }
             }
+            /* eslint-enable no-await-in-loop -- stop at the first unrecoverable checkpoint instead of marking it multiple times */
 
             const storedByPartition = new Map(
                 storedCheckpoints.map(checkpoint => [checkpoint.partition, checkpoint]),
@@ -1404,8 +1428,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 }
             }
 
-            const startupPartitions = state.targets.map(({ partition }) => partition).toSorted((a, b) => a - b);
-            const currentPartitions = currentOffsets.map(({ partition }) => partition).toSorted((a, b) => a - b);
+            const startupPartitions = state.targets.map(({partition}) => partition).toSorted((a, b) => a - b);
+            const currentPartitions = currentOffsets.map(({partition}) => partition).toSorted((a, b) => a - b);
             if (startupPartitions.join(',') !== currentPartitions.join(',')) {
                 this.markFatalInvariantViolation(
                     `Kafka projection partition topology changed: ${state.stream.topic} `
@@ -1415,7 +1439,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             }
 
             state.targets = currentOffsets;
-            state.checkpoints = new Map(storedCheckpoints.map(({ partition, offset }) => [partition, offset]));
+            state.checkpoints = new Map(storedCheckpoints.map(({partition, offset}) => [partition, offset]));
             state.checkpointLeases = new Map(
                 storedCheckpoints.flatMap(({
                     partition,
@@ -1423,8 +1447,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     assignmentMemberId,
                     assignmentGenerationId,
                 }) => (
-                    assignmentEpoch
-                    && assignmentMemberId
+                    assignmentEpoch !== undefined
+                    && assignmentMemberId !== undefined
                     && assignmentGenerationId !== undefined
                         ? [[partition, {
                             assignmentEpoch,
@@ -1435,18 +1459,18 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 )),
             );
             state.snapshotBarriers = new Map(
-                storedCheckpoints.flatMap(({ partition, snapshotCompletedOffset }) => (
-                    snapshotCompletedOffset ? [[partition, snapshotCompletedOffset] as const] : []
+                storedCheckpoints.flatMap(({partition, snapshotCompletedOffset}) => (
+                    snapshotCompletedOffset === undefined ? [] : [[partition, snapshotCompletedOffset] as const]
                 )),
             );
             state.snapshotOccurredAt = new Map(
-                storedCheckpoints.flatMap(({ partition, snapshotOccurredAt }) => (
-                    snapshotOccurredAt ? [[partition, snapshotOccurredAt] as const] : []
+                storedCheckpoints.flatMap(({partition, snapshotOccurredAt}) => (
+                    snapshotOccurredAt === undefined ? [] : [[partition, snapshotOccurredAt] as const]
                 )),
             );
             state.invalidRecordOffsets = new Map(
-                storedCheckpoints.flatMap(({ partition, invalidRecordOffset }) => (
-                    invalidRecordOffset ? [[partition, invalidRecordOffset] as const] : []
+                storedCheckpoints.flatMap(({partition, invalidRecordOffset}) => (
+                    invalidRecordOffset === undefined ? [] : [[partition, invalidRecordOffset] as const]
                 )),
             );
             await this.updateReady(name, state);
@@ -1459,7 +1483,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 
     private async updateReady(name: ProjectionName, state: ProjectionCatchupState): Promise<void> {
         const wasGloballyReady = this.isReady();
-        const checkpointOffsets = [...state.checkpoints].map(([partition, offset]) => ({ partition, offset }));
+        const checkpointOffsets = [...state.checkpoints].map(([partition, offset]) => ({partition, offset}));
         const checkpointState = checkpointOffsets.map(checkpoint => ({
             ...checkpoint,
             assignmentEpoch: state.checkpointLeases.get(checkpoint.partition)?.assignmentEpoch,
@@ -1469,20 +1493,20 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             invalidRecordOffset: state.invalidRecordOffsets.get(checkpoint.partition),
         }));
         const wasReady = state.ready;
-        const freshRebuildSnapshot = state.dataset.mode !== 'REBUILD'
+        const isFreshRebuildSnapshot = state.dataset.mode !== 'REBUILD'
             || (state.dataset.rebuildRequestedAt !== undefined
-                && state.targets.every(({ partition }) => {
+                && state.targets.every(({partition}) => {
                     const occurredAt = state.snapshotOccurredAt.get(partition);
                     return occurredAt !== undefined && occurredAt >= (state.dataset.rebuildRequestedAt!);
                 }));
-        const caughtUp = this.fatalInvariantReason === undefined
+        const isCaughtUp = this.fatalInvariantReason === undefined
             && state.assignmentObserved
             && !state.leaseRenewalPaused
             && hasReachedStartupOffsets(state.targets, checkpointOffsets)
             && hasCompletedSnapshotBarriers(state.targets, checkpointState)
-            && freshRebuildSnapshot;
-        state.ready = caughtUp && state.dataset.status === 'ACTIVE';
-        if (caughtUp && (state.dataset.status === 'INITIALIZING' || state.dataset.status === 'REBUILDING')) {
+            && isFreshRebuildSnapshot;
+        state.ready = isCaughtUp && state.dataset.status === 'ACTIVE';
+        if (isCaughtUp && (state.dataset.status === 'INITIALIZING' || state.dataset.status === 'REBUILDING')) {
             await this.activateDataset(name, state);
         }
 
@@ -1493,10 +1517,10 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             this.logger.warn(`Kafka projection readiness closed: ${state.stream.topic}`);
         }
 
-        const globallyReady = this.isReady();
-        if (globallyReady && !wasGloballyReady) {
+        const isGloballyReady = this.isReady();
+        if (isGloballyReady && !wasGloballyReady) {
             this.resolveReady();
-        } else if (!globallyReady && wasGloballyReady) {
+        } else if (!isGloballyReady && wasGloballyReady) {
             this.readyPromise = this.createReadyPromise();
         }
     }
@@ -1519,7 +1543,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
     }
 
     private markFatalInvariantViolation(reason: string): void {
-        if (this.fatalInvariantReason) {
+        if (this.fatalInvariantReason !== undefined) {
             return;
         }
 
@@ -1548,7 +1572,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         this.closeStreamReadiness(name, state);
         const partitions = [...state.localAssignmentLeases.keys()];
         if (partitions.length > 0) {
-            state.consumer.pause([{ topic: state.stream.topic, partitions }]);
+            state.consumer.pause([{topic: state.stream.topic, partitions}]);
         }
 
         this.logger.error(`Projection rebuild required [stream=${name}]: ${reason}`);
@@ -1558,7 +1582,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         if (state.dataset.status === 'REBUILD_REQUESTED') {
             const owned = [...state.localAssignmentLeases];
             if (owned.length > 0) {
-                state.consumer.pause([{ topic: state.stream.topic, partitions: owned.map(([partition]) => partition) }]);
+                state.consumer.pause([{topic: state.stream.topic, partitions: owned.map(([partition]) => partition)}]);
                 await Promise.all(owned.map(async ([partition, lease]) => this.checkpoints.acknowledgeRebuildPause(
                     state.stream.groupId,
                     state.stream.topic,
@@ -1569,21 +1593,21 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             }
 
             this.closeStreamReadiness(name, state);
-            const waiting = await this.checkpoints.hasUnacknowledgedActiveAssignments(
+            const isWaiting = await this.checkpoints.hasUnacknowledgedActiveAssignments(
                 state.stream.groupId,
                 state.stream.topic,
                 state.dataset.datasetGeneration,
             );
-            if (waiting) {
+            if (isWaiting) {
                 return;
             }
 
-            const coordinator = await this.datasets.tryBeginReset(name, state.dataset.datasetGeneration);
-            if (!coordinator) {
+            const isCoordinator = await this.datasets.tryBeginReset(name, state.dataset.datasetGeneration);
+            if (!isCoordinator) {
                 return;
             }
 
-            state.dataset = { ...state.dataset, status: 'RESETTING' };
+            state.dataset = {...state.dataset, status: 'RESETTING'};
             try {
                 await this.datasets.resetProjection(name);
                 await this.checkpoints.resetForRebuild(
@@ -1594,7 +1618,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     state.dataset.sourceGeneration,
                 );
                 await this.datasets.markRebuilding(name, state.dataset.datasetGeneration);
-                state.dataset = { ...state.dataset, status: 'REBUILDING' };
+                state.dataset = {...state.dataset, status: 'REBUILDING'};
             } catch (error) {
                 this.metrics.recordRebuild(name, 'failed');
                 throw error;
@@ -1620,16 +1644,16 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             state.snapshotBarriers.delete(partition);
             state.snapshotOccurredAt.delete(partition);
             state.invalidRecordOffsets.delete(partition);
-            state.consumer.seek({ topic: state.stream.topic, partition, offset: checkpoint.offset });
+            state.consumer.seek({topic: state.stream.topic, partition, offset: checkpoint.offset});
         }
 
         const partitions = [...state.localAssignmentLeases.keys()];
         if (partitions.length > 0) {
-            state.consumer.resume([{ topic: state.stream.topic, partitions }]);
+            state.consumer.resume([{topic: state.stream.topic, partitions}]);
         }
 
         state.activatedDatasetGeneration = state.dataset.datasetGeneration;
-        state.targets = state.dataset.targetOffsets.map(({ partition, offset }) => ({
+        state.targets = state.dataset.targetOffsets.map(({partition, offset}) => ({
             partition,
             low: state.dataset.baseOffsets.find(base => base.partition === partition)?.offset ?? offset,
             high: offset,
@@ -1647,7 +1671,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return;
             }
 
-            const { mode } = state.dataset;
+            const {mode} = state.dataset;
             state.dataset = {
                 ...state.dataset, status: 'ACTIVE', mode: 'INCREMENTAL', reason: undefined,
             };
