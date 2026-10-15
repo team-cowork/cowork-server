@@ -59,13 +59,6 @@ runs:
         [[ "$SERVICE" =~ ^[a-z][a-z0-9-]{0,63}$ ]]
         python3 deploy/prod/slots.py validate "$TARGET"
         test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
-    - name: Authenticate To Vault With The Target Identity
-      if: ${{ inputs.vault_recovery != 'true' }}
-      env:
-        VAULT_ADDR: ${{ inputs.vault_addr }}
-        VAULT_ROLE: ${{ inputs.service == 'vault' && 'prod-deploy-vault' || format('prod-settings-{0}', inputs.target) }}
-      shell: bash
-      run: python3 deploy/prod/cd/vault-auth.py --role "$VAULT_ROLE"
     - name: Load Vault Deployment Snapshot
       id: settings
       env:
