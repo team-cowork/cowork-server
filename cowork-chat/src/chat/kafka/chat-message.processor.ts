@@ -1,16 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { Types } from 'mongoose';
-import { Server } from 'socket.io';
-import { MessageRepository, toMessageBroadcastPayload, ChannelMemberRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
-import { ChatMessageEvent } from './event/chat-message.event';
-import { ChatMessageScopeValidator } from './chat-message-scope-validator';
+import {Injectable, Logger} from '@nestjs/common';
+import {Types} from 'mongoose';
+import {Server} from 'socket.io';
+import {MessageRepository, toMessageBroadcastPayload, ChannelMemberRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
+import {ChatMessageEvent} from './event/chat-message.event';
+import {ChatMessageScopeValidator} from './chat-message-scope-validator';
 
 /**
- * 정상 consumer와 quarantine 재처리가 공유하는 메시지 처리 경로.
- *
- * 검색 색인은 메시지 저장과 같은 쓰기에 열리는 색인 아웃박스가 담당한다. 여기서 Elasticsearch를
- * 직접 호출하지 않으므로 색인 쓰기 실패가 메시지 저장이나 브로드캐스트를 막지 않는다.
+ 정상 consumer와 quarantine 재처리가 공유하는 메시지 처리 경로.
+
+ 검색 색인은 메시지 저장과 같은 쓰기에 열리는 색인 아웃박스가 담당한다. 여기서 Elasticsearch를
+ 직접 호출하지 않으므로 색인 쓰기 실패가 메시지 저장이나 브로드캐스트를 막지 않는다.
  */
 @Injectable()
 export class ChatMessageProcessor {
@@ -41,7 +41,9 @@ export class ChatMessageProcessor {
                 content: event.content,
                 type: event.type,
                 attachments: event.attachments ?? [],
-                parentMessageId: event.parentMessageId ? new Types.ObjectId(event.parentMessageId) : null,
+                parentMessageId: event.parentMessageId === undefined || event.parentMessageId === ''
+                    ? null
+                    : new Types.ObjectId(event.parentMessageId),
                 clientMessageId: event.clientMessageId,
                 mentions,
                 notificationStatus: 'PENDING',

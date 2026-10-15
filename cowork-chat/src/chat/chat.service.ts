@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import {randomUUID} from 'node:crypto';
 import {
     BadRequestException,
     ForbiddenException,
@@ -9,14 +9,14 @@ import {
     NotFoundException,
     ServiceUnavailableException,
 } from '@nestjs/common';
-import { Types } from 'mongoose';
-import { ConfirmedAttachment } from '../storage/attachment-upload.schema';
-import { UserRole } from '../common/enum/user-role.enum';
-import { ElasticsearchService } from '../search/elasticsearch.service';
-import { ObjectStorageService } from '../storage/object-storage.service';
-import { BlockService } from '../block/block.service';
-import { publicAttachments, toMessageBroadcastPayload } from './repository/message.repository';
-import { MessageDocument } from './schema';
+import {Types} from 'mongoose';
+import {ConfirmedAttachment} from '../storage/attachment-upload.schema';
+import {UserRole} from '../common/enum/user-role.enum';
+import {ElasticsearchService} from '../search/elasticsearch.service';
+import {ObjectStorageService} from '../storage/object-storage.service';
+import {BlockService} from '../block/block.service';
+import {publicAttachments, toMessageBroadcastPayload} from './repository/message.repository';
+import {MessageDocument} from './schema';
 import {
     EditMessageDto,
     SendMessageDto,
@@ -36,8 +36,8 @@ import {
     MessageUserRoleContext,
     UserContext,
 } from './dto';
-import { ChatMessageProducer } from './kafka/chat-message.producer';
-import { ChatGithubIssueCommandProducer } from './kafka/chat-github-issue.producer';
+import {ChatMessageProducer} from './kafka/chat-message.producer';
+import {ChatGithubIssueCommandProducer} from './kafka/chat-github-issue.producer';
 import {
     ProjectClient,
     ChannelClient,
@@ -47,7 +47,7 @@ import {
     RoomSocket,
     resolveMessageScope,
 } from './service';
-import { ChatGateway } from './chat.gateway';
+import {ChatGateway} from './chat.gateway';
 import {
     MessageRepository,
     MessageRow,
@@ -55,7 +55,7 @@ import {
     TeamMemberProjectionRepository,
     ChannelProjectionRepository,
 } from './repository';
-import { MessageSearchDeletionService, isSearchIndexed } from './search';
+import {MessageSearchDeletionService, isSearchIndexed} from './search';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
@@ -63,12 +63,12 @@ const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
 
 /**
- * 채팅 서비스의 핵심 비즈니스 로직 클래스.
- *
- * 채널 멤버십 검증, 메시지 CRUD, 파일 업로드/삭제, 이모지 반응,
- * 메시지 고정, Elasticsearch 검색, GitHub 이슈 발행을 담당한다.
- * Socket.IO 브로드캐스트는 `ChatGateway.server`를 통해 수행하며,
- * `ChatGateway`와 순환 의존 관계이므로 `forwardRef`로 주입한다.
+ 채팅 서비스의 핵심 비즈니스 로직 클래스.
+
+ 채널 멤버십 검증, 메시지 CRUD, 파일 업로드/삭제, 이모지 반응,
+ 메시지 고정, Elasticsearch 검색, GitHub 이슈 발행을 담당한다.
+ Socket.IO 브로드캐스트는 `ChatGateway.server`를 통해 수행하며,
+ `ChatGateway`와 순환 의존 관계이므로 `forwardRef`로 주입한다.
  */
 @Injectable()
 export class ChatService {
@@ -95,11 +95,11 @@ export class ChatService {
     ) {}
 
     /**
-     * 사용자가 채널 멤버인지 확인한다.
-     *
-     * @param channelId - 확인할 채널 ID
-     * @param userId - 확인할 사용자 ID
-     * @returns 멤버이면 `true`, 아니면 `false`
+     사용자가 채널 멤버인지 확인한다.
+
+     @param channelId - 확인할 채널 ID
+     @param userId - 확인할 사용자 ID
+     @returns 멤버이면 `true`, 아니면 `false`
      */
     async isMember(channelId: number, userId: number): Promise<boolean> {
         return this.channelMessageReadAccess.canReadChannel(channelId, userId);
@@ -129,24 +129,24 @@ export class ChatService {
     }
 
     /**
-     * 채널 멤버십을 검증한다. 멤버가 아니면 `ForbiddenException`을 던진다.
-     *
-     * @param channelId - 채널 ID
-     * @param userId - 사용자 ID
-     * @throws ForbiddenException 멤버가 아닌 경우
+     채널 멤버십을 검증한다. 멤버가 아니면 `ForbiddenException`을 던진다.
+
+     @param channelId - 채널 ID
+     @param userId - 사용자 ID
+     @throws ForbiddenException 멤버가 아닌 경우
      */
     async checkMembership(channelId: number, userId: number): Promise<void> {
         await this.channelMessageReadAccess.requireCanRead(channelId, userId);
     }
 
     /**
-     * 채널 멤버십을 검증하고 해당 채널의 팀 ID를 반환한다.
-     * GitHub 이슈 생성 시 채널-팀 소속 검증에 사용한다.
-     *
-     * @param channelId - 채널 ID
-     * @param userId - 사용자 ID
-     * @returns 채널이 속한 팀 ID
-     * @throws ForbiddenException 멤버가 아닌 경우
+     채널 멤버십을 검증하고 해당 채널의 팀 ID를 반환한다.
+     GitHub 이슈 생성 시 채널-팀 소속 검증에 사용한다.
+
+     @param channelId - 채널 ID
+     @param userId - 사용자 ID
+     @returns 채널이 속한 팀 ID
+     @throws ForbiddenException 멤버가 아닌 경우
      */
     async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
         await this.channelMessageReadAccess.requireCanRead(channelId, userId);
@@ -159,12 +159,12 @@ export class ChatService {
     }
 
     /**
-     * 오브젝트 스토리지 presigned 업로드 URL을 생성한다.
-     * 반환된 `uploadUrl`에 PUT 요청 시 `headers`를 함께 전송해야 한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param dto - 파일명, MIME 타입, 크기
-     * @returns presigned URL, 임시 objectKey, 만료 시간, 필수 헤더
+     오브젝트 스토리지 presigned 업로드 URL을 생성한다.
+     반환된 `uploadUrl`에 PUT 요청 시 `headers`를 함께 전송해야 한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param dto - 파일명, MIME 타입, 크기
+     @returns presigned URL, 임시 objectKey, 만료 시간, 필수 헤더
      */
     async createFileUploadUrl(
         ctx: ChannelUserContext,
@@ -188,11 +188,11 @@ export class ChatService {
     }
 
     /**
-     * 클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 변경 불가능한 최종 object key를 반환한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param dto - 검증할 objectKey
-     * @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
+     클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 변경 불가능한 최종 object key를 반환한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param dto - 검증할 objectKey
+     @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
     async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -200,14 +200,14 @@ export class ChatService {
     }
 
     /**
-     * FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
-     * FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
-     * 업로더 이름은 Kafka로 동기화된 사용자 프로필 projection에서 일괄 조회한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param query - 커서, 페이지 크기
-     * @returns 파일 목록과 다음 페이지 커서
-     * @throws BadRequestException FILE_SHARE 채널이 아닌 경우
+     FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
+     FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
+     업로더 이름은 Kafka로 동기화된 사용자 프로필 projection에서 일괄 조회한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param query - 커서, 페이지 크기
+     @returns 파일 목록과 다음 페이지 커서
+     @throws BadRequestException FILE_SHARE 채널이 아닌 경우
      */
     async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -218,7 +218,7 @@ export class ChatService {
         }
 
         const limit = query.limit ?? 20;
-        const { items, nextCursor } = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
+        const {items, nextCursor} = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
         const uploaderNames = await this.loadUploaderNames(items);
 
         return {
@@ -239,19 +239,19 @@ export class ChatService {
     }
 
     /**
-     * 파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
-     * 오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
-     * 색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
-     * 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
-     *
-     * @param ctx - 채널·사용자·역할 컨텍스트
-     * @param fileId - base64 인코딩된 파일 식별자
-     * @returns 삭제된 채널 ID와 메시지 ID
-     * @throws BadRequestException fileId 디코딩 실패
-     * @throws NotFoundException 메시지가 존재하지 않는 경우
-     * @throws ForbiddenException 본인 파일이 아니고 ADMIN도 아닌 경우
+     파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
+     오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
+     색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
+     성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
+
+     @param ctx - 채널·사용자·역할 컨텍스트
+     @param fileId - base64 인코딩된 파일 식별자
+     @returns 삭제된 채널 ID와 메시지 ID
+     @throws BadRequestException fileId 디코딩 실패
+     @throws NotFoundException 메시지가 존재하지 않는 경우
+     @throws ForbiddenException 본인 파일이 아니고 ADMIN도 아닌 경우
      */
-    async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{ channelId: number; messageId: string }> {
+    async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
         const messageId = this.decodeFileId(fileId);
         await this.checkMembership(ctx.channelId, ctx.userId);
 
@@ -286,19 +286,19 @@ export class ChatService {
                 this.chatGateway.server,
                 ctx.channelId,
                 'message:deleted',
-                { messageId },
+                {messageId},
             );
         }
 
-        return { channelId: ctx.channelId, messageId };
+        return {channelId: ctx.channelId, messageId};
     }
 
     /**
-     * 메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
-     * 실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
-     *
-     * @param ctx - 채널·사용자·역할 컨텍스트
-     * @param dto - 메시지 내용, 타입, 첨부파일 등
+     메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
+     실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
+
+     @param ctx - 채널·사용자·역할 컨텍스트
+     @param dto - 메시지 내용, 타입, 첨부파일 등
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
         const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
@@ -316,7 +316,7 @@ export class ChatService {
             throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
         }
 
-        if (dto.parentMessageId) {
+        if (dto.parentMessageId !== undefined && dto.parentMessageId !== '') {
             const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
             if (!parent) {
                 throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
@@ -327,7 +327,7 @@ export class ChatService {
             await this.verifyDmSendable(ctx.channelId, ctx.userId);
         }
 
-        if (dto.attachments?.length && !dto.clientMessageId) {
+        if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
             throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
         }
 
@@ -347,13 +347,13 @@ export class ChatService {
     }
 
     /**
-     * DM 메시지 전송 가능 여부를 검사한다.
-     * 수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
-     * 전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
-     *
-     * @param channelId - DM 채널 ID
-     * @param senderId - 발신자 사용자 ID
-     * @throws ForbiddenException 수신자가 발신자를 차단한 경우
+     DM 메시지 전송 가능 여부를 검사한다.
+     수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
+     전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+
+     @param channelId - DM 채널 ID
+     @param senderId - 발신자 사용자 ID
+     @throws ForbiddenException 수신자가 발신자를 차단한 경우
      */
     private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
         const members = await this.channelMemberRepository.findByChannelId(channelId);
@@ -373,11 +373,11 @@ export class ChatService {
     }
 
     /**
-     * 내 DM 대화 목록을 조회한다. 숨긴(isHidden) 대화는 제외되며,
-     * 마지막 메시지 시각 내림차순으로 정렬된다.
-     *
-     * @param userId - 조회할 사용자 ID
-     * @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
+     내 DM 대화 목록을 조회한다. 숨긴(isHidden) 대화는 제외되며,
+     마지막 메시지 시각 내림차순으로 정렬된다.
+
+     @param userId - 조회할 사용자 ID
+     @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
     async getMyDms(userId: number) {
         const memberships = await this.channelMemberRepository.findDmMemberships(userId);
@@ -388,9 +388,9 @@ export class ChatService {
         const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
             0,
             userId,
-            memberships.map(({ channelId }) => channelId),
+            memberships.map(({channelId}) => channelId),
         ));
-        const readableMemberships = memberships.filter(({ channelId }) => readableChannelIds.has(channelId));
+        const readableMemberships = memberships.filter(({channelId}) => readableChannelIds.has(channelId));
         if (readableMemberships.length === 0) {
             return [];
         }
@@ -403,7 +403,7 @@ export class ChatService {
         ]);
 
         return readableMemberships
-            .map(({ channelId }) => ({
+            .map(({channelId}) => ({
                 channelId,
                 otherUserId: others.get(channelId) ?? null,
                 unreadCount: unreadCounts.get(channelId) ?? 0,
@@ -413,12 +413,12 @@ export class ChatService {
     }
 
     /**
-     * DM 대화를 목록에서 숨긴다 (Discord의 "닫기").
-     * 상대방이 메시지를 보내면 자동으로 다시 노출된다.
-     *
-     * @param channelId - 숨길 DM 채널 ID
-     * @param userId - 요청 사용자 ID
-     * @throws ForbiddenException DM 채널 멤버가 아닌 경우
+     DM 대화를 목록에서 숨긴다 (Discord의 "닫기").
+     상대방이 메시지를 보내면 자동으로 다시 노출된다.
+
+     @param channelId - 숨길 DM 채널 ID
+     @param userId - 요청 사용자 ID
+     @throws ForbiddenException DM 채널 멤버가 아닌 경우
      */
     async hideDm(channelId: number, userId: number): Promise<void> {
         const membership = await this.channelMemberRepository.findMembership(channelId, userId);
@@ -430,12 +430,12 @@ export class ChatService {
     }
 
     /**
-     * 슬래시 커맨드를 처리한다. 현재 `github.issue.create`만 지원한다.
-     * 지원하지 않는 커맨드는 `BadRequestException`을 던진다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param dto - 커맨드 종류와 payload
-     * @throws BadRequestException 지원하지 않는 커맨드인 경우
+     슬래시 커맨드를 처리한다. 현재 `github.issue.create`만 지원한다.
+     지원하지 않는 커맨드는 `BadRequestException`을 던진다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param dto - 커맨드 종류와 payload
+     @throws BadRequestException 지원하지 않는 커맨드인 경우
      */
     async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto): Promise<void> {
         if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
@@ -446,17 +446,17 @@ export class ChatService {
     }
 
     /**
-     * GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
-     *
-     * chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
-     * 또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
-     * project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
-     * 검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
-     * 거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
-     * @throws ForbiddenException 채널 멤버가 아닌 경우
+     GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
+
+     chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
+     또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
+     project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
+     검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
+     거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
+     @throws ForbiddenException 채널 멤버가 아닌 경우
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
         const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
@@ -475,12 +475,12 @@ export class ChatService {
     }
 
     /**
-     * 채널 메시지를 최신순으로 커서 기반 페이지네이션 조회한다.
-     * 응답의 `reactions`에는 요청자의 반응 여부(`myReaction`)가 포함된다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param before - 이 MongoDB ObjectId 이전의 메시지 조회 (없으면 최신부터)
-     * @returns 최대 100개의 메시지 배열
+     채널 메시지를 최신순으로 커서 기반 페이지네이션 조회한다.
+     응답의 `reactions`에는 요청자의 반응 여부(`myReaction`)가 포함된다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param before - 이 MongoDB ObjectId 이전의 메시지 조회 (없으면 최신부터)
+     @returns 최대 100개의 메시지 배열
      */
     async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -489,15 +489,15 @@ export class ChatService {
     }
 
     /**
-     * 프로젝트 내 채널 메시지를 Elasticsearch로 전문 검색한다.
-     * 요청자가 접근 가능한 채널로 검색 범위를 자동으로 제한한다.
-     * `dto.channelId`가 있으면 해당 채널 접근 권한도 검증한다.
-     *
-     * @param projectId - 검색 대상 프로젝트 ID
-     * @param dto - 검색 조건 (키워드, 채널, 작성자, 타입, 파일 포함 여부, 커서, 페이지 크기)
-     * @param ctx - 사용자 컨텍스트
-     * @returns 검색 결과와 다음 페이지 커서
-     * @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
+     프로젝트 내 채널 메시지를 Elasticsearch로 전문 검색한다.
+     요청자가 접근 가능한 채널로 검색 범위를 자동으로 제한한다.
+     `dto.channelId`가 있으면 해당 채널 접근 권한도 검증한다.
+
+     @param projectId - 검색 대상 프로젝트 ID
+     @param dto - 검색 조건 (키워드, 채널, 작성자, 타입, 파일 포함 여부, 커서, 페이지 크기)
+     @param ctx - 사용자 컨텍스트
+     @returns 검색 결과와 다음 페이지 커서
+     @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
      */
     async searchProjectMessages(
         projectId: number,
@@ -524,10 +524,10 @@ export class ChatService {
         }
 
         if (filteredChannelIds.length === 0) {
-            return { messages: [], nextCursor: null };
+            return {messages: [], nextCursor: null};
         }
 
-        const { hits, nextCursor } = await this.elasticsearchService.searchMessages({
+        const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
             projectId,
             accessibleChannelIds: filteredChannelIds,
             q: dto.q,
@@ -538,7 +538,7 @@ export class ChatService {
             limit: dto.limit ?? 50,
         });
 
-        return { messages: hits, nextCursor };
+        return {messages: hits, nextCursor};
     }
 
     async searchTeamMessages(
@@ -562,10 +562,10 @@ export class ChatService {
         }
 
         if (accessibleChannelIds.length === 0) {
-            return { messages: [], nextCursor: null };
+            return {messages: [], nextCursor: null};
         }
 
-        const { hits, nextCursor } = await this.elasticsearchService.searchTeamMessages({
+        const {hits, nextCursor} = await this.elasticsearchService.searchTeamMessages({
             teamId,
             accessibleChannelIds,
             q: dto.q,
@@ -576,25 +576,25 @@ export class ChatService {
             limit: dto.limit ?? 50,
         });
 
-        return { messages: hits, nextCursor };
+        return {messages: hits, nextCursor};
     }
 
     /**
-     * 메시지 내용을 수정한다. 내용이 동일하면 저장 없이 현재 도큐먼트를 반환한다.
-     * 수정 이력은 `editHistory`에 누적된다.
-     * 본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
-     * 성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 emit한다.
-     * ADMIN은 타인 메시지도 수정할 수 있다.
-     *
-     * @param ctx - 메시지·사용자·역할 컨텍스트
-     * @param dto - 새 메시지 내용
-     * @returns 수정된 메시지 도큐먼트
+     메시지 내용을 수정한다. 내용이 동일하면 저장 없이 현재 도큐먼트를 반환한다.
+     수정 이력은 `editHistory`에 누적된다.
+     본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
+     성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 emit한다.
+     ADMIN은 타인 메시지도 수정할 수 있다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @param dto - 새 메시지 내용
+     @returns 수정된 메시지 도큐먼트
      */
     async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 수정할 수 있습니다');
 
         if (message.content === dto.content) {
-            return this.toMessageResponse({ ...toMessageBroadcastPayload(message), mentionedMessage: null }, ctx.userId);
+            return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
         }
 
         const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
@@ -613,17 +613,17 @@ export class ChatService {
             },
         );
 
-        return this.toMessageResponse({ ...toMessageBroadcastPayload(updated), mentionedMessage: null }, ctx.userId);
+        return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
     }
 
     /**
-     * 메시지를 삭제한다.
-     * 색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
-     * 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
-     * ADMIN은 타인 메시지도 삭제할 수 있다.
-     *
-     * @param ctx - 메시지·사용자·역할 컨텍스트
-     * @returns 삭제된 채널 ID와 메시지 ID
+     메시지를 삭제한다.
+     색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
+     성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
+     ADMIN은 타인 메시지도 삭제할 수 있다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @returns 삭제된 채널 ID와 메시지 ID
      */
     async deleteMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 삭제할 수 있습니다');
@@ -634,22 +634,22 @@ export class ChatService {
                 this.chatGateway.server,
                 ctx.channelId,
                 'message:deleted',
-                { messageId: ctx.messageId },
+                {messageId: ctx.messageId},
             );
         }
 
-        return { channelId: message.channelId, messageId: ctx.messageId };
+        return {channelId: message.channelId, messageId: ctx.messageId};
     }
 
     /**
-     * 메시지를 고정한다. 이미 고정된 메시지이면 `BadRequestException`을 던진다.
-     * 고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
-     * 성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
-     * ADMIN은 타인 메시지도 고정할 수 있다.
-     *
-     * @param ctx - 메시지·사용자·역할 컨텍스트
-     * @returns 업데이트된 메시지 도큐먼트
-     * @throws BadRequestException 이미 고정된 메시지인 경우
+     메시지를 고정한다. 이미 고정된 메시지이면 `BadRequestException`을 던진다.
+     고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
+     성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
+     ADMIN은 타인 메시지도 고정할 수 있다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @returns 업데이트된 메시지 도큐먼트
+     @throws BadRequestException 이미 고정된 메시지인 경우
      */
     async pinMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정할 수 있습니다');
@@ -666,20 +666,20 @@ export class ChatService {
             this.chatGateway.server,
             ctx.channelId,
             'message:pinned',
-            { messageId: ctx.messageId, channelId: ctx.channelId },
+            {messageId: ctx.messageId, channelId: ctx.channelId},
         );
 
-        return this.toMessageResponse({ ...toMessageBroadcastPayload(updated), mentionedMessage: null }, ctx.userId);
+        return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
     }
 
     /**
-     * 메시지 고정을 해제한다. 고정되지 않은 메시지이면 `BadRequestException`을 던진다.
-     * 고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
-     * 성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
-     * ADMIN은 타인 메시지도 고정 해제할 수 있다.
-     *
-     * @param ctx - 메시지·사용자·역할 컨텍스트
-     * @throws BadRequestException 고정되지 않은 메시지인 경우
+     메시지 고정을 해제한다. 고정되지 않은 메시지이면 `BadRequestException`을 던진다.
+     고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
+     성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
+     ADMIN은 타인 메시지도 고정 해제할 수 있다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @throws BadRequestException 고정되지 않은 메시지인 경우
      */
     async unpinMessage(ctx: MessageUserRoleContext) {
         const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정 해제할 수 있습니다');
@@ -696,19 +696,19 @@ export class ChatService {
             this.chatGateway.server,
             ctx.channelId,
             'message:unpinned',
-            { messageId: ctx.messageId, channelId: ctx.channelId },
+            {messageId: ctx.messageId, channelId: ctx.channelId},
         );
     }
 
     /**
-     * 메시지에 이모지 반응을 추가한다.
-     * 이미 같은 이모지로 반응한 경우 무시한다(이벤트 emit 안 함).
-     * 성공 시 `chat:{channelId}` 룸에 `message:reaction:added` 이벤트를 emit한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param messageId - 대상 메시지의 MongoDB ObjectId
-     * @param emoji - 추가할 이모지
-     * @throws NotFoundException 메시지가 존재하지 않는 경우
+     메시지에 이모지 반응을 추가한다.
+     이미 같은 이모지로 반응한 경우 무시한다(이벤트 emit 안 함).
+     성공 시 `chat:{channelId}` 룸에 `message:reaction:added` 이벤트를 emit한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param messageId - 대상 메시지의 MongoDB ObjectId
+     @param emoji - 추가할 이모지
+     @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -736,14 +736,14 @@ export class ChatService {
     }
 
     /**
-     * 메시지에서 이모지 반응을 제거한다.
-     * 반응이 없었던 경우 무시한다(이벤트 emit 안 함).
-     * 성공 시 `chat:{channelId}` 룸에 `message:reaction:removed` 이벤트를 emit한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @param messageId - 대상 메시지의 MongoDB ObjectId
-     * @param emoji - 제거할 이모지
-     * @throws NotFoundException 메시지가 존재하지 않는 경우
+     메시지에서 이모지 반응을 제거한다.
+     반응이 없었던 경우 무시한다(이벤트 emit 안 함).
+     성공 시 `chat:{channelId}` 룸에 `message:reaction:removed` 이벤트를 emit한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param messageId - 대상 메시지의 MongoDB ObjectId
+     @param emoji - 제거할 이모지
+     @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -771,10 +771,10 @@ export class ChatService {
     }
 
     /**
-     * 채널에 고정된 메시지를 최신순으로 최대 100개 조회한다.
-     *
-     * @param ctx - 채널·사용자 컨텍스트
-     * @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
+     채널에 고정된 메시지를 최신순으로 최대 100개 조회한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
     async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
         await this.checkMembership(ctx.channelId, ctx.userId);
@@ -784,40 +784,40 @@ export class ChatService {
         await this.unreadCounterService.set(ctx.channelId, ctx.userId, unreadCount);
         this.chatGateway.server
             ?.to(`user:${ctx.userId}`)
-            .emit('channel:unread:updated', { channelId: ctx.channelId, unreadCount });
+            .emit('channel:unread:updated', {channelId: ctx.channelId, unreadCount});
     }
 
-    async getTeamUnread(teamId: number, userId: number): Promise<Array<{ channelId: number; unreadCount: number }>> {
+    async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
         const allMemberships = await this.channelMemberRepository.findMembersByTeam(teamId, userId);
         const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
             teamId,
             userId,
-            allMemberships.map(({ channelId }) => channelId),
+            allMemberships.map(({channelId}) => channelId),
         ));
-        const memberships = allMemberships.filter(({ channelId }) => readableChannelIds.has(channelId));
+        const memberships = allMemberships.filter(({channelId}) => readableChannelIds.has(channelId));
         if (memberships.length === 0) {
             return [];
         }
 
         const unreadCounts = await this.getUnreadCounts(userId, memberships);
-        return memberships.map(({ channelId }) => ({
+        return memberships.map(({channelId}) => ({
             channelId,
             unreadCount: unreadCounts.get(channelId) ?? 0,
         }));
     }
 
     /**
-     * 여러 채널의 안읽음 수를 조회한다. Redis 캐시(`UnreadCounterService`)를 우선 조회하고,
-     * 캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
-     * Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
-     *
-     * @param userId - 조회할 사용자 ID
-     * @param memberships - 대상 채널 멤버십 목록 (팀 unread, DM 목록에서 공유)
-     * @returns channelId → 안읽음 수 매핑
+     여러 채널의 안읽음 수를 조회한다. Redis 캐시(`UnreadCounterService`)를 우선 조회하고,
+     캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
+     Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
+
+     @param userId - 조회할 사용자 ID
+     @param memberships - 대상 채널 멤버십 목록 (팀 unread, DM 목록에서 공유)
+     @returns channelId → 안읽음 수 매핑
      */
     private async getUnreadCounts(
         userId: number,
-        memberships: Array<{ channelId: number; lastReadMessageId: Types.ObjectId | null }>,
+        memberships: Array<{channelId: number; lastReadMessageId: Types.ObjectId | null}>,
     ): Promise<Map<number, number>> {
         const channelIds = memberships.map(m => m.channelId);
         const cached = await this.unreadCounterService.getMany(userId, channelIds);
@@ -847,13 +847,13 @@ export class ChatService {
     }
 
     /**
-     * 시스템 메시지를 직접 저장한다. GitHub 이슈 결과 등 서비스 내부에서 생성하는 알림에 사용한다.
-     * `authorId`는 0(`SYSTEM_AUTHOR_ID`)으로 고정된다.
-     *
-     * @param teamId - 팀 ID
-     * @param channelId - 채널 ID
-     * @param content - 메시지 내용
-     * @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
+     시스템 메시지를 직접 저장한다. GitHub 이슈 결과 등 서비스 내부에서 생성하는 알림에 사용한다.
+     `authorId`는 0(`SYSTEM_AUTHOR_ID`)으로 고정된다.
+
+     @param teamId - 팀 ID
+     @param channelId - 채널 ID
+     @param content - 메시지 내용
+     @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
      */
     async saveSystemMessage(
         teamId: number,
@@ -890,12 +890,12 @@ export class ChatService {
     }
 
     /**
-     * `MessageRow`를 응답 DTO 형태로 변환한다.
-     * `reactions`의 `myReaction` 필드는 요청자가 해당 이모지로 반응했는지 여부다.
-     *
-     * @param row - DB에서 조회한 메시지 row
-     * @param userId - 응답을 받을 요청자 ID
-     * @returns 응답 형태의 메시지 객체
+     `MessageRow`를 응답 DTO 형태로 변환한다.
+     `reactions`의 `myReaction` 필드는 요청자가 해당 이모지로 반응했는지 여부다.
+
+     @param row - DB에서 조회한 메시지 row
+     @param userId - 응답을 받을 요청자 ID
+     @returns 응답 형태의 메시지 객체
      */
     private toMessageResponse(row: MessageRow, userId: number) {
         return {
@@ -910,22 +910,22 @@ export class ChatService {
     }
 
     /**
-     * 관리자 역할인지 확인한다.
-     *
-     * @param role - 사용자 역할 문자열
-     * @returns ADMIN 역할이면 `true`
+     관리자 역할인지 확인한다.
+
+     @param role - 사용자 역할 문자열
+     @returns ADMIN 역할이면 `true`
      */
     private isAdmin(role: string): boolean {
         return role === (UserRole.ADMIN as string);
     }
 
     /**
-     * Base64 인코딩된 fileId에서 messageId를 추출한다.
-     * fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
-     *
-     * @param fileId - base64 인코딩된 파일 식별자
-     * @returns 추출된 messageId (MongoDB ObjectId 문자열)
-     * @throws BadRequestException fileId 형식이 유효하지 않은 경우
+     Base64 인코딩된 fileId에서 messageId를 추출한다.
+     fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
+
+     @param fileId - base64 인코딩된 파일 식별자
+     @returns 추출된 messageId (MongoDB ObjectId 문자열)
+     @throws BadRequestException fileId 형식이 유효하지 않은 경우
      */
     private decodeFileId(fileId: string): string {
         try {
@@ -943,14 +943,14 @@ export class ChatService {
     }
 
     /**
-     * 채널 멤버십, 메시지 존재 여부, 채널 소속, 소유권(또는 ADMIN 여부)을 순서대로 검증한다.
-     * 소유권 검증에서 ADMIN은 타인 메시지에도 접근 가능하다.
-     *
-     * @param ctx - 메시지·사용자·역할 컨텍스트
-     * @param forbiddenMessage - 소유권 위반 시 사용할 오류 메시지
-     * @returns 검증을 통과한 메시지 도큐먼트
-     * @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
-     * @throws NotFoundException 메시지가 존재하지 않는 경우
+     채널 멤버십, 메시지 존재 여부, 채널 소속, 소유권(또는 ADMIN 여부)을 순서대로 검증한다.
+     소유권 검증에서 ADMIN은 타인 메시지에도 접근 가능하다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @param forbiddenMessage - 소유권 위반 시 사용할 오류 메시지
+     @returns 검증을 통과한 메시지 도큐먼트
+     @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
+     @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     private async findAndVerifyMessage(
         ctx: MessageUserRoleContext,
@@ -974,13 +974,13 @@ export class ChatService {
     }
 
     /**
-     * 업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필 projection에서 조회한다.
-     * `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
-     *
-     * @param items - uploaderId 필드를 포함하는 아이템 배열
-     * @returns uploaderId → 표시 이름 매핑
+     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필 projection에서 조회한다.
+     `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
+
+     @param items - uploaderId 필드를 포함하는 아이템 배열
+     @returns uploaderId → 표시 이름 매핑
      */
-    private async loadUploaderNames(items: Array<{ uploaderId: number }>): Promise<Map<number, string>> {
+    private async loadUploaderNames(items: Array<{uploaderId: number}>): Promise<Map<number, string>> {
         const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
         const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
         const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);

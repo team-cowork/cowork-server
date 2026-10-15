@@ -1,7 +1,7 @@
 import os from 'node:os';
-import { Logger } from '@nestjs/common';
-import { requireEnv } from '../common/config/config.util';
-import { controlPlaneAuthorization } from '../common/config/control-plane-auth';
+import {Logger} from '@nestjs/common';
+import {requireEnv} from '../common/config/config.util';
+import {controlPlaneAuthorization} from '../common/config/control-plane-auth';
 
 type EurekaConfig = {
     enabled: boolean;
@@ -19,10 +19,14 @@ export class EurekaClient {
     private readonly logger = new Logger(EurekaClient.name);
     private heartbeatTimer?: NodeJS.Timeout;
     private heartbeat?: Promise<void>;
-    /** `deregister()` 이후에는 종료 중이므로 다시 등록하지 않는다. */
+    /**
+    `deregister()` 이후에는 종료 중이므로 다시 등록하지 않는다.
+    */
     private stopped = false;
     private desiredStatus: EurekaInstanceStatus = 'UP';
-    /** 등록된 동안 Eureka 서버에 반영한 status. 미등록이면 `undefined`다. */
+    /**
+    등록된 동안 Eureka 서버에 반영한 status. 미등록이면 `undefined`다.
+    */
     private appliedStatus?: EurekaInstanceStatus;
     private statusSync?: Promise<void>;
 
@@ -36,12 +40,12 @@ export class EurekaClient {
         }
 
         const runtimeIdentity = os.hostname();
-        const useRuntimeIdentity = process.env.EUREKA_USE_RUNTIME_HOSTNAME === 'true';
-        const host = process.env.APP_ADVERTISE_ADDRESS ?? (useRuntimeIdentity
+        const isUseRuntimeIdentity = process.env.EUREKA_USE_RUNTIME_HOSTNAME === 'true';
+        const host = process.env.APP_ADVERTISE_ADDRESS ?? (isUseRuntimeIdentity
             ? resolveIpAddress()
             : requireEnv('APP_ADVERTISE_ADDRESS'));
         const instanceId = process.env.EUREKA_INSTANCE_ID
-            ?? `${useRuntimeIdentity ? runtimeIdentity : host}:${appName}:${advertisedPort}`;
+            ?? `${isUseRuntimeIdentity ? runtimeIdentity : host}:${appName}:${advertisedPort}`;
 
         return new EurekaClient({
             enabled: process.env.EUREKA_ENABLED !== 'false',
@@ -71,8 +75,8 @@ export class EurekaClient {
                     vipAddress: this.config.appName,
                     secureVipAddress: this.config.appName,
                     status,
-                    port: { $: this.config.port, '@enabled': 'true' },
-                    securePort: { $: 443, '@enabled': 'false' },
+                    port: {$: this.config.port, '@enabled': 'true'},
+                    securePort: {$: 443, '@enabled': 'false'},
                     healthCheckUrl: `http://${this.config.host}:${this.config.port}/health/ready`,
                     statusPageUrl: `http://${this.config.host}:${this.config.port}/health`,
                     homePageUrl: `http://${this.config.host}:${this.config.port}/`,
@@ -95,9 +99,9 @@ export class EurekaClient {
     }
 
     /**
-     * 인스턴스가 트래픽을 받을 수 있는지 Eureka에 알린다. 프로세스와 lease는 유지한 채 status override만
-     * 바꾸므로 Gateway는 `OUT_OF_SERVICE` 인스턴스를 라우팅에서 빼고, Prometheus는 계속 수집한다.
-     * 호출은 직렬화하고 최신 상태만 반영하며, 실패는 다음 heartbeat에서 다시 맞춘다.
+     인스턴스가 트래픽을 받을 수 있는지 Eureka에 알린다. 프로세스와 lease는 유지한 채 status override만
+     바꾸므로 Gateway는 `OUT_OF_SERVICE` 인스턴스를 라우팅에서 빼고, Prometheus는 계속 수집한다.
+     호출은 직렬화하고 최신 상태만 반영하며, 실패는 다음 heartbeat에서 다시 맞춘다.
      */
     setStatus(status: EurekaInstanceStatus): void {
         this.desiredStatus = status;
@@ -135,6 +139,7 @@ export class EurekaClient {
             while (this.appliedStatus !== undefined && this.appliedStatus !== this.desiredStatus) {
                 const status = this.desiredStatus;
                 // UP 복구는 override를 지워야 이후 재등록·heartbeat가 OUT_OF_SERVICE로 고정되지 않는다.
+                // eslint-disable-next-line no-await-in-loop -- converges toward the latest desiredStatus; each request must finish before re-checking it.
                 await this.request(`/apps/${this.config.appName}/${this.config.instanceId}/status?value=${status}`, {
                     method: status === 'UP' ? 'DELETE' : 'PUT',
                 });
