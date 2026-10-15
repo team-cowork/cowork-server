@@ -5,13 +5,13 @@ import {
     HttpStatus,
     Injectable,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { ConfigService } from '@nestjs/config';
-import { Request } from 'express';
-import { RedisRateLimiter } from '../util/redis-rate-limiter';
-import { RequestContextUtil } from '../util/request-context.util';
-import { getOptionalConfig } from '../config/config.util';
-import { THROTTLE_OPTIONS_KEY, ThrottleOptions } from '../decorator/throttle.decorator';
+import {Reflector} from '@nestjs/core';
+import {ConfigService} from '@nestjs/config';
+import {Request} from 'express';
+import {RedisRateLimiter} from '../util/redis-rate-limiter';
+import {RequestContextUtil} from '../util/request-context.util';
+import {getOptionalConfig} from '../config/config.util';
+import {THROTTLE_OPTIONS_KEY, ThrottleOptions} from '../decorator/throttle.decorator';
 
 const DEFAULT_THROTTLE_MESSAGE = '짧은 시간에 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.';
 
@@ -42,8 +42,8 @@ export class ThrottleGuard implements CanActivate {
         const windowMs = this.resolveNumberConfig(options.windowMsConfigKey, options.defaultWindowMs);
         const maxRequests = this.resolveNumberConfig(options.maxRequestsConfigKey, options.defaultMaxRequests);
 
-        const allowed = await this.rateLimiter.tryAcquire(`${options.key}:${userId}`, windowMs, maxRequests);
-        if (!allowed) {
+        const isAllowed = await this.rateLimiter.tryAcquire(`${options.key}:${userId}`, windowMs, maxRequests);
+        if (!isAllowed) {
             throw new HttpException(options.message ?? DEFAULT_THROTTLE_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
         }
 
