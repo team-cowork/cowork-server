@@ -16,6 +16,16 @@ from pathlib import Path
 
 NAME = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 SLOTS = runpy.run_path(str(Path(__file__).resolve().parents[1] / "slots.py"))
+AUTHENTICATE = runpy.run_path(str(Path(__file__).with_name("vault-auth.py")))["authenticate"]
+_workload_token = None
+
+
+def authenticate_process(role):
+    """Keep the workload token in memory, outside Actions and child-process environments."""
+    global _workload_token
+    _workload_token = AUTHENTICATE(os.environ, role)["VAULT_TOKEN"]
+    os.environ.pop("ACTIONS_ID_TOKEN_REQUEST_TOKEN", None)
+    os.environ.pop("ACTIONS_ID_TOKEN_REQUEST_URL", None)
 
 
 def demand(condition, message):
@@ -84,7 +94,7 @@ def vault_request(path, body=None, *, allow_missing=False, method=None):
     parsed = urlsplit(address)
     demand(parsed.scheme == "https" and parsed.hostname and not parsed.username and not parsed.query and not parsed.fragment,
            "VAULT_ADDR must be a canonical HTTPS address")
-    token = os.environ["VAULT_TOKEN"]
+    token = _workload_token or os.environ["VAULT_TOKEN"]
     demand(bool(token), "VAULT_TOKEN is required")
     headers = {"X-Vault-Token": token, "Content-Type": "application/json"}
     request = urllib.request.Request(address + "/v1/" + path, headers=headers, method=method,
@@ -220,6 +230,7 @@ def main():
         version = "bootstrap"
         reference_versions = {}
     else:
+        authenticate_process("prod-deploy-vault" if args.target == "vault" else "prod-settings-" + args.target)
         suffix = f"?version={args.version}" if args.version else ""
         result = vault_request(api_path + suffix)["data"]
         data = validate_deployment(result["data"], args.target, slot)
@@ -247,7 +258,7 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (ValueError, KeyError, OSError) as error:
+    except (ValueError, RuntimeError, KeyError, OSError) as error:
         # JSON error text contains positions, not the input document.
         print(f"[vault-settings] {error}", file=sys.stderr)
         sys.exit(1)
