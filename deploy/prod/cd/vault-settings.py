@@ -87,14 +87,14 @@ def validate_deployment(data, target, slot=None):
             if section == "application" and "variables" in data:
                 demand(slots["environment_key"](key), "Invalid or reserved application environment key")
             if section == "runtime":
-                allowed = (set(slot.get("secrets", {}).get("runtime", {})) | set(slot.get("github_secrets", {}))) if slot else RUNTIME_KEYS
+                allowed = (set(slot.get("secrets", {}).get("runtime", {}))) if slot else RUNTIME_KEYS
                 demand(key in allowed, f"Unsupported runtime key: {key}")
         references = data.get(section + "_refs", {})
         demand(isinstance(references, dict), "References must be an object")
         for key, reference in references.items():
             demand(ENV_NAME.fullmatch(key) and key not in values, "Invalid or duplicate referenced environment key")
             if section == "runtime":
-                allowed = (set(slot.get("secrets", {}).get("runtime", {})) | set(slot.get("github_secrets", {}))) if slot else RUNTIME_KEYS
+                allowed = (set(slot.get("secrets", {}).get("runtime", {}))) if slot else RUNTIME_KEYS
                 demand(key in allowed, f"Unsupported runtime key: {key}")
             demand(isinstance(reference, dict) and set(reference) == {"path", "key"}, "A reference requires path and key")
             demand(isinstance(reference["path"], str) and all(NAME.fullmatch(part) for part in reference["path"].split("/")), "Invalid reference path")
@@ -305,7 +305,6 @@ def main():
         data = validate_deployment(result["data"], args.target, slot)
         version = result["metadata"]["version"]
         if slot is not None:
-            demand(not slot.get("github_secrets"), "This slot requires the IaC workflow to resolve its GitHub secret source")
             demand(not any(data.get(key) for key in ("runtime", "application", "runtime_refs", "application_refs")),
                    "A versioned slot requires a deployment document containing SSH credentials only")
             configuration = args.slot_directory.parent / "configuration.json"
