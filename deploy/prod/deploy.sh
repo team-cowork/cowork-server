@@ -7,7 +7,7 @@ export RELEASE_ROOT
 SERVICE="${1:-}"
 ACTION="${2:-deploy}"
 case "$SERVICE" in
-  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|monitoring|vault|log-agent|node-agent) ;;
+  config|gateway|authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|github|monitoring|vault|log-agent|node-agent) ;;
   *) echo "Usage: $0 <service> [check|deploy]" >&2; exit 1 ;;
 esac
 case "$ACTION" in check|deploy) ;; *) echo 'Action must be check or deploy' >&2; exit 1 ;; esac
@@ -50,7 +50,7 @@ else
 fi
 
 case "$SERVICE" in
-  authorization|user|team|channel|project|roadmap|notification|preference|chat|voice)
+  authorization|user|team|channel|project|roadmap|notification|preference|chat|voice|github)
     # The operator must stage the exact desired policy. The active old policy
     # remains until the protected container cutover; release code never runs as root.
     python3 "${PROD_DIR}/slots.py" firewall "$DEPLOY_TARGET" |
