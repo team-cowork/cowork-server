@@ -1,18 +1,18 @@
-import { randomUUID } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { ChannelMember } from '../../chat/schema/channel-member.schema';
-import { ChannelProjection } from '../../chat/schema/channel-projection.schema';
-import { ChannelRolePolicyProjection } from '../../chat/schema/channel-role-policy-projection.schema';
-import { ProjectGithubRepoProjection } from '../../chat/schema/project-github-repo-projection.schema';
-import { ProjectMemberProjection } from '../../chat/schema/project-member-projection.schema';
-import { ProjectProjection } from '../../chat/schema/project-projection.schema';
-import { TeamMemberProjection } from '../../chat/schema/team-member-projection.schema';
-import { TeamRoleAssignmentProjection } from '../../chat/schema/team-role-assignment-projection.schema';
-import { TeamRoleMemberTombstone } from '../../chat/schema/team-role-member-tombstone.schema';
-import { TeamRoleProjection } from '../../chat/schema/team-role-projection.schema';
-import { UserProfileProjection } from '../../chat/schema/user-profile-projection.schema';
+import {randomUUID} from 'node:crypto';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model} from 'mongoose';
+import {ChannelMember} from '../../chat/schema/channel-member.schema';
+import {ChannelProjection} from '../../chat/schema/channel-projection.schema';
+import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema';
+import {ProjectGithubRepoProjection} from '../../chat/schema/project-github-repo-projection.schema';
+import {ProjectMemberProjection} from '../../chat/schema/project-member-projection.schema';
+import {ProjectProjection} from '../../chat/schema/project-projection.schema';
+import {TeamMemberProjection} from '../../chat/schema/team-member-projection.schema';
+import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignment-projection.schema';
+import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema';
+import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema';
+import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema';
 import {
     ProjectionDataset,
     ProjectionDatasetPartitionOffset,
@@ -86,7 +86,7 @@ export class ProjectionDatasetRepository {
     }
 
     async find(stream: ProjectionStreamName): Promise<ProjectionDatasetState | undefined> {
-        const dataset = await this.datasets.findOne({ stream }).lean<ProjectionDataset | null>();
+        const dataset = await this.datasets.findOne({stream}).lean<ProjectionDataset | null>();
         return dataset ? this.toState(dataset) : undefined;
     }
 
@@ -97,7 +97,7 @@ export class ProjectionDatasetRepository {
     ): Promise<ProjectionDatasetState> {
         const datasetGeneration = randomUUID();
         const created = await this.datasets.findOneAndUpdate(
-            { stream: stream.name },
+            {stream: stream.name},
             {
                 $setOnInsert: {
                     stream: stream.name,
@@ -113,7 +113,7 @@ export class ProjectionDatasetRepository {
                     targetOffsets,
                 },
             },
-            { upsert: true, new: true },
+            {upsert: true, new: true},
         ).lean<ProjectionDataset>();
         return this.toState(created);
     }
@@ -123,7 +123,7 @@ export class ProjectionDatasetRepository {
         reason: string,
     ): Promise<ProjectionDatasetState> {
         const dataset = await this.datasets.findOneAndUpdate(
-            { stream: stream.name },
+            {stream: stream.name},
             {
                 $set: {
                     groupId: stream.groupId,
@@ -140,7 +140,7 @@ export class ProjectionDatasetRepository {
                     targetOffsets: [],
                 },
             },
-            { upsert: true, new: true },
+            {upsert: true, new: true},
         ).lean<ProjectionDataset>();
         return this.toState(dataset);
     }
@@ -153,7 +153,7 @@ export class ProjectionDatasetRepository {
     ): Promise<ProjectionDatasetState> {
         const datasetGeneration = randomUUID();
         const dataset = await this.datasets.findOneAndUpdate(
-            { stream: stream.name },
+            {stream: stream.name},
             {
                 $set: {
                     groupId: stream.groupId,
@@ -167,26 +167,26 @@ export class ProjectionDatasetRepository {
                     baseOffsets,
                     targetOffsets,
                 },
-                $setOnInsert: { activationDocumentCount: 0 },
-                $unset: { activatedAt: '' },
+                $setOnInsert: {activationDocumentCount: 0},
+                $unset: {activatedAt: ''},
             },
-            { upsert: true, new: true },
+            {upsert: true, new: true},
         ).lean<ProjectionDataset>();
         return this.toState(dataset);
     }
 
     async tryBeginReset(stream: ProjectionStreamName, datasetGeneration: string): Promise<boolean> {
         const result = await this.datasets.updateOne(
-            { stream, datasetGeneration, status: 'REBUILD_REQUESTED' },
-            { $set: { status: 'RESETTING' } },
+            {stream, datasetGeneration, status: 'REBUILD_REQUESTED'},
+            {$set: {status: 'RESETTING'}},
         );
         return result.matchedCount === 1;
     }
 
     async markRebuilding(stream: ProjectionStreamName, datasetGeneration: string): Promise<void> {
         const result = await this.datasets.updateOne(
-            { stream, datasetGeneration, status: 'RESETTING' },
-            { $set: { status: 'REBUILDING' } },
+            {stream, datasetGeneration, status: 'RESETTING'},
+            {$set: {status: 'REBUILDING'}},
         );
         if (result.matchedCount !== 1) {
             throw new Error(`Projection rebuild reset was superseded: ${stream}`);
@@ -196,7 +196,7 @@ export class ProjectionDatasetRepository {
     async markActive(stream: ProjectionStreamName, datasetGeneration: string): Promise<void> {
         const activationDocumentCount = await this.countProjection(stream);
         const result = await this.datasets.updateOne(
-            { stream, datasetGeneration, status: { $in: ['INITIALIZING', 'REBUILDING'] } },
+            {stream, datasetGeneration, status: {$in: ['INITIALIZING', 'REBUILDING']}},
             {
                 $set: {
                     status: 'ACTIVE',
@@ -217,14 +217,13 @@ export class ProjectionDatasetRepository {
         return counts.reduce((total, count) => total + count, 0);
     }
 
-    /** Projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다. */
+    /**
+    Projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다.
+    */
     async resetProjection(stream: ProjectionStreamName): Promise<void> {
         const models = this.projectionModels[stream];
         if (stream !== 'channelMember') {
-            for (const model of models) {
-                await model.deleteMany({});
-            }
-
+            await Promise.all(models.map(async model => model.deleteMany({})));
             return;
         }
 
@@ -246,9 +245,9 @@ export class ProjectionDatasetRepository {
             datasetGeneration: dataset.datasetGeneration,
             mode: dataset.mode,
             status: dataset.status,
-            ...(dataset.reason && { reason: dataset.reason }),
-            ...(dataset.rebuildRequestedAt && { rebuildRequestedAt: dataset.rebuildRequestedAt }),
-            ...(dataset.activatedAt && { activatedAt: dataset.activatedAt }),
+            ...(dataset.reason != null && {reason: dataset.reason}),
+            ...(dataset.rebuildRequestedAt && {rebuildRequestedAt: dataset.rebuildRequestedAt}),
+            ...(dataset.activatedAt && {activatedAt: dataset.activatedAt}),
             activationDocumentCount: dataset.activationDocumentCount ?? 0,
             baseOffsets: dataset.baseOffsets ?? [],
             targetOffsets: dataset.targetOffsets ?? [],
