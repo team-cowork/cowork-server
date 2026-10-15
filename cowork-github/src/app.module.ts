@@ -4,6 +4,7 @@ import {AppController} from './app.controller';
 import {AppConfigService} from './config/app-config.service';
 import {envValidationSchema} from './config/env.validation';
 import {GithubModule} from './github/github.module';
+import {MetricsController} from './metrics/metrics.controller';
 
 @Module({
     imports: [
@@ -14,6 +15,6 @@ import {GithubModule} from './github/github.module';
         GithubModule,
     ],
     providers: [AppConfigService],
-    controllers: [AppController],
+    controllers: [AppController, MetricsController],
 })
 export class AppModule {}
