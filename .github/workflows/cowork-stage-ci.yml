@@ -204,6 +204,8 @@ jobs:
   notify:
     name: Send CI Notification
     runs-on: ubuntu-latest
+    env:
+      RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
     needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test, image-validation, coverage-plan, coverage]
     if: always()
 
@@ -239,17 +241,20 @@ jobs:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ steps.status.outputs.status }}
           color: ${{ steps.status.outputs.color }}
-          title: "cowork Server Stage CI"
+          nodetail: true
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork 개발 CI"
           description: |
-            `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
-            **Changed:** ${{ needs.detect-changes.outputs.services-list }}
+            **저장소:** ${{ github.repository }}
+            `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · 실행자 **${{ github.actor }}**
+            **변경 대상:** ${{ needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
-            **Validate Title:** ${{ needs.validate-title.result }}
-            **Setup Metadata:** ${{ needs.setup-pr-metadata.result }}
-            **Detect Changes:** ${{ needs.detect-changes.result }}
-            **Build & Test:** ${{ needs.build-and-test.result }}
-            **Images:** ${{ needs.image-validation.result }}
-            **PR Verification & Coverage:** ${{ needs.coverage-plan.result }} / ${{ needs.coverage.result }}
+            **PR 제목 검사:** ${{ fromJSON(env.RESULT_LABELS)[needs.validate-title.result] || '확인 불가' }}
+            **PR 정보 설정:** ${{ fromJSON(env.RESULT_LABELS)[needs.setup-pr-metadata.result] || '확인 불가' }}
+            **변경 사항 확인:** ${{ fromJSON(env.RESULT_LABELS)[needs.detect-changes.result] || '확인 불가' }}
+            **빌드 및 테스트:** ${{ fromJSON(env.RESULT_LABELS)[needs.build-and-test.result] || '확인 불가' }}
+            **이미지 검증:** ${{ fromJSON(env.RESULT_LABELS)[needs.image-validation.result] || '확인 불가' }}
+            **PR 검증 및 커버리지:** ${{ fromJSON(env.RESULT_LABELS)[needs.coverage-plan.result] || '확인 불가' }} / ${{ fromJSON(env.RESULT_LABELS)[needs.coverage.result] || '확인 불가' }}
 
   coverage-plan:
     name: Plan Coverage
