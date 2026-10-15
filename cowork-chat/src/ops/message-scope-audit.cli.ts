@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import mongoose, { Types } from 'mongoose';
-import { Message, MessageSchema } from '../chat/schema/message.schema';
-import { ChannelProjection, ChannelProjectionSchema } from '../chat/schema/channel-projection.schema';
+import mongoose, {Types} from 'mongoose';
+import {Message, MessageSchema} from '../chat/schema/message.schema';
+import {ChannelProjection, ChannelProjectionSchema} from '../chat/schema/channel-projection.schema';
 
 const BATCH_SIZE = 500;
 type Category = 'CHANNEL_MISSING_OR_DELETED' | 'CHANNEL_SCOPE_INVALID' | 'MESSAGE_SCOPE_MISMATCH'
@@ -20,11 +20,11 @@ type AuditChannel = {
     type: string;
     deleted: boolean;
 };
-type AuditParent = { _id: Types.ObjectId; channelId: number };
+type AuditParent = {_id: Types.ObjectId; channelId: number};
 
 async function main(): Promise<void> {
     const uri = process.env.MONGODB_URI;
-    if (!uri) {
+    if (uri === undefined) {
         throw new Error('MONGODB_URI is required');
     }
 
@@ -32,7 +32,7 @@ async function main(): Promise<void> {
         throw new Error('usage: message-scope-audit');
     }
 
-    await mongoose.connect(uri, { autoCreate: false, autoIndex: false });
+    await mongoose.connect(uri, {autoCreate: false, autoIndex: false});
     const messages = (mongoose.models[Message.name]
         ?? mongoose.model(Message.name, MessageSchema)) as mongoose.Model<Message>;
     const channels = (mongoose.models[ChannelProjection.name]
@@ -42,8 +42,9 @@ async function main(): Promise<void> {
     let scanned = 0;
 
     while (true) {
-        const batch = await messages.find(cursor ? { _id: { $gt: cursor } } : {})
-            .sort({ _id: 1 }).limit(BATCH_SIZE)
+        // eslint-disable-next-line no-await-in-loop -- cursor-based pagination: each page's query depends on the previous page's last _id.
+        const batch = await messages.find(cursor ? {_id: {$gt: cursor}} : {})
+            .sort({_id: 1}).limit(BATCH_SIZE)
             .select('_id channelId teamId projectId parentMessageId')
             .lean<AuditMessage[]>();
         if (batch.length === 0) {
@@ -53,15 +54,17 @@ async function main(): Promise<void> {
         cursor = batch.at(-1)!._id;
         scanned += batch.length;
 
-        const channelRows = await channels.find({ channelId: { $in: [...new Set(batch.map(m => m.channelId))] } })
-            .select('channelId teamId projectId type deleted').lean<AuditChannel[]>();
-        const channelMap = new Map(channelRows.map(channel => [channel.channelId, channel]));
         const parentIds = batch.filter(m => m.parentMessageId != null && m.parentMessageId !== '' && Types.ObjectId.isValid(m.parentMessageId))
             .map(m => new Types.ObjectId(m.parentMessageId!));
-        const parentRows = parentIds.length === 0
-            ? []
-            : await messages.find({ _id: { $in: parentIds } })
-                .select('_id channelId').lean<AuditParent[]>();
+        const channelIds = [...new Set(batch.map(m => m.channelId))];
+        const channelRowsQuery = channels.find({channelId: {$in: channelIds}})
+            .select('channelId teamId projectId type deleted').lean<AuditChannel[]>();
+        const parentRowsQuery = parentIds.length === 0
+            ? Promise.resolve([])
+            : messages.find({_id: {$in: parentIds}}).select('_id channelId').lean<AuditParent[]>();
+        // eslint-disable-next-line no-await-in-loop -- both queries depend only on this page's batch, not on each other; still sequential across pages.
+        const [channelRows, parentRows] = await Promise.all([channelRowsQuery, parentRowsQuery]);
+        const channelMap = new Map(channelRows.map(channel => [channel.channelId, channel]));
         const parentMap = new Map(parentRows.map(parent => [parent._id.toString(), parent]));
 
         for (const message of batch) {
@@ -100,12 +103,12 @@ async function main(): Promise<void> {
             if (!parent) {
                 report('PARENT_MISSING');
             } else if (parent.channelId !== message.channelId) {
-                report('PARENT_CROSS_CHANNEL', { parentMessageId: parent._id.toString() });
+                report('PARENT_CROSS_CHANNEL', {parentMessageId: parent._id.toString()});
             }
         }
     }
 
-    console.log(JSON.stringify({ summary: true, scanned, counts: Object.fromEntries(counts) }));
+    console.log(JSON.stringify({summary: true, scanned, counts: Object.fromEntries(counts)}));
 }
 
 void main()

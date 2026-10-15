@@ -1,4 +1,4 @@
-import { type ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {
     type ChannelMemberRepository,
     type ChannelProjectionRepository,
@@ -6,18 +6,18 @@ import {
     type TeamMemberProjectionRepository,
     type TeamRoleProjectionRepository,
 } from '../repository';
-import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
+import {ChannelMessageReadAccessService} from './channel-message-read-access.service';
 
 describe('ChannelMessageReadAccessService', () => {
-    const channelRepository = { findByIds: jest.fn() };
-    const channelMemberRepository = { findByChannelIdsAndUserIds: jest.fn() };
-    const teamMemberRepository = { findByTeamIdsAndUserIds: jest.fn() };
+    const channelRepository = {findByIds: jest.fn()};
+    const channelMemberRepository = {findByChannelIdsAndUserIds: jest.fn()};
+    const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
     const teamRoleRepository = {
         findAssignmentsByTeamIdsAndAccountIds: jest.fn(),
         findRolesByIds: jest.fn(),
     };
-    const policyRepository = { findByChannelIdsAndRoleIds: jest.fn() };
-    const projectionReadiness = { isReady: jest.fn() };
+    const policyRepository = {findByChannelIdsAndRoleIds: jest.fn()};
+    const projectionReadiness = {isReady: jest.fn()};
     // 브로드캐스트 판정 캐시가 인스턴스에 상태로 남으므로, 테스트 간 오염을 막기 위해
     // 매 테스트마다 새 인스턴스를 만든다(캐시도 함께 초기화됨).
     let service: ChannelMessageReadAccessService;
@@ -76,21 +76,21 @@ describe('ChannelMessageReadAccessService', () => {
             },
         ]);
         teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([
-            { teamId: 1, accountId: 2, roleId: 101 },
-            { teamId: 1, accountId: 2, roleId: 102 },
-            { teamId: 1, accountId: 3, roleId: 201 },
-            { teamId: 1, accountId: 3, roleId: 202 },
-            { teamId: 1, accountId: 5, roleId: 101 },
-            { teamId: 1, accountId: 6, roleId: 301 },
-            { teamId: 1, accountId: 6, roleId: 302 },
+            {teamId: 1, accountId: 2, roleId: 101},
+            {teamId: 1, accountId: 2, roleId: 102},
+            {teamId: 1, accountId: 3, roleId: 201},
+            {teamId: 1, accountId: 3, roleId: 202},
+            {teamId: 1, accountId: 5, roleId: 101},
+            {teamId: 1, accountId: 6, roleId: 301},
+            {teamId: 1, accountId: 6, roleId: 302},
         ]);
         teamRoleRepository.findRolesByIds.mockResolvedValue([
-            { teamId: 1, roleId: 101, priority: 100 },
-            { teamId: 1, roleId: 102, priority: 10 },
-            { teamId: 1, roleId: 201, priority: 50 },
-            { teamId: 1, roleId: 202, priority: 50 },
-            { teamId: 1, roleId: 301, priority: 100 },
-            { teamId: 1, roleId: 302, priority: 10 },
+            {teamId: 1, roleId: 101, priority: 100},
+            {teamId: 1, roleId: 102, priority: 10},
+            {teamId: 1, roleId: 201, priority: 50},
+            {teamId: 1, roleId: 202, priority: 50},
+            {teamId: 1, roleId: 301, priority: 100},
+            {teamId: 1, roleId: 302, priority: 10},
         ]);
         policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
             {
@@ -171,12 +171,12 @@ describe('ChannelMessageReadAccessService', () => {
                 },
             ]);
             channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
-                [30, [{ channelId: 30, userId: 5 }]],
-                [31, [{ channelId: 31, userId: 5 }]],
-                [32, [{ channelId: 32, userId: 5 }]],
+                [30, [{channelId: 30, userId: 5}]],
+                [31, [{channelId: 31, userId: 5}]],
+                [32, [{channelId: 32, userId: 5}]],
             ]));
 
-            const access = await service.evaluateMany([30, 31, 32].map(channelId => ({ channelId, userId: 5 })));
+            const access = await service.evaluateMany([30, 31, 32].map(channelId => ({channelId, userId: 5})));
 
             expect(access.get('30:5')).toBe(false);
             expect(access.get('31:5')).toBe(false);
@@ -187,26 +187,26 @@ describe('ChannelMessageReadAccessService', () => {
     describe('evictUnauthorizedSockets', () => {
         it('권한 회수 시 거부된 socket만 채널 room에서 강제 퇴장시킨다', async () => {
             const allowedSocket = {
-                data: { userId: 2 },
+                data: {userId: 2},
                 rooms: new Set(['chat:10']),
                 leave: jest.fn().mockResolvedValue(undefined),
                 emit: jest.fn(),
             };
             const deniedSocket = {
-                data: { userId: 3 },
+                data: {userId: 3},
                 rooms: new Set(['chat:10']),
                 leave: jest.fn().mockResolvedValue(undefined),
                 emit: jest.fn(),
             };
             const io = {
-                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([allowedSocket, deniedSocket]) }),
+                in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([allowedSocket, deniedSocket])}),
             };
 
             await service.evictUnauthorizedSockets(io as never, [10]);
 
             expect(allowedSocket.leave).not.toHaveBeenCalled();
             expect(deniedSocket.leave).toHaveBeenCalledWith('chat:10');
-            expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
+            expect(deniedSocket.emit).toHaveBeenCalledWith('channel:access:revoked', {channelId: 10});
         });
 
         it.each([
@@ -220,9 +220,9 @@ describe('ChannelMessageReadAccessService', () => {
         ])('%s 거부 판정으로 socket을 제거하지 않는다', async (_label, closeReadiness) => {
             closeReadiness();
             const socket = {
-                data: { userId: 3 }, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn(),
+                data: {userId: 3}, rooms: new Set(['chat:10']), leave: jest.fn(), emit: jest.fn(),
             };
-            const io = { in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([socket]) }) };
+            const io = {in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([socket])})};
 
             await service.evictUnauthorizedSockets(io as never, [10]);
 
@@ -233,7 +233,7 @@ describe('ChannelMessageReadAccessService', () => {
 
     describe('evictUnauthorizedRooms', () => {
         const makeSocket = (userId: number, rooms: string[]) => ({
-            data: { userId },
+            data: {userId},
             rooms: new Set(rooms),
             leave: jest.fn(),
             emit: jest.fn(),
@@ -247,8 +247,8 @@ describe('ChannelMessageReadAccessService', () => {
 
             expect(allowed.leave).not.toHaveBeenCalled();
             expect(denied.leave.mock.calls).toEqual([['chat:10'], ['team:2']]);
-            expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 10 });
-            expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', { teamId: 2 });
+            expect(denied.emit).toHaveBeenCalledWith('channel:access:revoked', {channelId: 10});
+            expect(denied.emit).toHaveBeenCalledWith('team:access:revoked', {teamId: 2});
         });
 
         it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
@@ -269,21 +269,21 @@ describe('ChannelMessageReadAccessService', () => {
     describe('emitToReadableChannelUsers', () => {
         it('채널 room에 그대로 보낸다 — room 멤버십이 곧 판정 결과이므로 전송 시점에 다시 평가하지 않는다', async () => {
             const emit = jest.fn();
-            const to = jest.fn().mockReturnValue({ emit });
-            const io = { to };
+            const to = jest.fn().mockReturnValue({emit});
+            const io = {to};
 
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 1});
 
             expect(to).toHaveBeenCalledWith('chat:10');
-            expect(emit).toHaveBeenCalledWith('message', { value: 1 });
+            expect(emit).toHaveBeenCalledWith('message', {value: 1});
         });
 
         it('projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed)', async () => {
             projectionReadiness.isReady.mockReturnValue(false);
             const emit = jest.fn();
-            const to = jest.fn().mockReturnValue({ emit });
+            const to = jest.fn().mockReturnValue({emit});
 
-            await service.emitToReadableChannelUsers({ to } as never, 10, 'message', { value: 1 });
+            await service.emitToReadableChannelUsers({to} as never, 10, 'message', {value: 1});
 
             expect(to).not.toHaveBeenCalled();
             expect(emit).not.toHaveBeenCalled();
@@ -291,7 +291,7 @@ describe('ChannelMessageReadAccessService', () => {
 
         it('닫혀 있던 구간 뒤 첫 전송 전에 로컬 room을 재검증하고, 그 뒤에 전송한다', async () => {
             const order: string[] = [];
-            const sockets = [{ id: 's1' }];
+            const sockets = [{id: 's1'}];
             const evict = jest.spyOn(service, 'evictUnauthorizedRooms').mockImplementation(async () => {
                 order.push('sweep');
                 return 1;
@@ -299,13 +299,13 @@ describe('ChannelMessageReadAccessService', () => {
             const emit = jest.fn(() => {
                 order.push('emit');
             });
-            const io = { local: { fetchSockets: jest.fn().mockResolvedValue(sockets) }, to: jest.fn().mockReturnValue({ emit }) };
+            const io = {local: {fetchSockets: jest.fn().mockResolvedValue(sockets)}, to: jest.fn().mockReturnValue({emit})};
 
             projectionReadiness.isReady.mockReturnValue(false);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 1});
             projectionReadiness.isReady.mockReturnValue(true);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 2 });
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 3 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 2});
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 3});
 
             expect(order).toEqual(['sweep', 'emit', 'emit']);
             expect(evict).toHaveBeenCalledTimes(1);
@@ -318,17 +318,17 @@ describe('ChannelMessageReadAccessService', () => {
                 return 0;
             });
             const emit = jest.fn();
-            const io = { local: { fetchSockets: jest.fn().mockResolvedValue([]) }, to: jest.fn().mockReturnValue({ emit }) };
+            const io = {local: {fetchSockets: jest.fn().mockResolvedValue([])}, to: jest.fn().mockReturnValue({emit})};
 
             projectionReadiness.isReady.mockReturnValue(false);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 1 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 1});
             projectionReadiness.isReady.mockReturnValue(true);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 2 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 2});
             expect(emit).not.toHaveBeenCalled();
 
             evict.mockImplementation(async () => 0);
             projectionReadiness.isReady.mockReturnValue(true);
-            await service.emitToReadableChannelUsers(io as never, 10, 'message', { value: 3 });
+            await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 3});
 
             expect(evict).toHaveBeenCalledTimes(2);
             expect(emit).toHaveBeenCalledTimes(1);
@@ -336,24 +336,24 @@ describe('ChannelMessageReadAccessService', () => {
 
         it('보낸 사람의 socket은 제외한다', async () => {
             const emit = jest.fn();
-            const except = jest.fn().mockReturnValue({ emit });
-            const to = jest.fn().mockReturnValue({ except });
-            const io = { to };
+            const except = jest.fn().mockReturnValue({emit});
+            const to = jest.fn().mockReturnValue({except});
+            const io = {to};
 
-            await service.emitToReadableChannelUsers(io as never, 10, 'typing', { value: true }, 'sender');
+            await service.emitToReadableChannelUsers(io as never, 10, 'typing', {value: true}, 'sender');
 
             expect(to).toHaveBeenCalledWith('chat:10');
             expect(except).toHaveBeenCalledWith('sender');
-            expect(emit).toHaveBeenCalledWith('typing', { value: true });
+            expect(emit).toHaveBeenCalledWith('typing', {value: true});
         });
     });
 
     describe('emitToActiveTeamUsers', () => {
         it('팀 범위 이벤트는 탈퇴한 구독자를 제외하고 활성 팀 멤버에게만 보낸다', async () => {
-            const active = { id: 'active', data: { userId: 2 }, emit: jest.fn() };
-            const stale = { id: 'stale', data: { userId: 99 }, emit: jest.fn() };
+            const active = {id: 'active', data: {userId: 2}, emit: jest.fn()};
+            const stale = {id: 'stale', data: {userId: 99}, emit: jest.fn()};
             const io = {
-                in: jest.fn().mockReturnValue({ fetchSockets: jest.fn().mockResolvedValue([active, stale]) }),
+                in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([active, stale])}),
             };
             teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValueOnce([
                 {
@@ -361,10 +361,10 @@ describe('ChannelMessageReadAccessService', () => {
                 },
             ]);
 
-            await service.emitToActiveTeamUsers(io as never, 1, 'project:updated', { projectId: 5 });
+            await service.emitToActiveTeamUsers(io as never, 1, 'project:updated', {projectId: 5});
 
             expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
-            expect(active.emit).toHaveBeenCalledWith('project:updated', { projectId: 5 });
+            expect(active.emit).toHaveBeenCalledWith('project:updated', {projectId: 5});
             expect(stale.emit).not.toHaveBeenCalled();
         });
     });

@@ -94,7 +94,7 @@ class TeamGithubInstallationConsumer(
     // 역전을 막는다. revision이 낮거나 같으면 false를 반환해 호출자가 나머지 로직을 건너뛰게 한다.
     //
     // revision 필드가 없던 구버전 producer의 메시지는 기본값 0으로 역직렬화된다. 0을 원장의 초기값과
-    // 동일하게 취급해 비교해버리면, github-app의 revision 발행(#58)보다 이 가드가 먼저 배포됐을 때
+    // 동일하게 취급해 비교해버리면, cowork-github의 revision 발행(team-cowork/cowork-github-app#58)보다 이 가드가 먼저 배포됐을 때
     // 기존 이벤트가 전부 "이미 반영된 값과 같음"으로 무시되어 팀 연동·해제가 조용히 실패한다. 그래서
     // revision이 0이면 순서를 판단할 수 없는 구버전 이벤트로 보고 원장을 건드리지 않은 채 그대로 통과시킨다.
     private fun guardRevision(eventType: String, installationId: Long, revision: Long): Boolean {
