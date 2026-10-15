@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
-import { Client } from '@elastic/elasticsearch';
-import { Message, MessageSchema } from '../chat/schema/message.schema';
+import {Client} from '@elastic/elasticsearch';
+import {Message, MessageSchema} from '../chat/schema/message.schema';
 import {
     MessageSearchTombstone,
     MessageSearchTombstoneSchema,
@@ -10,11 +10,11 @@ import {
     MessageSearchIndexState,
     MessageSearchIndexStateSchema,
 } from '../chat/schema/message-search-index-state.schema';
-import { MessageSearchIndexRepository } from '../chat/repository/message-search-index.repository';
-import { MessageSearchTombstoneRepository } from '../chat/repository/message-search-tombstone.repository';
-import { MessageSearchIndexStateRepository } from '../chat/repository/message-search-index-state.repository';
-import { MessageSearchRebuilder } from '../chat/search/message-search-rebuilder';
-import { ElasticsearchService } from '../search/elasticsearch.service';
+import {MessageSearchIndexRepository} from '../chat/repository/message-search-index.repository';
+import {MessageSearchTombstoneRepository} from '../chat/repository/message-search-tombstone.repository';
+import {MessageSearchIndexStateRepository} from '../chat/repository/message-search-index-state.repository';
+import {MessageSearchRebuilder} from '../chat/search/message-search-rebuilder';
+import {ElasticsearchService} from '../search/elasticsearch.service';
 
 const COMMANDS = ['status', 'retry-failed', 'rebuild', 'resume-rebuild'] as const;
 type Command = typeof COMMANDS[number];
@@ -24,26 +24,25 @@ function model<T>(name: string, schema: mongoose.Schema): mongoose.Model<T> {
 }
 
 /**
- * `@elastic/elasticsearch`의 `Client`는 keep-alive agent를 들고 있어, 닫지 않으면 소켓이
- * 만료될 때까지 이벤트 루프가 비지 않는다. `mongoose.disconnect()`만으로는 이 프로세스가
- * 결과를 출력한 뒤에도 바로 종료되지 않으므로, 이 client도 함께 닫아야 한다.
+ `@elastic/elasticsearch`의 `Client`는 keep-alive agent를 들고 있어, 닫지 않으면 소켓이
+ 만료될 때까지 이벤트 루프가 비지 않는다. `mongoose.disconnect()`만으로는 이 프로세스가
+ 결과를 출력한 뒤에도 바로 종료되지 않으므로, 이 client도 함께 닫아야 한다.
  */
 let esClient: Client | undefined;
 
 async function main(): Promise<void> {
     const [command] = process.argv.slice(2) as [Command | undefined];
     const uri = process.env.MONGODB_URI;
-    const node = process.env.ELASTICSEARCH_URL;
-
-    if (!uri) {
+    if (uri === undefined) {
         throw new Error('MONGODB_URI is required');
     }
 
-    if (!node) {
+    const node = process.env.ELASTICSEARCH_URL;
+    if (node === undefined) {
         throw new Error('ELASTICSEARCH_URL is required');
     }
 
-    if (!command || !COMMANDS.includes(command)) {
+    if (command === undefined || !COMMANDS.includes(command)) {
         throw new Error(`usage: message-search-index <${COMMANDS.join('|')}>`);
     }
 
@@ -55,7 +54,7 @@ async function main(): Promise<void> {
     const stateRepository = new MessageSearchIndexStateRepository(
         model<MessageSearchIndexState>(MessageSearchIndexState.name, MessageSearchIndexStateSchema),
     );
-    esClient = new Client({ node });
+    esClient = new Client({node});
     const elasticsearchService = new ElasticsearchService(esClient);
     await elasticsearchService.ensureIndexReady();
 
@@ -74,7 +73,7 @@ async function main(): Promise<void> {
     }
 
     const rebuilder = new MessageSearchRebuilder(elasticsearchService, indexRepository, tombstoneRepository, stateRepository);
-    const result = await rebuilder.rebuild({ resume: command === 'resume-rebuild' });
+    const result = await rebuilder.rebuild({resume: command === 'resume-rebuild'});
     console.table([result]);
 }
 
@@ -97,7 +96,7 @@ async function printStatus(
     console.log('# 삭제 tombstone');
     console.table(tombstones);
     console.table([{
-        aliasTargets: aliasTargets.join(', ') || '(alias 없음)',
+        aliasTargets: aliasTargets.length === 0 ? '(alias 없음)' : aliasTargets.join(', '),
         indexScopeMessages: expected,
         oldestPendingAt: backlog.oldestPendingAt?.toISOString() ?? '-',
         lastRebuildSucceededAt: state?.lastRebuildSucceededAt?.toISOString() ?? '-',

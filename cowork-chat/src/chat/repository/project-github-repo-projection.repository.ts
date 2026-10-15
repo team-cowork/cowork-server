@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { ProjectGithubRepoProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {ProjectGithubRepoProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionTimestampFields,
     projectionSourceVersion,
     PROJECTION_EPOCH,
@@ -34,8 +34,8 @@ export class ProjectGithubRepoProjectionRepository {
     ) {}
 
     async findAllByProjectId(projectId: number): Promise<ProjectGithubRepoProjectionView[]> {
-        return this.model.find({ projectId, deleted: { $ne: true } })
-            .sort({ repoId: 1 })
+        return this.model.find({projectId, deleted: {$ne: true}})
+            .sort({repoId: 1})
             .lean<ProjectGithubRepoProjectionView[]>();
     }
 
@@ -43,82 +43,82 @@ export class ProjectGithubRepoProjectionRepository {
         return this.model.find({
             owner: owner.toLowerCase(),
             repo: repo.toLowerCase(),
-            webhookChannelId: { $ne: null },
-            deleted: { $ne: true },
+            webhookChannelId: {$ne: null},
+            deleted: {$ne: true},
         }).lean<ProjectGithubRepoProjectionView[]>();
     }
 
     async upsert(event: VersionedProjectGithubRepoProjectionView): Promise<boolean> {
-        const shouldApply = activeProjectionCondition(event.sourceVersion);
+        const applyCondition = activeProjectionCondition(event.sourceVersion);
         const result = await this.model.updateOne(
-            { repoId: event.repoId },
+            {repoId: event.repoId},
             [{
                 $set: {
                     repoId: event.repoId,
                     projectId: {
-                        $cond: [shouldApply, event.projectId, { $ifNull: ['$projectId', event.projectId] }],
+                        $cond: [applyCondition, event.projectId, {$ifNull: ['$projectId', event.projectId]}],
                     },
                     teamId: {
-                        $cond: [shouldApply, event.teamId, { $ifNull: ['$teamId', event.teamId] }],
+                        $cond: [applyCondition, event.teamId, {$ifNull: ['$teamId', event.teamId]}],
                     },
                     githubRepoUrl: {
-                        $cond: [shouldApply, { $literal: event.githubRepoUrl }, { $ifNull: ['$githubRepoUrl', ''] }],
+                        $cond: [applyCondition, {$literal: event.githubRepoUrl}, {$ifNull: ['$githubRepoUrl', '']}],
                     },
                     owner: {
-                        $cond: [shouldApply, { $literal: event.owner }, { $ifNull: ['$owner', ''] }],
+                        $cond: [applyCondition, {$literal: event.owner}, {$ifNull: ['$owner', '']}],
                     },
                     repo: {
-                        $cond: [shouldApply, { $literal: event.repo }, { $ifNull: ['$repo', ''] }],
+                        $cond: [applyCondition, {$literal: event.repo}, {$ifNull: ['$repo', '']}],
                     },
                     webhookChannelId: {
                         $cond: [
-                            shouldApply,
-                            { $literal: event.webhookChannelId },
-                            { $ifNull: ['$webhookChannelId', null] },
+                            applyCondition,
+                            {$literal: event.webhookChannelId},
+                            {$ifNull: ['$webhookChannelId', null]},
                         ],
                     },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
                         $cond: [
-                            shouldApply,
+                            applyCondition,
                             event.occurredAt,
-                            { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                            {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
                         ],
                     },
                     sourceVersion: {
-                        $cond: [shouldApply, event.sourceVersion, projectionSourceVersion],
+                        $cond: [applyCondition, event.sourceVersion, projectionSourceVersion],
                     },
-                    ...projectionTimestampFields(shouldApply, event.occurredAt),
+                    ...projectionTimestampFields(applyCondition, event.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(repoId: number, occurredAt: Date, sourceVersion: mongo.Long): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { repoId },
+            {repoId},
             [{
                 $set: {
                     repoId,
-                    projectId: { $ifNull: ['$projectId', 0] },
-                    teamId: { $ifNull: ['$teamId', 0] },
-                    githubRepoUrl: { $ifNull: ['$githubRepoUrl', ''] },
-                    owner: { $ifNull: ['$owner', ''] },
-                    repo: { $ifNull: ['$repo', ''] },
-                    webhookChannelId: { $ifNull: ['$webhookChannelId', null] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    projectId: {$ifNull: ['$projectId', 0]},
+                    teamId: {$ifNull: ['$teamId', 0]},
+                    githubRepoUrl: {$ifNull: ['$githubRepoUrl', '']},
+                    owner: {$ifNull: ['$owner', '']},
+                    repo: {$ifNull: ['$repo', '']},
+                    webhookChannelId: {$ifNull: ['$webhookChannelId', null]},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 }

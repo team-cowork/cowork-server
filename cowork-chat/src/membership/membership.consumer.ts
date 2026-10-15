@@ -4,26 +4,26 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Kafka, Consumer } from 'kafkajs';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Server } from 'socket.io';
-import { ChannelMember } from '../chat/schema/channel-member.schema';
-import { getRequiredCsvConfig } from '../common/config/config.util';
-import { parseEventTime } from '../common/util/event-time.util';
-import { isSafePositiveInteger } from '../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../common/kafka/projection-message.processor';
+import {ConfigService} from '@nestjs/config';
+import {Kafka, Consumer} from 'kafkajs';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model} from 'mongoose';
+import {Server} from 'socket.io';
+import {ChannelMember} from '../chat/schema/channel-member.schema';
+import {getRequiredCsvConfig} from '../common/config/config.util';
+import {parseEventTime} from '../common/util/event-time.util';
+import {isSafePositiveInteger} from '../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../common/kafka/projection-message.processor';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionSourceVersion,
     projectionTimestampFields,
     PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util';
-import { ChannelMemberEvent } from './event/membership.event';
+import {ChannelMemberEvent} from './event/membership.event';
 
 @Injectable()
 export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
@@ -43,8 +43,8 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
         this.io = io;
     }
 
-    setReadAccessEvaluator(evaluator: (channelId: number, userId: number) => Promise<boolean>): void {
-        this.readAccessEvaluator = evaluator;
+    setReadAccessEvaluator(canReadAccess: (channelId: number, userId: number) => Promise<boolean>): void {
+        this.readAccessEvaluator = canReadAccess;
     }
 
     setReadableEmitter(emitter: (channelId: number, event: string, payload: unknown) => Promise<void>): void {
@@ -57,14 +57,14 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.channelMember;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer
             .run({
-                eachMessage: async ({ partition, message }) => {
+                eachMessage: async ({partition, message}) => {
                     await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                         stream,
                         partition,
@@ -103,47 +103,47 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('channel member event occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
-        const { eventType, channelId, teamId, userId, role } = event;
+        const {occurredAt, sourceVersion} = eventTime;
+        const {eventType, channelId, teamId, userId, role} = event;
         const channelType = event.channelType ?? 'TEXT';
 
         try {
             if (eventType === 'JOIN' || eventType === 'ROLE_CHANGE') {
-                const shouldApply = activeProjectionCondition(sourceVersion);
+                const applyCondition = activeProjectionCondition(sourceVersion);
                 const result = await this.memberModel.updateOne(
-                    { channelId, userId },
+                    {channelId, userId},
                     [{
                         $set: {
                             channelId,
                             userId,
                             teamId: {
-                                $cond: [shouldApply, { $literal: teamId ?? null }, { $ifNull: ['$teamId', null] }],
+                                $cond: [applyCondition, {$literal: teamId ?? null}, {$ifNull: ['$teamId', null]}],
                             },
-                            role: { $cond: [shouldApply, { $literal: role }, { $ifNull: ['$role', 'MEMBER'] }] },
+                            role: {$cond: [applyCondition, {$literal: role}, {$ifNull: ['$role', 'MEMBER']}]},
                             channelType: {
                                 $cond: [
-                                    shouldApply,
-                                    { $literal: channelType },
-                                    { $ifNull: ['$channelType', 'TEXT'] },
+                                    applyCondition,
+                                    {$literal: channelType},
+                                    {$ifNull: ['$channelType', 'TEXT']},
                                 ],
                             },
-                            isHidden: { $ifNull: ['$isHidden', false] },
-                            lastReadMessageId: { $ifNull: ['$lastReadMessageId', null] },
-                            deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                            isHidden: {$ifNull: ['$isHidden', false]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
+                            deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
-                                    shouldApply,
+                                    applyCondition,
                                     occurredAt,
-                                    { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                                    {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
                                 ],
                             },
-                            sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                            ...projectionTimestampFields(shouldApply, occurredAt),
+                            sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                            ...projectionTimestampFields(applyCondition, occurredAt),
                         },
                     }],
-                    { upsert: true, timestamps: false, updatePipeline: true },
+                    {upsert: true, timestamps: false, updatePipeline: true},
                 );
-                if (!projectionUpdateApplied(result) || (event.snapshot === true)) {
+                if (!isProjectionUpdateApplied(result) || (event.snapshot === true)) {
                     return;
                 }
 
@@ -158,33 +158,33 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     channelId, teamId, userId, role,
                 });
             } else if (eventType === 'LEAVE') {
-                const shouldApply = deletedProjectionCondition(sourceVersion);
+                const applyCondition = deletedProjectionCondition(sourceVersion);
                 const result = await this.memberModel.updateOne(
-                    { channelId, userId },
+                    {channelId, userId},
                     [{
                         $set: {
                             channelId,
                             userId,
-                            teamId: { $ifNull: ['$teamId', { $literal: teamId ?? null }] },
-                            role: { $ifNull: ['$role', { $literal: role }] },
-                            channelType: { $ifNull: ['$channelType', { $literal: channelType }] },
-                            isHidden: { $ifNull: ['$isHidden', false] },
-                            lastReadMessageId: { $ifNull: ['$lastReadMessageId', null] },
-                            deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                            teamId: {$ifNull: ['$teamId', {$literal: teamId ?? null}]},
+                            role: {$ifNull: ['$role', {$literal: role}]},
+                            channelType: {$ifNull: ['$channelType', {$literal: channelType}]},
+                            isHidden: {$ifNull: ['$isHidden', false]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
+                            deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
-                                    shouldApply,
+                                    applyCondition,
                                     occurredAt,
-                                    { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                                    {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
                                 ],
                             },
-                            sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                            ...projectionTimestampFields(shouldApply, occurredAt),
+                            sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                            ...projectionTimestampFields(applyCondition, occurredAt),
                         },
                     }],
-                    { upsert: true, timestamps: false, updatePipeline: true },
+                    {upsert: true, timestamps: false, updatePipeline: true},
                 );
-                const applied = projectionUpdateApplied(result);
+                const isApplied = isProjectionUpdateApplied(result);
                 // Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
                 // 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
                 // 다른 stream이 닫혀도 판정은 전부 거부이므로 전체 readiness를 판정 전후로 확인한다.
@@ -195,15 +195,15 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     && this.projectionReadiness.isReady()) {
                     this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
                     if (event.snapshot !== true) {
-                        this.io.to(`user:${userId}`).emit('channel:access:revoked', { channelId });
+                        this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
                     }
                 }
 
-                if (event.snapshot === true || !applied) {
+                if (event.snapshot === true || !isApplied) {
                     return;
                 }
 
-                await this.broadcast(channelId, 'member:left', { channelId, teamId, userId });
+                await this.broadcast(channelId, 'member:left', {channelId, teamId, userId});
             }
         } catch (error) {
             this.logger.error(`Failed to handle membership event [${eventType}]`, error);
@@ -227,7 +227,9 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
             && parseEventTime(event.occurredAt) !== null;
     }
 
-    /** Replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다. */
+    /**
+    Replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다.
+    */
     private isLive(): boolean {
         return this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channelMember.name);
     }

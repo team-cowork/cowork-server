@@ -13,13 +13,13 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * 이슈 라벨 전체 교체·댓글 생성/수정/삭제를 `github-app.issue-write.command`로 발행한다.
+ * 이슈 라벨 전체 교체·댓글 생성/수정/삭제를 `github.issue-write.command.v1`로 발행한다.
  * REST(Feign) 동기 호출을 대체하며, 처리 결과는 [GithubIssueWriteResultConsumer][com.cowork.project.global.consumer.GithubIssueWriteResultConsumer]가
- * `github-app.issue-write.result`로 수신해 [GithubIssueWriteOperation] 원장에 반영한다.
+ * `github.issue-write.result.v1`로 수신해 [GithubIssueWriteOperation] 원장에 반영한다.
  *
  * ## idempotencyKey 설계
  *
- * cowork-github-app은 `idempotencyKey`로 중복 제거를 하지 않으므로(그대로 echo만 함), 이미 발행이
+ * cowork-github는 `idempotencyKey`로 중복 제거를 하지 않으므로(그대로 echo만 함), 이미 발행이
  * 끝난 작업에 대해 재발행하지 않는 책임은 이 publisher가 진다. 각 command 타입별로 "무엇을 같은
  * 작업으로 볼지"가 다르므로 key 구성도 다르게 가져간다.
  *

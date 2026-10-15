@@ -60,3 +60,8 @@ services:
     build:
       context: .
       dockerfile: cowork-voice/Dockerfile.local
+
+  cowork-github:
+    build:
+      context: .
+      dockerfile: cowork-github/Dockerfile.local

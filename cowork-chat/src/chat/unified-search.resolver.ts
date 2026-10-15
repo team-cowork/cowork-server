@@ -5,15 +5,15 @@ import {
     Query,
     Resolver,
 } from '@nestjs/graphql';
-import { BadRequestException } from '@nestjs/common';
-import { Request } from 'express';
-import { plainToInstance } from 'class-transformer';
-import { validate } from 'class-validator';
-import { RequestContextUtil } from '../common/util/request-context.util';
-import { UnifiedSearchResult } from '../search/unified-search.types';
-import { ChatService } from './chat.service';
-import { SearchTeamMessagesDto } from './dto';
-import { ChannelSearchClient } from './service';
+import {BadRequestException} from '@nestjs/common';
+import {Request} from 'express';
+import {plainToInstance} from 'class-transformer';
+import {validate} from 'class-validator';
+import {RequestContextUtil} from '../common/util/request-context.util';
+import {UnifiedSearchResult} from '../search/unified-search.types';
+import {ChatService} from './chat.service';
+import {SearchTeamMessagesDto} from './dto';
+import {ChannelSearchClient} from './service';
 
 @Resolver()
 export class UnifiedSearchResolver {
@@ -33,14 +33,14 @@ export class UnifiedSearchResolver {
     })
     async unifiedSearch(
         @Context('req') request: Request,
-        @Args('teamId', { type: () => Int }) teamId: number,
+        @Args('teamId', {type: () => Int}) teamId: number,
         @Args('q') q: string,
-        @Args('channelId', { type: () => Int, nullable: true }) channelId?: number,
-        @Args('authorId', { type: () => Int, nullable: true }) authorId?: number,
-        @Args('type', { nullable: true }) type?: string,
-        @Args('hasFile', { nullable: true }) hasFile?: boolean,
-        @Args('before', { nullable: true }) before?: string,
-        @Args('limit', { type: () => Int, nullable: true }) limit?: number,
+        @Args('channelId', {type: () => Int, nullable: true}) channelId?: number,
+        @Args('authorId', {type: () => Int, nullable: true}) authorId?: number,
+        @Args('type', {nullable: true}) type?: string,
+        @Args('hasFile', {nullable: true}) hasFile?: boolean,
+        @Args('before', {nullable: true}) before?: string,
+        @Args('limit', {type: () => Int, nullable: true}) limit?: number,
     ): Promise<UnifiedSearchResult> {
         const userId = RequestContextUtil.getUserId(request.headers);
 
@@ -53,7 +53,7 @@ export class UnifiedSearchResolver {
         }
 
         const [messageResult, channels] = await Promise.all([
-            this.chatService.searchTeamMessages(teamId, dto, { userId }),
+            this.chatService.searchTeamMessages(teamId, dto, {userId}),
             this.channelSearchClient.searchChannels(teamId, q, userId),
         ]);
 

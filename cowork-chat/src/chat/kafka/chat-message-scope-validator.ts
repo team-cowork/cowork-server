@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ChannelProjectionRepository, MessageRepository } from '../repository';
-import { resolveMessageScope } from '../service';
-import { ChatMessageEvent } from './event/chat-message.event';
+import {Injectable} from '@nestjs/common';
+import {ChannelProjectionRepository, MessageRepository} from '../repository';
+import {resolveMessageScope} from '../service';
+import {ChatMessageEvent} from './event/chat-message.event';
 
 export class ChatMessageScopeError extends Error {
     constructor(
@@ -13,7 +13,9 @@ export class ChatMessageScopeError extends Error {
     }
 }
 
-/** 현재 로컬 읽기 모델을 기준으로 메시지의 채널·부모 리소스 귀속을 검증한다. */
+/**
+현재 로컬 읽기 모델을 기준으로 메시지의 채널·부모 리소스 귀속을 검증한다.
+*/
 @Injectable()
 export class ChatMessageScopeValidator {
     constructor(
@@ -32,7 +34,7 @@ export class ChatMessageScopeValidator {
             throw new ChatMessageScopeError('CHANNEL_SCOPE_MISMATCH', 'event teamId or projectId does not match channel');
         }
 
-        if (!event.parentMessageId) {
+        if (event.parentMessageId === undefined || event.parentMessageId === '') {
             return;
         }
 
