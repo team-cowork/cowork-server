@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit
 private const val SEND_TIMEOUT_SECONDS = 5L
 
 /**
- * project가 직접 트리거하는 GitHub 쓰기 작업을 cowork-github-app에 Kafka로 발행한다.
+ * project가 직접 트리거하는 GitHub 쓰기 작업을 cowork-github에 Kafka로 발행한다.
  * REST(Feign) 동기 호출을 대체하며, 처리 결과(성공/실패)는 이 흐름에서 project로 회신되지 않는다(fire-and-forget).
  * 다만 발행 자체(브로커에 적재)는 동기로 확인한다 — 그래야 호출자가 202를 받았을 때 "적재는 됐다"를 보장할 수 있다.
  */

@@ -4,18 +4,18 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { TeamMemberProjectionRepository, ChannelProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {TeamMemberProjectionRepository, ChannelProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
 
 type TeamMemberEvent = {
     eventType: 'UPSERT' | 'DELETE';
@@ -52,13 +52,13 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.teamMember;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                     stream,
                     partition,
@@ -73,7 +73,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
                 title: '🔴 Kafka Consumer 중단',
                 description: 'cowork-chat의 team.member.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'team.member.event', inline: true }, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: 'team.member.event', inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
@@ -101,7 +101,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('team member event occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
+        const {occurredAt, sourceVersion} = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion);
         } else {
@@ -128,7 +128,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         this.io.in(`user:${payload.userId}`).socketsLeave(`team:${payload.teamId}`);
         if (payload.snapshot !== true) {
-            this.io.to(`user:${payload.userId}`).emit('team:access:revoked', { teamId: payload.teamId });
+            this.io.to(`user:${payload.userId}`).emit('team:access:revoked', {teamId: payload.teamId});
         }
     }
 

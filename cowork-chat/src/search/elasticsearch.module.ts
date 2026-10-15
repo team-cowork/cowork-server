@@ -1,9 +1,9 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { Client } from '@elastic/elasticsearch';
-import { getRequiredConfig } from '../common/config/config.util';
-import { ElasticsearchService } from './elasticsearch.service';
-import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
+import {Module} from '@nestjs/common';
+import {ConfigModule, ConfigService} from '@nestjs/config';
+import {Client} from '@elastic/elasticsearch';
+import {getRequiredConfig} from '../common/config/config.util';
+import {ElasticsearchService} from './elasticsearch.service';
+import {ELASTICSEARCH_CLIENT} from './elasticsearch.constants';
 
 @Module({
     imports: [ConfigModule],
@@ -12,7 +12,7 @@ import { ELASTICSEARCH_CLIENT } from './elasticsearch.constants';
             provide: ELASTICSEARCH_CLIENT,
             inject: [ConfigService],
             useFactory: (configService: ConfigService) =>
-                new Client({ node: getRequiredConfig(configService, 'ELASTICSEARCH_URL') }),
+                new Client({node: getRequiredConfig(configService, 'ELASTICSEARCH_URL')}),
         },
         ElasticsearchService,
     ],

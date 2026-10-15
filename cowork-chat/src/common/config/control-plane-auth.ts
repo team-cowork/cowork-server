@@ -1,13 +1,15 @@
-import { isIPv4 } from 'node:net';
+import {isIPv4} from 'node:net';
 
-/** Bootstrap credentials must come from the process environment, before fetching configuration. */
+/**
+Bootstrap credentials must come from the process environment, before fetching configuration.
+*/
 const username = process.env.CONFIG_CLIENT_USERNAME;
 const password = process.env.CONFIG_CLIENT_PASSWORD;
 const profile = process.env.APP_CONFIG_PROFILE ?? 'local';
 
 export function controlPlaneAuthorization(url: string): string {
     const endpoint = new URL(url);
-    if (endpoint.username || endpoint.password || !['http:', 'https:'].includes(endpoint.protocol)) {
+    if (endpoint.username !== '' || endpoint.password !== '' || !['http:', 'https:'].includes(endpoint.protocol)) {
         throw new Error('Use a Config/Eureka HTTP(S) URL without credentials');
     }
 
@@ -15,7 +17,7 @@ export function controlPlaneAuthorization(url: string): string {
         throw new Error('Use HTTPS or a private IPv4 HTTP URL for production Config/Eureka');
     }
 
-    if (!username || !password) {
+    if (username === undefined || username === '' || password === undefined || password === '') {
         throw new Error('Provide CONFIG_CLIENT_USERNAME and CONFIG_CLIENT_PASSWORD');
     }
 

@@ -8,7 +8,7 @@ from pathlib import Path
 import re
 import secrets
 
-SERVICES = "gateway authorization user team channel project roadmap notification preference chat voice monitoring".split()
+SERVICES = "gateway authorization user team channel project roadmap notification preference chat voice github monitoring".split()
 
 
 def write_private(path, value):
