@@ -1,5 +1,5 @@
 {
-  "title": "cowork Overview",
+  "title": "cowork 전체 현황",
   "uid": "cowork-overview",
   "tags": [
     "cowork"
@@ -14,7 +14,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Metrics scrape status",
+      "title": "메트릭 수집 상태",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -48,11 +48,11 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "DOWN",
+                  "text": "수집 실패",
                   "color": "red"
                 },
                 "1": {
-                  "text": "UP",
+                  "text": "수집 정상",
                   "color": "green"
                 }
               }
@@ -76,7 +76,8 @@
     },
     {
       "id": 2,
-      "title": "HTTP request rate (when emitted)",
+      "title": "초당 HTTP 요청 수 (req/s)",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -97,7 +98,8 @@
     },
     {
       "id": 3,
-      "title": "HTTP 5xx error ratio (when emitted)",
+      "title": "HTTP 5xx 오류 비율 (%)",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -123,7 +125,8 @@
     },
     {
       "id": 4,
-      "title": "JVM heap (when emitted)",
+      "title": "JVM 힙 메모리 사용량",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -149,7 +152,8 @@
     },
     {
       "id": 5,
-      "title": "Go heap (when emitted)",
+      "title": "Go 힙 메모리 사용량",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -181,7 +185,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }
