@@ -11,7 +11,7 @@ on:
         description: Apply GitHub settings and recreate the selected service
         required: true
         type: choice
-        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, applications, infrastructure, vault]
+        options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, github, applications, infrastructure, vault]
       sha:
         description: Optional existing image commit; blank keeps the currently deployed image
         type: string

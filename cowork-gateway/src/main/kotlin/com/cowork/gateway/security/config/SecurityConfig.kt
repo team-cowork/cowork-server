@@ -95,6 +95,10 @@ class SecurityConfig(
                     .pathMatchers("/v3/api-docs/**").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/chat/asyncapi.json").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/voice/voice/webhook").permitAll()
+                    // GitHub webhook은 cowork-github가 X-Hub-Signature-256으로 검증하고, setup 콜백은 GitHub가 브라우저를
+                    // 리다이렉트하므로 Cowork JWT가 없다. 콜백의 state 서명은 cowork-team이 검증한다
+                    .pathMatchers(HttpMethod.POST, "/api/github/github/webhooks").permitAll()
+                    .pathMatchers(HttpMethod.GET, "/api/github/github/setup").permitAll()
                     // DataGSM webhook은 Cowork JWT가 아닌 HMAC 서명으로 인증하므로 Gateway JWT 검증을 우회한다
                     .pathMatchers(HttpMethod.POST, "/api/authorization/events/datagsm").permitAll()
                     // OAuth provider가 사용자 브라우저를 리다이렉트하는 콜백이므로 Cowork JWT 없음
