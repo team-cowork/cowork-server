@@ -141,6 +141,7 @@ jobs:
           CHECK_ONLY: ${{ inputs.check_only || false }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
           # Only shared inputs participate in the plan; bind secrets individually.
+          # Keep this list equal to the shared secrets in deploy/prod/configuration.json (checked by deploy/validate.py).
           GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
           GH_SECRET_JWT_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.JWT_SECRET || '' }}
           GH_SECRET_LIVEKIT_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_KEY || '' }}
@@ -188,6 +189,7 @@ jobs:
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
           # The catalog-derived matrix selects which explicit bindings reach this target.
+          # Add a binding for every secret declared in deploy/prod/configuration.json (checked by deploy/validate.py).
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
           GH_SECRET_CONFIG_CLIENT_PASSWORD: ${{ contains(matrix.secret_names, 'CONFIG_CLIENT_PASSWORD') && secrets.CONFIG_CLIENT_PASSWORD || '' }}
