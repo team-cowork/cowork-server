@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { UserProfileProjectionRepository } from '../repository';
+import {Injectable} from '@nestjs/common';
+import {UserProfileProjectionRepository} from '../repository';
 
-/** Kafka로 동기화된 로컬 사용자 프로필 projection 조회기. */
+/**
+Kafka로 동기화된 로컬 사용자 프로필 projection 조회기.
+*/
 @Injectable()
 export class UserClient {
     constructor(private readonly projectionRepository: UserProfileProjectionRepository) {}
@@ -15,7 +17,7 @@ export class UserClient {
         const profiles = await this.projectionRepository.findByUserIds(uniqueUserIds);
         return new Map(profiles.map(profile => [
             profile.userId,
-            profile.nickname && profile.nickname.length > 0 ? profile.nickname : profile.name,
+            profile.nickname != null && profile.nickname.length > 0 ? profile.nickname : profile.name,
         ]));
     }
 }
