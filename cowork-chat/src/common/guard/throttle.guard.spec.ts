@@ -1,9 +1,9 @@
-import { type ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
-import { type Reflector } from '@nestjs/core';
-import { type ConfigService } from '@nestjs/config';
-import { type RedisRateLimiter } from '../util/redis-rate-limiter';
-import { type ThrottleOptions } from '../decorator/throttle.decorator';
-import { ThrottleGuard } from './throttle.guard';
+import {type ExecutionContext, HttpException, HttpStatus} from '@nestjs/common';
+import {type Reflector} from '@nestjs/core';
+import {type ConfigService} from '@nestjs/config';
+import {type RedisRateLimiter} from '../util/redis-rate-limiter';
+import {type ThrottleOptions} from '../decorator/throttle.decorator';
+import {ThrottleGuard} from './throttle.guard';
 
 const mockRateLimiter = {
     tryAcquire: jest.fn(),
@@ -17,21 +17,21 @@ const defaultOptions: ThrottleOptions = {
     defaultMaxRequests: 20,
 };
 
-const makeContext = (headers: Record<string, string> = { 'x-user-id': '42' }): ExecutionContext =>
+const makeContext = (headers: Record<string, string> = {'x-user-id': '42'}): ExecutionContext =>
     ({
         getType: () => 'http',
         getHandler: jest.fn(),
         getClass: jest.fn(),
         switchToHttp: () => ({
-            getRequest: () => ({ headers }),
+            getRequest: () => ({headers}),
         }),
     }) as unknown as ExecutionContext;
 
 const makeReflector = (options: ThrottleOptions | undefined): Reflector =>
-    ({ getAllAndOverride: jest.fn().mockReturnValue(options) }) as unknown as Reflector;
+    ({getAllAndOverride: jest.fn().mockReturnValue(options)}) as unknown as Reflector;
 
 const makeConfigService = (values: Record<string, string> = {}): ConfigService =>
-    ({ get: jest.fn((key: string) => values[key]) }) as unknown as ConfigService;
+    ({get: jest.fn((key: string) => values[key])}) as unknown as ConfigService;
 
 describe('ThrottleGuard', () => {
     beforeEach(() => {
