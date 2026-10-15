@@ -1,4 +1,4 @@
-import { EurekaClient } from './eureka-client';
+import {EurekaClient} from './eureka-client';
 
 jest.mock('../common/config/control-plane-auth', () => ({
     controlPlaneAuthorization: () => 'Basic test',
@@ -26,7 +26,7 @@ describe('EurekaClient status', () => {
     const calls = () => fetchMock.mock.calls.map(([url, init]) => `${(init as RequestInit).method} ${String(url)}`);
 
     beforeEach(() => {
-        fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(null, { status: 204 }));
+        fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(null, {status: 204}));
         client = new EurekaClient(config);
     });
 
@@ -60,7 +60,7 @@ describe('EurekaClient status', () => {
         await flush();
 
         const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-        const body = JSON.parse(init.body as string) as { instance: { status: string } };
+        const body = JSON.parse(init.body as string) as {instance: {status: string}};
         expect(body.instance.status).toBe('OUT_OF_SERVICE');
         expect(fetchMock).toHaveBeenCalledTimes(1);
     });
@@ -70,7 +70,7 @@ describe('EurekaClient status', () => {
         let release!: () => void;
         fetchMock.mockClear().mockImplementationOnce(async () => new Promise<Response>(resolve => {
             release = () => {
-                resolve(new Response(null, { status: 204 }));
+                resolve(new Response(null, {status: 204}));
             };
         }));
 
@@ -90,9 +90,9 @@ describe('EurekaClient status', () => {
     });
 
     it('status 변경 실패는 던지지 않고 다음 heartbeat에서 다시 맞춘다', async () => {
-        jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+        jest.useFakeTimers({doNotFake: ['setImmediate']});
         await client.register();
-        fetchMock.mockClear().mockResolvedValueOnce(new Response(null, { status: 503 }));
+        fetchMock.mockClear().mockResolvedValueOnce(new Response(null, {status: 503}));
 
         client.setStatus('OUT_OF_SERVICE');
         await flush();
@@ -117,12 +117,12 @@ describe('EurekaClient status', () => {
     });
 
     it('등록 해제 중 진행 중이던 heartbeat가 404를 받아도 다시 등록하지 않는다', async () => {
-        jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+        jest.useFakeTimers({doNotFake: ['setImmediate']});
         await client.register();
         let release!: () => void;
         fetchMock.mockClear().mockImplementationOnce(async () => new Promise<Response>(resolve => {
             release = () => {
-                resolve(new Response(null, { status: 404 }));
+                resolve(new Response(null, {status: 404}));
             };
         }));
 

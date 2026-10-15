@@ -4,18 +4,18 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { TeamRoleProjectionRepository, ChannelRolePolicyProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {TeamRoleProjectionRepository, ChannelRolePolicyProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
 
 type TeamRoleEvent = {
     eventType: 'ROLE_UPSERTED' | 'ROLE_DELETED' | 'ASSIGNMENT_UPSERTED' | 'ASSIGNMENT_DELETED' | 'MEMBER_ASSIGNMENTS_DELETED';
@@ -53,13 +53,13 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.teamRole;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () =>
                     applyProjectionMessage(
                         stream,
@@ -75,7 +75,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                 title: '🔴 Kafka Consumer 중단',
                 description: `cowork-chat의 ${stream.topic} consumer가 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: stream.topic, inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });

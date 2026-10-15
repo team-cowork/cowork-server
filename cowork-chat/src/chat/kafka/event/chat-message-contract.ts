@@ -1,5 +1,5 @@
-import { Types } from 'mongoose';
-import { type ChatMessageEvent } from './chat-message.event';
+import {Types} from 'mongoose';
+import {type ChatMessageEvent} from './chat-message.event';
 
 export const CHAT_MESSAGE_TOPIC = 'chat.message.v2';
 export const CHAT_MESSAGE_CONTRACT_VERSION = 2 as const;
@@ -16,15 +16,15 @@ export class ChatMessageContractError extends Error {
 }
 
 /**
- * Kafka의 untrusted payload를 ChatMessageEvent로 검증·정규화한다.
- * object key를 사용하는 v2만 허용한다. 구 토픽의 URL 기반 레코드는 혼합하지 않는다.
+ Kafka의 untrusted payload를 ChatMessageEvent로 검증·정규화한다.
+ object key를 사용하는 v2만 허용한다. 구 토픽의 URL 기반 레코드는 혼합하지 않는다.
  */
 export function validateChatMessageEvent(payload: unknown, eventKey: string | null): ChatMessageEvent {
     if (!isRecord(payload)) {
         throw contractError('INVALID_PAYLOAD', 'payload must be an object');
     }
 
-    const { contractVersion } = payload;
+    const {contractVersion} = payload;
     if (contractVersion !== CHAT_MESSAGE_CONTRACT_VERSION) {
         throw contractError('UNSUPPORTED_CONTRACT_VERSION', 'contractVersion is not supported');
     }
