@@ -1,4 +1,5 @@
-# Independent Vault lifecycle. Pre-create the named volume for a fresh deployment or select an existing one.
+# The Vault slot owns placement and the existing Compose project/data-volume identities.
+# Keep the live volume external so redeployment and offline recovery preserve its data.
 services:
   vault:
     image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
@@ -10,7 +11,7 @@ services:
       VAULT_ADDR: http://127.0.0.1:8200
       VAULT_API_ADDR: https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}
     ports:
-      - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_HOST_PORT:-8200}:8200"
+      - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_HOST_PORT:?VAULT_HOST_PORT is required}:8200"
     volumes:
       - ./deploy/config/vault/server.hcl:/vault/config/server.hcl:ro
       - vault-data:/vault/data
