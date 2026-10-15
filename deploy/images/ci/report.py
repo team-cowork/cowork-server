@@ -305,7 +305,7 @@ def round_one(value: Decimal) -> Decimal:
 
 
 def percentage(value: Decimal | None) -> str:
-    return "N/A" if value is None else f"{round_one(value):.1f}%"
+    return "측정 불가" if value is None else f"{round_one(value):.1f}%"
 
 
 def delta(base: Result, pr: Result) -> Decimal | None:
@@ -318,7 +318,7 @@ def delta(base: Result, pr: Result) -> Decimal | None:
 
 def delta_text(value: Decimal | None) -> str:
     if value is None:
-        return "N/A"
+        return "비교 불가"
     value = round_one(value)
     return f"{'+' if value > 0 else ''}{value:.1f}%p"
 
@@ -343,15 +343,38 @@ def code_text(value: Any) -> str:
     return " ".join(str(value).split()).replace("`", "'")
 
 
+def reason_text(reason: str) -> str:
+    """Localize report explanations while retaining original diagnostic details."""
+    labels = {
+        "Module does not exist at this revision": "이 커밋에 모듈이 없습니다.",
+        "Coverage report was not generated": "커버리지 보고서가 생성되지 않았습니다.",
+        "Coverage artifact is missing": "커버리지 결과 파일이 없습니다.",
+        "Duplicate coverage artifacts": "커버리지 결과 파일이 중복되었습니다.",
+        "Incomplete coverage": "일부 커버리지 결과가 누락되었습니다.",
+    }
+    if reason in labels:
+        return labels[reason]
+    if match := re.fullmatch(r"Test or coverage collection failed \(exit code (-?\d+)\)", reason):
+        return f"테스트 또는 커버리지 수집에 실패했습니다. (종료 코드: {match[1]})"
+    for prefix, label in (
+        ("Invalid coverage report: ", "커버리지 보고서 오류"),
+        ("Invalid coverage artifact: ", "커버리지 결과 파일 오류"),
+        ("Verification or coverage export failed: ", "검증 또는 커버리지 내보내기 실패"),
+    ):
+        if reason.startswith(prefix):
+            return f"{label} (진단 로그: {reason.removeprefix(prefix)})"
+    return reason
+
+
 def measurement_status(base: Result, pr: Result) -> str:
     problems = []
     for result in (base, pr):
         snapshot = "기준 커밋" if result.snapshot == "base" else "현재 PR"
         if result.status in {"failed", "missing"}:
             label = "실패" if result.status == "failed" else "미측정"
-            problems.append(f"{snapshot}: {label} — {code_text(result.reason[:500])}")
+            problems.append(f"{snapshot}: {label} — {code_text(reason_text(result.reason)[:500])}")
         elif result.status in {"excluded", "untested"}:
-            problems.append(f"{snapshot}: {code_text(result.reason)}")
+            problems.append(f"{snapshot}: {code_text(reason_text(result.reason))}")
         elif result.status == "ok" and result.total == 0:
             problems.append(f"{snapshot}: 측정 항목 없음")
     if problems:
@@ -359,9 +382,9 @@ def measurement_status(base: Result, pr: Result) -> str:
     if base.status == "absent" and pr.status == "absent":
         return "양쪽 리비전에 모듈 없음"
     if base.status == "absent":
-        return "모듈 추가 (base 없음)"
+        return "모듈 추가 (기준 커밋에 없음)"
     if pr.status == "absent":
-        return "모듈 삭제 (PR 없음)"
+        return "모듈 삭제 (현재 PR에 없음)"
     if base.metric != pr.metric:
         return "측정 단위 변경 — 증감 비교 불가"
     return "완료"
@@ -378,12 +401,12 @@ def donut_url(covered: int, total: int) -> str:
     chart = {
         "type": "doughnut",
         "data": {
-            "labels": ["Covered", "Missed"],
+            "labels": ["실행된 코드", "실행되지 않은 코드"],
             "datasets": [{"data": [covered, total - covered], "backgroundColor": ["#2da44e", "#cf222e"], "borderWidth": 0}],
         },
         "options": {
             "cutoutPercentage": 70,
-            "legend": {"position": "bottom", "labels": {"boxWidth": 12, "fontSize": 10}},
+            "legend": {"position": "bottom", "labels": {"boxWidth": 12, "fontSize": 10, "fontFamily": "Noto Sans CJK KR"}},
             "plugins": {
                 "datalabels": {"display": False},
                 "doughnutlabel": {"labels": [{"text": center_label, "font": {"size": 20}, "color": "#24292f"}]},
@@ -459,17 +482,17 @@ def render(args: argparse.Namespace) -> str:
         change = delta(previous, current)
         lines.append(coverage_line(name, current.percent, change, measurement_status(previous, current)))
     for module in excluded:
-        lines.append(coverage_line(module["module"], None, None, module["reason"]))
+        lines.append(coverage_line(module["module"], None, None, reason_text(module["reason"])))
 
     lines += ["```", ""]
     if not pr_complete:
         lines += ["현재 PR의 일부 측정이 실패하거나 누락되어 도넛 차트를 표시하지 않았습니다.", ""]
     if not base_complete:
-        lines += ["기준 커밋의 일부 커버리지가 없거나 측정에 실패하여 해당 모듈의 증감은 N/A입니다.", ""]
+        lines += ["기준 커밋의 일부 커버리지가 없거나 측정에 실패하여 해당 모듈의 증감을 비교할 수 없습니다.", ""]
     if unit_changed:
-        lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈의 증감은 N/A입니다.", ""]
+        lines += ["빌드 도구 변경으로 측정 단위가 바뀐 모듈의 증감은 비교할 수 없습니다.", ""]
     if module_scope_changed:
-        lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 증감은 N/A입니다.", ""]
+        lines += ["모듈 추가·삭제로 두 리비전의 측정 범위가 다릅니다. 해당 모듈의 증감은 비교할 수 없습니다.", ""]
     if diagnostics:
         lines += ["보고서 검증 오류:", ""]
         for snapshot, message in diagnostics:
