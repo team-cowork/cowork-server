@@ -156,8 +156,7 @@ def profile_for(target, mount):
     document = read_document(f'runtime/{target}', allow_missing=True, mount=mount)
     if document is not None:
         return document['data'].get('APP_CONFIG_PROFILE', 'prod')
-    slot_path = ROOT / 'deploy/prod/slots' / f'{target}.json'
-    return SLOTS['load'](target)['runtime'].get('APP_CONFIG_PROFILE', 'prod') if slot_path.is_file() else 'prod'
+    return SLOTS['load'](target)['runtime'].get('APP_CONFIG_PROFILE', 'prod')
 
 
 def plan(args, catalog, mount, variables, secrets):
@@ -243,17 +242,15 @@ def sync(args, catalog, mount, variables, secrets):
             effects.setdefault(runtime_path, set()).update(spec.get('resources', []))
     derive_config_account(target, runtime, documents, document, effects)
     reference_versions = {}
-    slot_path = ROOT / 'deploy/prod/slots' / f'{target}.json'
-    if slot_path.is_file():
-        slot = SLOTS['load'](target)
-        for section in slot.get('secrets', {}).values():
-            for ref in section.values():
-                if ref['path'] in documents:
-                    demand(ref['key'] in documents[ref['path']]['data'], 'A declared Vault secret reference is missing')
-                else:
-                    referenced = read_document(ref['path'], mount=mount)
-                    demand(ref['key'] in referenced['data'], 'A declared Vault secret reference is missing')
-                    reference_versions[ref['path']] = referenced['metadata']['version']
+    slot = SLOTS['load'](target)
+    for section in slot.get('secrets', {}).values():
+        for ref in section.values():
+            if ref['path'] in documents:
+                demand(ref['key'] in documents[ref['path']]['data'], 'A declared Vault secret reference is missing')
+            else:
+                referenced = read_document(ref['path'], mount=mount)
+                demand(ref['key'] in referenced['data'], 'A declared Vault secret reference is missing')
+                reference_versions[ref['path']] = referenced['metadata']['version']
     changed_paths = [path for path, doc in documents.items()
                      if doc['data'] != doc['before'] or doc['before_version'] == 0]
     resources = set().union(*(effects.get(path, set()) for path in changed_paths)) if changed_paths else set()

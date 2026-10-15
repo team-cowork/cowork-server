@@ -387,6 +387,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      id-token: write
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -416,7 +417,6 @@ jobs:
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   apply-infrastructure:
