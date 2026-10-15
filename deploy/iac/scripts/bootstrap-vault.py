@@ -119,6 +119,14 @@ def main():
     roles['prod-settings-plan'] = settings_role('prod-settings-plan')
     spec['policies']['prod-settings-recovery'] = settings_policy(managed_paths, managed_paths)
     roles['prod-settings-recovery'] = settings_role('prod-settings-recovery', 'Prod-IaC')
+    # Vault can authenticate with OIDC while healthy. Offline recovery supplies
+    # the same slot's secrets from GitHub without contacting Vault.
+    vault_slot = json.loads((slots / 'vault.json').read_text())
+    vault_paths = {'deploy/vault'} | {ref['path'] for refs in vault_slot.get('secrets', {}).values()
+                                    for ref in refs.values()}
+    spec['policies']['prod-deploy-vault'] = {
+        'secret/data/' + path: ['read'] for path in sorted(vault_paths)}
+    roles['prod-deploy-vault'] = settings_role('prod-deploy-vault', 'Prod-CD(vault)')
     mount = spec['mount']
     methods = request('sys/auth')['data']
     if mount + '/' not in methods:
