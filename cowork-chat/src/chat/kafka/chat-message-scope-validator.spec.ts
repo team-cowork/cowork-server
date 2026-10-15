@@ -1,4 +1,4 @@
-import { type ChatMessageScopeError, ChatMessageScopeValidator } from './chat-message-scope-validator';
+import {type ChatMessageScopeError, ChatMessageScopeValidator} from './chat-message-scope-validator';
 
 const event = {
     contractVersion: 2 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,
@@ -7,8 +7,8 @@ const event = {
 };
 
 describe('ChatMessageScopeValidator', () => {
-    const channels = { findById: jest.fn() };
-    const messages = { findByIdAndChannelId: jest.fn() };
+    const channels = {findById: jest.fn()};
+    const messages = {findByIdAndChannelId: jest.fn()};
     let validator: ChatMessageScopeValidator;
 
     beforeEach(() => {
@@ -18,7 +18,7 @@ describe('ChatMessageScopeValidator', () => {
 
     describe('validate', () => {
         it('채널 team/project가 메시지 범위와 다르면 거부한다', async () => {
-            channels.findById.mockResolvedValue({ teamId: 9, projectId: null, type: 'TEXT' });
+            channels.findById.mockResolvedValue({teamId: 9, projectId: null, type: 'TEXT'});
 
             await expect(validator.validate(event)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
                 reasonCode: 'CHANNEL_SCOPE_MISMATCH',
@@ -26,8 +26,8 @@ describe('ChatMessageScopeValidator', () => {
         });
 
         it('부모 메시지가 같은 채널에 없으면 거부한다', async () => {
-            const withParent = { ...event, parentMessageId: '507f1f77bcf86cd799439011' };
-            channels.findById.mockResolvedValue({ teamId: 1, projectId: null, type: 'TEXT' });
+            const withParent = {...event, parentMessageId: '507f1f77bcf86cd799439011'};
+            channels.findById.mockResolvedValue({teamId: 1, projectId: null, type: 'TEXT'});
             messages.findByIdAndChannelId.mockResolvedValue(null);
 
             await expect(validator.validate(withParent)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({

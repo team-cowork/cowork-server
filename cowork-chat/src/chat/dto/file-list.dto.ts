@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
+import {Type} from 'class-transformer';
 import {
     IsInt,
     IsOptional,
@@ -9,12 +9,12 @@ import {
 } from 'class-validator';
 
 export class FileListQueryDto {
-    @ApiPropertyOptional({ description: '커서: 이전 응답의 nextCursor 값' })
+    @ApiPropertyOptional({description: '커서: 이전 응답의 nextCursor 값'})
     @IsString()
     @IsOptional()
     before?: string;
 
-    @ApiPropertyOptional({ description: '페이지 크기 (기본 20, 최대 100)', default: 20 })
+    @ApiPropertyOptional({description: '페이지 크기 (기본 20, 최대 100)', default: 20})
     @IsInt()
     @Min(1)
     @Max(100)
@@ -24,7 +24,7 @@ export class FileListQueryDto {
 }
 
 export class FileListItemDto {
-    @ApiProperty({ description: 'DELETE /files/{fileId}에 사용할 파일 식별자' }) fileId!: string;
+    @ApiProperty({description: 'DELETE /files/{fileId}에 사용할 파일 식별자'}) fileId!: string;
     @ApiProperty() messageId!: string;
     @ApiProperty() fileName!: string;
     @ApiProperty() fileSize!: number;
@@ -37,9 +37,9 @@ export class FileListItemDto {
 }
 
 export class FileListResponseDto {
-    @ApiProperty({ type: [FileListItemDto] })
+    @ApiProperty({type: [FileListItemDto]})
     files!: FileListItemDto[];
 
-    @ApiPropertyOptional({ nullable: true })
+    @ApiPropertyOptional({nullable: true})
     nextCursor!: string | null;
 }

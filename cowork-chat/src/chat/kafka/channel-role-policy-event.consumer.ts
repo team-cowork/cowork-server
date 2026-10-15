@@ -4,18 +4,18 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ChannelRolePolicyProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {ChannelRolePolicyProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
 
 type ChannelRolePolicyEvent = {
     schemaVersion: 1;
@@ -23,7 +23,7 @@ type ChannelRolePolicyEvent = {
     teamId: number;
     channelId: number;
     roleId: number;
-    permissions: { message_read: boolean } | null;
+    permissions: {message_read: boolean} | null;
     occurredAt: string;
     snapshot?: boolean;
 };
@@ -52,13 +52,13 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.channelRolePolicy;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () =>
                     applyProjectionMessage(
                         stream,
@@ -74,7 +74,7 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                 title: '🔴 Kafka Consumer 중단',
                 description: `cowork-chat의 ${stream.topic} consumer가 종료되어 프로세스를 재시작합니다.`,
                 color: 'danger',
-                fields: [{ name: 'Topic', value: stream.topic, inline: true }, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: stream.topic, inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });

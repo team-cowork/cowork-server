@@ -1,5 +1,5 @@
-import { type KafkaMessage } from 'kafkajs';
-import { type ProjectionReadinessService, type ProjectionStream } from './projection-readiness.service';
+import {type KafkaMessage} from 'kafkajs';
+import {type ProjectionReadinessService, type ProjectionStream} from './projection-readiness.service';
 
 export const SNAPSHOT_BARRIER_KEY_PREFIX = '__cowork_projection_snapshot_complete__:';
 export const SNAPSHOT_BARRIER_EVENT_TYPE = 'PROJECTION_SNAPSHOT_COMPLETED';
@@ -29,7 +29,9 @@ export class ProjectionContractError extends Error {
     }
 }
 
-/** JSON/계약 오류는 durable quarantine하고, 저장소·런타임 오류는 consumer까지 전파한다. */
+/**
+JSON/계약 오류는 durable quarantine하고, 저장소·런타임 오류는 consumer까지 전파한다.
+*/
 export async function applyProjectionMessage(
     stream: ProjectionStream,
     partition: number,
