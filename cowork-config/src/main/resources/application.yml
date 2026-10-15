@@ -103,7 +103,6 @@ spring:
           S3_REGION: ${S3_REGION:us-east-1}
           PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS}
           PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
-          COWORK_GITHUB_APP_SERVICE_URL: ${COWORK_GITHUB_APP_SERVICE_URL}
           LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
         composite:
