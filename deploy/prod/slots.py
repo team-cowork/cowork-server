@@ -158,9 +158,6 @@ def environment(slot, variables=None):
 def host_network(directory=None):
     base = directory or Path(__file__).parent
     path = base / "network/host-network.json"
-    if directory is not None and not path.exists():
-        # Replay can read releases from before the network directory was introduced.
-        path = base / "host-network.json"
     demand(path.is_file() and not path.is_symlink(), "Missing regular host network contract")
     value = json.loads(path.read_text(), object_pairs_hook=pairs)
     demand(isinstance(value, dict) and set(value) == {"name", "mtu"}, "Invalid host network contract")
