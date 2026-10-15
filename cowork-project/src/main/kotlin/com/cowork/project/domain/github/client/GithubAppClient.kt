@@ -15,13 +15,12 @@ import org.springframework.web.bind.annotation.RequestParam
 /**
  * 이슈 생성 / PR 머지·승인은 Kafka(`GithubActionCommandPublisher`)로 전환되어 여기 없다.
  * 라벨 전체 교체·댓글 생성/수정/삭제도 Kafka(`GithubIssueWriteCommandPublisher`,
- * `github-app.issue-write.command`/`.result`)로 전환되어 여기 없다.
+ * `github.issue-write.command.v1`/`.result.v1`)로 전환되어 여기 없다.
  * 아래 메서드들은 완전한 versioned event feed가 없는 GitHub 원본 조회이므로 request-scoped HTTP로
- * 남아 있으며, cowork-github-app에 대응하는 HTTP 라우트가 구현되어 있다.
+ * 남아 있으며, cowork-github에 대응하는 HTTP 라우트가 구현되어 있다.
  */
 @FeignClient(
-    name = "github-app",
-    url = "\${github-app.service-url}",
+    name = "cowork-github",
     configuration = [GithubAppClientConfig::class],
 )
 interface GithubAppClient {
