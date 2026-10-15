@@ -34,6 +34,3 @@ management:
 projection:
   readiness:
     poll-interval-ms: 1000
-
-github-app:
-  service-url: ${COWORK_GITHUB_APP_SERVICE_URL:http://host.docker.internal:3000}

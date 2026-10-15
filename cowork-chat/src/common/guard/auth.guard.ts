@@ -4,12 +4,12 @@ import {
     ForbiddenException,
     Injectable,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Request } from 'express';
-import { UserRole } from '../enum/user-role.enum';
-import { RequestContextUtil } from '../util/request-context.util';
-import { IS_PUBLIC_KEY } from './public.decorator';
-import { ROLES_KEY } from './roles.decorator';
+import {Reflector} from '@nestjs/core';
+import {Request} from 'express';
+import {UserRole} from '../enum/user-role.enum';
+import {RequestContextUtil} from '../util/request-context.util';
+import {PUBLIC_METADATA_KEY} from './public.decorator';
+import {ROLES_KEY} from './roles.decorator';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -20,7 +20,7 @@ export class AuthGuard implements CanActivate {
             return true;
         }
 
-        const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+        const isPublic = this.reflector.getAllAndOverride<boolean>(PUBLIC_METADATA_KEY, [
             context.getHandler(),
             context.getClass(),
         ]);
@@ -29,7 +29,7 @@ export class AuthGuard implements CanActivate {
         }
 
         const request = context.switchToHttp().getRequest<Request>();
-        const { path } = request;
+        const {path} = request;
         if (path === '/metrics') {
             return true;
         }

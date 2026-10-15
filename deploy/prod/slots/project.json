@@ -6,7 +6,6 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "COWORK_GITHUB_APP_SERVICE_URL": "http://10.0.0.150:3000",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "DB_HOST": "cowork-project-db",
     "DB_PORT": "3306",
@@ -27,9 +26,9 @@
         "path": "slot-secrets/project",
         "key": "DB_PASSWORD"
       },
-      "COWORK_GITHUB_APP_INTERNAL_API_KEY": {
+      "COWORK_GITHUB_INTERNAL_API_KEY": {
         "path": "slot-secrets/project",
-        "key": "GITHUB_APP_INTERNAL_API_KEY"
+        "key": "GITHUB_INTERNAL_API_KEY"
       }
     }
   },
