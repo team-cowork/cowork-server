@@ -1,8 +1,8 @@
-import { BadRequestException, HttpException, PayloadTooLargeException } from '@nestjs/common';
-import { type ConfigService } from '@nestjs/config';
-import { type S3Client } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { ObjectStorageService } from './object-storage.service';
+import {BadRequestException, HttpException, PayloadTooLargeException} from '@nestjs/common';
+import {type ConfigService} from '@nestjs/config';
+import {type S3Client} from '@aws-sdk/client-s3';
+import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
+import {ObjectStorageService} from './object-storage.service';
 
 jest.mock('@aws-sdk/s3-request-presigner', () => ({
     getSignedUrl: jest.fn(),
@@ -11,7 +11,7 @@ jest.mock('@aws-sdk/s3-request-presigner', () => ({
 const uploads = {
     create: jest.fn(), find: jest.fn(), confirm: jest.fn(), claim: jest.fn(),
 };
-const s3Client = { send: jest.fn() };
+const s3Client = {send: jest.fn()};
 const mockedGetSignedUrl = jest.mocked(getSignedUrl);
 
 const configService = (overrides: Record<string, string> = {}): ConfigService => ({
@@ -153,7 +153,7 @@ describe('ObjectStorageService', () => {
 
         it('실제 크기 메타데이터가 없으면 완료를 인정하지 않는다', async () => {
             const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
-            s3Client.send.mockResolvedValueOnce({ ContentType: 'image/png' });
+            s3Client.send.mockResolvedValueOnce({ContentType: 'image/png'});
             await expect(service.confirmUpload(1, 42, 'chat-uploads/1/42/file.png'))
                 .rejects.toBeInstanceOf(BadRequestException);
         });
@@ -163,7 +163,7 @@ describe('ObjectStorageService', () => {
                 'object-storage.chatMaxFileSizeBytes': '1024',
             }), s3Client as unknown as S3Client, uploads as never);
             s3Client.send
-                .mockResolvedValueOnce({ ContentLength: 1025 })
+                .mockResolvedValueOnce({ContentLength: 1025})
                 .mockResolvedValueOnce({});
 
             await expect(service.confirmUpload(1, 42, 'chat-uploads/1/42/file.png'))
@@ -173,16 +173,16 @@ describe('ObjectStorageService', () => {
     describe('업로드 확정 정책', () => {
         it('발급 때 신고한 크기와 실제 크기가 다르면 거부한다', async () => {
             const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
-            s3Client.send.mockResolvedValue({ ContentLength: 99, ContentType: 'image/png', ETag: 'etag' });
+            s3Client.send.mockResolvedValue({ContentLength: 99, ContentType: 'image/png', ETag: 'etag'});
             await expect(service.confirmUpload(1, 42, 'chat-uploads/1/42/file.png')).rejects.toBeInstanceOf(BadRequestException);
             expect(uploads.confirm).not.toHaveBeenCalled();
         });
         it('발급된 임시 key와 다른 최종 파일만 메시지에 연결할 수 있게 반환한다', async () => {
             const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
-            s3Client.send.mockResolvedValue({ ContentLength: 100, ContentType: 'image/png', ETag: 'etag' });
+            s3Client.send.mockResolvedValue({ContentLength: 100, ContentType: 'image/png', ETag: 'etag'});
             uploads.confirm.mockImplementation(async (_key: string, attachment: Record<string, unknown>) => attachment);
             const result = await service.confirmUpload(1, 42, 'chat-uploads/1/42/file.png');
-            expect(result).toMatchObject({ name: 'file.png', size: 100, mimeType: 'image/png' });
+            expect(result).toMatchObject({name: 'file.png', size: 100, mimeType: 'image/png'});
             expect(result.objectKey).toMatch(/^chat-files\/1\/42\/[\w-]+\.png$/u);
             expect(result.objectKey).not.toBe('chat-uploads/1/42/file.png');
         });
@@ -191,20 +191,20 @@ describe('ObjectStorageService', () => {
         const service = () => new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
         it('완료 확인을 거치지 않거나 다른 메시지에 귀속된 파일은 거부한다', async () => {
             uploads.claim.mockResolvedValue(null);
-            await expect(service().claimAttachments([{ objectKey: 'chat-files/1/42/file.png' }], 1, 42, 'message-a'))
+            await expect(service().claimAttachments([{objectKey: 'chat-files/1/42/file.png'}], 1, 42, 'message-a'))
                 .rejects.toBeInstanceOf(HttpException);
         });
         it('파일명과 크기·형식은 확인한 서버 기록을 사용한다', async () => {
             uploads.claim.mockResolvedValue({
                 objectKey: 'chat-files/1/42/file.png', name: 'verified.png', size: 100, mimeType: 'image/png',
             });
-            await expect(service().claimAttachments([{ objectKey: 'chat-files/1/42/file.png' }], 1, 42, 'message-a'))
+            await expect(service().claimAttachments([{objectKey: 'chat-files/1/42/file.png'}], 1, 42, 'message-a'))
                 .resolves.toEqual([{
                     objectKey: 'chat-files/1/42/file.png', name: 'verified.png', size: 100, mimeType: 'image/png',
                 }]);
         });
         it('다른 사용자의 파일은 이력 조회 전 거부한다', async () => {
-            await expect(service().claimAttachments([{ objectKey: 'chat-files/1/99/file.png' }], 1, 42, 'message-a'))
+            await expect(service().claimAttachments([{objectKey: 'chat-files/1/99/file.png'}], 1, 42, 'message-a'))
                 .rejects.toBeInstanceOf(BadRequestException);
             expect(uploads.claim).not.toHaveBeenCalled();
         });
@@ -217,8 +217,8 @@ describe('ObjectStorageService', () => {
             expect(s3Client.send).not.toHaveBeenCalled();
         });
         it('검증 후 파일이 바뀌면 확정을 거부한다', async () => {
-            s3Client.send.mockResolvedValueOnce({ ContentLength: 100, ContentType: 'image/png', ETag: 'old' })
-                .mockRejectedValueOnce({ $metadata: { httpStatusCode: 412 } });
+            s3Client.send.mockResolvedValueOnce({ContentLength: 100, ContentType: 'image/png', ETag: 'old'})
+                .mockRejectedValueOnce({$metadata: {httpStatusCode: 412}});
             await expect(service().confirmUpload(1, 42, 'chat-uploads/1/42/file.png')).rejects.toBeInstanceOf(HttpException);
             expect(uploads.confirm).not.toHaveBeenCalled();
         });
