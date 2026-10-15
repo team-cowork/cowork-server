@@ -66,9 +66,6 @@ def main():
     # SSH credentials stay on the runner. Validate only the deployment portion again.
     data["ssh"] = {"host": "unused", "port": 22, "user": "unused", "key": "unused", "fingerprint": "SHA256:unused"}
     schema["validate_deployment"](data, target, slot)
-    if slot is not None:
-        demand(set(slot.get("github_secrets", {})).issubset(data.get("runtime", {})),
-               "A declared GitHub secret was not supplied by the IaC workflow")
     if service in {"vault", "monitoring", "log-agent", "node-agent"}:
         demand(not data.get("application"), "Infrastructure units use runtime settings only")
     if service not in {"vault", "monitoring", "log-agent", "node-agent"}:
@@ -96,8 +93,6 @@ def main():
     if slot is not None:
         for section, values in (("runtime", runtime), ("application", application)):
             required = set(slot.get("secrets", {}).get(section, {}))
-            if section == "runtime":
-                required.update(slot.get("github_secrets", {}))
             demand(required.issubset(values) if variables is not None and section == "application" else set(values) == required,
                    "The snapshot must contain exactly the secret fields declared by this slot")
         demand(not set(runtime).intersection(application), "Duplicate container environment input")
