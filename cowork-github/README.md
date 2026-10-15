@@ -18,25 +18,22 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 
 ## 포트
 
-| 용도 | 컨테이너 포트 |
-|------|---------------|
-| HTTP | `3000`        |
+| 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
+|------|---------------|--------------------------|
+| HTTP | `8090`        | `8090`                   |
 
 ## 환경변수
 
+아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다. 나머지 설정과 GitHub App 자격증명은 Config Server가 내려줍니다.
+
 | 변수 | 기본값 | 설명 |
 |---|---|---|
-| `PORT` | `3000` | HTTP 포트 |
-| `KAFKA_BROKERS` | 없음 | 필수. 쉼표로 구분한 브로커 목록 |
-| `KAFKA_GROUP_ID` | `cowork-github-group` | Kafka consumer group |
-| `GITHUB_APP_ID` | 없음 | 필수. GitHub App ID |
-| `GITHUB_PRIVATE_KEY` | 없음 | 필수. base64로 인코딩한 GitHub App PEM 키 |
-| `REDIS_HOST` | `localhost` | Redis 호스트 |
-| `REDIS_PORT` | `6379` | Redis 포트 |
-| `INTERNAL_API_KEY` | 없음 | 필수. 내부 HTTP API의 `X-Internal-Api-Key` 값 |
-| `GITHUB_WEBHOOK_SECRET` | 없음 | 필수. Webhook `X-Hub-Signature-256` 검증 비밀값 |
+| `APP_CONFIG_PROFILE` | `local` | 설정 프로파일 |
+| `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
+| `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GITHUB_USERNAME`에서 전달 |
+| `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_GITHUB_PASSWORD`에서 전달 |
 
-캐시 TTL과 재시도 횟수는 [`env.validation.ts`](src/config/env.validation.ts)의 기본값을 따릅니다.
+GitHub Webhook은 Gateway를 거치지 않고 [Webhook 프록시](../deploy/config/github/webhook-nginx.conf)로만 들어옵니다.
 
 ## 개발
 
