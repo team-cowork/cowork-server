@@ -250,7 +250,7 @@ def main():
     data["secret_versions"] = reference_versions
     data["slot_digest"] = hashlib.sha256(slot_path.read_bytes()).hexdigest()
     encoded = json.dumps(data).encode()
-    demand(len(encoded) <= 65536, "Deployment snapshot exceeds the SSH environment size budget")
+    demand(len(encoded) <= 65536, "Deployment snapshot exceeds the size limit")
     output("payload", base64.b64encode(encoded).decode(), secret=True)
     print(f"Loaded deployment target {args.target}, Vault version {version}")
 
