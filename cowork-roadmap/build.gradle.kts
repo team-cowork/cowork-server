@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261015.1"
+version = "20261016.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
