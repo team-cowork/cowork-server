@@ -1,183 +1,182 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { HttpService } from '@nestjs/axios';
-import { AxiosError } from 'axios';
-import type { AxiosResponse } from 'axios';
-import { of, throwError } from 'rxjs';
-import { PullRequestApiClient } from './pull-request-api.client';
-import { GithubAuthService } from '../../auth/github-auth.service';
-import { GithubClientError } from '../../github.errors';
+import {Test, type TestingModule} from '@nestjs/testing';
+import {HttpService} from '@nestjs/axios';
+import {AxiosError, type AxiosResponse} from 'axios';
+import {of, throwError} from 'rxjs';
+import {GithubAuthService} from '../../auth/github-auth.service';
+import {GithubClientError} from '../../github.errors';
+import {PullRequestApiClient} from './pull-request-api.client';
 
 describe('PullRequestApiClient', () => {
-  let client: PullRequestApiClient;
-  let httpService: {
-    get: jest.Mock;
-    post: jest.Mock;
-    put: jest.Mock;
-    delete: jest.Mock;
-  };
-  let authService: { getInstallationToken: jest.Mock };
-
-  beforeEach(async () => {
-    httpService = {
-      get: jest.fn(),
-      post: jest.fn(),
-      put: jest.fn(),
-      delete: jest.fn(),
+    let client: PullRequestApiClient;
+    let httpService: {
+        get: jest.Mock;
+        post: jest.Mock;
+        put: jest.Mock;
+        delete: jest.Mock;
     };
-    authService = {
-      getInstallationToken: jest.fn().mockResolvedValue('my-token'),
-    };
+    let authService: {getInstallationToken: jest.Mock};
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        PullRequestApiClient,
-        { provide: HttpService, useValue: httpService },
-        { provide: GithubAuthService, useValue: authService },
-      ],
-    }).compile();
+    beforeEach(async () => {
+        httpService = {
+            get: jest.fn(),
+            post: jest.fn(),
+            put: jest.fn(),
+            delete: jest.fn(),
+        };
+        authService = {
+            getInstallationToken: jest.fn().mockResolvedValue('my-token'),
+        };
 
-    client = module.get<PullRequestApiClient>(PullRequestApiClient);
-  });
+        const module: TestingModule = await Test.createTestingModule({
+            providers: [
+                PullRequestApiClient,
+                {provide: HttpService, useValue: httpService},
+                {provide: GithubAuthService, useValue: authService},
+            ],
+        }).compile();
 
-  it('PR 상세를 조회한다', async () => {
-    httpService.get.mockReturnValue(of({ data: { number: 1 } }));
+        client = module.get<PullRequestApiClient>(PullRequestApiClient);
+    });
 
-    const result = await client.getPullRequest('my-org', 'my-repo', 1);
+    it('PR 상세를 조회한다', async () => {
+        httpService.get.mockReturnValue(of({data: {number: 1}}));
 
-    expect(result).toEqual({ number: 1 });
-    expect(httpService.get).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/pulls/1',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer my-token',
-        }) as unknown,
-      }),
-    );
-  });
+        const result = await client.getPullRequest('my-org', 'my-repo', 1);
 
-  it('PR 목록을 state/per_page/sort/direction 파라미터로 조회한다', async () => {
-    httpService.get.mockReturnValue(of({ data: [{ number: 1 }] }));
+        expect(result).toEqual({number: 1});
+        expect(httpService.get).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/pulls/1',
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer my-token',
+                }) as unknown,
+            }),
+        );
+    });
 
-    const result = await client.listPullRequests('my-org', 'my-repo', 'open');
+    it('PR 목록을 state/per_page/sort/direction 파라미터로 조회한다', async () => {
+        httpService.get.mockReturnValue(of({data: [{number: 1}]}));
 
-    expect(result).toEqual([{ number: 1 }]);
-    expect(httpService.get).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/pulls',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer my-token',
-        }) as unknown,
-        params: {
-          state: 'open',
-          per_page: 100,
-          sort: 'created',
-          direction: 'desc',
-        },
-      }),
-    );
-  });
+        const result = await client.listPullRequests('my-org', 'my-repo', 'open');
 
-  it('PR 목록 조회 4xx 응답은 GithubClientError로 변환한다', async () => {
-    const axiosError = new AxiosError('Not Found');
-    axiosError.response = {
-      data: { message: 'Not Found' },
-      status: 404,
-    } as unknown as AxiosResponse;
-    httpService.get.mockReturnValue(throwError(() => axiosError));
+        expect(result).toEqual([{number: 1}]);
+        expect(httpService.get).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/pulls',
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer my-token',
+                }) as unknown,
+                params: {
+                    state: 'open',
+                    per_page: 100,
+                    sort: 'created',
+                    direction: 'desc',
+                },
+            }),
+        );
+    });
 
-    const error = await client
-      .listPullRequests('my-org', 'my-repo', 'open')
-      .catch((e: unknown) => e as GithubClientError);
+    it('PR 목록 조회 4xx 응답은 GithubClientError로 변환한다', async () => {
+        const axiosError = new AxiosError('Not Found');
+        axiosError.response = {
+            data: {message: 'Not Found'},
+            status: 404,
+        } as unknown as AxiosResponse;
+        httpService.get.mockReturnValue(throwError(() => axiosError));
 
-    expect(error).toBeInstanceOf(GithubClientError);
-    expect(error.statusCode).toBe(404);
-  });
+        const error = await client
+            .listPullRequests('my-org', 'my-repo', 'open')
+            .catch((error_: unknown) => error_ as GithubClientError);
 
-  it('머지 시 merge_method를 squash로 호출한다', async () => {
-    httpService.put.mockReturnValue(of({ data: {} }));
+        expect(error).toBeInstanceOf(GithubClientError);
+        expect(error.statusCode).toBe(404);
+    });
 
-    await client.mergePullRequest('my-org', 'my-repo', 1);
+    it('머지 시 merge_method를 squash로 호출한다', async () => {
+        httpService.put.mockReturnValue(of({data: {}}));
 
-    expect(httpService.put).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/pulls/1/merge',
-      { merge_method: 'squash' },
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer my-token',
-        }) as unknown,
-      }),
-    );
-  });
+        await client.mergePullRequest('my-org', 'my-repo', 1);
 
-  it('승인 시 event를 APPROVE로 호출한다', async () => {
-    httpService.post.mockReturnValue(of({ data: {} }));
+        expect(httpService.put).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/pulls/1/merge',
+            {merge_method: 'squash'},
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer my-token',
+                }) as unknown,
+            }),
+        );
+    });
 
-    await client.approvePullRequest('my-org', 'my-repo', 1);
+    it('승인 시 event를 APPROVE로 호출한다', async () => {
+        httpService.post.mockReturnValue(of({data: {}}));
 
-    expect(httpService.post).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/pulls/1/reviews',
-      { event: 'APPROVE' },
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer my-token',
-        }) as unknown,
-      }),
-    );
-  });
+        await client.approvePullRequest('my-org', 'my-repo', 1);
 
-  it('협업자 권한을 조회한다', async () => {
-    httpService.get.mockReturnValue(of({ data: { permission: 'write' } }));
+        expect(httpService.post).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/pulls/1/reviews',
+            {event: 'APPROVE'},
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer my-token',
+                }) as unknown,
+            }),
+        );
+    });
 
-    const result = await client.getCollaboratorPermission(
-      'my-org',
-      'my-repo',
-      'octocat',
-    );
+    it('협업자 권한을 조회한다', async () => {
+        httpService.get.mockReturnValue(of({data: {permission: 'write'}}));
 
-    expect(result).toEqual({ permission: 'write' });
-    expect(httpService.get).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/collaborators/octocat/permission',
-      expect.anything(),
-    );
-  });
+        const result = await client.getCollaboratorPermission(
+            'my-org',
+            'my-repo',
+            'octocat',
+        );
 
-  it('브랜치를 삭제한다', async () => {
-    httpService.delete.mockReturnValue(of({ data: {} }));
+        expect(result).toEqual({permission: 'write'});
+        expect(httpService.get).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/collaborators/octocat/permission',
+            expect.anything(),
+        );
+    });
 
-    await client.deleteBranch('my-org', 'my-repo', 'feature/foo');
+    it('브랜치를 삭제한다', async () => {
+        httpService.delete.mockReturnValue(of({data: {}}));
 
-    expect(httpService.delete).toHaveBeenCalledWith(
-      'https://api.github.com/repos/my-org/my-repo/git/refs/heads/feature/foo',
-      expect.anything(),
-    );
-  });
+        await client.deleteBranch('my-org', 'my-repo', 'feature/foo');
 
-  it('머지 405 응답은 GithubClientError(405)로 변환한다', async () => {
-    const axiosError = new AxiosError('Not Mergeable');
-    axiosError.response = {
-      data: { message: 'Not Mergeable' },
-      status: 405,
-    } as unknown as AxiosResponse;
-    httpService.put.mockReturnValue(throwError(() => axiosError));
+        expect(httpService.delete).toHaveBeenCalledWith(
+            'https://api.github.com/repos/my-org/my-repo/git/refs/heads/feature/foo',
+            expect.anything(),
+        );
+    });
 
-    const error = await client
-      .mergePullRequest('my-org', 'my-repo', 1)
-      .catch((e: unknown) => e as GithubClientError);
+    it('머지 405 응답은 GithubClientError(405)로 변환한다', async () => {
+        const axiosError = new AxiosError('Not Mergeable');
+        axiosError.response = {
+            data: {message: 'Not Mergeable'},
+            status: 405,
+        } as unknown as AxiosResponse;
+        httpService.put.mockReturnValue(throwError(() => axiosError));
 
-    expect(error).toBeInstanceOf(GithubClientError);
-    expect(error.statusCode).toBe(405);
-  });
+        const error = await client
+            .mergePullRequest('my-org', 'my-repo', 1)
+            .catch((error_: unknown) => error_ as GithubClientError);
 
-  it('5xx 응답은 GithubClientError로 변환하지 않는다', async () => {
-    const axiosError = new AxiosError('Internal Server Error');
-    axiosError.response = { data: {}, status: 500 } as unknown as AxiosResponse;
-    httpService.get.mockReturnValue(throwError(() => axiosError));
+        expect(error).toBeInstanceOf(GithubClientError);
+        expect(error.statusCode).toBe(405);
+    });
 
-    const error = await client
-      .getPullRequest('my-org', 'my-repo', 1)
-      .catch((e: unknown) => e as AxiosError);
+    it('5xx 응답은 GithubClientError로 변환하지 않는다', async () => {
+        const axiosError = new AxiosError('Internal Server Error');
+        axiosError.response = {data: {}, status: 500} as unknown as AxiosResponse;
+        httpService.get.mockReturnValue(throwError(() => axiosError));
 
-    expect(error).toBeInstanceOf(AxiosError);
-    expect(error).not.toBeInstanceOf(GithubClientError);
-  });
+        const error = await client
+            .getPullRequest('my-org', 'my-repo', 1)
+            .catch((error_: unknown) => error_ as AxiosError);
+
+        expect(error).toBeInstanceOf(AxiosError);
+        expect(error).not.toBeInstanceOf(GithubClientError);
+    });
 });
