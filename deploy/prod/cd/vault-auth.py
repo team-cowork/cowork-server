@@ -8,7 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 def authenticate(env, role):
-    if not re.fullmatch(r"prod-(?:iac|settings-[a-z][a-z0-9-]*)", role):
+    if not re.fullmatch(r"prod-(?:iac|deploy-vault|settings-[a-z][a-z0-9-]*)", role):
         raise ValueError("Invalid Vault workload role")
     if env.get("GITHUB_ACTIONS") != "true":
         if not env.get("VAULT_TOKEN"):
