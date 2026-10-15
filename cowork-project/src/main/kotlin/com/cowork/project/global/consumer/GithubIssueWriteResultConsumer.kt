@@ -3,6 +3,7 @@ package com.cowork.project.global.consumer
 import com.cowork.project.domain.github.event.GITHUB_ISSUE_WRITE_RESULT_TOPIC
 import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
 import com.cowork.project.domain.github.event.GithubIssueWriteResult
+import com.cowork.project.domain.github.event.LEGACY_GITHUB_ISSUE_WRITE_RESULT_TOPIC
 import com.cowork.project.domain.github.service.GithubCommentParentAuthorNotifier
 import com.cowork.project.domain.github.service.GithubIssueWriteResultHandler
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -18,7 +19,7 @@ class GithubIssueWriteResultConsumer(
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
-        topics = [GITHUB_ISSUE_WRITE_RESULT_TOPIC],
+        topics = [GITHUB_ISSUE_WRITE_RESULT_TOPIC, LEGACY_GITHUB_ISSUE_WRITE_RESULT_TOPIC],
         groupId = "cowork-project.github-issue-write-result",
         containerFactory = "githubIssueWriteResultListenerContainerFactory",
     )
