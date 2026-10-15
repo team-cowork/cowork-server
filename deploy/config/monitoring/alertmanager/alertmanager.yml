@@ -16,10 +16,12 @@ receivers:
   - name: discord
     discord_configs:
       - webhook_url_file: /etc/alertmanager/generated/discord-webhook-url
-        title: '[{{ .Status | toUpper }}] {{ .GroupLabels.alertname }}'
+        title: '[{{ if eq .Status "firing" }}조치 필요{{ else }}해결{{ end }}] {{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}모니터링 알림{{ end }}'
         message: |-
           {{ range .Alerts }}
-          **Service**: {{ .Labels.service }}
-          **Severity**: {{ .Labels.severity }}
-          {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}{{ .Annotations.summary }}{{ end }}
+          **상태**: {{ if eq .Status "firing" }}확인이 필요합니다.{{ else }}알림 조건이 해제되었습니다.{{ end }}
+          {{ if .Labels.service }}**서비스**: {{ .Labels.service }}{{ end }}
+          **심각도**: {{ if eq .Labels.severity "critical" }}긴급{{ else if eq .Labels.severity "warning" }}주의{{ else }}정보{{ end }}
+          **감지 내용**: {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}{{ .Annotations.summary }}{{ end }}
+          **알림 코드**: {{ .Labels.alertname }}
           {{ end }}
