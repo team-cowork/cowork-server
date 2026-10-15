@@ -13,13 +13,13 @@ class GithubAppErrorDecoder(private val objectMapper: ObjectMapper) : ErrorDecod
     override fun decode(methodKey: String, response: Response): Exception {
         val status = response.status()
         if (status == 401) {
-            logger.error("Failed to authenticate with cowork-github-app due to invalid internal API key")
+            logger.error("Failed to authenticate with cowork-github due to invalid internal API key")
             return ExpectedException("GitHub 연동 서버 설정에 문제가 있습니다.", HttpStatus.BAD_GATEWAY)
         }
         if (status in 400..499) {
             return ExpectedException(extractMessage(response), HttpStatus.valueOf(status))
         }
-        logger.error("Failed to call cowork-github-app with {} server error", status)
+        logger.error("Failed to call cowork-github with {} server error", status)
         return ExpectedException("GitHub 연동 서버와 통신할 수 없습니다.", HttpStatus.BAD_GATEWAY)
     }
 
@@ -28,7 +28,7 @@ class GithubAppErrorDecoder(private val objectMapper: ObjectMapper) : ErrorDecod
             objectMapper.readTree(stream).get("message")?.asString()
         }
     }
-        .onFailure { logger.warn("Failed to parse cowork-github-app error response body", it) }
+        .onFailure { logger.warn("Failed to parse cowork-github error response body", it) }
         .getOrNull()
         ?: "GitHub 연동 서버 오류"
 }

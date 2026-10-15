@@ -35,9 +35,8 @@ spring:
     consumer:
       auto-offset-reset: earliest
 
-github-app:
-  service-url: ${COWORK_GITHUB_APP_SERVICE_URL:http://localhost:3000}
-  internal-api-key: ${COWORK_GITHUB_APP_INTERNAL_API_KEY:}
+github:
+  internal-api-key: ${COWORK_GITHUB_INTERNAL_API_KEY:}
 
 feign:
   client:
@@ -46,7 +45,7 @@ feign:
     webclient:
       enabled: false
     config:
-      github-app:
+      cowork-github:
         connect-timeout: 3000
         read-timeout: 10000
 

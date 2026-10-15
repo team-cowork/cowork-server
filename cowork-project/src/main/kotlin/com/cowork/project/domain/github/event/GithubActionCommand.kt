@@ -1,7 +1,7 @@
 package com.cowork.project.domain.github.event
 
 /**
- * cowork-github-app의 `CreateIssueDto`와 필드가 일치해야 한다.
+ * cowork-github의 `CreateIssueDto`와 필드가 일치해야 한다.
  *
  * `channelId`/`teamId`/`requesterId`는 cowork-chat 슬래시 커맨드 경유 호출(`ChatGithubIssueCommandProcessor`)에서만
  * 채워지며, project REST API를 통한 직접 호출(`CreateGithubIssueServiceImpl`)에서는 결과 알림 대상이 없으므로 null로 둔다.
@@ -17,7 +17,7 @@ data class GithubIssueCreateCommand(
     val requesterId: Long? = null,
 )
 
-/** cowork-github-app의 `PullRequestActionDto`와 필드가 일치해야 한다 (channelId/teamId는 optional이라 생략). */
+/** cowork-github의 `PullRequestActionDto`와 필드가 일치해야 한다 (channelId/teamId는 optional이라 생략). */
 data class GithubPullRequestActionCommand(
     val owner: String,
     val repo: String,
