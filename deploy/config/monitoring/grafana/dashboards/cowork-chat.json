@@ -1,5 +1,5 @@
 {
-  "title": "cowork-chat",
+  "title": "cowork 채팅",
   "uid": "cowork-chat",
   "tags": ["cowork", "service", "chat"],
   "timezone": "browser",
@@ -23,7 +23,7 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            { "type": "value", "options": { "0": { "text": "응답 없음", "color": "red" }, "1": { "text": "정상", "color": "green" } } }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
         }
@@ -37,7 +37,7 @@
       "targets": [
         {
           "expr": "nodejs_eventloop_lag_seconds{service=\"chat\"} * 1000",
-          "legendFormat": "EventLoop Lag",
+          "legendFormat": "이벤트 루프 지연",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -51,12 +51,12 @@
       "targets": [
         {
           "expr": "nodejs_heap_size_used_bytes{service=\"chat\"}",
-          "legendFormat": "Heap Used",
+          "legendFormat": "힙 사용량",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "nodejs_heap_size_total_bytes{service=\"chat\"}",
-          "legendFormat": "Heap Total",
+          "legendFormat": "전체 힙 용량",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -70,7 +70,7 @@
       "targets": [
         {
           "expr": "nodejs_active_handles_total{service=\"chat\"}",
-          "legendFormat": "Active Handles",
+          "legendFormat": "활성 핸들 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -78,7 +78,7 @@
     },
     {
       "id": 5,
-      "title": "GC 일시정지 (ms/s)",
+      "title": "GC 일시정지 시간 (ms/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
@@ -98,7 +98,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }
