@@ -13,9 +13,9 @@ import java.time.Instant
 import java.util.UUID
 
 /**
- * 이슈 라벨 전체 교체·댓글 생성/수정/삭제를 `github.issue-write.command`로 발행한다.
+ * 이슈 라벨 전체 교체·댓글 생성/수정/삭제를 `github.issue-write.command.v1`로 발행한다.
  * REST(Feign) 동기 호출을 대체하며, 처리 결과는 [GithubIssueWriteResultConsumer][com.cowork.project.global.consumer.GithubIssueWriteResultConsumer]가
- * `github.issue-write.result`로 수신해 [GithubIssueWriteOperation] 원장에 반영한다.
+ * `github.issue-write.result.v1`로 수신해 [GithubIssueWriteOperation] 원장에 반영한다.
  *
  * ## idempotencyKey 설계
  *
