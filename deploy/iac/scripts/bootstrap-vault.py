@@ -52,8 +52,8 @@ def main():
     for service in shared.values():
         for reference in service['secrets'].values():
             policy['secret/data/' + reference['path']] = ['read']
-    # Git declares each slot's secret dependencies. Runtime and update tokens
-    # receive only their own exact paths; the IaC runner cannot change policies.
+    # Git declares each workload's secret dependencies. OIDC roles receive only
+    # their own exact paths; the IaC runner cannot change policies.
     slots = Path(__file__).resolve().parents[2] / 'prod/slots'
     catalog = json.loads((slots.parent / 'configuration.json').read_text())
     # Every client may update this derived document during one serialized sync.
@@ -119,22 +119,14 @@ def main():
     roles['prod-settings-plan'] = settings_role('prod-settings-plan')
     spec['policies']['prod-settings-recovery'] = settings_policy(managed_paths, managed_paths)
     roles['prod-settings-recovery'] = settings_role('prod-settings-recovery', 'Prod-IaC')
-    for path in sorted(slots.glob('*.json')):
-        slot = json.loads(path.read_text())
-        if slot['kind'] not in {'application', 'config'}:
-            continue
-        target = path.stem
-        references = {reference['path'] for section in slot.get('secrets', {}).values()
-                      for reference in section.values()}
-        spec['policies']['cowork-deploy-' + target] = {
-            'secret/data/' + name: ['read'] for name in sorted(references | {'deploy/' + target})}
-        writable = {'deploy/' + target}
-        if 'slot-secrets/' + target in references:
-            writable.add('slot-secrets/' + target)
-        if slot['kind'] == 'application':
-            writable.update({'cowork-' + target, 'cowork-' + target + '/prod'})
-        spec['policies']['cowork-update-' + target] = {
-            'secret/data/' + name: ['create', 'update'] for name in sorted(writable)}
+    # Vault can authenticate with OIDC while healthy. Offline recovery supplies
+    # the same slot's secrets from GitHub without contacting Vault.
+    vault_slot = json.loads((slots / 'vault.json').read_text())
+    vault_paths = {'deploy/vault'} | {ref['path'] for refs in vault_slot.get('secrets', {}).values()
+                                    for ref in refs.values()}
+    spec['policies']['prod-deploy-vault'] = {
+        'secret/data/' + path: ['read'] for path in sorted(vault_paths)}
+    roles['prod-deploy-vault'] = settings_role('prod-deploy-vault', 'Prod-CD(vault)')
     mount = spec['mount']
     methods = request('sys/auth')['data']
     if mount + '/' not in methods:

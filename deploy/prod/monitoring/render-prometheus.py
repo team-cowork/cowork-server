@@ -202,7 +202,7 @@ expected_rules = {
             "expr": f'absent(up{{job="cowork-services",service="{slot["service"]}"}})',
             "for": "3m",
             "labels": {"severity": "critical", "service": slot["service"]},
-            "annotations": {"summary": "Declared service is missing from authenticated discovery"},
+            "annotations": {"summary": "등록된 서비스가 검색되지 않음"},
         }
         for slot in application_slots
     ]}]
@@ -222,8 +222,8 @@ for module, database in sorted(database_catalog.items()):
         "for": "3m",
         "labels": {"severity": "critical", "service": engine, "module": module},
         "annotations": {
-            "summary": "Declared module database metrics are missing",
-            "description": f"Module {module} has no {engine} exporter target or database health metric.",
+            "summary": "모듈 DB 메트릭 누락",
+            "description": f"모듈 {module}의 {engine} 메트릭 수집 대상 또는 DB 상태 메트릭이 없습니다.",
         },
     })
 expected_rules["groups"].append({"name": "cowork-expected-databases", "rules": database_rules})

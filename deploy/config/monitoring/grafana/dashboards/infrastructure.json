@@ -22,31 +22,31 @@
     },
     {
       "id": 2,
-      "title": "MySQL - 활성 커넥션",
+      "title": "MySQL - 연결 수와 실행 중인 스레드 수",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
           "expr": "mysql_global_status_threads_connected{service=\"mysql\"}",
-          "legendFormat": "{{module}} Connected",
+          "legendFormat": "{{module}} 연결 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "mysql_global_status_threads_running{service=\"mysql\"}",
-          "legendFormat": "{{module}} Running",
+          "legendFormat": "{{module}} 실행 중인 스레드 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
     },
     {
       "id": 3,
-      "title": "Redis - 히트율 (%)",
+      "title": "Redis - 캐시 적중률 (%)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
       "targets": [
         {
           "expr": "rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) / (rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) + rate(redis_keyspace_misses_total{service=\"redis\"}[1m])) * 100",
-          "legendFormat": "Hit Rate",
+          "legendFormat": "캐시 적중률",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -60,12 +60,12 @@
       "targets": [
         {
           "expr": "redis_memory_used_bytes{service=\"redis\"}",
-          "legendFormat": "Used",
+          "legendFormat": "사용량",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "redis_memory_max_bytes{service=\"redis\"}",
-          "legendFormat": "Max",
+          "legendFormat": "최대 용량",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -73,7 +73,7 @@
     },
     {
       "id": 5,
-      "title": "Kafka - Consumer Lag",
+      "title": "Kafka - 소비 대기 메시지 수",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
@@ -105,12 +105,12 @@
       "targets": [
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"active\"}",
-          "legendFormat": "{{module}} / {{datname}} Active",
+          "legendFormat": "{{module}} / {{datname}} 활성 연결",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"idle\"}",
-          "legendFormat": "{{module}} / {{datname}} Idle",
+          "legendFormat": "{{module}} / {{datname}} 유휴 연결",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -123,19 +123,19 @@
       "targets": [
         {
           "expr": "rate(pg_stat_database_xact_commit{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "{{module}} Commits/s",
+          "legendFormat": "{{module}} 초당 커밋 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         },
         {
           "expr": "rate(pg_stat_database_xact_rollback{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "{{module}} Rollbacks/s",
+          "legendFormat": "{{module}} 초당 롤백 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
     },
     {
       "id": 9,
-      "title": "모듈 DB - Exporter 수집 상태",
+      "title": "모듈 DB - 메트릭 수집 상태",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "targets": [
@@ -169,7 +169,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }

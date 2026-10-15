@@ -88,12 +88,15 @@ print(f"{len(catalog) * 2} local/prod image inputs and Config Server profiles va
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
 settings_schema = runpy.run_path(str(ROOT / "deploy/prod/cd/vault-settings.py"))
-settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()), "voice")
+slots = runpy.run_path(str(ROOT / "deploy/prod/slots.py"))
+for path in sorted((ROOT / "deploy/prod/slots").glob("*.json")):
+    slots["load"](path.stem)
+settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()), "voice", slots["load"]("voice"))
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]
-    if target["target"] in seen or not ((ROOT / "deploy/prod/services" / f"{name}.sh").is_file() or (ROOT / "deploy/prod/slots" / f"{target['target']}.json").is_file()):
-        raise SystemExit(f"Duplicate or missing deployment unit: {name}")
+    if target["target"] in seen or slots["load"](target["target"])["service"] != name:
+        raise SystemExit(f"Duplicate or mismatched deployment slot: {name}")
     seen.add(target["target"])
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", target["target"]):
         raise SystemExit(f"Invalid deployment target: {name}")
