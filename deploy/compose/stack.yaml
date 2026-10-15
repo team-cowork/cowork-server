@@ -273,7 +273,10 @@ services:
       GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET: ${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:-}
       FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}
       FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      COWORK_GITHUB_APP_INTERNAL_API_KEY: ${COWORK_GITHUB_APP_INTERNAL_API_KEY:-}
+      COWORK_GITHUB_INTERNAL_API_KEY: ${COWORK_GITHUB_INTERNAL_API_KEY:-}
+      COWORK_GITHUB_APP_ID: ${COWORK_GITHUB_APP_ID:-}
+      COWORK_GITHUB_PRIVATE_KEY: ${COWORK_GITHUB_PRIVATE_KEY:-}
+      COWORK_GITHUB_WEBHOOK_SECRET: ${COWORK_GITHUB_WEBHOOK_SECRET:-}
       TEAM_GITHUB_STATE_SECRET: ${TEAM_GITHUB_STATE_SECRET}
       COWORK_GITHUB_APP_SLUG: ${COWORK_GITHUB_APP_SLUG}
     volumes:
@@ -686,7 +689,6 @@ services:
       APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       VAULT_HOST: cowork-vault
-      COWORK_GITHUB_APP_SERVICE_URL: ${COWORK_GITHUB_APP_SERVICE_URL:-http://host.docker.internal:3000}
       S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
@@ -906,16 +908,13 @@ services:
     environment:
       CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PROJECT_USERNAME:?Generate Config Server credentials}
       CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PROJECT_PASSWORD:?Generate Config Server credentials}
-      COWORK_GITHUB_APP_SERVICE_URL: ${COWORK_GITHUB_APP_SERVICE_URL:-http://host.docker.internal:3000}
-      COWORK_GITHUB_APP_INTERNAL_API_KEY: ${COWORK_GITHUB_APP_INTERNAL_API_KEY:-}
+      COWORK_GITHUB_INTERNAL_API_KEY: ${COWORK_GITHUB_INTERNAL_API_KEY:-}
       APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
       CONFIG_SERVER_URL: http://cowork-config:8761
     ports:
       - "${COWORK_PROJECT_HOST_PORT:-8084}:8084"
     volumes:
       - cowork_logs:/var/log/cowork
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8084/actuator/health/readiness || exit 1"]
       interval: 10s
@@ -1048,6 +1047,35 @@ services:
       - cowork_logs:/var/log/cowork
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8089/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # GitHub App 자격증명이 필요하므로 `docker compose --profile github up`으로 선택 실행한다.
+  cowork-github:
+    image: cowork-github:local
+    container_name: cowork-github
+    profiles: [github]
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      cowork-config:
+        condition: service_healthy
+    environment:
+      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GITHUB_USERNAME:-}
+      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GITHUB_PASSWORD:-}
+      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+    ports:
+      - "8090:8090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8090/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10
