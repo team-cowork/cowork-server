@@ -18,6 +18,7 @@ import {UpdateCommentPayloadDto} from './dto/update-comment-payload.dto';
 import {IssueWriteResultEvent} from './event/issue-write-result.event';
 import {IssueWriteResultProducer} from './issue-write-result.producer';
 import {IssueWriteCommandType} from './issue-write-command-type';
+import {ISSUE_WRITE_COMMAND_TOPIC, LEGACY_ISSUE_WRITE_COMMAND_TOPIC} from './issue-write-topics';
 
 type PayloadValidationResult =
     | {ok: true; payload: unknown}
@@ -34,7 +35,7 @@ export class IssueWriteCommandController {
         private readonly resultProducer: IssueWriteResultProducer,
     ) {}
 
-    @EventPattern('github-app.issue-write.command')
+    @EventPattern(ISSUE_WRITE_COMMAND_TOPIC)
     async handleCommand(
         @Payload() data: unknown,
         @Ctx() context: KafkaContext,
@@ -43,6 +44,14 @@ export class IssueWriteCommandController {
         if (shouldCommit) {
             await this.commitOffset(context);
         }
+    }
+
+    @EventPattern(LEGACY_ISSUE_WRITE_COMMAND_TOPIC)
+    async handleLegacyCommand(
+        @Payload() data: unknown,
+        @Ctx() context: KafkaContext,
+    ): Promise<void> {
+        await this.handleCommand(data, context);
     }
 
     private async processMessage(data: unknown): Promise<boolean> {
