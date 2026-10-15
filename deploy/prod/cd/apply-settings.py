@@ -46,10 +46,8 @@ def main():
            "Deployment scripts must remain inside the release directory")
     slot_path = directory / "slots" / f"{target}.json"
     slots = runpy.run_path(str(tools_directory.parent / "slots.py"))
-    slot = slots["load"](target, directory / "slots") if slot_path.is_file() else None
-    demand(schema["NAME"].fullmatch(service) and
-           ((slot is not None and slot["service"] == service) or
-            (directory / "services" / f"{service}.sh").is_file()),
+    slot = slots["load"](target, directory / "slots")
+    demand(schema["NAME"].fullmatch(service) and slot["service"] == service,
            "Unknown deployment service")
     demand((directory / "deploy.sh").is_file() and not (directory / "deploy.sh").is_symlink(),
            "Release deployment script must be a regular file")
@@ -61,18 +59,11 @@ def main():
                                                     for path, value in secret_versions.items()),
            "Invalid secret version metadata")
     digest = data.pop("slot_digest", None)
-    demand(digest == (hashlib.sha256(slot_path.read_bytes()).hexdigest() if slot is not None else None),
+    demand(digest == hashlib.sha256(slot_path.read_bytes()).hexdigest(),
            "Vault secrets were not resolved for the selected release slot")
     # SSH credentials stay on the runner. Validate only the deployment portion again.
     data["ssh"] = {"host": "unused", "port": 22, "user": "unused", "key": "unused", "fingerprint": "SHA256:unused"}
     schema["validate_deployment"](data, target, slot)
-    if slot is not None:
-        demand(set(slot.get("github_secrets", {})).issubset(data.get("runtime", {})),
-               "A declared GitHub secret was not supplied by the IaC workflow")
-    if service in {"vault", "monitoring", "log-agent", "node-agent"}:
-        demand(not data.get("application"), "Infrastructure units use runtime settings only")
-    if service not in {"vault", "monitoring", "log-agent", "node-agent"}:
-        demand(slot is not None, "Applications require a versioned slot")
     state = home / ".local/state/cowork"
     snapshots = state / "settings" / target
     snapshots.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -93,15 +84,11 @@ def main():
     runtime = data.get("runtime", {})
     application = data.get("application", {})
     variables = data.get("variables")
-    if slot is not None:
-        for section, values in (("runtime", runtime), ("application", application)):
-            required = set(slot.get("secrets", {}).get(section, {}))
-            if section == "runtime":
-                required.update(slot.get("github_secrets", {}))
-            demand(required.issubset(values) if variables is not None and section == "application" else set(values) == required,
-                   "The snapshot must contain exactly the secret fields declared by this slot")
-        demand(not set(runtime).intersection(application), "Duplicate container environment input")
-    desired_environment = slots["environment"](slot, variables) if slot is not None else {}
+    for section, values in (("runtime", runtime), ("application", application)):
+        required = set(slot.get("secrets", {}).get(section, {}))
+        demand(required.issubset(values) if variables is not None and section == "application" else set(values) == required,
+               "The snapshot must contain exactly the secret fields declared by this slot")
+    desired_environment = slots["environment"](slot, variables)
     env.update(desired_environment)
     env.update(runtime)
     env.update(DEPLOY_SHA=sha, DEPLOY_IMAGE_OWNER=owner, DEPLOY_IMAGE_TAG=f"sha-{image_sha}",
@@ -111,7 +98,7 @@ def main():
         os.chmod(stream.name, 0o600)
         for key, value in application.items():
             stream.write(f"{key}={value}\0".encode())
-    if slot is not None and slot["kind"] != "infrastructure":
+    if slot["kind"] != "infrastructure":
         container_environment = {key: value for key, value in desired_environment.items()
                                  if key not in {"SLOT_KIND", "ADVERTISE_IP", "BIND_IP", "HOST_PORT", "CONTAINER_PORT",
                                                 "HEALTH_PATH", "HEALTH_TIMEOUT_SECONDS", "STOP_TIMEOUT_SECONDS", "CONFIG_ALLOWED_CIDRS"}}

@@ -25,6 +25,8 @@
       "targets": [
         {
           "expr": "up{job=~\"cowork-.*\"}",
+          "instant": true,
+          "range": false,
           "legendFormat": "{{service}}",
           "datasource": {
             "type": "prometheus",
