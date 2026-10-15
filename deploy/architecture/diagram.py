@@ -51,8 +51,6 @@ SERVICES = [
 ]
 WITH_STORAGE = {"user", "team", "chat"}
 REDIS_CLIENTS = {"user", "chat", "preference", "github"}
-# Webhook ingress bypasses Gateway through the VM-local Nginx.
-NOT_ROUTED = {"github"}
 
 
 def edge(color, label="", style="solid", **attrs):
@@ -132,8 +130,7 @@ def overview():
         vault >> Edge(style="invis") >> kafka
 
         for name, app in apps.items():
-            if name not in NOT_ROUTED:
-                gateway >> edge(HTTP) >> app
+            gateway >> edge(HTTP) >> app
             app >> edge(EVENT, style="dashed", penwidth="0.8") >> kafka
             if name in REDIS_CLIENTS:
                 app >> edge(DATA, style="dotted", penwidth="0.8") >> redis
@@ -141,8 +138,7 @@ def overview():
         apps["voice"] >> edge(HTTP, "Room API") >> livekit
         apps["project"] >> edge(HTTP, "internal API (Eureka)") >> apps["github"]
         apps["github"] >> edge(EXTERNAL, "GitHub App API") >> github
-        github >> edge(EXTERNAL, "서명 Webhook → Nginx :8080", "dashed") >> edge_proxy
-        edge_proxy >> edge(EXTERNAL, style="dashed") >> apps["github"]
+        github >> edge(EXTERNAL, "서명 Webhook", "dashed") >> edge_proxy
         apps["authorization"] >> edge(EXTERNAL, "OAuth2") >> datagsm
         apps["notification"] >> edge(EXTERNAL, "푸시") >> fcm
         apps["chat"] >> edge(EXTERNAL, "업무 알림") >> discord
