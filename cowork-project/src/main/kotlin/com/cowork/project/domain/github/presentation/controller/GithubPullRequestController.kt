@@ -144,7 +144,7 @@ class GithubPullRequestController(
 
     @Operation(
         summary = "PR 댓글 작성 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command`)로 CREATE_COMMENT 커맨드를 " +
+        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 CREATE_COMMENT 커맨드를 " +
             "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미하며, 생성된 댓글 정보는 " +
             "이 API로 확인할 수 없다.",
         security = [SecurityRequirement(name = "BearerAuth")],
@@ -167,7 +167,7 @@ class GithubPullRequestController(
 
     @Operation(
         summary = "PR 댓글 수정 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command`)로 UPDATE_COMMENT 커맨드를 " +
+        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 UPDATE_COMMENT 커맨드를 " +
             "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
@@ -191,7 +191,7 @@ class GithubPullRequestController(
 
     @Operation(
         summary = "PR 댓글 삭제 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command`)로 DELETE_COMMENT 커맨드를 " +
+        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 DELETE_COMMENT 커맨드를 " +
             "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
